@@ -2,6 +2,7 @@ import { supabase } from './client';
 import type { Database } from '@vaultstone/types';
 
 type CharacterInsert = Database['public']['Tables']['characters']['Insert'];
+type CharacterUpdate = Database['public']['Tables']['characters']['Update'];
 
 export async function getCharacters(campaignId: string) {
   return supabase
@@ -18,10 +19,7 @@ export async function createCharacter(character: CharacterInsert) {
     .single();
 }
 
-export async function updateCharacter(
-  id: string,
-  updates: Database['public']['Tables']['characters']['Update']
-) {
+export async function updateCharacter(id: string, updates: CharacterUpdate) {
   return supabase
     .from('characters')
     .update(updates)

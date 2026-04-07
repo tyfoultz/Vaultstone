@@ -4,7 +4,7 @@ export async function getCampaigns(userId: string) {
   return supabase
     .from('campaigns')
     .select('*')
-    .or(`dm_user_id.eq.${userId}`);
+    .eq('dm_user_id', userId);
 }
 
 export async function createCampaign(name: string, dmUserId: string, joinCode: string) {

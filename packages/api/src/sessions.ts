@@ -1,5 +1,7 @@
 import { supabase } from './client';
-import type { SessionEvent } from '@vaultstone/types';
+import type { Database } from '@vaultstone/types';
+
+type SessionEventInsert = Database['public']['Tables']['session_events']['Insert'];
 
 export async function startSession(campaignId: string) {
   return supabase
@@ -33,8 +35,6 @@ export async function getInitiativeOrder(sessionId: string) {
     .order('sort_order');
 }
 
-export async function appendSessionEvent(
-  event: Omit<SessionEvent, 'id' | 'created_at'>
-) {
+export async function appendSessionEvent(event: SessionEventInsert) {
   return supabase.from('session_events').insert(event);
 }
