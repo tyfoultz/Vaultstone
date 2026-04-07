@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { createCampaign, generateJoinCode } from '@vaultstone/api';
+import { createCampaign, generateJoinCode, supabase } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors } from '@vaultstone/ui';
 
@@ -22,6 +22,14 @@ export default function NewCampaignScreen() {
 
     setLoading(true);
     setError('');
+
+    // Verify the Supabase client has an active session before inserting.
+    const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !authUser) {
+      setLoading(false);
+      setError(`Auth check failed: ${authErr?.message ?? 'no active session'} — store user: ${user.id}`);
+      return;
+    }
 
     const joinCode = generateJoinCode();
     const { data, error: err } = await createCampaign(name.trim(), user.id, joinCode);
