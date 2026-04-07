@@ -29,7 +29,8 @@ export default function NewCampaignScreen() {
     setLoading(false);
 
     if (err || !data) {
-      setError('Failed to create campaign. Please try again.');
+      console.error('[createCampaign]', err);
+      setError(err?.message ?? 'Failed to create campaign. Please try again.');
       return;
     }
 
