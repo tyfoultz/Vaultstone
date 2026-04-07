@@ -1,0 +1,1 @@
+export { ContentResolver } from './resolver';
