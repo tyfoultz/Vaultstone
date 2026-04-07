@@ -225,8 +225,28 @@ export interface Database {
         Relationships: [];
       };
     };
+      campaign_members: {
+        Row: {
+          campaign_id: string;
+          user_id: string;
+          joined_at: string;
+        };
+        Insert: {
+          campaign_id: string;
+          user_id: string;
+          joined_at?: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
+    };
     Views: Record<never, never>;
-    Functions: Record<never, never>;
+    Functions: {
+      get_campaign_by_join_code: {
+        Args: { p_join_code: string };
+        Returns: Database['public']['Tables']['campaigns']['Row'][];
+      };
+    };
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;
   };

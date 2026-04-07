@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Clipboard, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@vaultstone/api';
-import { useCampaignStore } from '@vaultstone/store';
+import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
@@ -11,18 +11,20 @@ type Campaign = Database['public']['Tables']['campaigns']['Row'];
 export default function CampaignDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const user = useAuthStore((state) => state.user);
   const { campaigns, setActiveCampaign } = useCampaignStore();
   const [campaign, setCampaign] = useState<Campaign | null>(
     campaigns.find((c) => c.id === id) ?? null
   );
   const [copied, setCopied] = useState(false);
 
+  const isDM = campaign?.dm_user_id === user?.id;
+
   useEffect(() => {
     if (campaign) {
       setActiveCampaign(campaign);
       return;
     }
-    // Fallback fetch if navigated directly (e.g. deep link)
     supabase
       .from('campaigns')
       .select('*')
@@ -57,21 +59,28 @@ export default function CampaignDetailScreen() {
         <Text style={styles.backText}>← Campaigns</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>{campaign.name}</Text>
-
-      <View style={styles.section}>
-        <Text style={styles.label}>Join Code</Text>
-        <View style={styles.codeRow}>
-          <Text style={styles.code}>{campaign.join_code}</Text>
-          <TouchableOpacity onPress={copyJoinCode} style={styles.copyButton}>
-            <Text style={styles.copyText}>{copied ? 'Copied!' : 'Copy'}</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.hint}>Share this code with players so they can join.</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>{campaign.name}</Text>
+        <Text style={styles.role}>{isDM ? 'DM' : 'Player'}</Text>
       </View>
 
+      {isDM && (
+        <View style={styles.section}>
+          <Text style={styles.label}>Join Code</Text>
+          <View style={styles.codeRow}>
+            <Text style={styles.code}>{campaign.join_code}</Text>
+            <TouchableOpacity onPress={copyJoinCode} style={styles.copyButton}>
+              <Text style={styles.copyText}>{copied ? 'Copied!' : 'Copy'}</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.hint}>Share this code with players so they can join.</Text>
+        </View>
+      )}
+
       <View style={styles.section}>
-        <Text style={styles.placeholder}>Party view coming next.</Text>
+        <Text style={styles.placeholder}>
+          {isDM ? 'Party view coming next.' : 'Character creation coming next.'}
+        </Text>
       </View>
     </View>
   );
@@ -91,11 +100,26 @@ const styles = StyleSheet.create({
     color: colors.brand,
     fontSize: 16,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 32,
+  },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: colors.textPrimary,
-    marginBottom: 32,
+    flexShrink: 1,
+  },
+  role: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   section: {
     marginBottom: 32,

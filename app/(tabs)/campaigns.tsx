@@ -17,7 +17,7 @@ export default function CampaignsScreen() {
 
   useEffect(() => {
     if (!user) return;
-    getCampaigns(user.id).then(({ data, error: err }) => {
+    getCampaigns().then(({ data, error: err }) => {
       if (err) {
         setError('Failed to load campaigns.');
       } else {
@@ -28,13 +28,14 @@ export default function CampaignsScreen() {
   }, [user]);
 
   function renderItem({ item }: { item: Campaign }) {
+    const isDM = item.dm_user_id === user?.id;
     return (
       <TouchableOpacity
         style={styles.item}
         onPress={() => router.push(`/campaign/${item.id}`)}
       >
         <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemCode}>Join code: {item.join_code}</Text>
+        <Text style={styles.itemMeta}>{isDM ? `DM · Code: ${item.join_code}` : 'Player'}</Text>
       </TouchableOpacity>
     );
   }
@@ -43,16 +44,23 @@ export default function CampaignsScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Campaigns</Text>
-        <TouchableOpacity onPress={() => router.push('/campaign/new')}>
-          <Text style={styles.createButton}>+ New</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={() => router.push('/campaign/join')} style={styles.headerBtn}>
+            <Text style={styles.joinButton}>Join</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/campaign/new')} style={styles.headerBtn}>
+            <Text style={styles.createButton}>+ New</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading && <ActivityIndicator color={colors.brand} style={styles.loader} />}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {!loading && campaigns.length === 0 && !error && (
-        <Text style={styles.empty}>No campaigns yet. Create one to get started.</Text>
+        <Text style={styles.empty}>
+          No campaigns yet.{'\n'}Create one as a DM, or join with a code.
+        </Text>
       )}
 
       <FlatList
@@ -83,6 +91,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textPrimary,
   },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  headerBtn: {},
+  joinButton: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
   createButton: {
     fontSize: 16,
     color: colors.brand,
@@ -101,6 +119,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 40,
     fontSize: 15,
+    lineHeight: 22,
   },
   list: {
     gap: 12,
@@ -118,7 +137,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: 4,
   },
-  itemCode: {
+  itemMeta: {
     fontSize: 13,
     color: colors.textSecondary,
   },
