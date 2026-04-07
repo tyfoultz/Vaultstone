@@ -38,7 +38,7 @@ export default function JoinCampaignScreen() {
 
     if (alreadyIn) {
       setLoading(false);
-      router.replace(`/campaign/${campaign.id}`);
+      router.push(`/campaign/${campaign.id}`);
       return;
     }
 
@@ -51,13 +51,13 @@ export default function JoinCampaignScreen() {
     }
 
     setCampaigns([campaign, ...campaigns]);
-    router.replace(`/campaign/${campaign.id}`);
+    router.push(`/campaign/${campaign.id}`);
   }
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-        <Text style={styles.backText}>← Back</Text>
+      <TouchableOpacity onPress={() => router.push('/(tabs)/campaigns')} style={styles.back}>
+        <Text style={styles.backText}>← Campaigns</Text>
       </TouchableOpacity>
 
       <Text style={styles.title}>Join Campaign</Text>

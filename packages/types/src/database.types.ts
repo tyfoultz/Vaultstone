@@ -61,6 +61,9 @@ export interface Database {
           name: string;
           dm_user_id: string;
           join_code: string;
+          system_label: string | null;
+          description: string | null;
+          is_archived: boolean;
           created_at: string;
         };
         Insert: {
@@ -68,6 +71,9 @@ export interface Database {
           name: string;
           dm_user_id: string;
           join_code: string;
+          system_label?: string | null;
+          description?: string | null;
+          is_archived?: boolean;
           created_at?: string;
         };
         Update: {
@@ -75,6 +81,9 @@ export interface Database {
           name?: string;
           dm_user_id?: string;
           join_code?: string;
+          system_label?: string | null;
+          description?: string | null;
+          is_archived?: boolean;
         };
         Relationships: [];
       };
@@ -224,19 +233,25 @@ export interface Database {
         };
         Relationships: [];
       };
-    };
       campaign_members: {
         Row: {
           campaign_id: string;
           user_id: string;
+          role: 'gm' | 'player' | 'co_gm';
+          character_id: string | null;
           joined_at: string;
         };
         Insert: {
           campaign_id: string;
           user_id: string;
+          role?: 'gm' | 'player' | 'co_gm';
+          character_id?: string | null;
           joined_at?: string;
         };
-        Update: never;
+        Update: {
+          role?: 'gm' | 'player' | 'co_gm';
+          character_id?: string | null;
+        };
         Relationships: [];
       };
     };

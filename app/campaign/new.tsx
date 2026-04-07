@@ -10,6 +10,8 @@ export default function NewCampaignScreen() {
   const user = useAuthStore((state) => state.user);
   const { campaigns, setCampaigns } = useCampaignStore();
   const [name, setName] = useState('');
+  const [systemLabel, setSystemLabel] = useState('');
+  const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,7 +26,12 @@ export default function NewCampaignScreen() {
     setError('');
 
     const joinCode = generateJoinCode();
-    const { data, error: err } = await createCampaign(name.trim(), user.id, joinCode);
+    const { data, error: err } = await createCampaign(
+      name.trim(),
+      user.id,
+      joinCode,
+      { systemLabel, description },
+    );
 
     setLoading(false);
 
@@ -34,13 +41,13 @@ export default function NewCampaignScreen() {
     }
 
     setCampaigns([data, ...campaigns]);
-    router.replace(`/campaign/${data.id}`);
+    router.push(`/campaign/${data.id}`);
   }
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-        <Text style={styles.backText}>← Back</Text>
+      <TouchableOpacity onPress={() => router.push('/(tabs)/campaigns')} style={styles.back}>
+        <Text style={styles.backText}>← Campaigns</Text>
       </TouchableOpacity>
 
       <Text style={styles.title}>New Campaign</Text>
@@ -49,11 +56,31 @@ export default function NewCampaignScreen() {
 
       <TextInput
         style={styles.input}
-        placeholder="Campaign name"
+        placeholder="Campaign name *"
         placeholderTextColor={colors.textSecondary}
         value={name}
         onChangeText={setName}
         autoFocus
+        returnKeyType="next"
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="System (optional — e.g. D&D 5e, PF2e)"
+        placeholderTextColor={colors.textSecondary}
+        value={systemLabel}
+        onChangeText={setSystemLabel}
+        returnKeyType="next"
+      />
+
+      <TextInput
+        style={[styles.input, styles.multiline]}
+        placeholder="Description (optional)"
+        placeholderTextColor={colors.textSecondary}
+        value={description}
+        onChangeText={setDescription}
+        multiline
+        numberOfLines={3}
         returnKeyType="done"
         onSubmitEditing={handleCreate}
       />
@@ -102,6 +129,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
+    marginBottom: 12,
+  },
+  multiline: {
+    minHeight: 80,
+    textAlignVertical: 'top',
     marginBottom: 16,
   },
   button: {
