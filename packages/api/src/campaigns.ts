@@ -1,5 +1,9 @@
 import { supabase } from './client';
 
+export function generateJoinCode(): string {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
 export async function getCampaigns(userId: string) {
   return supabase
     .from('campaigns')
