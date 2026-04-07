@@ -11,10 +11,18 @@ export async function getCampaigns() {
 }
 
 export async function createCampaign(name: string, dmUserId: string, joinCode: string) {
+  // Insert without RETURNING to avoid auth.uid() misbehaving in security-definer
+  // SELECT policies during RETURNING evaluation. Fetch separately instead.
+  const { error } = await supabase
+    .from('campaigns')
+    .insert({ name, dm_user_id: dmUserId, join_code: joinCode });
+
+  if (error) return { data: null, error };
+
   return supabase
     .from('campaigns')
-    .insert({ name, dm_user_id: dmUserId, join_code: joinCode })
-    .select()
+    .select('*')
+    .eq('join_code', joinCode)
     .single();
 }
 

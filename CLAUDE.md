@@ -25,11 +25,11 @@ GitHub: https://github.com/tyfoultz/Vaultstone
 ```
 vaultstone/
 ├── app/                        # Expo Router screens
-│   ├── _layout.tsx             # Root stack (no auth guard yet)
-│   ├── (auth)/                 # login.tsx, signup.tsx — STUBS
-│   ├── (tabs)/                 # campaigns.tsx, characters.tsx, settings.tsx — STUBS
-│   ├── campaign/[id]/          # index.tsx (party view), session.tsx — STUBS
-│   └── character/              # [id].tsx (sheet), new.tsx (builder) — STUBS
+│   ├── _layout.tsx             # Root stack + session bootstrap via onAuthStateChange
+│   ├── (auth)/                 # login.tsx, signup.tsx — COMPLETE
+│   ├── (tabs)/                 # campaigns.tsx (COMPLETE), characters.tsx (stub), settings.tsx (COMPLETE)
+│   ├── campaign/               # new.tsx (COMPLETE), join.tsx (COMPLETE), [id]/index.tsx (COMPLETE), [id]/session.tsx (stub)
+│   └── character/              # [id].tsx (stub), new.tsx (stub)
 ├── packages/
 │   ├── api/src/                # Supabase client + typed query functions
 │   │   ├── client.ts           # createClient — reads env via expo-constants
@@ -41,8 +41,8 @@ vaultstone/
 │   ├── content/src/            # ContentResolver (SRD / local PDF / homebrew)
 │   │   └── resolver.ts         # Single query interface — STUB
 │   ├── store/src/              # Zustand stores
-│   │   ├── auth.store.ts       # session, user, setSession
-│   │   ├── campaign.store.ts   # STUB
+│   │   ├── auth.store.ts       # session, user, initialized, setSession, setInitialized
+│   │   ├── campaign.store.ts   # campaigns[], activeCampaign, setCampaigns, setActiveCampaign
 │   │   ├── character.store.ts  # STUB
 │   │   ├── session.store.ts    # STUB
 │   │   └── content.store.ts    # STUB
@@ -62,7 +62,7 @@ vaultstone/
 │       └── session/            # STUB
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/             # EMPTY — no migrations written yet
+│   ├── migrations/             # 000000_init, 000001_campaign_members, 000002_fix_rls_recursion, 000003_idempotent_full_fix
 │   ├── functions/              # Edge Functions (Deno)
 │   │   ├── generate-join-code/
 │   │   ├── send-invite-email/
@@ -126,6 +126,15 @@ npm run android    # Android emulator
 - [x] App boots and routes to login stub on web (`http://localhost:8082`)
 - [x] `app/index.tsx` redirect to `/(auth)/login`
 - [x] Root `_layout.tsx` route names fixed for Expo Router 5.1
+- [x] **Auth flow** — login/signup screens, session persistence via `onAuthStateChange`, route guards in `(auth)` and `(tabs)` layouts, sign-out on settings screen, `initialized` flag prevents flash of wrong screen
+- [x] **Campaign creation + join code** — DM creates campaign (name + 6-char join code), list loads all user campaigns via RLS, detail shows join code with copy-to-clipboard, DM/Player role badge
+- [x] **Campaign join (player flow)** — `campaign_members` table for explicit membership, `get_campaign_by_join_code` security-definer RPC for pre-join lookup, join screen validates and records membership, campaigns list shows DM + player campaigns
+
+### RLS gotchas (hard-won)
+- `campaigns` ↔ `characters` policies were mutually recursive — fixed with security-definer helpers `is_campaign_dm` and `is_campaign_member` (migrations 001–003)
+- `INSERT ... RETURNING` evaluates the SELECT policy on the returned row; if the policy calls a security-definer function that uses `auth.uid()`, it can fail in that context — fix: split INSERT and SELECT into separate queries in `createCampaign`
+- FK violations on RLS-protected tables surface as RLS errors (not FK errors) — `campaigns.dm_user_id → profiles.id` failure showed as "new row violates row-level security policy"
+- Campaigns SELECT policy must NOT use `is_campaign_member` (self-referential via security definer causes `auth.uid()` to behave unexpectedly during RETURNING) — use inline `auth.uid() = dm_user_id` check directly in the policy instead
 
 ### Key dependency notes
 - `metro ~0.82.5` must stay pinned — Expo 53 doesn't declare it but needs it hoisted
@@ -137,10 +146,6 @@ npm run android    # Android emulator
 - Always use `npx expo install <pkg>` for new packages, not plain `npm install`, to get compatible versions
 
 ### Not started
-- [ ] Auth listener in root `_layout.tsx` (session guard + redirect)
-- [ ] Login / Signup screens (real UI)
-- [ ] Campaign creation + join code screen
-- [ ] Campaign join (player flow)
 - [ ] Character builder (5e, driven by GameSystemDefinition)
 - [ ] Party view (DM sees all characters)
 - [ ] Session mode (initiative, HP, conditions, real-time sync)
