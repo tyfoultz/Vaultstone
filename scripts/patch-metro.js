@@ -1,38 +1,33 @@
 #!/usr/bin/env node
-// Patches metro's package.json to expose internal paths that @expo/cli needs
-// but that Node 22's strict module exports enforcement blocks.
-// See: https://github.com/expo/expo/issues/xxxxx
+// Removes the `exports` field from metro packages so Node falls back to
+// allowing all internal path imports. Required for Expo 53 + Node 20.
 
 const fs = require('fs');
 const path = require('path');
 
-const metroPkgPath = path.resolve(__dirname, '../node_modules/metro/package.json');
+function removeExports(packageName) {
+  const pkgPath = path.resolve(__dirname, `../node_modules/${packageName}/package.json`);
 
-if (!fs.existsSync(metroPkgPath)) {
-  console.log('patch-metro: metro not found, skipping.');
-  process.exit(0);
-}
-
-const pkg = JSON.parse(fs.readFileSync(metroPkgPath, 'utf8'));
-
-const pathsToExpose = [
-  './src/lib/TerminalReporter',
-  './src/lib/terminal',
-  './src/Server',
-  './src/DeltaBundler',
-];
-
-let patched = false;
-for (const p of pathsToExpose) {
-  if (!pkg.exports[p]) {
-    pkg.exports[p] = p + '.js';
-    patched = true;
+  if (!fs.existsSync(pkgPath)) {
+    console.log(`patch-metro: ${packageName} not found, skipping.`);
+    return;
   }
+
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+
+  if (!pkg.exports) {
+    console.log(`patch-metro: ${packageName} has no exports field, skipping.`);
+    return;
+  }
+
+  delete pkg.exports;
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+  console.log(`patch-metro: removed exports from ${packageName}`);
 }
 
-if (patched) {
-  fs.writeFileSync(metroPkgPath, JSON.stringify(pkg, null, 2));
-  console.log('patch-metro: patched metro/package.json exports for Node 22 compatibility.');
-} else {
-  console.log('patch-metro: already patched, nothing to do.');
-}
+removeExports('metro');
+removeExports('metro-cache');
+removeExports('metro-config');
+removeExports('metro-runtime');
+removeExports('metro-source-map');
+removeExports('metro-transform-plugins');

@@ -4,19 +4,32 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@vaultstone/api": ["packages/api/src/index.ts"],
-      "@vaultstone/content": ["packages/content/src/index.ts"],
-      "@vaultstone/systems": ["packages/systems/src/index.ts"],
-      "@vaultstone/store": ["packages/store/src/index.ts"],
-      "@vaultstone/ui": ["packages/ui/src/index.ts"],
-      "@vaultstone/types": ["packages/types/src/index.ts"]
+      "@vaultstone/api": [
+        "packages/api/src/index.ts"
+      ],
+      "@vaultstone/content": [
+        "packages/content/src/index.ts"
+      ],
+      "@vaultstone/systems": [
+        "packages/systems/src/index.ts"
+      ],
+      "@vaultstone/store": [
+        "packages/store/src/index.ts"
+      ],
+      "@vaultstone/ui": [
+        "packages/ui/src/index.ts"
+      ],
+      "@vaultstone/types": [
+        "packages/types/src/index.ts"
+      ]
     }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.d.ts",
-    "expo-env.d.ts"
+    "expo-env.d.ts",
+    ".expo/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
