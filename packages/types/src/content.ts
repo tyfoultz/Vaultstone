@@ -49,6 +49,44 @@ export interface ContentQuery {
   search?: string;
   type?: ContentType;
   system?: string;
+  srdVersion?: 'SRD_5.1' | 'SRD_2.0';
   tiers?: ContentTier[];
   filters?: Record<string, unknown>;
+}
+
+export interface SpeciesResult extends ContentResult {
+  type: 'species';
+  size: 'Small' | 'Medium' | 'Large';
+  speed: number;
+  traits: Array<{ name: string; description: string }>;
+  /** Fixed ASI granted by the species (SRD 5.1 style). Empty for SRD 2.0 species. */
+  abilityScoreIncreases: Array<{ ability: string; amount: number }>;
+  srdVersions: string[];
+}
+
+export interface ClassResult extends ContentResult {
+  type: 'class';
+  hitDie: number;
+  primaryAbility: string[];
+  savingThrows: string[];
+  armorProficiencies: string[];
+  weaponProficiencies: string[];
+  skillChoices: { count: number; from: string[] };
+  spellcasting: boolean;
+  spellcastingAbility: string | null;
+  subclassUnlockLevel: number;
+  level1Features: Array<{ name: string; description: string }>;
+  srdVersions: string[];
+}
+
+export interface BackgroundResult extends ContentResult {
+  type: 'background';
+  skillProficiencies: string[];
+  toolProficiency: string | null;
+  /** Number of bonus languages granted (0 or more). */
+  languages: number;
+  /** Ability keys eligible for the +2/+1 or +1/+1/+1 distribution. */
+  abilityScoreOptions: string[];
+  originFeat: string;
+  srdVersions: string[];
 }

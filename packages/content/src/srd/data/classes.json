@@ -1,0 +1,422 @@
+[
+  {
+    "key": "barbarian",
+    "name": "Barbarian",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A fierce warrior who channels primal rage into unstoppable power, shrugging off blows that would fell lesser warriors.",
+    "hitDie": 12,
+    "primaryAbility": ["Strength"],
+    "savingThrows": ["Strength", "Constitution"],
+    "armorProficiencies": ["Light armor", "Medium armor", "Shields"],
+    "weaponProficiencies": ["Simple weapons", "Martial weapons"],
+    "skillChoices": {
+      "count": 2,
+      "from": ["Animal Handling", "Athletics", "Intimidation", "Nature", "Perception", "Survival"]
+    },
+    "spellcasting": false,
+    "spellcastingAbility": null,
+    "subclassUnlockLevel": 3,
+    "level1Features": [
+      {
+        "name": "Rage",
+        "description": "As a Bonus Action, enter a rage for up to 1 minute. While raging you gain Advantage on STR checks and saves, a bonus to melee damage (+2 at L1, scaling up), and resistance to Bludgeoning, Piercing, and Slashing damage. Rage ends early if you don't attack or take damage on your turn. Uses: 2/Long Rest (increases with level)."
+      },
+      {
+        "name": "Unarmored Defense",
+        "description": "While not wearing armor, your Armor Class equals 10 + your Dexterity modifier + your Constitution modifier. You can use a shield and still gain this benefit."
+      },
+      {
+        "name": "Weapon Mastery",
+        "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "bard",
+    "name": "Bard",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A performer and jack-of-all-trades who weaves magic through music, inspiring allies and mystifying foes.",
+    "hitDie": 8,
+    "primaryAbility": ["Charisma"],
+    "savingThrows": ["Dexterity", "Charisma"],
+    "armorProficiencies": ["Light armor"],
+    "weaponProficiencies": ["Simple weapons", "Hand crossbows", "Longswords", "Rapiers", "Shortswords"],
+    "skillChoices": {
+      "count": 3,
+      "from": ["Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception", "History", "Insight", "Intimidation", "Investigation", "Medicine", "Nature", "Perception", "Performance", "Persuasion", "Religion", "Sleight of Hand", "Stealth", "Survival"]
+    },
+    "spellcasting": true,
+    "spellcastingAbility": "Charisma",
+    "subclassUnlockLevel": 3,
+    "level1Features": [
+      {
+        "name": "Spellcasting",
+        "description": "You can cast bard spells using Charisma as your spellcasting ability. At level 1 you know 2 cantrips and 4 spells, and have 2 spell slots."
+      },
+      {
+        "name": "Bardic Inspiration",
+        "description": "As a Bonus Action, give a creature within 60 feet a Bardic Inspiration die (d6, increases with level). Within 10 minutes they can add the result to one ability check, attack roll, or saving throw. Uses = Charisma modifier (minimum 1); recovered on Long Rest."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "cleric",
+    "name": "Cleric",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A priestly champion of a god, wielding divine magic to heal the wounded and smite the unholy.",
+    "hitDie": 8,
+    "primaryAbility": ["Wisdom"],
+    "savingThrows": ["Wisdom", "Charisma"],
+    "armorProficiencies": ["Light armor", "Medium armor", "Shields"],
+    "weaponProficiencies": ["Simple weapons"],
+    "skillChoices": {
+      "count": 2,
+      "from": ["History", "Insight", "Medicine", "Persuasion", "Religion"]
+    },
+    "spellcasting": true,
+    "spellcastingAbility": "Wisdom",
+    "subclassUnlockLevel": 1,
+    "level1Features": [
+      {
+        "name": "Spellcasting",
+        "description": "You can cast cleric spells using Wisdom as your spellcasting ability. You prepare a list of spells equal to your Wisdom modifier + your Cleric level (minimum 1). At level 1 you know 3 cantrips and have 2 spell slots."
+      },
+      {
+        "name": "Divine Order",
+        "description": "Choose a divine order: Protector (proficiency with Martial weapons and Heavy armor) or Thaumaturge (proficiency in Arcana, and know one additional cleric cantrip)."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "druid",
+    "name": "Druid",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A priest of nature who draws power from the wild world, shapeshifting into beasts and commanding the forces of nature.",
+    "hitDie": 8,
+    "primaryAbility": ["Wisdom"],
+    "savingThrows": ["Intelligence", "Wisdom"],
+    "armorProficiencies": ["Light armor", "Medium armor", "Shields (not metal)"],
+    "weaponProficiencies": ["Simple weapons"],
+    "skillChoices": {
+      "count": 2,
+      "from": ["Animal Handling", "Arcana", "Insight", "Medicine", "Nature", "Perception", "Religion", "Survival"]
+    },
+    "spellcasting": true,
+    "spellcastingAbility": "Wisdom",
+    "subclassUnlockLevel": 3,
+    "level1Features": [
+      {
+        "name": "Druidic",
+        "description": "You know Druidic, the secret language of druids. You can speak it and use it to leave messages, understood only by other druids."
+      },
+      {
+        "name": "Primal Order",
+        "description": "Choose an order: Magician (proficiency in Arcana and one additional druid cantrip) or Warden (proficiency in Martial weapons and the ability to wear Medium armor made of metal, plus proficiency in Athletics or Animal Handling)."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "You can cast druid spells using Wisdom as your spellcasting ability. You prepare spells equal to your Wisdom modifier + your Druid level (minimum 1). At level 1 you know 2 cantrips and have 2 spell slots."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "fighter",
+    "name": "Fighter",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A master of martial combat, skilled with a variety of weapons and tactics.",
+    "hitDie": 10,
+    "primaryAbility": ["Strength", "Dexterity"],
+    "savingThrows": ["Strength", "Constitution"],
+    "armorProficiencies": ["Light armor", "Medium armor", "Heavy armor", "Shields"],
+    "weaponProficiencies": ["Simple weapons", "Martial weapons"],
+    "skillChoices": {
+      "count": 2,
+      "from": ["Acrobatics", "Animal Handling", "Athletics", "History", "Insight", "Intimidation", "Perception", "Survival"]
+    },
+    "spellcasting": false,
+    "spellcastingAbility": null,
+    "subclassUnlockLevel": 3,
+    "level1Features": [
+      {
+        "name": "Fighting Style",
+        "description": "Choose a fighting style: Archery (+2 to ranged attack rolls), Defense (+1 AC while armored), Dueling (+2 melee damage with one-handed weapon), Great Weapon Fighting (reroll 1s and 2s on damage dice with two-handed weapons), Protection (impose Disadvantage on attack rolls against allies when you have a shield), or Two-Weapon Fighting (add ability modifier to off-hand attack damage)."
+      },
+      {
+        "name": "Second Wind",
+        "description": "As a Bonus Action, regain Hit Points equal to 1d10 + your Fighter level. Uses: 2 per Short or Long Rest."
+      },
+      {
+        "name": "Weapon Mastery",
+        "description": "You can use the Mastery property of 3 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "monk",
+    "name": "Monk",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A master of martial arts, harnessing the power of the body in pursuit of physical and spiritual perfection.",
+    "hitDie": 8,
+    "primaryAbility": ["Dexterity", "Wisdom"],
+    "savingThrows": ["Strength", "Dexterity"],
+    "armorProficiencies": [],
+    "weaponProficiencies": ["Simple weapons", "Shortswords"],
+    "skillChoices": {
+      "count": 2,
+      "from": ["Acrobatics", "Athletics", "History", "Insight", "Religion", "Stealth"]
+    },
+    "spellcasting": false,
+    "spellcastingAbility": null,
+    "subclassUnlockLevel": 3,
+    "level1Features": [
+      {
+        "name": "Martial Arts",
+        "description": "When using unarmed strikes or monk weapons: use DEX instead of STR for attack and damage rolls, roll a Martial Arts die (d6 at L1) for damage, and make one unarmed strike as a Bonus Action."
+      },
+      {
+        "name": "Unarmored Defense",
+        "description": "While not wearing armor, your Armor Class equals 10 + your Dexterity modifier + your Wisdom modifier."
+      },
+      {
+        "name": "Weapon Mastery",
+        "description": "You can use the Mastery property of 1 Simple weapon. You can change your chosen weapon whenever you finish a Long Rest."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "paladin",
+    "name": "Paladin",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A holy warrior bound by a sacred oath, combining martial prowess with divine magic.",
+    "hitDie": 10,
+    "primaryAbility": ["Strength", "Charisma"],
+    "savingThrows": ["Wisdom", "Charisma"],
+    "armorProficiencies": ["Light armor", "Medium armor", "Heavy armor", "Shields"],
+    "weaponProficiencies": ["Simple weapons", "Martial weapons"],
+    "skillChoices": {
+      "count": 2,
+      "from": ["Athletics", "Insight", "Intimidation", "Medicine", "Persuasion", "Religion"]
+    },
+    "spellcasting": true,
+    "spellcastingAbility": "Charisma",
+    "subclassUnlockLevel": 3,
+    "level1Features": [
+      {
+        "name": "Lay on Hands",
+        "description": "You have a pool of healing power — 5 × your Paladin level in Hit Points. As a Magic action, touch a creature to restore any number of HP from the pool. Alternatively, expend 5 HP from the pool to cure one disease or neutralize one poison."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "You can cast paladin spells using Charisma as your spellcasting ability. You prepare spells equal to your Charisma modifier + half your Paladin level (rounded down, minimum 1). At level 1 you have 2 spell slots."
+      },
+      {
+        "name": "Weapon Mastery",
+        "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "ranger",
+    "name": "Ranger",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A warrior of the wilderness, adept at tracking, hunting, and surviving in the harshest environments.",
+    "hitDie": 10,
+    "primaryAbility": ["Dexterity", "Wisdom"],
+    "savingThrows": ["Strength", "Dexterity"],
+    "armorProficiencies": ["Light armor", "Medium armor", "Shields"],
+    "weaponProficiencies": ["Simple weapons", "Martial weapons"],
+    "skillChoices": {
+      "count": 3,
+      "from": ["Animal Handling", "Athletics", "Insight", "Investigation", "Nature", "Perception", "Stealth", "Survival"]
+    },
+    "spellcasting": true,
+    "spellcastingAbility": "Wisdom",
+    "subclassUnlockLevel": 3,
+    "level1Features": [
+      {
+        "name": "Favored Enemy",
+        "description": "You always have the Hunter's Mark spell prepared. You can cast it twice per Long Rest without expending a spell slot. Wisdom is your spellcasting ability for all Ranger spells."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "You can cast ranger spells using Wisdom as your spellcasting ability. At level 1 you know 2 spells and have 2 spell slots. You don't learn cantrips from this class at level 1."
+      },
+      {
+        "name": "Weapon Mastery",
+        "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "rogue",
+    "name": "Rogue",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A scoundrel who uses stealth and trickery to overcome obstacles and enemies.",
+    "hitDie": 8,
+    "primaryAbility": ["Dexterity"],
+    "savingThrows": ["Dexterity", "Intelligence"],
+    "armorProficiencies": ["Light armor"],
+    "weaponProficiencies": ["Simple weapons", "Hand crossbows", "Longswords", "Rapiers", "Shortswords"],
+    "skillChoices": {
+      "count": 4,
+      "from": ["Acrobatics", "Athletics", "Deception", "Insight", "Intimidation", "Investigation", "Perception", "Persuasion", "Sleight of Hand", "Stealth"]
+    },
+    "spellcasting": false,
+    "spellcastingAbility": null,
+    "subclassUnlockLevel": 3,
+    "level1Features": [
+      {
+        "name": "Expertise",
+        "description": "Choose 2 of your skill proficiencies. Your Proficiency Bonus is doubled for any ability check that uses either of the chosen skills."
+      },
+      {
+        "name": "Sneak Attack",
+        "description": "Once per turn, deal 1d6 extra damage to one creature you hit with a Finesse or Ranged weapon attack, if you have Advantage on the roll or an ally is adjacent to the target and you don't have Disadvantage. Increases by 1d6 every odd level."
+      },
+      {
+        "name": "Thieves' Cant",
+        "description": "You know the secret language of thieves. You can understand messages hidden in mundane conversation and leave hidden messages for other rogues."
+      },
+      {
+        "name": "Weapon Mastery",
+        "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons with the Finesse or Ranged property. You can change your chosen weapons whenever you finish a Long Rest."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "sorcerer",
+    "name": "Sorcerer",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A spellcaster who draws on inherent magic from a wild power within, bending reality with raw arcane force.",
+    "hitDie": 6,
+    "primaryAbility": ["Charisma"],
+    "savingThrows": ["Constitution", "Charisma"],
+    "armorProficiencies": [],
+    "weaponProficiencies": ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"],
+    "skillChoices": {
+      "count": 2,
+      "from": ["Arcana", "Deception", "Insight", "Intimidation", "Persuasion", "Religion"]
+    },
+    "spellcasting": true,
+    "spellcastingAbility": "Charisma",
+    "subclassUnlockLevel": 1,
+    "level1Features": [
+      {
+        "name": "Spellcasting",
+        "description": "You can cast sorcerer spells using Charisma as your spellcasting ability. At level 1 you know 4 cantrips and 2 spells, and have 2 spell slots."
+      },
+      {
+        "name": "Innate Sorcery",
+        "description": "As a Bonus Action, unleash the sorcerous power within for 1 minute. While active, you have Advantage on spell attack rolls and the saving throw DC of your spells increases by 1. Uses: 2 per Long Rest."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "warlock",
+    "name": "Warlock",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A wielder of magic that is derived from a bargain with an extraplanar entity, harnessing eldritch power through a pact.",
+    "hitDie": 8,
+    "primaryAbility": ["Charisma"],
+    "savingThrows": ["Wisdom", "Charisma"],
+    "armorProficiencies": ["Light armor"],
+    "weaponProficiencies": ["Simple weapons"],
+    "skillChoices": {
+      "count": 2,
+      "from": ["Arcana", "Deception", "History", "Intimidation", "Investigation", "Nature", "Religion"]
+    },
+    "spellcasting": true,
+    "spellcastingAbility": "Charisma",
+    "subclassUnlockLevel": 1,
+    "level1Features": [
+      {
+        "name": "Eldritch Invocations",
+        "description": "You learn 1 Eldritch Invocation at level 1 (gain more at higher levels). Invocations grant you persistent magical abilities."
+      },
+      {
+        "name": "Magical Cunning",
+        "description": "Once per Long Rest, if all your Pact Magic spell slots are expended, you can use this feature to recover half your slots (rounded up)."
+      },
+      {
+        "name": "Pact Magic",
+        "description": "You cast warlock spells using Charisma. Your Pact Magic slots recharge on a Short or Long Rest. At level 1 you know 2 cantrips and 2 spells, and have 1 spell slot of 1st level."
+      }
+    ],
+    "data": {}
+  },
+  {
+    "key": "wizard",
+    "name": "Wizard",
+    "type": "class",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_2.0", "SRD_5.1"],
+    "description": "A scholarly magic-user capable of manipulating the structures of spells, unlocking the most powerful magic in existence.",
+    "hitDie": 6,
+    "primaryAbility": ["Intelligence"],
+    "savingThrows": ["Intelligence", "Wisdom"],
+    "armorProficiencies": [],
+    "weaponProficiencies": ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"],
+    "skillChoices": {
+      "count": 2,
+      "from": ["Arcana", "History", "Insight", "Investigation", "Medicine", "Religion"]
+    },
+    "spellcasting": true,
+    "spellcastingAbility": "Intelligence",
+    "subclassUnlockLevel": 3,
+    "level1Features": [
+      {
+        "name": "Spellcasting",
+        "description": "You can cast wizard spells using Intelligence as your spellcasting ability. At level 1 you know 3 cantrips and have a spellbook containing 6 first-level spells; you can prepare a number equal to your INT modifier + your Wizard level (minimum 1). You have 2 spell slots."
+      },
+      {
+        "name": "Arcane Recovery",
+        "description": "Once per Long Rest, after a Short Rest, you can recover spell slots with a combined level equal to half your Wizard level (rounded up). Slots recovered this way can't be higher than 5th level."
+      }
+    ],
+    "data": {}
+  }
+]
