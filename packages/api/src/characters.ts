@@ -11,6 +11,14 @@ export async function getCharacters(campaignId: string) {
     .eq('campaign_id', campaignId);
 }
 
+/** Fetch all characters owned by the currently authenticated user. */
+export async function getMyCharacters() {
+  return supabase
+    .from('characters')
+    .select('*')
+    .order('created_at', { ascending: false });
+}
+
 export async function createCharacter(character: CharacterInsert) {
   return supabase
     .from('characters')
