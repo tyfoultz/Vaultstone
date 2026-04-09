@@ -90,7 +90,7 @@ export interface Database {
       characters: {
         Row: {
           id: string;
-          campaign_id: string;
+          campaign_id: string | null;
           user_id: string;
           name: string;
           system: string;
@@ -102,7 +102,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          campaign_id: string;
+          campaign_id?: string | null;
           user_id: string;
           name: string;
           system: string;

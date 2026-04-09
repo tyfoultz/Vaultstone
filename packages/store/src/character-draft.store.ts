@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Dnd5eAbilityScores } from '@vaultstone/types';
 
-export type AbilityScoreMethod = 'standard_array' | 'point_buy' | 'roll';
+export type AbilityScoreMethod = 'roll_dice' | 'standard_array' | 'point_buy' | 'roll';
 
 export interface CharacterDraft {
   /** Which wizard step the user last reached (0-indexed). */
