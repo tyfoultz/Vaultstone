@@ -76,6 +76,8 @@ export interface Dnd5eResources {
     successes: number;
     failures: number;
   };
+  /** Exhaustion level 0–6. 0 = no exhaustion. */
+  exhaustionLevel: number;
   /** Spell slots by level. Only populated for spellcasting classes. */
   spellSlots: {
     1: Dnd5eSpellSlotLevel;

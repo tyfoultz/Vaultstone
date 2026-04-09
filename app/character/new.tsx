@@ -116,6 +116,7 @@ export default function NewCharacterScreen() {
         hitDiceRemaining: 1,
         inspiration: false,
         deathSaves: { successes: 0, failures: 0 },
+        exhaustionLevel: 0,
         spellSlots: null,
       };
 

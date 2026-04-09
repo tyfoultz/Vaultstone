@@ -27,6 +27,14 @@ export async function createCharacter(character: CharacterInsert) {
     .single();
 }
 
+export async function getCharacterById(id: string) {
+  return supabase
+    .from('characters')
+    .select('*')
+    .eq('id', id)
+    .single();
+}
+
 export async function updateCharacter(id: string, updates: CharacterUpdate) {
   return supabase
     .from('characters')
