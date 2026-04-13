@@ -75,6 +75,16 @@ Fonts: Cinzel (display), Crimson Pro (body) — Dark mode only for MVP
 
 ---
 
+## GitHub Workflow
+
+- **Push only after user confirms** a feature is tested and working — never push speculatively.
+- **Branch before pushing** any new feature or change that could conflict with parallel work. Name branches `feature/<short-description>` or `epic/<epic-name>`. Push the branch and open a PR; do not push directly to `master`.
+- **Pull before starting work** — always run `git pull origin master` (or rebase the current branch onto master) before making new changes, to minimize drift.
+- **Merging to master** — only after the user has confirmed the feature works. Prefer squash or rebase merge to keep history clean.
+- When the user says a feature is done and ready to ship, commit → push the feature branch → prompt them to merge the PR rather than merging automatically.
+
+---
+
 ## Legal Constraints
 
 - Bundle SRD 5.1 + SRD 2.0 only (CC-BY 4.0 — attribution required in app)
