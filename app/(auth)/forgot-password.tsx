@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
+import { Platform } from 'react-native';
 import { resetPasswordForEmail } from '@vaultstone/api';
 import { colors } from '@vaultstone/ui';
 
-const RESET_REDIRECT = 'https://vaultstone.vercel.app/reset-password';
+const RESET_REDIRECT = Platform.OS === 'web'
+  ? `${window.location.origin}/reset-password`
+  : 'vaultstone://reset-password';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
