@@ -1,34 +1,56 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
-import { signIn } from '@vaultstone/api';
+import { Platform } from 'react-native';
+import { resetPasswordForEmail } from '@vaultstone/api';
 import { colors } from '@vaultstone/ui';
 
-export default function LoginScreen() {
+const RESET_REDIRECT = Platform.OS === 'web'
+  ? `${window.location.origin}/reset-password`
+  : 'vaultstone://reset-password';
+
+export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
 
-  async function handleSignIn() {
-    if (!email || !password) {
-      setError('Please enter your email and password.');
+  async function handleReset() {
+    if (!email) {
+      setError('Please enter your email address.');
       return;
     }
     setLoading(true);
     setError('');
-    const { error: authError } = await signIn(email.trim(), password);
+    const { error: resetError } = await resetPasswordForEmail(email.trim(), RESET_REDIRECT);
     setLoading(false);
-    if (authError) {
-      setError('Invalid email or password.');
+    if (resetError) {
+      setError('Could not send reset email. Check the address and try again.');
+    } else {
+      setSent(true);
     }
-    // On success onAuthStateChange fires, updates the store, and (auth) layout redirects.
+  }
+
+  if (sent) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Check your email</Text>
+        <Text style={styles.subtitle}>
+          A password reset link was sent to{'\n'}{email}
+        </Text>
+        <Link href="/(auth)/login" style={styles.link}>
+          Back to sign in
+        </Link>
+      </View>
+    );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Vaultstone</Text>
-      <Text style={styles.subtitle}>Sign in to continue</Text>
+      <Text style={styles.title}>Reset password</Text>
+      <Text style={styles.subtitle}>
+        Enter your email and we'll send a reset link.
+      </Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -42,28 +64,16 @@ export default function LoginScreen() {
         keyboardType="email-address"
         autoComplete="email"
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor={colors.textSecondary}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete="current-password"
-      />
 
-      <TouchableOpacity style={styles.button} onPress={handleSignIn} disabled={loading}>
+      <TouchableOpacity style={styles.button} onPress={handleReset} disabled={loading}>
         {loading
           ? <ActivityIndicator color={colors.textPrimary} />
-          : <Text style={styles.buttonText}>Sign In</Text>
+          : <Text style={styles.buttonText}>Send reset link</Text>
         }
       </TouchableOpacity>
 
-      <Link href="/(auth)/forgot-password" style={styles.link}>
-        Forgot password?
-      </Link>
-      <Link href="/(auth)/signup" style={[styles.link, { marginTop: 12 }]}>
-        Don't have an account? Sign up
+      <Link href="/(auth)/login" style={styles.link}>
+        Back to sign in
       </Link>
     </View>
   );
