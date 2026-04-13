@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { supabase } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import { colors } from '@vaultstone/ui';
@@ -14,8 +14,11 @@ export default function RootLayout() {
       setInitialized();
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      if (event === 'PASSWORD_RECOVERY') {
+        router.replace('/reset-password');
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -36,6 +39,7 @@ export default function RootLayout() {
       <Stack.Screen name="campaign/[id]/session" />
       <Stack.Screen name="character/[id]" />
       <Stack.Screen name="character/new" />
+      <Stack.Screen name="reset-password" />
     </Stack>
   );
 }

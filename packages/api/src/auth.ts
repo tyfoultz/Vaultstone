@@ -15,3 +15,11 @@ export async function signOut() {
 export async function getSession() {
   return supabase.auth.getSession();
 }
+
+export async function resetPasswordForEmail(email: string, redirectTo: string) {
+  return supabase.auth.resetPasswordForEmail(email, { redirectTo });
+}
+
+export async function updatePassword(newPassword: string) {
+  return supabase.auth.updateUser({ password: newPassword });
+}
