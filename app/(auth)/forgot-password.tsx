@@ -25,7 +25,7 @@ export default function ForgotPasswordScreen() {
     const { error: resetError } = await resetPasswordForEmail(email.trim(), RESET_REDIRECT);
     setLoading(false);
     if (resetError) {
-      setError('Could not send reset email. Check the address and try again.');
+      setError(resetError.message);
     } else {
       setSent(true);
     }
