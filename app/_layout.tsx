@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { supabase } from '@vaultstone/api';
@@ -7,6 +7,7 @@ import { colors } from '@vaultstone/ui';
 
 export default function RootLayout() {
   const { setSession, setInitialized, initialized } = useAuthStore();
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -17,12 +18,18 @@ export default function RootLayout() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (event === 'PASSWORD_RECOVERY') {
-        router.replace('/reset-password');
+        setRecoveryMode(true);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (initialized && recoveryMode) {
+      router.replace('/reset-password');
+    }
+  }, [initialized, recoveryMode]);
 
   if (!initialized) {
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
