@@ -70,9 +70,21 @@ export async function regenerateJoinCode(campaignId: string) {
 export async function getCampaignMembers(campaignId: string) {
   return supabase
     .from('campaign_members')
-    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name)')
+    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, base_stats)')
     .eq('campaign_id', campaignId)
     .order('joined_at', { ascending: true });
+}
+
+export async function updateCampaignMember(
+  campaignId: string,
+  userId: string,
+  updates: { character_id?: string | null; role?: 'gm' | 'player' | 'co_gm' },
+) {
+  return supabase
+    .from('campaign_members')
+    .update(updates)
+    .eq('campaign_id', campaignId)
+    .eq('user_id', userId);
 }
 
 export async function removeCampaignMember(campaignId: string, userId: string) {
@@ -84,9 +96,20 @@ export async function removeCampaignMember(campaignId: string, userId: string) {
 }
 
 export async function joinCampaign(campaignId: string, userId: string) {
-  return supabase
+  // Split insert and fetch — INSERT...RETURNING evaluates the SELECT policy
+  // which can fail in RLS contexts (see CLAUDE.md RLS Gotchas).
+  const { error } = await supabase
     .from('campaign_members')
-    .insert({ campaign_id: campaignId, user_id: userId, role: 'player' })
-    .select()
+    .insert({ campaign_id: campaignId, user_id: userId, role: 'player' });
+
+  if (error) return { data: null, error };
+
+  const { data, error: fetchError } = await supabase
+    .from('campaign_members')
+    .select('*')
+    .eq('campaign_id', campaignId)
+    .eq('user_id', userId)
     .single();
+
+  return { data, error: fetchError };
 }
