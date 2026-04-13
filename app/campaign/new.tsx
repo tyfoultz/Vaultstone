@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { createCampaign, generateJoinCode } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
-import { colors } from '@vaultstone/ui';
+import { colors, spacing, fonts } from '@vaultstone/ui';
 
 export default function NewCampaignScreen() {
   const router = useRouter();
@@ -45,106 +46,136 @@ export default function NewCampaignScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.push('/(tabs)/campaigns')} style={styles.back}>
-        <Text style={styles.backText}>← Campaigns</Text>
+    <ScrollView style={s.scroll} contentContainerStyle={s.container}>
+      <TouchableOpacity onPress={() => router.push('/(drawer)/campaigns')} style={s.back}>
+        <Text style={s.backText}>← Campaigns</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>New Campaign</Text>
+      <View style={s.card}>
+        <View style={s.headerRow}>
+          <MaterialCommunityIcons name="map-plus" size={28} color={colors.brand} />
+          <Text style={s.title}>New Campaign</Text>
+        </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={s.error}>{error}</Text> : null}
 
-      <TextInput
-        style={styles.input}
-        placeholder="Campaign name *"
-        placeholderTextColor={colors.textSecondary}
-        value={name}
-        onChangeText={setName}
-        autoFocus
-        returnKeyType="next"
-      />
+        <View style={s.field}>
+          <Text style={s.fieldLabel}>Campaign Name *</Text>
+          <TextInput
+            style={s.input}
+            placeholder="e.g. Curse of Strahd"
+            placeholderTextColor={colors.textSecondary}
+            value={name}
+            onChangeText={setName}
+            autoFocus
+            returnKeyType="next"
+          />
+        </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="System (optional — e.g. D&D 5e, PF2e)"
-        placeholderTextColor={colors.textSecondary}
-        value={systemLabel}
-        onChangeText={setSystemLabel}
-        returnKeyType="next"
-      />
+        <View style={s.field}>
+          <Text style={s.fieldLabel}>Game System</Text>
+          <TextInput
+            style={s.input}
+            placeholder="e.g. D&D 5e, Pathfinder 2e"
+            placeholderTextColor={colors.textSecondary}
+            value={systemLabel}
+            onChangeText={setSystemLabel}
+            returnKeyType="next"
+          />
+        </View>
 
-      <TextInput
-        style={[styles.input, styles.multiline]}
-        placeholder="Description (optional)"
-        placeholderTextColor={colors.textSecondary}
-        value={description}
-        onChangeText={setDescription}
-        multiline
-        numberOfLines={3}
-        returnKeyType="done"
-        onSubmitEditing={handleCreate}
-      />
+        <View style={s.field}>
+          <Text style={s.fieldLabel}>Description</Text>
+          <TextInput
+            style={[s.input, s.multiline]}
+            placeholder="What's the campaign about?"
+            placeholderTextColor={colors.textSecondary}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={3}
+          />
+        </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleCreate} disabled={loading}>
-        {loading
-          ? <ActivityIndicator color={colors.textPrimary} />
-          : <Text style={styles.buttonText}>Create Campaign</Text>
-        }
-      </TouchableOpacity>
-    </View>
+        <TouchableOpacity style={s.button} onPress={handleCreate} disabled={loading}>
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={s.buttonText}>Create Campaign</Text>
+          }
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: colors.background },
   container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingTop: 60,
-    paddingHorizontal: 24,
+    padding: spacing.lg,
+    alignItems: 'center',
   },
   back: {
-    marginBottom: 32,
+    alignSelf: 'flex-start',
+    marginBottom: spacing.md,
   },
-  backText: {
-    color: colors.brand,
-    fontSize: 16,
+  backText: { color: colors.brand, fontSize: 14 },
+  card: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 480,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 22,
+    fontFamily: fonts.display,
     color: colors.textPrimary,
-    marginBottom: 32,
   },
   error: {
     color: colors.hpDanger,
-    marginBottom: 16,
+    marginBottom: spacing.md,
     fontSize: 14,
   },
+  field: { marginBottom: spacing.md },
+  fieldLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: spacing.xs,
+  },
   input: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: 8,
     color: colors.textPrimary,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
   },
   multiline: {
     minHeight: 80,
     textAlignVertical: 'top',
-    marginBottom: 16,
   },
   button: {
     backgroundColor: colors.brand,
     borderRadius: 8,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
+    marginTop: spacing.sm,
   },
   buttonText: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

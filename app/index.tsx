@@ -3,5 +3,5 @@ import { useAuthStore } from '@vaultstone/store';
 
 export default function Index() {
   const session = useAuthStore((state) => state.session);
-  return <Redirect href={session ? '/(tabs)/campaigns' : '/(auth)/login'} />;
+  return <Redirect href={session ? '/(drawer)/home' : '/(auth)/login'} />;
 }

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getCampaignByJoinCode, joinCampaign } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
-import { colors } from '@vaultstone/ui';
+import { colors, spacing, fonts } from '@vaultstone/ui';
 
 export default function JoinCampaignScreen() {
   const router = useRouter();
@@ -32,7 +33,6 @@ export default function JoinCampaignScreen() {
       return;
     }
 
-    // Already a member (DM or existing player)
     const alreadyIn = campaign.dm_user_id === user.id ||
       campaigns.some((c) => c.id === campaign.id);
 
@@ -51,77 +51,98 @@ export default function JoinCampaignScreen() {
     }
 
     setCampaigns([campaign, ...campaigns]);
-    router.push(`/campaign/${campaign.id}`);
+    router.push(`/campaign/${campaign.id}/pick-character`);
   }
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.push('/(tabs)/campaigns')} style={styles.back}>
-        <Text style={styles.backText}>← Campaigns</Text>
+    <View style={s.container}>
+      <TouchableOpacity onPress={() => router.push('/(drawer)/campaigns')} style={s.back}>
+        <Text style={s.backText}>← Campaigns</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>Join Campaign</Text>
-      <Text style={styles.subtitle}>Enter the 6-character code your DM shared with you.</Text>
+      <View style={s.card}>
+        <View style={s.headerRow}>
+          <MaterialCommunityIcons name="account-plus-outline" size={28} color={colors.brand} />
+          <Text style={s.title}>Join Campaign</Text>
+        </View>
+        <Text style={s.subtitle}>Enter the 6-character code your DM shared with you.</Text>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={s.error}>{error}</Text> : null}
 
-      <TextInput
-        style={styles.input}
-        placeholder="XXXXXX"
-        placeholderTextColor={colors.textSecondary}
-        value={code}
-        onChangeText={(t) => setCode(t.toUpperCase())}
-        autoCapitalize="characters"
-        autoCorrect={false}
-        maxLength={6}
-        autoFocus
-        returnKeyType="done"
-        onSubmitEditing={handleJoin}
-      />
+        <TextInput
+          style={s.codeInput}
+          placeholder="XXXXXX"
+          placeholderTextColor={colors.textSecondary}
+          value={code}
+          onChangeText={(t) => setCode(t.toUpperCase())}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={6}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={handleJoin}
+        />
 
-      <TouchableOpacity style={styles.button} onPress={handleJoin} disabled={loading}>
-        {loading
-          ? <ActivityIndicator color={colors.textPrimary} />
-          : <Text style={styles.buttonText}>Join</Text>
-        }
-      </TouchableOpacity>
+        <TouchableOpacity style={s.button} onPress={handleJoin} disabled={loading}>
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={s.buttonText}>Join</Text>
+          }
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingTop: 60,
-    paddingHorizontal: 24,
+    padding: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   back: {
-    marginBottom: 32,
+    alignSelf: 'flex-start',
+    position: 'absolute',
+    top: spacing.lg,
+    left: spacing.lg,
   },
-  backText: {
-    color: colors.brand,
-    fontSize: 16,
+  backText: { color: colors.brand, fontSize: 14 },
+  card: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 22,
+    fontFamily: fonts.display,
     color: colors.textPrimary,
-    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
-    marginBottom: 32,
-    lineHeight: 22,
+    marginBottom: spacing.lg,
+    lineHeight: 20,
   },
   error: {
     color: colors.hpDanger,
-    marginBottom: 16,
+    marginBottom: spacing.md,
     fontSize: 14,
   },
-  input: {
-    backgroundColor: colors.surface,
+  codeInput: {
+    backgroundColor: colors.background,
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: 8,
@@ -131,18 +152,18 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: 8,
-    marginBottom: 16,
+    marginBottom: spacing.md,
     textAlign: 'center',
   },
   button: {
     backgroundColor: colors.brand,
     borderRadius: 8,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   buttonText: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

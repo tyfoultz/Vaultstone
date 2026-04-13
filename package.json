@@ -15,10 +15,15 @@
     "postinstall": "node scripts/patch-metro.js"
   },
   "dependencies": {
+    "@expo-google-fonts/cinzel": "^0.4.2",
+    "@expo-google-fonts/crimson-pro": "^0.4.2",
     "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-navigation/drawer": "^7.9.8",
     "@supabase/supabase-js": "^2.49.4",
     "expo": "~53.0.0",
     "expo-file-system": "~18.1.0",
+    "expo-font": "~13.3.2",
+    "expo-image-picker": "~16.1.4",
     "expo-router": "~5.1.11",
     "expo-secure-store": "~14.2.0",
     "expo-sqlite": "~15.2.0",
@@ -27,8 +32,10 @@
     "nativewind": "4.0.36",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-easy-crop": "^5.5.7",
     "react-native": "0.79.6",
     "react-native-css-interop": "^0.2.3",
+    "react-native-gesture-handler": "~2.24.0",
     "react-native-reanimated": "~3.17.4",
     "react-native-web": "~0.20.0",
     "zustand": "^5.0.3"

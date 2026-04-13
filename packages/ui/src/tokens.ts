@@ -13,6 +13,8 @@ export const colors = {
 export const fonts = {
   display: 'Cinzel',
   body: 'CrimsonPro',
+  bodySemiBold: 'CrimsonPro-SemiBold',
+  bodyBold: 'CrimsonPro-Bold',
 } as const;
 
 export const spacing = {
