@@ -238,6 +238,113 @@ SpellbookBlock {
 
 ---
 
+### Epic 7 — Character Sheet Import & Auto-Population ⬜ Planned (post-MVP)
+
+> Long-running build plan. **Do not implement yet.** Captured here so the
+> ContentResolver / character data shape decisions stay compatible.
+>
+> Goal: a player drags in their existing character sheet (PDF, image, or
+> structured export) and the app extracts everything possible — stats, class,
+> spells, equipment, features, notes — into a real Vaultstone character. The
+> *eventual* UX payoff is **character-sheet hyperlinking**: every spell,
+> feature, condition, and item name on the sheet becomes tappable and
+> resolves to the matching content (SRD bundled, user-PDF indexed, or
+> homebrew) via `ContentResolver` — pulling from the same indexed PDFs that
+> Feature 8 already builds.
+
+#### Phase 1 — Format detection & ingestion ⬜
+*Figure out what the user dropped on us, on-device.*
+
+- Accept inputs:
+  - **Official PDF exports** (D&D Beyond, Roll20, the WotC fillable sheet) —
+    parsed via `pdfjs-dist` form-field extraction (see Feature 8 Phase 5b).
+    Fillable PDFs expose AcroForm fields with reliable names; that's the
+    happy path.
+  - **Flat (printed/scanned) PDFs and images** — OCR pass via on-device
+    Tesseract WASM on web, Vision framework / ML Kit on native. Slower and
+    lossy; fall back to manual review (Phase 4).
+  - **Structured exports** — JSON from D&D Beyond's "export character" if/
+    when available, or a Vaultstone-defined import schema for power users.
+- New on-device staging table: `character_imports (id, source_kind,
+  source_path, raw_extract jsonb, status, created_at)`. Raw extract is the
+  unvalidated key/value blob from whichever parser ran.
+- **Legal**: the same constraint as Feature 8 — uploaded sheets stay on the
+  device. Only the resulting structured Vaultstone character (which is just
+  game state + content keys) syncs to Supabase.
+
+#### Phase 2 — Field mapping into the Vaultstone schema ⬜
+*Translate raw extract into `Dnd5eStats` + `Dnd5eResources`.*
+
+- Build per-format mappers (`src/import/mappers/`): one per known sheet
+  layout. Each mapper takes `raw_extract` and returns a partial
+  `CharacterDraft` matching `useCharacterDraftStore`'s shape.
+- Fields that map cleanly (name, ability scores, HP, AC, level, class, race
+  if a single class) require no resolution — direct copy.
+- Fields that are content-typed (class, subclass, species, background,
+  spells known/prepared, features, equipment, feats) need to resolve to a
+  `ContentRef`:
+  ```ts
+  resolveByName(rawName: string, type: ContentType): Promise<ContentRef | null>
+  ```
+  Walks Tier 1 (SRD) → Tier 2 (user PDFs, via Feature 8 search index) →
+  Tier 3 (homebrew). First exact match wins; fuzzy match (Levenshtein) only
+  for names with no exact hit.
+
+#### Phase 3 — Hyperlinking the rendered sheet ⬜
+*The payoff: every named entity on the sheet is tappable.*
+
+- Once a character has `ContentRef`s populated, the sheet renderer
+  (`app/character/[id].tsx`) wraps each ref in a tappable element.
+- Tap behavior depends on the ref's resolution tier:
+  - **Tier 1 (bundled SRD)** → bottom-sheet popover with the description
+    inline (no PDF needed).
+  - **Tier 2 (user PDF)** → deep-link into the existing PDF viewer at the
+    indexed page (re-uses Feature 8 Phase 5a `?page=N`).
+  - **Tier 3 (homebrew)** → in-app homebrew detail screen (Feature 3).
+- Unresolved refs render in a muted style with an "Identify" affordance —
+  tapping prompts the user to pick the matching content manually (which
+  also feeds back into the resolver as a learned alias for next time).
+- Reuses `ContentResolver` end-to-end — no new lookup pipeline. The same
+  Feature 8 indexing layer that powers the search screen powers this.
+
+#### Phase 4 — Review & confirm ⬜
+*Never silently overwrite. Always show the diff.*
+
+- After import, present a side-by-side review screen: each parsed field,
+  the value the importer found, and an optional "I'll fix this" override.
+- Highlight low-confidence fields (OCR'd values, fuzzy-matched content
+  refs) in a warning style so the user pays attention to them.
+- Only on explicit "Create character" does the result get persisted to
+  the character store and synced to Supabase.
+
+#### Phase 5 — Two-way: keep imports in sync with edits ⬜ (stretch)
+*If the user re-uploads a newer copy of the same sheet, merge intelligently.*
+
+- Detect re-imports via name + class + level + creation timestamp.
+- Show a per-field diff (current Vaultstone value vs new import) and let
+  the user accept changes individually. Don't blow away in-app edits.
+- Out of scope: pushing Vaultstone changes back into the source PDF — that
+  would require write-capable PDF tooling we don't have.
+
+#### Dependencies (none today; for planning)
+
+| Phase | Package(s) | Notes |
+|---|---|---|
+| 1 | `pdfjs-dist` (already in tree for Feature 8), Tesseract.js (web), Vision/ML Kit (native) | OCR is the hard part; AcroForm extraction is easy. |
+| 2 | *(none new)* | Pure mapping logic + reuses `ContentResolver`. |
+| 3 | *(none new)* | Reuses Feature 8's PDF viewer + `?page=N` deep-links. |
+
+#### Why this is documented now (but not built)
+
+The character data model decisions made for the MVP — `ContentRef`-based
+storage, content keys instead of denormalized text, three-tier resolution —
+are precisely the shape that makes this import feature tractable later. The
+risk is making a near-term shortcut (e.g. "store the description string on
+the character") that breaks the import path. This doc is a load-bearing
+sanity check on those decisions.
+
+---
+
 ## Out of Scope
 - Homebrew authoring (Feature 3) — but `ContentRef` with `sourceId: "homebrew"` must work from day one
 - PDF parsing pipeline (Feature 3) — architecture supports querying local content from day one
