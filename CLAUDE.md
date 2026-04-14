@@ -3,14 +3,15 @@
 System-agnostic TTRPG campaign management app for iOS, Android, and web.
 GitHub: https://github.com/tyfoultz/Vaultstone
 
-## Project Tracking (Notion)
+## Project Docs
 
-Build status, user story progress, and feature requirements are tracked in Notion — not in this file.
+All project tracking, feature requirements, and architecture decisions live in `docs/` in this repo.
 
-- [Main project page](https://www.notion.so/TTRPG-Web-Mobile-App-1179c8b34f7f82c4922b0155816c8546)
-- [Feature requirements](https://www.notion.so/33a5be47bc82801facfdfaf437304f40)
-- [Party Hub Epic 1–6 (user story statuses)](https://www.notion.so/33a5be47bc828163ab32e084eed34216)
-- [Build Kickoff Checklist](https://www.notion.so/33a5be47bc828102bdbcf2c9ca1d6547)
+- [docs/README.md](docs/README.md) — master index
+- [docs/architecture.md](docs/architecture.md) — tech stack, DB schema, content architecture, MVP scope
+- [docs/legal.md](docs/legal.md) — content licensing rules, user-uploaded PDF constraints, party sync rules
+- [docs/build-status.md](docs/build-status.md) — phase-by-phase build checklist and current status
+- [docs/features/](docs/features/) — full requirements for all 7 features + PDF rulebook feature
 
 ---
 
