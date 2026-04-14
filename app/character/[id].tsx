@@ -204,6 +204,11 @@ export default function CharacterSheetScreen() {
     } else if (editingField === 'xp') {
       if (isNaN(num) || num < 0) { setEditingField(null); return; }
       persistResources({ ...resources!, xp: num });
+    } else if (typeof editingField === 'string' && editingField.startsWith('coin_')) {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      const denom = editingField.replace('coin_', '') as 'cp' | 'sp' | 'ep' | 'gp' | 'pp';
+      const coins = resources!.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
+      persistResources({ ...resources!, coins: { ...coins, [denom]: num } });
     }
 
     setEditingField(null);
@@ -1003,6 +1008,41 @@ export default function CharacterSheetScreen() {
             />
           </View>
 
+          {/* Coins card */}
+          <View style={s.card}>
+            <Text style={s.cardLabel}>Coins</Text>
+            <View style={s.coinRow}>
+              {(['cp', 'sp', 'ep', 'gp', 'pp'] as const).map((denom) => {
+                const coins = resources.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
+                const val = coins[denom];
+                const update = (delta: number) => {
+                  const updated = { ...coins, [denom]: Math.max(0, val + delta) };
+                  persistResources({ ...resources, coins: updated });
+                };
+                return (
+                  <View key={denom} style={s.coinCell}>
+                    <TouchableOpacity onPress={() => update(1)} style={s.coinArrow}>
+                      <MaterialCommunityIcons name="chevron-up" size={18} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.coinValueBox}
+                      onPress={() => {
+                        setEditingField(`coin_${denom}` as any);
+                        setFieldInput(String(val));
+                      }}
+                    >
+                      <Text style={s.coinValue}>{val}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => update(-1)} style={s.coinArrow}>
+                      <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                    <Text style={s.coinLabel}>{denom.toUpperCase()}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
           {/* Scratchpad card */}
           <View style={[s.card, s.cardWide]}>
             <Text style={s.cardLabel}>Scratchpad</Text>
@@ -1584,6 +1624,27 @@ const s = StyleSheet.create({
   // Generic card
   card: { ...CARD, minWidth: 200, flex: 1, flexBasis: 200 },
   cardWide: { flexBasis: '100%' },
+  coinRow: {
+    flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm,
+  },
+  coinCell: {
+    flex: 1, alignItems: 'center',
+  },
+  coinArrow: {
+    padding: 2,
+  },
+  coinValueBox: {
+    backgroundColor: colors.background, borderColor: colors.border,
+    borderWidth: 1, borderRadius: 8,
+    width: '100%', paddingVertical: 8, alignItems: 'center',
+  },
+  coinValue: {
+    fontSize: 18, fontWeight: '700', color: colors.textPrimary,
+  },
+  coinLabel: {
+    fontSize: 10, fontWeight: '600', color: colors.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4,
+  },
   scratchpadInput: {
     backgroundColor: colors.background, borderColor: colors.border,
     borderWidth: 1, borderRadius: 8, color: colors.textPrimary,
