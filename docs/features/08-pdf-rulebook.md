@@ -70,7 +70,13 @@ create table if not exists user_content_sources (
 - `app/campaign/[id]/index.tsx` — System Card preset radio picker, CC-BY badge, Rulebook nav button
 - `app/campaign/[id]/rulebook.tsx` — stub page with empty-state placeholder and legal notice
 
-### Phase 2 — Local PDF Upload ⬜ Up next
+**Deliverables (2026-04-14):**
+- `packages/content/src/local/db.ts` — expo-sqlite helpers for `user_content_sources` (open, create table, get/save/delete)
+- `app/campaign/[id]/rulebook.tsx` — full upload flow: document picker → ToS modal → copy to FileSystem → SQLite record; shows uploaded state with Read/Remove actions
+- `app/campaign/[id]/pdf-viewer.tsx` — full-screen viewer: `react-native-pdf` on native, `<iframe>` blob URL on web
+- New packages: `expo-document-picker`, `react-native-pdf`, `react-native-blob-util`
+
+### Phase 2 — Local PDF Upload ✅ Done (2026-04-14)
 *Each user uploads their own copy. File stays on device.*
 - File picker via `expo-document-picker` (PDF filter only)
 - On selection: ToS acknowledgment modal must be accepted before proceeding
@@ -82,7 +88,7 @@ create table if not exists user_content_sources (
 - System Card shows upload status: "Not uploaded" / "Uploaded ✓ — filename.pdf"
 - **New packages required:** `npx expo install expo-document-picker`
 
-### Phase 3 — In-App PDF Viewer ⬜ Up next
+### Phase 3 — In-App PDF Viewer ✅ Done (2026-04-14)
 *Full-screen reader accessible from System Card.*
 - Native: `react-native-pdf` package — renders local file path
 - Web: `<iframe src={objectURL}>` using blob URL created from IndexedDB entry
