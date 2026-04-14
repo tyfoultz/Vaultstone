@@ -7,13 +7,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { supabase } from '@vaultstone/api';
 import { useCampaignStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import {
   getSourceByCampaign, saveSource, deleteSource,
 } from '@vaultstone/content';
 import type { LocalSource } from '@vaultstone/content';
+import type { Database } from '@vaultstone/types';
 
+type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type ContentSource = { key: string; label: string };
 
 function uuid(): string {
@@ -27,8 +30,27 @@ function uuid(): string {
 export default function RulebookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const campaigns = useCampaignStore((s) => s.campaigns);
-  const campaign = campaigns.find((c) => c.id === id);
+  const { campaigns, setActiveCampaign, setCampaigns } = useCampaignStore();
+  const [campaign, setCampaign] = useState<Campaign | null>(
+    campaigns.find((c) => c.id === id) ?? null,
+  );
+
+  // If the store was wiped by a browser refresh, re-fetch from Supabase
+  useEffect(() => {
+    if (campaign) return;
+    supabase
+      .from('campaigns')
+      .select('*')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setCampaign(data);
+          setActiveCampaign(data);
+          setCampaigns([...campaigns.filter((c) => c.id !== data.id), data]);
+        }
+      });
+  }, [id]);
 
   const source = campaign?.content_sources as ContentSource | null;
   const label = source?.label ?? campaign?.system_label ?? null;
