@@ -6,3 +6,26 @@ export {
   deleteSourceById,
 } from './local/db';
 export type { LocalSource } from './local/db';
+
+// Content index framework — on-device full-text search over user PDFs.
+// Actual PDF parsing is plugged in separately; this module only indexes the
+// page text it's handed. See packages/content/src/local/indexer.ts.
+export {
+  indexSource,
+  reindexSource,
+  removeSourceFromIndex,
+  searchCampaign,
+  getIndexStatus,
+  getCampaignIndexStatuses,
+} from './local/indexer';
+export type {
+  CampaignHit,
+  IndexMeta,
+  IndexStatus,
+  LocalContentHit,
+  PageText,
+} from './local/indexer';
+
+// PDF parsing — platform-split. Web is implemented; native throws until Phase 5c.
+export { extractPages } from './local/pdf-parser';
+export type { ExtractOptions, PageInput } from './local/pdf-parser.web';

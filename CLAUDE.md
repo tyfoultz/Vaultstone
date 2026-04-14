@@ -78,11 +78,19 @@ Fonts: Cinzel (display), Crimson Pro (body) — Dark mode only for MVP
 
 ## GitHub Workflow
 
-- **Push only after user confirms** a feature is tested and working — never push speculatively.
-- **Branch before pushing** any new feature or change that could conflict with parallel work. Name branches `feature/<short-description>` or `epic/<epic-name>`. Push the branch and open a PR; do not push directly to `master`.
+- **Push feature branches before user testing.** Netlify builds previews from GitHub branches, so the user needs the branch pushed in order to exercise the web build. Commit + push as soon as a feature is implementation-complete and locally type-checks; don't wait for user confirmation to push.
+- **Never push directly to `master`.** All work lands on a feature branch (`feature/<short-description>` or `epic/<epic-name>`) and merges through a PR.
+- **Branch before making changes** that could conflict with parallel work. If you're already on a feature branch for the active task, keep using it — don't open a new branch per commit.
 - **Pull before starting work** — always run `git pull origin master` (or rebase the current branch onto master) before making new changes, to minimize drift.
-- **Merging to master** — only after the user has confirmed the feature works. Prefer squash or rebase merge to keep history clean.
-- When the user says a feature is done and ready to ship, commit → push the feature branch → prompt them to merge the PR rather than merging automatically.
+- **Merging to master** — only after the user has confirmed the feature works in the Netlify preview / on device. Prefer squash or rebase merge to keep history clean.
+- When the user says a feature is done and ready to ship, prompt them to merge the PR rather than merging automatically.
+
+---
+
+## Claude Code Tooling
+
+- Never chain commands with `&&` or `;` when each individual command is already allowed by `Bash(git:*)` or similar rules. Use separate parallel Bash tool calls instead — they run concurrently and don't trigger permission prompts.
+- **Never prefix git (or other project) commands with `cd <path> && ...`.** The permission system flags any `cd` + `git` compound as a potential bare-repository attack and asks for approval, even though `git:*` would otherwise allow it. Instead, use `git -C <absolute-path> <subcommand>` — it scopes git to the target repo without `cd`, so the call matches `Bash(git:*)` directly. The same pattern applies to other CLIs that accept a working-directory flag (e.g. `npm --prefix <path> ...`).
 
 ---
 
