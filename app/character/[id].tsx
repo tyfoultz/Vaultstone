@@ -66,12 +66,17 @@ export default function CharacterSheetScreen() {
   const [featureCategory, setFeatureCategory] = useState<'classFeatures' | 'speciesTraits' | 'feats'>('classFeatures');
   const [tempHpFieldInput, setTempHpFieldInput] = useState('');
   const [hpQuickInput, setHpQuickInput] = useState('');
+  const [scratchpad, setScratchpad] = useState('');
 
   useEffect(() => {
     if (!id) return;
     getCharacterById(id).then(({ data, error: err }) => {
       if (err) setError('Failed to load character.');
-      else setCharacter(data);
+      else {
+        setCharacter(data);
+        const res = data?.resources as Dnd5eResources | null;
+        if (res?.notes) setScratchpad(res.notes);
+      }
       setLoading(false);
     });
   }, [id]);
@@ -998,6 +1003,24 @@ export default function CharacterSheetScreen() {
             />
           </View>
 
+          {/* Scratchpad card */}
+          <View style={[s.card, s.cardWide]}>
+            <Text style={s.cardLabel}>Scratchpad</Text>
+            <TextInput
+              style={s.scratchpadInput}
+              value={scratchpad}
+              onChangeText={setScratchpad}
+              onBlur={() => {
+                if (!resources) return;
+                persistResources({ ...resources, notes: scratchpad });
+              }}
+              placeholder="Freetext notes, reminders, loot tracking..."
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              textAlignVertical="top"
+            />
+          </View>
+
         </View>
 
         <Text style={s.attribution}>
@@ -1561,6 +1584,12 @@ const s = StyleSheet.create({
   // Generic card
   card: { ...CARD, minWidth: 200, flex: 1, flexBasis: 200 },
   cardWide: { flexBasis: '100%' },
+  scratchpadInput: {
+    backgroundColor: colors.background, borderColor: colors.border,
+    borderWidth: 1, borderRadius: 8, color: colors.textPrimary,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
+    minHeight: 120, lineHeight: 20,
+  },
   cardLabel: {
     fontSize: 11, fontWeight: '700', color: colors.textSecondary,
     textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10,
