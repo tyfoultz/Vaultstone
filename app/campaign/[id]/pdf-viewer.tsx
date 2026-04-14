@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Platform, ActivityIndicator, StyleSheet }
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing } from '@vaultstone/ui';
-import { getSourceByCampaign } from '@vaultstone/content';
+import { getSourceById } from '@vaultstone/content';
 import type { LocalSource } from '@vaultstone/content';
 
 // react-native-pdf is native-only; conditionally import
@@ -14,7 +14,7 @@ if (Platform.OS !== 'web') {
 }
 
 export default function PdfViewerScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, sourceId } = useLocalSearchParams<{ id: string; sourceId: string }>();
   const router = useRouter();
   const [source, setSource] = useState<LocalSource | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,12 @@ export default function PdfViewerScreen() {
   const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    getSourceByCampaign(id)
+    if (!sourceId) {
+      setLoading(false);
+      setPdfError('No PDF selected. Go back and tap Read on a specific PDF.');
+      return;
+    }
+    getSourceById(sourceId)
       .then((s) => {
         setSource(s);
         setLoading(false);
@@ -33,7 +38,7 @@ export default function PdfViewerScreen() {
         setLoading(false);
         setPdfError('Could not load your PDF. Try re-uploading from the Rulebook screen.');
       });
-  }, [id]);
+  }, [sourceId]);
 
   // Revoke any blob URL we created when the component unmounts
   useEffect(() => {

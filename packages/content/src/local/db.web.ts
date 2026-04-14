@@ -1,6 +1,6 @@
 // Web implementation of local source storage.
 // Metadata (small strings) → localStorage.
-// PDF blob (large binary) → IndexedDB with a singleton connection.
+// PDF blobs (large binary) → IndexedDB, keyed by source.id.
 // In-memory blob cache for same-session fast access.
 
 export type LocalSource = {
@@ -29,7 +29,7 @@ function persistMeta(sources: SourceMeta[]): void {
   localStorage.setItem(META_KEY, JSON.stringify(sources));
 }
 
-// ---- IndexedDB (singleton connection) ----
+// ---- IndexedDB (singleton connection, blobs keyed by source.id) ----
 
 const IDB_NAME = 'vaultstone_pdfs';
 const IDB_STORE = 'blobs';
@@ -48,85 +48,94 @@ function openIdb(): Promise<IDBDatabase> {
   });
 }
 
-async function savePdfBlob(campaignId: string, blob: Blob): Promise<void> {
+async function savePdfBlob(sourceId: string, blob: Blob): Promise<void> {
   const db = await openIdb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, 'readwrite');
-    tx.objectStore(IDB_STORE).put(blob, campaignId);
+    tx.objectStore(IDB_STORE).put(blob, sourceId);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(new Error('IndexedDB transaction aborted'));
   });
 }
 
-async function loadPdfBlob(campaignId: string): Promise<Blob | null> {
+async function loadPdfBlob(sourceId: string): Promise<Blob | null> {
   const db = await openIdb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, 'readonly');
-    const req = tx.objectStore(IDB_STORE).get(campaignId);
+    const req = tx.objectStore(IDB_STORE).get(sourceId);
     req.onsuccess = () => resolve((req.result as Blob) ?? null);
     req.onerror = () => reject(req.error);
   });
 }
 
-async function deletePdfBlob(campaignId: string): Promise<void> {
+async function deletePdfBlob(sourceId: string): Promise<void> {
   const db = await openIdb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, 'readwrite');
-    tx.objectStore(IDB_STORE).delete(campaignId);
+    tx.objectStore(IDB_STORE).delete(sourceId);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
 }
 
-// ---- In-memory blob cache (same-session fast path) ----
+// ---- In-memory blob cache (same-session fast path, keyed by source.id) ----
 
 const _blobCache = new Map<string, Blob>();
 
-// ---- Public API ----
+// ---- Shared helper: resolve a blob to an object URL ----
 
-export async function getSourceByCampaign(campaignId: string): Promise<LocalSource | null> {
-  const meta = loadMeta().find((s) => s.campaign_id === campaignId);
-  if (!meta) return null;
-
-  // Check memory cache first (same-session, instant)
-  let blob = _blobCache.get(campaignId) ?? null;
-
-  // Fall back to IndexedDB (cross-session persistence)
+async function resolveSource(meta: SourceMeta): Promise<LocalSource | null> {
+  let blob = _blobCache.get(meta.id) ?? null;
   if (!blob) {
-    blob = await loadPdfBlob(campaignId);
-    if (!blob) {
-      // Blob was cleared (e.g. user cleared site data) — remove stale metadata
-      persistMeta(loadMeta().filter((s) => s.campaign_id !== campaignId));
-      return null;
-    }
-    _blobCache.set(campaignId, blob);
+    blob = await loadPdfBlob(meta.id);
+    if (!blob) return null;
+    _blobCache.set(meta.id, blob);
   }
-
   return { ...meta, file_path: URL.createObjectURL(blob) };
 }
 
+// ---- Public API ----
+
+export async function getSourcesByCampaign(campaignId: string): Promise<LocalSource[]> {
+  const metas = loadMeta().filter((s) => s.campaign_id === campaignId);
+  if (metas.length === 0) return [];
+
+  const results = await Promise.all(metas.map(resolveSource));
+
+  // Filter out any entries whose blobs were cleared (stale metadata), and clean up
+  const staleIds = metas
+    .map((m, i) => (results[i] === null ? m.id : null))
+    .filter((id): id is string => id !== null);
+
+  if (staleIds.length > 0) {
+    persistMeta(loadMeta().filter((s) => !staleIds.includes(s.id)));
+  }
+
+  return results.filter((s): s is LocalSource => s !== null);
+}
+
+export async function getSourceById(sourceId: string): Promise<LocalSource | null> {
+  const meta = loadMeta().find((s) => s.id === sourceId);
+  if (!meta) return null;
+  return resolveSource(meta);
+}
+
 export async function saveSource(source: LocalSource): Promise<void> {
-  // source.file_path is a blob: URL — fetch the actual bytes and store in IndexedDB
+  // source.file_path is a blob: URL — fetch the actual bytes and persist to IndexedDB
   const response = await fetch(source.file_path);
   const blob = await response.blob();
 
-  // Update memory cache immediately so same-session reads are instant
-  _blobCache.set(source.campaign_id, blob);
+  _blobCache.set(source.id, blob);
+  await savePdfBlob(source.id, blob);
 
-  // Persist to IndexedDB for cross-session durability
-  await savePdfBlob(source.campaign_id, blob);
-
-  // Store only small metadata in localStorage (never the file content)
+  // Append metadata; replace if same id already exists
   const { file_path: _ignored, ...meta } = source;
-  persistMeta([
-    ...loadMeta().filter((s) => s.campaign_id !== source.campaign_id),
-    meta,
-  ]);
+  persistMeta([...loadMeta().filter((s) => s.id !== source.id), meta]);
 }
 
-export async function deleteSource(campaignId: string): Promise<void> {
-  _blobCache.delete(campaignId);
-  await deletePdfBlob(campaignId);
-  persistMeta(loadMeta().filter((s) => s.campaign_id !== campaignId));
+export async function deleteSourceById(sourceId: string): Promise<void> {
+  _blobCache.delete(sourceId);
+  await deletePdfBlob(sourceId);
+  persistMeta(loadMeta().filter((s) => s.id !== sourceId));
 }

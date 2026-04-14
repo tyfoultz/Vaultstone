@@ -28,11 +28,19 @@ export type LocalSource = {
   uploaded_at: string;
 };
 
-export async function getSourceByCampaign(campaignId: string): Promise<LocalSource | null> {
+export async function getSourcesByCampaign(campaignId: string): Promise<LocalSource[]> {
+  const db = await getDb();
+  return db.getAllAsync<LocalSource>(
+    'SELECT * FROM user_content_sources WHERE campaign_id = ? ORDER BY uploaded_at ASC',
+    [campaignId],
+  );
+}
+
+export async function getSourceById(sourceId: string): Promise<LocalSource | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<LocalSource>(
-    'SELECT * FROM user_content_sources WHERE campaign_id = ? LIMIT 1',
-    [campaignId],
+    'SELECT * FROM user_content_sources WHERE id = ? LIMIT 1',
+    [sourceId],
   );
   return row ?? null;
 }
@@ -47,7 +55,7 @@ export async function saveSource(source: LocalSource): Promise<void> {
   );
 }
 
-export async function deleteSource(campaignId: string): Promise<void> {
+export async function deleteSourceById(sourceId: string): Promise<void> {
   const db = await getDb();
-  await db.runAsync('DELETE FROM user_content_sources WHERE campaign_id = ?', [campaignId]);
+  await db.runAsync('DELETE FROM user_content_sources WHERE id = ?', [sourceId]);
 }

@@ -11,7 +11,7 @@ import { supabase } from '@vaultstone/api';
 import { useCampaignStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import {
-  getSourceByCampaign, saveSource, deleteSource,
+  getSourcesByCampaign, saveSource, deleteSourceById,
 } from '@vaultstone/content';
 import type { LocalSource } from '@vaultstone/content';
 import type { Database } from '@vaultstone/types';
@@ -20,7 +20,6 @@ type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type ContentSource = { key: string; label: string };
 
 function uuid(): string {
-  // Simple UUID v4 without a library
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
@@ -56,7 +55,7 @@ export default function RulebookScreen() {
   const label = source?.label ?? campaign?.system_label ?? null;
   const isOpenLicense = source?.key === 'srd_5_1' || source?.key === 'srd_2_0';
 
-  const [localSource, setLocalSource] = useState<LocalSource | null>(null);
+  const [localSources, setLocalSources] = useState<LocalSource[]>([]);
   const [loadingLocal, setLoadingLocal] = useState(true);
   const [tosModal, setTosModal] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -65,9 +64,9 @@ export default function RulebookScreen() {
   } | null>(null);
 
   useEffect(() => {
-    getSourceByCampaign(id)
-      .then((s) => setLocalSource(s))
-      .catch(() => setLocalSource(null))
+    getSourcesByCampaign(id)
+      .then((sources) => setLocalSources(sources))
+      .catch(() => setLocalSources([]))
       .finally(() => setLoadingLocal(false));
   }, [id]);
 
@@ -75,8 +74,6 @@ export default function RulebookScreen() {
     const result = await DocumentPicker.getDocumentAsync({
       type: 'application/pdf',
       copyToCacheDirectory: false,
-      // On web, disable base64 encoding — we need the File object to create a proper blob URL.
-      // The default (base64: true) returns a giant data URL that overflows localStorage.
       ...(Platform.OS === 'web' ? { base64: false } : {}),
     } as Parameters<typeof DocumentPicker.getDocumentAsync>[0]);
 
@@ -85,8 +82,6 @@ export default function RulebookScreen() {
 
     let uri = asset.uri;
     if (Platform.OS === 'web') {
-      // On web with base64:false, asset.uri is an unreliable relative path.
-      // Use the File object directly to create a stable blob URL.
       const file = (asset as unknown as { file?: File }).file;
       if (!file) return;
       uri = URL.createObjectURL(file);
@@ -102,9 +97,10 @@ export default function RulebookScreen() {
     setUploading(true);
 
     try {
+      let record: LocalSource;
+
       if (Platform.OS === 'web') {
-        // Web: the URI from document picker is already an object URL we can use directly
-        const record: LocalSource = {
+        record = {
           id: uuid(),
           campaign_id: id,
           source_key: source?.key ?? 'custom',
@@ -112,18 +108,14 @@ export default function RulebookScreen() {
           file_path: pendingFile.uri,
           uploaded_at: new Date().toISOString(),
         };
-        await saveSource(record);
-        setLocalSource(record);
       } else {
-        // Native: copy to document directory
         const destDir = `${FileSystem.documentDirectory}vaultstone/sources/${id}/`;
         await FileSystem.makeDirectoryAsync(destDir, { intermediates: true });
-        // Sanitize filename to avoid path issues
         const safeName = pendingFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const destPath = `${destDir}${safeName}`;
+        // Avoid filename collisions with a short suffix
+        const destPath = `${destDir}${Date.now()}_${safeName}`;
         await FileSystem.copyAsync({ from: pendingFile.uri, to: destPath });
-
-        const record: LocalSource = {
+        record = {
           id: uuid(),
           campaign_id: id,
           source_key: source?.key ?? 'custom',
@@ -131,9 +123,10 @@ export default function RulebookScreen() {
           file_path: destPath,
           uploaded_at: new Date().toISOString(),
         };
-        await saveSource(record);
-        setLocalSource(record);
       }
+
+      await saveSource(record);
+      setLocalSources((prev) => [...prev, record]);
     } catch (err) {
       console.warn('PDF upload failed', err);
       Alert.alert(
@@ -152,18 +145,16 @@ export default function RulebookScreen() {
     setPendingFile(null);
   }
 
-  async function handleRemove() {
-    if (!id) return;
-    // Delete the local file on native
-    if (localSource && Platform.OS !== 'web') {
+  async function handleRemove(sourceToRemove: LocalSource) {
+    if (Platform.OS !== 'web') {
       try {
-        await FileSystem.deleteAsync(localSource.file_path, { idempotent: true });
+        await FileSystem.deleteAsync(sourceToRemove.file_path, { idempotent: true });
       } catch {
         // file may already be gone
       }
     }
-    await deleteSource(id);
-    setLocalSource(null);
+    await deleteSourceById(sourceToRemove.id);
+    setLocalSources((prev) => prev.filter((s) => s.id !== sourceToRemove.id));
   }
 
   return (
@@ -195,50 +186,66 @@ export default function RulebookScreen() {
         </View>
       )}
 
-      {/* Your copy section */}
+      {/* Your copies section */}
       {label && (
         <View style={s.card}>
           <View style={s.cardRow}>
             <MaterialCommunityIcons name="file-pdf-box" size={28} color={colors.brand} />
-            <Text style={s.cardTitle}>Your Copy</Text>
+            <Text style={s.cardTitle}>Your PDFs</Text>
+            {localSources.length > 0 && (
+              <View style={s.countBadge}>
+                <Text style={s.countBadgeText}>{localSources.length}</Text>
+              </View>
+            )}
           </View>
 
           {loadingLocal ? (
             <ActivityIndicator color={colors.brand} style={{ paddingVertical: spacing.lg }} />
-          ) : localSource ? (
-            // Uploaded state
-            <View style={s.uploadedState}>
-              <View style={s.uploadedRow}>
-                <MaterialCommunityIcons name="check-circle-outline" size={20} color={colors.hpHealthy} />
-                <Text style={s.uploadedName} numberOfLines={1}>{localSource.file_name}</Text>
-              </View>
-              <View style={s.uploadedActions}>
-                <TouchableOpacity
-                  style={s.readBtn}
-                  onPress={() => router.push(`/campaign/${id}/pdf-viewer` as never)}
-                >
-                  <MaterialCommunityIcons name="book-open-variant" size={16} color="#fff" />
-                  <Text style={s.readBtnText}>Read</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.removeBtn} onPress={handleRemove}>
-                  <MaterialCommunityIcons name="delete-outline" size={16} color={colors.hpDanger} />
-                  <Text style={s.removeBtnText}>Remove</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
           ) : (
-            // Not uploaded state
             <>
-              <View style={s.emptyState}>
-                <MaterialCommunityIcons name="tray-arrow-up" size={36} color={colors.border} />
-                <Text style={s.emptyTitle}>No PDF uploaded yet</Text>
-                <Text style={s.emptyBody}>
-                  Upload your own legally-obtained copy of{' '}
-                  <Text style={s.emptyBold}>{label}</Text> to read it here.
-                  Your file stays on your device and is never shared with anyone.
-                </Text>
-              </View>
+              {/* Empty state — only shown when no PDFs uploaded yet */}
+              {localSources.length === 0 && (
+                <View style={s.emptyState}>
+                  <MaterialCommunityIcons name="tray-arrow-up" size={36} color={colors.border} />
+                  <Text style={s.emptyTitle}>No PDFs uploaded yet</Text>
+                  <Text style={s.emptyBody}>
+                    Upload your own legally-obtained copy of{' '}
+                    <Text style={s.emptyBold}>{label}</Text> to read it here.
+                    Your files stay on your device and are never shared with anyone.
+                  </Text>
+                </View>
+              )}
 
+              {/* PDF list */}
+              {localSources.map((src) => (
+                <View key={src.id} style={s.pdfRow}>
+                  <View style={s.pdfRowLeft}>
+                    <MaterialCommunityIcons name="check-circle-outline" size={18} color={colors.hpHealthy} />
+                    <Text style={s.pdfName} numberOfLines={1}>{src.file_name}</Text>
+                  </View>
+                  <View style={s.pdfRowActions}>
+                    <TouchableOpacity
+                      style={s.readBtn}
+                      onPress={() =>
+                        router.push(
+                          `/campaign/${id}/pdf-viewer?sourceId=${src.id}` as never,
+                        )
+                      }
+                    >
+                      <MaterialCommunityIcons name="book-open-variant" size={14} color="#fff" />
+                      <Text style={s.readBtnText}>Read</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.removeBtn}
+                      onPress={() => handleRemove(src)}
+                    >
+                      <MaterialCommunityIcons name="delete-outline" size={16} color={colors.hpDanger} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+
+              {/* Upload button — always visible when a source is declared */}
               <TouchableOpacity
                 style={uploading ? s.uploadBtnDisabled : s.uploadBtn}
                 onPress={handlePickFile}
@@ -250,7 +257,11 @@ export default function RulebookScreen() {
                   <MaterialCommunityIcons name="tray-arrow-up" size={18} color={colors.brand} />
                 )}
                 <Text style={s.uploadBtnText}>
-                  {uploading ? 'Uploading…' : 'Upload Your Copy'}
+                  {uploading
+                    ? 'Uploading…'
+                    : localSources.length === 0
+                    ? 'Upload Your Copy'
+                    : 'Upload Another PDF'}
                 </Text>
               </TouchableOpacity>
             </>
@@ -335,115 +346,77 @@ const s = StyleSheet.create({
   backText: { color: colors.brand, fontSize: 14 },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.sm,
+    flexDirection: 'row', alignItems: 'center',
+    gap: spacing.md, marginBottom: spacing.sm,
   },
   title: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },
   openBadge: { fontSize: 12, color: colors.hpHealthy, fontWeight: '600', marginTop: 2 },
 
   card: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: spacing.lg,
-    gap: spacing.md,
+    backgroundColor: colors.surface, borderColor: colors.border,
+    borderWidth: 1, borderRadius: 14, padding: spacing.lg, gap: spacing.md,
   },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   cardTitle: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   cardBody: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
 
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-    gap: spacing.sm,
+  countBadge: {
+    backgroundColor: colors.brand, borderRadius: 10,
+    paddingHorizontal: 7, paddingVertical: 2, marginLeft: 4,
   },
+  countBadgeText: { fontSize: 11, color: '#fff', fontWeight: '700' },
+
+  emptyState: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
   emptyTitle: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
-  emptyBody: {
-    fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 19,
-  },
+  emptyBody: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 19 },
   emptyBold: { fontWeight: '700', color: colors.textPrimary },
 
+  pdfRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.background, borderRadius: 8,
+    paddingHorizontal: spacing.sm, paddingVertical: 8, gap: spacing.sm,
+  },
+  pdfRowLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pdfName: { flex: 1, fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
+  pdfRowActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+
+  readBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.brand, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 6,
+  },
+  readBtnText: { fontSize: 12, color: '#fff', fontWeight: '700' },
+
+  removeBtn: {
+    borderColor: colors.hpDanger + '55', borderWidth: 1,
+    borderRadius: 6, padding: 6,
+  },
+
   uploadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderColor: colors.brand,
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: spacing.md,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    borderColor: colors.brand, borderWidth: 1, borderRadius: 10, padding: spacing.md,
   },
   uploadBtnDisabled: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: spacing.md,
-    opacity: 0.6,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 10,
+    padding: spacing.md, opacity: 0.6,
   },
   uploadBtnText: { fontSize: 14, color: colors.brand, fontWeight: '600' },
 
-  uploadedState: { gap: spacing.sm },
-  uploadedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    padding: spacing.sm,
-  },
-  uploadedName: { flex: 1, fontSize: 14, color: colors.textPrimary, fontWeight: '600' },
-  uploadedActions: { flexDirection: 'row', gap: spacing.sm },
-
-  readBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: colors.brand,
-    borderRadius: 8,
-    paddingVertical: 10,
-  },
-  readBtnText: { fontSize: 14, color: '#fff', fontWeight: '700' },
-
-  removeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderColor: colors.hpDanger + '66',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-  },
-  removeBtnText: { fontSize: 13, color: colors.hpDanger },
-
   legalCard: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: spacing.lg,
+    flexDirection: 'row', gap: spacing.md, backgroundColor: colors.surface,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 14, padding: spacing.lg,
   },
   legalTitle: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginBottom: 4 },
   legalBody: { fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
 
-  // ToS Modal
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center', alignItems: 'center',
   },
   modalCard: {
-    backgroundColor: colors.surface, borderRadius: 14,
-    borderColor: colors.border, borderWidth: 1,
-    width: '90%', maxWidth: 460, padding: spacing.lg, gap: spacing.md,
+    backgroundColor: colors.surface, borderRadius: 14, borderColor: colors.border,
+    borderWidth: 1, width: '90%', maxWidth: 460, padding: spacing.lg, gap: spacing.md,
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   modalTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },

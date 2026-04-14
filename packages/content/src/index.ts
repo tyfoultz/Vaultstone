@@ -1,7 +1,8 @@
 export { ContentResolver } from './resolver';
 export {
-  getSourceByCampaign,
+  getSourcesByCampaign,
+  getSourceById,
   saveSource,
-  deleteSource,
+  deleteSourceById,
 } from './local/db';
 export type { LocalSource } from './local/db';
