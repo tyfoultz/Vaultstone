@@ -14,7 +14,8 @@ import {
   searchIndex,
   setIndexStatus,
 } from './search-db';
-import { getSourcesByCampaign } from './db';
+import { getSourcesByCampaign, getSourceById } from './db';
+import { extractPages } from './pdf-parser';
 import type {
   IndexMeta,
   IndexStatus,
@@ -69,6 +70,58 @@ export async function indexSource(
 /** Wipe all indexed pages + meta for a source (e.g. when the PDF is removed). */
 export async function removeSourceFromIndex(sourceId: string): Promise<void> {
   await deleteIndexForSource(sourceId);
+}
+
+/**
+ * End-to-end: fetch the source's PDF bytes, extract page text, and index it.
+ * Kick this off after upload (fire-and-forget) or call it on demand from a
+ * Re-index action. Status is written through the same `source_index_meta`
+ * row that `getIndexStatus` reads, so the UI can poll progress.
+ */
+export async function reindexSource(
+  sourceId: string,
+  fetchBytes: (filePath: string) => Promise<Blob | ArrayBuffer | Uint8Array | string>,
+): Promise<void> {
+  const source = await getSourceById(sourceId);
+  if (!source) throw new Error(`Source not found: ${sourceId}`);
+
+  await setIndexStatus({
+    source_id: sourceId,
+    status: 'indexing',
+    pages_indexed: 0,
+    total_pages: null,
+    error: null,
+  });
+
+  try {
+    const bytes = await fetchBytes(source.file_path);
+    // extractPages signatures differ per platform: web takes bytes, native
+    // takes a URI string. `bytes` matches whichever shape the caller returns.
+    const pages = await extractPages(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      bytes as any,
+      {
+        onProgress: (done, total) =>
+          setIndexStatus({
+            source_id: sourceId,
+            status: 'indexing',
+            pages_indexed: done,
+            total_pages: total,
+          }),
+      },
+    );
+    await indexSource(
+      sourceId,
+      pages.map((p) => ({ ...p, sourceId })),
+    );
+  } catch (err) {
+    await setIndexStatus({
+      source_id: sourceId,
+      status: 'failed',
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 }
 
 export function getIndexStatus(sourceId: string): Promise<IndexMeta> {

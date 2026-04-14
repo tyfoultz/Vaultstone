@@ -130,7 +130,7 @@ Everything below slots into the existing `indexer.indexSource(sourceId, pages)`
 entry point. No changes to the search layer or FTS schema are required; we're
 only adding producers of `PageText[]`.
 
-#### Phase 5b — Web PDF text extraction ⬜ Up next
+#### Phase 5b — Web PDF text extraction ✅ Done (2026-04-14)
 *Extract text from uploaded PDFs in the browser using `pdfjs-dist`.*
 
 - **Dependency:** `pdfjs-dist` (ES module build, dynamically imported so the
@@ -167,7 +167,7 @@ only adding producers of `PageText[]`.
 - **Accept criteria:** Parses a 300-page PDF in under ~60s on a mid-range
   phone; no crashes on large files; memory stays under 200MB.
 
-#### Phase 5d — Wire parsing into the upload flow ⬜
+#### Phase 5d — Wire parsing into the upload flow ✅ Done (2026-04-14)
 *Kick off indexing automatically after a successful upload.*
 
 - In `app/campaign/[id]/rulebook.tsx` `handleTosConfirm`, after `saveSource`:
@@ -183,7 +183,7 @@ only adding producers of `PageText[]`.
 - `extractPages` is imported from `./local/pdf-parser` (Metro picks the
   right platform file).
 
-#### Phase 5e — Progress UI polish ⬜
+#### Phase 5e — Progress UI polish ✅ Done (2026-04-14)
 *Per-PDF indicator so users know what's happening.*
 
 - In `rulebook.tsx`, each uploaded PDF row also shows index status:

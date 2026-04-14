@@ -12,9 +12,9 @@ import { useCampaignStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import {
   getSourcesByCampaign, saveSource, deleteSourceById,
-  removeSourceFromIndex,
+  removeSourceFromIndex, reindexSource, getCampaignIndexStatuses,
 } from '@vaultstone/content';
-import type { LocalSource } from '@vaultstone/content';
+import type { LocalSource, IndexMeta } from '@vaultstone/content';
 import type { Database } from '@vaultstone/types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
@@ -25,6 +25,52 @@ function uuid(): string {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
   });
+}
+
+function IndexStatusLine({
+  status,
+  onRetry,
+  canIndex,
+}: {
+  status: IndexMeta | undefined;
+  onRetry: () => void;
+  canIndex: boolean;
+}) {
+  if (!status || status.status === 'not_indexed') {
+    if (!canIndex) {
+      return <Text style={s.indexMuted}>Indexing available on web (for now)</Text>;
+    }
+    return (
+      <TouchableOpacity onPress={onRetry}>
+        <Text style={s.indexAction}>Not indexed — Index now</Text>
+      </TouchableOpacity>
+    );
+  }
+  if (status.status === 'indexing') {
+    const done = status.pages_indexed;
+    const total = status.total_pages;
+    return (
+      <View style={s.indexRow}>
+        <ActivityIndicator size="small" color={colors.brand} />
+        <Text style={s.indexMuted}>
+          Indexing… {total ? `${done}/${total}` : `${done}`}
+        </Text>
+      </View>
+    );
+  }
+  if (status.status === 'failed') {
+    return (
+      <TouchableOpacity onPress={onRetry}>
+        <Text style={s.indexError}>Indexing failed — Retry</Text>
+      </TouchableOpacity>
+    );
+  }
+  // indexed
+  return (
+    <Text style={s.indexMuted}>
+      ✓ Indexed{status.total_pages ? ` · ${status.total_pages} pages` : ''}
+    </Text>
+  );
 }
 
 export default function RulebookScreen() {
@@ -60,6 +106,7 @@ export default function RulebookScreen() {
   const [loadingLocal, setLoadingLocal] = useState(true);
   const [tosModal, setTosModal] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [indexStatuses, setIndexStatuses] = useState<Record<string, IndexMeta>>({});
   const [pendingFile, setPendingFile] = useState<{
     uri: string; name: string; mimeType?: string;
   } | null>(null);
@@ -70,6 +117,57 @@ export default function RulebookScreen() {
       .catch(() => setLocalSources([]))
       .finally(() => setLoadingLocal(false));
   }, [id]);
+
+  // Load initial index statuses whenever the source list changes.
+  useEffect(() => {
+    if (!id || localSources.length === 0) {
+      setIndexStatuses({});
+      return;
+    }
+    getCampaignIndexStatuses(id).then((metas) => {
+      const map: Record<string, IndexMeta> = {};
+      for (const m of metas) map[m.source_id] = m;
+      setIndexStatuses(map);
+    }).catch(() => {});
+  }, [id, localSources.length]);
+
+  // Poll while any source is actively indexing, so the UI reflects progress.
+  useEffect(() => {
+    const anyIndexing = Object.values(indexStatuses).some((s) => s.status === 'indexing');
+    if (!id || !anyIndexing) return;
+    const interval = setInterval(() => {
+      getCampaignIndexStatuses(id).then((metas) => {
+        const map: Record<string, IndexMeta> = {};
+        for (const m of metas) map[m.source_id] = m;
+        setIndexStatuses(map);
+      }).catch(() => {});
+    }, 500);
+    return () => clearInterval(interval);
+  }, [id, indexStatuses]);
+
+  // Web-only: kick off extraction + indexing for a source. Native support
+  // lands in Phase 5c; until then we skip silently rather than throw.
+  function startIndexing(sourceId: string) {
+    if (Platform.OS !== 'web') return;
+    // Seed local state so the UI shows "indexing" immediately.
+    setIndexStatuses((prev) => ({
+      ...prev,
+      [sourceId]: {
+        source_id: sourceId,
+        status: 'indexing',
+        pages_indexed: 0,
+        total_pages: null,
+        indexed_at: null,
+        error: null,
+      },
+    }));
+    reindexSource(sourceId, async (filePath) => {
+      const res = await fetch(filePath);
+      return res.blob();
+    }).catch((err) => {
+      console.warn('Indexing failed', err);
+    });
+  }
 
   async function handlePickFile() {
     const result = await DocumentPicker.getDocumentAsync({
@@ -128,6 +226,8 @@ export default function RulebookScreen() {
 
       await saveSource(record);
       setLocalSources((prev) => [...prev, record]);
+      // Fire-and-forget: parse + index in the background.
+      startIndexing(record.id);
     } catch (err) {
       console.warn('PDF upload failed', err);
       Alert.alert(
@@ -220,33 +320,43 @@ export default function RulebookScreen() {
               )}
 
               {/* PDF list */}
-              {localSources.map((src) => (
-                <View key={src.id} style={s.pdfRow}>
-                  <View style={s.pdfRowLeft}>
-                    <MaterialCommunityIcons name="check-circle-outline" size={18} color={colors.hpHealthy} />
-                    <Text style={s.pdfName} numberOfLines={1}>{src.file_name}</Text>
+              {localSources.map((src) => {
+                const status = indexStatuses[src.id];
+                return (
+                  <View key={src.id} style={s.pdfRow}>
+                    <View style={s.pdfRowLeft}>
+                      <MaterialCommunityIcons name="check-circle-outline" size={18} color={colors.hpHealthy} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.pdfName} numberOfLines={1}>{src.file_name}</Text>
+                        <IndexStatusLine
+                          status={status}
+                          onRetry={() => startIndexing(src.id)}
+                          canIndex={Platform.OS === 'web'}
+                        />
+                      </View>
+                    </View>
+                    <View style={s.pdfRowActions}>
+                      <TouchableOpacity
+                        style={s.readBtn}
+                        onPress={() =>
+                          router.push(
+                            `/campaign/${id}/pdf-viewer?sourceId=${src.id}` as never,
+                          )
+                        }
+                      >
+                        <MaterialCommunityIcons name="book-open-variant" size={14} color="#fff" />
+                        <Text style={s.readBtnText}>Read</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={s.removeBtn}
+                        onPress={() => handleRemove(src)}
+                      >
+                        <MaterialCommunityIcons name="delete-outline" size={16} color={colors.hpDanger} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <View style={s.pdfRowActions}>
-                    <TouchableOpacity
-                      style={s.readBtn}
-                      onPress={() =>
-                        router.push(
-                          `/campaign/${id}/pdf-viewer?sourceId=${src.id}` as never,
-                        )
-                      }
-                    >
-                      <MaterialCommunityIcons name="book-open-variant" size={14} color="#fff" />
-                      <Text style={s.readBtnText}>Read</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.removeBtn}
-                      onPress={() => handleRemove(src)}
-                    >
-                      <MaterialCommunityIcons name="delete-outline" size={16} color={colors.hpDanger} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
 
               {/* Upload button — always visible when a source is declared */}
               <TouchableOpacity
@@ -382,6 +492,11 @@ const s = StyleSheet.create({
   pdfRowLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   pdfName: { flex: 1, fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
   pdfRowActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+
+  indexRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  indexMuted: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+  indexAction: { fontSize: 11, color: colors.brand, fontWeight: '600', marginTop: 2 },
+  indexError: { fontSize: 11, color: colors.hpDanger, fontWeight: '600', marginTop: 2 },
 
   readBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,

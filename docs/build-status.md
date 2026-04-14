@@ -97,10 +97,10 @@ Append-only event feed. Displays what happened during a session.
 | 3 — In-app PDF viewer | ✅ Done | `react-native-pdf` (native) / iframe (web). |
 | 4 — Player-facing source prompt | ✅ Done | Per-PDF rows on System Card, Read + Remove actions. |
 | 5a — Indexing scaffold | ✅ Done | FTS5 (native) + IndexedDB (web) search framework; search screen; viewer accepts `page` param. |
-| 5b — Web PDF text extraction | ⬜ Up next | `pdfjs-dist` in `pdf-parser.web.ts`. |
-| 5c — Native PDF text extraction | ⬜ | `pdfjs-dist/legacy` + Hermes polyfills. |
-| 5d — Wire parsing into upload | ⬜ | Auto-index after `saveSource`; `reindexSource` helper. |
-| 5e — Progress UI polish | ⬜ | Per-PDF indexing indicator + Retry action. |
+| 5b — Web PDF text extraction | ✅ Done | `pdfjs-dist` in `pdf-parser.web.ts`; worker copied to `public/` via postinstall. |
+| 5c — Native PDF text extraction | ⬜ Up next | `pdfjs-dist/legacy` + Hermes polyfills. |
+| 5d — Wire parsing into upload | ✅ Done | Fire-and-forget `reindexSource` kicked off after `saveSource` on web. |
+| 5e — Progress UI polish | ✅ Done | Per-PDF `IndexStatusLine` with Retry; 500ms polling while indexing. |
 | 5f — ContentResolver Tier 2 | ⬜ | Route typed queries through `content_fts`. |
 | 6 — Structured extraction | ⬜ | Tag pages with content type for Spellbook / Bestiary. |
 

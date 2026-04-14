@@ -12,6 +12,7 @@ export type { LocalSource } from './local/db';
 // page text it's handed. See packages/content/src/local/indexer.ts.
 export {
   indexSource,
+  reindexSource,
   removeSourceFromIndex,
   searchCampaign,
   getIndexStatus,
@@ -24,3 +25,7 @@ export type {
   LocalContentHit,
   PageText,
 } from './local/indexer';
+
+// PDF parsing — platform-split. Web is implemented; native throws until Phase 5c.
+export { extractPages } from './local/pdf-parser';
+export type { ExtractOptions, PageInput } from './local/pdf-parser.web';
