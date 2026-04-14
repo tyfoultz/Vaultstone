@@ -8,9 +8,12 @@
 const fs = require('fs');
 const path = require('path');
 
+// Use the legacy worker to match the legacy main build that pdf-parser.web.ts
+// imports (the modern build uses static private class fields that Expo Web's
+// Babel config can't parse without extra plugins).
 const src = path.resolve(
   __dirname,
-  '../node_modules/pdfjs-dist/build/pdf.worker.min.mjs',
+  '../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs',
 );
 const destDir = path.resolve(__dirname, '../public');
 const dest = path.join(destDir, 'pdf.worker.min.mjs');

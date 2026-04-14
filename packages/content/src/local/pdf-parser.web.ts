@@ -15,12 +15,17 @@ export type ExtractOptions = {
 
 // pdfjs-dist is ~1MB. Load it the first time a user actually parses a file
 // so the initial page payload stays small.
+//
+// We import the `legacy` build, not the modern one. Metro/Babel (via Expo
+// Web) can't parse the modern build's static private class fields
+// (`static #field`) without extra plugins; the legacy build is ES5-safe
+// and bundles cleanly without touching the shared babel config.
 let _pdfjsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
 
 async function loadPdfjs() {
   if (!_pdfjsPromise) {
     _pdfjsPromise = (async () => {
-      const pdfjs = await import('pdfjs-dist');
+      const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as typeof import('pdfjs-dist');
       // Worker lives at the site root — see scripts/copy-pdf-worker.js.
       pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
       return pdfjs;
