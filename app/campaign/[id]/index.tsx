@@ -9,6 +9,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   supabase, regenerateJoinCode, getCampaignMembers,
   removeCampaignMember, uploadCampaignCover, getCharacterById,
+  updateCampaignContentSource,
 } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
@@ -27,6 +28,14 @@ type Member = {
   profiles: { id: string; display_name: string | null } | null;
   characters: { id: string; name: string; base_stats: unknown } | null;
 };
+
+type ContentSource = { key: string; label: string };
+
+const PRESETS: ContentSource[] = [
+  { key: 'srd_5_1', label: 'SRD 5.1 — D&D 5e (2014)' },
+  { key: 'srd_2_0', label: 'SRD 2.0 — D&D 5e (2024 Revised)' },
+  { key: 'custom', label: 'Custom' },
+];
 
 const ROLE_LABEL: Record<string, string> = {
   gm: 'DM',
@@ -62,7 +71,8 @@ export default function CampaignDetailScreen() {
   const [cropUri, setCropUri] = useState<string | null>(null);
   const [membersModal, setMembersModal] = useState(false);
   const [systemModal, setSystemModal] = useState(false);
-  const [editSystem, setEditSystem] = useState('');
+  const [selectedKey, setSelectedKey] = useState('srd_5_1');
+  const [customLabel, setCustomLabel] = useState('');
 
   // --- actions ---
 
@@ -157,13 +167,16 @@ export default function CampaignDetailScreen() {
 
   async function handleSaveSystem() {
     if (!campaign) return;
-    const val = editSystem.trim() || null;
-    const { error } = await supabase
-      .from('campaigns')
-      .update({ system_label: val })
-      .eq('id', campaign.id);
+    let source: ContentSource | null = null;
+    if (selectedKey === 'custom') {
+      const label = customLabel.trim();
+      if (label) source = { key: 'custom', label };
+    } else {
+      source = PRESETS.find((p) => p.key === selectedKey) ?? null;
+    }
+    const { error } = await updateCampaignContentSource(campaign.id, source);
     if (!error) {
-      const updated = { ...campaign, system_label: val };
+      const updated = { ...campaign, content_sources: source, system_label: source?.label ?? null };
       setCampaign(updated);
       setActiveCampaign(updated);
       setCampaigns(campaigns.map((c) => (c.id === campaign.id ? updated : c)));
@@ -283,14 +296,39 @@ export default function CampaignDetailScreen() {
         <View style={s.infoCard}>
           <MaterialCommunityIcons name="dice-d20-outline" size={24} color={colors.brand} />
           <Text style={s.infoLabel}>System</Text>
-          <Text style={s.systemValue}>
-            {campaign.system_label || 'Not set'}
-          </Text>
+          {(() => {
+            const src = campaign.content_sources as ContentSource | null;
+            const label = src?.label ?? campaign.system_label;
+            const isOpen = src && (src.key === 'srd_5_1' || src.key === 'srd_2_0');
+            return (
+              <>
+                <Text style={s.systemValue}>{label || 'Not set'}</Text>
+                {isOpen && (
+                  <Text style={s.openBadge}>Open License (CC-BY 4.0)</Text>
+                )}
+              </>
+            );
+          })()}
+          <TouchableOpacity
+            style={s.manageBtn}
+            onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
+          >
+            <MaterialCommunityIcons name="book-open-page-variant-outline" size={16} color={colors.brand} />
+            <Text style={s.manageBtnText}>Rulebook</Text>
+          </TouchableOpacity>
+
           {isDM && (
             <TouchableOpacity
-              style={s.manageBtn}
+              style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
               onPress={() => {
-                setEditSystem(campaign.system_label ?? '');
+                const src = campaign.content_sources as ContentSource | null;
+                if (src) {
+                  setSelectedKey(src.key);
+                  setCustomLabel(src.key === 'custom' ? src.label : '');
+                } else {
+                  setSelectedKey('srd_5_1');
+                  setCustomLabel('');
+                }
                 setSystemModal(true);
               }}
             >
@@ -464,18 +502,46 @@ export default function CampaignDetailScreen() {
             </View>
 
             <View style={s.modalSection}>
-              <Text style={s.infoLabel}>Game System</Text>
-              <TextInput
-                style={s.modalInput}
-                value={editSystem}
-                onChangeText={setEditSystem}
-                placeholder="e.g. D&D 5e, Pathfinder 2e"
-                placeholderTextColor={colors.textSecondary}
-                autoFocus
-              />
+              <Text style={s.infoLabel}>Rulebook Source</Text>
+              {PRESETS.map((preset) => (
+                <TouchableOpacity
+                  key={preset.key}
+                  style={s.presetRow}
+                  onPress={() => setSelectedKey(preset.key)}
+                >
+                  <MaterialCommunityIcons
+                    name={selectedKey === preset.key ? 'radiobox-marked' : 'radiobox-blank'}
+                    size={20}
+                    color={selectedKey === preset.key ? colors.brand : colors.textSecondary}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.presetLabel, selectedKey === preset.key && s.presetLabelActive]}>
+                      {preset.key === 'custom' ? 'Custom / Other' : preset.label}
+                    </Text>
+                    {(preset.key === 'srd_5_1' || preset.key === 'srd_2_0') && (
+                      <Text style={s.presetSub}>Bundled · Open License (CC-BY 4.0)</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+
+              {selectedKey === 'custom' && (
+                <TextInput
+                  style={[s.modalInput, { marginTop: spacing.sm }]}
+                  value={customLabel}
+                  onChangeText={setCustomLabel}
+                  placeholder="e.g. Pathfinder 2e, Call of Cthulhu"
+                  placeholderTextColor={colors.textSecondary}
+                  autoFocus
+                />
+              )}
             </View>
 
-            <TouchableOpacity style={s.modalSaveBtn} onPress={handleSaveSystem}>
+            <TouchableOpacity
+              style={[s.modalSaveBtn, selectedKey === 'custom' && !customLabel.trim() && s.modalSaveBtnDisabled]}
+              onPress={handleSaveSystem}
+              disabled={selectedKey === 'custom' && !customLabel.trim()}
+            >
               <Text style={s.modalSaveBtnText}>Save</Text>
             </TouchableOpacity>
           </Pressable>
@@ -571,6 +637,16 @@ const s = StyleSheet.create({
   systemValue: {
     fontSize: 18, fontWeight: '600', color: colors.textPrimary, marginTop: 4,
   },
+  openBadge: {
+    fontSize: 11, color: colors.hpHealthy, fontWeight: '600', marginTop: 2,
+  },
+  presetRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,
+    paddingVertical: 10, borderBottomColor: colors.border, borderBottomWidth: 1,
+  },
+  presetLabel: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
+  presetLabelActive: { color: colors.textPrimary, fontWeight: '600' },
+  presetSub: { fontSize: 11, color: colors.hpHealthy, marginTop: 1 },
 
   // Member card
   memberHeaderRow: {
@@ -670,6 +746,7 @@ const s = StyleSheet.create({
     paddingVertical: 12, alignItems: 'center',
   },
   modalSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  modalSaveBtnDisabled: { opacity: 0.4 },
 
   textSecondary: { color: colors.textSecondary },
 });

@@ -65,6 +65,7 @@ export interface Database {
           description: string | null;
           cover_image_url: string | null;
           is_archived: boolean;
+          content_sources: Json | null;
           created_at: string;
         };
         Insert: {
@@ -76,6 +77,7 @@ export interface Database {
           description?: string | null;
           cover_image_url?: string | null;
           is_archived?: boolean;
+          content_sources?: Json | null;
           created_at?: string;
         };
         Update: {
@@ -87,6 +89,7 @@ export interface Database {
           description?: string | null;
           cover_image_url?: string | null;
           is_archived?: boolean;
+          content_sources?: Json | null;
         };
         Relationships: [];
       };
