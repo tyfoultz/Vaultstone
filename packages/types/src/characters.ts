@@ -131,6 +131,16 @@ export interface Dnd5eResources {
   speciesTraits?: Dnd5eFeature[];
   /** Feats. */
   feats?: Dnd5eFeature[];
+  /** Coin pouch. */
+  coins?: {
+    cp: number;
+    sp: number;
+    ep: number;
+    gp: number;
+    pp: number;
+  };
+  /** Freetext scratchpad notes. */
+  notes?: string;
   /** Spell slots by level. Only populated for spellcasting classes. */
   spellSlots: {
     1: Dnd5eSpellSlotLevel;
