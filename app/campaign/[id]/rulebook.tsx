@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, Modal, Pressable,
-  ActivityIndicator, Platform, StyleSheet,
+  ActivityIndicator, Platform, Alert, StyleSheet,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
@@ -43,10 +43,10 @@ export default function RulebookScreen() {
   } | null>(null);
 
   useEffect(() => {
-    getSourceByCampaign(id).then((s) => {
-      setLocalSource(s);
-      setLoadingLocal(false);
-    });
+    getSourceByCampaign(id)
+      .then((s) => setLocalSource(s))
+      .catch(() => setLocalSource(null))
+      .finally(() => setLoadingLocal(false));
   }, [id]);
 
   async function handlePickFile() {
@@ -114,6 +114,11 @@ export default function RulebookScreen() {
       }
     } catch (err) {
       console.warn('PDF upload failed', err);
+      Alert.alert(
+        'Upload failed',
+        'Could not save your PDF. Please try again.\n\n' +
+          (err instanceof Error ? err.message : String(err)),
+      );
     } finally {
       setUploading(false);
       setPendingFile(null);

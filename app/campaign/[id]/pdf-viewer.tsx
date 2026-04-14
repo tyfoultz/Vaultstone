@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, Platform, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -20,29 +20,37 @@ export default function PdfViewerScreen() {
   const [loading, setLoading] = useState(true);
   const [pdfError, setPdfError] = useState<string | null>(null);
 
-  // Web-only: blob object URL
-  const [webObjectUrl, setWebObjectUrl] = useState<string | null>(null);
+  // Track the blob URL we created so we can revoke it on unmount (memory management)
+  const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    getSourceByCampaign(id).then((s) => {
-      setSource(s);
-      setLoading(false);
-    });
+    getSourceByCampaign(id)
+      .then((s) => {
+        setSource(s);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+        setPdfError('Could not load your PDF. Try re-uploading from the Rulebook screen.');
+      });
   }, [id]);
 
-  // Web: load the file as a blob URL via fetch of the local file path
+  // Revoke any blob URL we created when the component unmounts
   useEffect(() => {
-    if (Platform.OS !== 'web' || !source) return;
-    fetch(source.file_path)
-      .then((r) => r.blob())
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        setWebObjectUrl(url);
-      })
-      .catch(() => setPdfError('Failed to load PDF for viewing.'));
     return () => {
-      if (webObjectUrl) URL.revokeObjectURL(webObjectUrl);
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
     };
+  }, []);
+
+  // Track the blob URL from getSourceByCampaign so we clean it up correctly
+  useEffect(() => {
+    if (!source || Platform.OS !== 'web') return;
+    // source.file_path is already a valid blob URL from getSourceByCampaign —
+    // store the reference so we can revoke it on unmount
+    blobUrlRef.current = source.file_path;
   }, [source]);
 
   if (loading) {
@@ -56,7 +64,10 @@ export default function PdfViewerScreen() {
   if (!source) {
     return (
       <View style={s.center}>
-        <Text style={s.errorText}>No PDF uploaded for this campaign.</Text>
+        <MaterialCommunityIcons name="tray-arrow-up" size={32} color={colors.textSecondary} />
+        <Text style={[s.errorText, { marginTop: spacing.sm }]}>
+          {pdfError ?? 'No PDF uploaded for this campaign.'}
+        </Text>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <Text style={s.backBtnText}>Go Back</Text>
         </TouchableOpacity>
@@ -81,17 +92,12 @@ export default function PdfViewerScreen() {
           <Text style={[s.errorText, { marginTop: spacing.sm }]}>{pdfError}</Text>
         </View>
       ) : Platform.OS === 'web' ? (
-        webObjectUrl ? (
-          <iframe
-            src={webObjectUrl}
-            style={{ flex: 1, border: 'none', width: '100%', height: '100%' }}
-            title={source.file_name}
-          />
-        ) : (
-          <View style={s.center}>
-            <ActivityIndicator color={colors.brand} />
-          </View>
-        )
+        // source.file_path is a fresh blob URL from IndexedDB — use directly, no re-fetch needed
+        <iframe
+          src={source.file_path}
+          style={{ flex: 1, border: 'none', width: '100%', height: '100%' }}
+          title={source.file_name}
+        />
       ) : Pdf ? (
         <Pdf
           source={{ uri: source.file_path }}
@@ -112,6 +118,7 @@ const s = StyleSheet.create({
     flex: 1, backgroundColor: colors.background,
     justifyContent: 'center', alignItems: 'center',
     padding: spacing.lg,
+    gap: spacing.sm,
   },
   header: {
     flexDirection: 'row',
@@ -130,7 +137,6 @@ const s = StyleSheet.create({
   pdf: { flex: 1, width: '100%' },
   errorText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
   backBtn: {
-    marginTop: spacing.md,
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: 8,
