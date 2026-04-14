@@ -309,9 +309,17 @@ export default function CampaignDetailScreen() {
               </>
             );
           })()}
+          <TouchableOpacity
+            style={s.manageBtn}
+            onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
+          >
+            <MaterialCommunityIcons name="book-open-page-variant-outline" size={16} color={colors.brand} />
+            <Text style={s.manageBtnText}>Rulebook</Text>
+          </TouchableOpacity>
+
           {isDM && (
             <TouchableOpacity
-              style={s.manageBtn}
+              style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
               onPress={() => {
                 const src = campaign.content_sources as ContentSource | null;
                 if (src) {
