@@ -305,7 +305,6 @@ export default function CampaignDetailScreen() {
           const src = campaign.content_sources as ContentSource | null;
           const label = src?.label ?? campaign.system_label;
           const isOpen = src && (src.key === 'srd_5_1' || src.key === 'srd_2_0');
-          const hasUpload = localSources.length > 0;
 
           return (
             <View style={s.infoCard}>
@@ -316,36 +315,38 @@ export default function CampaignDetailScreen() {
                 <Text style={s.openBadge}>Open License (CC-BY 4.0)</Text>
               )}
 
-              {/* Rulebook upload/read prompt — visible to all members */}
+              {/* Per-PDF rows — visible to all members */}
               {label && (
-                hasUpload ? (
-                  // User has at least one PDF — show count + quick Read for first
-                  <TouchableOpacity
-                    style={s.rulebookPrompt}
-                    onPress={() =>
-                      router.push(
-                        `/campaign/${id}/pdf-viewer?sourceId=${localSources[0].id}` as never,
-                      )
-                    }
-                  >
-                    <MaterialCommunityIcons name="check-circle-outline" size={15} color={colors.hpHealthy} />
-                    <Text style={s.rulebookPromptUploaded} numberOfLines={1}>
-                      {localSources.length === 1
-                        ? localSources[0].file_name
-                        : `${localSources.length} PDFs uploaded`}
-                    </Text>
-                    <Text style={s.rulebookReadLink}>Read</Text>
-                  </TouchableOpacity>
-                ) : (
-                  // No PDF yet — prompt to upload
-                  <TouchableOpacity
-                    style={s.rulebookPrompt}
-                    onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
-                  >
-                    <MaterialCommunityIcons name="tray-arrow-up" size={15} color={colors.textSecondary} />
-                    <Text style={s.rulebookPromptMissing}>Upload your copy to read in-app</Text>
-                  </TouchableOpacity>
-                )
+                <>
+                  {localSources.map((src) => (
+                    <TouchableOpacity
+                      key={src.id}
+                      style={s.rulebookPdfRow}
+                      onPress={() =>
+                        router.push(
+                          `/campaign/${id}/pdf-viewer?sourceId=${src.id}` as never,
+                        )
+                      }
+                    >
+                      <MaterialCommunityIcons name="file-pdf-box" size={16} color={colors.brand} />
+                      <Text style={s.rulebookPdfName} numberOfLines={1}>{src.file_name}</Text>
+                      <View style={s.rulebookReadBtn}>
+                        <Text style={s.rulebookReadBtnText}>Read</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+
+                  {/* Upload prompt when no PDFs yet */}
+                  {localSources.length === 0 && (
+                    <TouchableOpacity
+                      style={s.rulebookUploadRow}
+                      onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
+                    >
+                      <MaterialCommunityIcons name="tray-arrow-up" size={15} color={colors.textSecondary} />
+                      <Text style={s.rulebookUploadText}>Upload your copy to read in-app</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
 
               <TouchableOpacity
@@ -717,19 +718,28 @@ const s = StyleSheet.create({
   },
   removeText: { fontSize: 12, color: colors.hpDanger },
 
-  // Rulebook prompt row (inside system card)
-  rulebookPrompt: {
+  // Per-PDF rows (inside system card)
+  rulebookPdfRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: colors.background, borderRadius: 8,
     paddingHorizontal: spacing.sm, paddingVertical: 7,
   },
-  rulebookPromptUploaded: {
-    flex: 1, fontSize: 12, color: colors.hpHealthy, fontWeight: '600',
+  rulebookPdfName: {
+    flex: 1, fontSize: 12, color: colors.textPrimary, fontWeight: '500',
   },
-  rulebookReadLink: {
-    fontSize: 12, color: colors.brand, fontWeight: '700',
+  rulebookReadBtn: {
+    backgroundColor: colors.brand, borderRadius: 5,
+    paddingHorizontal: 8, paddingVertical: 3,
   },
-  rulebookPromptMissing: {
+  rulebookReadBtnText: {
+    fontSize: 11, color: '#fff', fontWeight: '700',
+  },
+  rulebookUploadRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.background, borderRadius: 8,
+    paddingHorizontal: spacing.sm, paddingVertical: 7,
+  },
+  rulebookUploadText: {
     flex: 1, fontSize: 12, color: colors.textSecondary,
   },
 
