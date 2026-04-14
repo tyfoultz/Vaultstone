@@ -13,20 +13,26 @@ export type ExtractOptions = {
   onProgress?: (done: number, total: number) => void;
 };
 
-// pdfjs-dist is ~1MB. Load it the first time a user actually parses a file
-// so the initial page payload stays small.
+// Load pdfjs via the browser's **native** dynamic `import()`, not Metro's.
 //
-// We import the `legacy` build, not the modern one. Metro/Babel (via Expo
-// Web) can't parse the modern build's static private class fields
-// (`static #field`) without extra plugins; the legacy build is ES5-safe
-// and bundles cleanly without touching the shared babel config.
+// Why: Metro emits a classic-script bundle, so any `import.meta.*` inside a
+// bundled dependency becomes a syntax error. pdfjs-dist uses `import.meta.url`
+// internally, which means we can't let Metro transform it. Instead we self-host
+// pdfjs at /pdf.min.mjs (copied by scripts/copy-pdf-worker.js) and load it
+// with the browser's dynamic import at runtime.
+//
+// The `new Function('u', 'return import(u)')` trick hides the `import()` from
+// Metro's static analysis so it doesn't try to resolve/bundle the path.
 let _pdfjsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
 
 async function loadPdfjs() {
   if (!_pdfjsPromise) {
     _pdfjsPromise = (async () => {
-      const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as typeof import('pdfjs-dist');
-      // Worker lives at the site root — see scripts/copy-pdf-worker.js.
+      const dynamicImport = new Function(
+        'url',
+        'return import(url)',
+      ) as (url: string) => Promise<typeof import('pdfjs-dist')>;
+      const pdfjs = await dynamicImport('/pdf.min.mjs');
       pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
       return pdfjs;
     })();
