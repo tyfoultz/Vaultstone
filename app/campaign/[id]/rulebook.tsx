@@ -53,10 +53,24 @@ export default function RulebookScreen() {
     const result = await DocumentPicker.getDocumentAsync({
       type: 'application/pdf',
       copyToCacheDirectory: false,
-    });
+      // On web, disable base64 encoding — we need the File object to create a proper blob URL.
+      // The default (base64: true) returns a giant data URL that overflows localStorage.
+      ...(Platform.OS === 'web' ? { base64: false } : {}),
+    } as Parameters<typeof DocumentPicker.getDocumentAsync>[0]);
+
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
-    setPendingFile({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? 'application/pdf' });
+
+    let uri = asset.uri;
+    if (Platform.OS === 'web') {
+      // On web with base64:false, asset.uri is an unreliable relative path.
+      // Use the File object directly to create a stable blob URL.
+      const file = (asset as unknown as { file?: File }).file;
+      if (!file) return;
+      uri = URL.createObjectURL(file);
+    }
+
+    setPendingFile({ uri, name: asset.name, mimeType: asset.mimeType ?? 'application/pdf' });
     setTosModal(true);
   }
 
