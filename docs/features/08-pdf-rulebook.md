@@ -70,7 +70,7 @@ create table if not exists user_content_sources (
 - `app/campaign/[id]/index.tsx` — System Card preset radio picker, CC-BY badge, Rulebook nav button
 - `app/campaign/[id]/rulebook.tsx` — stub page with empty-state placeholder and legal notice
 
-### Phase 2 — Local PDF Upload ⬜ Up next
+### Phase 2 — Local PDF Upload ✅ Done (2026-04-14)
 *Each user uploads their own copy. File stays on device.*
 - File picker via `expo-document-picker` (PDF filter only)
 - On selection: ToS acknowledgment modal must be accepted before proceeding
@@ -82,7 +82,7 @@ create table if not exists user_content_sources (
 - System Card shows upload status: "Not uploaded" / "Uploaded ✓ — filename.pdf"
 - **New packages required:** `npx expo install expo-document-picker`
 
-### Phase 3 — In-App PDF Viewer ⬜ Up next
+### Phase 3 — In-App PDF Viewer ✅ Done (2026-04-14)
 *Full-screen reader accessible from System Card.*
 - Native: `react-native-pdf` package — renders local file path
 - Web: `<iframe src={objectURL}>` using blob URL created from IndexedDB entry
@@ -90,7 +90,7 @@ create table if not exists user_content_sources (
 - "Read" button accessible only if user has uploaded their own copy
 - **New packages required:** `npx expo install react-native-pdf`
 
-### Phase 4 — Player-Facing Source Prompt 🟡 In Progress
+### Phase 4 — Player-Facing Source Prompt ✅ Done (2026-04-14)
 *Tells players which book the campaign uses and prompts them to upload their own copy.*
 - Campaign detail System Card shows for all members:
   - DM-declared source label
