@@ -87,6 +87,12 @@ Fonts: Cinzel (display), Crimson Pro (body) — Dark mode only for MVP
 
 ---
 
+## Claude Code Tooling
+
+- Never chain commands with `&&` or `;` when each individual command is already allowed by `Bash(git:*)` or similar rules. Use separate parallel Bash tool calls instead — they run concurrently and don't trigger permission prompts.
+
+---
+
 ## Legal Constraints
 
 - Bundle SRD 5.1 + SRD 2.0 only (CC-BY 4.0 — attribution required in app)

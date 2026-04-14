@@ -35,6 +35,9 @@ export default function CampaignSearchScreen() {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<CampaignHit[]>([]);
   const [searching, setSearching] = useState(false);
+  // null = "no selection stored yet, fall back to all indexed"; once the
+  // user toggles anything we switch to an explicit set.
+  const [selectedIds, setSelectedIds] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -50,23 +53,60 @@ export default function CampaignSearchScreen() {
       .finally(() => setLoadingMeta(false));
   }, [id]);
 
-  // Debounce queries a bit so we don't run a scan on every keystroke.
+  // Only indexed sources are searchable — others would return nothing anyway.
+  const indexedSources = useMemo(() => {
+    const indexedIds = new Set(
+      statuses.filter((st) => st.status === 'indexed').map((st) => st.source_id),
+    );
+    return sources.filter((s) => indexedIds.has(s.id));
+  }, [sources, statuses]);
+
+  // Which sources are currently active in the search.
+  const activeIds = useMemo(() => {
+    if (selectedIds === null) return indexedSources.map((s) => s.id);
+    // Intersect with currently-indexed set so stale selections don't leak.
+    const indexedIdSet = new Set(indexedSources.map((s) => s.id));
+    return Array.from(selectedIds).filter((sid) => indexedIdSet.has(sid));
+  }, [selectedIds, indexedSources]);
+
+  function toggleSource(sourceId: string) {
+    setSelectedIds((prev) => {
+      const base = prev ?? new Set(indexedSources.map((s) => s.id));
+      const next = new Set(base);
+      if (next.has(sourceId)) next.delete(sourceId);
+      else next.add(sourceId);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelectedIds(new Set(indexedSources.map((s) => s.id)));
+  }
+
+  function selectNone() {
+    setSelectedIds(new Set());
+  }
+
+  // Debounce queries a bit so we don't run a scan on every keystroke. Also
+  // re-runs when the user toggles which PDFs to search.
   useEffect(() => {
     if (!id) return;
     const trimmed = query.trim();
-    if (!trimmed) {
+    if (!trimmed || activeIds.length === 0) {
       setHits([]);
+      setSearching(false);
       return;
     }
     setSearching(true);
+    const idsSnapshot = activeIds.slice();
     const t = setTimeout(() => {
-      searchCampaign(id, trimmed)
+      searchCampaign(id, trimmed, { sourceIds: idsSnapshot })
         .then(setHits)
         .catch(() => setHits([]))
         .finally(() => setSearching(false));
     }, 200);
     return () => clearTimeout(t);
-  }, [id, query]);
+  }, [id, query, activeIds]);
 
   const indexedCount = useMemo(
     () => statuses.filter((s) => s.status === 'indexed').length,
@@ -118,6 +158,46 @@ export default function CampaignSearchScreen() {
         )}
       </View>
 
+      {/* Source filter — only shown when there's more than one indexed PDF,
+          so users don't see a pointless single chip. */}
+      {indexedSources.length > 1 && (
+        <View style={s.filterCard}>
+          <View style={s.filterHeader}>
+            <Text style={s.filterTitle}>Search in</Text>
+            <TouchableOpacity onPress={selectAll} style={s.filterBulkBtn}>
+              <Text style={s.filterBulkText}>All</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={selectNone} style={s.filterBulkBtn}>
+              <Text style={s.filterBulkText}>None</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={s.chipRow}>
+            {indexedSources.map((src) => {
+              const isActive = activeIds.includes(src.id);
+              return (
+                <TouchableOpacity
+                  key={src.id}
+                  onPress={() => toggleSource(src.id)}
+                  style={isActive ? s.chipActive : s.chip}
+                >
+                  <MaterialCommunityIcons
+                    name={isActive ? 'check' : 'file-pdf-box'}
+                    size={13}
+                    color={isActive ? '#fff' : colors.textSecondary}
+                  />
+                  <Text
+                    style={isActive ? s.chipActiveText : s.chipText}
+                    numberOfLines={1}
+                  >
+                    {src.file_name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
       {/* State messages */}
       {loadingMeta && (
         <View style={s.stateCard}>
@@ -164,15 +244,28 @@ export default function CampaignSearchScreen() {
         </View>
       )}
 
-      {!loadingMeta && !showIndexingNotice && query.trim() !== '' && !searching && hits.length === 0 && (
-        <View style={s.stateCard}>
-          <MaterialCommunityIcons name="file-search-outline" size={28} color={colors.textSecondary} />
-          <Text style={s.stateTitle}>No matches</Text>
-          <Text style={s.stateBody}>
-            Nothing found for &ldquo;{query.trim()}&rdquo; in your uploaded PDFs.
-          </Text>
-        </View>
-      )}
+      {!loadingMeta && !showIndexingNotice && indexedSources.length > 0 &&
+        activeIds.length === 0 && query.trim() !== '' && (
+          <View style={s.stateCard}>
+            <MaterialCommunityIcons name="filter-off-outline" size={28} color={colors.textSecondary} />
+            <Text style={s.stateTitle}>No PDFs selected</Text>
+            <Text style={s.stateBody}>
+              Pick at least one PDF above to search in.
+            </Text>
+          </View>
+        )}
+
+      {!loadingMeta && !showIndexingNotice && activeIds.length > 0 &&
+        query.trim() !== '' && !searching && hits.length === 0 && (
+          <View style={s.stateCard}>
+            <MaterialCommunityIcons name="file-search-outline" size={28} color={colors.textSecondary} />
+            <Text style={s.stateTitle}>No matches</Text>
+            <Text style={s.stateBody}>
+              Nothing found for &ldquo;{query.trim()}&rdquo; in the selected
+              {activeIds.length === 1 ? ' PDF' : ` ${activeIds.length} PDFs`}.
+            </Text>
+          </View>
+        )}
 
       {/* Results */}
       {grouped.length > 0 && (
@@ -257,6 +350,36 @@ const s = StyleSheet.create({
     flex: 1, color: colors.textPrimary, fontSize: 14,
     paddingVertical: 2,
   },
+
+  filterCard: {
+    backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1,
+    borderRadius: 12, padding: spacing.md, gap: spacing.sm,
+  },
+  filterHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  filterTitle: { flex: 1, fontSize: 12, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.5 },
+  filterBulkBtn: {
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 12,
+  },
+  filterBulkText: { fontSize: 11, color: colors.textSecondary, fontWeight: '600' },
+
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    maxWidth: '100%',
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 999,
+    backgroundColor: colors.background,
+  },
+  chipActive: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    maxWidth: '100%',
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderColor: colors.brand, borderWidth: 1, borderRadius: 999,
+    backgroundColor: colors.brand,
+  },
+  chipText: { fontSize: 12, color: colors.textSecondary, flexShrink: 1 },
+  chipActiveText: { fontSize: 12, color: '#fff', fontWeight: '600', flexShrink: 1 },
 
   stateCard: {
     backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1,

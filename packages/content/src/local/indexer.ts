@@ -129,18 +129,27 @@ export function getIndexStatus(sourceId: string): Promise<IndexMeta> {
 }
 
 /**
- * Free-text search across all PDFs uploaded to a campaign (only those
- * belonging to the current device/user — PDFs are never shared).
- * Returns ranked hits with a page number + highlighted snippet.
+ * Free-text search across PDFs uploaded to a campaign (only those belonging
+ * to the current device/user — PDFs are never shared).
+ *
+ * Pass `options.sourceIds` to limit the search to a subset of the campaign's
+ * PDFs (e.g. the user toggled some off in the UI). Unknown ids are silently
+ * dropped — only ids that actually belong to the campaign are searched.
  */
 export async function searchCampaign(
   campaignId: string,
   query: string,
-  limit = 25,
+  options: { sourceIds?: string[]; limit?: number } = {},
 ): Promise<CampaignHit[]> {
+  const { sourceIds, limit = 25 } = options;
   const sources = await getSourcesByCampaign(campaignId);
   if (sources.length === 0) return [];
-  const hits = await searchIndex(sources.map((s) => s.id), query, limit);
+  const allowed = sourceIds ? new Set(sourceIds) : null;
+  const targets = allowed
+    ? sources.filter((s) => allowed.has(s.id))
+    : sources;
+  if (targets.length === 0) return [];
+  const hits = await searchIndex(targets.map((s) => s.id), query, limit);
   const nameById = new Map(sources.map((s) => [s.id, s.file_name]));
   return hits.map((h) => ({
     ...h,
