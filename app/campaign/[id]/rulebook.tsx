@@ -60,9 +60,16 @@ function IndexStatusLine({
   }
   if (status.status === 'failed') {
     return (
-      <TouchableOpacity onPress={onRetry}>
-        <Text style={s.indexError}>Indexing failed — Retry</Text>
-      </TouchableOpacity>
+      <View>
+        <TouchableOpacity onPress={onRetry}>
+          <Text style={s.indexError}>Indexing failed — Retry</Text>
+        </TouchableOpacity>
+        {status.error ? (
+          <Text style={s.indexMuted} numberOfLines={3}>
+            {status.error}
+          </Text>
+        ) : null}
+      </View>
     );
   }
   // indexed
