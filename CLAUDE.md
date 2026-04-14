@@ -23,7 +23,7 @@ Build status, user story progress, and feature requirements are tracked in Notio
 | State | Zustand 5 (persist slices to AsyncStorage) |
 | Backend | Supabase (Postgres, Auth, Realtime, Storage, Edge Functions/Deno) |
 | Types | Hand-written DB types in `packages/types/src/database.types.ts` |
-| Build | EAS Build → App Store + Google Play; Expo web → Vercel/Netlify |
+| Build | EAS Build → App Store + Google Play; Expo web → Netlify |
 
 Internal packages: `@vaultstone/api`, `@vaultstone/store`, `@vaultstone/types`, `@vaultstone/ui`, `@vaultstone/systems`, `@vaultstone/content`
 
