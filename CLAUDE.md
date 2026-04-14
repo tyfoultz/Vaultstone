@@ -7,7 +7,7 @@ GitHub: https://github.com/tyfoultz/Vaultstone
 
 Build status, user story progress, and feature requirements are tracked in Notion — not in this file.
 
-- [Main project page](https://www.notion.so/33a5be47bc8280ea9af7cf38ee912d70)
+- [Main project page](https://www.notion.so/TTRPG-Web-Mobile-App-1179c8b34f7f82c4922b0155816c8546)
 - [Feature requirements](https://www.notion.so/33a5be47bc82801facfdfaf437304f40)
 - [Party Hub Epic 1–6 (user story statuses)](https://www.notion.so/33a5be47bc828163ab32e084eed34216)
 - [Build Kickoff Checklist](https://www.notion.so/33a5be47bc828102bdbcf2c9ca1d6547)
