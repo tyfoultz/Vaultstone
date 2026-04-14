@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, Clipboard, ScrollView, StyleSheet } from 'react-native';
+import {
+  View, Text, Image, TouchableOpacity, Clipboard, ScrollView,
+  ActivityIndicator, Platform, Modal, Pressable, TextInput, StyleSheet,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { supabase, regenerateJoinCode, getCampaignMembers, removeCampaignMember } from '@vaultstone/api';
+import * as ImagePicker from 'expo-image-picker';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  supabase, regenerateJoinCode, getCampaignMembers,
+  removeCampaignMember, uploadCampaignCover, getCharacterById,
+} from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
-import { colors } from '@vaultstone/ui';
+import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 import type { Dnd5eStats } from '@vaultstone/types';
 import CharacterPickerModal from '../../../components/campaign/CharacterPickerModal';
@@ -40,40 +48,59 @@ export default function CampaignDetailScreen() {
   const user = useAuthStore((state) => state.user);
   const { campaigns, setCampaigns, setActiveCampaign } = useCampaignStore();
   const [campaign, setCampaign] = useState<Campaign | null>(
-    campaigns.find((c) => c.id === id) ?? null
+    campaigns.find((c) => c.id === id) ?? null,
   );
   const [members, setMembers] = useState<Member[]>([]);
+  const [characterMap, setCharacterMap] = useState<Record<string, { name: string; subtitle: string }>>({});
   const [copied, setCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const isDM = campaign?.dm_user_id === user?.id;
   const myMember = members.find((m) => m.user_id === user?.id);
+  const [uploading, setUploading] = useState(false);
+  const [cropUri, setCropUri] = useState<string | null>(null);
+  const [membersModal, setMembersModal] = useState(false);
+  const [systemModal, setSystemModal] = useState(false);
+  const [editSystem, setEditSystem] = useState('');
 
-  useEffect(() => {
-    if (!campaign) {
-      supabase
-        .from('campaigns')
-        .select('*')
-        .eq('id', id)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            setCampaign(data);
-            setActiveCampaign(data);
-          }
-        });
-    } else {
-      setActiveCampaign(campaign);
+  // --- actions ---
+
+  async function uploadCover(uri: string, mime: string) {
+    if (!campaign) return;
+    setUploading(true);
+    const { url } = await uploadCampaignCover(campaign.id, uri, mime);
+    setUploading(false);
+    if (url) {
+      const updated = { ...campaign, cover_image_url: url };
+      setCampaign(updated);
+      setActiveCampaign(updated);
+      setCampaigns(campaigns.map((c) => (c.id === campaign.id ? updated : c)));
     }
-  }, [id]);
+  }
 
-  useEffect(() => {
-    if (!id) return;
-    getCampaignMembers(id).then(({ data }) => {
-      if (data) setMembers(data as unknown as Member[]);
+  async function handlePickCover() {
+    if (!campaign) return;
+    const isWeb = Platform.OS === 'web';
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: !isWeb,
+      aspect: [16, 9],
+      quality: 0.5,
     });
-  }, [id]);
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (isWeb) {
+      setCropUri(asset.uri);
+    } else {
+      await uploadCover(asset.uri, asset.mimeType ?? 'image/jpeg');
+    }
+  }
+
+  async function handleCropConfirm(croppedUri: string) {
+    setCropUri(null);
+    await uploadCover(croppedUri, 'image/jpeg');
+  }
 
   function copyJoinCode() {
     if (!campaign) return;
@@ -107,7 +134,7 @@ export default function CampaignDetailScreen() {
     const { error } = await removeCampaignMember(campaign.id, user.id);
     if (!error) {
       setCampaigns(campaigns.filter((c) => c.id !== campaign.id));
-      router.push('/(tabs)/campaigns');
+      router.push('/(drawer)/campaigns');
     }
   }
 
@@ -128,123 +155,231 @@ export default function CampaignDetailScreen() {
     );
   }
 
+  async function handleSaveSystem() {
+    if (!campaign) return;
+    const val = editSystem.trim() || null;
+    const { error } = await supabase
+      .from('campaigns')
+      .update({ system_label: val })
+      .eq('id', campaign.id);
+    if (!error) {
+      const updated = { ...campaign, system_label: val };
+      setCampaign(updated);
+      setActiveCampaign(updated);
+      setCampaigns(campaigns.map((c) => (c.id === campaign.id ? updated : c)));
+      setSystemModal(false);
+    }
+  }
+
+  // --- data loading ---
+
+  useEffect(() => {
+    if (!campaign) {
+      supabase
+        .from('campaigns')
+        .select('*')
+        .eq('id', id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setCampaign(data);
+            setActiveCampaign(data);
+          }
+        });
+    } else {
+      setActiveCampaign(campaign);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    getCampaignMembers(id).then(async ({ data }) => {
+      if (!data) return;
+      setMembers(data as Member[]);
+
+      // Fetch character info for members with assigned characters
+      const charIds = (data as Member[])
+        .map((m) => m.character_id)
+        .filter((cid): cid is string => !!cid);
+      if (charIds.length === 0) return;
+
+      const map: Record<string, { name: string; subtitle: string }> = {};
+      await Promise.all(
+        charIds.map(async (cid) => {
+          const { data: char } = await getCharacterById(cid);
+          if (!char) return;
+          const stats = char.base_stats as Record<string, unknown> | null;
+          const parts: string[] = [];
+          if (stats && typeof stats.classKey === 'string')
+            parts.push(stats.classKey.charAt(0).toUpperCase() + stats.classKey.slice(1));
+          if (stats && typeof stats.level === 'number')
+            parts.push(`Lvl ${stats.level}`);
+          map[cid] = { name: char.name, subtitle: parts.join(' · ') || char.system };
+        }),
+      );
+      setCharacterMap(map);
+    });
+  }, [id]);
+
+  // --- loading state ---
+
   if (!campaign) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.textSecondary}>Loading...</Text>
+      <View style={s.loadingContainer}>
+        <Text style={s.textSecondary}>Loading...</Text>
       </View>
     );
   }
 
+  const playerCount = members.filter((m) => m.role === 'player').length;
+
+  // --- render ---
+
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
-      <TouchableOpacity onPress={() => router.push('/(tabs)/campaigns')} style={styles.back}>
-        <Text style={styles.backText}>← Campaigns</Text>
+    <ScrollView style={s.scroll} contentContainerStyle={s.container}>
+      <TouchableOpacity onPress={() => router.push('/(drawer)/campaigns')} style={s.back}>
+        <Text style={s.backText}>← Campaigns</Text>
       </TouchableOpacity>
 
-      <View style={styles.titleRow}>
-        <Text style={styles.title}>{campaign.name}</Text>
-        <Text style={styles.roleBadge}>{isDM ? 'DM' : 'Player'}</Text>
-      </View>
-
-      {(campaign.system_label || campaign.description) && (
-        <View style={styles.section}>
-          {campaign.system_label ? (
-            <Text style={styles.meta}>{campaign.system_label}</Text>
-          ) : null}
-          {campaign.description ? (
-            <Text style={styles.description}>{campaign.description}</Text>
-          ) : null}
-        </View>
-      )}
-
-      {isDM && (
-        <View style={styles.section}>
-          <Text style={styles.label}>Join Code</Text>
-          <View style={styles.codeRow}>
-            <Text style={styles.code}>{campaign.join_code}</Text>
-            <TouchableOpacity onPress={copyJoinCode} style={styles.copyButton}>
-              <Text style={styles.copyText}>{copied ? 'Copied!' : 'Copy'}</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.hint}>Share this code with players so they can join.</Text>
-          <TouchableOpacity onPress={handleRegenerateCode} disabled={regenerating} style={styles.regenerateButton}>
-            <Text style={styles.regenerateText}>
-              {regenerating ? 'Regenerating...' : 'Regenerate code'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Player character link prompt — shown when the current user is a player with no character linked */}
-      {!isDM && myMember && !myMember.character_id && (
-        <TouchableOpacity style={styles.linkPrompt} onPress={() => setPickerVisible(true)}>
-          <Text style={styles.linkPromptTitle}>Link your character</Text>
-          <Text style={styles.linkPromptSub}>
-            Connect a character sheet so your party can see your state during sessions.
-          </Text>
-          <Text style={styles.linkPromptCta}>Choose character →</Text>
-        </TouchableOpacity>
-      )}
-
-      <View style={styles.section}>
-        <Text style={styles.label}>Members</Text>
-        {members.map((member) => {
-          const isCurrentUser = member.user_id === user?.id;
-          const displayName = member.profiles?.display_name ?? 'Anonymous';
-          const charSummary = characterSummary(member);
-          const isPlayerRow = !isDM && isCurrentUser && member.role !== 'gm';
-
-          return (
-            <View key={member.user_id} style={styles.memberRow}>
-              <View style={styles.memberLeft}>
-                <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>{displayName}</Text>
-                  <Text style={styles.memberRole}>{ROLE_LABEL[member.role] ?? member.role}</Text>
+      <View style={s.grid}>
+        {/* ---- Cover card ---- */}
+        <TouchableOpacity
+          style={s.coverCard}
+          onPress={isDM ? handlePickCover : undefined}
+          activeOpacity={isDM ? 0.7 : 1}
+          disabled={!isDM || uploading}
+        >
+          {campaign.cover_image_url ? (
+            <Image source={{ uri: campaign.cover_image_url }} style={s.coverImage} />
+          ) : (
+            <View style={s.coverPlaceholder}>
+              {isDM && !uploading && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <MaterialCommunityIcons name="image-plus" size={28} color={colors.textSecondary} />
+                  <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Add cover image</Text>
                 </View>
-                {charSummary ? (
-                  (() => {
-                    const canView = isDM || isCurrentUser;
-                    return canView ? (
-                      <TouchableOpacity onPress={() => router.push(`/character/${member.character_id}`)}>
-                        <Text style={[styles.characterLine, styles.characterLineLink]}>{charSummary} →</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <Text style={styles.characterLine}>{charSummary}</Text>
-                    );
-                  })()
-                ) : isPlayerRow ? (
-                  <Text style={styles.characterLineMuted}>No character linked</Text>
-                ) : null}
-              </View>
-
-              <View style={styles.memberActions}>
-                {/* Player can tap to change their linked character */}
-                {isPlayerRow && (
-                  <TouchableOpacity onPress={() => setPickerVisible(true)} style={styles.linkButton}>
-                    <Text style={styles.linkButtonText}>
-                      {member.character_id ? 'Change' : 'Link'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                {/* DM can remove anyone except themselves */}
-                {isDM && !isCurrentUser && (
-                  <TouchableOpacity onPress={() => handleRemove(member.user_id)}>
-                    <Text style={styles.removeText}>Remove</Text>
-                  </TouchableOpacity>
-                )}
-                {/* Players can leave */}
-                {!isDM && isCurrentUser && (
-                  <TouchableOpacity onPress={handleLeave} style={styles.leaveButton}>
-                    <Text style={styles.removeText}>Leave</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+              )}
+              {uploading && <ActivityIndicator color={colors.brand} />}
             </View>
-          );
-        })}
+          )}
+          <View style={s.coverOverlay} />
+          <View style={s.coverContent}>
+            <Text style={s.coverTitle} numberOfLines={2}>{campaign.name}</Text>
+            <View style={s.coverMeta}>
+              <Text style={s.coverBadge}>{isDM ? 'DM' : 'Player'}</Text>
+              {campaign.system_label ? (
+                <Text style={s.coverSystem}>{campaign.system_label}</Text>
+              ) : null}
+            </View>
+          </View>
+          {isDM && campaign.cover_image_url && (
+            <View style={s.coverEditBtn}>
+              <MaterialCommunityIcons name="camera-outline" size={16} color="#fff" />
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* ---- System card ---- */}
+        <View style={s.infoCard}>
+          <MaterialCommunityIcons name="dice-d20-outline" size={24} color={colors.brand} />
+          <Text style={s.infoLabel}>System</Text>
+          <Text style={s.systemValue}>
+            {campaign.system_label || 'Not set'}
+          </Text>
+          {isDM && (
+            <TouchableOpacity
+              style={s.manageBtn}
+              onPress={() => {
+                setEditSystem(campaign.system_label ?? '');
+                setSystemModal(true);
+              }}
+            >
+              <MaterialCommunityIcons name="cog-outline" size={16} color={colors.brand} />
+              <Text style={s.manageBtnText}>Manage System</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* ---- Party card ---- */}
+        <View style={s.infoCard}>
+          <View style={s.memberHeaderRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <MaterialCommunityIcons name="shield-sword-outline" size={24} color={colors.brand} />
+              <Text style={s.infoLabel}>Party</Text>
+            </View>
+            <View style={s.dmTag}>
+              <Text style={s.dmTagLabel}>DM</Text>
+              <Text style={s.dmTagName} numberOfLines={1}>
+                {members.find((m) => m.role === 'gm')?.profiles?.display_name ?? 'Anonymous'}
+              </Text>
+            </View>
+          </View>
+
+          {(() => {
+            const players = members.filter((m) => m.role !== 'gm');
+            if (players.length === 0) {
+              return <Text style={s.infoSubtext}>No players yet</Text>;
+            }
+            return (
+              <View style={s.partyList}>
+                {players.map((m) => {
+                  const char = m.character_id ? characterMap[m.character_id] : null;
+                  return (
+                    <View key={m.user_id} style={s.partyRow}>
+                      <MaterialCommunityIcons
+                        name={char ? 'account-circle-outline' : 'account-alert-outline'}
+                        size={20}
+                        color={char ? colors.brand : colors.textSecondary}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.partyCharName}>
+                          {char ? char.name : 'No character'}
+                        </Text>
+                        <Text style={s.partyPlayerName}>
+                          {m.profiles?.display_name ?? 'Anonymous'}
+                          {char ? ` · ${char.subtitle}` : ''}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })()}
+
+          {isDM ? (
+            <TouchableOpacity style={s.manageBtn} onPress={() => setMembersModal(true)}>
+              <MaterialCommunityIcons name="cog-outline" size={16} color={colors.brand} />
+              <Text style={s.manageBtnText}>Manage Members</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={handleLeave} style={s.manageBtn}>
+              <Text style={s.leaveText}>Leave Campaign</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* ---- Sessions card ---- */}
+        <View style={s.infoCard}>
+          <MaterialCommunityIcons name="sword-cross" size={24} color={colors.brand} />
+          <Text style={s.infoLabel}>Sessions</Text>
+          <Text style={s.infoValue}>0</Text>
+          <Text style={s.infoSubtext}>Coming soon</Text>
+        </View>
+
+        {/* ---- Notes card ---- */}
+        <View style={s.infoCard}>
+          <MaterialCommunityIcons name="notebook-outline" size={24} color={colors.brand} />
+          <Text style={s.infoLabel}>Notes</Text>
+          {campaign.description ? (
+            <Text style={s.descText} numberOfLines={4}>{campaign.description}</Text>
+          ) : (
+            <Text style={s.infoSubtext}>No description yet</Text>
+          )}
+        </View>
       </View>
 
+      {/* ======== Character Picker Modal ======== */}
       {user && myMember && (
         <CharacterPickerModal
           visible={pickerVisible}
@@ -255,192 +390,286 @@ export default function CampaignDetailScreen() {
           onLinked={handleLinked}
         />
       )}
+
+      {/* ======== Manage Members Modal ======== */}
+      <Modal visible={membersModal} transparent animationType="fade">
+        <Pressable style={s.modalBackdrop} onPress={() => setMembersModal(false)}>
+          <Pressable style={s.modalCard} onPress={() => {}}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Manage Members</Text>
+              <TouchableOpacity onPress={() => setMembersModal(false)}>
+                <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Join Code */}
+            <View style={s.modalSection}>
+              <Text style={s.infoLabel}>Join Code</Text>
+              <View style={s.joinCodeRow}>
+                <Text style={s.codeValue}>{campaign.join_code}</Text>
+                <TouchableOpacity onPress={copyJoinCode} style={s.codeBtn}>
+                  <Text style={s.codeBtnText}>{copied ? 'Copied!' : 'Copy'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleRegenerateCode} disabled={regenerating}>
+                  <Text style={s.codeBtnTextSecondary}>
+                    {regenerating ? '...' : 'Regenerate'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={s.joinCodeHint}>Share this code to invite players</Text>
+            </View>
+
+            {/* Member list */}
+            <View style={s.modalSection}>
+              <Text style={s.infoLabel}>Members</Text>
+              {members.map((m) => {
+                const char = m.character_id ? characterMap[m.character_id] : null;
+                return (
+                  <View key={m.user_id} style={s.modalMemberRow}>
+                    <View style={{ flex: 1 }}>
+                      <View style={s.modalMemberTop}>
+                        <Text style={s.memberName} numberOfLines={1}>
+                          {m.profiles?.display_name ?? 'Anonymous'}
+                        </Text>
+                        <Text style={s.memberBadge}>{ROLE_LABEL[m.role] ?? m.role}</Text>
+                      </View>
+                      {m.role !== 'gm' && (
+                        <Text style={s.modalMemberChar} numberOfLines={1}>
+                          {char ? `Playing: ${char.name} (${char.subtitle})` : 'No character assigned'}
+                        </Text>
+                      )}
+                    </View>
+                    {m.user_id !== user?.id && (
+                      <TouchableOpacity onPress={() => handleRemove(m.user_id)}>
+                        <Text style={s.removeText}>Remove</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ======== Manage System Modal ======== */}
+      <Modal visible={systemModal} transparent animationType="fade">
+        <Pressable style={s.modalBackdrop} onPress={() => setSystemModal(false)}>
+          <Pressable style={s.modalCard} onPress={() => {}}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Manage System</Text>
+              <TouchableOpacity onPress={() => setSystemModal(false)}>
+                <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.modalSection}>
+              <Text style={s.infoLabel}>Game System</Text>
+              <TextInput
+                style={s.modalInput}
+                value={editSystem}
+                onChangeText={setEditSystem}
+                placeholder="e.g. D&D 5e, Pathfinder 2e"
+                placeholderTextColor={colors.textSecondary}
+                autoFocus
+              />
+            </View>
+
+            <TouchableOpacity style={s.modalSaveBtn} onPress={handleSaveSystem}>
+              <Text style={s.modalSaveBtnText}>Save</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ======== Crop Modal ======== */}
+      {cropUri && (
+        <ImageCropModal
+          visible
+          imageUri={cropUri}
+          aspect={[16, 9]}
+          onConfirm={handleCropConfirm}
+          onCancel={() => setCropUri(null)}
+        />
+      )}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  container: {
-    paddingTop: 60,
-    paddingHorizontal: 24,
-    paddingBottom: 48,
+const CARD_BASE = {
+  backgroundColor: colors.surface,
+  borderColor: colors.border,
+  borderWidth: 1,
+  borderRadius: 14,
+  overflow: 'hidden' as const,
+};
+
+const s = StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: colors.background },
+  container: { paddingBottom: 48 },
+  loadingContainer: {
+    flex: 1, backgroundColor: colors.background,
+    justifyContent: 'center', alignItems: 'center',
   },
   back: {
-    marginBottom: 32,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
   },
-  backText: {
-    color: colors.brand,
-    fontSize: 16,
+  backText: { color: colors.brand, fontSize: 14 },
+
+  // Grid
+  grid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    gap: spacing.md, paddingHorizontal: spacing.lg,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 32,
+
+  // Cover card
+  coverCard: {
+    ...CARD_BASE, width: '100%', maxWidth: 480, position: 'relative',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    flexShrink: 1,
-  },
-  roleBadge: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  label: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 12,
-  },
-  meta: {
-    fontSize: 13,
-    color: colors.brand,
-    marginBottom: 4,
-  },
-  description: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  codeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  code: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    letterSpacing: 4,
-  },
-  copyButton: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  copyText: {
-    color: colors.brand,
-    fontSize: 14,
-  },
-  hint: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 8,
-  },
-  regenerateButton: {
-    marginTop: 12,
-  },
-  regenerateText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    textDecorationLine: 'underline',
-  },
-  linkPrompt: {
+  coverImage: { width: '100%', aspectRatio: 16 / 9 },
+  coverPlaceholder: {
+    width: '100%', aspectRatio: 16 / 9,
+    alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.surface,
-    borderColor: colors.brand,
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 32,
   },
-  linkPromptTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 4,
+  coverOverlay: {
+    ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)',
   },
-  linkPromptSub: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: 12,
+  coverContent: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.md,
   },
-  linkPromptCta: {
-    fontSize: 14,
-    color: colors.brand,
+  coverTitle: {
+    fontSize: 22, fontWeight: '700', color: '#fff', marginBottom: 6,
   },
+  coverMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  coverBadge: {
+    fontSize: 11, fontWeight: '700', color: '#fff',
+    borderColor: 'rgba(255,255,255,0.4)', borderWidth: 1,
+    borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  coverSystem: { fontSize: 13, color: 'rgba(255,255,255,0.75)' },
+  coverEditBtn: {
+    position: 'absolute', top: spacing.sm, right: spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 14, padding: 5,
+  },
+
+  // Info cards
+  infoCard: {
+    ...CARD_BASE, padding: spacing.md,
+    minWidth: 160, flex: 1, flexBasis: 160, gap: 6,
+  },
+  infoValue: { fontSize: 28, fontWeight: '700', color: colors.textPrimary },
+  infoLabel: {
+    fontSize: 12, color: colors.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 1,
+  },
+  infoSubtext: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+
+  // System card
+  systemValue: {
+    fontSize: 18, fontWeight: '600', color: colors.textPrimary, marginTop: 4,
+  },
+
+  // Member card
+  memberHeaderRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+  },
+  dmTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.background, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
+  },
+  dmTagLabel: { fontSize: 11, fontWeight: '700', color: colors.brand },
+  dmTagName: { fontSize: 12, color: colors.textPrimary, maxWidth: 120 },
+  memberSection: { marginTop: spacing.sm },
+  memberSectionLabel: {
+    fontSize: 11, color: colors.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
+  },
+  memberName: { fontSize: 14, color: colors.textPrimary, lineHeight: 22, flex: 1 },
+  memberNameDim: { fontSize: 14, color: colors.textSecondary, fontStyle: 'italic' },
   memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomColor: colors.border,
-    borderBottomWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: 6, borderBottomColor: colors.border, borderBottomWidth: 1,
   },
-  memberLeft: {
-    flex: 1,
-    gap: 4,
+  memberBadge: {
+    fontSize: 10, color: colors.textSecondary,
+    borderColor: colors.border, borderWidth: 1,
+    borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1,
   },
-  memberInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  removeText: { fontSize: 12, color: colors.hpDanger },
+
+  // Manage button (bottom of cards)
+  manageBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 'auto', paddingTop: spacing.md,
+    borderTopColor: colors.border, borderTopWidth: 1,
   },
-  memberName: {
-    fontSize: 15,
-    color: colors.textPrimary,
+  manageBtnText: { fontSize: 13, color: colors.brand, fontWeight: '600' },
+  leaveText: { fontSize: 13, color: colors.hpDanger },
+
+  // Join code (inside modal)
+  joinCodeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  codeValue: { fontSize: 16, fontWeight: '700', color: colors.textPrimary, letterSpacing: 2 },
+  codeBtn: {
+    borderColor: colors.border, borderWidth: 1,
+    borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4,
   },
-  memberRole: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  codeBtnText: { color: colors.brand, fontSize: 12, fontWeight: '600' },
+  codeBtnTextSecondary: { color: colors.textSecondary, fontSize: 12, paddingVertical: 4 },
+  joinCodeHint: { fontSize: 12, color: colors.textSecondary, marginTop: spacing.xs },
+
+  // Party card
+  partyList: { marginTop: spacing.sm, gap: 2 },
+  partyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: 6, borderBottomColor: colors.border, borderBottomWidth: 1,
   },
-  characterLine: {
-    fontSize: 12,
-    color: colors.textSecondary,
+  partyCharName: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+  partyPlayerName: { fontSize: 12, color: colors.textSecondary },
+
+  // Modal member rows
+  modalMemberRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: 8, borderBottomColor: colors.border, borderBottomWidth: 1,
   },
-  characterLineLink: {
-    color: colors.brand,
+  modalMemberTop: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
   },
-  characterLineMuted: {
-    fontSize: 12,
-    color: colors.border,
-    fontStyle: 'italic',
+  modalMemberChar: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+
+  // Description
+  descText: { fontSize: 13, color: colors.textSecondary, lineHeight: 20, marginTop: 4 },
+
+  // Modals
+  modalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center',
   },
-  memberActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginLeft: 8,
+  modalCard: {
+    backgroundColor: colors.surface, borderRadius: 14,
+    borderColor: colors.border, borderWidth: 1,
+    width: '90%', maxWidth: 460, padding: spacing.lg,
   },
-  linkButton: {
-    borderColor: colors.brand,
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: spacing.lg,
   },
-  linkButtonText: {
-    fontSize: 12,
-    color: colors.brand,
+  modalTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
+  modalSection: { marginBottom: spacing.lg },
+  modalInput: {
+    backgroundColor: colors.background, borderColor: colors.border,
+    borderWidth: 1, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    color: colors.textPrimary, fontSize: 15, marginTop: spacing.sm,
   },
-  leaveButton: {},
-  removeText: {
-    fontSize: 13,
-    color: colors.hpDanger,
+  modalSaveBtn: {
+    backgroundColor: colors.brand, borderRadius: 8,
+    paddingVertical: 12, alignItems: 'center',
   },
-  textSecondary: {
-    color: colors.textSecondary,
-  },
+  modalSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  textSecondary: { color: colors.textSecondary },
 });

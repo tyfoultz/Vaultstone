@@ -63,6 +63,7 @@ export interface Database {
           join_code: string;
           system_label: string | null;
           description: string | null;
+          cover_image_url: string | null;
           is_archived: boolean;
           created_at: string;
         };
@@ -73,6 +74,7 @@ export interface Database {
           join_code: string;
           system_label?: string | null;
           description?: string | null;
+          cover_image_url?: string | null;
           is_archived?: boolean;
           created_at?: string;
         };
@@ -83,6 +85,7 @@ export interface Database {
           join_code?: string;
           system_label?: string | null;
           description?: string | null;
+          cover_image_url?: string | null;
           is_archived?: boolean;
         };
         Relationships: [];

@@ -113,3 +113,50 @@ export async function joinCampaign(campaignId: string, userId: string) {
 
   return { data, error: fetchError };
 }
+
+export async function assignCharacterToCampaign(
+  campaignId: string,
+  userId: string,
+  characterId: string | null,
+) {
+  return supabase
+    .from('campaign_members')
+    .update({ character_id: characterId })
+    .eq('campaign_id', campaignId)
+    .eq('user_id', userId);
+}
+
+const ALLOWED_COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+export async function uploadCampaignCover(campaignId: string, fileUri: string, mimeType: string) {
+  if (!ALLOWED_COVER_TYPES.includes(mimeType)) {
+    return { url: null, error: { message: 'Only JPEG, PNG, and WebP images are allowed.' } };
+  }
+
+  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const path = `campaign-covers/${campaignId}.${ext}`;
+
+  // Fetch the file as a blob for upload
+  const response = await fetch(fileUri);
+  const blob = await response.blob();
+
+  const { error: uploadError } = await supabase.storage
+    .from('campaign-assets')
+    .upload(path, blob, { contentType: mimeType, upsert: true });
+
+  if (uploadError) return { url: null, error: uploadError };
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('campaign-assets')
+    .getPublicUrl(path);
+
+  // Save the URL to the campaign row
+  const { error: updateError } = await supabase
+    .from('campaigns')
+    .update({ cover_image_url: publicUrl })
+    .eq('id', campaignId);
+
+  if (updateError) return { url: null, error: updateError };
+
+  return { url: publicUrl, error: null };
+}

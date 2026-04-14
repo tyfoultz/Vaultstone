@@ -1,4 +1,5 @@
 export { useAuthStore } from './auth.store';
+export { useProfileStore } from './profile.store';
 export { useCampaignStore } from './campaign.store';
 export { useCharacterStore } from './character.store';
 export { useCharacterDraftStore } from './character-draft.store';

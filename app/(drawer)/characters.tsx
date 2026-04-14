@@ -1,12 +1,27 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getMyCharacters } from '@vaultstone/api';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
-import { colors } from '@vaultstone/ui';
+import { colors, spacing } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
 type Character = Database['public']['Tables']['characters']['Row'];
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function getStats(character: Character) {
+  const stats = character.base_stats as Record<string, unknown> | null;
+  if (!stats) return { classKey: null, level: null, speciesKey: null };
+  return {
+    classKey: typeof stats.classKey === 'string' ? capitalize(stats.classKey) : null,
+    level: typeof stats.level === 'number' ? stats.level : null,
+    speciesKey: typeof stats.speciesKey === 'string' ? capitalize(stats.speciesKey) : null,
+  };
+}
 
 export default function CharactersScreen() {
   const router = useRouter();
@@ -14,6 +29,9 @@ export default function CharactersScreen() {
   const { characters, setCharacters } = useCharacterStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { width } = useWindowDimensions();
+
+  const numColumns = width > 900 ? 3 : width > 560 ? 2 : 1;
 
   useEffect(() => {
     if (!user) return;
@@ -27,24 +45,37 @@ export default function CharactersScreen() {
     });
   }, [user]);
 
-  function getCharacterSubtitle(character: Character): string {
-    const stats = character.base_stats as Record<string, unknown> | null;
-    if (!stats) return character.system;
-    const parts: string[] = [];
-    if (typeof stats.classKey === 'string') parts.push(capitalize(stats.classKey));
-    if (typeof stats.level === 'number') parts.push(`Level ${stats.level}`);
-    if (typeof stats.speciesKey === 'string') parts.push(capitalize(stats.speciesKey));
-    return parts.join(' · ') || character.system;
-  }
-
   function renderItem({ item }: { item: Character }) {
+    const { classKey, level, speciesKey } = getStats(item);
+
     return (
       <TouchableOpacity
-        style={styles.item}
+        style={[styles.card, { flex: 1 / numColumns }]}
         onPress={() => router.push(`/character/${item.id}`)}
       >
-        <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemMeta}>{getCharacterSubtitle(item)}</Text>
+        {/* Avatar placeholder */}
+        <View style={styles.avatarArea}>
+          <MaterialCommunityIcons name="account-outline" size={48} color={colors.border} />
+        </View>
+
+        <View style={styles.cardBody}>
+          <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+
+          {(classKey || speciesKey) && (
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {[speciesKey, classKey].filter(Boolean).join(' ')}
+            </Text>
+          )}
+
+          <View style={styles.detailRow}>
+            {level !== null && (
+              <View style={styles.levelBadge}>
+                <Text style={styles.levelText}>Lvl {level}</Text>
+              </View>
+            )}
+            <Text style={styles.systemText}>{item.system}</Text>
+          </View>
+        </View>
       </TouchableOpacity>
     );
   }
@@ -71,31 +102,30 @@ export default function CharactersScreen() {
       )}
 
       <FlatList
+        key={numColumns}
         data={characters}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
+        numColumns={numColumns}
+        columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
         contentContainerStyle={styles.list}
       />
     </View>
   );
 }
 
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingTop: 60,
-    paddingHorizontal: 16,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: spacing.lg,
   },
   title: {
     fontSize: 24,
@@ -126,22 +156,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   emptyBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  list: { gap: 12 },
-  item: {
+  list: {
+    gap: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  row: {
+    gap: spacing.md,
+  },
+  // Card
+  card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: 14,
+    overflow: 'hidden',
   },
-  itemName: {
-    fontSize: 17,
-    fontWeight: '600',
+  avatarArea: {
+    width: '100%',
+    aspectRatio: 2 / 1,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardBody: {
+    padding: spacing.md,
+  },
+  cardName: {
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.textPrimary,
     marginBottom: 4,
   },
-  itemMeta: {
-    fontSize: 13,
+  subtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  levelBadge: {
+    backgroundColor: colors.brand + '22',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  levelText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.brand,
+  },
+  systemText: {
+    fontSize: 12,
     color: colors.textSecondary,
   },
 });

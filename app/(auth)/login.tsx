@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { signIn } from '@vaultstone/api';
-import { colors } from '@vaultstone/ui';
+import { colors, spacing, fonts } from '@vaultstone/ui';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -22,102 +23,123 @@ export default function LoginScreen() {
     if (authError) {
       setError('Invalid email or password.');
     }
-    // On success onAuthStateChange fires, updates the store, and (auth) layout redirects.
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Vaultstone</Text>
-      <Text style={styles.subtitle}>Sign in to continue</Text>
+    <View style={s.container}>
+      <View style={s.card}>
+        <View style={s.logoRow}>
+          <MaterialCommunityIcons name="shield-crown-outline" size={36} color={colors.brand} />
+          <Text style={s.logoText}>Vaultstone</Text>
+        </View>
+        <Text style={s.subtitle}>Sign in to continue</Text>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={s.error}>{error}</Text> : null}
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor={colors.textSecondary}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        autoComplete="email"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor={colors.textSecondary}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete="current-password"
-      />
+        <TextInput
+          style={s.input}
+          placeholder="Email"
+          placeholderTextColor={colors.textSecondary}
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          autoComplete="email"
+        />
+        <TextInput
+          style={s.input}
+          placeholder="Password"
+          placeholderTextColor={colors.textSecondary}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoComplete="current-password"
+        />
 
-      <TouchableOpacity style={styles.button} onPress={handleSignIn} disabled={loading}>
-        {loading
-          ? <ActivityIndicator color={colors.textPrimary} />
-          : <Text style={styles.buttonText}>Sign In</Text>
-        }
-      </TouchableOpacity>
+        <TouchableOpacity style={s.button} onPress={handleSignIn} disabled={loading}>
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={s.buttonText}>Sign In</Text>
+          }
+        </TouchableOpacity>
 
-      <Link href="/(auth)/forgot-password" style={styles.link}>
-        Forgot password?
-      </Link>
-      <Link href="/(auth)/signup" style={[styles.link, { marginTop: 12 }]}>
-        Don't have an account? Sign up
-      </Link>
+        <Link href="/(auth)/forgot-password" style={s.link}>
+          Forgot password?
+        </Link>
+        <Link href="/(auth)/signup" style={[s.link, { marginTop: 12 }]}>
+          Don't have an account? Sign up
+        </Link>
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    alignItems: 'center',
+    padding: spacing.lg,
   },
-  title: {
-    fontSize: 36,
+  card: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  logoText: {
+    fontSize: 28,
+    fontFamily: fonts.display,
     color: colors.textPrimary,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
+    letterSpacing: 1,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: spacing.lg,
   },
   error: {
     color: colors.hpDanger,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.md,
     fontSize: 14,
   },
   input: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: 8,
     color: colors.textPrimary,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    marginBottom: spacing.sm,
   },
   button: {
     backgroundColor: colors.brand,
     borderRadius: 8,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 24,
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
   },
   buttonText: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
   link: {
     color: colors.brand,
