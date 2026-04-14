@@ -75,9 +75,10 @@ Player enters 6-char join code. Campaign looked up via security-definer RPC (byp
 | Phase 3 — Creation Wizard | ✅ Done | 6-step wizard (ruleset → species → class → background → ability scores → review). Roll Dice, Standard Array, Point Buy, Manual methods. `campaign_id` nullable. Commit: `958a3b6`. |
 | Phase 4 — Character Sheet | ✅ Done | Tabbed sheet (Overview + Combat). Overview: identity, ability scores, saves, 18 skills. Combat: live HP block + HpModal, AC/Init/Speed/Hit Die, death saves, ConditionsPanel (14 SRD conditions + exhaustion 0–6). |
 | Phase 5 — Campaign Linking | ⬜ Up next | Character list screen + link character to `campaign_members.character_id`. |
+| Epic 7 — Sheet Import & Hyperlinking | ⬜ Planned (post-MVP) | Long-running plan: upload existing sheet (PDF/image/JSON) → extract stats → resolve content via Feature 8 index → hyperlinked sheet rendering. See [01-character.md Epic 7](features/01-character.md#epic-7--character-sheet-import--auto-population--planned-post-mvp). |
 
 **MVP scope IN:** US-101–107, US-201–202, US-204, character ↔ campaign linking
-**MVP scope DEFERRED:** US-106 (equipment), US-203 (spell slots), US-205 (hit dice spending), US-206 (class resources), Epics 3–6
+**MVP scope DEFERRED:** US-106 (equipment), US-203 (spell slots), US-205 (hit dice spending), US-206 (class resources), Epics 3–6, Epic 7 (sheet import)
 
 ### 5. Party View ⬜ Not started
 DM sees all characters in their campaign with live HP, conditions, spell slots.
@@ -103,8 +104,12 @@ Append-only event feed. Displays what happened during a session.
 | 5e — Progress UI polish | ✅ Done | Per-PDF `IndexStatusLine` with Retry; 500ms polling while indexing. |
 | 5f — ContentResolver Tier 2 | ⬜ | Route typed queries through `content_fts`. |
 | 6 — Structured extraction | ⬜ | Tag pages with content type for Spellbook / Bestiary. |
+| 7 — In-session "Look it up" panel | ⬜ Planned | Slide-over search on session screen; reuses `searchCampaign`. |
+| 8 — Bookmarks / page pins | ⬜ Planned | Local `pdf_bookmarks` table; "Pinned" section on search; pin filter. |
+| 9 — DM-shared search results | ⬜ Planned | Citation-only sharing via Realtime; new `session_lookups` table (no PDF text server-side). |
 
-**Legal:** PDFs never leave the device. See [legal.md](legal.md).
+**Legal:** PDFs never leave the device. See [legal.md](legal.md). Phase 9
+shares page citations only — never extracted page text.
 
 ---
 
