@@ -7,14 +7,22 @@ import { getSourceById } from '@vaultstone/content';
 import type { LocalSource } from '@vaultstone/content';
 
 // react-native-pdf is native-only; conditionally import
-let Pdf: React.ComponentType<{ source: { uri: string }; style: object; onError?: (err: unknown) => void }> | null = null;
+let Pdf: React.ComponentType<{
+  source: { uri: string };
+  style: object;
+  page?: number;
+  onError?: (err: unknown) => void;
+}> | null = null;
 if (Platform.OS !== 'web') {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   Pdf = require('react-native-pdf').default;
 }
 
 export default function PdfViewerScreen() {
-  const { id, sourceId } = useLocalSearchParams<{ id: string; sourceId: string }>();
+  const { id, sourceId, page } = useLocalSearchParams<{
+    id: string; sourceId: string; page?: string;
+  }>();
+  const initialPage = page ? Math.max(1, parseInt(page, 10) || 1) : 1;
   const router = useRouter();
   const [source, setSource] = useState<LocalSource | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,9 +105,10 @@ export default function PdfViewerScreen() {
           <Text style={[s.errorText, { marginTop: spacing.sm }]}>{pdfError}</Text>
         </View>
       ) : Platform.OS === 'web' ? (
-        // source.file_path is a fresh blob URL from IndexedDB — use directly, no re-fetch needed
+        // source.file_path is a fresh blob URL from IndexedDB — use directly, no re-fetch needed.
+        // #page=N is the PDF.js / Chrome PDF viewer open-parameter convention.
         <iframe
-          src={source.file_path}
+          src={page ? `${source.file_path}#page=${initialPage}` : source.file_path}
           style={{ flex: 1, border: 'none', width: '100%', height: '100%' }}
           title={source.file_name}
         />
@@ -107,6 +116,7 @@ export default function PdfViewerScreen() {
         <Pdf
           source={{ uri: source.file_path }}
           style={s.pdf}
+          page={initialPage}
           onError={(err) => {
             console.warn('PDF error', err);
             setPdfError('Failed to render PDF. Ensure the file is a valid PDF.');

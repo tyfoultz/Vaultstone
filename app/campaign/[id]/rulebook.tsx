@@ -12,6 +12,7 @@ import { useCampaignStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import {
   getSourcesByCampaign, saveSource, deleteSourceById,
+  removeSourceFromIndex,
 } from '@vaultstone/content';
 import type { LocalSource } from '@vaultstone/content';
 import type { Database } from '@vaultstone/types';
@@ -154,6 +155,8 @@ export default function RulebookScreen() {
       }
     }
     await deleteSourceById(sourceToRemove.id);
+    // Also drop any indexed page text for this source.
+    await removeSourceFromIndex(sourceToRemove.id).catch(() => {});
     setLocalSources((prev) => prev.filter((s) => s.id !== sourceToRemove.id));
   }
 

@@ -357,6 +357,16 @@ export default function CampaignDetailScreen() {
                 <Text style={s.manageBtnText}>Rulebook</Text>
               </TouchableOpacity>
 
+              {localSources.length > 0 && (
+                <TouchableOpacity
+                  style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
+                  onPress={() => router.push(`/campaign/${id}/search` as never)}
+                >
+                  <MaterialCommunityIcons name="magnify" size={16} color={colors.brand} />
+                  <Text style={s.manageBtnText}>Search Content</Text>
+                </TouchableOpacity>
+              )}
+
               {isDM && (
                 <TouchableOpacity
                   style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}

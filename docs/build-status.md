@@ -88,6 +88,24 @@ Start a session, initiative tracker, HP management, conditions. Real-time sync v
 ### 7. Session Log ⬜ Not started
 Append-only event feed. Displays what happened during a session.
 
+### 8. PDF Rulebook 🟡 In Progress
+
+| Phase | Status | Summary |
+|---|---|---|
+| 1 — Campaign source metadata | ✅ Done | `content_sources` JSONB on campaigns; System Card preset picker. |
+| 2 — Local PDF upload | ✅ Done | ToS gate, document picker, FileSystem/IndexedDB persistence. |
+| 3 — In-app PDF viewer | ✅ Done | `react-native-pdf` (native) / iframe (web). |
+| 4 — Player-facing source prompt | ✅ Done | Per-PDF rows on System Card, Read + Remove actions. |
+| 5a — Indexing scaffold | ✅ Done | FTS5 (native) + IndexedDB (web) search framework; search screen; viewer accepts `page` param. |
+| 5b — Web PDF text extraction | ⬜ Up next | `pdfjs-dist` in `pdf-parser.web.ts`. |
+| 5c — Native PDF text extraction | ⬜ | `pdfjs-dist/legacy` + Hermes polyfills. |
+| 5d — Wire parsing into upload | ⬜ | Auto-index after `saveSource`; `reindexSource` helper. |
+| 5e — Progress UI polish | ⬜ | Per-PDF indexing indicator + Retry action. |
+| 5f — ContentResolver Tier 2 | ⬜ | Route typed queries through `content_fts`. |
+| 6 — Structured extraction | ⬜ | Tag pages with content type for Spellbook / Bestiary. |
+
+**Legal:** PDFs never leave the device. See [legal.md](legal.md).
+
 ---
 
 ## Phase 6: TestFlight / Internal Testing
