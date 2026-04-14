@@ -437,16 +437,6 @@ export default function CharacterSheetScreen() {
               {capitalize(stats.speciesKey)} {capitalize(stats.classKey)}
             </Text>
             <View style={s.heroMeta}>
-              {manualMode ? (
-                <TouchableOpacity style={s.levelBadge} onPress={() => startEditField('level', stats.level)}>
-                  <Text style={s.levelText}>Lvl {stats.level}</Text>
-                  <MaterialCommunityIcons name="pencil-outline" size={10} color={colors.brand} />
-                </TouchableOpacity>
-              ) : (
-                <View style={s.levelBadge}>
-                  <Text style={s.levelText}>Lvl {stats.level}</Text>
-                </View>
-              )}
               <Text style={s.heroDetail}>{capitalize(stats.backgroundKey)}</Text>
               <Text style={s.heroDetail}>
                 {stats.srdVersion === 'SRD_2.0' ? '2024 Rules' : '2014 Rules'}
@@ -465,11 +455,11 @@ export default function CharacterSheetScreen() {
               disabled={!manualMode}
               onPress={() => startEditField('level', stats.level)}
             >
-              <Text style={s.heroRightValue}>{stats.level}</Text>
+              <Text style={[s.heroRightValue, { color: colors.brand }]}>{stats.level}</Text>
               <Text style={s.heroRightLabel}>Lvl{manualMode ? ' ✎' : ''}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={s.heroRightBox}
+              style={[s.heroRightBox, { paddingHorizontal: 24 }]}
               onPress={() => { setEditingField('xp'); setFieldInput(String(resources.xp ?? 0)); }}
             >
               <View style={s.heroXpRow}>
