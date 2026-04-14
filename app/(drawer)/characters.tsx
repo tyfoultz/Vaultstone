@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getMyCharacters } from '@vaultstone/api';
+import { getMyCharacters, supabase } from '@vaultstone/api';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
@@ -29,24 +29,41 @@ export default function CharactersScreen() {
   const { characters, setCharacters } = useCharacterStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [campaignMap, setCampaignMap] = useState<Record<string, string>>({});
   const { width } = useWindowDimensions();
 
   const numColumns = width > 900 ? 3 : width > 560 ? 2 : 1;
 
   useEffect(() => {
     if (!user) return;
-    getMyCharacters().then(({ data, error: err }) => {
-      if (err) {
+    Promise.all([
+      getMyCharacters(),
+      supabase
+        .from('campaign_members')
+        .select('character_id, campaigns(name)')
+        .eq('user_id', user.id)
+        .not('character_id', 'is', null),
+    ]).then(([chars, memberships]) => {
+      if (chars.error) {
         setError('Failed to load characters.');
       } else {
-        setCharacters(data ?? []);
+        setCharacters(chars.data ?? []);
       }
+      const map: Record<string, string> = {};
+      type MembershipRow = { character_id: string | null; campaigns: { name: string } | null };
+      for (const row of (memberships.data ?? []) as unknown as MembershipRow[]) {
+        if (row.character_id && row.campaigns?.name) {
+          map[row.character_id] = row.campaigns.name;
+        }
+      }
+      setCampaignMap(map);
       setLoading(false);
     });
   }, [user]);
 
   function renderItem({ item }: { item: Character }) {
     const { classKey, level, speciesKey } = getStats(item);
+    const campaignName = campaignMap[item.id];
 
     return (
       <TouchableOpacity
@@ -74,6 +91,20 @@ export default function CharactersScreen() {
               </View>
             )}
             <Text style={styles.systemText}>{item.system}</Text>
+          </View>
+
+          <View style={styles.campaignRow}>
+            <MaterialCommunityIcons
+              name={campaignName ? 'map-marker-outline' : 'map-marker-off-outline'}
+              size={13}
+              color={campaignName ? colors.brand : colors.textSecondary}
+            />
+            <Text
+              style={[styles.campaignText, !campaignName && styles.campaignTextMuted]}
+              numberOfLines={1}
+            >
+              {campaignName ? `In: ${campaignName}` : 'Unassigned'}
+            </Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -211,5 +242,23 @@ const styles = StyleSheet.create({
   systemText: {
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  campaignRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+  },
+  campaignText: {
+    fontSize: 12,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  campaignTextMuted: {
+    color: colors.textSecondary,
+    fontStyle: 'italic',
   },
 });

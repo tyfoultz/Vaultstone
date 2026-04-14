@@ -413,8 +413,14 @@ export default function CampaignDetailScreen() {
               <View style={s.partyList}>
                 {players.map((m) => {
                   const char = m.character_id ? characterMap[m.character_id] : null;
+                  const isMe = m.user_id === user?.id;
+                  const Row = isMe ? TouchableOpacity : View;
                   return (
-                    <View key={m.user_id} style={s.partyRow}>
+                    <Row
+                      key={m.user_id}
+                      style={s.partyRow}
+                      {...(isMe ? { onPress: () => setPickerVisible(true), activeOpacity: 0.7 } : {})}
+                    >
                       <MaterialCommunityIcons
                         name={char ? 'account-circle-outline' : 'account-alert-outline'}
                         size={20}
@@ -422,14 +428,17 @@ export default function CampaignDetailScreen() {
                       />
                       <View style={{ flex: 1 }}>
                         <Text style={s.partyCharName}>
-                          {char ? char.name : 'No character'}
+                          {char ? char.name : isMe ? 'Link a character' : 'No character'}
                         </Text>
                         <Text style={s.partyPlayerName}>
                           {m.profiles?.display_name ?? 'Anonymous'}
                           {char ? ` · ${char.subtitle}` : ''}
                         </Text>
                       </View>
-                    </View>
+                      {isMe && (
+                        <Text style={s.partyMeAction}>{char ? 'Change' : 'Link'}</Text>
+                      )}
+                    </Row>
                   );
                 })}
               </View>
@@ -781,6 +790,7 @@ const s = StyleSheet.create({
   },
   partyCharName: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
   partyPlayerName: { fontSize: 12, color: colors.textSecondary },
+  partyMeAction: { fontSize: 12, color: colors.brand, fontWeight: '600' },
 
   // Modal member rows
   modalMemberRow: {
