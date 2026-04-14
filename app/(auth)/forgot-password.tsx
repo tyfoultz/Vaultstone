@@ -5,9 +5,12 @@ import { Platform } from 'react-native';
 import { resetPasswordForEmail } from '@vaultstone/api';
 import { colors } from '@vaultstone/ui';
 
-const RESET_REDIRECT = Platform.OS === 'web'
-  ? `${window.location.origin}/reset-password`
-  : 'vaultstone://reset-password';
+function getResetRedirect() {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return `${window.location.origin}/reset-password`;
+  }
+  return 'vaultstone://reset-password';
+}
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
@@ -22,7 +25,7 @@ export default function ForgotPasswordScreen() {
     }
     setLoading(true);
     setError('');
-    const { error: resetError } = await resetPasswordForEmail(email.trim(), RESET_REDIRECT);
+    const { error: resetError } = await resetPasswordForEmail(email.trim(), getResetRedirect());
     setLoading(false);
     if (resetError) {
       setError('Could not send reset email. Check the address and try again.');
