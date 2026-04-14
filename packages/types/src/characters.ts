@@ -7,6 +7,11 @@
  * raw values below.
  */
 
+export interface CharacterSettings {
+  /** When true, all fields are manually editable by the player. */
+  manualMode: boolean;
+}
+
 export interface Dnd5eAbilityScores {
   strength: number;
   dexterity: number;
@@ -56,6 +61,44 @@ export interface Dnd5eStats {
 
   /** hitDie + CON modifier, computed and stored at creation/level-up. */
   hpMax: number;
+
+  /** Per-character settings. Optional for backwards compat with existing characters. */
+  settings?: CharacterSettings;
+}
+
+export type EquipmentSlot = 'weapon' | 'armor' | 'shield' | 'other';
+
+export interface Dnd5eEquipmentItem {
+  id: string;
+  name: string;
+  slot: EquipmentSlot;
+  equipped: boolean;
+  /** For weapons: e.g. '1d8+3 slashing' */
+  damage?: string;
+  /** For weapons: attack modifier override, or auto-calculated from ability + prof */
+  attackBonus?: number;
+  /** For weapons: which ability to use — 'strength' | 'dexterity' | 'finesse' */
+  attackAbility?: 'strength' | 'dexterity' | 'finesse';
+  /** For weapons: properties like 'light', 'finesse', 'two-handed', 'ranged', 'thrown' */
+  properties?: string[];
+  /** For weapons: range in feet, e.g. '80/320' or '5' */
+  range?: string;
+  /** For armor: base AC provided */
+  acBase?: number;
+  /** For armor: whether DEX modifier applies (and max if capped, e.g. 2) */
+  dexCap?: number | null;
+  /** For shields: AC bonus (typically +2) */
+  acBonus?: number;
+  /** Freeform notes */
+  notes?: string;
+}
+
+export interface Dnd5eFeature {
+  id: string;
+  name: string;
+  description: string;
+  /** Optional: uses per rest, null if passive */
+  uses?: { current: number; max: number; recharge: 'short' | 'long' } | null;
 }
 
 export interface Dnd5eSpellSlotLevel {
@@ -78,6 +121,16 @@ export interface Dnd5eResources {
   };
   /** Exhaustion level 0–6. 0 = no exhaustion. */
   exhaustionLevel: number;
+  /** Experience points. */
+  xp?: number;
+  /** Equipment inventory. */
+  equipment?: Dnd5eEquipmentItem[];
+  /** Class features. */
+  classFeatures?: Dnd5eFeature[];
+  /** Species traits. */
+  speciesTraits?: Dnd5eFeature[];
+  /** Feats. */
+  feats?: Dnd5eFeature[];
   /** Spell slots by level. Only populated for spellcasting classes. */
   spellSlots: {
     1: Dnd5eSpellSlotLevel;
