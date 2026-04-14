@@ -96,7 +96,7 @@ create table if not exists user_content_sources (
 - "Read" button accessible only if user has uploaded their own copy
 - **New packages required:** `npx expo install react-native-pdf`
 
-### Phase 4 — Player-Facing Source Prompt 🟡 In Progress
+### Phase 4 — Player-Facing Source Prompt ✅ Done (2026-04-14)
 *Tells players which book the campaign uses and prompts them to upload their own copy.*
 - Campaign detail System Card shows for all members:
   - DM-declared source label

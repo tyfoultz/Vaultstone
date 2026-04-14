@@ -11,6 +11,8 @@ import {
   removeCampaignMember, uploadCampaignCover, getCharacterById,
   updateCampaignContentSource,
 } from '@vaultstone/api';
+import { getSourcesByCampaign } from '@vaultstone/content';
+import type { LocalSource } from '@vaultstone/content';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
@@ -73,6 +75,7 @@ export default function CampaignDetailScreen() {
   const [systemModal, setSystemModal] = useState(false);
   const [selectedKey, setSelectedKey] = useState('srd_5_1');
   const [customLabel, setCustomLabel] = useState('');
+  const [localSources, setLocalSources] = useState<LocalSource[]>([]);
 
   // --- actions ---
 
@@ -206,6 +209,11 @@ export default function CampaignDetailScreen() {
 
   useEffect(() => {
     if (!id) return;
+    getSourcesByCampaign(id).then(setLocalSources).catch(() => {});
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
     getCampaignMembers(id).then(async ({ data }) => {
       if (!data) return;
       setMembers(data as Member[]);
@@ -293,50 +301,82 @@ export default function CampaignDetailScreen() {
         </TouchableOpacity>
 
         {/* ---- System card ---- */}
-        <View style={s.infoCard}>
-          <MaterialCommunityIcons name="dice-d20-outline" size={24} color={colors.brand} />
-          <Text style={s.infoLabel}>System</Text>
-          {(() => {
-            const src = campaign.content_sources as ContentSource | null;
-            const label = src?.label ?? campaign.system_label;
-            const isOpen = src && (src.key === 'srd_5_1' || src.key === 'srd_2_0');
-            return (
-              <>
-                <Text style={s.systemValue}>{label || 'Not set'}</Text>
-                {isOpen && (
-                  <Text style={s.openBadge}>Open License (CC-BY 4.0)</Text>
-                )}
-              </>
-            );
-          })()}
-          <TouchableOpacity
-            style={s.manageBtn}
-            onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
-          >
-            <MaterialCommunityIcons name="book-open-page-variant-outline" size={16} color={colors.brand} />
-            <Text style={s.manageBtnText}>Rulebook</Text>
-          </TouchableOpacity>
+        {(() => {
+          const src = campaign.content_sources as ContentSource | null;
+          const label = src?.label ?? campaign.system_label;
+          const isOpen = src && (src.key === 'srd_5_1' || src.key === 'srd_2_0');
+          const hasUpload = localSources.length > 0;
 
-          {isDM && (
-            <TouchableOpacity
-              style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
-              onPress={() => {
-                const src = campaign.content_sources as ContentSource | null;
-                if (src) {
-                  setSelectedKey(src.key);
-                  setCustomLabel(src.key === 'custom' ? src.label : '');
-                } else {
-                  setSelectedKey('srd_5_1');
-                  setCustomLabel('');
-                }
-                setSystemModal(true);
-              }}
-            >
-              <MaterialCommunityIcons name="cog-outline" size={16} color={colors.brand} />
-              <Text style={s.manageBtnText}>Manage System</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+          return (
+            <View style={s.infoCard}>
+              <MaterialCommunityIcons name="dice-d20-outline" size={24} color={colors.brand} />
+              <Text style={s.infoLabel}>System</Text>
+              <Text style={s.systemValue}>{label || 'Not set'}</Text>
+              {isOpen && (
+                <Text style={s.openBadge}>Open License (CC-BY 4.0)</Text>
+              )}
+
+              {/* Rulebook upload/read prompt — visible to all members */}
+              {label && (
+                hasUpload ? (
+                  // User has at least one PDF — show count + quick Read for first
+                  <TouchableOpacity
+                    style={s.rulebookPrompt}
+                    onPress={() =>
+                      router.push(
+                        `/campaign/${id}/pdf-viewer?sourceId=${localSources[0].id}` as never,
+                      )
+                    }
+                  >
+                    <MaterialCommunityIcons name="check-circle-outline" size={15} color={colors.hpHealthy} />
+                    <Text style={s.rulebookPromptUploaded} numberOfLines={1}>
+                      {localSources.length === 1
+                        ? localSources[0].file_name
+                        : `${localSources.length} PDFs uploaded`}
+                    </Text>
+                    <Text style={s.rulebookReadLink}>Read</Text>
+                  </TouchableOpacity>
+                ) : (
+                  // No PDF yet — prompt to upload
+                  <TouchableOpacity
+                    style={s.rulebookPrompt}
+                    onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
+                  >
+                    <MaterialCommunityIcons name="tray-arrow-up" size={15} color={colors.textSecondary} />
+                    <Text style={s.rulebookPromptMissing}>Upload your copy to read in-app</Text>
+                  </TouchableOpacity>
+                )
+              )}
+
+              <TouchableOpacity
+                style={s.manageBtn}
+                onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
+              >
+                <MaterialCommunityIcons name="book-open-page-variant-outline" size={16} color={colors.brand} />
+                <Text style={s.manageBtnText}>Rulebook</Text>
+              </TouchableOpacity>
+
+              {isDM && (
+                <TouchableOpacity
+                  style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
+                  onPress={() => {
+                    if (src) {
+                      setSelectedKey(src.key);
+                      setCustomLabel(src.key === 'custom' ? src.label : '');
+                    } else {
+                      setSelectedKey('srd_5_1');
+                      setCustomLabel('');
+                    }
+                    setSystemModal(true);
+                  }}
+                >
+                  <MaterialCommunityIcons name="cog-outline" size={16} color={colors.brand} />
+                  <Text style={s.manageBtnText}>Manage System</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })()}
 
         {/* ---- Party card ---- */}
         <View style={s.infoCard}>
@@ -676,6 +716,22 @@ const s = StyleSheet.create({
     borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1,
   },
   removeText: { fontSize: 12, color: colors.hpDanger },
+
+  // Rulebook prompt row (inside system card)
+  rulebookPrompt: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.background, borderRadius: 8,
+    paddingHorizontal: spacing.sm, paddingVertical: 7,
+  },
+  rulebookPromptUploaded: {
+    flex: 1, fontSize: 12, color: colors.hpHealthy, fontWeight: '600',
+  },
+  rulebookReadLink: {
+    fontSize: 12, color: colors.brand, fontWeight: '700',
+  },
+  rulebookPromptMissing: {
+    flex: 1, fontSize: 12, color: colors.textSecondary,
+  },
 
   // Manage button (bottom of cards)
   manageBtn: {
