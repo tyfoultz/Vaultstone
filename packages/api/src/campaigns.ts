@@ -126,6 +126,19 @@ export async function assignCharacterToCampaign(
     .eq('user_id', userId);
 }
 
+export async function updateCampaignContentSource(
+  campaignId: string,
+  source: { key: string; label: string } | null,
+) {
+  return supabase
+    .from('campaigns')
+    .update({
+      content_sources: source as never,
+      system_label: source?.label ?? null,
+    })
+    .eq('id', campaignId);
+}
+
 const ALLOWED_COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export async function uploadCampaignCover(campaignId: string, fileUri: string, mimeType: string) {
