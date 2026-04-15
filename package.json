@@ -12,6 +12,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:web": "expo export --platform web",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "postinstall": "node scripts/patch-metro.js && node scripts/copy-pdf-worker.js"
   },
