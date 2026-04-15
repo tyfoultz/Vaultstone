@@ -92,8 +92,18 @@ campaign. Refresh on screen focus + pull-to-refresh. Reachable from the
 **MVP scope DEFERRED:** presence indicators, DM-only / player-masked views,
 reactive updates via Supabase Realtime (rolls in with Session Mode).
 
-### 6. Session Mode ⬜ Not started
-Start a session, initiative tracker, HP management, conditions. Real-time sync via Supabase Realtime.
+### 6. Session Mode 🟡 In Progress
+
+| Phase | Status | Summary |
+|---|---|---|
+| 1 — Lifecycle + Realtime shell | ✅ Done | DM Start/End Session; players see Rejoin when active; session screen subscribes to `sessions` row via `supabase.channel('session:{id}')` and bounces everyone back to the campaign when `ended_at` flips. ContentSyncFilter (`sanitizeSyncPayload`) whitelists Realtime payloads so PDF-extracted text can never broadcast. |
+| 2 — Initiative tracker | ✅ Done | DM adds combatants (name/init/HP/AC), removes them, and advances the turn cursor; `advanceTurn` wraps to the top and bumps `session.round`. Full list refetched on any `initiative_order` change for the session so all clients stay in sync. Includes "Add Party" picker: pulls campaign members with linked characters, stats (HP/AC/init mod) pulled from the character sheet. |
+| 2.5 — Initiative rolling + combat start | ✅ Done | Combatant rows store an **init modifier** (not total); dedicated rolling phase. DM can Roll All, roll per-row, or manually enter the player's announced final total (written to `init_override`, which takes precedence over mod + d20 and hides the d20 breakdown — physical-dice tabletop flow); players can roll for their own PC via `roll_combatant_initiative` RPC (security-definer ownership check). Start Combat locks in `combat_started_at` and sets round 1; Next Turn only enabled after. Sort: total desc → mod desc → PC > NPC → id. Reset Initiative clears rolls + overrides and reopens setup. |
+| 3 — HP + conditions sync | ✅ Done | DM can +/- HP per combatant row; for PCs the change mirrors back to `characters.resources.hpCurrent` so the character sheet reflects post-combat state. Conditions modal uses the standard 14 SRD conditions; writes to `characters.conditions`. All clients get live updates via a `characters` subscription filtered by `campaign_id`. NPC conditions are deferred — `initiative_order` has no conditions column and a later migration will add it. |
+
+**Realtime prerequisite:** enable Realtime on `sessions`, `initiative_order`, `characters`, and `session_events` in the Supabase dashboard. Phase 1 uses `sessions`; Phase 2 adds `initiative_order`; Phase 3 adds `characters`; `session_events` lands with a later phase.
+
+**Known limitation (Phase 2):** `initiative_order` uses default `REPLICA IDENTITY`, so DELETE Realtime events don't match the `session_id` filter. The session screen refetches on any change rather than applying payloads piecemeal, which masks this — but a later phase should switch to `REPLICA IDENTITY FULL` if we move to incremental updates.
 
 ### 7. Session Log ⬜ Not started
 Append-only event feed. Displays what happened during a session.

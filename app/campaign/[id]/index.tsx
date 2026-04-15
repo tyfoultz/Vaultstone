@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, Image, TouchableOpacity, Clipboard, ScrollView,
   ActivityIndicator, Platform, Modal, Pressable, TextInput, StyleSheet,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   supabase, regenerateJoinCode, getCampaignMembers,
   removeCampaignMember, uploadCampaignCover, getCharacterById,
-  updateCampaignContentSource,
+  updateCampaignContentSource, getActiveSession, startSession,
 } from '@vaultstone/api';
 import { getSourcesByCampaign } from '@vaultstone/content';
 import type { LocalSource } from '@vaultstone/content';
@@ -76,6 +76,8 @@ export default function CampaignDetailScreen() {
   const [selectedKey, setSelectedKey] = useState('srd_5_1');
   const [customLabel, setCustomLabel] = useState('');
   const [localSources, setLocalSources] = useState<LocalSource[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [startingSession, setStartingSession] = useState(false);
 
   // --- actions ---
 
@@ -168,6 +170,17 @@ export default function CampaignDetailScreen() {
     );
   }
 
+  async function handleStartSession() {
+    if (!campaign || startingSession) return;
+    setStartingSession(true);
+    const { data } = await startSession(campaign.id);
+    setStartingSession(false);
+    if (data) {
+      setActiveSessionId(data.id);
+      router.push(`/campaign/${campaign.id}/session` as never);
+    }
+  }
+
   async function handleSaveSystem() {
     if (!campaign) return;
     let source: ContentSource | null = null;
@@ -211,6 +224,17 @@ export default function CampaignDetailScreen() {
     if (!id) return;
     getSourcesByCampaign(id).then(setLocalSources).catch(() => {});
   }, [id]);
+
+  // Refresh active-session state every time the screen is focused — so that
+  // bailing out of the session screen back here reflects an End Session.
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return;
+      getActiveSession(id).then(({ data }) => {
+        setActiveSessionId(data?.id ?? null);
+      });
+    }, [id])
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -474,9 +498,35 @@ export default function CampaignDetailScreen() {
         {/* ---- Sessions card ---- */}
         <View style={s.infoCard}>
           <MaterialCommunityIcons name="sword-cross" size={24} color={colors.brand} />
-          <Text style={s.infoLabel}>Sessions</Text>
-          <Text style={s.infoValue}>0</Text>
-          <Text style={s.infoSubtext}>Coming soon</Text>
+          <Text style={s.infoLabel}>Session</Text>
+          {activeSessionId ? (
+            <>
+              <Text style={s.sessionLiveText}>Live session in progress</Text>
+              <TouchableOpacity
+                style={s.sessionPrimaryBtn}
+                onPress={() => router.push(`/campaign/${id}/session` as never)}
+              >
+                <MaterialCommunityIcons name="login" size={16} color="#fff" />
+                <Text style={s.sessionPrimaryBtnText}>Rejoin Session</Text>
+              </TouchableOpacity>
+            </>
+          ) : isDM ? (
+            <>
+              <Text style={s.infoSubtext}>No active session</Text>
+              <TouchableOpacity
+                style={[s.sessionPrimaryBtn, startingSession && { opacity: 0.5 }]}
+                onPress={handleStartSession}
+                disabled={startingSession}
+              >
+                <MaterialCommunityIcons name="play" size={16} color="#fff" />
+                <Text style={s.sessionPrimaryBtnText}>
+                  {startingSession ? 'Starting…' : 'Start Session'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={s.infoSubtext}>Waiting for DM to start</Text>
+          )}
         </View>
 
         {/* ---- Notes card ---- */}
@@ -784,6 +834,17 @@ const s = StyleSheet.create({
   },
   manageBtnText: { fontSize: 13, color: colors.brand, fontWeight: '600' },
   leaveText: { fontSize: 13, color: colors.hpDanger },
+
+  // Session card primary action (Start / Rejoin)
+  sessionLiveText: {
+    fontSize: 14, fontWeight: '600', color: colors.hpHealthy, marginTop: 2,
+  },
+  sessionPrimaryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: spacing.sm, backgroundColor: colors.brand, borderRadius: 8,
+    paddingVertical: 9,
+  },
+  sessionPrimaryBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
   // Join code (inside modal)
   joinCodeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },

@@ -138,6 +138,7 @@ export interface Database {
           started_at: string;
           ended_at: string | null;
           round: number;
+          combat_started_at: string | null;
         };
         Insert: {
           id?: string;
@@ -145,10 +146,12 @@ export interface Database {
           started_at?: string;
           ended_at?: string | null;
           round?: number;
+          combat_started_at?: string | null;
         };
         Update: {
           ended_at?: string | null;
           round?: number;
+          combat_started_at?: string | null;
         };
         Relationships: [];
       };
@@ -159,6 +162,8 @@ export interface Database {
           character_id: string | null;
           display_name: string;
           init_value: number;
+          init_roll: number | null;
+          init_override: number | null;
           hp_current: number;
           hp_max: number;
           ac: number;
@@ -171,6 +176,8 @@ export interface Database {
           character_id?: string | null;
           display_name: string;
           init_value: number;
+          init_roll?: number | null;
+          init_override?: number | null;
           hp_current: number;
           hp_max: number;
           ac: number;
@@ -181,6 +188,8 @@ export interface Database {
           character_id?: string | null;
           display_name?: string;
           init_value?: number;
+          init_roll?: number | null;
+          init_override?: number | null;
           hp_current?: number;
           hp_max?: number;
           ac?: number;
@@ -266,6 +275,10 @@ export interface Database {
       get_campaign_by_join_code: {
         Args: { p_join_code: string };
         Returns: Database['public']['Tables']['campaigns']['Row'][];
+      };
+      roll_combatant_initiative: {
+        Args: { combatant_id: string; roll_value: number };
+        Returns: undefined;
       };
     };
     Enums: Record<never, never>;

@@ -43,3 +43,17 @@ export async function updateCharacter(id: string, updates: CharacterUpdate) {
     .select()
     .single();
 }
+
+// Read-modify-write for resources.hpCurrent — the column is JSON, so we
+// merge rather than overwrite sibling fields (hpTemp, hitDice, etc.).
+export async function updateCharacterHp(characterId: string, hpCurrent: number) {
+  const { data: char, error: readError } = await supabase
+    .from('characters').select('resources').eq('id', characterId).single();
+  if (readError || !char) return { error: readError ?? new Error('Character not found') };
+  const resources = { ...(char.resources as Record<string, unknown>), hpCurrent };
+  return supabase.from('characters').update({ resources }).eq('id', characterId);
+}
+
+export async function updateCharacterConditions(characterId: string, conditions: string[]) {
+  return supabase.from('characters').update({ conditions }).eq('id', characterId);
+}

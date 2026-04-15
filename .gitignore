@@ -16,6 +16,9 @@ ios/
 android/
 .netlify
 
+# Playwright MCP runtime artifacts (console logs + page snapshots)
+.playwright-mcp/
+
 # Copied from node_modules by scripts/copy-pdf-worker.js on postinstall
 public/pdf.min.mjs
 public/pdf.worker.min.mjs
