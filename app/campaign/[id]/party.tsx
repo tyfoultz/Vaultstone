@@ -1,15 +1,25 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, RefreshControl, StyleSheet,
+  Animated, Modal, Pressable, Switch, TextInput, Platform, useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getCampaignPartyState } from '@vaultstone/api';
-import { useAuthStore } from '@vaultstone/store';
+import {
+  getCampaignPartyState, updateCharacterState, updatePartyViewSettings, supabase,
+} from '@vaultstone/api';
+import { useAuthStore, useUiStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
-import type {
-  Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eResources, Dnd5eStats,
+import {
+  DEFAULT_PARTY_VIEW_SETTINGS,
+  type Dnd5eAbilityScores, type Dnd5eClassResource,
+  type Dnd5eEquipmentItem, type Dnd5eResources, type Dnd5eStats,
+  type PartyViewSettings,
 } from '@vaultstone/types';
+import { HpModal } from '../../../components/character-sheet/HpModal';
+import { ConditionsPanel } from '../../../components/character-sheet/ConditionsPanel';
+import { SpellSlotPips } from '../../../components/party/SpellSlotPips';
+import { ClassResourcePips } from '../../../components/party/ClassResourcePips';
 
 type PartyMember = {
   user_id: string;
@@ -19,9 +29,11 @@ type PartyMember = {
   characters: {
     id: string;
     name: string;
+    user_id?: string;
     base_stats: unknown;
     resources: unknown;
     conditions: string[] | null;
+    updated_at?: string;
   } | null;
 };
 
@@ -57,30 +69,156 @@ function hpColor(current: number, max: number): string {
   return colors.hpDanger;
 }
 
+function hpTier(current: number, max: number): string {
+  if (max <= 0 || current === 0) return 'Down';
+  const ratio = current / max;
+  if (ratio >= 1) return 'Healthy';
+  if (ratio > 0.5) return 'Wounded';
+  if (ratio > 0.25) return 'Bloodied';
+  return 'Critical';
+}
+
 export default function PartyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [members, setMembers] = useState<PartyMember[]>([]);
+  const [settings, setSettings] = useState<PartyViewSettings>(DEFAULT_PARTY_VIEW_SETTINGS);
+  const [dmUserId, setDmUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [recentlyUpdated, setRecentlyUpdated] = useState<Record<string, number>>({});
+  const flashTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const isDm = !!user && !!dmUserId && user.id === dmUserId;
+
+  const { width: windowWidth } = useWindowDimensions();
+  const gridCols = windowWidth >= 1440 ? 4 : windowWidth >= 1024 ? 3 : windowWidth >= 640 ? 2 : 1;
+  const gridGap = spacing.md;
+  const sidePadding = spacing.lg;
+  const cardWidth = gridCols === 1
+    ? undefined
+    : Math.floor((windowWidth - sidePadding * 2 - gridGap * (gridCols - 1)) / gridCols);
 
   const load = useCallback(async () => {
     if (!id) return;
-    const { data } = await getCampaignPartyState(id);
-    // Supabase join typings mistakenly flag profiles/characters embeds as SelectQueryError — cast through unknown.
-    if (data) setMembers(data as unknown as PartyMember[]);
+    const [partyRes, campaignRes] = await Promise.all([
+      getCampaignPartyState(id),
+      supabase
+        .from('campaigns')
+        .select('dm_user_id, party_view_settings')
+        .eq('id', id)
+        .single(),
+    ]);
+    if (partyRes.data) setMembers(partyRes.data as unknown as PartyMember[]);
+    if (campaignRes.data) {
+      setDmUserId(campaignRes.data.dm_user_id);
+      const raw = (campaignRes.data.party_view_settings ?? {}) as Partial<PartyViewSettings>;
+      setSettings({ ...DEFAULT_PARTY_VIEW_SETTINGS, ...raw });
+    }
     setLoading(false);
     setRefreshing(false);
   }, [id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Realtime: merge inbound character UPDATE payloads; mark for flash if
+  // the change originated from another viewer (the patch touched a key we
+  // did not just write from this tab).
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`party:${id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'characters' },
+        (payload) => {
+          const next = payload.new as {
+            id: string;
+            base_stats: unknown;
+            resources: unknown;
+            conditions: string[] | null;
+            name: string;
+          };
+          setMembers((prev) => {
+            const hit = prev.some((m) => m.character_id === next.id);
+            if (!hit) return prev;
+            return prev.map((m) => m.character_id === next.id && m.characters ? {
+              ...m,
+              characters: {
+                ...m.characters,
+                name: next.name,
+                base_stats: next.base_stats,
+                resources: next.resources,
+                conditions: next.conditions,
+              },
+            } : m);
+          });
+          setRecentlyUpdated((prev) => ({ ...prev, [next.id]: Date.now() }));
+          const prior = flashTimersRef.current[next.id];
+          if (prior) clearTimeout(prior);
+          flashTimersRef.current[next.id] = setTimeout(() => {
+            setRecentlyUpdated((cur) => {
+              const copy = { ...cur };
+              delete copy[next.id];
+              return copy;
+            });
+          }, 1200);
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'campaigns', filter: `id=eq.${id}` },
+        (payload) => {
+          const next = payload.new as { party_view_settings: Partial<PartyViewSettings> | null };
+          const raw = (next.party_view_settings ?? {}) as Partial<PartyViewSettings>;
+          setSettings({ ...DEFAULT_PARTY_VIEW_SETTINGS, ...raw });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      Object.values(flashTimersRef.current).forEach(clearTimeout);
+      flashTimersRef.current = {};
+      supabase.removeChannel(channel);
+    };
+  }, [id]);
+
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
-  const dm = members.find((m) => m.role === 'gm');
-  const players = members.filter((m) => m.role !== 'gm');
-  const linked = players.filter((m) => m.characters);
+  const dm = useMemo(() => members.find((m) => m.role === 'gm'), [members]);
+  const players = useMemo(() => members.filter((m) => m.role !== 'gm'), [members]);
+  const linked = useMemo(() => players.filter((m) => m.characters), [players]);
+
+  async function handleSettingChange(key: keyof PartyViewSettings, value: boolean) {
+    if (!id || !isDm) return;
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    await updatePartyViewSettings(id, next);
+  }
+
+  // Optimistic local merge. Realtime will re-sync shortly, but we update
+  // immediately so the editor doesn't wait for a round-trip.
+  const applyOptimistic = useCallback((
+    characterId: string,
+    patch: { resources?: Partial<Dnd5eResources>; conditions?: string[] },
+  ) => {
+    setMembers((prev) => prev.map((m) => {
+      if (m.character_id !== characterId || !m.characters) return m;
+      const mergedResources = patch.resources
+        ? { ...(m.characters.resources as Dnd5eResources), ...patch.resources }
+        : m.characters.resources;
+      return {
+        ...m,
+        characters: {
+          ...m.characters,
+          resources: mergedResources,
+          conditions: patch.conditions ?? m.characters.conditions,
+        },
+      };
+    }));
+  }, []);
 
   return (
     <ScrollView
@@ -88,16 +226,32 @@ export default function PartyScreen() {
       contentContainerStyle={s.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
     >
-      <TouchableOpacity onPress={() => router.back()} style={s.back}>
+      <TouchableOpacity
+        onPress={() => router.replace(`/campaign/${id}` as never)}
+        style={s.back}
+      >
         <MaterialCommunityIcons name="arrow-left" size={18} color={colors.brand} />
         <Text style={s.backText}>Campaign</Text>
       </TouchableOpacity>
 
       <View style={s.header}>
-        <Text style={s.title}>Party</Text>
-        {dm?.profiles?.display_name && (
-          <Text style={s.subtitle}>DM · {dm.profiles.display_name}</Text>
-        )}
+        <View style={s.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.title}>Party</Text>
+            {dm?.profiles?.display_name && (
+              <Text style={s.subtitle}>DM · {dm.profiles.display_name}</Text>
+            )}
+          </View>
+          {isDm && (
+            <TouchableOpacity
+              style={s.gearBtn}
+              onPress={() => setSettingsVisible(true)}
+              accessibilityLabel="Party view settings"
+            >
+              <MaterialCommunityIcons name="cog-outline" size={22} color={colors.brand} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {loading && members.length === 0 ? (
@@ -112,7 +266,7 @@ export default function PartyScreen() {
           <Text style={s.emptyTitle}>No characters linked yet</Text>
           <Text style={s.emptyBody}>
             Players need to link a character to appear here. Open Manage Members
-            to see who's joined.
+            to see who&apos;s joined.
           </Text>
           <TouchableOpacity
             style={s.emptyAction}
@@ -122,20 +276,84 @@ export default function PartyScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={s.list}>
+        <View style={[s.list, { paddingHorizontal: sidePadding, gap: gridGap }]}>
           {players.map((m) => (
-            <PartyCard key={m.user_id} member={m} isMe={m.user_id === user?.id} />
+            <View
+              key={m.user_id}
+              style={cardWidth ? { width: cardWidth } : { width: '100%' }}
+            >
+              <PartyCard
+                campaignId={id!}
+                member={m}
+                viewerUserId={user?.id ?? null}
+                viewerIsDm={isDm}
+                settings={settings}
+                flashing={!!(m.characters && recentlyUpdated[m.characters.id])}
+                router={router}
+                applyOptimistic={applyOptimistic}
+              />
+            </View>
           ))}
         </View>
       )}
+
+      <SettingsModal
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        settings={settings}
+        onChange={handleSettingChange}
+      />
     </ScrollView>
   );
 }
 
-function PartyCard({ member, isMe }: { member: PartyMember; isMe: boolean }) {
+function PartyCard({
+  campaignId, member, viewerUserId, viewerIsDm, settings, flashing, router,
+  applyOptimistic,
+}: {
+  campaignId: string;
+  member: PartyMember;
+  viewerUserId: string | null;
+  viewerIsDm: boolean;
+  settings: PartyViewSettings;
+  flashing: boolean;
+  router: ReturnType<typeof useRouter>;
+  applyOptimistic: (
+    characterId: string,
+    patch: { resources?: Partial<Dnd5eResources>; conditions?: string[] },
+  ) => void;
+}) {
   const char = member.characters;
   const ownerName = member.profiles?.display_name ?? 'Anonymous';
   const role = ROLE_LABEL[member.role] ?? member.role;
+  const isMe = member.user_id === viewerUserId;
+  const viewerIsOwner = isMe;
+  const canEdit = viewerIsDm || viewerIsOwner;
+
+  const isCollapsed = useUiStore((state) =>
+    viewerIsDm ? state.isCollapsed(campaignId, member.user_id) : false,
+  );
+  const toggleCollapsed = useUiStore((state) => state.toggleCollapsed);
+
+  const [hpModalOpen, setHpModalOpen] = useState(false);
+  const [condModalOpen, setCondModalOpen] = useState(false);
+  const [concentrationModalOpen, setConcentrationModalOpen] = useState(false);
+
+  const flashAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!flashing) return;
+    flashAnim.setValue(1);
+    Animated.timing(flashAnim, {
+      toValue: 0,
+      duration: 800,
+      useNativeDriver: false,
+    }).start();
+  }, [flashing]);
+
+  const animatedBorder = flashAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.border, colors.brand],
+  });
 
   if (!char) {
     return (
@@ -172,61 +390,432 @@ function PartyCard({ member, isMe }: { member: PartyMember; isMe: boolean }) {
   const ac = stats && resources ? computeAc(stats, resources) : null;
   const speed = stats?.speed ?? null;
   const exhaustionLevel = resources?.exhaustionLevel ?? 0;
+  const inspiration = resources?.inspiration ?? false;
+  const concentrationSpell = resources?.concentrationSpell ?? null;
 
   const pct = hpMax > 0 ? Math.max(0, Math.min(100, (hpCurrent / hpMax) * 100)) : 0;
   const barColor = hpColor(hpCurrent, hpMax);
 
+  // Visibility: full detail for DM or owner; abstracted for other players.
+  const showHpNumbers = canEdit || settings.showHpNumbersToPlayers;
+  const showConditionDetail = canEdit || settings.showConditionsToPlayers;
+  const showSlots = canEdit || settings.showSlotsToPlayers;
+  const showResources = canEdit || settings.showResourcesToPlayers;
+
+  function navigateToSheet() {
+    if (viewerIsDm || viewerIsOwner) {
+      router.push(`/character/${char!.id}` as never);
+      return;
+    }
+    if (settings.allowPlayerCrossView) {
+      router.push(`/character/${char!.id}` as never);
+    }
+  }
+
+  async function applyHp(updated: Dnd5eResources) {
+    if (!resources) return;
+    applyOptimistic(char!.id, {
+      resources: { hpCurrent: updated.hpCurrent, hpTemp: updated.hpTemp },
+    });
+    await updateCharacterState(char!.id, {
+      hpCurrent: updated.hpCurrent,
+      hpTemp: updated.hpTemp,
+    });
+  }
+
+  async function toggleCondition(condition: string) {
+    const next = conditions.includes(condition)
+      ? conditions.filter((c) => c !== condition)
+      : [...conditions, condition];
+    applyOptimistic(char!.id, { conditions: next });
+    await updateCharacterState(char!.id, { conditions: next });
+  }
+
+  async function setExhaustion(level: number) {
+    const clamped = Math.max(0, Math.min(6, level));
+    applyOptimistic(char!.id, { resources: { exhaustionLevel: clamped } });
+    await updateCharacterState(char!.id, { exhaustionLevel: clamped });
+  }
+
+  async function toggleInspiration() {
+    const next = !inspiration;
+    applyOptimistic(char!.id, { resources: { inspiration: next } });
+    await updateCharacterState(char!.id, { inspiration: next });
+  }
+
+  async function bumpDeathSave(kind: 'success' | 'failure') {
+    if (!resources?.deathSaves) return;
+    const ds = resources.deathSaves;
+    const next = kind === 'success'
+      ? { ...ds, successes: Math.min(3, ds.successes + 1) }
+      : { ...ds, failures: Math.min(3, ds.failures + 1) };
+    applyOptimistic(char!.id, { resources: { deathSaves: next } });
+    await updateCharacterState(char!.id, { deathSaves: next });
+  }
+
+  async function applySlots(spellSlots: Dnd5eResources['spellSlots']) {
+    applyOptimistic(char!.id, { resources: { spellSlots } });
+    await updateCharacterState(char!.id, { spellSlots });
+  }
+
+  async function applyClassResources(list: Dnd5eClassResource[]) {
+    applyOptimistic(char!.id, { resources: { classResources: list } });
+    await updateCharacterState(char!.id, { classResources: list });
+  }
+
+  async function applyConcentration(spell: string | null) {
+    applyOptimistic(char!.id, { resources: { concentrationSpell: spell } });
+    await updateCharacterState(char!.id, { concentrationSpell: spell });
+  }
+
   return (
-    <View style={s.card}>
+    <Animated.View style={[s.card, flashing && { borderColor: animatedBorder }]}>
       <View style={s.cardHeader}>
-        <MaterialCommunityIcons name="account-circle-outline" size={22} color={colors.brand} />
-        <View style={{ flex: 1 }}>
-          <Text style={s.charName} numberOfLines={1}>{char.name}</Text>
-          <Text style={s.subLine} numberOfLines={1}>
-            {[speciesLabel, classLabel && `${classLabel} ${level}`].filter(Boolean).join(' · ') || `Level ${level}`}
-          </Text>
-        </View>
+        <TouchableOpacity
+          onPress={navigateToSheet}
+          style={s.headerTap}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons name="account-circle-outline" size={22} color={colors.brand} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.charName} numberOfLines={1}>{char.name}</Text>
+            <Text style={s.subLine} numberOfLines={1}>
+              {[speciesLabel, classLabel && `${classLabel} ${level}`].filter(Boolean).join(' · ') || `Level ${level}`}
+            </Text>
+          </View>
+        </TouchableOpacity>
+        {viewerIsDm && (
+          <TouchableOpacity
+            style={s.chevronBtn}
+            onPress={() => toggleCollapsed(campaignId, member.user_id)}
+            accessibilityLabel={isCollapsed ? 'Expand card' : 'Collapse card'}
+          >
+            <MaterialCommunityIcons
+              name={isCollapsed ? 'chevron-down' : 'chevron-up'}
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
-      <View style={s.hpRow}>
-        <Text style={s.hpNumbers}>
-          <Text style={[s.hpCurrent, { color: barColor }]}>{hpCurrent}</Text>
-          <Text style={s.hpMax}> / {hpMax}</Text>
-          {hpTemp > 0 ? <Text style={s.hpTemp}>  (+{hpTemp} temp)</Text> : null}
-        </Text>
-        <Text style={s.hpLabel}>HP</Text>
-      </View>
-      <View style={s.hpBarTrack}>
-        <View style={[s.hpBarFill, { width: `${pct}%`, backgroundColor: barColor }]} />
-      </View>
-
-      <View style={s.statsRow}>
-        {ac !== null && <StatPill label="AC" value={ac} />}
-        {speed !== null && <StatPill label="Speed" value={`${speed}`} />}
-        {stats?.hitDie ? <StatPill label="Hit Die" value={`d${stats.hitDie}`} /> : null}
-      </View>
-
-      {(conditions.length > 0 || exhaustionLevel > 0) && (
-        <View style={s.conditionsRow}>
-          {conditions.map((c) => (
-            <View key={c} style={s.conditionChip}>
-              <Text style={s.conditionChipText}>{c}</Text>
+      {!isCollapsed && (
+        <>
+          <TouchableOpacity
+            activeOpacity={canEdit ? 0.6 : 1}
+            disabled={!canEdit}
+            onPress={() => canEdit && resources && setHpModalOpen(true)}
+          >
+            <View style={s.hpRow}>
+              {showHpNumbers ? (
+                <Text style={s.hpNumbers}>
+                  <Text style={[s.hpCurrent, { color: barColor }]}>{hpCurrent}</Text>
+                  <Text style={s.hpMax}> / {hpMax}</Text>
+                  {hpTemp > 0 ? <Text style={s.hpTemp}>  (+{hpTemp} temp)</Text> : null}
+                </Text>
+              ) : (
+                <Text style={[s.hpCurrent, { color: barColor, fontSize: 16 }]}>
+                  {hpTier(hpCurrent, hpMax)}
+                </Text>
+              )}
+              <Text style={s.hpLabel}>HP{canEdit ? ' ✎' : ''}</Text>
             </View>
-          ))}
-          {exhaustionLevel > 0 && (
-            <View style={[s.conditionChip, s.exhaustionChip]}>
-              <Text style={[s.conditionChipText, s.exhaustionChipText]}>
-                Exhaustion {exhaustionLevel}
+            <View style={s.hpBarTrack}>
+              <View style={[s.hpBarFill, { width: `${pct}%`, backgroundColor: barColor }]} />
+            </View>
+          </TouchableOpacity>
+
+          <View style={s.statsRow}>
+            {ac !== null && <StatPill label="AC" value={ac} />}
+            {speed !== null && <StatPill label="Speed" value={`${speed}`} />}
+            {stats?.hitDie ? <StatPill label="Hit Die" value={`d${stats.hitDie}`} /> : null}
+            <TouchableOpacity
+              disabled={!canEdit}
+              onPress={toggleInspiration}
+              style={[s.statPill, inspiration && s.inspirationActive]}
+            >
+              <MaterialCommunityIcons
+                name={inspiration ? 'star' : 'star-outline'}
+                size={14}
+                color={inspiration ? colors.hpWarning : colors.textSecondary}
+              />
+              <Text style={[s.statPillValue, inspiration && { color: colors.hpWarning }]}>
+                Insp
               </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={canEdit ? 0.6 : 1}
+            disabled={!canEdit}
+            onPress={() => canEdit && setCondModalOpen(true)}
+          >
+            {showConditionDetail ? (
+              (conditions.length > 0 || exhaustionLevel > 0 || canEdit) && (
+                <View style={s.conditionsRow}>
+                  {conditions.map((c) => (
+                    <View key={c} style={s.conditionChip}>
+                      <Text style={s.conditionChipText}>{c}</Text>
+                    </View>
+                  ))}
+                  {exhaustionLevel > 0 && (
+                    <View style={[s.conditionChip, s.exhaustionChip]}>
+                      <Text style={[s.conditionChipText, s.exhaustionChipText]}>
+                        Exhaustion {exhaustionLevel}
+                      </Text>
+                    </View>
+                  )}
+                  {canEdit && conditions.length === 0 && exhaustionLevel === 0 && (
+                    <Text style={s.hint}>Tap to add condition</Text>
+                  )}
+                </View>
+              )
+            ) : (
+              (conditions.length > 0 || exhaustionLevel > 0) && (
+                <View style={s.conditionsRow}>
+                  <View style={s.conditionChip}>
+                    <Text style={s.conditionChipText}>
+                      {conditions.length + (exhaustionLevel > 0 ? 1 : 0)} condition{conditions.length + (exhaustionLevel > 0 ? 1 : 0) === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                </View>
+              )
+            )}
+          </TouchableOpacity>
+
+          {concentrationSpell && (
+            <TouchableOpacity
+              disabled={!canEdit}
+              onPress={() => setConcentrationModalOpen(true)}
+              style={s.concentrationChip}
+            >
+              <MaterialCommunityIcons name="meditation" size={14} color={colors.brand} />
+              <Text style={s.concentrationText} numberOfLines={1}>
+                Concentrating: {concentrationSpell}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {!concentrationSpell && canEdit && (
+            <TouchableOpacity
+              onPress={() => setConcentrationModalOpen(true)}
+              style={s.concentrationAddBtn}
+            >
+              <MaterialCommunityIcons name="meditation" size={14} color={colors.textSecondary} />
+              <Text style={s.concentrationAddText}>Set concentration</Text>
+            </TouchableOpacity>
+          )}
+
+          {hpCurrent === 0 && resources?.deathSaves && (
+            <View style={s.deathRow}>
+              <View style={s.deathSide}>
+                <Text style={s.deathLabel}>Saves</Text>
+                <View style={s.deathPips}>
+                  {[0, 1, 2].map((i) => (
+                    <TouchableOpacity
+                      key={`s${i}`}
+                      disabled={!canEdit}
+                      onPress={() => bumpDeathSave('success')}
+                      style={[
+                        s.deathPip,
+                        i < resources.deathSaves.successes && s.deathPipSuccess,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+              <View style={s.deathSide}>
+                <Text style={s.deathLabel}>Failures</Text>
+                <View style={s.deathPips}>
+                  {[0, 1, 2].map((i) => (
+                    <TouchableOpacity
+                      key={`f${i}`}
+                      disabled={!canEdit}
+                      onPress={() => bumpDeathSave('failure')}
+                      style={[
+                        s.deathPip,
+                        i < resources.deathSaves.failures && s.deathPipFailure,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
             </View>
           )}
-        </View>
+
+          {showSlots && resources?.spellSlots && (
+            <SpellSlotPips
+              spellSlots={resources.spellSlots}
+              canEdit={canEdit}
+              onChange={applySlots}
+            />
+          )}
+
+          {showResources && resources?.classResources && resources.classResources.length > 0 && (
+            <ClassResourcePips
+              resources={resources.classResources}
+              canEdit={canEdit}
+              onChange={applyClassResources}
+            />
+          )}
+
+          <Text style={s.ownerLine}>
+            {ownerName} · {role}{isMe ? ' (you)' : ''}
+          </Text>
+        </>
       )}
 
-      <Text style={s.ownerLine}>
-        {ownerName} · {role}{isMe ? ' (you)' : ''}
-      </Text>
-    </View>
+      {resources && (
+        <HpModal
+          visible={hpModalOpen}
+          resources={resources}
+          hpMax={hpMax}
+          onClose={() => setHpModalOpen(false)}
+          onApply={applyHp}
+        />
+      )}
+
+      <ConditionsModal
+        visible={condModalOpen}
+        onClose={() => setCondModalOpen(false)}
+        characterName={char.name}
+        conditions={conditions}
+        exhaustionLevel={exhaustionLevel}
+        onToggle={toggleCondition}
+        onSetExhaustion={setExhaustion}
+      />
+
+      <ConcentrationModal
+        visible={concentrationModalOpen}
+        onClose={() => setConcentrationModalOpen(false)}
+        currentSpell={concentrationSpell}
+        onApply={applyConcentration}
+      />
+    </Animated.View>
+  );
+}
+
+function ConditionsModal({
+  visible, onClose, characterName, conditions, exhaustionLevel, onToggle, onSetExhaustion,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  characterName: string;
+  conditions: string[];
+  exhaustionLevel: number;
+  onToggle: (c: string) => void;
+  onSetExhaustion: (n: number) => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={s.sheet}>
+          <Text style={s.sheetTitle}>{characterName} — Conditions</Text>
+          <ConditionsPanel
+            conditions={conditions}
+            exhaustionLevel={exhaustionLevel}
+            onToggle={onToggle}
+            onSetExhaustion={onSetExhaustion}
+          />
+          <TouchableOpacity onPress={onClose} style={s.sheetClose}>
+            <Text style={s.sheetCloseText}>Done</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function ConcentrationModal({
+  visible, onClose, currentSpell, onApply,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  currentSpell: string | null;
+  onApply: (spell: string | null) => void;
+}) {
+  const [input, setInput] = useState(currentSpell ?? '');
+
+  useEffect(() => {
+    if (visible) setInput(currentSpell ?? '');
+  }, [visible, currentSpell]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={s.sheet}>
+          <Text style={s.sheetTitle}>Concentration</Text>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder="Spell name (e.g. Bless)"
+            placeholderTextColor={colors.textSecondary}
+            style={s.input}
+            autoFocus
+          />
+          <View style={s.buttonRow}>
+            <TouchableOpacity
+              style={[s.btn, s.btnSecondary]}
+              onPress={() => { onApply(null); onClose(); }}
+            >
+              <Text style={s.btnSecondaryText}>Clear</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.btn, s.btnPrimary]}
+              disabled={!input.trim()}
+              onPress={() => { onApply(input.trim() || null); onClose(); }}
+            >
+              <Text style={s.btnPrimaryText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function SettingsModal({
+  visible, onClose, settings, onChange,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  settings: PartyViewSettings;
+  onChange: (key: keyof PartyViewSettings, value: boolean) => void;
+}) {
+  const rows: { key: keyof PartyViewSettings; label: string; help: string }[] = [
+    { key: 'showHpNumbersToPlayers', label: 'Show HP numbers to players', help: 'When off, other players see Healthy/Wounded/Bloodied/Critical.' },
+    { key: 'showConditionsToPlayers', label: 'Show conditions to players', help: 'When off, other players see only a count.' },
+    { key: 'showSlotsToPlayers', label: 'Show spell slots to players', help: 'Pips are hidden from other players.' },
+    { key: 'showResourcesToPlayers', label: 'Show class resources to players', help: 'Rages, ki, etc.' },
+    { key: 'allowPlayerCrossView', label: 'Allow players to open other sheets', help: 'When off, tapping another player\u2019s card does nothing.' },
+  ];
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={[s.sheet, { maxHeight: '90%' }]}>
+          <Text style={s.sheetTitle}>Party View Settings</Text>
+          <ScrollView style={{ maxHeight: 440 }}>
+            {rows.map((row) => (
+              <View key={row.key} style={s.settingRow}>
+                <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                  <Text style={s.settingLabel}>{row.label}</Text>
+                  <Text style={s.settingHelp}>{row.help}</Text>
+                </View>
+                <Switch
+                  value={settings[row.key]}
+                  onValueChange={(v) => onChange(row.key, v)}
+                  trackColor={{ true: colors.brand, false: colors.border }}
+                  thumbColor={Platform.OS === 'android' ? colors.textPrimary : undefined}
+                />
+              </View>
+            ))}
+          </ScrollView>
+          <TouchableOpacity onPress={onClose} style={s.sheetClose}>
+            <Text style={s.sheetCloseText}>Done</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -250,18 +839,32 @@ const s = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.lg, paddingBottom: spacing.md,
   },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  gearBtn: {
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   title: { fontSize: 28, fontWeight: '700', color: colors.textPrimary },
   subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
   helperText: {
     fontSize: 13, color: colors.textSecondary, paddingHorizontal: spacing.lg,
   },
-  list: { paddingHorizontal: spacing.lg, gap: spacing.md },
+  list: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border, borderWidth: 1, borderRadius: 14,
     padding: spacing.md, gap: 10,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  headerTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  chevronBtn: { padding: 4 },
   charName: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   subLine: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
 
@@ -281,7 +884,7 @@ const s = StyleSheet.create({
 
   statsRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   statPill: {
-    flexDirection: 'row', alignItems: 'baseline', gap: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: colors.background,
     borderColor: colors.border, borderWidth: 1, borderRadius: 6,
     paddingHorizontal: 10, paddingVertical: 4,
@@ -291,8 +894,12 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.8,
   },
   statPillValue: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
+  inspirationActive: {
+    borderColor: colors.hpWarning,
+    backgroundColor: colors.hpWarning + '22',
+  },
 
-  conditionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
+  conditionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2, minHeight: 20 },
   conditionChip: {
     backgroundColor: colors.hpDanger + '22',
     borderColor: colors.hpDanger, borderWidth: 1, borderRadius: 6,
@@ -303,6 +910,36 @@ const s = StyleSheet.create({
     backgroundColor: colors.hpWarning + '22', borderColor: colors.hpWarning,
   },
   exhaustionChipText: { color: colors.hpWarning },
+  hint: { fontSize: 11, color: colors.textSecondary, fontStyle: 'italic' },
+
+  concentrationChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.brand + '22',
+    borderColor: colors.brand, borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start',
+  },
+  concentrationText: { fontSize: 12, color: colors.brand, fontWeight: '600' },
+  concentrationAddBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    alignSelf: 'flex-start',
+  },
+  concentrationAddText: { fontSize: 11, color: colors.textSecondary, fontStyle: 'italic' },
+
+  deathRow: {
+    flexDirection: 'row', justifyContent: 'space-around',
+    borderTopWidth: 1, borderTopColor: colors.border,
+    paddingTop: spacing.sm, marginTop: spacing.sm / 2,
+  },
+  deathSide: { alignItems: 'center', gap: 4 },
+  deathLabel: { fontSize: 10, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1 },
+  deathPips: { flexDirection: 'row', gap: 6 },
+  deathPip: {
+    width: 14, height: 14, borderRadius: 7,
+    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  deathPipSuccess: { backgroundColor: colors.hpHealthy, borderColor: colors.hpHealthy },
+  deathPipFailure: { backgroundColor: colors.hpDanger, borderColor: colors.hpDanger },
 
   ownerLine: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
 
@@ -322,4 +959,50 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
   },
   emptyActionText: { color: colors.brand, fontSize: 13, fontWeight: '600' },
+
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 16,
+    padding: spacing.lg, width: '100%', maxWidth: 420,
+  },
+  sheetTitle: {
+    fontSize: 16, fontWeight: '700', color: colors.textPrimary,
+    textAlign: 'center', marginBottom: spacing.md,
+  },
+  sheetClose: {
+    marginTop: spacing.md,
+    alignItems: 'center',
+    borderRadius: 10, paddingVertical: 12,
+    backgroundColor: colors.brand,
+  },
+  sheetCloseText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+
+  input: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 16, color: colors.textPrimary, backgroundColor: colors.background,
+    marginBottom: spacing.md,
+  },
+  buttonRow: { flexDirection: 'row', gap: spacing.sm },
+  btn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  btnPrimary: { backgroundColor: colors.brand },
+  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  btnSecondary: {
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background,
+  },
+  btnSecondaryText: { color: colors.textSecondary, fontWeight: '600', fontSize: 14 },
+
+  settingRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  settingLabel: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+  settingHelp: { fontSize: 11, color: colors.textSecondary, marginTop: 2, lineHeight: 15 },
 });

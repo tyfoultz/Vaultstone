@@ -12,6 +12,7 @@ import { colors } from '@vaultstone/ui';
 import type { Dnd5eResources } from '@vaultstone/types';
 
 type Mode = 'damage' | 'heal' | 'set';
+type HealTarget = 'hp' | 'temp';
 
 interface Props {
   visible: boolean;
@@ -23,13 +24,13 @@ interface Props {
 
 export function HpModal({ visible, resources, hpMax, onClose, onApply }: Props) {
   const [mode, setMode] = useState<Mode>('damage');
+  const [healTarget, setHealTarget] = useState<HealTarget>('hp');
   const [amount, setAmount] = useState('');
-  const [tempHpInput, setTempHpInput] = useState('');
 
   useEffect(() => {
     if (visible) {
       setAmount('');
-      setTempHpInput(resources.hpTemp > 0 ? resources.hpTemp.toString() : '');
+      setHealTarget('hp');
     }
   }, [visible]);
 
@@ -37,15 +38,20 @@ export function HpModal({ visible, resources, hpMax, onClose, onApply }: Props) 
     const n = parseInt(amount, 10);
     if (isNaN(n) || n < 0) return;
 
-    const newTemp = parseInt(tempHpInput, 10) || 0;
     let newCurrent = resources.hpCurrent;
+    let newTemp = resources.hpTemp;
 
     if (mode === 'damage') {
       const tempAbsorb = Math.min(resources.hpTemp, n);
       const remaining = n - tempAbsorb;
+      newTemp = resources.hpTemp - tempAbsorb;
       newCurrent = Math.max(0, resources.hpCurrent - remaining);
     } else if (mode === 'heal') {
-      newCurrent = Math.min(hpMax, resources.hpCurrent + n);
+      if (healTarget === 'temp') {
+        newTemp = resources.hpTemp + n;
+      } else {
+        newCurrent = Math.min(hpMax, resources.hpCurrent + n);
+      }
     } else {
       newCurrent = Math.max(0, Math.min(hpMax, n));
     }
@@ -59,6 +65,13 @@ export function HpModal({ visible, resources, hpMax, onClose, onApply }: Props) 
     heal: colors.hpHealthy,
     set: colors.brand,
   };
+
+  const placeholder =
+    mode === 'set'
+      ? 'Set current HP to…'
+      : mode === 'heal' && healTarget === 'temp'
+        ? 'Temp HP amount…'
+        : 'Amount…';
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -97,27 +110,39 @@ export function HpModal({ visible, resources, hpMax, onClose, onApply }: Props) 
             ))}
           </View>
 
+          {mode === 'heal' && (
+            <View style={styles.healTargetRow}>
+              {(['hp', 'temp'] as HealTarget[]).map((t) => (
+                <TouchableOpacity
+                  key={t}
+                  style={[
+                    styles.healTargetBtn,
+                    healTarget === t && styles.healTargetBtnActive,
+                  ]}
+                  onPress={() => setHealTarget(t)}
+                >
+                  <Text
+                    style={[
+                      styles.healTargetText,
+                      healTarget === t && styles.healTargetTextActive,
+                    ]}
+                  >
+                    {t === 'hp' ? 'Healing' : 'Temp HP'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           <TextInput
             style={styles.amountInput}
             keyboardType="number-pad"
-            placeholder={mode === 'set' ? 'Set current HP to…' : 'Amount…'}
+            placeholder={placeholder}
             placeholderTextColor={colors.textSecondary}
             value={amount}
             onChangeText={setAmount}
             autoFocus
           />
-
-          <View style={styles.tempRow}>
-            <Text style={styles.tempLabel}>Temp HP</Text>
-            <TextInput
-              style={styles.tempInput}
-              keyboardType="number-pad"
-              placeholder="0"
-              placeholderTextColor={colors.textSecondary}
-              value={tempHpInput}
-              onChangeText={setTempHpInput}
-            />
-          </View>
 
           <TouchableOpacity
             style={[styles.applyBtn, !amount && styles.applyBtnDisabled, { backgroundColor: modeColor[mode] }]}
@@ -168,7 +193,7 @@ const styles = StyleSheet.create({
   hpSep: { fontSize: 22, color: colors.textSecondary, marginHorizontal: 6 },
   hpMax: { fontSize: 22, color: colors.textSecondary },
   hpTemp: { fontSize: 14, color: colors.hpWarning, marginLeft: 6 },
-  modeTabs: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  modeTabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   modeTab: {
     flex: 1,
     paddingVertical: 8,
@@ -178,6 +203,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modeTabText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  healTargetRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 12,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 3,
+  },
+  healTargetBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  healTargetBtnActive: {
+    backgroundColor: colors.hpHealthy + '33',
+  },
+  healTargetText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  healTargetTextActive: {
+    color: colors.hpHealthy,
+  },
   amountInput: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -189,27 +241,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     backgroundColor: colors.background,
     textAlign: 'center',
-    marginBottom: 12,
-  },
-  tempRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 16,
-  },
-  tempLabel: { fontSize: 14, color: colors.textSecondary },
-  tempInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    backgroundColor: colors.background,
-    width: 72,
-    textAlign: 'center',
   },
   applyBtn: {
     borderRadius: 10,

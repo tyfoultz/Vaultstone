@@ -57,3 +57,18 @@ export async function updateCharacterHp(characterId: string, hpCurrent: number) 
 export async function updateCharacterConditions(characterId: string, conditions: string[]) {
   return supabase.from('characters').update({ conditions }).eq('id', characterId);
 }
+
+// Security-definer RPC. The caller may be the owner OR the DM of the
+// linked campaign; the RPC itself enforces the whitelist of mutable keys
+// (hpCurrent, hpTemp, exhaustionLevel, spellSlots, classResources,
+// deathSaves, inspiration, concentrationSpell, and the top-level
+// conditions text[] column).
+export async function updateCharacterState(
+  characterId: string,
+  patch: Record<string, unknown>,
+) {
+  return supabase.rpc('update_character_state', {
+    character_id: characterId,
+    patch: patch as never,
+  });
+}
