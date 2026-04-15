@@ -30,16 +30,11 @@ function uuid(): string {
 function IndexStatusLine({
   status,
   onRetry,
-  canIndex,
 }: {
   status: IndexMeta | undefined;
   onRetry: () => void;
-  canIndex: boolean;
 }) {
   if (!status || status.status === 'not_indexed') {
-    if (!canIndex) {
-      return <Text style={s.indexMuted}>Indexing available on web (for now)</Text>;
-    }
     return (
       <TouchableOpacity onPress={onRetry}>
         <Text style={s.indexAction}>Not indexed — Index now</Text>
@@ -152,10 +147,9 @@ export default function RulebookScreen() {
     return () => clearInterval(interval);
   }, [id, indexStatuses]);
 
-  // Web-only: kick off extraction + indexing for a source. Native support
-  // lands in Phase 5c; until then we skip silently rather than throw.
+  // Kick off extraction + indexing for a source. The platform-specific PDF
+  // parser handles the source: web wants a Blob, native wants the URI string.
   function startIndexing(sourceId: string) {
-    if (Platform.OS !== 'web') return;
     // Seed local state so the UI shows "indexing" immediately.
     setIndexStatuses((prev) => ({
       ...prev,
@@ -168,10 +162,14 @@ export default function RulebookScreen() {
         error: null,
       },
     }));
-    reindexSource(sourceId, async (filePath) => {
-      const res = await fetch(filePath);
-      return res.blob();
-    }).catch((err) => {
+    const fetchBytes =
+      Platform.OS === 'web'
+        ? async (filePath: string) => {
+            const res = await fetch(filePath);
+            return res.blob();
+          }
+        : async (filePath: string) => filePath;
+    reindexSource(sourceId, fetchBytes).catch((err) => {
       console.warn('Indexing failed', err);
     });
   }
@@ -338,7 +336,6 @@ export default function RulebookScreen() {
                         <IndexStatusLine
                           status={status}
                           onRetry={() => startIndexing(src.id)}
-                          canIndex={Platform.OS === 'web'}
                         />
                       </View>
                     </View>
