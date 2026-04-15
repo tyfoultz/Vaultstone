@@ -214,7 +214,7 @@ QuestData {
 
 ### Epic 8 — Campaign Notes Hub & Session Recap
 
-> Status: scaffolded only — placeholder card lives at `components/notes/CampaignNotesCard.tsx`, surfaced on the campaign detail page for the DM. Build out post-MVP.
+> **Status: ✅ Shipped on `feature/campaign-notes-hub`.** Route: `/campaign/[id]/recap` (DM-only). Surfaced via the compact `CampaignNotesCard` CTA on the campaign detail page. See `docs/build-status.md` Phase 6.5 for the full phase rundown; the polish pass (dark theme, flex-fill editors, Session N labels, publish-refresh + back-button fixes) rolled in as Phase 5.1. Remaining deferral: **US-802's "Insert from [Player]" text-lift** is not implemented — the DM copy-pastes from read-only player note blocks in v1.
 
 A DM-facing surface on the campaign detail page that aggregates per-session notes from every participant, lets the DM author the session recap *after* play wraps (no inline recap field on End Session), and writes that recap to the corresponding row in Session History.
 
