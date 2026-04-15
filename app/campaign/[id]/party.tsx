@@ -190,13 +190,38 @@ export default function PartyScreen() {
     await updatePartyViewSettings(id, next);
   }
 
+  // Optimistic local merge. Realtime will re-sync shortly, but we update
+  // immediately so the editor doesn't wait for a round-trip.
+  const applyOptimistic = useCallback((
+    characterId: string,
+    patch: { resources?: Partial<Dnd5eResources>; conditions?: string[] },
+  ) => {
+    setMembers((prev) => prev.map((m) => {
+      if (m.character_id !== characterId || !m.characters) return m;
+      const mergedResources = patch.resources
+        ? { ...(m.characters.resources as Dnd5eResources), ...patch.resources }
+        : m.characters.resources;
+      return {
+        ...m,
+        characters: {
+          ...m.characters,
+          resources: mergedResources,
+          conditions: patch.conditions ?? m.characters.conditions,
+        },
+      };
+    }));
+  }, []);
+
   return (
     <ScrollView
       style={s.scroll}
       contentContainerStyle={s.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
     >
-      <TouchableOpacity onPress={() => router.back()} style={s.back}>
+      <TouchableOpacity
+        onPress={() => router.replace(`/campaign/${id}` as never)}
+        style={s.back}
+      >
         <MaterialCommunityIcons name="arrow-left" size={18} color={colors.brand} />
         <Text style={s.backText}>Campaign</Text>
       </TouchableOpacity>
@@ -254,6 +279,7 @@ export default function PartyScreen() {
               settings={settings}
               flashing={!!(m.characters && recentlyUpdated[m.characters.id])}
               router={router}
+              applyOptimistic={applyOptimistic}
             />
           ))}
         </View>
@@ -271,6 +297,7 @@ export default function PartyScreen() {
 
 function PartyCard({
   campaignId, member, viewerUserId, viewerIsDm, settings, flashing, router,
+  applyOptimistic,
 }: {
   campaignId: string;
   member: PartyMember;
@@ -279,6 +306,10 @@ function PartyCard({
   settings: PartyViewSettings;
   flashing: boolean;
   router: ReturnType<typeof useRouter>;
+  applyOptimistic: (
+    characterId: string,
+    patch: { resources?: Partial<Dnd5eResources>; conditions?: string[] },
+  ) => void;
 }) {
   const char = member.characters;
   const ownerName = member.profiles?.display_name ?? 'Anonymous';
@@ -371,6 +402,9 @@ function PartyCard({
 
   async function applyHp(updated: Dnd5eResources) {
     if (!resources) return;
+    applyOptimistic(char!.id, {
+      resources: { hpCurrent: updated.hpCurrent, hpTemp: updated.hpTemp },
+    });
     await updateCharacterState(char!.id, {
       hpCurrent: updated.hpCurrent,
       hpTemp: updated.hpTemp,
@@ -381,15 +415,20 @@ function PartyCard({
     const next = conditions.includes(condition)
       ? conditions.filter((c) => c !== condition)
       : [...conditions, condition];
+    applyOptimistic(char!.id, { conditions: next });
     await updateCharacterState(char!.id, { conditions: next });
   }
 
   async function setExhaustion(level: number) {
-    await updateCharacterState(char!.id, { exhaustionLevel: Math.max(0, Math.min(6, level)) });
+    const clamped = Math.max(0, Math.min(6, level));
+    applyOptimistic(char!.id, { resources: { exhaustionLevel: clamped } });
+    await updateCharacterState(char!.id, { exhaustionLevel: clamped });
   }
 
   async function toggleInspiration() {
-    await updateCharacterState(char!.id, { inspiration: !inspiration });
+    const next = !inspiration;
+    applyOptimistic(char!.id, { resources: { inspiration: next } });
+    await updateCharacterState(char!.id, { inspiration: next });
   }
 
   async function bumpDeathSave(kind: 'success' | 'failure') {
@@ -398,18 +437,22 @@ function PartyCard({
     const next = kind === 'success'
       ? { ...ds, successes: Math.min(3, ds.successes + 1) }
       : { ...ds, failures: Math.min(3, ds.failures + 1) };
+    applyOptimistic(char!.id, { resources: { deathSaves: next } });
     await updateCharacterState(char!.id, { deathSaves: next });
   }
 
   async function applySlots(spellSlots: Dnd5eResources['spellSlots']) {
+    applyOptimistic(char!.id, { resources: { spellSlots } });
     await updateCharacterState(char!.id, { spellSlots });
   }
 
   async function applyClassResources(list: Dnd5eClassResource[]) {
+    applyOptimistic(char!.id, { resources: { classResources: list } });
     await updateCharacterState(char!.id, { classResources: list });
   }
 
   async function applyConcentration(spell: string | null) {
+    applyOptimistic(char!.id, { resources: { concentrationSpell: spell } });
     await updateCharacterState(char!.id, { concentrationSpell: spell });
   }
 

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getCharacterById, updateCharacter, supabase } from '@vaultstone/api';
+import { getCharacterById, updateCharacter, updateCharacterState, supabase } from '@vaultstone/api';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts } from '@vaultstone/ui';
 import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature } from '@vaultstone/types';
@@ -68,6 +68,7 @@ export default function CharacterSheetScreen() {
   const [tempHpFieldInput, setTempHpFieldInput] = useState('');
   const [hpQuickInput, setHpQuickInput] = useState('');
   const [scratchpad, setScratchpad] = useState('');
+  const [isDmOfLinkedCampaign, setIsDmOfLinkedCampaign] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -81,6 +82,27 @@ export default function CharacterSheetScreen() {
       setLoading(false);
     });
   }, [id]);
+
+  // Is the viewer the DM of any campaign this character is linked to?
+  // Drives edit-permission on the sheet — the DM gets write access to the
+  // RPC-whitelisted session-state fields (HP, conditions, slots, etc.)
+  // while non-owner / non-DM viewers stay read-only.
+  useEffect(() => {
+    if (!id || !authUser?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('campaign_members')
+        .select('campaigns!inner(dm_user_id)')
+        .eq('character_id', id);
+      if (cancelled) return;
+      const isDm = (data ?? []).some(
+        (row) => (row as { campaigns?: { dm_user_id?: string } }).campaigns?.dm_user_id === authUser.id,
+      );
+      setIsDmOfLinkedCampaign(isDm);
+    })();
+    return () => { cancelled = true; };
+  }, [id, authUser?.id]);
 
   // Realtime: when another viewer (e.g. the DM via Party View) mutates this
   // character, merge the payload into local state so the sheet reflects the
@@ -150,28 +172,61 @@ export default function CharacterSheetScreen() {
 
   // ── Persist ─────────────────────────────────────────────────────────────
 
-  // Non-owners (including DMs) view the sheet read-only; session-state
-  // mutations flow through the Party View RPC, which is the single
-  // write path for conditions, HP, slots, etc.
-  const isReadOnly = !!character && !!authUser && character.user_id !== authUser.id;
+  // Ownership + authorization for this sheet:
+  // - Owner: full edit access (direct table update).
+  // - DM of a linked campaign: may edit session-state fields (the RPC
+  //   whitelist) but not durable sheet fields (name, stats, equipment).
+  // - Anyone else (cross-view guest): read-only.
+  const isOwner = !!character && !!authUser && character.user_id === authUser.id;
+  const canEditAny = isOwner || isDmOfLinkedCampaign;
+  const isReadOnly = !canEditAny;
+
+  // Keys inside resources that the RPC's whitelist accepts. Anything not in
+  // this set is owner-only — the DM sheet silently skips writes for them.
+  const RPC_RESOURCE_KEYS: (keyof Dnd5eResources)[] = [
+    'hpCurrent', 'hpTemp', 'exhaustionLevel', 'spellSlots',
+    'classResources', 'deathSaves', 'inspiration', 'concentrationSpell',
+  ];
 
   async function persistResources(updated: Dnd5eResources) {
-    if (!character || isReadOnly) return;
+    if (!character || !canEditAny) return;
     const res = updated as unknown as import('@vaultstone/types').Json;
     setCharacter({ ...character, resources: res });
     updateCharacterLocally(character.id, { resources: res });
-    await updateCharacter(character.id, { resources: res });
+
+    if (isOwner) {
+      await updateCharacter(character.id, { resources: res });
+      return;
+    }
+
+    // DM path: send only whitelisted resource-key diffs via the RPC. Any
+    // non-whitelisted changes (equipment, coins, features, notes, …) are
+    // silently dropped — the sheet controls for those are disabled anyway.
+    const current = (character.resources ?? {}) as unknown as Dnd5eResources;
+    const patch: Record<string, unknown> = {};
+    for (const key of RPC_RESOURCE_KEYS) {
+      if (JSON.stringify(updated[key]) !== JSON.stringify(current[key])) {
+        patch[key] = updated[key];
+      }
+    }
+    if (Object.keys(patch).length > 0) {
+      await updateCharacterState(character.id, patch);
+    }
   }
 
   async function persistConditions(newConditions: string[]) {
-    if (!character || isReadOnly) return;
+    if (!character || !canEditAny) return;
     setCharacter({ ...character, conditions: newConditions });
     updateCharacterLocally(character.id, { conditions: newConditions });
-    await updateCharacter(character.id, { conditions: newConditions });
+    if (isOwner) {
+      await updateCharacter(character.id, { conditions: newConditions });
+    } else {
+      await updateCharacterState(character.id, { conditions: newConditions });
+    }
   }
 
   async function persistStats(updated: Dnd5eStats) {
-    if (!character || isReadOnly) return;
+    if (!character || !isOwner) return;
     const bs = updated as unknown as import('@vaultstone/types').Json;
     setCharacter({ ...character, base_stats: bs });
     updateCharacterLocally(character.id, { base_stats: bs });
@@ -179,7 +234,7 @@ export default function CharacterSheetScreen() {
   }
 
   async function persistName(newName: string) {
-    if (!character || isReadOnly) return;
+    if (!character || !isOwner) return;
     setCharacter({ ...character, name: newName });
     updateCharacterLocally(character.id, { name: newName });
     await updateCharacter(character.id, { name: newName });
