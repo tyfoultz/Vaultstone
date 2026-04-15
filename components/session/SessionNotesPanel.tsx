@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getMySessionNote, upsertSessionNote } from '@vaultstone/api';
+import { getMySessionNote, upsertSessionNote, supabase } from '@vaultstone/api';
 import { colors, spacing } from '@vaultstone/ui';
 
 interface Props {
@@ -35,6 +35,8 @@ export function SessionNotesPanel({
   const [collapsed, setCollapsed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<string | null>(null);
+  const bodyRef = useRef<string>('');
+  bodyRef.current = body;
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +48,36 @@ export function SessionNotesPanel({
       setLoading(false);
     });
     return () => { cancelled = true; };
+  }, [sessionId, userId]);
+
+  // Cross-window sync: subscribe to our own row. When the pop-out saves,
+  // the main panel (and vice versa) picks up the change here. Self-echoes
+  // match the local body verbatim, so no write loop.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`session_notes:${sessionId}:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'session_notes',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            user_id: string;
+            body: string;
+            updated_at: string;
+          } | null;
+          if (!row || row.user_id !== userId) return;
+          if (row.body === bodyRef.current) return;
+          setBody(row.body);
+          setSavedAt(row.updated_at);
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [sessionId, userId]);
 
   const scheduleSave = useCallback((next: string) => {

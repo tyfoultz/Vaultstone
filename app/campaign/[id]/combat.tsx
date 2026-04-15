@@ -10,7 +10,7 @@ import {
   getInitiativeOrder, addCombatant, removeCombatant, advanceTurn,
   updateCombatant, updateCharacterHp, updateCharacterConditions,
   rollCombatantInitiative, setCombatantInitOverride, startCombat,
-  resetInitiative, sortByInitiative,
+  resetInitiative, endCombat, sortByInitiative,
 } from '@vaultstone/api';
 import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPanel';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
@@ -108,6 +108,7 @@ export default function CombatScreen() {
   const [rollingAll, setRollingAll] = useState(false);
   const [startingCombat, setStartingCombat] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [endingCombat, setEndingCombat] = useState(false);
 
   const isDM = campaign?.dm_user_id === user?.id;
   const combatStarted = !!session?.combat_started_at;
@@ -418,6 +419,30 @@ export default function CombatScreen() {
     setResetting(false);
   }
 
+  async function handleEndCombat() {
+    if (!session || endingCombat) return;
+    const confirmed = Platform.OS === 'web'
+      // eslint-disable-next-line no-alert
+      ? window.confirm('End combat? Initiative rolls will be kept.')
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'End Combat?',
+            'Combat will stop but rolls and combatants are kept.',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'End', style: 'destructive', onPress: () => resolve(true) },
+            ],
+          );
+        });
+    if (!confirmed) return;
+    setEndingCombat(true);
+    await endCombat(session.id);
+    const { data: freshSession } = await getActiveSession(id!);
+    if (freshSession) setSession(freshSession);
+    await refetchEntries(session.id);
+    setEndingCombat(false);
+  }
+
   async function handleNextTurn() {
     if (!session || advancing || entries.length === 0) return;
     setAdvancing(true);
@@ -539,6 +564,19 @@ export default function CombatScreen() {
               <MaterialCommunityIcons name="skip-next" size={16} color="#fff" />
               <Text style={s.controlBtnPrimaryText}>
                 {advancing ? 'Advancing…' : 'Next Turn'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {combatStarted && (
+            <TouchableOpacity
+              style={[s.controlBtn, endingCombat && { opacity: 0.5 }]}
+              onPress={handleEndCombat}
+              disabled={endingCombat}
+            >
+              <MaterialCommunityIcons name="stop-circle-outline" size={16} color={colors.hpDanger} />
+              <Text style={[s.controlBtnText, { color: colors.hpDanger }]}>
+                {endingCombat ? 'Ending…' : 'End Combat'}
               </Text>
             </TouchableOpacity>
           )}

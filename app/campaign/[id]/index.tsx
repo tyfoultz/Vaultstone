@@ -23,7 +23,6 @@ import { StartSessionModal, type StartSessionPlayer } from '../../../components/
 import { EndSessionModal } from '../../../components/session/EndSessionModal';
 import { SessionNotesPanel } from '../../../components/session/SessionNotesPanel';
 import { SessionHistoryCard } from '../../../components/session/SessionHistoryCard';
-import { SessionParticipantChips } from '../../../components/session/SessionParticipantChips';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type Character = Database['public']['Tables']['characters']['Row'];
@@ -337,42 +336,84 @@ export default function CampaignDetailScreen() {
       </TouchableOpacity>
 
       <View style={s.grid}>
-        {/* ---- Cover card ---- */}
-        <TouchableOpacity
-          style={s.coverCard}
-          onPress={isDM ? handlePickCover : undefined}
-          activeOpacity={isDM ? 0.7 : 1}
-          disabled={!isDM || uploading}
-        >
-          {campaign.cover_image_url ? (
-            <Image source={{ uri: campaign.cover_image_url }} style={s.coverImage} />
-          ) : (
-            <View style={s.coverPlaceholder}>
-              {isDM && !uploading && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <MaterialCommunityIcons name="image-plus" size={28} color={colors.textSecondary} />
-                  <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Add cover image</Text>
+        {/* ---- Hero card (cover + description + session status) ---- */}
+        <View style={s.coverCard}>
+          <TouchableOpacity
+            onPress={isDM ? handlePickCover : undefined}
+            activeOpacity={isDM ? 0.7 : 1}
+            disabled={!isDM || uploading}
+          >
+            {campaign.cover_image_url ? (
+              <Image source={{ uri: campaign.cover_image_url }} style={s.coverImage} />
+            ) : (
+              <View style={s.coverPlaceholder}>
+                {isDM && !uploading && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <MaterialCommunityIcons name="image-plus" size={28} color={colors.textSecondary} />
+                    <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Add cover image</Text>
+                  </View>
+                )}
+                {uploading && <ActivityIndicator color={colors.brand} />}
+              </View>
+            )}
+            <View style={s.coverOverlay} />
+            <View style={s.coverContent}>
+              <Text style={s.coverTitle} numberOfLines={2}>{campaign.name}</Text>
+              <View style={s.coverMeta}>
+                <Text style={s.coverBadge}>{isDM ? 'DM' : 'Player'}</Text>
+                {campaign.system_label ? (
+                  <Text style={s.coverSystem}>{campaign.system_label}</Text>
+                ) : null}
+              </View>
+            </View>
+            {isDM && campaign.cover_image_url && (
+              <View style={s.coverEditBtn}>
+                <MaterialCommunityIcons name="camera-outline" size={16} color="#fff" />
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Hero body: description + session */}
+          <View style={s.heroBody}>
+            {campaign.description ? (
+              <Text style={s.descText}>{campaign.description}</Text>
+            ) : null}
+
+            {canSeeLiveSession ? (
+              <View style={s.heroSessionRow}>
+                <View style={s.sessionStatusDot} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.heroSessionTitle}>Session live</Text>
+                  {participantNames.length > 0 && (
+                    <Text style={s.heroSessionMeta} numberOfLines={1}>
+                      {participantNames.join(', ')}
+                    </Text>
+                  )}
                 </View>
-              )}
-              {uploading && <ActivityIndicator color={colors.brand} />}
-            </View>
-          )}
-          <View style={s.coverOverlay} />
-          <View style={s.coverContent}>
-            <Text style={s.coverTitle} numberOfLines={2}>{campaign.name}</Text>
-            <View style={s.coverMeta}>
-              <Text style={s.coverBadge}>{isDM ? 'DM' : 'Player'}</Text>
-              {campaign.system_label ? (
-                <Text style={s.coverSystem}>{campaign.system_label}</Text>
-              ) : null}
-            </View>
+                {isDM && (
+                  <TouchableOpacity
+                    style={s.heroEndBtn}
+                    onPress={() => setEndModal(true)}
+                  >
+                    <MaterialCommunityIcons name="stop-circle-outline" size={14} color={colors.hpDanger} />
+                    <Text style={s.heroEndBtnText}>End</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : !activeSessionId && isDM ? (
+              <TouchableOpacity
+                style={s.heroStartBtn}
+                onPress={() => setStartModal(true)}
+                disabled={startingSession}
+              >
+                <MaterialCommunityIcons name="play" size={16} color="#fff" />
+                <Text style={s.heroStartBtnText}>Start Session</Text>
+              </TouchableOpacity>
+            ) : !activeSessionId ? (
+              <Text style={s.heroSessionIdle}>No active session</Text>
+            ) : null}
           </View>
-          {isDM && campaign.cover_image_url && (
-            <View style={s.coverEditBtn}>
-              <MaterialCommunityIcons name="camera-outline" size={16} color="#fff" />
-            </View>
-          )}
-        </TouchableOpacity>
+        </View>
 
         {/* ---- System card ---- */}
         {(() => {
@@ -545,45 +586,6 @@ export default function CampaignDetailScreen() {
           )}
         </View>
 
-        {/* ---- Session card (morphing) ---- */}
-        {canSeeLiveSession ? (
-          <View style={s.infoCard}>
-            <MaterialCommunityIcons name="play-circle-outline" size={24} color={colors.hpHealthy} />
-            <Text style={s.infoLabel}>Session</Text>
-            <Text style={s.sessionLiveText}>Live session in progress</Text>
-            <SessionParticipantChips names={participantNames} />
-            {isDM && (
-              <TouchableOpacity
-                style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
-                onPress={() => setEndModal(true)}
-              >
-                <MaterialCommunityIcons name="stop-circle-outline" size={16} color={colors.hpDanger} />
-                <Text style={[s.manageBtnText, { color: colors.hpDanger }]}>End Session</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : !activeSessionId && isDM ? (
-          <View style={s.infoCard}>
-            <MaterialCommunityIcons name="play-circle-outline" size={24} color={colors.brand} />
-            <Text style={s.infoLabel}>Session</Text>
-            <Text style={s.infoSubtext}>No active session</Text>
-            <TouchableOpacity
-              style={[s.sessionPrimaryBtn, startingSession && { opacity: 0.5 }]}
-              onPress={() => setStartModal(true)}
-              disabled={startingSession}
-            >
-              <MaterialCommunityIcons name="play" size={16} color="#fff" />
-              <Text style={s.sessionPrimaryBtnText}>Start Session</Text>
-            </TouchableOpacity>
-          </View>
-        ) : !activeSessionId ? (
-          <View style={s.infoCard}>
-            <MaterialCommunityIcons name="play-circle-outline" size={24} color={colors.brand} />
-            <Text style={s.infoLabel}>Session</Text>
-            <Text style={s.infoSubtext}>Waiting for DM to start</Text>
-          </View>
-        ) : null}
-
         {/* ---- Combat Encounter card (only when session is live AND viewer included) ---- */}
         {canSeeLiveSession && (
           <View style={s.infoCard}>
@@ -610,17 +612,6 @@ export default function CampaignDetailScreen() {
             />
           </View>
         )}
-
-        {/* ---- Campaign description (read-only) ---- */}
-        <View style={s.infoCard}>
-          <MaterialCommunityIcons name="book-open-outline" size={24} color={colors.brand} />
-          <Text style={s.infoLabel}>About</Text>
-          {campaign.description ? (
-            <Text style={s.descText} numberOfLines={4}>{campaign.description}</Text>
-          ) : (
-            <Text style={s.infoSubtext}>No description yet</Text>
-          )}
-        </View>
 
         {/* ---- Session History ---- */}
         <SessionHistoryCard campaignId={campaign.id} displayNameByUserId={displayNameByUserId} />
@@ -855,6 +846,39 @@ const s = StyleSheet.create({
   coverEditBtn: {
     position: 'absolute', top: spacing.sm, right: spacing.sm,
     backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 14, padding: 5,
+  },
+
+  // Hero body (below cover image)
+  heroBody: {
+    padding: spacing.md, gap: spacing.sm,
+  },
+  heroSessionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.background, borderRadius: 8,
+    paddingHorizontal: spacing.sm, paddingVertical: 8,
+  },
+  sessionStatusDot: {
+    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.hpHealthy,
+  },
+  heroSessionTitle: {
+    fontSize: 13, fontWeight: '700', color: colors.hpHealthy,
+  },
+  heroSessionMeta: {
+    fontSize: 11, color: colors.textSecondary, marginTop: 1,
+  },
+  heroEndBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderColor: colors.hpDanger, borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
+  },
+  heroEndBtnText: { fontSize: 11, color: colors.hpDanger, fontWeight: '700' },
+  heroStartBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: colors.brand, borderRadius: 8, paddingVertical: 9,
+  },
+  heroStartBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  heroSessionIdle: {
+    fontSize: 12, color: colors.textSecondary, fontStyle: 'italic',
   },
 
   // Info cards

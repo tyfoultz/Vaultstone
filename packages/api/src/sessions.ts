@@ -220,6 +220,20 @@ export async function startCombat(sessionId: string) {
     .eq('id', sessionId);
 }
 
+// Stop combat but keep rolls/combatants. DM can re-start from the same
+// setup (or reset explicitly if they want a clean slate). Clears active
+// turn so no one appears "on deck" after the fight ends.
+export async function endCombat(sessionId: string) {
+  await supabase
+    .from('initiative_order')
+    .update({ is_active_turn: false })
+    .eq('session_id', sessionId);
+  return supabase
+    .from('sessions')
+    .update({ combat_started_at: null })
+    .eq('id', sessionId);
+}
+
 // Full reset — clears every combatant's roll, unsets active turn,
 // zeroes the round, and reopens the setup phase. The combatant list
 // itself is preserved so the DM can re-roll without rebuilding.
