@@ -11,6 +11,7 @@ GitHub: https://github.com/tyfoultz/Vaultstone
 - [Architecture](architecture.md) — tech stack, DB schema, content architecture, folder structure, MVP scope
 - [Legal Constraints](legal.md) — what content can ship, how user-uploaded PDFs must be handled, party sync rules
 - [Build Status](build-status.md) — kickoff checklist, phase-by-phase progress tracker
+- [Bug Tracker](bugs.md) — known open + resolved issues
 - [Dev Workflow](dev-workflow.md) — local verification before push (Tier 1 typecheck + Tier 4 Playwright)
 
 ### Feature Requirements
