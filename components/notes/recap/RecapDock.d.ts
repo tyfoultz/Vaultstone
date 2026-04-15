@@ -13,6 +13,7 @@ export interface RecapDockProps {
   session: SessionMeta;
   dmUserId: string;
   displayNameByUserId: Record<string, string>;
+  onSummaryPublished?: (sessionId: string, nextSummary: string) => void;
 }
 
 export function RecapDock(props: RecapDockProps): JSX.Element;

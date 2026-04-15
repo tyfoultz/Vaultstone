@@ -12,6 +12,7 @@ interface Props {
   publishedSummary: string | null;
   isLive: boolean;
   mode: 'dock' | 'popout';
+  onPublished?: (sessionId: string, nextSummary: string) => void;
 }
 
 function fmtSavedAt(iso: string | null): string {
@@ -20,7 +21,7 @@ function fmtSavedAt(iso: string | null): string {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-export function RecapEditorPanel({ sessionId, publishedSummary, isLive, mode }: Props) {
+export function RecapEditorPanel({ sessionId, publishedSummary, isLive, mode, onPublished }: Props) {
   const draft = useRecapDraftStore((s) => s.bySessionId[sessionId] ?? null);
   const setDraft = useRecapDraftStore((s) => s.setDraft);
   const clearDraft = useRecapDraftStore((s) => s.clearDraft);
@@ -54,9 +55,14 @@ export function RecapEditorPanel({ sessionId, publishedSummary, isLive, mode }: 
 
   async function handlePublish() {
     setPublishing(true);
-    const { error } = await updateSessionSummary(sessionId, body);
+    const nextSummary = body;
+    const { error } = await updateSessionSummary(sessionId, nextSummary);
     setPublishing(false);
     if (!error) {
+      // Notify parent first so its publishedSummary prop updates this render
+      // cycle; without this, clearDraft() fires the effect below and resets
+      // `body` to the stale publishedSummary.
+      onPublished?.(sessionId, nextSummary);
       clearDraft(sessionId);
       setPublishedAt(new Date().toISOString());
     }

@@ -27,6 +27,7 @@ interface Props {
   session: SessionMeta;
   dmUserId: string;
   displayNameByUserId: Record<string, string>;
+  onSummaryPublished?: (sessionId: string, nextSummary: string) => void;
 }
 
 const TITLES: Record<RecapPanelKind, string> = {
@@ -35,7 +36,7 @@ const TITLES: Record<RecapPanelKind, string> = {
   playerNotes: 'Player Notes',
 };
 
-export function RecapDock({ campaignId, session, dmUserId, displayNameByUserId }: Props) {
+export function RecapDock({ campaignId, session, dmUserId, displayNameByUserId, onSummaryPublished }: Props) {
   const layout = useRecapLayoutStore((s) => s.layout);
   const setLayout = useRecapLayoutStore((s) => s.setLayout);
   const resetLayout = useRecapLayoutStore((s) => s.resetLayout);
@@ -52,6 +53,7 @@ export function RecapDock({ campaignId, session, dmUserId, displayNameByUserId }
           publishedSummary={session.summary}
           isLive={session.isLive}
           mode="dock"
+          onPublished={onSummaryPublished}
         />
       );
     }
@@ -72,7 +74,7 @@ export function RecapDock({ campaignId, session, dmUserId, displayNameByUserId }
         displayNameByUserId={displayNameByUserId}
       />
     );
-  }, [session.id, session.summary, session.isLive, dmUserId, displayNameByUserId]);
+  }, [session.id, session.summary, session.isLive, dmUserId, displayNameByUserId, onSummaryPublished]);
 
   const renderToolbarControls = useCallback((id: RecapPanelKind) => {
     return (

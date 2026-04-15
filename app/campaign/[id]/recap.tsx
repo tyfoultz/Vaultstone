@@ -98,10 +98,22 @@ export default function CampaignNotesHubScreen() {
     number: s.isLive ? null : (numberById[s.id] ?? null),
   }));
 
+  function handleSummaryPublished(sessionId: string, nextSummary: string) {
+    setHistory((prev) => prev.map((s) => (s.id === sessionId ? { ...s, summary: nextSummary } : s)));
+    setLiveSession((prev) => (prev && prev.id === sessionId ? { ...prev, summary: nextSummary } : prev));
+  }
+
+  function handleBack() {
+    // On a fresh tab load (user refreshed on this route) there's no browser
+    // history to pop, so router.back() silently no-ops. Route home instead.
+    if (router.canGoBack()) router.back();
+    else router.replace(`/campaign/${campaignId}` as never);
+  }
+
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.title}>Campaign Notes Hub</Text>
@@ -125,6 +137,7 @@ export default function CampaignNotesHubScreen() {
                 session={{ id: selected.id, summary: selected.summary, isLive: selected.isLive }}
                 dmUserId={user.id}
                 displayNameByUserId={displayNameByUserId}
+                onSummaryPublished={handleSummaryPublished}
               />
             )}
           </View>

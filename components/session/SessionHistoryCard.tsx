@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { getCampaignSessionHistory, getSessionNotes } from '@vaultstone/api';
 import { colors, spacing } from '@vaultstone/ui';
 import { RichTextRenderer } from '../notes/RichTextRenderer';
@@ -46,14 +47,28 @@ export function SessionHistoryCard({ campaignId, displayNameByUserId }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, NoteRow[] | 'loading'>>({});
 
-  useEffect(() => {
-    let cancelled = false;
-    getCampaignSessionHistory(campaignId).then(({ data }) => {
-      if (cancelled) return;
-      setRows((data ?? []) as HistoryRow[]);
-    });
-    return () => { cancelled = true; };
-  }, [campaignId]);
+  // Refetch on focus so edits made in the Campaign Notes Hub (recap publish,
+  // etc.) surface immediately when the DM navigates back — a plain useEffect
+  // would only run on mount, and Expo Router keeps the campaign screen alive.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      getCampaignSessionHistory(campaignId).then(({ data }) => {
+        if (cancelled) return;
+        const next = (data ?? []) as HistoryRow[];
+        setRows(next);
+        // Drop cached note rows for sessions that no longer exist; keep the
+        // rest so an already-expanded row doesn't flash its spinner.
+        setNotes((prev) => {
+          const validIds = new Set(next.map((r) => r.id));
+          const trimmed: typeof prev = {};
+          for (const [id, v] of Object.entries(prev)) if (validIds.has(id)) trimmed[id] = v;
+          return trimmed;
+        });
+      });
+      return () => { cancelled = true; };
+    }, [campaignId]),
+  );
 
   async function toggle(sessionId: string) {
     if (expanded === sessionId) {
