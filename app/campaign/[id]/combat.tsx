@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet,
-  ActivityIndicator, Alert, Platform, FlatList, Modal, ScrollView,
+  ActivityIndicator, FlatList, Modal, ScrollView, Alert, Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  supabase, getActiveSession, endSession, getCampaignPartyState,
+  supabase, getActiveSession, getCampaignPartyState,
   getInitiativeOrder, addCombatant, removeCombatant, advanceTurn,
   updateCombatant, updateCharacterHp, updateCharacterConditions,
   rollCombatantInitiative, setCombatantInitOverride, startCombat,
-  resetInitiative, sortByInitiative,
+  resetInitiative, endCombat, sortByInitiative,
 } from '@vaultstone/api';
 import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPanel';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
@@ -66,7 +66,7 @@ function computeAc(stats: Dnd5eStats, resources: Dnd5eResources): number {
 
 function formatMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 
-export default function SessionScreen() {
+export default function CombatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
@@ -78,7 +78,6 @@ export default function SessionScreen() {
   );
   const [entries, setEntries] = useState<Combatant[]>([]);
   const [loading, setLoading] = useState(true);
-  const [ending, setEnding] = useState(false);
   const [advancing, setAdvancing] = useState(false);
 
   const [adding, setAdding] = useState(false);
@@ -109,6 +108,7 @@ export default function SessionScreen() {
   const [rollingAll, setRollingAll] = useState(false);
   const [startingCombat, setStartingCombat] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [endingCombat, setEndingCombat] = useState(false);
 
   const isDM = campaign?.dm_user_id === user?.id;
   const combatStarted = !!session?.combat_started_at;
@@ -221,28 +221,6 @@ export default function SessionScreen() {
 
     return () => { supabase.removeChannel(channel); };
   }, [session?.id]);
-
-  async function handleEnd() {
-    if (!session || ending) return;
-    const confirmed = Platform.OS === 'web'
-      // eslint-disable-next-line no-alert
-      ? window.confirm('End this session? Combat state will be cleared.')
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            'End Session?',
-            'Combat state will be cleared.',
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'End Session', style: 'destructive', onPress: () => resolve(true) },
-            ],
-          );
-        });
-    if (!confirmed) return;
-    setEnding(true);
-    const { error } = await endSession(session.id);
-    setEnding(false);
-    if (!error) router.replace(`/campaign/${id}` as never);
-  }
 
   function resetForm() {
     setFormName(''); setFormInitMod(''); setFormHp(''); setFormAc('');
@@ -441,6 +419,30 @@ export default function SessionScreen() {
     setResetting(false);
   }
 
+  async function handleEndCombat() {
+    if (!session || endingCombat) return;
+    const confirmed = Platform.OS === 'web'
+      // eslint-disable-next-line no-alert
+      ? window.confirm('End combat? Initiative rolls will be kept.')
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'End Combat?',
+            'Combat will stop but rolls and combatants are kept.',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'End', style: 'destructive', onPress: () => resolve(true) },
+            ],
+          );
+        });
+    if (!confirmed) return;
+    setEndingCombat(true);
+    await endCombat(session.id);
+    const { data: freshSession } = await getActiveSession(id!);
+    if (freshSession) setSession(freshSession);
+    await refetchEntries(session.id);
+    setEndingCombat(false);
+  }
+
   async function handleNextTurn() {
     if (!session || advancing || entries.length === 0) return;
     setAdvancing(true);
@@ -464,14 +466,18 @@ export default function SessionScreen() {
   return (
     <View style={s.container}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.headerBack}>
+        <TouchableOpacity
+          onPress={() => router.replace(`/campaign/${id}` as never)}
+          style={s.headerBack}
+        >
           <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.title} numberOfLines={1}>
-            {campaign?.name ?? 'Session'}
+            Combat Encounter
           </Text>
           <Text style={s.subtitle}>
+            {(campaign?.name ?? '') + ' · '}
             {combatStarted
               ? `Round ${session.round}`
               : allRolled
@@ -481,15 +487,6 @@ export default function SessionScreen() {
                   : 'Setup'}
           </Text>
         </View>
-        {isDM && (
-          <TouchableOpacity
-            style={[s.endBtn, ending && { opacity: 0.5 }]}
-            onPress={handleEnd}
-            disabled={ending}
-          >
-            <Text style={s.endBtnText}>{ending ? 'Ending…' : 'End Session'}</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       {isDM && (
@@ -567,6 +564,19 @@ export default function SessionScreen() {
               <MaterialCommunityIcons name="skip-next" size={16} color="#fff" />
               <Text style={s.controlBtnPrimaryText}>
                 {advancing ? 'Advancing…' : 'Next Turn'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {combatStarted && (
+            <TouchableOpacity
+              style={[s.controlBtn, endingCombat && { opacity: 0.5 }]}
+              onPress={handleEndCombat}
+              disabled={endingCombat}
+            >
+              <MaterialCommunityIcons name="stop-circle-outline" size={16} color={colors.hpDanger} />
+              <Text style={[s.controlBtnText, { color: colors.hpDanger }]}>
+                {endingCombat ? 'Ending…' : 'End Combat'}
               </Text>
             </TouchableOpacity>
           )}
@@ -885,11 +895,6 @@ const s = StyleSheet.create({
   headerBack: { padding: 4 },
   title: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
   subtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  endBtn: {
-    borderColor: colors.hpDanger, borderWidth: 1, borderRadius: 8,
-    paddingHorizontal: spacing.md, paddingVertical: 6,
-  },
-  endBtnText: { color: colors.hpDanger, fontSize: 13, fontWeight: '700' },
 
   controls: {
     flexDirection: 'row', gap: spacing.sm,

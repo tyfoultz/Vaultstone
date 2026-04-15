@@ -10,6 +10,7 @@ import {
   supabase, regenerateJoinCode, getCampaignMembers,
   removeCampaignMember, uploadCampaignCover, getCharacterById,
   updateCampaignContentSource, getActiveSession, startSession,
+  endSession, getSessionParticipants,
 } from '@vaultstone/api';
 import { getSourcesByCampaign } from '@vaultstone/content';
 import type { LocalSource } from '@vaultstone/content';
@@ -18,6 +19,11 @@ import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 import type { Dnd5eStats } from '@vaultstone/types';
 import CharacterPickerModal from '../../../components/campaign/CharacterPickerModal';
+import { StartSessionModal, type StartSessionPlayer } from '../../../components/session/StartSessionModal';
+import { EndSessionModal } from '../../../components/session/EndSessionModal';
+import { SessionNotesPanel } from '../../../components/session/SessionNotesPanel';
+import { SessionHistoryCard } from '../../../components/session/SessionHistoryCard';
+import { CampaignNotesCard } from '../../../components/notes/CampaignNotesCard';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type Character = Database['public']['Tables']['characters']['Row'];
@@ -78,6 +84,10 @@ export default function CampaignDetailScreen() {
   const [localSources, setLocalSources] = useState<LocalSource[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
+  const [startModal, setStartModal] = useState(false);
+  const [endModal, setEndModal] = useState(false);
+  const [sessionParticipants, setSessionParticipants] = useState<string[]>([]);
 
   // --- actions ---
 
@@ -170,14 +180,27 @@ export default function CampaignDetailScreen() {
     );
   }
 
-  async function handleStartSession() {
+  async function handleConfirmStart(pickedUserIds: string[]) {
     if (!campaign || startingSession) return;
     setStartingSession(true);
-    const { data } = await startSession(campaign.id);
+    const { data } = await startSession(campaign.id, pickedUserIds);
     setStartingSession(false);
     if (data) {
       setActiveSessionId(data.id);
-      router.push(`/campaign/${campaign.id}/session` as never);
+      setSessionParticipants(pickedUserIds);
+      setStartModal(false);
+    }
+  }
+
+  async function handleConfirmEnd() {
+    if (!activeSessionId || endingSession) return;
+    setEndingSession(true);
+    const { error } = await endSession(activeSessionId);
+    setEndingSession(false);
+    if (!error) {
+      setActiveSessionId(null);
+      setSessionParticipants([]);
+      setEndModal(false);
     }
   }
 
@@ -230,8 +253,14 @@ export default function CampaignDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!id) return;
-      getActiveSession(id).then(({ data }) => {
+      getActiveSession(id).then(async ({ data }) => {
         setActiveSessionId(data?.id ?? null);
+        if (data?.id) {
+          const ids = await getSessionParticipants(data.id);
+          setSessionParticipants(ids);
+        } else {
+          setSessionParticipants([]);
+        }
       });
     }, [id])
   );
@@ -278,6 +307,27 @@ export default function CampaignDetailScreen() {
 
   const playerCount = members.filter((m) => m.role === 'player').length;
 
+  const participantSet = new Set(sessionParticipants);
+  const isParticipant = !!user && participantSet.has(user.id);
+  const canSeeLiveSession = !!activeSessionId && (isDM || isParticipant);
+  const participantNames = sessionParticipants
+    .map((uid) => members.find((m) => m.user_id === uid)?.profiles?.display_name ?? 'Unknown');
+
+  const displayNameByUserId: Record<string, string> = {};
+  for (const m of members) {
+    displayNameByUserId[m.user_id] = m.profiles?.display_name ?? 'Anonymous';
+  }
+
+  const startModalPlayers: StartSessionPlayer[] = members
+    .filter((m) => m.role !== 'gm')
+    .map((m) => ({
+      userId: m.user_id,
+      displayName: m.profiles?.display_name ?? 'Anonymous',
+      characterName: m.character_id ? (characterMap[m.character_id]?.name ?? null) : null,
+    }));
+
+  const isWeb = Platform.OS === 'web';
+
   // --- render ---
 
   return (
@@ -287,42 +337,84 @@ export default function CampaignDetailScreen() {
       </TouchableOpacity>
 
       <View style={s.grid}>
-        {/* ---- Cover card ---- */}
-        <TouchableOpacity
-          style={s.coverCard}
-          onPress={isDM ? handlePickCover : undefined}
-          activeOpacity={isDM ? 0.7 : 1}
-          disabled={!isDM || uploading}
-        >
-          {campaign.cover_image_url ? (
-            <Image source={{ uri: campaign.cover_image_url }} style={s.coverImage} />
-          ) : (
-            <View style={s.coverPlaceholder}>
-              {isDM && !uploading && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <MaterialCommunityIcons name="image-plus" size={28} color={colors.textSecondary} />
-                  <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Add cover image</Text>
+        {/* ---- Hero card (cover + description + session status) ---- */}
+        <View style={s.coverCard}>
+          <TouchableOpacity
+            onPress={isDM ? handlePickCover : undefined}
+            activeOpacity={isDM ? 0.7 : 1}
+            disabled={!isDM || uploading}
+          >
+            {campaign.cover_image_url ? (
+              <Image source={{ uri: campaign.cover_image_url }} style={s.coverImage} />
+            ) : (
+              <View style={s.coverPlaceholder}>
+                {isDM && !uploading && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <MaterialCommunityIcons name="image-plus" size={28} color={colors.textSecondary} />
+                    <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Add cover image</Text>
+                  </View>
+                )}
+                {uploading && <ActivityIndicator color={colors.brand} />}
+              </View>
+            )}
+            <View style={s.coverOverlay} />
+            <View style={s.coverContent}>
+              <Text style={s.coverTitle} numberOfLines={2}>{campaign.name}</Text>
+              <View style={s.coverMeta}>
+                <Text style={s.coverBadge}>{isDM ? 'DM' : 'Player'}</Text>
+                {campaign.system_label ? (
+                  <Text style={s.coverSystem}>{campaign.system_label}</Text>
+                ) : null}
+              </View>
+            </View>
+            {isDM && campaign.cover_image_url && (
+              <View style={s.coverEditBtn}>
+                <MaterialCommunityIcons name="camera-outline" size={16} color="#fff" />
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Hero body: description + session */}
+          <View style={s.heroBody}>
+            {campaign.description ? (
+              <Text style={s.descText}>{campaign.description}</Text>
+            ) : null}
+
+            {canSeeLiveSession ? (
+              <View style={s.heroSessionRow}>
+                <View style={s.sessionStatusDot} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.heroSessionTitle}>Session live</Text>
+                  {participantNames.length > 0 && (
+                    <Text style={s.heroSessionMeta} numberOfLines={1}>
+                      {participantNames.join(', ')}
+                    </Text>
+                  )}
                 </View>
-              )}
-              {uploading && <ActivityIndicator color={colors.brand} />}
-            </View>
-          )}
-          <View style={s.coverOverlay} />
-          <View style={s.coverContent}>
-            <Text style={s.coverTitle} numberOfLines={2}>{campaign.name}</Text>
-            <View style={s.coverMeta}>
-              <Text style={s.coverBadge}>{isDM ? 'DM' : 'Player'}</Text>
-              {campaign.system_label ? (
-                <Text style={s.coverSystem}>{campaign.system_label}</Text>
-              ) : null}
-            </View>
+                {isDM && (
+                  <TouchableOpacity
+                    style={s.heroEndBtn}
+                    onPress={() => setEndModal(true)}
+                  >
+                    <MaterialCommunityIcons name="stop-circle-outline" size={14} color={colors.hpDanger} />
+                    <Text style={s.heroEndBtnText}>End</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : !activeSessionId && isDM ? (
+              <TouchableOpacity
+                style={s.heroStartBtn}
+                onPress={() => setStartModal(true)}
+                disabled={startingSession}
+              >
+                <MaterialCommunityIcons name="play" size={16} color="#fff" />
+                <Text style={s.heroStartBtnText}>Start Session</Text>
+              </TouchableOpacity>
+            ) : !activeSessionId ? (
+              <Text style={s.heroSessionIdle}>No active session</Text>
+            ) : null}
           </View>
-          {isDM && campaign.cover_image_url && (
-            <View style={s.coverEditBtn}>
-              <MaterialCommunityIcons name="camera-outline" size={16} color="#fff" />
-            </View>
-          )}
-        </TouchableOpacity>
+        </View>
 
         {/* ---- System card ---- */}
         {(() => {
@@ -495,51 +587,49 @@ export default function CampaignDetailScreen() {
           )}
         </View>
 
-        {/* ---- Sessions card ---- */}
-        <View style={s.infoCard}>
-          <MaterialCommunityIcons name="sword-cross" size={24} color={colors.brand} />
-          <Text style={s.infoLabel}>Session</Text>
-          {activeSessionId ? (
-            <>
-              <Text style={s.sessionLiveText}>Live session in progress</Text>
-              <TouchableOpacity
-                style={s.sessionPrimaryBtn}
-                onPress={() => router.push(`/campaign/${id}/session` as never)}
-              >
-                <MaterialCommunityIcons name="login" size={16} color="#fff" />
-                <Text style={s.sessionPrimaryBtnText}>Rejoin Session</Text>
-              </TouchableOpacity>
-            </>
-          ) : isDM ? (
-            <>
-              <Text style={s.infoSubtext}>No active session</Text>
-              <TouchableOpacity
-                style={[s.sessionPrimaryBtn, startingSession && { opacity: 0.5 }]}
-                onPress={handleStartSession}
-                disabled={startingSession}
-              >
-                <MaterialCommunityIcons name="play" size={16} color="#fff" />
-                <Text style={s.sessionPrimaryBtnText}>
-                  {startingSession ? 'Starting…' : 'Start Session'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <Text style={s.infoSubtext}>Waiting for DM to start</Text>
-          )}
-        </View>
+        {/* ---- Combat Encounter card (only when session is live AND viewer included) ---- */}
+        {canSeeLiveSession && (
+          <View style={s.infoCard}>
+            <MaterialCommunityIcons name="sword-cross" size={24} color={colors.brand} />
+            <Text style={s.infoLabel}>Combat Encounter</Text>
+            <Text style={s.infoSubtext}>Initiative tracker &amp; turn order</Text>
+            <TouchableOpacity
+              style={s.sessionPrimaryBtn}
+              onPress={() => router.push(`/campaign/${id}/combat` as never)}
+            >
+              <MaterialCommunityIcons name="sword" size={16} color="#fff" />
+              <Text style={s.sessionPrimaryBtnText}>Open Combat Encounter</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-        {/* ---- Notes card ---- */}
-        <View style={s.infoCard}>
-          <MaterialCommunityIcons name="notebook-outline" size={24} color={colors.brand} />
-          <Text style={s.infoLabel}>Notes</Text>
-          {campaign.description ? (
-            <Text style={s.descText} numberOfLines={4}>{campaign.description}</Text>
-          ) : (
-            <Text style={s.infoSubtext}>No description yet</Text>
-          )}
-        </View>
+        {/* ---- Session Notes panel (web, inline when live + viewer included) ---- */}
+        {canSeeLiveSession && isWeb && user && activeSessionId && (
+          <View style={s.notesInlineSlot}>
+            <SessionNotesPanel
+              sessionId={activeSessionId}
+              userId={user.id}
+              campaignId={campaign.id}
+            />
+          </View>
+        )}
+
+        {/* ---- Campaign Notes Hub (DM-only placeholder) ---- */}
+        {isDM && <CampaignNotesCard campaignId={campaign.id} />}
+
+        {/* ---- Session History ---- */}
+        <SessionHistoryCard campaignId={campaign.id} displayNameByUserId={displayNameByUserId} />
       </View>
+
+      {/* ---- Session Notes FAB (native, when live + viewer included) ---- */}
+      {canSeeLiveSession && !isWeb && activeSessionId && (
+        <TouchableOpacity
+          style={s.notesFab}
+          onPress={() => router.push(`/campaign/${campaign.id}/notes` as never)}
+        >
+          <MaterialCommunityIcons name="notebook-outline" size={24} color="#fff" />
+        </TouchableOpacity>
+      )}
 
       {/* ======== Character Picker Modal ======== */}
       {user && myMember && (
@@ -682,6 +772,23 @@ export default function CampaignDetailScreen() {
           onCancel={() => setCropUri(null)}
         />
       )}
+
+      {/* ======== Start Session Modal ======== */}
+      <StartSessionModal
+        visible={startModal}
+        players={startModalPlayers}
+        starting={startingSession}
+        onClose={() => setStartModal(false)}
+        onConfirm={handleConfirmStart}
+      />
+
+      {/* ======== End Session Modal ======== */}
+      <EndSessionModal
+        visible={endModal}
+        ending={endingSession}
+        onClose={() => setEndModal(false)}
+        onConfirm={handleConfirmEnd}
+      />
     </ScrollView>
   );
 }
@@ -708,9 +815,11 @@ const s = StyleSheet.create({
   },
   backText: { color: colors.brand, fontSize: 14 },
 
-  // Grid
+  // Grid — flex-start so each card is its natural height (not stretched
+  // to match the tallest sibling in the row).
   grid: {
     flexDirection: 'row', flexWrap: 'wrap',
+    alignItems: 'flex-start',
     gap: spacing.md, paddingHorizontal: spacing.lg,
   },
 
@@ -743,6 +852,39 @@ const s = StyleSheet.create({
   coverEditBtn: {
     position: 'absolute', top: spacing.sm, right: spacing.sm,
     backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 14, padding: 5,
+  },
+
+  // Hero body (below cover image)
+  heroBody: {
+    padding: spacing.md, gap: spacing.sm,
+  },
+  heroSessionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.background, borderRadius: 8,
+    paddingHorizontal: spacing.sm, paddingVertical: 8,
+  },
+  sessionStatusDot: {
+    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.hpHealthy,
+  },
+  heroSessionTitle: {
+    fontSize: 13, fontWeight: '700', color: colors.hpHealthy,
+  },
+  heroSessionMeta: {
+    fontSize: 11, color: colors.textSecondary, marginTop: 1,
+  },
+  heroEndBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderColor: colors.hpDanger, borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
+  },
+  heroEndBtnText: { fontSize: 11, color: colors.hpDanger, fontWeight: '700' },
+  heroStartBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: colors.brand, borderRadius: 8, paddingVertical: 9,
+  },
+  heroStartBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  heroSessionIdle: {
+    fontSize: 12, color: colors.textSecondary, fontStyle: 'italic',
   },
 
   // Info cards
@@ -834,6 +976,21 @@ const s = StyleSheet.create({
   },
   manageBtnText: { fontSize: 13, color: colors.brand, fontWeight: '600' },
   leaveText: { fontSize: 13, color: colors.hpDanger },
+
+  // Session notes panel (inline on web)
+  notesInlineSlot: {
+    flexBasis: 320, flexGrow: 1, minWidth: 260,
+  },
+
+  // Session notes FAB (native)
+  notesFab: {
+    position: 'absolute', bottom: 24, right: 24,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: colors.brand,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 6,
+  },
 
   // Session card primary action (Start / Rejoin)
   sessionLiveText: {

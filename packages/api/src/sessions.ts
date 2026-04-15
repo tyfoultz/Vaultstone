@@ -5,19 +5,93 @@ type SessionEventInsert = Database['public']['Tables']['session_events']['Insert
 type InitiativeRow = Database['public']['Tables']['initiative_order']['Row'];
 type InitiativeUpdate = Database['public']['Tables']['initiative_order']['Update'];
 
-export async function startSession(campaignId: string) {
-  return supabase
+// Create session row + bulk-add participants in two writes. RLS on
+// session_participants rejects participant inserts from non-DMs, so a
+// stray empty session is the worst-case partial failure.
+export async function startSession(campaignId: string, participantUserIds: string[] = []) {
+  const sessionRes = await supabase
     .from('sessions')
     .insert({ campaign_id: campaignId, ended_at: null, round: 1 })
     .select()
     .single();
+  if (sessionRes.error || !sessionRes.data) return sessionRes;
+  if (participantUserIds.length > 0) {
+    await supabase
+      .from('session_participants')
+      .insert(
+        participantUserIds.map((user_id) => ({
+          session_id: sessionRes.data!.id,
+          user_id,
+        })),
+      );
+  }
+  return sessionRes;
 }
 
-export async function endSession(sessionId: string) {
+export async function endSession(sessionId: string, summary?: string) {
+  const patch: { ended_at: string; summary?: string | null } = {
+    ended_at: new Date().toISOString(),
+  };
+  if (summary !== undefined) {
+    const trimmed = summary.trim();
+    patch.summary = trimmed.length > 0 ? trimmed : null;
+  }
   return supabase
     .from('sessions')
-    .update({ ended_at: new Date().toISOString() })
+    .update(patch)
     .eq('id', sessionId);
+}
+
+export async function setSessionParticipants(sessionId: string, userIds: string[]) {
+  await supabase.from('session_participants').delete().eq('session_id', sessionId);
+  if (userIds.length === 0) return { error: null };
+  return supabase
+    .from('session_participants')
+    .insert(userIds.map((user_id) => ({ session_id: sessionId, user_id })));
+}
+
+export async function getSessionParticipants(sessionId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('session_participants')
+    .select('user_id')
+    .eq('session_id', sessionId);
+  return (data ?? []).map((row) => row.user_id);
+}
+
+export async function getMySessionNote(sessionId: string, userId: string) {
+  const { data } = await supabase
+    .from('session_notes')
+    .select('body, updated_at')
+    .eq('session_id', sessionId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data ?? { body: '', updated_at: null };
+}
+
+export async function upsertSessionNote(sessionId: string, userId: string, body: string) {
+  return supabase
+    .from('session_notes')
+    .upsert(
+      { session_id: sessionId, user_id: userId, body, updated_at: new Date().toISOString() },
+      { onConflict: 'session_id,user_id' },
+    );
+}
+
+// RLS filters this — caller gets only the rows they're allowed to see.
+export async function getSessionNotes(sessionId: string) {
+  return supabase
+    .from('session_notes')
+    .select('user_id, body, updated_at')
+    .eq('session_id', sessionId);
+}
+
+export async function getCampaignSessionHistory(campaignId: string) {
+  return supabase
+    .from('sessions')
+    .select('id, started_at, ended_at, summary, round')
+    .eq('campaign_id', campaignId)
+    .not('ended_at', 'is', null)
+    .order('ended_at', { ascending: false });
 }
 
 // `.maybeSingle()` — we want `data: null` (not an error) when no active session exists.
@@ -143,6 +217,20 @@ export async function startCombat(sessionId: string) {
   return supabase
     .from('sessions')
     .update({ combat_started_at: new Date().toISOString(), round: 1 })
+    .eq('id', sessionId);
+}
+
+// Stop combat but keep rolls/combatants. DM can re-start from the same
+// setup (or reset explicitly if they want a clean slate). Clears active
+// turn so no one appears "on deck" after the fight ends.
+export async function endCombat(sessionId: string) {
+  await supabase
+    .from('initiative_order')
+    .update({ is_active_turn: false })
+    .eq('session_id', sessionId);
+  return supabase
+    .from('sessions')
+    .update({ combat_started_at: null })
     .eq('id', sessionId);
 }
 
