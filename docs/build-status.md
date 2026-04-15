@@ -97,10 +97,12 @@ reactive updates via Supabase Realtime (rolls in with Session Mode).
 | Phase | Status | Summary |
 |---|---|---|
 | 1 — Lifecycle + Realtime shell | ✅ Done | DM Start/End Session; players see Rejoin when active; session screen subscribes to `sessions` row via `supabase.channel('session:{id}')` and bounces everyone back to the campaign when `ended_at` flips. ContentSyncFilter (`sanitizeSyncPayload`) whitelists Realtime payloads so PDF-extracted text can never broadcast. |
-| 2 — Initiative tracker | ⬜ Planned | Add/reorder combatants, round advance, turn cursor via `initiative_order`. |
+| 2 — Initiative tracker | ✅ Done | DM adds combatants (name/init/HP/AC), removes them, and advances the turn cursor; `advanceTurn` wraps to the top and bumps `session.round`. Full list refetched on any `initiative_order` change for the session so all clients stay in sync. |
 | 3 — HP + conditions sync | ⬜ Planned | Live character HP/conditions via `CharacterStateUpdate` sanitized payloads. |
 
-**Realtime prerequisite:** enable Realtime on `sessions`, `initiative_order`, and `session_events` in the Supabase dashboard. Phase 1 only needs `sessions`; the others land with Phase 2.
+**Realtime prerequisite:** enable Realtime on `sessions`, `initiative_order`, and `session_events` in the Supabase dashboard. Phases 1 + 2 need `sessions` and `initiative_order`; `session_events` lands with a later phase.
+
+**Known limitation (Phase 2):** `initiative_order` uses default `REPLICA IDENTITY`, so DELETE Realtime events don't match the `session_id` filter. The session screen refetches on any change rather than applying payloads piecemeal, which masks this — but a later phase should switch to `REPLICA IDENTITY FULL` if we move to incremental updates.
 
 ### 7. Session Log ⬜ Not started
 Append-only event feed. Displays what happened during a session.
