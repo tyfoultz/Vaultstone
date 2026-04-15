@@ -34,10 +34,22 @@ export function RecapEditorPanel({ sessionId, publishedSummary, isLive, mode, on
   const { popoutActive, onPopoutClosed } = usePanelPresence(mode, 'recap', sessionId);
   const readOnly = mode === 'dock' && popoutActive;
 
+  // Reset everything — including the "Published hh:mm" pill — only when the
+  // DM switches to a different session. If we also reset on draft/summary
+  // changes, a successful publish (which clears the draft + bumps the summary)
+  // wipes the pill the moment it's set.
   useEffect(() => {
     setBody(draft ?? publishedSummary ?? '');
     setPublishedAt(null);
-  }, [sessionId, draft, publishedSummary]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  // Sync `body` when the draft or the published summary change out from under
+  // us — pop-out closing, async fetch resolving, or publish completing. Does
+  // not touch publishedAt.
+  useEffect(() => {
+    setBody(draft ?? publishedSummary ?? '');
+  }, [draft, publishedSummary]);
 
   // When the pop-out closes, the dock instance needs to pick up edits the
   // pop-out window made to the persisted draft store (different JS context,
@@ -51,6 +63,9 @@ export function RecapEditorPanel({ sessionId, publishedSummary, isLive, mode, on
     if (readOnly) return;
     setBody(next);
     setDraft(sessionId, next);
+    // DM is editing again — drop the "Published hh:mm" pill so the footer
+    // can fall through to "Draft · unpublished changes".
+    if (publishedAt) setPublishedAt(null);
   }
 
   async function handlePublish() {
