@@ -51,15 +51,27 @@ export async function getInitiativeOrder(sessionId: string) {
 }
 
 // Tiebreak: total desc → modifier desc → PC over NPC → id (stable).
+// `init_override` wins over `init_value + init_roll` when set (DM enters
+// the player's announced total directly — tabletop flow).
+export function initiativeTotal(e: {
+  init_value: number;
+  init_roll: number | null;
+  init_override: number | null;
+}): number {
+  if (e.init_override !== null && e.init_override !== undefined) return e.init_override;
+  return e.init_value + (e.init_roll ?? 0);
+}
+
 export function sortByInitiative<T extends {
   init_value: number;
   init_roll: number | null;
+  init_override: number | null;
   character_id: string | null;
   id: string;
 }>(entries: T[]): T[] {
   return [...entries].sort((a, b) => {
-    const totalA = a.init_value + (a.init_roll ?? 0);
-    const totalB = b.init_value + (b.init_roll ?? 0);
+    const totalA = initiativeTotal(a);
+    const totalB = initiativeTotal(b);
     if (totalA !== totalB) return totalB - totalA;
     if (a.init_value !== b.init_value) return b.init_value - a.init_value;
     const aPc = a.character_id !== null ? 1 : 0;
@@ -111,6 +123,22 @@ export async function setCombatantInitRoll(combatantId: string, roll: number) {
   return supabase.from('initiative_order').update({ init_roll: roll }).eq('id', combatantId);
 }
 
+// DM-only final-total override. Used when the player rolled physically and
+// just reports the calculated total — skips the d20 breakdown entirely.
+export async function setCombatantInitOverride(combatantId: string, total: number) {
+  return supabase
+    .from('initiative_order')
+    .update({ init_override: total })
+    .eq('id', combatantId);
+}
+
+export async function clearCombatantInitOverride(combatantId: string) {
+  return supabase
+    .from('initiative_order')
+    .update({ init_override: null })
+    .eq('id', combatantId);
+}
+
 export async function startCombat(sessionId: string) {
   return supabase
     .from('sessions')
@@ -124,7 +152,7 @@ export async function startCombat(sessionId: string) {
 export async function resetInitiative(sessionId: string) {
   await supabase
     .from('initiative_order')
-    .update({ init_roll: null, is_active_turn: false })
+    .update({ init_roll: null, init_override: null, is_active_turn: false })
     .eq('session_id', sessionId);
   return supabase
     .from('sessions')

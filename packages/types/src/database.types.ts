@@ -163,6 +163,7 @@ export interface Database {
           display_name: string;
           init_value: number;
           init_roll: number | null;
+          init_override: number | null;
           hp_current: number;
           hp_max: number;
           ac: number;
@@ -176,6 +177,7 @@ export interface Database {
           display_name: string;
           init_value: number;
           init_roll?: number | null;
+          init_override?: number | null;
           hp_current: number;
           hp_max: number;
           ac: number;
@@ -187,6 +189,7 @@ export interface Database {
           display_name?: string;
           init_value?: number;
           init_roll?: number | null;
+          init_override?: number | null;
           hp_current?: number;
           hp_max?: number;
           ac?: number;

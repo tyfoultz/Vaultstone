@@ -9,7 +9,7 @@ import {
   supabase, getActiveSession, endSession, getCampaignPartyState,
   getInitiativeOrder, addCombatant, removeCombatant, advanceTurn,
   updateCombatant, updateCharacterHp, updateCharacterConditions,
-  rollCombatantInitiative, setCombatantInitRoll, startCombat,
+  rollCombatantInitiative, setCombatantInitOverride, startCombat,
   resetInitiative, sortByInitiative,
 } from '@vaultstone/api';
 import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPanel';
@@ -113,8 +113,9 @@ export default function SessionScreen() {
   const isDM = campaign?.dm_user_id === user?.id;
   const combatStarted = !!session?.combat_started_at;
   const sortedEntries = useMemo(() => sortByInitiative(entries), [entries]);
-  const allRolled = entries.length > 0 && entries.every((e) => e.init_roll !== null);
-  const anyRolled = entries.some((e) => e.init_roll !== null);
+  const allRolled = entries.length > 0 &&
+    entries.every((e) => e.init_roll !== null || e.init_override !== null);
+  const anyRolled = entries.some((e) => e.init_roll !== null || e.init_override !== null);
 
   async function refetchEntries(sessionId: string) {
     const { data } = await getInitiativeOrder(sessionId);
@@ -374,7 +375,7 @@ export default function SessionScreen() {
 
   async function handleRollAll() {
     if (!session || rollingAll) return;
-    const unrolled = entries.filter((e) => e.init_roll === null);
+    const unrolled = entries.filter((e) => e.init_roll === null && e.init_override === null);
     if (unrolled.length === 0) return;
     setRollingAll(true);
     await Promise.all(unrolled.map((e) => rollCombatantInitiative(e.id)));
@@ -382,18 +383,16 @@ export default function SessionScreen() {
     setRollingAll(false);
   }
 
-  // The DM types the final initiative total (what's displayed in the
-  // badge, e.g., 17). We back out the d20 component by subtracting the
-  // modifier so total == init_value + init_roll still holds.
+  // The DM types the player's announced final initiative total (physical
+  // tabletop flow — the player rolled their own d20 and added their own
+  // mod). Stored as `init_override`, which wins over init_value+init_roll
+  // in sort order and hides the d20 breakdown in the UI.
   async function handleManualSet(combatantId: string) {
     if (!session) return;
     const raw = manualRolls[combatantId];
     const total = parseInt(raw ?? '', 10);
     if (Number.isNaN(total)) return;
-    const combatant = entries.find((e) => e.id === combatantId);
-    if (!combatant) return;
-    const roll = total - combatant.init_value;
-    await setCombatantInitRoll(combatantId, roll);
+    await setCombatantInitOverride(combatantId, total);
     setManualRolls((prev) => {
       const next = { ...prev };
       delete next[combatantId];
@@ -701,8 +700,11 @@ export default function SessionScreen() {
               ? (pcConditions[item.character_id] ?? [])
               : [];
             const isPc = !!item.character_id;
-            const rolled = item.init_roll !== null;
-            const total = item.init_value + (item.init_roll ?? 0);
+            const overridden = item.init_override !== null;
+            const rolled = overridden || item.init_roll !== null;
+            const total = overridden
+              ? (item.init_override as number)
+              : item.init_value + (item.init_roll ?? 0);
             const canRoll = isDM
               || (isPc && myCharacterIds.has(item.character_id!));
             return (
@@ -723,7 +725,7 @@ export default function SessionScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.rowName} numberOfLines={1}>{item.display_name}</Text>
                   <Text style={s.rowMeta}>
-                    {rolled && (
+                    {rolled && !overridden && (
                       <Text style={s.rowRollDetail}>
                         d20: {item.init_roll} {formatMod(item.init_value)} · {' '}
                       </Text>
