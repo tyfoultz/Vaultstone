@@ -75,6 +75,16 @@ export async function getCampaignMembers(campaignId: string) {
     .order('joined_at', { ascending: true });
 }
 
+// Party view needs the full character payload (resources + conditions) so it
+// can render HP, AC, and condition chips without a second round-trip per row.
+export async function getCampaignPartyState(campaignId: string) {
+  return supabase
+    .from('campaign_members')
+    .select('user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, base_stats, resources, conditions)')
+    .eq('campaign_id', campaignId)
+    .order('joined_at', { ascending: true });
+}
+
 export async function updateCampaignMember(
   campaignId: string,
   userId: string,

@@ -445,13 +445,27 @@ export default function CampaignDetailScreen() {
             );
           })()}
 
+          <TouchableOpacity
+            style={s.manageBtn}
+            onPress={() => router.push(`/campaign/${id}/party` as never)}
+          >
+            <MaterialCommunityIcons name="account-group-outline" size={16} color={colors.brand} />
+            <Text style={s.manageBtnText}>View Party</Text>
+          </TouchableOpacity>
+
           {isDM ? (
-            <TouchableOpacity style={s.manageBtn} onPress={() => setMembersModal(true)}>
+            <TouchableOpacity
+              style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
+              onPress={() => setMembersModal(true)}
+            >
               <MaterialCommunityIcons name="cog-outline" size={16} color={colors.brand} />
               <Text style={s.manageBtnText}>Manage Members</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity onPress={handleLeave} style={s.manageBtn}>
+            <TouchableOpacity
+              onPress={handleLeave}
+              style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
+            >
               <Text style={s.leaveText}>Leave Campaign</Text>
             </TouchableOpacity>
           )}
