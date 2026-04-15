@@ -122,7 +122,7 @@ export function RecapDock({ campaignId, session, dmUserId, displayNameByUserId }
             {renderBody(id)}
           </MosaicWindow>
         )}
-        className="mosaic-blueprint-theme vaultstone-mosaic"
+        className="vaultstone-mosaic"
       />
     </div>
   );
@@ -156,49 +156,69 @@ const resetBtnStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 
-// Mosaic's stock theme is light-mode Blueprint. Override to match Vaultstone's
-// dark palette. Scoped under .vaultstone-mosaic-root so we don't pollute other
-// surfaces if mosaic is ever used elsewhere.
+// Mosaic's stock CSS ships light-mode defaults in its base `.mosaic-window`
+// rules — `background: white` on the toolbar and body, light gray on hover.
+// We drop the `mosaic-blueprint-theme` class entirely (the theme's 3-class
+// selectors were beating 2-class overrides) and scope our own rules under
+// `.vaultstone-mosaic-root .mosaic-window ...` so they match the base rules'
+// 2-class specificity via an extra root class = 3 classes and always win.
 const SCOPED_CSS = `
 .vaultstone-mosaic-root { position: relative; }
-.vaultstone-mosaic-root .mosaic { background: ${colors.background}; }
-.vaultstone-mosaic-root .mosaic-window {
+.vaultstone-mosaic-root .mosaic,
+.vaultstone-mosaic-root .mosaic-root {
+  background: ${colors.background};
+}
+.vaultstone-mosaic-root .mosaic-tile {
+  background: transparent;
+}
+.vaultstone-mosaic-root .mosaic-window,
+.vaultstone-mosaic-root .mosaic-preview {
   background: ${colors.surface};
   border: 1px solid ${colors.border};
   border-radius: 10px;
   overflow: hidden;
   box-shadow: none;
 }
-.vaultstone-mosaic-root .mosaic-window-toolbar {
+.vaultstone-mosaic-root .mosaic-window .mosaic-window-toolbar,
+.vaultstone-mosaic-root .mosaic-preview .mosaic-window-toolbar {
   background: ${colors.surface};
   border-bottom: 1px solid ${colors.border};
   box-shadow: none;
   height: 36px;
   padding: 0 8px;
-  cursor: move;
 }
-.vaultstone-mosaic-root .mosaic-window-title {
+.vaultstone-mosaic-root .mosaic-window .mosaic-window-toolbar.draggable:hover,
+.vaultstone-mosaic-root .mosaic-preview .mosaic-window-toolbar.draggable:hover {
+  background: ${colors.surface};
+  filter: brightness(1.15);
+}
+.vaultstone-mosaic-root .mosaic-window .mosaic-window-title,
+.vaultstone-mosaic-root .mosaic-preview .mosaic-window-title {
   color: ${colors.textPrimary};
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  padding-left: 4px;
+  padding-left: 8px;
 }
-.vaultstone-mosaic-root .mosaic-window-controls .pt-button {
-  background: transparent;
-  color: ${colors.textSecondary};
-  box-shadow: none;
-  border: none;
-}
-.vaultstone-mosaic-root .mosaic-window-body {
+.vaultstone-mosaic-root .mosaic-window .mosaic-window-body,
+.vaultstone-mosaic-root .mosaic-preview .mosaic-window-body {
   background: ${colors.surface};
   display: flex;
   flex-direction: column;
 }
-.vaultstone-mosaic-root .mosaic-window-body > * {
+.vaultstone-mosaic-root .mosaic-window .mosaic-window-body > *,
+.vaultstone-mosaic-root .mosaic-preview .mosaic-window-body > * {
   flex: 1 1 auto;
   min-height: 0;
+}
+.vaultstone-mosaic-root .mosaic-window .mosaic-window-body-overlay,
+.vaultstone-mosaic-root .mosaic-preview .mosaic-window-body-overlay {
+  background: ${colors.background};
+}
+.vaultstone-mosaic-root .mosaic-window .mosaic-window-additional-actions-bar,
+.vaultstone-mosaic-root .mosaic-preview .mosaic-window-additional-actions-bar {
+  background: ${colors.surface};
 }
 .vaultstone-mosaic-root textarea,
 .vaultstone-mosaic-root input {
