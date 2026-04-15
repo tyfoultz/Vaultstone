@@ -382,12 +382,18 @@ export default function SessionScreen() {
     setRollingAll(false);
   }
 
+  // The DM types the final initiative total (what's displayed in the
+  // badge, e.g., 17). We back out the d20 component by subtracting the
+  // modifier so total == init_value + init_roll still holds.
   async function handleManualSet(combatantId: string) {
     if (!session) return;
     const raw = manualRolls[combatantId];
-    const value = parseInt(raw ?? '', 10);
-    if (Number.isNaN(value)) return;
-    await setCombatantInitRoll(combatantId, value);
+    const total = parseInt(raw ?? '', 10);
+    if (Number.isNaN(total)) return;
+    const combatant = entries.find((e) => e.id === combatantId);
+    if (!combatant) return;
+    const roll = total - combatant.init_value;
+    await setCombatantInitRoll(combatantId, roll);
     setManualRolls((prev) => {
       const next = { ...prev };
       delete next[combatantId];
@@ -740,7 +746,7 @@ export default function SessionScreen() {
                     <View style={s.rowInlineRow}>
                       <TextInput
                         style={s.rowManualInput}
-                        placeholder="Set"
+                        placeholder="Total"
                         placeholderTextColor={colors.textSecondary}
                         keyboardType="numeric"
                         value={manualRolls[item.id] ?? ''}
@@ -752,7 +758,7 @@ export default function SessionScreen() {
                         style={s.rowInlineBtn}
                         onPress={() => handleManualSet(item.id)}
                       >
-                        <Text style={s.rowInlineBtnText}>Set roll</Text>
+                        <Text style={s.rowInlineBtnText}>Set total</Text>
                       </TouchableOpacity>
                     </View>
                   )}
