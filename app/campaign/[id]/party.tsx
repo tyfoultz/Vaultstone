@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, RefreshControl, StyleSheet,
-  Animated, Modal, Pressable, Switch, TextInput, Platform,
+  Animated, Modal, Pressable, Switch, TextInput, Platform, useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -92,6 +92,14 @@ export default function PartyScreen() {
   const flashTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const isDm = !!user && !!dmUserId && user.id === dmUserId;
+
+  const { width: windowWidth } = useWindowDimensions();
+  const gridCols = windowWidth >= 1440 ? 4 : windowWidth >= 1024 ? 3 : windowWidth >= 640 ? 2 : 1;
+  const gridGap = spacing.md;
+  const sidePadding = spacing.lg;
+  const cardWidth = gridCols === 1
+    ? undefined
+    : Math.floor((windowWidth - sidePadding * 2 - gridGap * (gridCols - 1)) / gridCols);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -268,19 +276,23 @@ export default function PartyScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={s.list}>
+        <View style={[s.list, { paddingHorizontal: sidePadding, gap: gridGap }]}>
           {players.map((m) => (
-            <PartyCard
+            <View
               key={m.user_id}
-              campaignId={id!}
-              member={m}
-              viewerUserId={user?.id ?? null}
-              viewerIsDm={isDm}
-              settings={settings}
-              flashing={!!(m.characters && recentlyUpdated[m.characters.id])}
-              router={router}
-              applyOptimistic={applyOptimistic}
-            />
+              style={cardWidth ? { width: cardWidth } : { width: '100%' }}
+            >
+              <PartyCard
+                campaignId={id!}
+                member={m}
+                viewerUserId={user?.id ?? null}
+                viewerIsDm={isDm}
+                settings={settings}
+                flashing={!!(m.characters && recentlyUpdated[m.characters.id])}
+                router={router}
+                applyOptimistic={applyOptimistic}
+              />
+            </View>
           ))}
         </View>
       )}
@@ -840,7 +852,11 @@ const s = StyleSheet.create({
   helperText: {
     fontSize: 13, color: colors.textSecondary, paddingHorizontal: spacing.lg,
   },
-  list: { paddingHorizontal: spacing.lg, gap: spacing.md },
+  list: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border, borderWidth: 1, borderRadius: 14,

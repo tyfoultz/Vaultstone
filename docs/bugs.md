@@ -7,6 +7,37 @@ Running log of known issues in the Vaultstone codebase. Entries move to a
 
 ## Open
 
+### BUG-002 — Players can view other users' characters outside of campaigns
+
+**Surfaced:** 2026-04-15, party-view-live branch review
+**Severity:** High — privacy / data isolation defect
+**Symptom:** A signed-in user can see characters belonging to other users
+in places where they shouldn't be visible. Suspected paths:
+- Characters list / picker may return rows owned by someone else.
+- `/character/[id]` may load a sheet the viewer has no relationship to,
+  even when they aren't a DM or campaign member.
+
+The party-view changes intentionally allow cross-character reads when
+the viewer is the campaign DM or (with `allowPlayerCrossView`) another
+party member. That scoped read is by design; this bug is about reads
+*outside* that scope.
+
+**Suspected root cause:** RLS on `public.characters` is too permissive,
+or a query path uses a security-definer helper / service-role client
+that bypasses owner checks. Needs audit of:
+1. `select` policy on `characters` — should be
+   `auth.uid() = user_id OR is_campaign_dm(...) OR is_campaign_member(...)`
+   gated on the character actually being linked into a campaign the
+   viewer participates in.
+2. `packages/api/src/characters.ts` query helpers — confirm none of
+   them are unfiltered list queries.
+3. Client-side guards on `/character/[id]` — these are belt-and-
+   suspenders only; the real fix is RLS.
+
+**Do not fix yet** — logged for triage. Owner: TBD.
+
+---
+
 ### BUG-001 — Realtime INSERT events not landing on acting client's session screen
 
 **Surfaced:** Session Mode Phase 2 / 3 testing (web, local dev)
