@@ -212,6 +212,43 @@ QuestData {
 
 ---
 
+### Epic 8 — Campaign Notes Hub & Session Recap
+
+> Status: scaffolded only — placeholder card lives at `components/notes/CampaignNotesCard.tsx`, surfaced on the campaign detail page for the DM. Build out post-MVP.
+
+A DM-facing surface on the campaign detail page that aggregates per-session notes from every participant, lets the DM author the session recap *after* play wraps (no inline recap field on End Session), and writes that recap to the corresponding row in Session History.
+
+The motivating workflow: ending a session shouldn't ask the DM to context-switch into "write a clean recap" mode at the table. They wrap, then later — possibly the next day — open the Campaign Notes Hub, skim what each player wrote alongside their own scratch notes, and synthesize a recap from that material. One destination for everything they need, then one button to ship the recap to history.
+
+**US-801 — DM aggregation view of session notes**
+- DM-only card on campaign detail (replaces the old "write recap on End Session" flow). Hidden for players.
+- Default view: ended sessions sorted newest first; pick a session to load it.
+- Loads every `session_notes` row for the selected session — own + every player's. Relies on existing post-end RLS (`session.ended_at IS NOT NULL` AND `is_campaign_member`).
+- Per-author blocks render note body verbatim, labeled with the author's display name. Players' note bodies are read-only here; the DM is reading, not editing them.
+- Empty-state per author when their note body is blank.
+
+**US-802 — DM authors a recap from aggregated notes**
+- A "Recap" editor sits at the top of the selected session view. Pre-fills with the existing `sessions.summary` if one exists.
+- Autosaves the in-progress recap to a draft store (per-DM, per-session) so the DM can come back later without losing work. Draft never publishes until the DM hits Publish.
+- "Insert from [Player]" affordance on each player's notes block: appends the selected text (or full block) into the recap editor at cursor position. Saves the DM from copy-pasting between blocks.
+
+**US-803 — Push recap to Session History**
+- Publish button writes the recap to `sessions.summary` (the existing column already shown in `SessionHistoryCard`). Clears the local draft.
+- Existing post-end RLS already permits the DM to update `sessions` rows in their own campaign; no new schema needed beyond what landed in `20260417000000_session_participants_notes_summary.sql`.
+- Republish allowed — the DM can revise the recap later. Last write wins; no version history in v1.
+- Optional toast/notification to participants when a recap publishes (deferred — flag for revisit).
+
+**US-804 — Live session signal**
+- While a session is *live*, the hub shows the in-progress session at the top with a "Live" pill, but the per-player notes blocks are blank/locked because RLS only exposes other users' notes after `ended_at` is set. The DM can still see their own notes (the rail panel already covers that case).
+- After End Session, the same row flips to fully readable on next load.
+
+**Out of scope for v1 of this epic**
+- Editing other players' notes (the DM aggregates and recaps; player notes stay authored by the player).
+- Multiple recap variants per session (player-facing vs GM-only) — single `summary` field is sufficient until the asymmetric-visibility need surfaces.
+- Rich text in the recap — plain text is enough for a 1-paragraph history entry. Revisit if recaps grow into something like the Notes Manager (Epics 1–7 above).
+
+---
+
 ## Suggested Build Order
 1. `Note` data model, PostgreSQL schema, FTS index (`tsvector` on `contentText`)
 2. Visibility enforcement middleware — `getNotes(userId, campaignId, requestingRole)` applies visibility filter server-side

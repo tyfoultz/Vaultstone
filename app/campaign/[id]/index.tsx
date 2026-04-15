@@ -23,6 +23,7 @@ import { StartSessionModal, type StartSessionPlayer } from '../../../components/
 import { EndSessionModal } from '../../../components/session/EndSessionModal';
 import { SessionNotesPanel } from '../../../components/session/SessionNotesPanel';
 import { SessionHistoryCard } from '../../../components/session/SessionHistoryCard';
+import { CampaignNotesCard } from '../../../components/notes/CampaignNotesCard';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type Character = Database['public']['Tables']['characters']['Row'];
@@ -191,10 +192,10 @@ export default function CampaignDetailScreen() {
     }
   }
 
-  async function handleConfirmEnd(summary: string) {
+  async function handleConfirmEnd() {
     if (!activeSessionId || endingSession) return;
     setEndingSession(true);
-    const { error } = await endSession(activeSessionId, summary);
+    const { error } = await endSession(activeSessionId);
     setEndingSession(false);
     if (!error) {
       setActiveSessionId(null);
@@ -612,6 +613,9 @@ export default function CampaignDetailScreen() {
             />
           </View>
         )}
+
+        {/* ---- Campaign Notes Hub (DM-only placeholder) ---- */}
+        {isDM && <CampaignNotesCard campaignId={campaign.id} />}
 
         {/* ---- Session History ---- */}
         <SessionHistoryCard campaignId={campaign.id} displayNameByUserId={displayNameByUserId} />
