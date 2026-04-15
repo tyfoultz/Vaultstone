@@ -80,8 +80,17 @@ Player enters 6-char join code. Campaign looked up via security-definer RPC (byp
 **MVP scope IN:** US-101–107, US-201–202, US-204, character ↔ campaign linking
 **MVP scope DEFERRED:** US-106 (equipment), US-203 (spell slots), US-205 (hit dice spending), US-206 (class resources), Epics 3–6, Epic 7 (sheet import)
 
-### 5. Party View ⬜ Not started
-DM sees all characters in their campaign with live HP, conditions, spell slots.
+### 5. Party View ✅ MVP Complete
+Read-only roster at `/campaign/[id]/party`. Each linked character renders a
+card with name, species · class + level, HP bar + numeric (+ temp HP), AC,
+Speed, Hit Die, active condition chips, and exhaustion (if > 0). Owner
+display name and role on each card. Empty state deep-links back to the
+campaign. Refresh on screen focus + pull-to-refresh. Reachable from the
+"View Party" link on the Party card on the campaign detail screen.
+
+**MVP scope IN:** on-focus snapshot; DM + Player both see full detail.
+**MVP scope DEFERRED:** presence indicators, DM-only / player-masked views,
+reactive updates via Supabase Realtime (rolls in with Session Mode).
 
 ### 6. Session Mode ⬜ Not started
 Start a session, initiative tracker, HP management, conditions. Real-time sync via Supabase Realtime.
