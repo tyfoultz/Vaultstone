@@ -18,13 +18,22 @@ export async function endSession(sessionId: string) {
     .eq('id', sessionId);
 }
 
+// `.maybeSingle()` — we want `data: null` (not an error) when no active session exists.
 export async function getActiveSession(campaignId: string) {
   return supabase
     .from('sessions')
     .select('*')
     .eq('campaign_id', campaignId)
     .is('ended_at', null)
-    .single();
+    .maybeSingle();
+}
+
+export async function getSessionById(sessionId: string) {
+  return supabase
+    .from('sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .maybeSingle();
 }
 
 export async function getInitiativeOrder(sessionId: string) {

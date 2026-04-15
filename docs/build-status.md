@@ -92,8 +92,15 @@ campaign. Refresh on screen focus + pull-to-refresh. Reachable from the
 **MVP scope DEFERRED:** presence indicators, DM-only / player-masked views,
 reactive updates via Supabase Realtime (rolls in with Session Mode).
 
-### 6. Session Mode ⬜ Not started
-Start a session, initiative tracker, HP management, conditions. Real-time sync via Supabase Realtime.
+### 6. Session Mode 🟡 In Progress
+
+| Phase | Status | Summary |
+|---|---|---|
+| 1 — Lifecycle + Realtime shell | ✅ Done | DM Start/End Session; players see Rejoin when active; session screen subscribes to `sessions` row via `supabase.channel('session:{id}')` and bounces everyone back to the campaign when `ended_at` flips. ContentSyncFilter (`sanitizeSyncPayload`) whitelists Realtime payloads so PDF-extracted text can never broadcast. |
+| 2 — Initiative tracker | ⬜ Planned | Add/reorder combatants, round advance, turn cursor via `initiative_order`. |
+| 3 — HP + conditions sync | ⬜ Planned | Live character HP/conditions via `CharacterStateUpdate` sanitized payloads. |
+
+**Realtime prerequisite:** enable Realtime on `sessions`, `initiative_order`, and `session_events` in the Supabase dashboard. Phase 1 only needs `sessions`; the others land with Phase 2.
 
 ### 7. Session Log ⬜ Not started
 Append-only event feed. Displays what happened during a session.
