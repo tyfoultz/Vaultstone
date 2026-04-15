@@ -93,7 +93,6 @@ export function DmNotesPanel({ sessionId, userId, mode }: Props) {
           onChangeText={handleChange}
           readOnly={readOnly}
           placeholder="Your notes for this session…"
-          minHeight={mode === 'popout' ? 480 : 200}
         />
       </View>
       <Text style={styles.status}>{status}</Text>

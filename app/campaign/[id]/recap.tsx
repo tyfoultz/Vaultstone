@@ -85,8 +85,17 @@ export default function CampaignNotesHubScreen() {
     ...history.map((s) => ({ ...s, isLive: false })),
   ];
   const selected = allSessions.find((s) => s.id === selectedSessionId) ?? null;
+
+  // Number ended sessions oldest-first (Session 1, 2, 3…). Live session is
+  // shown as "Live Session" and doesn't claim a number until it ends.
+  const numberById: Record<string, number> = {};
+  [...history].reverse().forEach((s, i) => { numberById[s.id] = i + 1; });
+
   const sidebarItems: SessionSidebarItem[] = allSessions.map((s) => ({
-    id: s.id, startedAt: s.started_at, isLive: s.isLive,
+    id: s.id,
+    startedAt: s.started_at,
+    isLive: s.isLive,
+    number: s.isLive ? null : (numberById[s.id] ?? null),
   }));
 
   return (

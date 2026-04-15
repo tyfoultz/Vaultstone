@@ -87,7 +87,6 @@ export function RecapEditorPanel({ sessionId, publishedSummary, isLive, mode }: 
           onChangeText={handleChange}
           readOnly={readOnly}
           placeholder="Write the recap for this session…"
-          minHeight={mode === 'popout' ? 480 : 240}
         />
       </View>
       <View style={styles.footer}>

@@ -7,6 +7,8 @@ export interface SessionSidebarItem {
   id: string;
   startedAt: string;
   isLive: boolean;
+  /** 1-indexed session number (oldest = 1). Live sessions appear unnumbered. */
+  number: number | null;
 }
 
 interface Props {
@@ -40,6 +42,7 @@ export function SessionSidebar({ sessions, selectedId, onSelect }: Props) {
       >
         {sessions.map((s) => {
           const isSelected = s.id === selectedId;
+          const label = s.isLive ? 'Live Session' : `Session ${s.number}`;
           return (
             <TouchableOpacity
               key={s.id}
@@ -52,7 +55,7 @@ export function SessionSidebar({ sessions, selectedId, onSelect }: Props) {
                 </View>
               )}
               <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>
-                {fmtDate(s.startedAt)}
+                {label}
               </Text>
             </TouchableOpacity>
           );
@@ -84,6 +87,7 @@ export function SessionSidebar({ sessions, selectedId, onSelect }: Props) {
       >
         {sessions.map((s) => {
           const isSelected = s.id === selectedId;
+          const primary = s.isLive ? 'Live Session' : `Session ${s.number}`;
           return (
             <TouchableOpacity
               key={s.id}
@@ -93,29 +97,30 @@ export function SessionSidebar({ sessions, selectedId, onSelect }: Props) {
                 isSelected && styles.rowSelected,
                 collapsed && styles.rowCollapsed,
               ]}
-              accessibilityLabel={`Session ${fmtDate(s.startedAt)}${s.isLive ? ' (live)' : ''}`}
+              accessibilityLabel={`${primary}${s.isLive ? ' (live)' : ''} on ${fmtDate(s.startedAt)}`}
             >
               {collapsed ? (
                 <View style={styles.collapsedDot}>
                   {s.isLive ? (
                     <View style={styles.collapsedLiveDot} />
                   ) : (
-                    <Text style={styles.collapsedLetter}>
-                      {fmtShort(s.startedAt).split(' ')[1] ?? ''}
-                    </Text>
+                    <Text style={styles.collapsedLetter}>{s.number}</Text>
                   )}
                 </View>
               ) : (
-                <>
-                  {s.isLive && (
-                    <View style={styles.livePillSmall}>
-                      <Text style={styles.livePillText}>LIVE</Text>
-                    </View>
-                  )}
-                  <Text style={[styles.rowLabel, isSelected && styles.rowLabelSelected]}>
-                    {fmtDate(s.startedAt)}
-                  </Text>
-                </>
+                <View style={styles.rowTextStack}>
+                  <View style={styles.rowTopRow}>
+                    {s.isLive && (
+                      <View style={styles.livePillSmall}>
+                        <Text style={styles.livePillText}>LIVE</Text>
+                      </View>
+                    )}
+                    <Text style={[styles.rowLabel, isSelected && styles.rowLabelSelected]}>
+                      {primary}
+                    </Text>
+                  </View>
+                  <Text style={styles.rowSubLabel}>{fmtShort(s.startedAt)}</Text>
+                </View>
               )}
             </TouchableOpacity>
           );
@@ -150,8 +155,11 @@ const styles = StyleSheet.create({
   },
   rowCollapsed: { justifyContent: 'center', paddingHorizontal: 0 },
   rowSelected: { backgroundColor: colors.brand + '22' },
+  rowTextStack: { flex: 1, gap: 2 },
+  rowTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rowLabel: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
   rowLabelSelected: { color: colors.textPrimary },
+  rowSubLabel: { fontSize: 11, color: colors.textSecondary, opacity: 0.75 },
   collapsedDot: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center',

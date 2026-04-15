@@ -88,17 +88,21 @@ export function SessionHistoryCard({ campaignId, displayNameByUserId }: Props) {
           nestedScrollEnabled
           showsVerticalScrollIndicator
         >
-          {rows.map((r) => {
+          {rows.map((r, idx) => {
             const isOpen = expanded === r.id;
             const sessionNotes = notes[r.id];
+            // `rows` comes back newest-first; oldest session is Session 1.
+            const sessionNumber = rows.length - idx;
+            const durationLabel = fmtDuration(r.started_at, r.ended_at);
             return (
               <View key={r.id} style={styles.row}>
                 <TouchableOpacity onPress={() => toggle(r.id)} style={styles.rowHeader}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.rowDate}>{fmtDate(r.started_at)}</Text>
+                    <Text style={styles.rowDate}>Session {sessionNumber}</Text>
                     <Text style={styles.rowMeta} numberOfLines={1}>
-                      {fmtDuration(r.started_at, r.ended_at)}
-                      {r.summary ? ` · ${r.summary}` : ' · No recap'}
+                      {fmtDate(r.started_at)}
+                      {durationLabel ? ` · ${durationLabel}` : ''}
+                      {r.summary ? '' : ' · No recap'}
                     </Text>
                   </View>
                   <MaterialCommunityIcons

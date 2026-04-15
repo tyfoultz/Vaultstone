@@ -196,6 +196,20 @@ const SCOPED_CSS = `
   display: flex;
   flex-direction: column;
 }
+.vaultstone-mosaic-root .mosaic-window-body > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.vaultstone-mosaic-root textarea,
+.vaultstone-mosaic-root input {
+  background: ${colors.background};
+  color: ${colors.textPrimary};
+  caret-color: ${colors.textPrimary};
+}
+.vaultstone-mosaic-root textarea::placeholder,
+.vaultstone-mosaic-root input::placeholder {
+  color: ${colors.textSecondary};
+}
 .vaultstone-mosaic-root .mosaic-split {
   background: transparent;
 }

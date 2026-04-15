@@ -11,6 +11,12 @@ export interface RichTextEditorProps {
   value: string;
   onChangeText: (next: string) => void;
   placeholder?: string;
+  /**
+   * Fixed minimum height. When omitted the editor fills its parent via flex:1,
+   * which is what dock/pop-out panels want. Pass a number (e.g. 180) to opt
+   * into a scrollable minimum instead — useful in non-flex parents like the
+   * Session Mode notes rail.
+   */
   minHeight?: number;
   readOnly?: boolean;
   testID?: string;
@@ -79,7 +85,7 @@ export function RichTextEditor({
   value,
   onChangeText,
   placeholder,
-  minHeight = 120,
+  minHeight,
   readOnly,
   testID,
 }: RichTextEditorProps) {
@@ -107,8 +113,10 @@ export function RichTextEditor({
     if (forcedSelection) setForcedSelection(null);
   }
 
+  const useFlex = minHeight === undefined;
+
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, useFlex && styles.wrapFlex]}>
       <View style={styles.toolbar}>
         <ToolbarButton icon="format-bold" label="Bold" onPress={() => apply((v, s) => wrap(v, s, '**'))} />
         <ToolbarButton icon="format-italic" label="Italic" onPress={() => apply((v, s) => wrap(v, s, '*'))} />
@@ -128,7 +136,7 @@ export function RichTextEditor({
         placeholderTextColor={colors.textSecondary}
         multiline
         textAlignVertical="top"
-        style={[styles.input, { minHeight }]}
+        style={[styles.input, useFlex ? styles.inputFlex : { minHeight }]}
       />
     </View>
   );
@@ -142,6 +150,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     overflow: 'hidden',
   },
+  wrapFlex: { flex: 1 },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -168,5 +177,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textPrimary,
     lineHeight: 20,
+    backgroundColor: colors.background,
   },
+  inputFlex: { flex: 1 },
 });
