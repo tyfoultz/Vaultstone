@@ -97,10 +97,10 @@ reactive updates via Supabase Realtime (rolls in with Session Mode).
 | Phase | Status | Summary |
 |---|---|---|
 | 1 — Lifecycle + Realtime shell | ✅ Done | DM Start/End Session; players see Rejoin when active; session screen subscribes to `sessions` row via `supabase.channel('session:{id}')` and bounces everyone back to the campaign when `ended_at` flips. ContentSyncFilter (`sanitizeSyncPayload`) whitelists Realtime payloads so PDF-extracted text can never broadcast. |
-| 2 — Initiative tracker | ✅ Done | DM adds combatants (name/init/HP/AC), removes them, and advances the turn cursor; `advanceTurn` wraps to the top and bumps `session.round`. Full list refetched on any `initiative_order` change for the session so all clients stay in sync. |
-| 3 — HP + conditions sync | ⬜ Planned | Live character HP/conditions via `CharacterStateUpdate` sanitized payloads. |
+| 2 — Initiative tracker | ✅ Done | DM adds combatants (name/init/HP/AC), removes them, and advances the turn cursor; `advanceTurn` wraps to the top and bumps `session.round`. Full list refetched on any `initiative_order` change for the session so all clients stay in sync. Includes "Add Party" picker: pulls campaign members with linked characters, pre-rolls 1d20 + dex mod for initiative, stats (HP/AC) pulled from the character sheet. |
+| 3 — HP + conditions sync | ✅ Done | DM can +/- HP per combatant row; for PCs the change mirrors back to `characters.resources.hpCurrent` so the character sheet reflects post-combat state. Conditions modal uses the standard 14 SRD conditions; writes to `characters.conditions`. All clients get live updates via a `characters` subscription filtered by `campaign_id`. NPC conditions are deferred — `initiative_order` has no conditions column and a later migration will add it. |
 
-**Realtime prerequisite:** enable Realtime on `sessions`, `initiative_order`, and `session_events` in the Supabase dashboard. Phases 1 + 2 need `sessions` and `initiative_order`; `session_events` lands with a later phase.
+**Realtime prerequisite:** enable Realtime on `sessions`, `initiative_order`, `characters`, and `session_events` in the Supabase dashboard. Phase 1 uses `sessions`; Phase 2 adds `initiative_order`; Phase 3 adds `characters`; `session_events` lands with a later phase.
 
 **Known limitation (Phase 2):** `initiative_order` uses default `REPLICA IDENTITY`, so DELETE Realtime events don't match the `session_id` filter. The session screen refetches on any change rather than applying payloads piecemeal, which masks this — but a later phase should switch to `REPLICA IDENTITY FULL` if we move to incremental updates.
 

@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet,
-  ActivityIndicator, Alert, Platform, FlatList,
+  ActivityIndicator, Alert, Platform, FlatList, Modal, ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   supabase, getActiveSession, endSession, getCampaignPartyState,
   getInitiativeOrder, addCombatant, removeCombatant, advanceTurn,
+  updateCombatant, updateCharacterHp, updateCharacterConditions,
 } from '@vaultstone/api';
+import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPanel';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import type {
@@ -89,7 +91,24 @@ export default function SessionScreen() {
   const [partyPicks, setPartyPicks] = useState<PartyPick[]>([]);
   const [addingSelected, setAddingSelected] = useState(false);
 
+  // Per-character live state (PCs only). NPC conditions are out of scope
+  // for Phase 3 — `initiative_order` has no conditions column and adding
+  // one is deferred to a later migration.
+  const [pcConditions, setPcConditions] = useState<Record<string, string[]>>({});
+  const [editingConditionsFor, setEditingConditionsFor] = useState<Combatant | null>(null);
+
   const isDM = campaign?.dm_user_id === user?.id;
+
+  async function refreshPcConditions(campaignId: string) {
+    const { data } = await supabase
+      .from('characters')
+      .select('id, conditions')
+      .eq('campaign_id', campaignId);
+    if (!data) return;
+    const map: Record<string, string[]> = {};
+    for (const row of data) map[row.id] = row.conditions ?? [];
+    setPcConditions(map);
+  }
 
   // Load the active session + campaign + initiative order on focus.
   useFocusEffect(
@@ -111,6 +130,7 @@ export default function SessionScreen() {
         }
         const { data: init } = await getInitiativeOrder(s.id);
         if (!cancelled) setEntries((init ?? []) as Combatant[]);
+        await refreshPcConditions(id);
         setLoading(false);
       })();
       return () => { cancelled = true; };
@@ -154,6 +174,19 @@ export default function SessionScreen() {
         async () => {
           const { data } = await getInitiativeOrder(session.id);
           setEntries((data ?? []) as Combatant[]);
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'characters',
+          filter: `campaign_id=eq.${id}`,
+        },
+        (payload) => {
+          const next = payload.new as { id: string; conditions: string[] | null };
+          setPcConditions((prev) => ({ ...prev, [next.id]: next.conditions ?? [] }));
         },
       )
       .subscribe();
@@ -203,6 +236,31 @@ export default function SessionScreen() {
 
   async function handleRemove(combatantId: string) {
     await removeCombatant(combatantId);
+  }
+
+  // Clamp HP to [0, hp_max], write through to initiative_order, and — for
+  // PC combatants — also mirror onto characters.resources.hpCurrent so
+  // the character sheet reflects battle damage after the session ends.
+  async function adjustHp(combatant: Combatant, delta: number) {
+    const next = Math.max(0, Math.min(combatant.hp_max, combatant.hp_current + delta));
+    if (next === combatant.hp_current) return;
+    setEntries((prev) => prev.map((e) =>
+      e.id === combatant.id ? { ...e, hp_current: next } : e,
+    ));
+    await updateCombatant(combatant.id, { hp_current: next });
+    if (combatant.character_id) {
+      await updateCharacterHp(combatant.character_id, next);
+    }
+  }
+
+  async function toggleCondition(characterId: string, condition: string) {
+    const current = pcConditions[characterId] ?? [];
+    const has = current.some((c) => c.toLowerCase() === condition.toLowerCase());
+    const next = has
+      ? current.filter((c) => c.toLowerCase() !== condition.toLowerCase())
+      : [...current, condition];
+    setPcConditions((prev) => ({ ...prev, [characterId]: next }));
+    await updateCharacterConditions(characterId, next);
   }
 
   // Open party picker — fetches party members with linked characters,
@@ -493,41 +551,129 @@ export default function SessionScreen() {
           data={entries}
           keyExtractor={(e) => e.id}
           contentContainerStyle={{ paddingVertical: spacing.sm }}
-          renderItem={({ item }) => (
-            <View style={[s.row, item.is_active_turn && s.rowActive]}>
-              {item.is_active_turn && (
-                <MaterialCommunityIcons
-                  name="arrow-right-bold"
-                  size={18}
-                  color={colors.brand}
-                  style={{ marginRight: 4 }}
-                />
-              )}
-              <View style={s.initBadge}>
-                <Text style={s.initBadgeText}>{item.init_value}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.rowName} numberOfLines={1}>{item.display_name}</Text>
-                <Text style={s.rowMeta}>
-                  HP {item.hp_current}/{item.hp_max} · AC {item.ac}
-                </Text>
-              </View>
-              {isDM && (
-                <TouchableOpacity
-                  style={s.rowAction}
-                  onPress={() => handleRemove(item.id)}
-                >
+          renderItem={({ item }) => {
+            const conds = item.character_id
+              ? (pcConditions[item.character_id] ?? [])
+              : [];
+            const isPc = !!item.character_id;
+            return (
+              <View style={[s.row, item.is_active_turn && s.rowActive]}>
+                {item.is_active_turn && (
                   <MaterialCommunityIcons
-                    name="trash-can-outline"
+                    name="arrow-right-bold"
                     size={18}
-                    color={colors.hpDanger}
+                    color={colors.brand}
+                    style={{ marginRight: 4 }}
                   />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+                )}
+                <View style={s.initBadge}>
+                  <Text style={s.initBadgeText}>{item.init_value}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.rowName} numberOfLines={1}>{item.display_name}</Text>
+                  <Text style={s.rowMeta}>
+                    HP {item.hp_current}/{item.hp_max} · AC {item.ac}
+                  </Text>
+                  {conds.length > 0 && (
+                    <View style={s.condChipRow}>
+                      {conds.slice(0, 3).map((c) => (
+                        <View key={c} style={s.condChip}>
+                          <Text style={s.condChipText}>{c}</Text>
+                        </View>
+                      ))}
+                      {conds.length > 3 && (
+                        <Text style={s.condMore}>+{conds.length - 3}</Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+                {isDM && (
+                  <View style={s.rowActions}>
+                    <TouchableOpacity
+                      style={s.hpBtn}
+                      onPress={() => adjustHp(item, -1)}
+                    >
+                      <MaterialCommunityIcons name="minus" size={16} color={colors.hpDanger} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.hpBtn}
+                      onPress={() => adjustHp(item, 1)}
+                    >
+                      <MaterialCommunityIcons name="plus" size={16} color={colors.hpHealthy} />
+                    </TouchableOpacity>
+                    {isPc && (
+                      <TouchableOpacity
+                        style={s.rowAction}
+                        onPress={() => setEditingConditionsFor(item)}
+                      >
+                        <MaterialCommunityIcons
+                          name="heart-pulse"
+                          size={18}
+                          color={colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={s.rowAction}
+                      onPress={() => handleRemove(item.id)}
+                    >
+                      <MaterialCommunityIcons
+                        name="trash-can-outline"
+                        size={18}
+                        color={colors.hpDanger}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          }}
         />
       )}
+
+      <Modal
+        visible={!!editingConditionsFor}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingConditionsFor(null)}
+      >
+        <View style={s.modalBackdrop}>
+          <View style={s.modalCard}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle} numberOfLines={1}>
+                {editingConditionsFor?.display_name}
+              </Text>
+              <TouchableOpacity onPress={() => setEditingConditionsFor(null)}>
+                <MaterialCommunityIcons
+                  name="close"
+                  size={22}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={s.modalBody}>
+              <View style={s.condGrid}>
+                {SRD_CONDITIONS.map((cond) => {
+                  const charId = editingConditionsFor?.character_id ?? '';
+                  const active = (pcConditions[charId] ?? [])
+                    .some((c) => c.toLowerCase() === cond.toLowerCase());
+                  return (
+                    <TouchableOpacity
+                      key={cond}
+                      style={[s.condChipBig, active && s.condChipBigActive]}
+                      onPress={() => charId && toggleCondition(charId, cond)}
+                    >
+                      <Text style={[s.condChipBigText, active && s.condChipBigTextActive]}>
+                        {cond}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -644,7 +790,55 @@ const s = StyleSheet.create({
   initBadgeText: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   rowName: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   rowMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   rowAction: { padding: 6 },
+  hpBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    borderColor: colors.border, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
+  condChipRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4,
+    alignItems: 'center',
+  },
+  condChip: {
+    borderColor: colors.hpDanger, borderWidth: 1, borderRadius: 4,
+    paddingHorizontal: 6, paddingVertical: 1,
+    backgroundColor: colors.hpDanger + '22',
+  },
+  condChipText: { color: colors.hpDanger, fontSize: 10, fontWeight: '600' },
+  condMore: { color: colors.textSecondary, fontSize: 10, fontWeight: '600' },
+
+  modalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  modalCard: {
+    width: '100%', maxWidth: 480, maxHeight: '80%',
+    backgroundColor: colors.surface,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderBottomColor: colors.border, borderBottomWidth: 1,
+  },
+  modalTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700', flex: 1 },
+  modalBody: { padding: spacing.md },
+  condGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  condChipBig: {
+    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: colors.background,
+  },
+  condChipBigActive: {
+    borderColor: colors.hpDanger,
+    backgroundColor: colors.hpDanger + '22',
+  },
+  condChipBigText: { color: colors.textSecondary, fontSize: 12, fontWeight: '500' },
+  condChipBigTextActive: { color: colors.hpDanger, fontWeight: '700' },
 
   placeholder: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
