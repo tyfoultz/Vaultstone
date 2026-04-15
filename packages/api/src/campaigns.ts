@@ -136,6 +136,22 @@ export async function assignCharacterToCampaign(
     .eq('user_id', userId);
 }
 
+export async function updatePartyViewSettings(
+  campaignId: string,
+  settings: {
+    showHpNumbersToPlayers: boolean;
+    showConditionsToPlayers: boolean;
+    showSlotsToPlayers: boolean;
+    showResourcesToPlayers: boolean;
+    allowPlayerCrossView: boolean;
+  },
+) {
+  return supabase
+    .from('campaigns')
+    .update({ party_view_settings: settings as never })
+    .eq('id', campaignId);
+}
+
 export async function updateCampaignContentSource(
   campaignId: string,
   source: { key: string; label: string } | null,

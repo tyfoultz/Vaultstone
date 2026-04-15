@@ -106,6 +106,15 @@ export interface Dnd5eSpellSlotLevel {
   remaining: number;
 }
 
+/** Generic per-class resource pool: Barbarian rages, Ki points, Channel Divinity, etc. */
+export interface Dnd5eClassResource {
+  key: string;
+  label: string;
+  current: number;
+  max: number;
+  recharge?: 'short' | 'long';
+}
+
 /**
  * Shape of the `resources` JSON blob for a D&D 5e character.
  * Tracks mutable runtime state that changes during play.
@@ -153,4 +162,24 @@ export interface Dnd5eResources {
     8: Dnd5eSpellSlotLevel;
     9: Dnd5eSpellSlotLevel;
   } | null;
+  /** Name of the spell the character is currently concentrating on, or null. */
+  concentrationSpell?: string | null;
+  /** Optional class resource pools (rages, ki, superiority dice, etc.). */
+  classResources?: Dnd5eClassResource[];
 }
+
+export interface PartyViewSettings {
+  showHpNumbersToPlayers: boolean;
+  showConditionsToPlayers: boolean;
+  showSlotsToPlayers: boolean;
+  showResourcesToPlayers: boolean;
+  allowPlayerCrossView: boolean;
+}
+
+export const DEFAULT_PARTY_VIEW_SETTINGS: PartyViewSettings = {
+  showHpNumbersToPlayers: true,
+  showConditionsToPlayers: true,
+  showSlotsToPlayers: true,
+  showResourcesToPlayers: true,
+  allowPlayerCrossView: false,
+};

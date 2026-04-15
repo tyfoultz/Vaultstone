@@ -66,6 +66,7 @@ export interface Database {
           cover_image_url: string | null;
           is_archived: boolean;
           content_sources: Json | null;
+          party_view_settings: Json | null;
           created_at: string;
         };
         Insert: {
@@ -78,6 +79,7 @@ export interface Database {
           cover_image_url?: string | null;
           is_archived?: boolean;
           content_sources?: Json | null;
+          party_view_settings?: Json | null;
           created_at?: string;
         };
         Update: {
@@ -90,6 +92,7 @@ export interface Database {
           cover_image_url?: string | null;
           is_archived?: boolean;
           content_sources?: Json | null;
+          party_view_settings?: Json | null;
         };
         Relationships: [];
       };
@@ -278,6 +281,10 @@ export interface Database {
       };
       roll_combatant_initiative: {
         Args: { combatant_id: string; roll_value: number };
+        Returns: undefined;
+      };
+      update_character_state: {
+        Args: { character_id: string; patch: Json };
         Returns: undefined;
       };
     };

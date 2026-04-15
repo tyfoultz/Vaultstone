@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getCharacterById, updateCharacter } from '@vaultstone/api';
-import { useCharacterStore } from '@vaultstone/store';
+import { getCharacterById, updateCharacter, supabase } from '@vaultstone/api';
+import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts } from '@vaultstone/ui';
 import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature } from '@vaultstone/types';
 import { HpModal } from '../../components/character-sheet/HpModal';
@@ -46,6 +46,7 @@ export default function CharacterSheetScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { updateCharacterLocally } = useCharacterStore();
+  const authUser = useAuthStore((state) => state.user);
 
   const [character, setCharacter] = useState<Character | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,6 +80,37 @@ export default function CharacterSheetScreen() {
       }
       setLoading(false);
     });
+  }, [id]);
+
+  // Realtime: when another viewer (e.g. the DM via Party View) mutates this
+  // character, merge the payload into local state so the sheet reflects the
+  // change without a refresh. We intentionally don't sync the scratchpad
+  // field — it has in-progress notes that would clobber local edits.
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`character:${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'characters',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          const next = payload.new as Character;
+          setCharacter(next);
+          updateCharacterLocally(id, {
+            base_stats: next.base_stats,
+            resources: next.resources,
+            conditions: next.conditions,
+            name: next.name,
+          });
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [id]);
 
   const stats = character?.base_stats as Dnd5eStats | null;
@@ -118,8 +150,13 @@ export default function CharacterSheetScreen() {
 
   // ── Persist ─────────────────────────────────────────────────────────────
 
+  // Non-owners (including DMs) view the sheet read-only; session-state
+  // mutations flow through the Party View RPC, which is the single
+  // write path for conditions, HP, slots, etc.
+  const isReadOnly = !!character && !!authUser && character.user_id !== authUser.id;
+
   async function persistResources(updated: Dnd5eResources) {
-    if (!character) return;
+    if (!character || isReadOnly) return;
     const res = updated as unknown as import('@vaultstone/types').Json;
     setCharacter({ ...character, resources: res });
     updateCharacterLocally(character.id, { resources: res });
@@ -127,14 +164,14 @@ export default function CharacterSheetScreen() {
   }
 
   async function persistConditions(newConditions: string[]) {
-    if (!character) return;
+    if (!character || isReadOnly) return;
     setCharacter({ ...character, conditions: newConditions });
     updateCharacterLocally(character.id, { conditions: newConditions });
     await updateCharacter(character.id, { conditions: newConditions });
   }
 
   async function persistStats(updated: Dnd5eStats) {
-    if (!character) return;
+    if (!character || isReadOnly) return;
     const bs = updated as unknown as import('@vaultstone/types').Json;
     setCharacter({ ...character, base_stats: bs });
     updateCharacterLocally(character.id, { base_stats: bs });
@@ -142,7 +179,7 @@ export default function CharacterSheetScreen() {
   }
 
   async function persistName(newName: string) {
-    if (!character) return;
+    if (!character || isReadOnly) return;
     setCharacter({ ...character, name: newName });
     updateCharacterLocally(character.id, { name: newName });
     await updateCharacter(character.id, { name: newName });
@@ -209,6 +246,9 @@ export default function CharacterSheetScreen() {
       const denom = editingField.replace('coin_', '') as 'cp' | 'sp' | 'ep' | 'gp' | 'pp';
       const coins = resources!.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
       persistResources({ ...resources!, coins: { ...coins, [denom]: num } });
+    } else if (editingField === 'concentrationSpell') {
+      const trimmed = val.slice(0, 80);
+      persistResources({ ...resources!, concentrationSpell: trimmed || null });
     }
 
     setEditingField(null);
@@ -634,6 +674,36 @@ export default function CharacterSheetScreen() {
             </View>
             {isStabilized && (
               <Text style={s.stabilizedHint}>Stabilized — HP stays at 0 until healed.</Text>
+            )}
+
+            {/* Concentration */}
+            <View style={s.combatDivider} />
+            <Text style={s.cardLabel}>Concentration</Text>
+            {resources.concentrationSpell ? (
+              <View style={s.concentrationRow}>
+                <MaterialCommunityIcons name="meditation" size={16} color={colors.brand} />
+                <Text style={s.concentrationSpell} numberOfLines={1}>
+                  {resources.concentrationSpell}
+                </Text>
+                <TouchableOpacity
+                  disabled={isReadOnly}
+                  onPress={() => persistResources({ ...resources, concentrationSpell: null })}
+                  style={s.concentrationClearBtn}
+                >
+                  <Text style={s.concentrationClearText}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                disabled={isReadOnly}
+                onPress={() => { setEditingField('concentrationSpell'); setFieldInput(''); }}
+                style={s.concentrationSetBtn}
+              >
+                <MaterialCommunityIcons name="meditation" size={14} color={colors.textSecondary} />
+                <Text style={s.concentrationSetText}>
+                  {isReadOnly ? 'None' : 'Set concentration…'}
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -1139,6 +1209,17 @@ export default function CharacterSheetScreen() {
                   </View>
                 </View>
               </>
+            ) : editingField === 'concentrationSpell' ? (
+              <TextInput
+                style={s.fieldInput}
+                value={fieldInput}
+                onChangeText={setFieldInput}
+                placeholder="Spell name"
+                placeholderTextColor={colors.textSecondary}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={saveEditField}
+              />
             ) : (
               <TextInput
                 style={s.fieldInput}
@@ -1829,6 +1910,24 @@ const s = StyleSheet.create({
   savePipSuccess: { backgroundColor: colors.hpHealthy, borderColor: colors.hpHealthy },
   savePipFailure: { backgroundColor: colors.hpDanger, borderColor: colors.hpDanger },
   stabilizedHint: { fontSize: 12, textAlign: 'center', marginTop: 10, color: colors.hpHealthy },
+
+  concentrationRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6,
+  },
+  concentrationSpell: {
+    flex: 1, fontSize: 14, fontWeight: '600', color: colors.textPrimary,
+  },
+  concentrationClearBtn: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 4,
+  },
+  concentrationClearText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
+  concentrationSetBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  concentrationSetText: { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic' },
+
 
   // Level grid
   lvlGrid: {
