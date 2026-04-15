@@ -5,13 +5,10 @@
 // browser — pdfjs parses in a worker we ship ourselves at
 // `/pdf.worker.min.mjs` (copied there by scripts/copy-pdf-worker.js).
 
-import type { PageText } from '@vaultstone/types';
+import type { PageInput, ExtractOptions } from './pdf-parser-types';
+import { joinTextItems } from './pdf-text-join';
 
-export type PageInput = Omit<PageText, 'sourceId'>;
-
-export type ExtractOptions = {
-  onProgress?: (done: number, total: number) => void;
-};
+export type { PageInput, ExtractOptions };
 
 // Load pdfjs via the browser's **native** dynamic `import()`, not Metro's.
 //
@@ -74,34 +71,3 @@ async function toUint8Array(source: Blob | ArrayBuffer | Uint8Array): Promise<Ui
   return new Uint8Array(await source.arrayBuffer());
 }
 
-// Stitch pdfjs text items into readable text. Items come in reading order;
-// we insert a newline when the y-coordinate jumps (new line/paragraph) and
-// a space between items on the same line.
-type TextItemLike = {
-  str?: string;
-  transform?: number[];
-  hasEOL?: boolean;
-};
-
-function joinTextItems(items: readonly unknown[]): string {
-  let out = '';
-  let lastY: number | null = null;
-  for (const raw of items) {
-    const item = raw as TextItemLike;
-    const str = (item.str ?? '').replace(/\s+/g, ' ');
-    if (!str) {
-      if (item.hasEOL && out && !out.endsWith('\n')) out += '\n';
-      continue;
-    }
-    const y = Array.isArray(item.transform) ? (item.transform[5] as number) : undefined;
-    if (lastY !== null && y !== undefined && Math.abs(y - lastY) > 2) {
-      if (!out.endsWith('\n')) out += '\n';
-    } else if (out && !out.endsWith(' ') && !out.endsWith('\n')) {
-      out += ' ';
-    }
-    out += str;
-    if (y !== undefined) lastY = y;
-    if (item.hasEOL && !out.endsWith('\n')) out += '\n';
-  }
-  return out.trim();
-}

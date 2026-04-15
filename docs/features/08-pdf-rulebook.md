@@ -145,27 +145,49 @@ only adding producers of `PageText[]`.
   laptop; UI remains responsive thanks to pdf.js worker threading; produced
   `PageText.text` round-trips through FTS search with sensible snippets.
 
-#### Phase 5c — Native PDF text extraction ⬜
+#### Phase 5c — Native PDF text extraction ✅ Done (2026-04-14)
 *Same job, on iOS/Android, without the DOM or web workers.*
 
-- **Strategy:** reuse `pdfjs-dist/legacy/build/pdf.js` on Hermes with a small
-  polyfill shim. Legacy build is CommonJS and ES5-compatible; worker runs
-  in-thread (no `Worker` class on Hermes). Decided against `react-native-pdf-lib`
-  (unmaintained) and against writing a native bridge (too heavy for MVP).
-- **Polyfills required:** `atob`/`btoa` (via `base-64`), `TextDecoder` (via
-  `text-encoding`), and a no-op `DOMMatrix` stub (pdfjs references it but
-  doesn't need it for `getTextContent`).
-- **New file:** `packages/content/src/local/pdf-parser.native.ts`
-  - Same public API shape as web; takes a `FileSystem` URI instead of a Blob.
-  - Reads bytes via `FileSystem.readAsStringAsync(uri, { encoding: Base64 })`
-    → `Uint8Array` → pdfjs `getDocument({ data })`.
-  - Process pages in a yielding loop (`await new Promise(r => setTimeout(r, 0))`
-    between pages) to keep the JS thread unblocked during indexing.
-- **Risk:** Hermes startup cost for pdfjs. If unacceptable, fall back to a
-  native bridge (e.g., `@react-native-pdf-to-image` forks or a custom Swift/
-  Kotlin text-extraction module). Evaluate only if Hermes path fails.
+- **Strategy:** `pdfjs-dist/legacy/build/pdf.mjs` on Hermes with `disableWorker: true`
+  (fake-worker / main-thread mode). `useSystemFonts: false` + `disableFontFace: true`
+  skip rendering paths we don't need. TextDecoder is shipped natively by Hermes on
+  RN 0.79, so `text-encoding` was not required.
+- **Polyfills delivered** (`pdf-parser.polyfills.native.ts`):
+  - `btoa`/`atob` via `base-64`
+  - guarded `structuredClone` JSON-roundtrip fallback (insurance for the
+    worker-transfer path we don't exercise)
+  - no-op `DOMMatrix`, `Path2D`, `OffscreenCanvas`, `ImageData` classes
+  - no-op `URL.createObjectURL`/`revokeObjectURL`
+  - pdfjs-legacy self-polyfills `Promise.withResolvers` so we don't.
+- **Files:**
+  - `packages/content/src/local/pdf-parser.native.ts` — real implementation
+    (was a throwing stub)
+  - `packages/content/src/local/pdf-parser.polyfills.native.ts` — Hermes shims
+  - `packages/content/src/local/pdf-text-join.ts` — `joinTextItems` lifted out
+    of the web parser so both platforms produce identical snippets
+  - `packages/content/src/local/pdf-parser-types.ts` — shared `PageInput` /
+    `ExtractOptions` / `PdfSource` union
+- **Source loading:** `FileSystem.readAsStringAsync(uri, { encoding: Base64 })`
+  → `Uint8Array` → `getDocument({ data })`. Avoided `fetch('file://')` because
+  Android content:// URIs from DocumentPicker are flaky there. Phase 2 already
+  copies uploads into `documentDirectory`, so `file_path` is always a `file://` URI.
+- **Yield strategy:** `page.cleanup()` + `await new Promise(r => setTimeout(r, 0))`
+  between pages so the indexer's `setIndexStatus` writes flush and the UI thread
+  paints during multi-second indexing runs.
+- **Indexing gate opened:** `app/campaign/[id]/rulebook.tsx::startIndexing` no
+  longer early-returns on native; `fetchBytes` returns the URI string on native
+  and a `Blob` on web. `IndexStatusLine`'s `canIndex` prop was removed.
+- **Verification:** native is manual (no native CI). Test plan in
+  [docs/dev-workflow.md](../dev-workflow.md): `npx expo run:ios` / `run:android`
+  on a dev build (Expo Go won't work — pdfjs-legacy isn't bundled there), upload
+  a small PDF, confirm `IndexStatusLine` cycles `not_indexed → indexing → indexed`,
+  search returns hits with sensible snippets.
 - **Accept criteria:** Parses a 300-page PDF in under ~60s on a mid-range
   phone; no crashes on large files; memory stays under 200MB.
+- **Risk / follow-up:** Metro + `.mjs` ESM may break on certain pdfjs versions
+  (`import.meta.url`). If it does, swap to `pdfjs-dist/legacy/build/pdf.js` or
+  add a postinstall patch script (same pattern as `scripts/patch-metro.js`).
+  Memory pressure on 400+ page books → file an incremental-indexing follow-up.
 
 #### Phase 5d — Wire parsing into the upload flow ✅ Done (2026-04-14)
 *Kick off indexing automatically after a successful upload.*
@@ -309,7 +331,7 @@ only adding producers of `PageText[]`.
 | Phase | Package(s) | Notes |
 |---|---|---|
 | 5b | `pdfjs-dist` | Web + (via legacy build) native. Dynamic import. |
-| 5c | `base-64`, `text-encoding` | Tiny shims for Hermes compatibility. |
+| 5c | `base-64` (+ `@types/base-64`) | Hermes btoa/atob. `text-encoding` not needed — Hermes ships TextDecoder on RN 0.79. |
 | 7  | *(none)* | Reuses existing search APIs + viewer routes. |
 | 8  | *(none)* | Local-only persistence via existing IDB/SQLite layers. |
 | 9  | *(none new)* | Adds a Supabase table + Realtime channel reuse. |

@@ -5,18 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing } from '@vaultstone/ui';
 import { getSourceById } from '@vaultstone/content';
 import type { LocalSource } from '@vaultstone/content';
-
-// react-native-pdf is native-only; conditionally import
-let Pdf: React.ComponentType<{
-  source: { uri: string };
-  style: object;
-  page?: number;
-  onError?: (err: unknown) => void;
-}> | null = null;
-if (Platform.OS !== 'web') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  Pdf = require('react-native-pdf').default;
-}
+import { PdfRenderer } from '../../../components/pdf-viewer-renderer';
 
 export default function PdfViewerScreen() {
   const { id, sourceId, page } = useLocalSearchParams<{
@@ -104,25 +93,17 @@ export default function PdfViewerScreen() {
           <MaterialCommunityIcons name="alert-circle-outline" size={32} color={colors.hpDanger} />
           <Text style={[s.errorText, { marginTop: spacing.sm }]}>{pdfError}</Text>
         </View>
-      ) : Platform.OS === 'web' ? (
-        // source.file_path is a fresh blob URL from IndexedDB — use directly, no re-fetch needed.
-        // #page=N is the PDF.js / Chrome PDF viewer open-parameter convention.
-        <iframe
-          src={page ? `${source.file_path}#page=${initialPage}` : source.file_path}
-          style={{ flex: 1, border: 'none', width: '100%', height: '100%' }}
-          title={source.file_name}
-        />
-      ) : Pdf ? (
-        <Pdf
-          source={{ uri: source.file_path }}
-          style={s.pdf}
+      ) : (
+        <PdfRenderer
+          uri={source.file_path}
+          fileName={source.file_name}
           page={initialPage}
           onError={(err) => {
             console.warn('PDF error', err);
             setPdfError('Failed to render PDF. Ensure the file is a valid PDF.');
           }}
         />
-      ) : null}
+      )}
     </View>
   );
 }
@@ -149,7 +130,6 @@ const s = StyleSheet.create({
   headerTitle: {
     flex: 1, fontSize: 16, fontWeight: '600', color: colors.textPrimary,
   },
-  pdf: { flex: 1, width: '100%' },
   errorText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
   backBtn: {
     borderColor: colors.border,

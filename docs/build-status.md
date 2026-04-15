@@ -99,7 +99,7 @@ Append-only event feed. Displays what happened during a session.
 | 4 — Player-facing source prompt | ✅ Done | Per-PDF rows on System Card, Read + Remove actions. |
 | 5a — Indexing scaffold | ✅ Done | FTS5 (native) + IndexedDB (web) search framework; search screen; viewer accepts `page` param. |
 | 5b — Web PDF text extraction | ✅ Done | `pdfjs-dist` in `pdf-parser.web.ts`; worker copied to `public/` via postinstall. |
-| 5c — Native PDF text extraction | ⬜ Up next | `pdfjs-dist/legacy` + Hermes polyfills. |
+| 5c — Native PDF text extraction | ✅ Done | `pdfjs-dist/legacy/build/pdf.mjs` with `disableWorker: true`; Hermes polyfills (btoa/atob via `base-64`, structuredClone fallback, no-op DOMMatrix/Path2D/OffscreenCanvas/ImageData); bytes read via `FileSystem.readAsStringAsync` (base64). Native verification is manual (no native CI). |
 | 5d — Wire parsing into upload | ✅ Done | Fire-and-forget `reindexSource` kicked off after `saveSource` on web. |
 | 5e — Progress UI polish | ✅ Done | Per-PDF `IndexStatusLine` with Retry; 500ms polling while indexing. |
 | 5f — ContentResolver Tier 2 | ⬜ | Route typed queries through `content_fts`. |
