@@ -74,7 +74,7 @@ Player enters 6-char join code. Campaign looked up via security-definer RPC (byp
 | Phase 2 — Character Data Shape | ✅ Done | `Dnd5eStats` + `Dnd5eResources` interfaces; `getMyCharacters()` API; `useCharacterDraftStore` (persisted to AsyncStorage). |
 | Phase 3 — Creation Wizard | ✅ Done | 6-step wizard (ruleset → species → class → background → ability scores → review). Roll Dice, Standard Array, Point Buy, Manual methods. `campaign_id` nullable. Commit: `958a3b6`. |
 | Phase 4 — Character Sheet | ✅ Done | Tabbed sheet (Overview + Combat). Overview: identity, ability scores, saves, 18 skills. Combat: live HP block + HpModal, AC/Init/Speed/Hit Die, death saves, ConditionsPanel (14 SRD conditions + exhaustion 0–6). |
-| Phase 5 — Campaign Linking | ✅ Done | Party card "Link/Change" trigger opens `CharacterPickerModal`; `pick-character.tsx` checks `campaign_members.character_id` for cross-campaign assignment; Characters drawer shows per-card campaign badge. |
+| Phase 5 — Campaign Linking | ⬜ Up next | Character list screen + link character to `campaign_members.character_id`. |
 | Epic 7 — Sheet Import & Hyperlinking | ⬜ Planned (post-MVP) | Long-running plan: upload existing sheet (PDF/image/JSON) → extract stats → resolve content via Feature 8 index → hyperlinked sheet rendering. See [01-character.md Epic 7](features/01-character.md#epic-7--character-sheet-import--auto-population--planned-post-mvp). |
 
 **MVP scope IN:** US-101–107, US-201–202, US-204, character ↔ campaign linking
