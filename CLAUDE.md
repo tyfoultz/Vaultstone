@@ -11,6 +11,7 @@ All project tracking, feature requirements, and architecture decisions live in `
 - [docs/architecture.md](docs/architecture.md) — tech stack, DB schema, content architecture, MVP scope
 - [docs/legal.md](docs/legal.md) — content licensing rules, user-uploaded PDF constraints, party sync rules
 - [docs/build-status.md](docs/build-status.md) — phase-by-phase build checklist and current status
+- [docs/dev-workflow.md](docs/dev-workflow.md) — local verification workflow (Tier 1 typecheck + Tier 4 Playwright functional check)
 - [docs/features/](docs/features/) — full requirements for all 7 features + PDF rulebook feature
 
 ---
@@ -73,6 +74,17 @@ textPrimary: #e8e0cc | textSecondary: #7a7568
 hpHealthy: #1D9E75 | hpWarning: #EF9F27 | hpDanger: #E24B4A
 Fonts: Cinzel (display), Crimson Pro (body) — Dark mode only for MVP
 ```
+
+---
+
+## Local Verification Before Push
+
+Before pushing a feature branch, run two checks. Full procedure in [docs/dev-workflow.md](docs/dev-workflow.md).
+
+1. **Tier 1 — `npm run typecheck`.** Goal is "no net new errors," not "zero errors." The repo has a known baseline of ~13 errors (stale `.expo/types/router.d.ts` + Supabase join typings); track the count before and after your changes.
+2. **Tier 4 — Playwright against `npm run web`.** Sign in as the test user (`.env.test` → `TEST_USER_EMAIL`/`TEST_USER_PASSWORD`), drive the 1–2 golden-path interactions the feature is *for*, confirm the expected DOM / screenshot. Skip Tier 4 for docs-only or pure-refactor changes.
+
+Tiers 2 (`expo export` pre-push) and 3 (Netlify deploy watch) were intentionally excluded — Netlify itself is the backstop for bundler-only regressions.
 
 ---
 
