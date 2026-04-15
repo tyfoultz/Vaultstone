@@ -94,6 +94,17 @@ export async function getCampaignSessionHistory(campaignId: string) {
     .order('ended_at', { ascending: false });
 }
 
+// Post-end recap update from the Campaign Notes Hub. `summary` is stored as
+// Markdown text. Empty strings get normalized to null so the "No recap" label
+// in SessionHistoryCard keeps working for un-recapped sessions.
+export async function updateSessionSummary(sessionId: string, summary: string) {
+  const trimmed = summary.trim();
+  return supabase
+    .from('sessions')
+    .update({ summary: trimmed.length > 0 ? trimmed : null })
+    .eq('id', sessionId);
+}
+
 // `.maybeSingle()` — we want `data: null` (not an error) when no active session exists.
 export async function getActiveSession(campaignId: string) {
   return supabase

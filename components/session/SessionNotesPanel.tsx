@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Platform,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getMySessionNote, upsertSessionNote } from '@vaultstone/api';
 import { colors, spacing } from '@vaultstone/ui';
+import { RichTextEditor } from '../notes/RichTextEditor';
 
 interface Props {
   sessionId: string;
@@ -245,16 +246,15 @@ export function SessionNotesPanel({
           <ActivityIndicator color={colors.brand} />
         </View>
       ) : (
-        <TextInput
-          style={[styles.input, layout === 'fullscreen' && styles.inputFull]}
-          value={body}
-          onChangeText={handleChange}
-          editable={!effectiveReadOnly}
-          multiline
-          placeholder="Jot down anything you want to remember from tonight…"
-          placeholderTextColor={colors.textSecondary}
-          textAlignVertical="top"
-        />
+        <View style={layout === 'fullscreen' ? styles.editorFull : undefined}>
+          <RichTextEditor
+            value={body}
+            onChangeText={handleChange}
+            readOnly={effectiveReadOnly}
+            placeholder="Jot down anything you want to remember from tonight…"
+            minHeight={layout === 'fullscreen' ? 400 : 180}
+          />
+        </View>
       )}
 
       <View style={styles.footer}>
@@ -290,14 +290,7 @@ const styles = StyleSheet.create({
   loadingBox: {
     minHeight: 120, alignItems: 'center', justifyContent: 'center',
   },
-  input: {
-    backgroundColor: colors.background, borderColor: colors.border,
-    borderWidth: 1, borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 10,
-    color: colors.textPrimary, fontSize: 14, lineHeight: 20,
-    minHeight: 180,
-  },
-  inputFull: { flex: 1, minHeight: 0 },
+  editorFull: { flex: 1 },
   footer: { flexDirection: 'row', justifyContent: 'flex-end' },
   savedLabel: { fontSize: 11, color: colors.textSecondary },
   collapsedTab: {

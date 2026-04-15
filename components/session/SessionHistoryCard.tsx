@@ -5,6 +5,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getCampaignSessionHistory, getSessionNotes } from '@vaultstone/api';
 import { colors, spacing } from '@vaultstone/ui';
+import { RichTextRenderer } from '../notes/RichTextRenderer';
 
 interface Props {
   campaignId: string;
@@ -112,7 +113,7 @@ export function SessionHistoryCard({ campaignId, displayNameByUserId }: Props) {
                     {r.summary && (
                       <View style={styles.summaryBlock}>
                         <Text style={styles.blockLabel}>Recap</Text>
-                        <Text style={styles.blockBody}>{r.summary}</Text>
+                        <RichTextRenderer value={r.summary} />
                       </View>
                     )}
 
@@ -126,9 +127,7 @@ export function SessionHistoryCard({ campaignId, displayNameByUserId }: Props) {
                           <Text style={styles.blockLabel}>
                             {displayNameByUserId[n.user_id] ?? 'Unknown'}
                           </Text>
-                          <Text style={styles.blockBody}>
-                            {n.body.trim().length > 0 ? n.body : <Text style={styles.empty}>(empty)</Text>}
-                          </Text>
+                          <RichTextRenderer value={n.body} />
                         </View>
                       ))
                     )}
@@ -177,5 +176,4 @@ const styles = StyleSheet.create({
     fontSize: 11, color: colors.brand, fontWeight: '700',
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  blockBody: { fontSize: 13, color: colors.textPrimary, lineHeight: 19 },
 });
