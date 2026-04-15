@@ -6,6 +6,11 @@
 -- is linked to. Writes are whitelisted — the caller cannot touch name,
 -- ability scores, inventory, or any other durable sheet field through here.
 
+-- Drop first so we can change the return type / parameter names relative
+-- to an earlier v1 applied via the SQL editor. CREATE OR REPLACE alone
+-- errors 42P13 when any of those properties differ.
+drop function if exists public.update_character_state(uuid, jsonb);
+
 create or replace function public.update_character_state(
   character_id uuid,
   patch jsonb
