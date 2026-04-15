@@ -10,6 +10,7 @@ import {
   supabase, regenerateJoinCode, getCampaignMembers,
   removeCampaignMember, uploadCampaignCover, getCharacterById,
   updateCampaignContentSource, getActiveSession, startSession,
+  endSession, getSessionParticipants,
 } from '@vaultstone/api';
 import { getSourcesByCampaign } from '@vaultstone/content';
 import type { LocalSource } from '@vaultstone/content';
@@ -18,6 +19,11 @@ import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 import type { Dnd5eStats } from '@vaultstone/types';
 import CharacterPickerModal from '../../../components/campaign/CharacterPickerModal';
+import { StartSessionModal, type StartSessionPlayer } from '../../../components/session/StartSessionModal';
+import { EndSessionModal } from '../../../components/session/EndSessionModal';
+import { SessionNotesPanel } from '../../../components/session/SessionNotesPanel';
+import { SessionHistoryCard } from '../../../components/session/SessionHistoryCard';
+import { SessionParticipantChips } from '../../../components/session/SessionParticipantChips';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type Character = Database['public']['Tables']['characters']['Row'];
@@ -78,6 +84,10 @@ export default function CampaignDetailScreen() {
   const [localSources, setLocalSources] = useState<LocalSource[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
+  const [startModal, setStartModal] = useState(false);
+  const [endModal, setEndModal] = useState(false);
+  const [sessionParticipants, setSessionParticipants] = useState<string[]>([]);
 
   // --- actions ---
 
@@ -170,14 +180,27 @@ export default function CampaignDetailScreen() {
     );
   }
 
-  async function handleStartSession() {
+  async function handleConfirmStart(pickedUserIds: string[]) {
     if (!campaign || startingSession) return;
     setStartingSession(true);
-    const { data } = await startSession(campaign.id);
+    const { data } = await startSession(campaign.id, pickedUserIds);
     setStartingSession(false);
     if (data) {
       setActiveSessionId(data.id);
-      router.push(`/campaign/${campaign.id}/session` as never);
+      setSessionParticipants(pickedUserIds);
+      setStartModal(false);
+    }
+  }
+
+  async function handleConfirmEnd(summary: string) {
+    if (!activeSessionId || endingSession) return;
+    setEndingSession(true);
+    const { error } = await endSession(activeSessionId, summary);
+    setEndingSession(false);
+    if (!error) {
+      setActiveSessionId(null);
+      setSessionParticipants([]);
+      setEndModal(false);
     }
   }
 
@@ -230,8 +253,14 @@ export default function CampaignDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!id) return;
-      getActiveSession(id).then(({ data }) => {
+      getActiveSession(id).then(async ({ data }) => {
         setActiveSessionId(data?.id ?? null);
+        if (data?.id) {
+          const ids = await getSessionParticipants(data.id);
+          setSessionParticipants(ids);
+        } else {
+          setSessionParticipants([]);
+        }
       });
     }, [id])
   );
@@ -277,6 +306,27 @@ export default function CampaignDetailScreen() {
   }
 
   const playerCount = members.filter((m) => m.role === 'player').length;
+
+  const participantSet = new Set(sessionParticipants);
+  const isParticipant = !!user && participantSet.has(user.id);
+  const canSeeLiveSession = !!activeSessionId && (isDM || isParticipant);
+  const participantNames = sessionParticipants
+    .map((uid) => members.find((m) => m.user_id === uid)?.profiles?.display_name ?? 'Unknown');
+
+  const displayNameByUserId: Record<string, string> = {};
+  for (const m of members) {
+    displayNameByUserId[m.user_id] = m.profiles?.display_name ?? 'Anonymous';
+  }
+
+  const startModalPlayers: StartSessionPlayer[] = members
+    .filter((m) => m.role !== 'gm')
+    .map((m) => ({
+      userId: m.user_id,
+      displayName: m.profiles?.display_name ?? 'Anonymous',
+      characterName: m.character_id ? (characterMap[m.character_id]?.name ?? null) : null,
+    }));
+
+  const isWeb = Platform.OS === 'web';
 
   // --- render ---
 
@@ -495,51 +545,96 @@ export default function CampaignDetailScreen() {
           )}
         </View>
 
-        {/* ---- Sessions card ---- */}
-        <View style={s.infoCard}>
-          <MaterialCommunityIcons name="sword-cross" size={24} color={colors.brand} />
-          <Text style={s.infoLabel}>Session</Text>
-          {activeSessionId ? (
-            <>
-              <Text style={s.sessionLiveText}>Live session in progress</Text>
+        {/* ---- Session card (morphing) ---- */}
+        {canSeeLiveSession ? (
+          <View style={s.infoCard}>
+            <MaterialCommunityIcons name="play-circle-outline" size={24} color={colors.hpHealthy} />
+            <Text style={s.infoLabel}>Session</Text>
+            <Text style={s.sessionLiveText}>Live session in progress</Text>
+            <SessionParticipantChips names={participantNames} />
+            {isDM && (
               <TouchableOpacity
-                style={s.sessionPrimaryBtn}
-                onPress={() => router.push(`/campaign/${id}/session` as never)}
+                style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
+                onPress={() => setEndModal(true)}
               >
-                <MaterialCommunityIcons name="login" size={16} color="#fff" />
-                <Text style={s.sessionPrimaryBtnText}>Rejoin Session</Text>
+                <MaterialCommunityIcons name="stop-circle-outline" size={16} color={colors.hpDanger} />
+                <Text style={[s.manageBtnText, { color: colors.hpDanger }]}>End Session</Text>
               </TouchableOpacity>
-            </>
-          ) : isDM ? (
-            <>
-              <Text style={s.infoSubtext}>No active session</Text>
-              <TouchableOpacity
-                style={[s.sessionPrimaryBtn, startingSession && { opacity: 0.5 }]}
-                onPress={handleStartSession}
-                disabled={startingSession}
-              >
-                <MaterialCommunityIcons name="play" size={16} color="#fff" />
-                <Text style={s.sessionPrimaryBtnText}>
-                  {startingSession ? 'Starting…' : 'Start Session'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
+            )}
+          </View>
+        ) : !activeSessionId && isDM ? (
+          <View style={s.infoCard}>
+            <MaterialCommunityIcons name="play-circle-outline" size={24} color={colors.brand} />
+            <Text style={s.infoLabel}>Session</Text>
+            <Text style={s.infoSubtext}>No active session</Text>
+            <TouchableOpacity
+              style={[s.sessionPrimaryBtn, startingSession && { opacity: 0.5 }]}
+              onPress={() => setStartModal(true)}
+              disabled={startingSession}
+            >
+              <MaterialCommunityIcons name="play" size={16} color="#fff" />
+              <Text style={s.sessionPrimaryBtnText}>Start Session</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !activeSessionId ? (
+          <View style={s.infoCard}>
+            <MaterialCommunityIcons name="play-circle-outline" size={24} color={colors.brand} />
+            <Text style={s.infoLabel}>Session</Text>
             <Text style={s.infoSubtext}>Waiting for DM to start</Text>
-          )}
-        </View>
+          </View>
+        ) : null}
 
-        {/* ---- Notes card ---- */}
+        {/* ---- Combat Encounter card (only when session is live AND viewer included) ---- */}
+        {canSeeLiveSession && (
+          <View style={s.infoCard}>
+            <MaterialCommunityIcons name="sword-cross" size={24} color={colors.brand} />
+            <Text style={s.infoLabel}>Combat Encounter</Text>
+            <Text style={s.infoSubtext}>Initiative tracker &amp; turn order</Text>
+            <TouchableOpacity
+              style={s.sessionPrimaryBtn}
+              onPress={() => router.push(`/campaign/${id}/combat` as never)}
+            >
+              <MaterialCommunityIcons name="sword" size={16} color="#fff" />
+              <Text style={s.sessionPrimaryBtnText}>Open Combat Encounter</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ---- Session Notes panel (web, inline when live + viewer included) ---- */}
+        {canSeeLiveSession && isWeb && user && activeSessionId && (
+          <View style={s.notesInlineSlot}>
+            <SessionNotesPanel
+              sessionId={activeSessionId}
+              userId={user.id}
+              campaignId={campaign.id}
+            />
+          </View>
+        )}
+
+        {/* ---- Campaign description (read-only) ---- */}
         <View style={s.infoCard}>
-          <MaterialCommunityIcons name="notebook-outline" size={24} color={colors.brand} />
-          <Text style={s.infoLabel}>Notes</Text>
+          <MaterialCommunityIcons name="book-open-outline" size={24} color={colors.brand} />
+          <Text style={s.infoLabel}>About</Text>
           {campaign.description ? (
             <Text style={s.descText} numberOfLines={4}>{campaign.description}</Text>
           ) : (
             <Text style={s.infoSubtext}>No description yet</Text>
           )}
         </View>
+
+        {/* ---- Session History ---- */}
+        <SessionHistoryCard campaignId={campaign.id} displayNameByUserId={displayNameByUserId} />
       </View>
+
+      {/* ---- Session Notes FAB (native, when live + viewer included) ---- */}
+      {canSeeLiveSession && !isWeb && activeSessionId && (
+        <TouchableOpacity
+          style={s.notesFab}
+          onPress={() => router.push(`/campaign/${campaign.id}/notes` as never)}
+        >
+          <MaterialCommunityIcons name="notebook-outline" size={24} color="#fff" />
+        </TouchableOpacity>
+      )}
 
       {/* ======== Character Picker Modal ======== */}
       {user && myMember && (
@@ -682,6 +777,23 @@ export default function CampaignDetailScreen() {
           onCancel={() => setCropUri(null)}
         />
       )}
+
+      {/* ======== Start Session Modal ======== */}
+      <StartSessionModal
+        visible={startModal}
+        players={startModalPlayers}
+        starting={startingSession}
+        onClose={() => setStartModal(false)}
+        onConfirm={handleConfirmStart}
+      />
+
+      {/* ======== End Session Modal ======== */}
+      <EndSessionModal
+        visible={endModal}
+        ending={endingSession}
+        onClose={() => setEndModal(false)}
+        onConfirm={handleConfirmEnd}
+      />
     </ScrollView>
   );
 }
@@ -834,6 +946,21 @@ const s = StyleSheet.create({
   },
   manageBtnText: { fontSize: 13, color: colors.brand, fontWeight: '600' },
   leaveText: { fontSize: 13, color: colors.hpDanger },
+
+  // Session notes panel (inline on web)
+  notesInlineSlot: {
+    flexBasis: 320, flexGrow: 1, minWidth: 260,
+  },
+
+  // Session notes FAB (native)
+  notesFab: {
+    position: 'absolute', bottom: 24, right: 24,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: colors.brand,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 6,
+  },
 
   // Session card primary action (Start / Rejoin)
   sessionLiveText: {

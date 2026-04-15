@@ -7,6 +7,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   getCampaignPartyState, updateCharacterState, updatePartyViewSettings, supabase,
+  getActiveSession, getSessionParticipants,
 } from '@vaultstone/api';
 import { useAuthStore, useUiStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
@@ -90,6 +91,7 @@ export default function PartyScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [recentlyUpdated, setRecentlyUpdated] = useState<Record<string, number>>({});
   const flashTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [sessionParticipantIds, setSessionParticipantIds] = useState<string[] | null>(null);
 
   const isDm = !!user && !!dmUserId && user.id === dmUserId;
 
@@ -103,19 +105,26 @@ export default function PartyScreen() {
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [partyRes, campaignRes] = await Promise.all([
+    const [partyRes, campaignRes, activeRes] = await Promise.all([
       getCampaignPartyState(id),
       supabase
         .from('campaigns')
         .select('dm_user_id, party_view_settings')
         .eq('id', id)
         .single(),
+      getActiveSession(id),
     ]);
     if (partyRes.data) setMembers(partyRes.data as unknown as PartyMember[]);
     if (campaignRes.data) {
       setDmUserId(campaignRes.data.dm_user_id);
       const raw = (campaignRes.data.party_view_settings ?? {}) as Partial<PartyViewSettings>;
       setSettings({ ...DEFAULT_PARTY_VIEW_SETTINGS, ...raw });
+    }
+    if (activeRes.data?.id) {
+      const ids = await getSessionParticipants(activeRes.data.id);
+      setSessionParticipantIds(ids);
+    } else {
+      setSessionParticipantIds(null);
     }
     setLoading(false);
     setRefreshing(false);
@@ -188,7 +197,22 @@ export default function PartyScreen() {
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
   const dm = useMemo(() => members.find((m) => m.role === 'gm'), [members]);
-  const players = useMemo(() => members.filter((m) => m.role !== 'gm'), [members]);
+
+  // When a session is live AND the viewer is included (DM or participant),
+  // hide non-participating players. Excluded players see the unfiltered
+  // party view — same as idle — since they aren't in the session at all.
+  const viewerIncluded = !!user && (
+    (!!dmUserId && user.id === dmUserId)
+    || (sessionParticipantIds?.includes(user.id) ?? false)
+  );
+  const sessionFilterActive = sessionParticipantIds !== null && viewerIncluded;
+
+  const players = useMemo(() => {
+    const all = members.filter((m) => m.role !== 'gm');
+    if (!sessionFilterActive || !sessionParticipantIds) return all;
+    const set = new Set(sessionParticipantIds);
+    return all.filter((m) => set.has(m.user_id));
+  }, [members, sessionFilterActive, sessionParticipantIds]);
   const linked = useMemo(() => players.filter((m) => m.characters), [players]);
 
   async function handleSettingChange(key: keyof PartyViewSettings, value: boolean) {
@@ -240,6 +264,12 @@ export default function PartyScreen() {
             <Text style={s.title}>Party</Text>
             {dm?.profiles?.display_name && (
               <Text style={s.subtitle}>DM · {dm.profiles.display_name}</Text>
+            )}
+            {sessionFilterActive && (
+              <View style={s.filterPill}>
+                <MaterialCommunityIcons name="filter-variant" size={12} color={colors.hpHealthy} />
+                <Text style={s.filterPillText}>Filtered to active session</Text>
+              </View>
             )}
           </View>
           {isDm && (
@@ -849,6 +879,14 @@ const s = StyleSheet.create({
   },
   title: { fontSize: 28, fontWeight: '700', color: colors.textPrimary },
   subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+  filterPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start', marginTop: 6,
+    backgroundColor: colors.surface, borderColor: colors.hpHealthy,
+    borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  filterPillText: { fontSize: 11, color: colors.hpHealthy, fontWeight: '600' },
   helperText: {
     fontSize: 13, color: colors.textSecondary, paddingHorizontal: spacing.lg,
   },

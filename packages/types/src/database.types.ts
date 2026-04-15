@@ -142,6 +142,7 @@ export interface Database {
           ended_at: string | null;
           round: number;
           combat_started_at: string | null;
+          summary: string | null;
         };
         Insert: {
           id?: string;
@@ -150,11 +151,48 @@ export interface Database {
           ended_at?: string | null;
           round?: number;
           combat_started_at?: string | null;
+          summary?: string | null;
         };
         Update: {
           ended_at?: string | null;
           round?: number;
           combat_started_at?: string | null;
+          summary?: string | null;
+        };
+        Relationships: [];
+      };
+      session_participants: {
+        Row: {
+          session_id: string;
+          user_id: string;
+          added_at: string;
+        };
+        Insert: {
+          session_id: string;
+          user_id: string;
+          added_at?: string;
+        };
+        Update: {
+          added_at?: string;
+        };
+        Relationships: [];
+      };
+      session_notes: {
+        Row: {
+          session_id: string;
+          user_id: string;
+          body: string;
+          updated_at: string;
+        };
+        Insert: {
+          session_id: string;
+          user_id: string;
+          body?: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
