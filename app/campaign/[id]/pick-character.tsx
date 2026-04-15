@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getMyCharacters, assignCharacterToCampaign } from '@vaultstone/api';
+import { getMyCharacters, assignCharacterToCampaign, supabase } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
@@ -31,16 +31,31 @@ export default function PickCharacterScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [assignedElsewhere, setAssignedElsewhere] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    getMyCharacters().then(({ data }) => {
-      setCharacters(data ?? []);
+    Promise.all([
+      getMyCharacters(),
+      supabase
+        .from('campaign_members')
+        .select('campaign_id, character_id')
+        .eq('user_id', user.id)
+        .not('character_id', 'is', null),
+    ]).then(([chars, memberships]) => {
+      setCharacters(chars.data ?? []);
+      const elsewhere = new Set<string>();
+      for (const row of memberships.data ?? []) {
+        if (row.character_id && row.campaign_id !== campaignId) {
+          elsewhere.add(row.character_id);
+        }
+      }
+      setAssignedElsewhere(elsewhere);
       setLoading(false);
     });
-  }, [user]);
+  }, [user, campaignId]);
 
   async function handlePick(characterId: string) {
     if (!user) return;
@@ -74,7 +89,7 @@ export default function PickCharacterScreen() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
             renderItem={({ item }) => {
-              const alreadyAssigned = item.campaign_id && item.campaign_id !== campaignId;
+              const alreadyAssigned = assignedElsewhere.has(item.id);
               return (
                 <TouchableOpacity
                   style={[styles.card, alreadyAssigned && styles.cardDim]}
