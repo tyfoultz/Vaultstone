@@ -21,8 +21,8 @@ GitHub: https://github.com/tyfoultz/Vaultstone
 - [3. Homebrew & Uploaded Content](features/03-content.md)
 - [4. Party Hub / Session Mode](features/04-party-hub.md)
 - [5. GM Toolkit](features/05-gm-toolkit.md)
-- [6. Notes Manager](features/06-notes.md)
-- [7. World Building Toolkit](features/07-world-building.md)
+- [6. Session Notes & Campaign Notes Hub](features/06-notes.md) ✅
+- [7. World Building & Campaign Knowledge Base](features/07-world-building.md)
 - [8. Campaign System Card — PDF Rulebook](features/08-pdf-rulebook.md)
 
 ### Store & Distribution

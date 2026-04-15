@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { getCampaignSessionHistory, getSessionNotes } from '@vaultstone/api';
 import { colors, spacing } from '@vaultstone/ui';
+import { RichTextRenderer } from '../notes/RichTextRenderer';
 
 interface Props {
   campaignId: string;
@@ -45,14 +47,28 @@ export function SessionHistoryCard({ campaignId, displayNameByUserId }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, NoteRow[] | 'loading'>>({});
 
-  useEffect(() => {
-    let cancelled = false;
-    getCampaignSessionHistory(campaignId).then(({ data }) => {
-      if (cancelled) return;
-      setRows((data ?? []) as HistoryRow[]);
-    });
-    return () => { cancelled = true; };
-  }, [campaignId]);
+  // Refetch on focus so edits made in the Campaign Notes Hub (recap publish,
+  // etc.) surface immediately when the DM navigates back — a plain useEffect
+  // would only run on mount, and Expo Router keeps the campaign screen alive.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      getCampaignSessionHistory(campaignId).then(({ data }) => {
+        if (cancelled) return;
+        const next = (data ?? []) as HistoryRow[];
+        setRows(next);
+        // Drop cached note rows for sessions that no longer exist; keep the
+        // rest so an already-expanded row doesn't flash its spinner.
+        setNotes((prev) => {
+          const validIds = new Set(next.map((r) => r.id));
+          const trimmed: typeof prev = {};
+          for (const [id, v] of Object.entries(prev)) if (validIds.has(id)) trimmed[id] = v;
+          return trimmed;
+        });
+      });
+      return () => { cancelled = true; };
+    }, [campaignId]),
+  );
 
   async function toggle(sessionId: string) {
     if (expanded === sessionId) {
@@ -87,17 +103,21 @@ export function SessionHistoryCard({ campaignId, displayNameByUserId }: Props) {
           nestedScrollEnabled
           showsVerticalScrollIndicator
         >
-          {rows.map((r) => {
+          {rows.map((r, idx) => {
             const isOpen = expanded === r.id;
             const sessionNotes = notes[r.id];
+            // `rows` comes back newest-first; oldest session is Session 1.
+            const sessionNumber = rows.length - idx;
+            const durationLabel = fmtDuration(r.started_at, r.ended_at);
             return (
               <View key={r.id} style={styles.row}>
                 <TouchableOpacity onPress={() => toggle(r.id)} style={styles.rowHeader}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.rowDate}>{fmtDate(r.started_at)}</Text>
+                    <Text style={styles.rowDate}>Session {sessionNumber}</Text>
                     <Text style={styles.rowMeta} numberOfLines={1}>
-                      {fmtDuration(r.started_at, r.ended_at)}
-                      {r.summary ? ` · ${r.summary}` : ' · No recap'}
+                      {fmtDate(r.started_at)}
+                      {durationLabel ? ` · ${durationLabel}` : ''}
+                      {r.summary ? '' : ' · No recap'}
                     </Text>
                   </View>
                   <MaterialCommunityIcons
@@ -112,7 +132,7 @@ export function SessionHistoryCard({ campaignId, displayNameByUserId }: Props) {
                     {r.summary && (
                       <View style={styles.summaryBlock}>
                         <Text style={styles.blockLabel}>Recap</Text>
-                        <Text style={styles.blockBody}>{r.summary}</Text>
+                        <RichTextRenderer value={r.summary} />
                       </View>
                     )}
 
@@ -126,9 +146,7 @@ export function SessionHistoryCard({ campaignId, displayNameByUserId }: Props) {
                           <Text style={styles.blockLabel}>
                             {displayNameByUserId[n.user_id] ?? 'Unknown'}
                           </Text>
-                          <Text style={styles.blockBody}>
-                            {n.body.trim().length > 0 ? n.body : <Text style={styles.empty}>(empty)</Text>}
-                          </Text>
+                          <RichTextRenderer value={n.body} />
                         </View>
                       ))
                     )}
@@ -177,5 +195,4 @@ const styles = StyleSheet.create({
     fontSize: 11, color: colors.brand, fontWeight: '700',
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  blockBody: { fontSize: 13, color: colors.textPrimary, lineHeight: 19 },
 });

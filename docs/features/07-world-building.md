@@ -1,21 +1,92 @@
-# Feature 7: World Building Toolkit
+# Feature 7: World Building & Campaign Knowledge Base
 
-> GM workspace for building and managing campaign worlds — locations, maps, factions, NPCs, and timeline. All world-building content is user-generated and may be stored and synced server-side. Integrates with Feature 6 (Notes), Feature 4 (Sessions), and Feature 3 (Homebrew). See [Legal Constraints](../legal.md).
+> GM workspace for worlds, locations, maps, factions, timeline events, and
+> long-form notes. Absorbs the deeper notes infrastructure that used to live
+> in Feature 6 — the session-scoped Campaign Notes Hub (session_notes +
+> recap) shipped separately and still lives in [06-notes.md](./06-notes.md).
+> All content is user-generated and may be stored and synced server-side.
+> Respects [Legal Constraints](../legal.md).
 
-**Status:** Post-MVP
+**Status:** Post-MVP. Nothing here is built yet.
+
+---
+
+## Epics
+
+1. **Worlds & Free-standing Notes** — create/manage worlds; author notes at personal, campaign, world, or location scope
+2. **Rich Text & Cross-linking** — extend the shipped Markdown editor with `@content-ref` chips, `[[note-link]]` chips + backlinks, and extra formatting
+3. **Hierarchy, Tags & Search** — nested notes and locations; drag-to-reorder; tags with autocomplete; full-text search
+4. **Visibility & Party Sharing** — three-tier visibility (`private`/`gm_visible`/`party_shared`), server-enforced; NPC + faction secret-field stripping; Player View preview
+5. **Locations & Maps** — location hierarchy with detail pages; map upload; pan/zoom; percentage-coordinate pins; nested maps
+6. **Factions** — faction records, NPC membership, ally/rival relationships
+7. **Timeline** — in-world events, era grouping, real-session → event linking
+8. **Structured Note Types** — NPC tracker, Quest log
 
 ---
 
 ## Key Design Principles
+
 - **System-agnostic.** No D&D-specific concepts. Works for any TTRPG setting.
-- **Hierarchy is flexible.** Locations nest arbitrarily: world → continent → region → city → district → building → room. No enforced depth.
-- **Maps are optional overlays.** Any level of the location hierarchy can have a map. Maps don't replace the hierarchy.
-- **Pins use percentage coordinates.** `x` and `y` stored as percentages (0–100) of image dimensions — accurate at any zoom or resolution.
-- **Notes are the narrative layer.** Locations and factions have structured fields for mechanics; all prose lives in linked notes from Feature 6.
+- **Hierarchy is flexible.** Both notes and locations nest arbitrarily. No enforced depth.
+- **Maps are optional overlays.** Any location or the world root can have a map; maps don't replace the hierarchy.
+- **Pins use percentage coordinates.** `x`/`y` stored as 0–100 of image dimensions — accurate at any zoom or screen size.
+- **Notes are the narrative layer.** Locations, factions, and events carry structured fields; all prose lives in linked notes.
+- **Visibility is enforced server-side.** Every entity with a visibility field is filtered in every read via RLS + security-definer helpers — frontend visibility is display-only.
 
 ---
 
 ## Data Models
+
+### Note
+```typescript
+Note {
+  id: uuid, authorId: string,
+  campaignId: uuid | null,         // null = personal note
+  worldId: uuid | null,            // optional world scoping
+  sessionId: uuid | null,          // authored during a session
+  parentId: uuid | null,           // null = root within its scope
+  sortOrder: float,                // fractional indexing for reorder
+  title: string,
+  body: string,                    // Markdown (shipped RichTextEditor format)
+  contentText: string,             // plain-text extraction for FTS
+  visibility: "private" | "gm_visible" | "party_shared",
+  noteType: "general" | "npc" | "quest" | "lore",
+  structuredData: json | null,     // populated for npc/quest types
+  tags: string[],
+  contentRefs: ContentRef[],       // links to spells/creatures/items by key
+  linkedLocationIds: uuid[],
+  linkedFactionIds: uuid[],
+  linkedTimelineEventIds: uuid[],
+  isPinned: boolean, isArchived: boolean,
+  createdAt: timestamp, updatedAt: timestamp
+}
+```
+
+Notes store **Markdown**, not structured JSON, because the shipped
+`RichTextEditor` already produces Markdown and the existing `session_notes`
+/ `sessions.summary` columns are already valid Markdown. `contentText` is
+derived on save by running the body through the Markdown renderer and
+taking the text content — indexed by Postgres FTS.
+
+### NPC structured data
+```typescript
+NPCData {
+  race: string | null, occupation: string | null, location: string | null,
+  affiliation: string | null, relationshipToParty: string | null,
+  status: "alive" | "dead" | "unknown" | "missing",
+  firstSeen: string | null, lastSeen: string | null,
+  secretInfo: string | null        // GM-only; stripped from party_shared payloads
+}
+```
+
+### Quest structured data
+```typescript
+QuestData {
+  status: "active" | "completed" | "failed" | "abandoned",
+  giver: string | null, objective: string,
+  reward: string | null, relatedNoteIds: uuid[]
+}
+```
 
 ### World
 ```typescript
@@ -31,11 +102,13 @@ World {
 WorldLocation {
   id: uuid, worldId: uuid, parentId: uuid | null,
   name: string, locationType: LocationTypeKey,
-  summary: string | null, status: "active"|"ruined"|"unknown"|"destroyed"|"custom",
+  summary: string | null,
+  status: "active" | "ruined" | "unknown" | "destroyed" | "custom",
   customStatus: string | null, population: string | null,
   governingFactionId: uuid | null,
   linkedNoteIds: uuid[], linkedFactionIds: uuid[],
-  sortOrder: float, tags: string[]
+  sortOrder: float, tags: string[],
+  visibility: "private" | "gm_visible" | "party_shared"
 }
 
 LocationTypeKey:
@@ -45,30 +118,28 @@ LocationTypeKey:
   "plane" | "point_of_interest" | "custom"
 ```
 
-### WorldMap
+### WorldMap + MapPin
 ```typescript
 WorldMap {
-  id: uuid, ownerId: uuid,        // WorldLocation.id or World.id
+  id: uuid, ownerId: uuid,         // WorldLocation.id or World.id
   ownerType: "world" | "location",
   label: string | null, imageKey: string,
   imageWidth: int, imageHeight: int
 }
-// Signed URL generated at render time from imageKey — raw object URL never stored.
-// Each World or WorldLocation may have at most one active map.
-```
+// Signed URL generated at render time; raw object URL never stored.
+// Each World or WorldLocation has at most one active map.
 
-### MapPin
-```typescript
 MapPin {
   id: uuid, mapId: uuid,
-  x: float,   // percentage of image width (0.0–100.0)
-  y: float,   // percentage of image height (0.0–100.0)
-  pinType: PinTypeKey, label: string | null, color: string | null, iconKey: string | null,
-  linkedEntityType: "location"|"npc_note"|"faction"|"timeline_event"|"note" | null,
+  x: float, y: float,              // percentage of image dimensions (0–100)
+  pinType: PinTypeKey,
+  label: string | null, color: string | null, iconKey: string | null,
+  linkedEntityType: "location" | "npc_note" | "faction" | "timeline_event" | "note" | null,
   linkedEntityId: uuid | null, sortOrder: int
 }
 
-PinTypeKey: "city"|"town"|"village"|"dungeon"|"wilderness"|"npc"|"faction"|"event"|"point_of_interest"|"custom"
+PinTypeKey: "city" | "town" | "village" | "dungeon" | "wilderness"
+          | "npc" | "faction" | "event" | "point_of_interest" | "custom"
 ```
 
 ### Faction
@@ -76,12 +147,13 @@ PinTypeKey: "city"|"town"|"village"|"dungeon"|"wilderness"|"npc"|"faction"|"even
 Faction {
   id: uuid, worldId: uuid, name: string, summary: string | null,
   type: string | null, goals: string | null,
-  secrets: string | null,        // GM-only; never transmitted to players
+  secrets: string | null,          // GM-only; stripped server-side from party payloads
   status: "active" | "disbanded" | "unknown",
-  memberNoteIds: uuid[],         // NPC-type Note records
+  memberNoteIds: uuid[],           // NPC-type Note records
   alliedFactionIds: uuid[], rivalFactionIds: uuid[],
   headquartersLocationId: uuid | null,
-  linkedNoteIds: uuid[], tags: string[]
+  linkedNoteIds: uuid[], tags: string[],
+  visibility: "private" | "gm_visible" | "party_shared"
 }
 ```
 
@@ -89,14 +161,15 @@ Faction {
 ```typescript
 TimelineEvent {
   id: uuid, worldId: uuid, name: string, description: string,
-  inWorldDate: string | null,    // freeform — e.g. "Year 1203, Month of Ice"
-  era: string | null,            // grouping label
-  realSessionId: uuid | null,    // linked campaign session from Feature 4
+  inWorldDate: string | null,      // freeform — e.g. "Year 1203, Month of Ice"
+  era: string | null,              // grouping label
+  realSessionId: uuid | null,      // linked campaign session (Feature 4)
   linkedLocationIds: uuid[],
-  linkedNPCNoteIds: uuid[],      // NPC-type Notes
+  linkedNPCNoteIds: uuid[],        // NPC-type Notes
   linkedFactionIds: uuid[],
   linkedNoteIds: uuid[],
-  sortOrder: float, tags: string[]
+  sortOrder: float, tags: string[],
+  visibility: "private" | "gm_visible" | "party_shared"
 }
 ```
 
@@ -104,156 +177,268 @@ TimelineEvent {
 
 ## Epics & User Stories
 
-### Epic 1 — World Management
+### Epic 1 — Worlds & Free-standing Notes
 
-**US-101 — Create a world** — Name required; tagline, system label, campaign link, tags optional. Can exist without campaign link. Multiple worlds per user. World card shows name, tagline, linked campaign, location count, last updated.
+**US-101 — Create a world**
+- Required: name. Optional: tagline, system label, campaign link, tags.
+- Can exist without campaign link. Multiple worlds per user.
+- World card shows name, tagline, linked campaign, location count, last updated.
 
-**US-102 — Manage worlds** — Edit name/tagline/system/tags. Archive hides from main list (recoverable). Delete requires confirmation and warns all locations, maps, factions, and timeline events will be deleted. Linked Notes are NOT deleted — only references are removed.
+**US-102 — Manage worlds**
+- Edit name/tagline/system/tags. Archive hides from main list (recoverable).
+- Delete: confirmation warns that all locations, maps, factions, and timeline
+  events are deleted. Linked Notes are NOT deleted — only references cleared.
 
----
+**US-103 — Create a note**
+- Contexts: personal (no scope), campaign-level, world-level, location-level
+  (implicit link to the location it was created from), or standalone within
+  an existing parent note. Session-scope is already covered by the Campaign
+  Notes Hub in Feature 6.
+- Pick note type + scope + visibility on creation. Visibility defaults to
+  `private` for both players and GMs — explicit action to share.
+- Blank note opens immediately with cursor in title field. No wizard.
+- Autosaved ~1s debounce; "Saved" / "Saving…" indicator.
 
-### Epic 2 — Location Hierarchy
+**US-104 — Edit a note**
+- Author can always edit. `party_shared` notes are read-only for non-authors.
+- Autosave continuous; no manual save; "Last edited [time]" in note header.
+- Offline: edits queued locally with "Pending sync"; synced on reconnect.
 
-**US-201 — Create a location** — From world's tree view or from within an existing location's detail page. Required: name, location type. Locations can be created at any level without requiring parent levels to exist first.
+**US-105 — Delete a note**
+- Soft-delete (`isArchived: true`) with 30-day recovery window.
+- If the note has children: *"This note contains [n] sub-note(s). Deleting
+  it will also delete all nested notes."*
+- "Recently Deleted" section in settings.
 
-**US-202 — Navigate the location hierarchy**
-- Sidebar with full location tree; expandable/collapsible at each level
-- Search input filters tree in real time by name
-- Locations can be dragged to a new parent within the tree (re-parenting with confirmation)
-- Fractional indexing for sort order; drag-to-reorder within level
+**US-106 — Pin a note** — Toggle in note header menu. Pinned notes float to the top, separated by a divider. Max 5 pinned per context. Pin state is per-user.
 
-**US-203 — View and edit a location's detail page**
-- Sections: Overview (structured fields), Map, Linked Notes, NPCs Here, Factions Present, Sub-locations, Timeline Events
-- Structured fields inline-editable; autosave with same debounce as Feature 6
-- Section count badges when collapsed on mobile
-
-**US-204 — Delete a location** — Warns if has sub-locations. Deletes location, sub-locations, and associated MapPin records. Linked Notes not deleted — only `linkedNoteIds` references cleared.
-
----
-
-### Epic 3 — World Map
-
-**US-301 — Upload a map image**
-- Accepted: PNG, JPG, WEBP; maximum 20MB
-- Uploaded to server-side object store (S3-compatible); signed URL generated at render time
-- Each world or location has at most one active map; replacing prompts confirmation (pins retained but may need position adjustment)
-- Original dimensions stored on `WorldMap` for coordinate normalization
-
-**US-302 — View and navigate a map**
-- Pan (drag) and zoom (scroll wheel on web; pinch on mobile) within a constrained container
-- Zoom range: 0.5× to 4×; cannot pan or zoom beyond image edges
-- Viewport position preserved when navigating away and returning
-- Double-tap to zoom to 2× on mobile; "Reset View" button
-- Read-only for players who have access via `party_shared` world
-
-**US-303 — Place a pin on the map** *(GM only)*
-- "Place Pin" mode toggle in map toolbar
-- Clicking/tapping in pin-placement mode places new pin at that position
-- Placement panel: pin type, linked entity (optional, searchable), label (defaults to entity name), color
-- Saved as `MapPin` with `x` and `y` as percentages of image dimensions
-- Multiple pins can be placed without leaving pin-placement mode
-
-**US-304 — Interact with a pin**
-- Tapping a pin opens popover: label, pin type icon, linked entity name, action buttons (Open, Edit Pin, Delete Pin)
-- "Open" navigates to linked entity detail in side panel or full navigation
-- If pin links to sub-location with its own map: "View Sub-map" shortcut
-- Pins can be dragged to new positions while in pin-placement mode
-
-**US-305 — Navigate between nested maps**
-- "View Sub-map" option when pin links to sub-location with a map
-- Breadcrumb trail: "World Map > Ashveil > Market District"
-- Navigating back preserves parent map's viewport position
-
-**US-306 — Replace or remove a map**
-- "Replace Map": new image, all existing pins retained
-- "Remove Map": deletes `WorldMap` and all associated `MapPin` records
-- Both require confirmation; removal returns Map section to empty state
+**US-107 — Duplicate a note** — " (Copy)" suffix, same parent. Visibility reset to `private`. Opens in edit mode.
 
 ---
 
-### Epic 4 — Notes Manager Integration
+### Epic 2 — Rich Text & Cross-linking
 
-**US-401 — Link a note to a location**
-- From the note: "Link to Location" field opens location search popover
-- From the location: "Linked Notes" section has "Add Note" button
-- Bidirectional: `Note.linkedLocationIds` and `WorldLocation.linkedNoteIds` both updated
-- A note can link to multiple locations; a location can have many notes
-- Visibility rules from Feature 6 apply to linked notes display
+> **Already built:** `components/notes/RichTextEditor.tsx` +
+> `RichTextRenderer.{native,web}.tsx`. Markdown stored as plain text,
+> persistent 5-button toolbar (bold, italic, H2, bullet list, quote).
+> `react-markdown` + `remark-gfm` on web; `react-native-markdown-display`
+> on native. This epic **extends** that surface — it does not replace it.
 
-**US-402 — Link a note to a faction** — Same bidirectional pattern. NPC-type notes linked to a faction also appear in the faction's "Members" section.
+**US-201 — Extended formatting**
+- Add: H1, H3, underline, strikethrough, inline code, numbered list,
+  horizontal rule. Keep Markdown storage.
+- Keyboard shortcuts on web (⌘B, ⌘I, etc.).
+- Optional polish: floating toolbar on text selection; persistent strip stays as the fallback.
 
-**US-403 — Link a note to a timeline event** — Same bidirectional pattern. Session log notes can link to timeline events connecting real sessions to in-world history.
+**US-202 — Plain-text extraction for search**
+- On save, derive `contentText` by running `body` through the Markdown
+  renderer and taking the text content. Strips syntax so FTS indexes words,
+  not `**bold**`.
+- Trigger: same autosave debounce that persists `body`.
 
-**US-404 — View world entity links from the Notes Manager**
-- Notes linked to world entities show a "World Links" section in note header: each linked location (with world breadcrumb), faction, and timeline event
-- Each entry is navigable; removing a link updates both sides of the bidirectional relationship
+**US-203 — Insert a ContentRef chip (`@`)**
+- Typing `@` opens an inline search popover querying ContentResolver
+  (spells, creatures, items, features).
+- Select → inserts a styled chip with name + type icon (e.g. ⚡ Fireball).
+- Chip stores `{ key, sourceId, contentType }` only — **never description text** (legal constraint).
+- Tier-2 source unavailable → chip renders with "source unavailable" but doesn't break the note.
 
----
+**US-204 — Insert a note link (`[[`)**
+- `[[` opens a search popover over notes the current user can read.
+- Inserts a chip linking to the target note. Taps/clicks navigate or open a side panel on desktop.
+- **Backlinks:** linked note's header shows "Referenced by [n] note(s)" with a navigable list.
+- Deleted target note → chip renders as "Note not found" broken link.
 
-### Epic 5 — Faction Tracker
-
-**US-501 — Create and manage a faction**
-- Required: name. Optional: type, summary, goals, headquarters location, allies, rivals, status, tags
-- "Secrets" field — stripped server-side from any `party_shared` payload
-- Linkable to locations and pinnable on maps
-
-**US-502 — Manage faction membership**
-- "Members" section on faction detail; add member via search scoped to `noteType: "npc"` notes
-- Member cards: NPC name, occupation, status badge; clicking navigates to NPC note
-- An NPC can be a member of multiple factions
-
-**US-503 — Track faction relationships**
-- "Allied Factions" and "Rival Factions" sections; added by search
-- Relationships are symmetric: adding B as ally of A also adds A to B's ally list
-- Cannot be both ally and rival simultaneously
-- Faction list includes optional "Relationships" view showing factions as nodes with alliance/rivalry edges (v1: simplified static layout; v2: interactive force-directed graph)
-
----
-
-### Epic 6 — Timeline
-
-**US-601 — Create a timeline event** — Required: name. Optional: in-world date (freeform string — no calendar system enforcement), era, description (rich text), linked locations/NPCs/factions/notes, real session link, tags.
-
-**US-602 — View the timeline**
-- Events in `sortOrder` sequence as a vertical scrolling list; era separator between groups
-- Each event: name, in-world date, era badge, tags, linked entity counts
-- Expanding shows description and navigable links to linked entities
-- Drag-to-reorder with fractional indexing; filter by era, location, faction, tags
-
-**US-603 — Link a campaign session to a timeline event**
-- "Link to Session" field searches completed campaign sessions (from Feature 4)
-- Session date shown alongside in-world date on event card
-- `party_shared` notes from the linked session suggested as candidate notes to link
+**US-205 — Insert a world-entity chip**
+- Same popover pattern; scope toggle exposes locations, factions, timeline
+  events, NPC notes.
+- Inserting also updates the target entity's `linkedNoteIds` (bidirectional).
 
 ---
 
-### Epic 7 — Sharing & Party Visibility
+### Epic 3 — Hierarchy, Tags & Search
 
-**US-701 — Share world content with the party**
-- Individual locations, factions, and timeline events have `gm_only` (default) or `party_shared` toggle
-- When a location is `party_shared`, its map is also visible to players in read-only mode
-- Pins on a shared map visible to players only if the pin's linked entity is also `party_shared`
-- Faction `secrets` fields always stripped from party-facing responses regardless of visibility setting
-- "Player View" preview toggle in world detail shows exactly what players will see
+**US-301 — Nest notes into a hierarchy**
+- Any note can be parent of another. No separate "folder" entity.
+- "New Sub-note" in parent menu; "Move to…" action elsewhere.
+- No enforced depth; deep trees handled with collapse + breadcrumb.
+- Breadcrumb in note header shows full ancestry, clickable.
 
-**US-702 — Party view of world content**
-- Players access shared world content from "World" section in campaign view
-- Location hierarchy tree shows only `party_shared` nodes — doesn't reveal existence of hidden parent/sibling nodes
-- Players can view shared maps, pan/zoom, and tap visible pins
-- Players cannot create, edit, pin, or delete world-building content
+**US-302 — Reorder notes** — Drag-and-drop within parent or at root. Fractional `sortOrder` avoids renumbering.
+
+**US-303 — Tag notes** — Freeform tags, inline entry with autocomplete against previously used tags. Clicking a tag opens a tag-filtered view of all accessible notes carrying it.
+
+**US-304 — Navigate the location hierarchy**
+- Sidebar tree for the active world; expand/collapse per level.
+- Search input filters tree in real time by name.
+- Locations draggable to a new parent (confirmation prompt).
+- Fractional `sortOrder`; drag-to-reorder within level.
+
+**US-305 — Full-text search**
+- Postgres FTS over `contentText` on notes + structured
+  descriptions/summaries on locations, factions, timeline events.
+- Ranked results: title, snippet (match highlighted), type badge, scope,
+  last updated.
+- Debounced ~300ms, scoped to active campaign by default; toggle expands to
+  all content the user can read.
+- Offline search falls back to locally cached recent content.
+
+**US-306 — Filter panel**
+- Multi-select: note type, tags, visibility, campaign, session, world, location.
+- Quick filters: "GM Notes" (own `private` + `gm_visible`, GM users only),
+  "Shared with Party" (all `party_shared` the user can read),
+  "Shared with Me" (player-authored `gm_visible`, GM users only).
 
 ---
 
-## Suggested Build Order
-1. `World`, `WorldLocation`, `Faction`, `TimelineEvent` schemas + CRUD REST API
-2. World and location hierarchy tree UI — expandable sidebar, breadcrumb navigation
-3. Location detail page layout with section panels
-4. Faction CRUD — create, membership, relationships
-5. Timeline CRUD — create, sort, era grouping
-6. Notes Manager bidirectional linking — `linkedLocationIds`, `linkedFactionIds`, `linkedTimelineEventIds`
-7. `WorldMap` upload — image storage, signed URL generation, map render with pan/zoom
-8. `MapPin` placement — pin-placement mode, percentage coordinate storage, pin CRUD
-9. Nested map navigation with breadcrumb trail
-10. Map replace/remove
-11. Session-to-timeline linking
-12. Party visibility controls — `party_shared` toggling, server-side field stripping, Player View preview
+### Epic 4 — Visibility & Party Sharing
+
+Applies to every entity with a `visibility` field: `notes`, `world_locations`, `factions`, `timeline_events`.
+
+**US-401 — Visibility model**
+- `private` → author only.
+- `gm_visible` → author + the campaign's GM.
+- `party_shared` → all campaign members.
+- Players can set their own entities to `private` or `gm_visible` only.
+- Only the GM can mark anything `party_shared`.
+- Entities outside a campaign context are always `private`.
+
+**US-402 — Server-side enforcement**
+- RLS SELECT policy = `author = auth.uid()` OR
+  (`visibility = 'gm_visible'` AND `is_campaign_dm(campaign_id)`) OR
+  (`visibility = 'party_shared'` AND `is_campaign_member(campaign_id)`).
+- RLS UPDATE policy = author only. Raising to `party_shared` requires
+  `is_campaign_dm`.
+- Reuses existing security-definer helpers (`is_campaign_dm`, `is_campaign_member`).
+
+**US-403 — GM shares to party**
+- GM toggles visibility via entity header menu.
+- On a live session, realtime notification pushes to connected players.
+- Revertible — dropping back to `private` removes the entity from players' views immediately.
+- When a location becomes `party_shared`, its map is visible to players in read-only mode.
+
+**US-404 — Player shares to GM**
+- Player flips a `private` note to `gm_visible`; appears in the GM's "Shared with Me" inbox with a notification.
+- Other players cannot see these notes. Player can revoke by setting it back to `private`.
+
+**US-405 — Secret-field stripping**
+- `Faction.secrets` and NPC `structuredData.secretInfo` stripped server-side
+  from any payload returned to a non-GM viewer, regardless of the parent
+  entity's visibility setting.
+- Implemented via a server-side view or RPC that omits the column for
+  non-GM viewers — never rely on the frontend to hide.
+- GM sees these fields with a lock icon in the UI.
+
+**US-406 — Player View preview**
+- GM toggle on world / location / note detail pages that renders exactly
+  what a player would see after visibility + stripping is applied.
+
+---
+
+### Epic 5 — Locations & Maps
+
+**US-501 — Create a location** — From the world tree or from within a parent location's detail page. Required: name, location type. Any level can be created without requiring all ancestors to exist first.
+
+**US-502 — Location detail page**
+- Sections: Overview (structured fields), Map, Linked Notes, NPCs Here,
+  Factions Present, Sub-locations, Timeline Events.
+- Structured fields inline-editable; autosave with the same debounce as notes.
+- Section count badges when collapsed on mobile.
+
+**US-503 — Delete a location** — Warns if it has sub-locations. Deletes location, sub-locations, and associated `MapPin` records. Linked Notes not deleted — only `linkedNoteIds` references cleared.
+
+**US-504 — Upload a map image**
+- Accepted: PNG, JPG, WEBP; max 20 MB.
+- Uploaded to Supabase Storage (S3-compatible); signed URL generated at render time.
+- Each world or location has at most one active map. Replacing prompts confirmation (pins retained but may need position adjustment).
+- Image dimensions stored on `WorldMap` for coordinate normalization.
+
+**US-505 — View and navigate a map**
+- Pan (drag) and zoom (scroll wheel on web; pinch on mobile) inside a constrained container.
+- Zoom 0.5× – 4×; can't pan/zoom beyond image edges.
+- Viewport preserved when navigating away and returning.
+- Double-tap → 2× zoom on mobile; "Reset View" button.
+- Read-only for players with `party_shared` access.
+
+**US-506 — Place a pin** *(GM only)*
+- "Place Pin" toggle in the map toolbar.
+- Clicking/tapping in pin mode places a new pin at that position.
+- Placement panel: pin type, linked entity (optional, searchable), label (defaults to entity name), color.
+- Saved as `MapPin` with `x`/`y` as percentages.
+- Multiple pins can be placed without leaving pin mode.
+
+**US-507 — Interact with a pin**
+- Tap opens popover: label, pin type icon, linked entity name, action buttons (Open, Edit Pin, Delete Pin).
+- "Open" navigates to linked entity detail in side panel or full navigation.
+- If pin links to a sub-location with its own map: "View Sub-map" shortcut.
+- Pins draggable to new positions while in pin mode.
+
+**US-508 — Navigate nested maps** — "View Sub-map" when a pin links to a sub-location with a map. Breadcrumb: "World Map > Ashveil > Market District". Back preserves the parent map's viewport.
+
+**US-509 — Replace or remove a map**
+- Replace: new image, pins retained.
+- Remove: deletes `WorldMap` and all associated `MapPin` records.
+- Both require confirmation.
+
+---
+
+### Epic 6 — Factions
+
+**US-601 — Create and manage a faction** — Required: name. Optional: type, summary, goals, headquarters location, allies, rivals, status, tags. `secrets` field stripped from `party_shared` payloads (see US-405). Linkable to locations and pinnable on maps.
+
+**US-602 — Faction membership** — "Members" section on faction detail; add member via search scoped to `noteType: "npc"`. Member cards: NPC name, occupation, status badge; click → NPC note. An NPC can belong to multiple factions.
+
+**US-603 — Faction relationships**
+- "Allied Factions" and "Rival Factions" sections; added via search.
+- Symmetric: adding B as ally of A also adds A as ally of B.
+- Cannot be both ally and rival simultaneously.
+- "Relationships" view shows factions as nodes with alliance/rivalry edges.
+  v1: simplified static layout. v2: interactive force-directed graph.
+
+---
+
+### Epic 7 — Timeline
+
+**US-701 — Create a timeline event** — Required: name. Optional: in-world date (freeform string — no calendar enforcement), era, description (rich text), linked locations/NPCs/factions/notes, real session link, tags.
+
+**US-702 — View the timeline**
+- Events in `sortOrder` as a vertical scrolling list; era separator between groups.
+- Each event shows: name, in-world date, era badge, tags, linked entity counts.
+- Expand → description + navigable entity links.
+- Drag-to-reorder with fractional indexing. Filter by era, location, faction, tags.
+
+**US-703 — Link a campaign session to an event**
+- "Link to Session" searches ended campaign sessions (from Feature 4).
+- Session date shown alongside in-world date on the event card.
+- `party_shared` notes from the linked session suggested as candidate links.
+
+---
+
+### Epic 8 — Structured Note Types
+
+**US-801 — NPC tracker**
+- Structured fields per `NPCData` above. GM users also see "GM Only" secret info.
+- Dedicated "NPCs" quick view (filtered list of `noteType: "npc"`).
+- NPC notes linkable to factions (membership) and locations (residence / last seen).
+
+**US-802 — Quest log**
+- Structured fields per `QuestData`. Status badge on note cards.
+- "Quests" quick view grouped by status.
+- Quest notes linkable to NPC and Location notes via note links.
+
+---
+
+## Build Order (rough)
+
+Sequenced so each step unblocks the next without half-built middleware:
+
+1. `notes` table + RLS (generalizes the `session_notes` pattern to a first-class `notes` table with the full visibility model).
+2. Free-standing note CRUD reusing the shipped `RichTextEditor`.
+3. Tags + autocomplete; `contentText` extraction; Postgres FTS.
+4. Nesting + drag-to-reorder (notes).
+5. `world`, `world_locations` schema; tree UI + location detail page with Linked Notes section.
+6. `@` ContentRef chip + `[[` note-link chip + backlinks.
+7. `factions` + relationships; NPC membership rendering.
+8. `timeline_events` + session linking.
+9. Map upload + pan/zoom + pins + nested-map navigation. (Largest single chunk — image storage, gesture handling, percentage-coord math.)
+10. Party View preview + full secret-field stripping audit across all surfaces.

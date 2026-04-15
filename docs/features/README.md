@@ -29,13 +29,13 @@ Bestiary browser, encounter builder, and encounter template library. Ships with 
 
 → [Full requirements](05-gm-toolkit.md)
 
-## 6. Notes Manager
-Hierarchical, rich-text note-taking for players and GMs. Visibility model: private / gm_visible / party_shared. Nested pages, full-text search, tagging. Structured note types: NPC profiles, quest logs, session logs, locations, lore. Integrates with Feature 4 session notes.
+## 6. Session Notes & Campaign Notes Hub ✅ Shipped
+Per-user private notes during a live session; Campaign Notes Hub (DM-only route) that aggregates per-session notes and hosts the recap editor. Dock with resizable, drag-rearrangeable, pop-out-able panels. Session History card surfaces the recap + participant notes after end-of-session.
 
 → [Full requirements](06-notes.md)
 
-## 7. World Building Toolkit
-GM workspace for building and managing campaign worlds. Location hierarchy (world → continent → region → city → district → building). World map with zoomable/pannable image and interactive pins. Faction tracker with membership and relationship graph. Timeline with in-world date events. Full bidirectional linking with Notes Manager.
+## 7. World Building & Campaign Knowledge Base
+GM workspace for worlds, locations, maps, factions, timeline, and the deeper notes layer (hierarchical notes, `@content-refs`, `[[note-links]]`, tags, full-text search, three-tier visibility, structured NPC/Quest types). Absorbed the non-session notes infrastructure that used to live in Feature 6.
 
 → [Full requirements](07-world-building.md)
 
