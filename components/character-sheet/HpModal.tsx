@@ -48,8 +48,7 @@ export function HpModal({ visible, resources, hpMax, onClose, onApply }: Props) 
       newCurrent = Math.max(0, resources.hpCurrent - remaining);
     } else if (mode === 'heal') {
       if (healTarget === 'temp') {
-        // 5e: temp HP doesn't stack — take the higher of current vs new.
-        newTemp = Math.max(resources.hpTemp, n);
+        newTemp = resources.hpTemp + n;
       } else {
         newCurrent = Math.min(hpMax, resources.hpCurrent + n);
       }
