@@ -38,21 +38,41 @@ export async function getSessionById(sessionId: string) {
     .maybeSingle();
 }
 
-// Sort by init desc, then id for stable tiebreak. `sort_order` is reserved
-// for manual reordering (deferred); for now we sort client-side by init.
+// `init_value` is now the initiative **modifier**; final order is
+// computed as `init_value + init_roll` once every combatant has rolled.
+// We fetch raw and let the client sort with full tiebreak rules via
+// `sortByInitiative`.
 export async function getInitiativeOrder(sessionId: string) {
   return supabase
     .from('initiative_order')
     .select('*')
     .eq('session_id', sessionId)
-    .order('init_value', { ascending: false })
     .order('id');
+}
+
+// Tiebreak: total desc → modifier desc → PC over NPC → id (stable).
+export function sortByInitiative<T extends {
+  init_value: number;
+  init_roll: number | null;
+  character_id: string | null;
+  id: string;
+}>(entries: T[]): T[] {
+  return [...entries].sort((a, b) => {
+    const totalA = a.init_value + (a.init_roll ?? 0);
+    const totalB = b.init_value + (b.init_roll ?? 0);
+    if (totalA !== totalB) return totalB - totalA;
+    if (a.init_value !== b.init_value) return b.init_value - a.init_value;
+    const aPc = a.character_id !== null ? 1 : 0;
+    const bPc = b.character_id !== null ? 1 : 0;
+    if (aPc !== bPc) return bPc - aPc;
+    return a.id.localeCompare(b.id);
+  });
 }
 
 export async function addCombatant(input: {
   sessionId: string;
   name: string;
-  init: number;
+  initMod: number;
   hpMax: number;
   ac: number;
   characterId?: string | null;
@@ -62,7 +82,8 @@ export async function addCombatant(input: {
     .insert({
       session_id: input.sessionId,
       display_name: input.name,
-      init_value: input.init,
+      init_value: input.initMod,
+      init_roll: null,
       hp_max: input.hpMax,
       hp_current: input.hpMax,
       ac: input.ac,
@@ -72,6 +93,43 @@ export async function addCombatant(input: {
     })
     .select()
     .single();
+}
+
+// Roll a d20 via the RPC — the server checks whether caller is the DM
+// or owns the linked character, so a player can roll their own PC.
+export async function rollCombatantInitiative(combatantId: string, roll?: number) {
+  const rollValue = roll ?? Math.floor(Math.random() * 20) + 1;
+  return supabase.rpc('roll_combatant_initiative', {
+    combatant_id: combatantId,
+    roll_value: rollValue,
+  });
+}
+
+// DM-only manual override (e.g., physical die). Direct table update; RLS
+// restricts UPDATE to the DM.
+export async function setCombatantInitRoll(combatantId: string, roll: number) {
+  return supabase.from('initiative_order').update({ init_roll: roll }).eq('id', combatantId);
+}
+
+export async function startCombat(sessionId: string) {
+  return supabase
+    .from('sessions')
+    .update({ combat_started_at: new Date().toISOString(), round: 1 })
+    .eq('id', sessionId);
+}
+
+// Full reset — clears every combatant's roll, unsets active turn,
+// zeroes the round, and reopens the setup phase. The combatant list
+// itself is preserved so the DM can re-roll without rebuilding.
+export async function resetInitiative(sessionId: string) {
+  await supabase
+    .from('initiative_order')
+    .update({ init_roll: null, is_active_turn: false })
+    .eq('session_id', sessionId);
+  return supabase
+    .from('sessions')
+    .update({ combat_started_at: null, round: 0 })
+    .eq('id', sessionId);
 }
 
 export async function updateCombatant(id: string, patch: InitiativeUpdate) {
@@ -89,12 +147,11 @@ export async function advanceTurn(sessionId: string) {
   const { data, error } = await supabase
     .from('initiative_order')
     .select('*')
-    .eq('session_id', sessionId)
-    .order('init_value', { ascending: false })
-    .order('id');
+    .eq('session_id', sessionId);
   if (error) return { error };
-  const entries = (data ?? []) as InitiativeRow[];
-  if (entries.length === 0) return { error: null };
+  const raw = (data ?? []) as InitiativeRow[];
+  if (raw.length === 0) return { error: null };
+  const entries = sortByInitiative(raw);
 
   const currentIdx = entries.findIndex((e) => e.is_active_turn);
   const nextIdx = currentIdx === -1 ? 0 : (currentIdx + 1) % entries.length;

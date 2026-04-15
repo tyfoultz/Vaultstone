@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet,
   ActivityIndicator, Alert, Platform, FlatList, Modal, ScrollView,
@@ -9,6 +9,8 @@ import {
   supabase, getActiveSession, endSession, getCampaignPartyState,
   getInitiativeOrder, addCombatant, removeCombatant, advanceTurn,
   updateCombatant, updateCharacterHp, updateCharacterConditions,
+  rollCombatantInitiative, setCombatantInitRoll, startCombat,
+  resetInitiative, sortByInitiative,
 } from '@vaultstone/api';
 import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPanel';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
@@ -41,7 +43,7 @@ type PartyPick = {
   hpMax: number;
   hpCurrent: number;
   ac: number;
-  initRoll: number;
+  initMod: number;
   selected: boolean;
 };
 
@@ -62,7 +64,7 @@ function computeAc(stats: Dnd5eStats, resources: Dnd5eResources): number {
   return base;
 }
 
-function rollD20() { return Math.floor(Math.random() * 20) + 1; }
+function formatMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -81,7 +83,7 @@ export default function SessionScreen() {
 
   const [adding, setAdding] = useState(false);
   const [formName, setFormName] = useState('');
-  const [formInit, setFormInit] = useState('');
+  const [formInitMod, setFormInitMod] = useState('');
   const [formHp, setFormHp] = useState('');
   const [formAc, setFormAc] = useState('');
   const [saving, setSaving] = useState(false);
@@ -97,7 +99,22 @@ export default function SessionScreen() {
   const [pcConditions, setPcConditions] = useState<Record<string, string[]>>({});
   const [editingConditionsFor, setEditingConditionsFor] = useState<Combatant | null>(null);
 
+  // PCs owned by the current user — controls whether the player can see
+  // a Roll button on their own row.
+  const [myCharacterIds, setMyCharacterIds] = useState<Set<string>>(new Set());
+
+  // Manual init roll entry (DM only). Map of combatantId → current input.
+  const [manualRolls, setManualRolls] = useState<Record<string, string>>({});
+
+  const [rollingAll, setRollingAll] = useState(false);
+  const [startingCombat, setStartingCombat] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
   const isDM = campaign?.dm_user_id === user?.id;
+  const combatStarted = !!session?.combat_started_at;
+  const sortedEntries = useMemo(() => sortByInitiative(entries), [entries]);
+  const allRolled = entries.length > 0 && entries.every((e) => e.init_roll !== null);
+  const anyRolled = entries.some((e) => e.init_roll !== null);
 
   async function refetchEntries(sessionId: string) {
     const { data } = await getInitiativeOrder(sessionId);
@@ -107,12 +124,17 @@ export default function SessionScreen() {
   async function refreshPcConditions(campaignId: string) {
     const { data } = await supabase
       .from('characters')
-      .select('id, conditions')
+      .select('id, conditions, user_id')
       .eq('campaign_id', campaignId);
     if (!data) return;
     const map: Record<string, string[]> = {};
-    for (const row of data) map[row.id] = row.conditions ?? [];
+    const mine = new Set<string>();
+    for (const row of data) {
+      map[row.id] = row.conditions ?? [];
+      if (user && row.user_id === user.id) mine.add(row.id);
+    }
     setPcConditions(map);
+    setMyCharacterIds(mine);
   }
 
   // Load the active session + campaign + initiative order on focus.
@@ -222,19 +244,19 @@ export default function SessionScreen() {
   }
 
   function resetForm() {
-    setFormName(''); setFormInit(''); setFormHp(''); setFormAc('');
+    setFormName(''); setFormInitMod(''); setFormHp(''); setFormAc('');
     setAdding(false);
   }
 
   async function handleAdd() {
     if (!session || saving) return;
     const name = formName.trim();
-    const init = parseInt(formInit, 10);
+    const initMod = parseInt(formInitMod, 10);
     const hp = parseInt(formHp, 10);
     const ac = parseInt(formAc, 10);
-    if (!name || Number.isNaN(init) || Number.isNaN(hp) || Number.isNaN(ac)) return;
+    if (!name || Number.isNaN(initMod) || Number.isNaN(hp) || Number.isNaN(ac)) return;
     setSaving(true);
-    await addCombatant({ sessionId: session.id, name, init, hpMax: hp, ac });
+    await addCombatant({ sessionId: session.id, name, initMod, hpMax: hp, ac });
     await refetchEntries(session.id);
     setSaving(false);
     resetForm();
@@ -299,7 +321,7 @@ export default function SessionScreen() {
           hpMax,
           hpCurrent,
           ac: computeAc(stats, resources),
-          initRoll: rollD20() + dexMod,
+          initMod: dexMod,
           selected: true,
         };
       });
@@ -318,15 +340,6 @@ export default function SessionScreen() {
     );
   }
 
-  function setPickInit(characterId: string, value: string) {
-    const parsed = parseInt(value, 10);
-    setPartyPicks((prev) =>
-      prev.map((p) => (p.characterId === characterId
-        ? { ...p, initRoll: Number.isNaN(parsed) ? 0 : parsed }
-        : p)),
-    );
-  }
-
   function toggleSelectAll() {
     const allSelected = partyPicks.every((p) => p.selected);
     setPartyPicks((prev) => prev.map((p) => ({ ...p, selected: !allSelected })));
@@ -341,7 +354,7 @@ export default function SessionScreen() {
       chosen.map((p) => addCombatant({
         sessionId: session.id,
         name: p.name,
-        init: p.initRoll,
+        initMod: p.initMod,
         hpMax: p.hpMax,
         ac: p.ac,
         characterId: p.characterId,
@@ -350,6 +363,77 @@ export default function SessionScreen() {
     await refetchEntries(session.id);
     setAddingSelected(false);
     closePartyPicker();
+  }
+
+  async function handleRollOne(combatant: Combatant) {
+    const canRoll = isDM || (!!combatant.character_id && myCharacterIds.has(combatant.character_id));
+    if (!canRoll || !session) return;
+    await rollCombatantInitiative(combatant.id);
+    await refetchEntries(session.id);
+  }
+
+  async function handleRollAll() {
+    if (!session || rollingAll) return;
+    const unrolled = entries.filter((e) => e.init_roll === null);
+    if (unrolled.length === 0) return;
+    setRollingAll(true);
+    await Promise.all(unrolled.map((e) => rollCombatantInitiative(e.id)));
+    await refetchEntries(session.id);
+    setRollingAll(false);
+  }
+
+  async function handleManualSet(combatantId: string) {
+    if (!session) return;
+    const raw = manualRolls[combatantId];
+    const value = parseInt(raw ?? '', 10);
+    if (Number.isNaN(value)) return;
+    await setCombatantInitRoll(combatantId, value);
+    setManualRolls((prev) => {
+      const next = { ...prev };
+      delete next[combatantId];
+      return next;
+    });
+    await refetchEntries(session.id);
+  }
+
+  async function handleStartCombat() {
+    if (!session || startingCombat) return;
+    setStartingCombat(true);
+    await startCombat(session.id);
+    // Sync session locally and set highest-init as active turn.
+    const { data: freshSession } = await getActiveSession(id!);
+    if (freshSession) setSession(freshSession);
+    const { data: raw } = await getInitiativeOrder(session.id);
+    const sorted = sortByInitiative((raw ?? []) as Combatant[]);
+    if (sorted.length > 0) {
+      await updateCombatant(sorted[0].id, { is_active_turn: true });
+    }
+    await refetchEntries(session.id);
+    setStartingCombat(false);
+  }
+
+  async function handleResetInitiative() {
+    if (!session || resetting) return;
+    const confirmed = Platform.OS === 'web'
+      // eslint-disable-next-line no-alert
+      ? window.confirm('Reset all initiative rolls and end combat?')
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Reset Initiative?',
+            'All rolls will be cleared and combat ended. Combatants stay.',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Reset', style: 'destructive', onPress: () => resolve(true) },
+            ],
+          );
+        });
+    if (!confirmed) return;
+    setResetting(true);
+    await resetInitiative(session.id);
+    const { data: freshSession } = await getActiveSession(id!);
+    if (freshSession) setSession(freshSession);
+    await refetchEntries(session.id);
+    setResetting(false);
   }
 
   async function handleNextTurn() {
@@ -382,7 +466,15 @@ export default function SessionScreen() {
           <Text style={s.title} numberOfLines={1}>
             {campaign?.name ?? 'Session'}
           </Text>
-          <Text style={s.subtitle}>Round {session.round}</Text>
+          <Text style={s.subtitle}>
+            {combatStarted
+              ? `Round ${session.round}`
+              : allRolled
+                ? 'Ready to start'
+                : anyRolled
+                  ? 'Rolling initiative…'
+                  : 'Setup'}
+          </Text>
         </View>
         {isDM && (
           <TouchableOpacity
@@ -421,16 +513,58 @@ export default function SessionScreen() {
               {addingParty ? 'Cancel' : 'Add Party'}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.controlBtnPrimary, (advancing || entries.length === 0) && { opacity: 0.5 }]}
-            onPress={handleNextTurn}
-            disabled={advancing || entries.length === 0}
-          >
-            <MaterialCommunityIcons name="skip-next" size={16} color="#fff" />
-            <Text style={s.controlBtnPrimaryText}>
-              {advancing ? 'Advancing…' : 'Next Turn'}
-            </Text>
-          </TouchableOpacity>
+
+          {!combatStarted && !allRolled && entries.length > 0 && (
+            <TouchableOpacity
+              style={[s.controlBtn, rollingAll && { opacity: 0.5 }]}
+              onPress={handleRollAll}
+              disabled={rollingAll}
+            >
+              <MaterialCommunityIcons name="dice-d20" size={16} color={colors.brand} />
+              <Text style={s.controlBtnText}>
+                {rollingAll ? 'Rolling…' : 'Roll All'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {(combatStarted || anyRolled) && (
+            <TouchableOpacity
+              style={[s.controlBtn, resetting && { opacity: 0.5 }]}
+              onPress={handleResetInitiative}
+              disabled={resetting}
+            >
+              <MaterialCommunityIcons name="restart" size={16} color={colors.hpDanger} />
+              <Text style={s.controlBtnText}>
+                {resetting ? 'Resetting…' : 'Reset'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {!combatStarted && allRolled && (
+            <TouchableOpacity
+              style={[s.controlBtnPrimary, startingCombat && { opacity: 0.5 }]}
+              onPress={handleStartCombat}
+              disabled={startingCombat}
+            >
+              <MaterialCommunityIcons name="sword-cross" size={16} color="#fff" />
+              <Text style={s.controlBtnPrimaryText}>
+                {startingCombat ? 'Starting…' : 'Start Combat'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {combatStarted && (
+            <TouchableOpacity
+              style={[s.controlBtnPrimary, (advancing || entries.length === 0) && { opacity: 0.5 }]}
+              onPress={handleNextTurn}
+              disabled={advancing || entries.length === 0}
+            >
+              <MaterialCommunityIcons name="skip-next" size={16} color="#fff" />
+              <Text style={s.controlBtnPrimaryText}>
+                {advancing ? 'Advancing…' : 'Next Turn'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -445,11 +579,11 @@ export default function SessionScreen() {
           />
           <TextInput
             style={[s.input, { flex: 1 }]}
-            placeholder="Init"
+            placeholder="Init mod"
             placeholderTextColor={colors.textSecondary}
-            keyboardType="number-pad"
-            value={formInit}
-            onChangeText={setFormInit}
+            keyboardType="numeric"
+            value={formInitMod}
+            onChangeText={setFormInitMod}
           />
           <TextInput
             style={[s.input, { flex: 1 }]}
@@ -516,17 +650,8 @@ export default function SessionScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={s.pickerName} numberOfLines={1}>{p.name}</Text>
                     <Text style={s.pickerMeta}>
-                      HP {p.hpCurrent}/{p.hpMax} · AC {p.ac}
+                      HP {p.hpCurrent}/{p.hpMax} · AC {p.ac} · Init {formatMod(p.initMod)}
                     </Text>
-                  </View>
-                  <View style={s.pickerInitBlock}>
-                    <Text style={s.pickerInitLabel}>Init</Text>
-                    <TextInput
-                      style={s.pickerInitInput}
-                      keyboardType="number-pad"
-                      value={String(p.initRoll)}
-                      onChangeText={(v) => setPickInit(p.characterId, v)}
-                    />
                   </View>
                 </View>
               ))}
@@ -562,7 +687,7 @@ export default function SessionScreen() {
         </View>
       ) : (
         <FlatList
-          data={entries}
+          data={sortedEntries}
           keyExtractor={(e) => e.id}
           contentContainerStyle={{ paddingVertical: spacing.sm }}
           renderItem={({ item }) => {
@@ -570,6 +695,10 @@ export default function SessionScreen() {
               ? (pcConditions[item.character_id] ?? [])
               : [];
             const isPc = !!item.character_id;
+            const rolled = item.init_roll !== null;
+            const total = item.init_value + (item.init_roll ?? 0);
+            const canRoll = isDM
+              || (isPc && myCharacterIds.has(item.character_id!));
             return (
               <View style={[s.row, item.is_active_turn && s.rowActive]}>
                 {item.is_active_turn && (
@@ -580,12 +709,19 @@ export default function SessionScreen() {
                     style={{ marginRight: 4 }}
                   />
                 )}
-                <View style={s.initBadge}>
-                  <Text style={s.initBadgeText}>{item.init_value}</Text>
+                <View style={[s.initBadge, rolled && s.initBadgeRolled]}>
+                  <Text style={s.initBadgeText}>
+                    {rolled ? total : formatMod(item.init_value)}
+                  </Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.rowName} numberOfLines={1}>{item.display_name}</Text>
                   <Text style={s.rowMeta}>
+                    {rolled && (
+                      <Text style={s.rowRollDetail}>
+                        d20: {item.init_roll} {formatMod(item.init_value)} · {' '}
+                      </Text>
+                    )}
                     HP {item.hp_current}/{item.hp_max} · AC {item.ac}
                   </Text>
                   {conds.length > 0 && (
@@ -600,45 +736,79 @@ export default function SessionScreen() {
                       )}
                     </View>
                   )}
-                </View>
-                {isDM && (
-                  <View style={s.rowActions}>
-                    <TouchableOpacity
-                      style={s.hpBtn}
-                      onPress={() => adjustHp(item, -1)}
-                    >
-                      <MaterialCommunityIcons name="minus" size={16} color={colors.hpDanger} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.hpBtn}
-                      onPress={() => adjustHp(item, 1)}
-                    >
-                      <MaterialCommunityIcons name="plus" size={16} color={colors.hpHealthy} />
-                    </TouchableOpacity>
-                    {isPc && (
+                  {!rolled && isDM && (
+                    <View style={s.rowInlineRow}>
+                      <TextInput
+                        style={s.rowManualInput}
+                        placeholder="Set"
+                        placeholderTextColor={colors.textSecondary}
+                        keyboardType="numeric"
+                        value={manualRolls[item.id] ?? ''}
+                        onChangeText={(v) =>
+                          setManualRolls((prev) => ({ ...prev, [item.id]: v }))
+                        }
+                      />
                       <TouchableOpacity
-                        style={s.rowAction}
-                        onPress={() => setEditingConditionsFor(item)}
+                        style={s.rowInlineBtn}
+                        onPress={() => handleManualSet(item.id)}
                       >
-                        <MaterialCommunityIcons
-                          name="heart-pulse"
-                          size={18}
-                          color={colors.textSecondary}
-                        />
+                        <Text style={s.rowInlineBtnText}>Set roll</Text>
                       </TouchableOpacity>
-                    )}
+                    </View>
+                  )}
+                </View>
+                <View style={s.rowActions}>
+                  {!rolled && canRoll && (
                     <TouchableOpacity
-                      style={s.rowAction}
-                      onPress={() => handleRemove(item.id)}
+                      style={s.rollBtn}
+                      onPress={() => handleRollOne(item)}
                     >
                       <MaterialCommunityIcons
-                        name="trash-can-outline"
+                        name="dice-d20"
                         size={18}
-                        color={colors.hpDanger}
+                        color={colors.brand}
                       />
                     </TouchableOpacity>
-                  </View>
-                )}
+                  )}
+                  {isDM && (
+                    <>
+                      <TouchableOpacity
+                        style={s.hpBtn}
+                        onPress={() => adjustHp(item, -1)}
+                      >
+                        <MaterialCommunityIcons name="minus" size={16} color={colors.hpDanger} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={s.hpBtn}
+                        onPress={() => adjustHp(item, 1)}
+                      >
+                        <MaterialCommunityIcons name="plus" size={16} color={colors.hpHealthy} />
+                      </TouchableOpacity>
+                      {isPc && (
+                        <TouchableOpacity
+                          style={s.rowAction}
+                          onPress={() => setEditingConditionsFor(item)}
+                        >
+                          <MaterialCommunityIcons
+                            name="heart-pulse"
+                            size={18}
+                            color={colors.textSecondary}
+                          />
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        style={s.rowAction}
+                        onPress={() => handleRemove(item.id)}
+                      >
+                        <MaterialCommunityIcons
+                          name="trash-can-outline"
+                          size={18}
+                          color={colors.hpDanger}
+                        />
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
               </View>
             );
           }}
@@ -801,7 +971,33 @@ const s = StyleSheet.create({
     borderColor: colors.border, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
+  initBadgeRolled: {
+    backgroundColor: colors.brand + '22',
+    borderColor: colors.brand,
+  },
   initBadgeText: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
+  rowRollDetail: { color: colors.brand, fontSize: 12, fontWeight: '600' },
+  rollBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    borderColor: colors.brand, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
+  rowInlineRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6,
+  },
+  rowManualInput: {
+    width: 60, textAlign: 'center',
+    backgroundColor: colors.background,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
+    paddingVertical: 4, paddingHorizontal: 6,
+    color: colors.textPrimary, fontSize: 12,
+  },
+  rowInlineBtn: {
+    backgroundColor: colors.brand, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  rowInlineBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   rowName: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   rowMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
