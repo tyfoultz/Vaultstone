@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getMySessionNote, upsertSessionNote, supabase } from '@vaultstone/api';
+import { getMySessionNote, upsertSessionNote } from '@vaultstone/api';
 import { colors, spacing } from '@vaultstone/ui';
 
 interface Props {
@@ -15,12 +15,31 @@ interface Props {
   layout?: 'rail' | 'fullscreen';
 }
 
+// Cross-window coordination: the pop-out (fullscreen) window owns the
+// editor while open; the inline rail panel mirrors its content live and
+// goes read-only. We use BroadcastChannel (web only) because Supabase
+// Realtime didn't reliably deliver same-user session_notes updates to the
+// other tab, and the single-editor model avoids split-brain conflicts.
+type BCMessage =
+  | { kind: 'hello'; from: 'fullscreen' }
+  | { kind: 'body'; from: 'fullscreen'; value: string }
+  | { kind: 'bye'; from: 'fullscreen' };
+
+const PRESENCE_STALE_MS = 5_000;
+const HEARTBEAT_MS = 2_000;
+
 function formatSavedAt(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
   const hh = d.getHours().toString().padStart(2, '0');
   const mm = d.getMinutes().toString().padStart(2, '0');
   return `${hh}:${mm}`;
+}
+
+function hasBroadcastChannel(): boolean {
+  return Platform.OS === 'web'
+    && typeof globalThis !== 'undefined'
+    && typeof (globalThis as { BroadcastChannel?: unknown }).BroadcastChannel === 'function';
 }
 
 export function SessionNotesPanel({
@@ -33,11 +52,18 @@ export function SessionNotesPanel({
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [popoutActive, setPopoutActive] = useState(false);
+
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<string | null>(null);
   const bodyRef = useRef<string>('');
   bodyRef.current = body;
+  const bcRef = useRef<BroadcastChannel | null>(null);
+  const lastPresenceAt = useRef<number>(0);
 
+  const effectiveReadOnly = readOnly || (layout === 'rail' && popoutActive);
+
+  // Initial load from DB.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -50,49 +76,101 @@ export function SessionNotesPanel({
     return () => { cancelled = true; };
   }, [sessionId, userId]);
 
-  // Cross-window sync: subscribe to our own row. When the pop-out saves,
-  // the main panel (and vice versa) picks up the change here. Self-echoes
-  // match the local body verbatim, so no write loop.
-  useEffect(() => {
-    const channel = supabase
-      .channel(`session_notes:${sessionId}:${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'session_notes',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          const row = payload.new as {
-            user_id: string;
-            body: string;
-            updated_at: string;
-          } | null;
-          if (!row || row.user_id !== userId) return;
-          if (row.body === bodyRef.current) return;
-          setBody(row.body);
-          setSavedAt(row.updated_at);
-        },
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+  // Flush any pending debounced save to the DB immediately. The rail
+  // panel calls this before handing control to the pop-out so the pop-out
+  // loads the latest text, and the pop-out calls it on unmount so the
+  // rail re-fetches the final state.
+  const flushPending = useCallback(async () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    const toSave = pendingRef.current;
+    if (toSave === null) return;
+    pendingRef.current = null;
+    setSaving(true);
+    const { error } = await upsertSessionNote(sessionId, userId, toSave);
+    setSaving(false);
+    if (!error) setSavedAt(new Date().toISOString());
   }, [sessionId, userId]);
 
+  // BroadcastChannel: pop-out owns editing while open; rail mirrors.
+  useEffect(() => {
+    if (!hasBroadcastChannel()) return;
+    const bc = new BroadcastChannel(`vaultstone-notes-${sessionId}-${userId}`);
+    bcRef.current = bc;
+
+    bc.onmessage = (ev) => {
+      const msg = ev.data as BCMessage;
+      if (!msg || msg.from !== 'fullscreen') return;
+      if (layout === 'rail') {
+        if (msg.kind === 'hello') {
+          lastPresenceAt.current = Date.now();
+          setPopoutActive((prev) => {
+            if (!prev) { void flushPending(); }
+            return true;
+          });
+        } else if (msg.kind === 'body') {
+          lastPresenceAt.current = Date.now();
+          setPopoutActive(true);
+          if (msg.value !== bodyRef.current) setBody(msg.value);
+        } else if (msg.kind === 'bye') {
+          setPopoutActive(false);
+          getMySessionNote(sessionId, userId).then((row) => {
+            setBody(row.body ?? '');
+            setSavedAt(row.updated_at ?? null);
+          });
+        }
+      }
+    };
+
+    return () => {
+      bc.close();
+      bcRef.current = null;
+    };
+  }, [sessionId, userId, layout, flushPending]);
+
+  // Pop-out: announce presence on mount, heartbeat, and say bye on unmount.
+  useEffect(() => {
+    if (layout !== 'fullscreen' || !hasBroadcastChannel()) return;
+    const bc = bcRef.current;
+    if (!bc) return;
+    const hello = () => bc.postMessage({ kind: 'hello', from: 'fullscreen' } satisfies BCMessage);
+    hello();
+    const heartbeat = setInterval(hello, HEARTBEAT_MS);
+    return () => {
+      clearInterval(heartbeat);
+      bc.postMessage({ kind: 'bye', from: 'fullscreen' } satisfies BCMessage);
+      void flushPending();
+    };
+  }, [layout, flushPending]);
+
+  // Rail: detect stale pop-out (tab closed without firing cleanup).
+  useEffect(() => {
+    if (layout !== 'rail' || !popoutActive) return;
+    const t = setInterval(() => {
+      if (Date.now() - lastPresenceAt.current > PRESENCE_STALE_MS) {
+        setPopoutActive(false);
+        getMySessionNote(sessionId, userId).then((row) => {
+          setBody(row.body ?? '');
+          setSavedAt(row.updated_at ?? null);
+        });
+      }
+    }, 1_000);
+    return () => clearInterval(t);
+  }, [layout, popoutActive, sessionId, userId]);
+
   const scheduleSave = useCallback((next: string) => {
-    if (readOnly) return;
+    if (effectiveReadOnly) return;
     pendingRef.current = next;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       const toSave = pendingRef.current;
       if (toSave === null) return;
+      pendingRef.current = null;
       setSaving(true);
       const { error } = await upsertSessionNote(sessionId, userId, toSave);
       setSaving(false);
       if (!error) setSavedAt(new Date().toISOString());
     }, 500);
-  }, [sessionId, userId, readOnly]);
+  }, [sessionId, userId, effectiveReadOnly]);
 
   useEffect(() => {
     return () => { if (timer.current) clearTimeout(timer.current); };
@@ -101,6 +179,9 @@ export function SessionNotesPanel({
   function handleChange(text: string) {
     setBody(text);
     scheduleSave(text);
+    if (layout === 'fullscreen' && bcRef.current) {
+      bcRef.current.postMessage({ kind: 'body', from: 'fullscreen', value: text } satisfies BCMessage);
+    }
   }
 
   function handlePopOut() {
@@ -153,6 +234,11 @@ export function SessionNotesPanel({
           Session ended — notes are now read-only.
         </Text>
       )}
+      {!readOnly && layout === 'rail' && popoutActive && (
+        <Text style={styles.mirrorBanner}>
+          Editing in pop-out window. This view is read-only while it&apos;s open.
+        </Text>
+      )}
 
       {loading ? (
         <View style={styles.loadingBox}>
@@ -163,7 +249,7 @@ export function SessionNotesPanel({
           style={[styles.input, layout === 'fullscreen' && styles.inputFull]}
           value={body}
           onChangeText={handleChange}
-          editable={!readOnly}
+          editable={!effectiveReadOnly}
           multiline
           placeholder="Jot down anything you want to remember from tonight…"
           placeholderTextColor={colors.textSecondary}
@@ -197,6 +283,9 @@ const styles = StyleSheet.create({
   iconBtn: { padding: 4 },
   readOnlyBanner: {
     fontSize: 12, color: colors.hpWarning, fontStyle: 'italic',
+  },
+  mirrorBanner: {
+    fontSize: 12, color: colors.brand, fontStyle: 'italic',
   },
   loadingBox: {
     minHeight: 120, alignItems: 'center', justifyContent: 'center',

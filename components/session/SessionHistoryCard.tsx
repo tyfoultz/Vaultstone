@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getCampaignSessionHistory, getSessionNotes } from '@vaultstone/api';
@@ -81,7 +81,12 @@ export function SessionHistoryCard({ campaignId, displayNameByUserId }: Props) {
       ) : rows.length === 0 ? (
         <Text style={styles.empty}>No past sessions yet.</Text>
       ) : (
-        <View style={{ marginTop: spacing.sm }}>
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={{ paddingBottom: 4 }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
           {rows.map((r) => {
             const isOpen = expanded === r.id;
             const sessionNotes = notes[r.id];
@@ -132,7 +137,7 @@ export function SessionHistoryCard({ campaignId, displayNameByUserId }: Props) {
               </View>
             );
           })}
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -151,6 +156,7 @@ const styles = StyleSheet.create({
   },
   loadingBox: { paddingVertical: spacing.md, alignItems: 'center' },
   empty: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+  list: { maxHeight: 440, marginTop: spacing.sm },
   row: { borderBottomColor: colors.border, borderBottomWidth: 1 },
   rowHeader: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,

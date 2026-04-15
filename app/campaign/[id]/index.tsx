@@ -811,9 +811,11 @@ const s = StyleSheet.create({
   },
   backText: { color: colors.brand, fontSize: 14 },
 
-  // Grid
+  // Grid — flex-start so each card is its natural height (not stretched
+  // to match the tallest sibling in the row).
   grid: {
     flexDirection: 'row', flexWrap: 'wrap',
+    alignItems: 'flex-start',
     gap: spacing.md, paddingHorizontal: spacing.lg,
   },
 
