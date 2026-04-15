@@ -94,6 +94,7 @@ Default pre-push = Tier 1 + push + Netlify preview. Tiers 2 (`expo export` pre-p
   - `git -C <repo> fetch origin`
   - `git -C <repo> log origin/master --oneline -20` — scan for recently merged PRs that may have built or changed what you're about to touch.
   If master has moved ahead of the current branch, surface that to the user *before* you start work — don't re-invent a feature that already shipped, and don't plan against stale code. When in doubt, `git diff <branch>..origin/master --stat` on the files you're about to modify.
+- **Update relevant documentation before pushing.** Before every push, review whether your changes affect anything tracked in `docs/` (architecture, build-status, feature specs, dev-workflow, legal) or in `CLAUDE.md` itself, and update those files in the same commit. Docs and code ship together — a push that moves the codebase past its documentation is a broken push.
 - **Push feature branches before user testing.** Netlify builds previews from GitHub branches, so the user needs the branch pushed in order to exercise the web build. Commit + push as soon as a feature is implementation-complete and locally type-checks; don't wait for user confirmation to push.
 - **Never push directly to `master`.** All work lands on a feature branch (`feature/<short-description>` or `epic/<epic-name>`) and merges through a PR.
 - **Branch before making changes** that could conflict with parallel work. If you're already on a feature branch for the active task, keep using it — don't open a new branch per commit.
