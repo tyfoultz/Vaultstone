@@ -99,7 +99,7 @@ Append-only event feed. Displays what happened during a session.
 | 4 — Player-facing source prompt | ✅ Done | Per-PDF rows on System Card, Read + Remove actions. |
 | 5a — Indexing scaffold | ✅ Done | FTS5 (native) + IndexedDB (web) search framework; search screen; viewer accepts `page` param. |
 | 5b — Web PDF text extraction | ✅ Done | `pdfjs-dist` in `pdf-parser.web.ts`; worker copied to `public/` via postinstall. |
-| 5c — Native PDF text extraction | ✅ Done | `pdfjs-dist/legacy/build/pdf.mjs` with `disableWorker: true`; Hermes polyfills (btoa/atob via `base-64`, structuredClone fallback, no-op DOMMatrix/Path2D/OffscreenCanvas/ImageData); bytes read via `FileSystem.readAsStringAsync` (base64). Native verification is manual (no native CI). |
+| 5c — Native PDF text extraction | ✅ Code complete · ⏳ **Native verification deferred** | `pdfjs-dist/legacy/build/pdf.mjs` in fake-worker mode; Hermes polyfills (btoa/atob via `base-64`, structuredClone fallback, no-op DOMMatrix/Path2D/OffscreenCanvas/ImageData); bytes read via `FileSystem.readAsStringAsync` (base64). **Untested on iOS/Android** — verify during Phase 6 (TestFlight) or whenever the first `expo run:ios`/`run:android` happens. See *Deferred verification* below. |
 | 5d — Wire parsing into upload | ✅ Done | Fire-and-forget `reindexSource` kicked off after `saveSource` on web. |
 | 5e — Progress UI polish | ✅ Done | Per-PDF `IndexStatusLine` with Retry; 500ms polling while indexing. |
 | 5f — ContentResolver Tier 2 | ⬜ | Route typed queries through `content_fts`. |
@@ -110,6 +110,28 @@ Append-only event feed. Displays what happened during a session.
 
 **Legal:** PDFs never leave the device. See [legal.md](legal.md). Phase 9
 shares page citations only — never extracted page text.
+
+#### Deferred verification — to run on first iOS/Android build
+
+These items shipped with web-only verification and need a smoke test the
+first time we build a native dev client (likely during Phase 6 TestFlight
+prep, or sooner if any feature work needs `expo run:ios`/`run:android`).
+
+- **PDF Rulebook Phase 5c — native text extraction.** Code is in place
+  (`pdf-parser.native.ts` + Hermes polyfills) but has never run on Hermes.
+  Specific risks to watch:
+  - Metro may reject `pdfjs-dist/legacy/build/pdf.mjs` over `import.meta.url`.
+    Fallback: swap to `.../pdf.js` (non-mjs) or add a postinstall patch
+    script (mirror `scripts/patch-metro.js`).
+  - First parse may surface a missing polyfill not exercised on web.
+  - Memory on 300+ page books is unverified — may need incremental
+    indexing (file as a follow-up if it's a problem).
+  - Smoke test: upload small PDF in dev build → confirm `IndexStatusLine`
+    cycles `not_indexed → indexing N/M → ✓ Indexed` → search returns hits
+    with sensible snippets. **Expo Go cannot run this** — needs
+    `npx expo run:ios`/`run:android` for the dev client.
+  - See [features/08-pdf-rulebook.md Phase 5c](features/08-pdf-rulebook.md#phase-5c--native-pdf-text-extraction--done-2026-04-14)
+    for full polyfill list and the implementation rationale.
 
 ---
 
@@ -122,6 +144,8 @@ shares page citations only — never extracted page text.
 - [ ] Submit to TestFlight — `eas submit --platform ios`
 - [ ] Invite players — add testers in App Store Connect
 - [ ] Run a real session
+- [ ] **Run deferred native smoke tests** — see *Deferred verification*
+      under Phase 5 above (currently: Phase 5c PDF text extraction)
 - [ ] File bugs in GitHub Issues
 
 ---

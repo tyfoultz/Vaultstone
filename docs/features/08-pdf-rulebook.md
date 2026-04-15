@@ -145,7 +145,7 @@ only adding producers of `PageText[]`.
   laptop; UI remains responsive thanks to pdf.js worker threading; produced
   `PageText.text` round-trips through FTS search with sensible snippets.
 
-#### Phase 5c — Native PDF text extraction ✅ Done (2026-04-14)
+#### Phase 5c — Native PDF text extraction ✅ Code complete (2026-04-14) · ⏳ Native verification deferred
 *Same job, on iOS/Android, without the DOM or web workers.*
 
 - **Strategy:** `pdfjs-dist/legacy/build/pdf.mjs` on Hermes with `disableWorker: true`
