@@ -1,6 +1,8 @@
 # Local Verification Workflow
 
-Two checks are expected before pushing a branch for Netlify preview: **Tier 1** (typecheck) and **Tier 4** (functional browser check via Playwright against the local dev server). The intermediate tiers (local `expo export`, Netlify deploy watch) were intentionally skipped — Tier 1 catches most build-breakers fast, Tier 4 proves the feature actually works, and Netlify itself is the backstop for bundler-only regressions.
+**Tier 1** (typecheck) runs on every push. **Tier 4** (Playwright browser check) runs **only when Tyler asks for it** — it launches a visible Chromium window on the user's desktop, which is disruptive in the middle of an iteration. Default pre-push validation is Tier 1 + Netlify preview. The intermediate tiers (local `expo export`, Netlify deploy watch) were intentionally skipped — Tier 1 catches most build-breakers fast, and Netlify itself is the backstop for bundler-only regressions.
+
+**When to run Tier 4:** only on explicit request ("run the Playwright check", "tier 4 this", "smoke test it"). Do not run it speculatively at the end of a feature — push the branch and let Netlify preview be the visual check unless the user asks.
 
 ---
 
@@ -24,6 +26,8 @@ npm run typecheck
 ## Tier 4 — Playwright + local dev server + test user
 
 End-to-end functional check in a real browser. Catches: broken queries, misrouted nav, modals that don't open, RLS/auth failures, wrong copy, anything that bundles fine but behaves wrong.
+
+> **Opt-in only.** Only run Tier 4 when Tyler explicitly asks. Playwright MCP opens a visible Chromium window that steals focus on the desktop.
 
 ### One-time setup
 

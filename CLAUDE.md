@@ -79,12 +79,12 @@ Fonts: Cinzel (display), Crimson Pro (body) — Dark mode only for MVP
 
 ## Local Verification Before Push
 
-Before pushing a feature branch, run two checks. Full procedure in [docs/dev-workflow.md](docs/dev-workflow.md).
+Full procedure in [docs/dev-workflow.md](docs/dev-workflow.md).
 
-1. **Tier 1 — `npm run typecheck`.** Goal is "no net new errors," not "zero errors." The repo has a known baseline of ~13 errors (stale `.expo/types/router.d.ts` + Supabase join typings); track the count before and after your changes.
-2. **Tier 4 — Playwright against `npm run web`.** Sign in as the test user (`.env.test` → `TEST_USER_EMAIL`/`TEST_USER_PASSWORD`), drive the 1–2 golden-path interactions the feature is *for*, confirm the expected DOM / screenshot. Skip Tier 4 for docs-only or pure-refactor changes.
+1. **Tier 1 — `npm run typecheck`.** Run on every push. Goal is "no net new errors," not "zero errors." The repo has a known baseline of ~13 errors (stale `.expo/types/router.d.ts` + Supabase join typings); track the count before and after your changes.
+2. **Tier 4 — Playwright against `npm run web`.** **Run only when Tyler explicitly asks.** Playwright MCP opens a visible Chromium window that steals desktop focus, so running it unprompted is disruptive. When asked: sign in as the test user (`.env.test` → `TEST_USER_EMAIL`/`TEST_USER_PASSWORD`), drive the 1–2 golden-path interactions, confirm the expected DOM / screenshot, then stop the dev server you started.
 
-Tiers 2 (`expo export` pre-push) and 3 (Netlify deploy watch) were intentionally excluded — Netlify itself is the backstop for bundler-only regressions.
+Default pre-push = Tier 1 + push + Netlify preview. Tiers 2 (`expo export` pre-push) and 3 (Netlify deploy watch) were intentionally excluded — Netlify itself is the backstop for bundler-only regressions.
 
 ---
 
