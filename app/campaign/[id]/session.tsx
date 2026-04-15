@@ -99,6 +99,11 @@ export default function SessionScreen() {
 
   const isDM = campaign?.dm_user_id === user?.id;
 
+  async function refetchEntries(sessionId: string) {
+    const { data } = await getInitiativeOrder(sessionId);
+    setEntries((data ?? []) as Combatant[]);
+  }
+
   async function refreshPcConditions(campaignId: string) {
     const { data } = await supabase
       .from('characters')
@@ -230,12 +235,16 @@ export default function SessionScreen() {
     if (!name || Number.isNaN(init) || Number.isNaN(hp) || Number.isNaN(ac)) return;
     setSaving(true);
     await addCombatant({ sessionId: session.id, name, init, hpMax: hp, ac });
+    await refetchEntries(session.id);
     setSaving(false);
     resetForm();
   }
 
   async function handleRemove(combatantId: string) {
+    if (!session) return;
+    setEntries((prev) => prev.filter((e) => e.id !== combatantId));
     await removeCombatant(combatantId);
+    await refetchEntries(session.id);
   }
 
   // Clamp HP to [0, hp_max], write through to initiative_order, and — for
@@ -338,6 +347,7 @@ export default function SessionScreen() {
         characterId: p.characterId,
       })),
     );
+    await refetchEntries(session.id);
     setAddingSelected(false);
     closePartyPicker();
   }
@@ -346,6 +356,10 @@ export default function SessionScreen() {
     if (!session || advancing || entries.length === 0) return;
     setAdvancing(true);
     await advanceTurn(session.id);
+    await refetchEntries(session.id);
+    // advanceTurn may have bumped session.round — pull the fresh row.
+    const { data: s } = await getActiveSession(id);
+    if (s) setSession(s);
     setAdvancing(false);
   }
 
