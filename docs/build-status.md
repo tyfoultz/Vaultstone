@@ -104,12 +104,8 @@ Append-only event feed. Displays what happened during a session.
 | 5e — Progress UI polish | ✅ Done | Per-PDF `IndexStatusLine` with Retry; 500ms polling while indexing. |
 | 5f — ContentResolver Tier 2 | ⬜ | Route typed queries through `content_fts`. |
 | 6 — Structured extraction | ⬜ | Tag pages with content type for Spellbook / Bestiary. |
-| 7 — In-session "Look it up" panel | ⬜ Planned | Slide-over search on session screen; reuses `searchCampaign`. |
-| 8 — Bookmarks / page pins | ⬜ Planned | Local `pdf_bookmarks` table; "Pinned" section on search; pin filter. |
-| 9 — DM-shared search results | ⬜ Planned | Citation-only sharing via Realtime; new `session_lookups` table (no PDF text server-side). |
 
-**Legal:** PDFs never leave the device. See [legal.md](legal.md). Phase 9
-shares page citations only — never extracted page text.
+**Legal:** PDFs never leave the device. See [legal.md](legal.md).
 
 ---
 

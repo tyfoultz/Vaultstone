@@ -220,88 +220,6 @@ only adding producers of `PageText[]`.
 - UI surfaces for these browsers are intentionally left open — we'll decide
   where they live (campaign tab? global drawer?) once the data pipeline works.
 
-### Phase 7 — In-session "Look it up" panel ⬜ Planned
-*Quick rule lookup without leaving the active session screen.*
-
-- Add a small search affordance to the session screen (e.g. a magnifying-glass
-  pinned in the action bar) that opens a slide-over panel.
-- Panel reuses the existing `searchCampaign(campaignId, query, options)` API
-  with a tighter `limit` (top 3–5 hits) and a smaller snippet window so it
-  reads as a quick-reference card instead of a full results list.
-- Each hit shows: source filename, page number, snippet — plus an "Open page"
-  action that deep-links into the PDF viewer (`?page=N`) without losing the
-  session route.
-- Default to "search all indexed PDFs" but persist the last-used filter from
-  the main search screen (per-campaign, in `useCampaignStore`) so a player
-  who only cares about the PHB doesn't have to retoggle every session.
-- Optional: remember the last 5 queries for the active session so DMs can
-  re-pull the same lookup mid-fight without retyping.
-- **Out of scope for this phase:** voice search, in-line dice detection (see
-  brainstorm), structured content recognition (Phase 6 covers that).
-- **Accept criteria:** opening the panel mid-session does not unmount or
-  reset the session state; deep-linking to a page leaves a back-button trail
-  that returns to the session.
-
-### Phase 8 — Bookmarks / page pins ⬜ Planned
-*Star a page so you can jump back without re-searching.*
-
-- New on-device table: `pdf_bookmarks (id, source_id, page_number, label, created_at)`.
-  Keep it local per the legal constraint — bookmarks reference pages from the
-  user's own PDF, so they only make sense on their device.
-- Add a "Pin this page" affordance in the PDF viewer toolbar; allow an
-  optional short label (e.g. "My subclass", "Conditions"). Default label is
-  the source filename + page number.
-- Surface pins in two places:
-  - A dedicated "Pinned" section at the top of the search screen (always
-    visible, independent of any active query).
-  - Optional drawer/section on the rulebook screen, grouped by source.
-- Pins are also a search filter: a "Pinned only" toggle on the search screen
-  scopes hits to `(sourceId, pageNumber)` pairs that are pinned.
-- Tap a pin → opens PDF viewer at that page.
-- Edit/delete actions on each pin (long-press or trailing menu).
-- **Out of scope:** annotations or note text on a pin (covered separately by
-  the existing Notes feature). Pins are just navigational shortcuts.
-- **Accept criteria:** pins survive app reloads on both web (IndexedDB) and
-  native (SQLite); tapping a pin always opens to the correct page; pins for
-  a deleted source are auto-removed.
-
-### Phase 9 — DM-shared search results ⬜ Planned
-*Share the **fact** of a hit with the party without sharing PDF text.*
-
-- Hard legal rule: PDF page text never leaves the device. This phase shares
-  *citations only* — `(sourceKey, pageNumber, label)` — which any party
-  member who also indexed the same source can re-resolve locally.
-- New table (Supabase): `session_lookups`
-  ```sql
-  create table session_lookups (
-    id            uuid primary key default gen_random_uuid(),
-    session_id    uuid not null references sessions(id) on delete cascade,
-    shared_by     uuid not null references auth.users(id),
-    source_key    text not null,            -- e.g. 'phb_2024' (matches campaign.content_sources.key)
-    page_number   int  not null,
-    query         text,                     -- the search the DM ran (optional, for context)
-    label         text,                     -- short caption like "Grappled condition"
-    shared_at     timestamptz default now()
-  );
-  ```
-  RLS: only members of the parent campaign can read; only DM (or party with
-  permission) can insert. Snippet text is **never** stored server-side —
-  the `query` field is the user's typed query, not extracted PDF content.
-- "Share to party" button on each hit in the in-session lookup panel
-  (Phase 7) and the main search screen.
-- Realtime broadcast on `session:{id}` so other clients show a toast like
-  *"GM shared a reference: PHB p.217 (Counterspell)"* with a "Open" action.
-- On the receiving side: if the user has the same `source_key` indexed, the
-  Open action deep-links to their local copy at that page. If they don't,
-  show "You haven't uploaded this source — go to Rulebook to add your copy."
-- A dedicated "Shared this session" feed in the session screen so late
-  joiners can scroll back through what was looked up.
-- **Out of scope:** DM annotations, in-line snippets, sharing arbitrary text.
-  All sharing is citation-only by design.
-- **Accept criteria:** a DM share never transmits a single character of PDF
-  page text; receiving clients without the same source see a clear "you
-  don't have this PDF" prompt rather than an empty viewer.
-
 ---
 
 ### Dependencies introduced by the parsing plan
@@ -310,12 +228,9 @@ only adding producers of `PageText[]`.
 |---|---|---|
 | 5b | `pdfjs-dist` | Web + (via legacy build) native. Dynamic import. |
 | 5c | `base-64`, `text-encoding` | Tiny shims for Hermes compatibility. |
-| 7  | *(none)* | Reuses existing search APIs + viewer routes. |
-| 8  | *(none)* | Local-only persistence via existing IDB/SQLite layers. |
-| 9  | *(none new)* | Adds a Supabase table + Realtime channel reuse. |
 
-No server changes for Phases 7 and 8. Phase 9 adds one citation-only table;
-PDF content remains on-device per the legal constraint.
+No server changes. No Supabase schema changes. Everything stays on-device per
+the legal constraint.
 
 ---
 
