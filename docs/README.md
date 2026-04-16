@@ -25,6 +25,9 @@ GitHub: https://github.com/tyfoultz/Vaultstone
 - [7. World Building & Campaign Knowledge Base](features/07-world-building.md)
 - [8. Campaign System Card — PDF Rulebook](features/08-pdf-rulebook.md)
 
+### Active Plans
+- [World Builder Rewrite](plans/world-builder-rewrite.md) — Feature 7 full-rewrite plan (8 phases). Plan only; no build yet.
+
 ### Store & Distribution
 - [iOS App Store Requirements](store/ios.md)
 - [Android (Google Play) Requirements](store/android.md)

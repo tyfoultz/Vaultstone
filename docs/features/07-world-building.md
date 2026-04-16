@@ -1,444 +1,337 @@
-# Feature 7: World Building & Campaign Knowledge Base
+# Feature 7: World Builder & Notes Manager
 
-> GM workspace for worlds, locations, maps, factions, timeline events, and
-> long-form notes. Absorbs the deeper notes infrastructure that used to live
-> in Feature 6 — the session-scoped Campaign Notes Hub (session_notes +
-> recap) shipped separately and still lives in [06-notes.md](./06-notes.md).
-> All content is user-generated and may be stored and synced server-side.
+> Notion-style workspace where a DM builds and runs a world. Sidebar-driven
+> sections + unlimited nested pages; structured-fields + free-text body on
+> default page types; uploaded maps with pan/zoom and categorized pins with
+> drill-down into sub-maps; per-page visibility controls for players; a
+> single world can be linked to multiple Vaultstone campaigns and each
+> page carries a scope (world-shared vs campaign-specific) so content
+> stays pure across campaigns. Supersedes the earlier Feature 7 draft.
+>
+> All content is user-generated and stored per-account in Supabase.
 > Respects [Legal Constraints](../legal.md).
 
-**Status:** Post-MVP. Nothing here is built yet.
+**Status:** 🔴 Planned. Full rewrite — nothing in this doc is built. Feature 6
+(Session Notes & Campaign Notes Hub) is unaffected and continues to use its
+shipped Markdown editor.
 
 ---
 
-## Epics
+## Terminology
 
-1. **Worlds & Free-standing Notes** — create/manage worlds; author notes at personal, campaign, world, or location scope
-2. **Rich Text & Cross-linking** — extend the shipped Markdown editor with `@content-ref` chips, `[[note-link]]` chips + backlinks, and extra formatting
-3. **Hierarchy, Tags & Search** — nested notes and locations; drag-to-reorder; tags with autocomplete; full-text search
-4. **Visibility & Party Sharing** — three-tier visibility (`private`/`gm_visible`/`party_shared`), server-enforced; NPC + faction secret-field stripping; Player View preview
-5. **Locations & Maps** — location hierarchy with detail pages; map upload; pan/zoom; percentage-coordinate pins; nested maps
-6. **Factions** — faction records, NPC membership, ally/rival relationships
-7. **Timeline** — in-world events, era grouping, real-session → event linking
-8. **Structured Note Types** — NPC tracker, Quest log
-
----
-
-## Key Design Principles
-
-- **System-agnostic.** No D&D-specific concepts. Works for any TTRPG setting.
-- **Hierarchy is flexible.** Both notes and locations nest arbitrarily. No enforced depth.
-- **Maps are optional overlays.** Any location or the world root can have a map; maps don't replace the hierarchy.
-- **Pins use percentage coordinates.** `x`/`y` stored as 0–100 of image dimensions — accurate at any zoom or screen size.
-- **Notes are the narrative layer.** Locations, factions, and events carry structured fields; all prose lives in linked notes.
-- **Visibility is enforced server-side.** Every entity with a visibility field is filtered in every read via RLS + security-definer helpers — frontend visibility is display-only.
+| Term | Meaning |
+|---|---|
+| **World** | A top-level container the DM authors. Holds every section, page, map, and timeline event for that setting. |
+| **World–campaign link** | Many-to-many association between a world and Vaultstone campaigns. A world can be reused across campaigns; a campaign can share a world with another campaign. |
+| **Section** | A sidebar container inside a world. 4 defaults (Locations, NPCs & Characters, Players, Factions) + DM-created custom sections with preset templates. |
+| **Page** | A document inside a section. Has a title, optional structured fields (typed form at the top), free-text body, attachments, and optional sub-pages (unlimited nesting). |
+| **Scope** | Every page is either `world-level` (visible in every linked campaign's view) or `campaign-level` (visible only under that campaign's lens). Changeable after creation. |
+| **Lens** | The campaign through which the DM is currently viewing the world. Lens filters which campaign-scoped pages are visible. `world-only` is always available. |
+| **Map** | An uploaded image with pan/zoom. Each world has a primary home-screen map; Location pages may attach their own map. |
+| **Pin** | A categorized marker on a map at percentage coordinates. Links to any page. |
+| **Stub page** | An auto-materialized row in the Players section for each PC in a linked campaign. DM can enrich. |
 
 ---
 
-## Data Models
+## Key design decisions
 
-### Note
-```typescript
-Note {
-  id: uuid, authorId: string,
-  campaignId: uuid | null,         // null = personal note
-  worldId: uuid | null,            // optional world scoping
-  sessionId: uuid | null,          // authored during a session
-  parentId: uuid | null,           // null = root within its scope
-  sortOrder: float,                // fractional indexing for reorder
-  title: string,
-  body: string,                    // Markdown (shipped RichTextEditor format)
-  contentText: string,             // plain-text extraction for FTS
-  visibility: "private" | "gm_visible" | "party_shared",
-  noteType: "general" | "npc" | "quest" | "lore",
-  structuredData: json | null,     // populated for npc/quest types
-  tags: string[],
-  contentRefs: ContentRef[],       // links to spells/creatures/items by key
-  linkedLocationIds: uuid[],
-  linkedFactionIds: uuid[],
-  linkedTimelineEventIds: uuid[],
-  isPinned: boolean, isArchived: boolean,
-  createdAt: timestamp, updatedAt: timestamp
+Locked during vision discovery. Each decision is load-bearing for the data model or UX below.
+
+| # | Area | Decision |
+|---|---|---|
+| 1 | Page scope | Every page has a `scope` field: `world-level` (null `campaign_id`) or `campaign-level` (set `campaign_id`). Changeable after creation. |
+| 2 | Recap ↔ timeline | Opt-in only. "Add to world timeline" button on published Feature 6 recaps pre-fills a `timeline_event`. No auto-flow. |
+| 3 | Player reveal | Per-page `visible_to_players` toggle (default off) + section-level override (`force_hidden_from_players`, `default_pages_visible`). |
+| 4 | Maps | Multiple with drill-down nesting. World has a primary. Any Location page can attach one. Pins on maps pointing to Locations-with-maps offer "View Sub-map" with breadcrumb navigation. |
+| 5 | Templates | Structured typed fields + free-text body on default sections. Template schemas are code-defined (not user-defined). First-class data — searchable and filterable. |
+| 6 | Pin types | 7 categorized types with default icon + color (overridable per pin): City, Landmark, NPC, Faction HQ, Event, Quest, Generic. Filter bar toggles visibility by type. |
+| 7 | Images | Per-page attachments only. Uploaded inline (paste/drag/picker). Images owned by their page; page delete → image delete. |
+| 8 | PC linkage | One-way. Pages can tag PCs from linked campaigns for filtering/search/chips. Character sheets are untouched. |
+| 9 | Lens behavior | Dropdown in world header; `world-only` default when entering from homepage; campaign pre-selected when entering from campaign detail; DM can switch mid-session; page scope can be changed after creation. Lens filters what the DM sees — it is not a DM override that shows everything. |
+| 10 | Players section | Hybrid — PCs from linked campaigns auto-materialize as stub pages (campaign-scoped); DM enriches and can also add custom handout pages freely. Unlinking a PC flags its stub `is_orphaned`. |
+| 11 | Custom sections | Template picker: 4 defaults + 4 extras (Religions, Organizations, Items, Lore) + Blank. No full custom-field builder. |
+| 12 | Search | Default scope current world. Toggle chip expands to all owned worlds. Hits page title + structured fields + body plain text + pin labels + timeline event titles. |
+| 13 | Deletion | Soft-delete with 30-day recovery on worlds / sections / pages / maps / timeline. Daily purge of expired rows. Campaign deletion unlinks but preserves world; affected campaign-scoped pages flagged orphaned. |
+| 14 | Nesting | Unlimited sub-page depth. |
+| 15 | Deleted-target chip | Inert grey pill with old label + `(deleted)`. DM click within 30-day window restores. |
+| 16 | Storage cap | 500MB per-user soft cap with 80% warning; blocks new uploads at 100%. Images > 2MB compressed server-side on upload. |
+| 17 | Native editor | 10tap-editor (Tiptap-in-WebView) on iOS + Android for parity with web Tiptap. No Markdown fallback on any platform. |
+| 18 | Orphan search | Orphaned pages included in default search with an "Orphaned" badge. Filter chip to exclude. |
+
+---
+
+## Data model
+
+All timestamps `timestamptz default now()`. All PKs `uuid default gen_random_uuid()` unless noted. Soft-deletable tables add `deleted_at` + `hard_delete_after` columns.
+
+### `worlds`
+`id`, `owner_id` → `profiles(id)`, `name`, `tagline`, `cover_image_key`, `primary_map_id` → `world_maps(id)` (nullable, populated after both rows exist), `created_at`, `updated_at`, `deleted_at`, `hard_delete_after`.
+
+### `world_campaigns` (many-to-many join)
+`(world_id, campaign_id)` PK, `linked_at`. Triggers: on INSERT, materialize PC stub pages for every character on that campaign. On DELETE, flag stubs and campaign-scoped pages `is_orphaned = true`.
+
+### `world_sections`
+`id`, `world_id`, `template_key` (one of: `locations`, `npcs`, `players`, `factions`, `religions`, `organizations`, `items`, `lore`, `blank`), `title`, `sort_order` (fractional), `force_hidden_from_players`, `default_pages_visible`, soft-delete cols.
+
+### `world_pages`
+`id`, `world_id`, `section_id`, `parent_page_id` (nullable — unlimited nesting), `campaign_id` (nullable = world-level; set = campaign-level — this is the scope column), `page_kind` (`custom` | `location` | `npc` | `faction` | `player_character` | `pc_stub` | `religion` | `organization` | `item` | `lore`), `character_id` (set only for `pc_stub` / `player_character`), `title`, `icon`, `body JSONB` (Tiptap doc), `body_text TEXT` (plain-text extract for FTS), `body_refs UUID[]` (chip target IDs for cheap backlinks), `structured_fields JSONB` (validated against the section template), `visible_to_players`, `is_orphaned`, `sort_order` (fractional), soft-delete cols.
+
+Indexes: composite `(world_id, section_id, sort_order)` for the sidebar tree; partial `(campaign_id) WHERE campaign_id IS NOT NULL` for lens filters; GIN on `body_refs` for backlinks; FTS GIN on `to_tsvector('english', title || ' ' || body_text)`; GIN on `structured_fields`; unique partial `(world_id, character_id) WHERE page_kind = 'pc_stub'` to prevent duplicate stubs.
+
+Why JSONB `structured_fields` (not a normalized field-value table): templates are code-defined and closed-set, so we can validate shape in the API. JSONB keeps saves single-row and survives template version bumps without per-field migrations. Searchable via GIN with `jsonb_path_ops`.
+
+### `page_pc_links`
+`(page_id, character_id)` PK. Independent of any `pc_stub` — a non-Players page can tag a PC for filtering.
+
+### `world_maps`
+`id`, `world_id`, `owner_page_id` (null = world-primary candidate; set = owned by a Location page), `campaign_id`, `label`, `image_key` (in `world-maps` bucket), `image_width`, `image_height`, `aspect_ratio`. Actual primary map is elected via `worlds.primary_map_id`.
+
+### `pin_types` (reference, seeded)
+`key` PK (one of 7 above), `label`, `default_icon_key`, `default_color_hex`, `sort_order`.
+
+### `map_pins`
+`id`, `map_id`, `world_id` (denormalized for cheap filter-bar queries + RLS), `pin_type` → `pin_types(key)`, `x_pct`, `y_pct` (0.0–1.0), `label`, `icon_key_override`, `color_override`, `linked_page_id` (nullable).
+
+### `timeline_events`
+`id`, `world_id`, `campaign_id` (scope), `title`, `body` (Tiptap JSON), `body_text`, `body_refs`, `in_world_date` (freeform text — "Year 1203, Month of Ice"), `era`, `sort_order`, `source_session_id` → `sessions(id)` (set by "Add to world timeline"), `visible_to_players`, soft-delete cols.
+
+### `world_images`
+`id`, `page_id` (owner — delete-cascaded), `world_id` (denormalized), `image_key` (in `world-images` bucket), `width`, `height`, `alt`.
+
+### Soft-delete mechanics
+
+RPCs like `trash_world_page(page_id)` set `deleted_at = now()` and `hard_delete_after = now() + interval '30 days'`, cascading to the page tree. A daily job (pg_cron or scheduled Edge Function) hard-deletes rows where `hard_delete_after < now()` and reaps their Storage objects. Restore clears both columns.
+
+### Section templates (code, not DB)
+
+Templates live in `packages/content/src/world-templates/` as versioned TypeScript constants:
+
+```ts
+interface SectionTemplate {
+  key: 'locations' | 'npcs' | 'players' | 'factions' | 'religions' | 'organizations' | 'items' | 'lore' | 'blank';
+  label: string;
+  pageKind: WorldPage['page_kind'];
+  fields: StructuredField[];
+  defaultIcon: string;
+  version: number; // bump when the schema grows
+}
+
+interface StructuredField {
+  key: string;
+  label: string;
+  type: 'text' | 'longtext' | 'select' | 'tags' | 'page_ref' | 'pc_ref' | 'number' | 'date_freeform';
+  options?: string[];
+  refKind?: PageKind[];
+  isSearchable?: boolean;
 }
 ```
 
-Notes store **Markdown**, not structured JSON, because the shipped
-`RichTextEditor` already produces Markdown and the existing `session_notes`
-/ `sessions.summary` columns are already valid Markdown. `contentText` is
-derived on save by running the body through the Markdown renderer and
-taking the text content — indexed by Postgres FTS.
+Pages render any field keys their template doesn't recognize as empty. Adding a field is a no-migration change; removing one is still safe because the JSONB blob retains old keys harmlessly.
 
-### NPC structured data
-```typescript
-NPCData {
-  race: string | null, occupation: string | null, location: string | null,
-  affiliation: string | null, relationshipToParty: string | null,
-  status: "alive" | "dead" | "unknown" | "missing",
-  firstSeen: string | null, lastSeen: string | null,
-  secretInfo: string | null        // GM-only; stripped from party_shared payloads
+---
+
+## RLS & visibility
+
+Adds one helper to the existing `is_campaign_dm` / `is_campaign_member` pair:
+
+```sql
+create or replace function is_world_owner(p_world_id uuid)
+returns boolean language sql security definer set search_path = public as $$
+  select exists (select 1 from worlds where id = p_world_id and owner_id = auth.uid());
+$$;
+```
+
+Per-table:
+
+- **`worlds`** SELECT inline `owner_id = auth.uid()` (no helper — same recursion lesson as `campaigns`). Owner sees their soft-deleted worlds too; the UI filters.
+- **`world_campaigns`** SELECT: owner OR member of the campaign (players need this to resolve which worlds to query). INSERT / DELETE: owner + `is_campaign_dm`.
+- **`world_sections`** SELECT: owner OR the section contains at least one page the player can read. Write: owner only.
+- **`world_pages`** SELECT: owner full; player reads when `visible_to_players AND section not force-hidden AND deleted_at IS NULL AND is_orphaned = false`, scope resolves to a campaign they're a member of. No player INSERT/UPDATE/DELETE.
+- **`world_maps` / `map_pins`** mirror the owning page's readability.
+- **`timeline_events`** mirrors `world_pages`.
+- **`page_pc_links`** visibility piggybacks on the page's SELECT — players re-query the page for chip data.
+- **`world_images`** mirrors the owning page.
+
+Storage buckets `world-maps` and `world-images` are private. Object paths are `{worldId}/{mapId|pageId}/…` so RLS on the bucket can key off the path prefix. Signed URLs fetched at render; refresh at 80% TTL or on 403.
+
+No per-field visibility in v1 (no secret-column stripping). Re-evaluate if demand shows up.
+
+---
+
+## Editor & chips
+
+Shipping **Tiptap** on web and **10tap-editor** (a Tiptap-in-WebView shim) on native. Shared extension package at `packages/ui/src/world-editor/` keeps the node schema, suggestion config, and extractors aligned across platforms.
+
+### Node schema
+
+StarterKit block nodes + marks (`bold`, `italic`, `underline`, `strike`, `code`, `link`), plus two custom nodes:
+
+```ts
+// Mention / chip — a single node covers page / pin / pc references
+{
+  type: 'mention',
+  attrs: {
+    kind: 'page' | 'pin' | 'pc',
+    targetId: string,
+    label: string,                   // captured at insert time
+    deletedSnapshot?: {              // injected by the renderer when the target is gone
+      originalLabel: string,
+      deletedAt: string,
+      recoverableUntil: string | null,
+    }
+  },
+  inline: true, atom: true,
+}
+
+// Inline image attachment
+{
+  type: 'worldImage',
+  attrs: { imageId: string, alt: string, width: number, height: number },
+  atom: true,
 }
 ```
 
-### Quest structured data
-```typescript
-QuestData {
-  status: "active" | "completed" | "failed" | "abandoned",
-  giver: string | null, objective: string,
-  reward: string | null, relatedNoteIds: uuid[]
-}
+### Storage derivations
+
+On every save, the client walks the Tiptap doc and derives:
+
+- `body_text` — plain-text concatenation of text nodes + mention `label`s + image `alt`s. Used by FTS.
+- `body_refs` — collected `mention.attrs.targetId` values. Used for cheap backlinks via GIN.
+
+Both are persisted as columns on `world_pages` / `timeline_events`. Backlink query:
+
+```sql
+select id, title from world_pages
+ where world_id = $1 and deleted_at is null and $2 = any(body_refs);
 ```
 
-### World
-```typescript
-World {
-  id: uuid, userId: string, campaignId: uuid | null,
-  name: string, tagline: string | null, system: string | null,
-  tags: string[], isArchived: boolean
-}
+### Chip UX
+
+- `@` trigger opens a suggestion popover (scopes: Pages, PCs, Map pins). Debounced ~200ms.
+- Selecting a target inserts a `mention` node with the chosen `kind` / `targetId` / `label`.
+- **Web**: a `MentionNodeView.web.tsx` component adds a hover popover showing the target's title + first 120 chars of `body_text`. Click navigates.
+- **Native**: `MentionNodeView.native.tsx` skips the hover layer. Tap navigates.
+- When the target is missing or soft-deleted, the renderer injects `deletedSnapshot` attrs and the chip renders as a grey inert pill. If inside the 30-day recovery window, DM clicks open a restore flow.
+
+### Feature 6 coexistence
+
+Feature 6 (Session Notes + Campaign Notes Hub) keeps its shipped Markdown `RichTextEditor`. No migration. Two editors coexist — world-builder pages use Tiptap, session notes + recap continue on Markdown. Revisit only if product needs a unified editor later.
+
+---
+
+## Map canvas
+
+- **Storage bucket** `world-maps`, private, signed URLs only. Object path `{worldId}/{mapId}/{filename}`. Accepted: `image/jpeg`, `image/png`, `image/webp`. 20MB cap enforced at the upload API; images > 2MB compressed server-side.
+- **Pan/zoom library**: `react-zoom-pan-pinch` on web; `react-native-reanimated` 3 + `react-native-gesture-handler` on native. Zoom bounds 0.5×–4×, double-tap 2× on native, "Reset View" button.
+- **Pin coordinates** stored as 0–1 percentages. On render: `pin.x_pct * image.displayedWidth`, same for Y. Placement mode captures click/tap, reverse-projects through current scale/translate, saves a new `map_pins` row.
+- **Nested navigation** is managed by a new store `packages/store/src/world-map-stack.store.ts` that holds a breadcrumb stack of `{mapId, viewport: {scale, translateX, translateY}, breadcrumbLabel}` entries. "View Sub-map" pushes the stack and swaps to the child map; back pops and restores the viewport. Top-of-stack viewport persisted; mid-drill state session-only.
+- **Filter bar** toggles a `Set<PinTypeKey>` that the pin layer consults before rendering.
+
+---
+
+## Search
+
+One RPC drives everything:
+
+```sql
+search_world(world_id uuid, query text, scope_all boolean)
+  returns table (kind text, id uuid, world_id uuid, title text, snippet text, ...)
 ```
 
-### WorldLocation
-```typescript
-WorldLocation {
-  id: uuid, worldId: uuid, parentId: uuid | null,
-  name: string, locationType: LocationTypeKey,
-  summary: string | null,
-  status: "active" | "ruined" | "unknown" | "destroyed" | "custom",
-  customStatus: string | null, population: string | null,
-  governingFactionId: uuid | null,
-  linkedNoteIds: uuid[], linkedFactionIds: uuid[],
-  sortOrder: float, tags: string[],
-  visibility: "private" | "gm_visible" | "party_shared"
-}
+Unions FTS hits across:
 
-LocationTypeKey:
-  "world" | "continent" | "sea" | "region" | "nation" |
-  "city" | "town" | "village" | "outpost" |
-  "district" | "building" | "dungeon" | "wilderness" |
-  "plane" | "point_of_interest" | "custom"
-```
+- `world_pages.title || ' ' || body_text`
+- `world_pages.structured_fields` (via `jsonb_path_query_array`)
+- `map_pins.label`
+- `timeline_events.title || ' ' || body_text`
 
-### WorldMap + MapPin
-```typescript
-WorldMap {
-  id: uuid, ownerId: uuid,         // WorldLocation.id or World.id
-  ownerType: "world" | "location",
-  label: string | null, imageKey: string,
-  imageWidth: int, imageHeight: int
-}
-// Signed URL generated at render time; raw object URL never stored.
-// Each World or WorldLocation has at most one active map.
-
-MapPin {
-  id: uuid, mapId: uuid,
-  x: float, y: float,              // percentage of image dimensions (0–100)
-  pinType: PinTypeKey,
-  label: string | null, color: string | null, iconKey: string | null,
-  linkedEntityType: "location" | "npc_note" | "faction" | "timeline_event" | "note" | null,
-  linkedEntityId: uuid | null, sortOrder: int
-}
-
-PinTypeKey: "city" | "town" | "village" | "dungeon" | "wilderness"
-          | "npc" | "faction" | "event" | "point_of_interest" | "custom"
-```
-
-### Faction
-```typescript
-Faction {
-  id: uuid, worldId: uuid, name: string, summary: string | null,
-  type: string | null, goals: string | null,
-  secrets: string | null,          // GM-only; stripped server-side from party payloads
-  status: "active" | "disbanded" | "unknown",
-  memberNoteIds: uuid[],           // NPC-type Note records
-  alliedFactionIds: uuid[], rivalFactionIds: uuid[],
-  headquartersLocationId: uuid | null,
-  linkedNoteIds: uuid[], tags: string[],
-  visibility: "private" | "gm_visible" | "party_shared"
-}
-```
-
-### TimelineEvent
-```typescript
-TimelineEvent {
-  id: uuid, worldId: uuid, name: string, description: string,
-  inWorldDate: string | null,      // freeform — e.g. "Year 1203, Month of Ice"
-  era: string | null,              // grouping label
-  realSessionId: uuid | null,      // linked campaign session (Feature 4)
-  linkedLocationIds: uuid[],
-  linkedNPCNoteIds: uuid[],        // NPC-type Notes
-  linkedFactionIds: uuid[],
-  linkedNoteIds: uuid[],
-  sortOrder: float, tags: string[],
-  visibility: "private" | "gm_visible" | "party_shared"
-}
-```
+Default scope: the current world. `scope_all = true` unions rows across every world owned by `auth.uid()`. Debounced ~300ms. Results grouped by world when cross-world. Orphaned pages included with an "Orphaned" badge by default; filter chip excludes them.
 
 ---
 
-## Epics & User Stories
+## Phased build order
 
-### Epic 1 — Worlds & Free-standing Notes
+Each phase is a feature branch + PR, independently shippable. All phases after 1 depend on 1.
 
-**US-101 — Create a world**
-- Required: name. Optional: tagline, system label, campaign link, tags.
-- Can exist without campaign link. Multiple worlds per user.
-- World card shows name, tagline, linked campaign, location count, last updated.
+### Phase 1 — Foundation
+`worlds`, `world_campaigns`, `is_world_owner`, world list + picker, empty workspace shell, lens dropdown placeholder. Rewrite this spec (already done on the plan branch) + update `build-status.md`, `README.md`, `features/README.md`.
 
-**US-102 — Manage worlds**
-- Edit name/tagline/system/tags. Archive hides from main list (recoverable).
-- Delete: confirmation warns that all locations, maps, factions, and timeline
-  events are deleted. Linked Notes are NOT deleted — only references cleared.
+### Phase 2 — Sections & pages (no editor)
+`world_sections`, `world_pages`, section templates in `packages/content/src/world-templates/`, sidebar with unlimited nesting, create-section/page modals, structured-fields form renderer, Recently Deleted scaffolding. Page body is placeholder.
 
-**US-103 — Create a note**
-- Contexts: personal (no scope), campaign-level, world-level, location-level
-  (implicit link to the location it was created from), or standalone within
-  an existing parent note. Session-scope is already covered by the Campaign
-  Notes Hub in Feature 6.
-- Pick note type + scope + visibility on creation. Visibility defaults to
-  `private` for both players and GMs — explicit action to share.
-- Blank note opens immediately with cursor in title field. No wizard.
-- Autosaved ~1s debounce; "Saved" / "Saving…" indicator.
+### Phase 3 — Editor & chips & backlinks
+Tiptap + 10tap install, shared extensions in `packages/ui/src/world-editor/`, `WorldPageEditor.{web,native}.tsx`, mention suggestion popover, hover preview (web), deleted-target chip UI, backlinks via `body_refs`. Benchmark on mid-range Android mid-phase.
 
-**US-104 — Edit a note**
-- Author can always edit. `party_shared` notes are read-only for non-authors.
-- Autosave continuous; no manual save; "Last edited [time]" in note header.
-- Offline: edits queued locally with "Pending sync"; synced on reconnect.
+### Phase 4 — Visibility & lens & PC stubs
+`visible_to_players`, section overrides, PC-stub materialization triggers on `world_campaigns` INSERT and `characters` INSERT, lens dropdown, entry heuristic (campaign-detail → that campaign's lens; homepage → world-only), mid-session lens switch, orphan banners, Player View preview toggle.
 
-**US-105 — Delete a note**
-- Soft-delete (`isArchived: true`) with 30-day recovery window.
-- If the note has children: *"This note contains [n] sub-note(s). Deleting
-  it will also delete all nested notes."*
-- "Recently Deleted" section in settings.
+### Phase 5 — Maps & pins & nesting
+`world_maps`, `pin_types` (seeded), `map_pins`, `world-maps` bucket, `MapCanvas.{web,native}.tsx`, pin layer + placement mode + filter bar, sub-map drill-down, breadcrumbs, `world-map-stack.store.ts`.
 
-**US-106 — Pin a note** — Toggle in note header menu. Pinned notes float to the top, separated by a divider. Max 5 pinned per context. Pin state is per-user.
+### Phase 6 — Timeline & Feature 6 integration
+`timeline_events`, timeline UI, `AddToWorldTimelineButton` wired into the published-recap flow in the existing Campaign Notes Hub (`components/notes/recap/RecapEditorPanel.tsx` adjacent). No Feature 6 schema change.
 
-**US-107 — Duplicate a note** — " (Copy)" suffix, same parent. Visibility reset to `private`. Opens in edit mode.
+### Phase 7 — Players section & images & search
+Players-section hybrid UI with stub enrichment + orphan resolution, `world-images` bucket + image insertion, `search_world` RPC + `SearchBar` + `SearchResultsDrawer`, orphan-badge rendering.
+
+### Phase 8 — Polish & deletion UX
+Fractional `sort_order` drag-to-reorder (sidebar + timeline), Recently Deleted restore, daily hard-delete cron + Storage reaper, storage cap enforcement (500MB soft, 80% warning, server-side compression > 2MB), Android editor perf tuning if needed, a11y + keyboard pass.
 
 ---
 
-### Epic 2 — Rich Text & Cross-linking
+## Critical files
 
-> **Already built:** `components/notes/RichTextEditor.tsx` +
-> `RichTextRenderer.{native,web}.tsx`. Markdown stored as plain text,
-> persistent 5-button toolbar (bold, italic, H2, bullet list, quote).
-> `react-markdown` + `remark-gfm` on web; `react-native-markdown-display`
-> on native. This epic **extends** that surface — it does not replace it.
+**Routes**
+- `app/(drawer)/worlds.tsx`
+- `app/world/[worldId]/_layout.tsx`, `index.tsx`
+- `app/world/[worldId]/section/[sectionId].tsx`
+- `app/world/[worldId]/page/[pageId].tsx`
+- `app/world/[worldId]/map/index.tsx`, `map/[mapId].tsx`
+- `app/world/[worldId]/timeline.tsx`, `search.tsx`, `settings.tsx`
 
-**US-201 — Extended formatting**
-- Add: H1, H3, underline, strikethrough, inline code, numbered list,
-  horizontal rule. Keep Markdown storage.
-- Keyboard shortcuts on web (⌘B, ⌘I, etc.).
-- Optional polish: floating toolbar on text selection; persistent strip stays as the fallback.
+**Components (`components/world/`)**
+- `Sidebar.tsx`, `SidebarSection.tsx`, `SidebarPageRow.tsx`, `SectionTemplatePicker.tsx`, `CreateSectionModal.tsx`, `CreatePageModal.tsx`
+- `LensDropdown.tsx`, `shared/OrphanBanner.tsx`, `shared/PlayerViewToggle.tsx`, `shared/DeletedChip.tsx`
+- `StructuredFieldsForm.tsx` + `fields/*.tsx`
+- `editor/WorldPageEditor.{web,native}.tsx`, `editor/MentionNodeView.{web,native}.tsx`, `editor/MentionSuggestionList.{web,native}.tsx`, `editor/ChipRenderer.tsx`, `editor/WorldImageNodeView.tsx`
+- `map/MapCanvas.{web,native}.tsx`, `map/PinLayer.tsx`, `map/PinPlacementMode.tsx`, `map/PinFilterBar.tsx`, `map/PinEditorModal.tsx`, `map/MapBreadcrumbs.tsx`, `map/MapUploadModal.tsx`
+- `timeline/TimelinePage.tsx`, `timeline/TimelineEventCard.tsx`, `timeline/AddToWorldTimelineButton.tsx`
+- `search/SearchBar.tsx`, `search/SearchResultsDrawer.tsx`
 
-**US-202 — Plain-text extraction for search**
-- On save, derive `contentText` by running `body` through the Markdown
-  renderer and taking the text content. Strips syntax so FTS indexes words,
-  not `**bold**`.
-- Trigger: same autosave debounce that persists `body`.
+**API (`packages/api/src/`)**
+- `worlds.ts`, `world-campaigns.ts`, `sections.ts`, `pages.ts` (body extraction + backlinks), `maps.ts`, `pins.ts`, `pin-types.ts`, `timeline-events.ts`, `world-images.ts`, `world-storage.ts`, `world-search.ts`
 
-**US-203 — Insert a ContentRef chip (`@`)**
-- Typing `@` opens an inline search popover querying ContentResolver
-  (spells, creatures, items, features).
-- Select → inserts a styled chip with name + type icon (e.g. ⚡ Fireball).
-- Chip stores `{ key, sourceId, contentType }` only — **never description text** (legal constraint).
-- Tier-2 source unavailable → chip renders with "source unavailable" but doesn't break the note.
+**Stores (`packages/store/src/`)**
+- `worlds.store.ts`, `current-world.store.ts`, `world-map-stack.store.ts`, `world-search.store.ts`
 
-**US-204 — Insert a note link (`[[`)**
-- `[[` opens a search popover over notes the current user can read.
-- Inserts a chip linking to the target note. Taps/clicks navigate or open a side panel on desktop.
-- **Backlinks:** linked note's header shows "Referenced by [n] note(s)" with a navigable list.
-- Deleted target note → chip renders as "Note not found" broken link.
+**Content**
+- `packages/content/src/world-templates/` — 9 template files (locations, npcs, players, factions, religions, organizations, items, lore, blank)
 
-**US-205 — Insert a world-entity chip**
-- Same popover pattern; scope toggle exposes locations, factions, timeline
-  events, NPC notes.
-- Inserting also updates the target entity's `linkedNoteIds` (bidirectional).
+**Types**
+- `packages/types/src/database.types.ts` (extended)
+- `packages/types/src/world.ts` (new)
 
----
-
-### Epic 3 — Hierarchy, Tags & Search
-
-**US-301 — Nest notes into a hierarchy**
-- Any note can be parent of another. No separate "folder" entity.
-- "New Sub-note" in parent menu; "Move to…" action elsewhere.
-- No enforced depth; deep trees handled with collapse + breadcrumb.
-- Breadcrumb in note header shows full ancestry, clickable.
-
-**US-302 — Reorder notes** — Drag-and-drop within parent or at root. Fractional `sortOrder` avoids renumbering.
-
-**US-303 — Tag notes** — Freeform tags, inline entry with autocomplete against previously used tags. Clicking a tag opens a tag-filtered view of all accessible notes carrying it.
-
-**US-304 — Navigate the location hierarchy**
-- Sidebar tree for the active world; expand/collapse per level.
-- Search input filters tree in real time by name.
-- Locations draggable to a new parent (confirmation prompt).
-- Fractional `sortOrder`; drag-to-reorder within level.
-
-**US-305 — Full-text search**
-- Postgres FTS over `contentText` on notes + structured
-  descriptions/summaries on locations, factions, timeline events.
-- Ranked results: title, snippet (match highlighted), type badge, scope,
-  last updated.
-- Debounced ~300ms, scoped to active campaign by default; toggle expands to
-  all content the user can read.
-- Offline search falls back to locally cached recent content.
-
-**US-306 — Filter panel**
-- Multi-select: note type, tags, visibility, campaign, session, world, location.
-- Quick filters: "GM Notes" (own `private` + `gm_visible`, GM users only),
-  "Shared with Party" (all `party_shared` the user can read),
-  "Shared with Me" (player-authored `gm_visible`, GM users only).
+**Docs to update alongside each phase**
+- `docs/build-status.md` (Phase 5.2 checklist)
+- `docs/architecture.md` (new buckets, new RLS helper, Tiptap/10tap)
+- `docs/features/README.md` (summary line)
 
 ---
 
-### Epic 4 — Visibility & Party Sharing
+## Verification
 
-Applies to every entity with a `visibility` field: `notes`, `world_locations`, `factions`, `timeline_events`.
+Per-phase Tier 1 (`npm run typecheck` — no net-new baseline errors) plus targeted Tier 4 smoke on the golden path for that phase's scope. End-to-end Tier 4 Playwright run in Phase 8 exercises: create world → link two campaigns → build sections with nested pages → upload map + drop pins of multiple types → share a subset of pages with players → log in as a player in each campaign → confirm only the correct subset surfaces.
 
-**US-401 — Visibility model**
-- `private` → author only.
-- `gm_visible` → author + the campaign's GM.
-- `party_shared` → all campaign members.
-- Players can set their own entities to `private` or `gm_visible` only.
-- Only the GM can mark anything `party_shared`.
-- Entities outside a campaign context are always `private`.
-
-**US-402 — Server-side enforcement**
-- RLS SELECT policy = `author = auth.uid()` OR
-  (`visibility = 'gm_visible'` AND `is_campaign_dm(campaign_id)`) OR
-  (`visibility = 'party_shared'` AND `is_campaign_member(campaign_id)`).
-- RLS UPDATE policy = author only. Raising to `party_shared` requires
-  `is_campaign_dm`.
-- Reuses existing security-definer helpers (`is_campaign_dm`, `is_campaign_member`).
-
-**US-403 — GM shares to party**
-- GM toggles visibility via entity header menu.
-- On a live session, realtime notification pushes to connected players.
-- Revertible — dropping back to `private` removes the entity from players' views immediately.
-- When a location becomes `party_shared`, its map is visible to players in read-only mode.
-
-**US-404 — Player shares to GM**
-- Player flips a `private` note to `gm_visible`; appears in the GM's "Shared with Me" inbox with a notification.
-- Other players cannot see these notes. Player can revoke by setting it back to `private`.
-
-**US-405 — Secret-field stripping**
-- `Faction.secrets` and NPC `structuredData.secretInfo` stripped server-side
-  from any payload returned to a non-GM viewer, regardless of the parent
-  entity's visibility setting.
-- Implemented via a server-side view or RPC that omits the column for
-  non-GM viewers — never rely on the frontend to hide.
-- GM sees these fields with a lock icon in the UI.
-
-**US-406 — Player View preview**
-- GM toggle on world / location / note detail pages that renders exactly
-  what a player would see after visibility + stripping is applied.
+RLS audit (Phase 8): sign in as a non-owner non-member and confirm every world-builder table returns zero rows on SELECT.
 
 ---
 
-### Epic 5 — Locations & Maps
+## Risks & follow-ups
 
-**US-501 — Create a location** — From the world tree or from within a parent location's detail page. Required: name, location type. Any level can be created without requiring all ancestors to exist first.
-
-**US-502 — Location detail page**
-- Sections: Overview (structured fields), Map, Linked Notes, NPCs Here,
-  Factions Present, Sub-locations, Timeline Events.
-- Structured fields inline-editable; autosave with the same debounce as notes.
-- Section count badges when collapsed on mobile.
-
-**US-503 — Delete a location** — Warns if it has sub-locations. Deletes location, sub-locations, and associated `MapPin` records. Linked Notes not deleted — only `linkedNoteIds` references cleared.
-
-**US-504 — Upload a map image**
-- Accepted: PNG, JPG, WEBP; max 20 MB.
-- Uploaded to Supabase Storage (S3-compatible); signed URL generated at render time.
-- Each world or location has at most one active map. Replacing prompts confirmation (pins retained but may need position adjustment).
-- Image dimensions stored on `WorldMap` for coordinate normalization.
-
-**US-505 — View and navigate a map**
-- Pan (drag) and zoom (scroll wheel on web; pinch on mobile) inside a constrained container.
-- Zoom 0.5× – 4×; can't pan/zoom beyond image edges.
-- Viewport preserved when navigating away and returning.
-- Double-tap → 2× zoom on mobile; "Reset View" button.
-- Read-only for players with `party_shared` access.
-
-**US-506 — Place a pin** *(GM only)*
-- "Place Pin" toggle in the map toolbar.
-- Clicking/tapping in pin mode places a new pin at that position.
-- Placement panel: pin type, linked entity (optional, searchable), label (defaults to entity name), color.
-- Saved as `MapPin` with `x`/`y` as percentages.
-- Multiple pins can be placed without leaving pin mode.
-
-**US-507 — Interact with a pin**
-- Tap opens popover: label, pin type icon, linked entity name, action buttons (Open, Edit Pin, Delete Pin).
-- "Open" navigates to linked entity detail in side panel or full navigation.
-- If pin links to a sub-location with its own map: "View Sub-map" shortcut.
-- Pins draggable to new positions while in pin mode.
-
-**US-508 — Navigate nested maps** — "View Sub-map" when a pin links to a sub-location with a map. Breadcrumb: "World Map > Ashveil > Market District". Back preserves the parent map's viewport.
-
-**US-509 — Replace or remove a map**
-- Replace: new image, pins retained.
-- Remove: deletes `WorldMap` and all associated `MapPin` records.
-- Both require confirmation.
-
----
-
-### Epic 6 — Factions
-
-**US-601 — Create and manage a faction** — Required: name. Optional: type, summary, goals, headquarters location, allies, rivals, status, tags. `secrets` field stripped from `party_shared` payloads (see US-405). Linkable to locations and pinnable on maps.
-
-**US-602 — Faction membership** — "Members" section on faction detail; add member via search scoped to `noteType: "npc"`. Member cards: NPC name, occupation, status badge; click → NPC note. An NPC can belong to multiple factions.
-
-**US-603 — Faction relationships**
-- "Allied Factions" and "Rival Factions" sections; added via search.
-- Symmetric: adding B as ally of A also adds A as ally of B.
-- Cannot be both ally and rival simultaneously.
-- "Relationships" view shows factions as nodes with alliance/rivalry edges.
-  v1: simplified static layout. v2: interactive force-directed graph.
-
----
-
-### Epic 7 — Timeline
-
-**US-701 — Create a timeline event** — Required: name. Optional: in-world date (freeform string — no calendar enforcement), era, description (rich text), linked locations/NPCs/factions/notes, real session link, tags.
-
-**US-702 — View the timeline**
-- Events in `sortOrder` as a vertical scrolling list; era separator between groups.
-- Each event shows: name, in-world date, era badge, tags, linked entity counts.
-- Expand → description + navigable entity links.
-- Drag-to-reorder with fractional indexing. Filter by era, location, faction, tags.
-
-**US-703 — Link a campaign session to an event**
-- "Link to Session" searches ended campaign sessions (from Feature 4).
-- Session date shown alongside in-world date on the event card.
-- `party_shared` notes from the linked session suggested as candidate links.
-
----
-
-### Epic 8 — Structured Note Types
-
-**US-801 — NPC tracker**
-- Structured fields per `NPCData` above. GM users also see "GM Only" secret info.
-- Dedicated "NPCs" quick view (filtered list of `noteType: "npc"`).
-- NPC notes linkable to factions (membership) and locations (residence / last seen).
-
-**US-802 — Quest log**
-- Structured fields per `QuestData`. Status badge on note cards.
-- "Quests" quick view grouped by status.
-- Quest notes linkable to NPC and Location notes via note links.
-
----
-
-## Build Order (rough)
-
-Sequenced so each step unblocks the next without half-built middleware:
-
-1. `notes` table + RLS (generalizes the `session_notes` pattern to a first-class `notes` table with the full visibility model).
-2. Free-standing note CRUD reusing the shipped `RichTextEditor`.
-3. Tags + autocomplete; `contentText` extraction; Postgres FTS.
-4. Nesting + drag-to-reorder (notes).
-5. `world`, `world_locations` schema; tree UI + location detail page with Linked Notes section.
-6. `@` ContentRef chip + `[[` note-link chip + backlinks.
-7. `factions` + relationships; NPC membership rendering.
-8. `timeline_events` + session linking.
-9. Map upload + pan/zoom + pins + nested-map navigation. (Largest single chunk — image storage, gesture handling, percentage-coord math.)
-10. Party View preview + full secret-field stripping audit across all surfaces.
+1. **Storage pressure.** 500MB per-user soft cap. Monitor in Phase 8; revisit tier/tiling if DMs routinely hit it.
+2. **10tap Android performance.** No Markdown fallback. If mid-Phase 3 benchmarking shows lag on long docs on mid-range Android, fix is optimization (debounced input, virtualized NodeViews) — not a platform split.
+3. **`body_refs` drift.** Server-side edits bypassing the client extractor leave stale `body_refs`. Mitigation: `refresh_body_refs(page_id)` PG function callable from migrations. Not needed v1.
+4. **Signed URL expiry.** Auto-refresh at 80% TTL or on 403, baked into `world-storage.ts`.
+5. **Template versioning.** Adding fields to a template leaves old rows with missing keys; UI must render missing as empty and avoid destructive migrations. Pattern documented in `packages/content/src/world-templates/README.md` (to be written in Phase 2).
+6. **PC-stub trigger security.** `SECURITY DEFINER` with `search_path = public`. Fires on `world_campaigns` INSERT (authorized by world owner) and `characters` INSERT for a campaign already linked.
+7. **Feature 6 ↔ Feature 7 editor split.** Two editors coexist by design. Document the reason in `docs/architecture.md` so future contributors don't "unify" them accidentally.

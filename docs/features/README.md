@@ -35,7 +35,7 @@ Per-user private notes during a live session; Campaign Notes Hub (DM-only route)
 → [Full requirements](06-notes.md)
 
 ## 7. World Building & Campaign Knowledge Base
-GM workspace for worlds, locations, maps, factions, timeline, and the deeper notes layer (hierarchical notes, `@content-refs`, `[[note-links]]`, tags, full-text search, three-tier visibility, structured NPC/Quest types). Absorbed the non-session notes infrastructure that used to live in Feature 6.
+Notion/OneNote-style world workspace. DM owns worlds; each world links to one or more campaigns. Sidebar of default + user-defined sections (Locations, NPCs, Factions, Players, Timeline, Maps, etc.) with unlimited sub-page nesting. Rich page editor (Tiptap on web, 10tap-editor on native) with `@mention` chips that link to pages, pins, and PCs. Multiple uploaded maps with drill-down sub-maps and 7 categorized pin types. Per-page player-reveal toggle with section-level overrides. Unified search across pages, pins, and timeline. Soft-delete with 30-day recovery; 500MB per-user storage cap.
 
 → [Full requirements](07-world-building.md)
 
