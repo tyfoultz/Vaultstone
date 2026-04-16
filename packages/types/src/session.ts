@@ -1,13 +1,9 @@
-export type SessionEventType =
-  | 'hp_changed'
-  | 'condition_added'
-  | 'condition_removed'
-  | 'turn_advanced'
-  | 'initiative_set'
-  | 'spell_slot_used'
-  | 'session_started'
-  | 'session_ended';
+import type { SessionEventPayload, SessionEventType } from './session-events';
 
+// Runtime row shape for a `session_events` record — kept separate from
+// the DB Row type so consumers that hold an in-memory log don't need to
+// widen `payload` back to `Json`. Event-type + payload are narrowed to
+// the discriminated union in `session-events.ts`.
 export interface SessionEvent {
   id: string;
   session_id: string;
@@ -16,16 +12,6 @@ export interface SessionEvent {
   payload: SessionEventPayload;
   created_at: string;
 }
-
-export type SessionEventPayload =
-  | { character_id: string; old_hp: number; new_hp: number; cause?: string }
-  | { character_id: string; condition: string; source?: string }
-  | { character_id: string; condition: string }
-  | { session_id: string; new_active_id: string; round: number }
-  | { character_id: string; init_value: number }
-  | { character_id: string; slot_level: number; remaining: number }
-  | { session_id: string; campaign_id: string }
-  | { session_id: string };
 
 export interface InitiativeEntry {
   id: string;

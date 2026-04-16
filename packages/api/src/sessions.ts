@@ -1,9 +1,35 @@
 import { supabase } from './client';
-import type { Database } from '@vaultstone/types';
+import type {
+  Database,
+  SessionEventPayload,
+  TargetKind,
+} from '@vaultstone/types';
 
 type SessionEventInsert = Database['public']['Tables']['session_events']['Insert'];
 type InitiativeRow = Database['public']['Tables']['initiative_order']['Row'];
 type InitiativeUpdate = Database['public']['Tables']['initiative_order']['Update'];
+
+// Context attached to state-changing mutations when the caller wants an
+// audit row written to `session_events`. Any mutation without a context
+// skips the log — correct behavior for edits outside Session Mode.
+export type SessionEventContext = {
+  sessionId: string;
+  actorId?: string | null;
+};
+
+// Thin wrapper over `appendSessionEvent` that typechecks the payload
+// against our discriminated union and casts to the Json column type.
+async function emit(
+  ctx: SessionEventContext,
+  payload: SessionEventPayload,
+): Promise<void> {
+  await supabase.from('session_events').insert({
+    session_id: ctx.sessionId,
+    event_type: payload.type,
+    actor_id: ctx.actorId ?? null,
+    payload: payload as unknown as Database['public']['Tables']['session_events']['Insert']['payload'],
+  });
+}
 
 // Create session row + bulk-add participants in two writes. RLS on
 // session_participants rejects participant inserts from non-DMs, so a
@@ -194,12 +220,37 @@ export async function addCombatant(input: {
 
 // Roll a d20 via the RPC — the server checks whether caller is the DM
 // or owns the linked character, so a player can roll their own PC.
-export async function rollCombatantInitiative(combatantId: string, roll?: number) {
+export async function rollCombatantInitiative(
+  combatantId: string,
+  roll?: number,
+  ctx?: SessionEventContext,
+) {
   const rollValue = roll ?? Math.floor(Math.random() * 20) + 1;
-  return supabase.rpc('roll_combatant_initiative', {
+  const result = await supabase.rpc('roll_combatant_initiative', {
     combatant_id: combatantId,
     roll_value: rollValue,
   });
+  if (!result.error && ctx) {
+    const { data: row } = await supabase
+      .from('initiative_order')
+      .select('display_name, init_value, init_roll, init_override')
+      .eq('id', combatantId)
+      .maybeSingle();
+    if (row) {
+      const total =
+        row.init_override !== null && row.init_override !== undefined
+          ? row.init_override
+          : row.init_value + (row.init_roll ?? 0);
+      await emit(ctx, {
+        type: 'initiative_rolled',
+        combatant_id: combatantId,
+        combatant_name: row.display_name,
+        total,
+        source: 'roll',
+      });
+    }
+  }
+  return result;
 }
 
 // DM-only manual override (e.g., physical die). Direct table update; RLS
@@ -210,11 +261,30 @@ export async function setCombatantInitRoll(combatantId: string, roll: number) {
 
 // DM-only final-total override. Used when the player rolled physically and
 // just reports the calculated total — skips the d20 breakdown entirely.
-export async function setCombatantInitOverride(combatantId: string, total: number) {
-  return supabase
+export async function setCombatantInitOverride(
+  combatantId: string,
+  total: number,
+  ctx?: SessionEventContext,
+) {
+  const result = await supabase
     .from('initiative_order')
     .update({ init_override: total })
     .eq('id', combatantId);
+  if (!result.error && ctx) {
+    const { data: row } = await supabase
+      .from('initiative_order')
+      .select('display_name')
+      .eq('id', combatantId)
+      .maybeSingle();
+    await emit(ctx, {
+      type: 'initiative_rolled',
+      combatant_id: combatantId,
+      combatant_name: row?.display_name ?? 'Combatant',
+      total,
+      source: 'manual',
+    });
+  }
+  return result;
 }
 
 export async function clearCombatantInitOverride(combatantId: string) {
@@ -224,25 +294,48 @@ export async function clearCombatantInitOverride(combatantId: string) {
     .eq('id', combatantId);
 }
 
-export async function startCombat(sessionId: string) {
-  return supabase
+export async function startCombat(sessionId: string, ctx?: SessionEventContext) {
+  const result = await supabase
     .from('sessions')
     .update({ combat_started_at: new Date().toISOString(), round: 1 })
     .eq('id', sessionId);
+  if (!result.error && ctx) {
+    const { data: roster } = await supabase
+      .from('initiative_order')
+      .select('id, display_name, init_value, init_roll, init_override, character_id')
+      .eq('session_id', sessionId);
+    const combatants = (roster ?? []).map((r) => ({
+      id: r.id,
+      name: r.display_name,
+      initiative:
+        r.init_override !== null && r.init_override !== undefined
+          ? r.init_override
+          : r.init_value + (r.init_roll ?? 0),
+      kind: (r.character_id ? 'pc' : 'npc') as TargetKind,
+    }));
+    await emit(ctx, { type: 'combat_started', combatants });
+  }
+  return result;
 }
 
 // Stop combat but keep rolls/combatants. DM can re-start from the same
 // setup (or reset explicitly if they want a clean slate). Clears active
 // turn so no one appears "on deck" after the fight ends.
-export async function endCombat(sessionId: string) {
+export async function endCombat(sessionId: string, ctx?: SessionEventContext) {
   await supabase
     .from('initiative_order')
     .update({ is_active_turn: false })
     .eq('session_id', sessionId);
-  return supabase
+  const result = await supabase
     .from('sessions')
     .update({ combat_started_at: null })
     .eq('id', sessionId);
+  if (!result.error && ctx) {
+    const { data: s } = await supabase
+      .from('sessions').select('round').eq('id', sessionId).maybeSingle();
+    await emit(ctx, { type: 'combat_ended', round: s?.round ?? 0 });
+  }
+  return result;
 }
 
 // Full reset — clears every combatant's roll, unsets active turn,
@@ -259,8 +352,35 @@ export async function resetInitiative(sessionId: string) {
     .eq('id', sessionId);
 }
 
-export async function updateCombatant(id: string, patch: InitiativeUpdate) {
-  return supabase.from('initiative_order').update(patch).eq('id', id);
+// NPC HP changes go through here from combat.tsx; PC changes also hit
+// this (for initiative_order mirroring) plus `updateCharacterHp` for the
+// canonical character row. To avoid double-logging we only emit here
+// when the caller flags this as the primary HP write — PC HP emits from
+// `updateCharacterHp` instead.
+export async function updateCombatant(
+  id: string,
+  patch: InitiativeUpdate,
+  ctx?: SessionEventContext & { hpContext?: { oldHp: number; name: string } },
+) {
+  const result = await supabase.from('initiative_order').update(patch).eq('id', id);
+  if (
+    !result.error
+    && ctx
+    && ctx.hpContext
+    && typeof patch.hp_current === 'number'
+    && patch.hp_current !== ctx.hpContext.oldHp
+  ) {
+    await emit(ctx, {
+      type: 'hp_changed',
+      target_id: id,
+      target_name: ctx.hpContext.name,
+      target_kind: 'npc',
+      old_hp: ctx.hpContext.oldHp,
+      new_hp: patch.hp_current,
+      delta: patch.hp_current - ctx.hpContext.oldHp,
+    });
+  }
+  return result;
 }
 
 export async function removeCombatant(id: string) {
@@ -270,7 +390,7 @@ export async function removeCombatant(id: string) {
 // Advance turn cursor to the next combatant by init order. If we wrap back
 // to the top, bump session.round. Safe to call with no active turn set —
 // picks the highest-init combatant.
-export async function advanceTurn(sessionId: string) {
+export async function advanceTurn(sessionId: string, ctx?: SessionEventContext) {
   const { data, error } = await supabase
     .from('initiative_order')
     .select('*')
@@ -295,15 +415,35 @@ export async function advanceTurn(sessionId: string) {
     .update({ is_active_turn: true })
     .eq('id', entries[nextIdx].id);
 
+  let nextRound: number | null = null;
   if (wrapped) {
     const { data: s } = await supabase
       .from('sessions').select('round').eq('id', sessionId).single();
     if (s) {
+      nextRound = (s.round ?? 1) + 1;
       await supabase
         .from('sessions')
-        .update({ round: (s.round ?? 1) + 1 })
+        .update({ round: nextRound })
         .eq('id', sessionId);
     }
+  }
+
+  if (ctx) {
+    // `nextRound` is only set when we wrapped; otherwise pull the current
+    // round so the log row carries an accurate value.
+    let round = nextRound;
+    if (round === null) {
+      const { data: s } = await supabase
+        .from('sessions').select('round').eq('id', sessionId).maybeSingle();
+      round = s?.round ?? 0;
+    }
+    const active = entries[nextIdx];
+    await emit(ctx, {
+      type: 'turn_advanced',
+      round: round ?? 0,
+      active_id: active.id,
+      active_name: active.display_name,
+    });
   }
   return { error: null };
 }

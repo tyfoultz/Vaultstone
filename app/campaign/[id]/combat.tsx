@@ -13,6 +13,7 @@ import {
   resetInitiative, endCombat, sortByInitiative,
 } from '@vaultstone/api';
 import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPanel';
+import { SessionLogFeed } from '../../../components/session/SessionLogFeed';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import type {
@@ -251,15 +252,32 @@ export default function CombatScreen() {
   // Clamp HP to [0, hp_max], write through to initiative_order, and — for
   // PC combatants — also mirror onto characters.resources.hpCurrent so
   // the character sheet reflects battle damage after the session ends.
+  // Session log emission: PCs emit via updateCharacterHp (canonical write);
+  // NPCs emit via updateCombatant (no character row to mirror to).
   async function adjustHp(combatant: Combatant, delta: number) {
     const next = Math.max(0, Math.min(combatant.hp_max, combatant.hp_current + delta));
     if (next === combatant.hp_current) return;
     setEntries((prev) => prev.map((e) =>
       e.id === combatant.id ? { ...e, hp_current: next } : e,
     ));
-    await updateCombatant(combatant.id, { hp_current: next });
+    if (!session) return;
     if (combatant.character_id) {
-      await updateCharacterHp(combatant.character_id, next);
+      await updateCombatant(combatant.id, { hp_current: next });
+      await updateCharacterHp(combatant.character_id, next, {
+        sessionId: session.id,
+        targetName: combatant.display_name,
+        actorId: user?.id ?? null,
+      });
+    } else {
+      await updateCombatant(
+        combatant.id,
+        { hp_current: next },
+        {
+          sessionId: session.id,
+          actorId: user?.id ?? null,
+          hpContext: { oldHp: combatant.hp_current, name: combatant.display_name },
+        },
+      );
     }
   }
 
@@ -270,7 +288,14 @@ export default function CombatScreen() {
       ? current.filter((c) => c.toLowerCase() !== condition.toLowerCase())
       : [...current, condition];
     setPcConditions((prev) => ({ ...prev, [characterId]: next }));
-    await updateCharacterConditions(characterId, next);
+    if (!session) return;
+    // Resolve target name from the combatant row that owns this character.
+    const combatant = entries.find((e) => e.character_id === characterId);
+    await updateCharacterConditions(characterId, next, {
+      sessionId: session.id,
+      targetName: combatant?.display_name ?? 'Character',
+      actorId: user?.id ?? null,
+    });
   }
 
   // Open party picker — fetches party members with linked characters,
@@ -347,7 +372,10 @@ export default function CombatScreen() {
   async function handleRollOne(combatant: Combatant) {
     const canRoll = isDM || (!!combatant.character_id && myCharacterIds.has(combatant.character_id));
     if (!canRoll || !session) return;
-    await rollCombatantInitiative(combatant.id);
+    await rollCombatantInitiative(combatant.id, undefined, {
+      sessionId: session.id,
+      actorId: user?.id ?? null,
+    });
     await refetchEntries(session.id);
   }
 
@@ -356,7 +384,10 @@ export default function CombatScreen() {
     const unrolled = entries.filter((e) => e.init_roll === null && e.init_override === null);
     if (unrolled.length === 0) return;
     setRollingAll(true);
-    await Promise.all(unrolled.map((e) => rollCombatantInitiative(e.id)));
+    await Promise.all(unrolled.map((e) => rollCombatantInitiative(e.id, undefined, {
+      sessionId: session.id,
+      actorId: user?.id ?? null,
+    })));
     await refetchEntries(session.id);
     setRollingAll(false);
   }
@@ -370,7 +401,10 @@ export default function CombatScreen() {
     const raw = manualRolls[combatantId];
     const total = parseInt(raw ?? '', 10);
     if (Number.isNaN(total)) return;
-    await setCombatantInitOverride(combatantId, total);
+    await setCombatantInitOverride(combatantId, total, {
+      sessionId: session.id,
+      actorId: user?.id ?? null,
+    });
     setManualRolls((prev) => {
       const next = { ...prev };
       delete next[combatantId];
@@ -382,7 +416,10 @@ export default function CombatScreen() {
   async function handleStartCombat() {
     if (!session || startingCombat) return;
     setStartingCombat(true);
-    await startCombat(session.id);
+    await startCombat(session.id, {
+      sessionId: session.id,
+      actorId: user?.id ?? null,
+    });
     // Sync session locally and set highest-init as active turn.
     const { data: freshSession } = await getActiveSession(id!);
     if (freshSession) setSession(freshSession);
@@ -436,7 +473,10 @@ export default function CombatScreen() {
         });
     if (!confirmed) return;
     setEndingCombat(true);
-    await endCombat(session.id);
+    await endCombat(session.id, {
+      sessionId: session.id,
+      actorId: user?.id ?? null,
+    });
     const { data: freshSession } = await getActiveSession(id!);
     if (freshSession) setSession(freshSession);
     await refetchEntries(session.id);
@@ -689,6 +729,10 @@ export default function CombatScreen() {
           )}
         </View>
       )}
+
+      <View style={s.logWrap}>
+        <SessionLogFeed sessionId={session.id} isLive variant="full" />
+      </View>
 
       {entries.length === 0 ? (
         <View style={s.placeholder}>
@@ -1063,6 +1107,9 @@ const s = StyleSheet.create({
   condChipBigText: { color: colors.textSecondary, fontSize: 12, fontWeight: '500' },
   condChipBigTextActive: { color: colors.hpDanger, fontWeight: '700' },
 
+  logWrap: {
+    paddingHorizontal: spacing.md, paddingTop: spacing.sm,
+  },
   placeholder: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     gap: spacing.sm, paddingHorizontal: spacing.lg,
