@@ -151,10 +151,12 @@ shares page citations only — never extracted page text.
 
 Full rewrite of Feature 7. Notion/OneNote-style world workspace with sections,
 unlimited nested pages, rich editor with `@mention` chips, uploaded maps with
-categorized pins, per-page player reveal, timeline, unified search. See
-[features/07-world-building.md](features/07-world-building.md) for the full spec
-and `C:\Users\Tyler\.claude\plans\glowing-humming-squirrel.md` for the working
-plan.
+categorized pins, per-page player reveal + per-user sharing grants, pessimistic
+page-level edit locks, timelines as first-class pages with DM-defined calendar
+schemas, unified search, and a campaign-side world lookup drawer. See
+[features/07-world-building.md](features/07-world-building.md) for the full
+refined spec and [plans/world-builder-rewrite.md](plans/world-builder-rewrite.md)
+for the short-form plan.
 
 **Status:** plan-only — no migrations, routes, or components written yet.
 Feature 6 (Session Notes & Campaign Notes Hub) stays on its existing Markdown
@@ -164,18 +166,24 @@ editor and is untouched, aside from one Phase 6 integration (manual
 | Phase | Status | Summary |
 |---|---|---|
 | 1 — Foundation | ⬜ | `worlds` + `world_campaigns` tables, `is_world_owner` RLS helper, world list + picker, empty workspace shell, lens dropdown placeholder. |
-| 2 — Sections & pages (no editor) | ⬜ | `world_sections`, `world_pages`, code-defined section templates (`packages/content/src/world-templates/`), sidebar with unlimited nesting, structured-fields form, Recently Deleted scaffold. |
-| 3 — Editor, chips & backlinks | ⬜ | Tiptap (web) + 10tap-editor (native) with shared extensions. `@mention` suggestion popover, deleted-target chip UI, hover preview on web, backlinks via `body_refs` uuid[] + GIN index. Android perf benchmark mid-phase. |
-| 4 — Visibility, lens & PC stubs | ⬜ | `visible_to_players`, section force-hide overrides, PC stub materialization triggers, `LensDropdown`, entry-heuristic, orphan banner, Player View preview toggle. |
-| 5 — Maps, pins & nesting | ⬜ | `world_maps`, seeded `pin_types` (7), `map_pins`, `world-maps` Storage bucket, `MapCanvas.{web,native}`, pin placement + filter bar, sub-map drill-down + breadcrumbs. |
-| 6 — Timeline & Feature 6 integration | ⬜ | `timeline_events`, timeline UI, "Add to world timeline" button on published recaps. |
-| 7 — Players section, images & search | ⬜ | Players-section hybrid (auto-stubs + DM custom), `world-images` bucket + inline image insertion, `search_world` RPC, unified `SearchBar` + results drawer, orphan badge. |
-| 8 — Polish & deletion UX | ⬜ | Drag-to-reorder fractional sort, Recently Deleted restore, daily hard-delete cron + Storage reaper, 500MB soft cap with 80% warning, server-side compression for images > 2MB, Android editor perf tuning, a11y pass. |
+| 2 — Sections & pages (no editor) | ⬜ | `world_sections`, `world_pages` (with `template_version` + edit-lock columns reserved), section templates v1 + registry + CI hash check, sidebar with unlimited nesting, structured-fields form, move-page-across-sections, Recently Deleted scaffold. |
+| 3 — Editor, chips, backlinks, edit lock | ⬜ | Tiptap (web) + 10tap (native) with shared extensions. `@mention` suggestion popover (page / pc / timeline kinds; pin added Phase 5), deleted-target chip UI, hover preview on web, backlinks via `body_refs`. Edit-lock RPCs + banner + autosave indicator. BEFORE-trigger derives `body_text` / `body_refs` server-side. Android perf benchmark + progressive-disable feature flag. |
+| 4 — Visibility, lens, PC stubs, permissions | ⬜ | `visible_to_players`, section overrides, full PC-stub lifecycle triggers (rename / delete / unlink / re-link / move), `LensDropdown` + entry heuristic + mid-session switch banner, orphan banner, Player View preview. `world_page_permissions` + `ShareModal` (cascade toggle, grantees visible to each other) + `user_can_view_page` / `user_can_edit_page` RLS helpers. |
+| 5 — Maps, pins & nesting | ⬜ | `world_maps`, seeded `pin_types` (7), `map_pins`, `world-maps` Storage bucket, `MapCanvas.{web,native}`, pin placement + filter bar, sub-map drill-down + breadcrumbs, batch signed-URL RPC. Pin mention kind wired in. |
+| 6 — Timelines + Feature 6 integration | ⬜ | `page_kind='timeline'` machinery — `calendar_schema` editor, `date_values` form, `sort_key` trigger, vertical timeline renderer, auto-primary-timeline per world, timeline pages creatable in any section. Timeline mention kind wired. `AddToWorldTimelineButton` on published recaps with Markdown→Tiptap conversion. |
+| 7a — Players section & stub enrichment | ⬜ | Players-section hybrid UI, stub enrichment + orphan resolution (re-link / re-home / dismiss), `title_overridden` tracking in UI. |
+| 7b — Images, storage, compression | ⬜ | `world_images` bucket + inline image insertion, client-side compression (Expo ImageManipulator / canvas), server-side size cap at upload RPC, Supabase Storage read-side resize, `profiles.storage_used_bytes` triggers + reconciliation job, 80% warning banner + 100% upload block. |
+| 7c — Search + campaign lookup drawer | ⬜ | `search_world` + `search_campaign_worlds` RPCs with Load More pagination (10 then +20), `SearchBar`, `SearchResultsDrawer`, orphan-badge rendering. `CampaignWorldsCard` + `CampaignWorldLookupDrawer` on campaign detail page. |
+| 8 — Polish & deletion UX | ⬜ | Drag-to-reorder fractional sort (sidebar + timelines), Recently Deleted restore, daily hard-delete cron + Storage reaper, weekly bucket reconciliation, template-upgrade modal affordance on pages, Android editor perf tuning if needed, a11y + keyboard pass. |
 
 **Verification:** per-phase Tier 1 (`npm run typecheck`) + targeted Tier 4
 Playwright smoke test. End-to-end Tier 4 run in Phase 8: create world, link 2
-campaigns, build 3 sections with 10 pages, drop map + pins, share subset with
-players, verify RLS from player accounts.
+campaigns, build sections with nested pages, upload map + pins, share a subset
+of pages with specific users (some direct, some cascade), verify visibility +
+edit + lock behaviors across owner, grantee, player, and unrelated accounts.
+RLS audit matrix covers: world-level with hidden section, campaign-scoped in
+wrong campaign, direct grant, cascaded grant, soft-deleted, orphaned, visible
+child of a soft-deleted parent.
 
 #### Deferred verification — to run on first iOS/Android build
 
