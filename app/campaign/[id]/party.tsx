@@ -21,6 +21,7 @@ import { HpModal } from '../../../components/character-sheet/HpModal';
 import { ConditionsPanel } from '../../../components/character-sheet/ConditionsPanel';
 import { SpellSlotPips } from '../../../components/party/SpellSlotPips';
 import { ClassResourcePips } from '../../../components/party/ClassResourcePips';
+import { SessionLogCard } from '../../../components/session/SessionLogCard';
 
 type PartyMember = {
   user_id: string;
@@ -326,6 +327,10 @@ export default function PartyScreen() {
           ))}
         </View>
       )}
+
+      <View style={s.logWrap}>
+        <SessionLogCard campaignId={id!} />
+      </View>
 
       <SettingsModal
         visible={settingsVisible}
@@ -861,6 +866,7 @@ function StatPill({ label, value }: { label: string; value: string | number }) {
 const s = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.background },
   container: { paddingBottom: 48 },
+  logWrap: { paddingHorizontal: spacing.md, marginTop: spacing.md },
   back: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm,

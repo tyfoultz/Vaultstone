@@ -23,6 +23,7 @@ import { StartSessionModal, type StartSessionPlayer } from '../../../components/
 import { EndSessionModal } from '../../../components/session/EndSessionModal';
 import { SessionNotesPanel } from '../../../components/session/SessionNotesPanel';
 import { SessionHistoryCard } from '../../../components/session/SessionHistoryCard';
+import { SessionLogCard } from '../../../components/session/SessionLogCard';
 import { CampaignNotesCard } from '../../../components/notes/CampaignNotesCard';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
@@ -616,6 +617,9 @@ export default function CampaignDetailScreen() {
 
         {/* ---- Campaign Notes Hub (DM-only placeholder) ---- */}
         {isDM && <CampaignNotesCard campaignId={campaign.id} />}
+
+        {/* ---- Session Log (live when a session is active, last session otherwise) ---- */}
+        <SessionLogCard campaignId={campaign.id} />
 
         {/* ---- Session History ---- */}
         <SessionHistoryCard campaignId={campaign.id} displayNameByUserId={displayNameByUserId} />

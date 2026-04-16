@@ -170,11 +170,12 @@ LootEntry {
 - Removing a combatant collapses them (retained in session log, not permanently deleted)
 - "End Combat" when all non-player combatants removed or GM ends it; clears initiative order
 
-**US-405 — Persist combat log**
-- HP changes, turn advances, conditions, combatant additions/removals appended as `SessionEvent` records
-- Log visible in session history
-- Format: `[22:14] Firbolg Warrior took 12 damage. HP: 31 → 19`
-- Append-only, not editable
+**US-405 — Persist combat log** ✅ Shipped
+- HP changes, conditions, combat lifecycle (start/end), turn advances, and initiative rolls appended as `SessionEvent` records
+- Log visible live on the Combat screen, and as a compact card on the Party view + Campaign detail page (live when a session is active, static snapshot of the most recent session otherwise)
+- Format: `[22:14] Firbolg Warrior took 12 damage. HP 31 → 19`
+- Append-only, not editable (`Update: never` on `session_events`, no RLS UPDATE policy)
+- Code entry points: `components/session/SessionLog{Row,Feed,Card}.tsx` (viewer), `packages/api/src/sessions.ts` + `packages/api/src/characters.ts` (emit), `packages/types/src/session-events.ts` (payload discriminated union). Combatant add/remove not emitted in the first pass — the initiative list already reflects that state; revisit if replay ever needs it.
 
 ---
 

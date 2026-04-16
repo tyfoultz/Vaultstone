@@ -104,12 +104,26 @@ reactive updates via Supabase Realtime (rolls in with Session Mode).
 | 5 — Campaign Notes Hub (Epic 8 in 06-notes.md) | ✅ Done | Dedicated DM-only route `/campaign/[id]/recap`: collapsible session sidebar on the left and a `react-mosaic-component` dock on the right that lets the DM resize, drag-rearrange, and pop out each panel (Recap, Your Session Notes, Player Notes) into its own browser window. Layout persists per-device via `useRecapLayoutStore`. Pop-out coordination is presence-only via BroadcastChannel — the dock-side panel goes read-only with a banner while a pop-out is alive, then refetches/rehydrates when it closes. RLS migration `20260418000000` lets DMs edit their own notes on any session, ever. Native devices fall back to a stacked single-column layout (no drag/resize/pop-out). All editors use the shared `RichTextEditor` / `RichTextRenderer` Markdown surface. "Insert from player" text-lift intentionally deferred. |
 | 5.1 — Notes Hub polish pass | ✅ Done | (a) Dark mosaic theme — dropped `mosaic-blueprint-theme` class and bumped scoped overrides to 3-class specificity so toolbar + body backgrounds stop rendering white; explicit `textarea { background }` kills RN-web's default light textarea. (b) Editors flex to fill their tile — `RichTextEditor` defaults to `flex: 1` when no `minHeight` prop is passed; recap + DM notes panels drop their fixed heights. Session Mode notes rail still passes explicit values so it keeps a scrollable min. (c) "Session N" labels (oldest = 1) in the hub sidebar and Session History card; date + duration become secondary metadata. (d) Publish flow made reliable — parent state updates in the same render via an `onPublished` callback so the recap shows immediately (no page reload); `SessionHistoryCard` switched to `useFocusEffect` so returning to the campaign page refetches; "Published hh:mm" pill persists until the DM edits again instead of being clobbered by the effect that reset it. (e) Back button uses `router.canGoBack() ? back() : replace('/campaign/[id]')` so a browser refresh on the hub route still lands you back on the campaign page. |
 
-**Realtime prerequisite:** enable Realtime on `sessions`, `initiative_order`, `characters`, and `session_events` in the Supabase dashboard. Phase 1 uses `sessions`; Phase 2 adds `initiative_order`; Phase 3 adds `characters`; `session_events` lands with a later phase.
+**Realtime prerequisite:** enable Realtime on `sessions`, `initiative_order`, `characters`, and `session_events` in the Supabase dashboard. Phase 1 uses `sessions`; Phase 2 adds `initiative_order`; Phase 3 adds `characters`; `session_events` is now required by Feature 7 (Session Log) — the live feed silently degrades to a refetch-on-focus view if Realtime isn't enabled, but the DM-visible "LIVE" pill will lag until it is.
 
 **Known limitation (Phase 2):** `initiative_order` uses default `REPLICA IDENTITY`, so DELETE Realtime events don't match the `session_id` filter. The session screen refetches on any change rather than applying payloads piecemeal, which masks this — but a later phase should switch to `REPLICA IDENTITY FULL` if we move to incremental updates.
 
-### 7. Session Log ⬜ Not started
-Append-only event feed. Displays what happened during a session.
+### 7. Session Log ✅ MVP Complete
+Append-only event feed backed by the existing `session_events` table.
+Events are emitted from the API layer (`packages/api/src/sessions.ts`,
+`packages/api/src/characters.ts`) whenever Session Mode mutations run
+with a `SessionEventContext` attached — edits outside a live session
+skip the log by design. First-pass event types: `combat_started`,
+`combat_ended`, `hp_changed`, `condition_added`, `condition_removed`,
+`turn_advanced`, `initiative_rolled`. Payload schema is self-describing
+(names baked in) so a later recap-summary generator can consume the log
+standalone; a `narration` variant is reserved for future DM free-text.
+Viewer components live at `components/session/SessionLog{Row,Feed,Card}.tsx`:
+Combat screen mounts the full live feed, Party view + campaign detail
+page mount a compact card that resolves to the active-or-most-recent
+session via `getMostRecentSessionForCampaign`. Realtime delivery uses the
+`session-log:{id}` channel on INSERT — the earlier `session:{id}` channel
+is still used for the combat state subscriptions.
 
 ### 8. PDF Rulebook 🟡 In Progress
 
