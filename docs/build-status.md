@@ -147,6 +147,36 @@ is still used for the combat state subscriptions.
 **Legal:** PDFs never leave the device. See [legal.md](legal.md). Phase 9
 shares page citations only — never extracted page text.
 
+### 9. World Builder & Campaign Knowledge Base 📋 Planned (not started)
+
+Full rewrite of Feature 7. Notion/OneNote-style world workspace with sections,
+unlimited nested pages, rich editor with `@mention` chips, uploaded maps with
+categorized pins, per-page player reveal, timeline, unified search. See
+[features/07-world-building.md](features/07-world-building.md) for the full spec
+and `C:\Users\Tyler\.claude\plans\glowing-humming-squirrel.md` for the working
+plan.
+
+**Status:** plan-only — no migrations, routes, or components written yet.
+Feature 6 (Session Notes & Campaign Notes Hub) stays on its existing Markdown
+editor and is untouched, aside from one Phase 6 integration (manual
+"Add to world timeline" button on published recaps).
+
+| Phase | Status | Summary |
+|---|---|---|
+| 1 — Foundation | ⬜ | `worlds` + `world_campaigns` tables, `is_world_owner` RLS helper, world list + picker, empty workspace shell, lens dropdown placeholder. |
+| 2 — Sections & pages (no editor) | ⬜ | `world_sections`, `world_pages`, code-defined section templates (`packages/content/src/world-templates/`), sidebar with unlimited nesting, structured-fields form, Recently Deleted scaffold. |
+| 3 — Editor, chips & backlinks | ⬜ | Tiptap (web) + 10tap-editor (native) with shared extensions. `@mention` suggestion popover, deleted-target chip UI, hover preview on web, backlinks via `body_refs` uuid[] + GIN index. Android perf benchmark mid-phase. |
+| 4 — Visibility, lens & PC stubs | ⬜ | `visible_to_players`, section force-hide overrides, PC stub materialization triggers, `LensDropdown`, entry-heuristic, orphan banner, Player View preview toggle. |
+| 5 — Maps, pins & nesting | ⬜ | `world_maps`, seeded `pin_types` (7), `map_pins`, `world-maps` Storage bucket, `MapCanvas.{web,native}`, pin placement + filter bar, sub-map drill-down + breadcrumbs. |
+| 6 — Timeline & Feature 6 integration | ⬜ | `timeline_events`, timeline UI, "Add to world timeline" button on published recaps. |
+| 7 — Players section, images & search | ⬜ | Players-section hybrid (auto-stubs + DM custom), `world-images` bucket + inline image insertion, `search_world` RPC, unified `SearchBar` + results drawer, orphan badge. |
+| 8 — Polish & deletion UX | ⬜ | Drag-to-reorder fractional sort, Recently Deleted restore, daily hard-delete cron + Storage reaper, 500MB soft cap with 80% warning, server-side compression for images > 2MB, Android editor perf tuning, a11y pass. |
+
+**Verification:** per-phase Tier 1 (`npm run typecheck`) + targeted Tier 4
+Playwright smoke test. End-to-end Tier 4 run in Phase 8: create world, link 2
+campaigns, build 3 sections with 10 pages, drop map + pins, share subset with
+players, verify RLS from player accounts.
+
 #### Deferred verification — to run on first iOS/Android build
 
 These items shipped with web-only verification and need a smoke test the

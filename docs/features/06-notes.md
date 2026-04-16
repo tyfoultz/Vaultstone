@@ -66,7 +66,7 @@ Migrations that landed with this feature:
 **US-802 — Author the recap**
 - `RichTextEditor` (Markdown) bound to a per-DM, per-session draft store (`useRecapDraftStore`, persisted to AsyncStorage). Autosaves the draft so the DM can come back later.
 - The DM's own `session_notes` row is editable from the hub for any session, ever (driven by migration `20260418000000`).
-- Player notes blocks are read-only references; "Insert from [Player]" text-lift intentionally deferred.
+- Player notes blocks are read-only references. DM copy-pastes anything they want to pull into the recap.
 
 **US-803 — Publish to history**
 - Publish button writes the recap to `sessions.summary`, clears the local draft, shows a persistent "Published hh:mm" pill until the DM types again.
@@ -81,5 +81,4 @@ Migrations that landed with this feature:
 
 ## Known follow-ups
 
-- **US-802 "Insert from [Player]" text-lift** — deferred; DM copy-pastes in v1.
 - **Hub polish pass** — see `docs/build-status.md` Phase 5.1 for the shipped list (dark theme, flex-fill editors, Session N labels, publish-refresh + back-button fixes).
