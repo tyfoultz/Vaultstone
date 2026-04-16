@@ -8,6 +8,8 @@ import { supabase, getSessionEvents } from '@vaultstone/api';
 import { colors, spacing } from '@vaultstone/ui';
 import { SessionLogRow, type LogRowData } from './SessionLogRow';
 
+let logChannelSeq = 0;
+
 type Variant = 'full' | 'compact';
 
 interface Props {
@@ -52,14 +54,14 @@ export function SessionLogFeed({
 
   // Live append via Realtime. Only subscribe when the session is live —
   // ended sessions don't get new events, so we save a channel.
-  // Channel name includes a monotonic suffix so a rapid unmount→remount
-  // cycle never collides with the previous (async-removing) channel.
-  const mountId = useRef(0);
+  // Channel name uses a module-level counter so it stays unique across
+  // full unmount→remount cycles (Expo Router's router.replace unmounts
+  // the component, resetting any instance-level refs).
   useEffect(() => {
     if (!isLive) return;
-    mountId.current += 1;
+    logChannelSeq += 1;
     const channel = supabase
-      .channel(`session-log:${sessionId}:${mountId.current}`)
+      .channel(`session-log:${sessionId}:${logChannelSeq}`)
       .on(
         'postgres_changes',
         {
