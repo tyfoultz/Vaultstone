@@ -52,10 +52,14 @@ export function SessionLogFeed({
 
   // Live append via Realtime. Only subscribe when the session is live —
   // ended sessions don't get new events, so we save a channel.
+  // Channel name includes a monotonic suffix so a rapid unmount→remount
+  // cycle never collides with the previous (async-removing) channel.
+  const mountId = useRef(0);
   useEffect(() => {
     if (!isLive) return;
+    mountId.current += 1;
     const channel = supabase
-      .channel(`session-log:${sessionId}`)
+      .channel(`session-log:${sessionId}:${mountId.current}`)
       .on(
         'postgres_changes',
         {
