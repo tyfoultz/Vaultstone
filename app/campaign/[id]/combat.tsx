@@ -486,10 +486,7 @@ export default function CombatScreen() {
   async function handleNextTurn() {
     if (!session || advancing || entries.length === 0) return;
     setAdvancing(true);
-    await advanceTurn(session.id, {
-      sessionId: session.id,
-      actorId: user?.id ?? null,
-    });
+    await advanceTurn(session.id);
     await refetchEntries(session.id);
     // advanceTurn may have bumped session.round — pull the fresh row.
     const { data: s } = await getActiveSession(id);
