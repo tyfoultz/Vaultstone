@@ -9,7 +9,7 @@ import { colors, spacing, fonts } from '@vaultstone/ui';
 export default function NewCampaignScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { campaigns, setCampaigns } = useCampaignStore();
+  const addCampaign = useCampaignStore((s) => s.addCampaign);
   const [name, setName] = useState('');
   const [systemLabel, setSystemLabel] = useState('');
   const [description, setDescription] = useState('');
@@ -41,7 +41,7 @@ export default function NewCampaignScreen() {
       return;
     }
 
-    setCampaigns([data, ...campaigns]);
+    addCampaign(data);
     router.push(`/campaign/${data.id}`);
   }
 

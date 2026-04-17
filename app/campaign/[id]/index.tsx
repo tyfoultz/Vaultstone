@@ -64,7 +64,7 @@ export default function CampaignDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { campaigns, setCampaigns, setActiveCampaign } = useCampaignStore();
+  const { campaigns, setActiveCampaign, updateCampaign, removeCampaign } = useCampaignStore();
   const [campaign, setCampaign] = useState<Campaign | null>(
     campaigns.find((c) => c.id === id) ?? null,
   );
@@ -97,10 +97,8 @@ export default function CampaignDetailScreen() {
     const { url } = await uploadCampaignCover(campaign.id, uri, mime);
     setUploading(false);
     if (url) {
-      const updated = { ...campaign, cover_image_url: url };
-      setCampaign(updated);
-      setActiveCampaign(updated);
-      setCampaigns(campaigns.map((c) => (c.id === campaign.id ? updated : c)));
+      updateCampaign(campaign.id, { cover_image_url: url });
+      setCampaign((prev) => (prev ? { ...prev, cover_image_url: url } : prev));
     }
   }
 
@@ -140,9 +138,8 @@ export default function CampaignDetailScreen() {
     const { code } = await regenerateJoinCode(campaign.id);
     setRegenerating(false);
     if (code) {
-      const updated = { ...campaign, join_code: code };
-      setCampaign(updated);
-      setActiveCampaign(updated);
+      updateCampaign(campaign.id, { join_code: code });
+      setCampaign((prev) => (prev ? { ...prev, join_code: code } : prev));
     }
   }
 
@@ -158,7 +155,7 @@ export default function CampaignDetailScreen() {
     if (!campaign || !user) return;
     const { error } = await removeCampaignMember(campaign.id, user.id);
     if (!error) {
-      setCampaigns(campaigns.filter((c) => c.id !== campaign.id));
+      removeCampaign(campaign.id);
       router.push('/(drawer)/campaigns');
     }
   }
@@ -215,10 +212,9 @@ export default function CampaignDetailScreen() {
     }
     const { error } = await updateCampaignContentSource(campaign.id, source);
     if (!error) {
-      const updated = { ...campaign, content_sources: source, system_label: source?.label ?? null };
-      setCampaign(updated);
-      setActiveCampaign(updated);
-      setCampaigns(campaigns.map((c) => (c.id === campaign.id ? updated : c)));
+      const patch = { content_sources: source, system_label: source?.label ?? null };
+      updateCampaign(campaign.id, patch);
+      setCampaign((prev) => (prev ? { ...prev, ...patch } : prev));
       setSystemModal(false);
     }
   }

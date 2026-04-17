@@ -203,13 +203,17 @@ export async function uploadCampaignCover(campaignId: string, fileUri: string, m
     .from('campaign-assets')
     .getPublicUrl(path);
 
-  // Save the URL to the campaign row
+  // Append a version query param so clients and CDNs don't serve the prior
+  // upload's cached bytes — the storage path is stable (upsert), so without
+  // this the URL never changes even though the image did.
+  const versionedUrl = `${publicUrl}?v=${Date.now()}`;
+
   const { error: updateError } = await supabase
     .from('campaigns')
-    .update({ cover_image_url: publicUrl })
+    .update({ cover_image_url: versionedUrl })
     .eq('id', campaignId);
 
   if (updateError) return { url: null, error: updateError };
 
-  return { url: publicUrl, error: null };
+  return { url: versionedUrl, error: null };
 }
