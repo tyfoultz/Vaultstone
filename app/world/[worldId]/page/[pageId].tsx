@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { updatePage } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
   selectSectionsForWorld,
@@ -9,7 +10,6 @@ import {
   useSectionsStore,
 } from '@vaultstone/store';
 import {
-  Card,
   MetaLabel,
   Text,
   VisibilityBadge,
@@ -18,12 +18,13 @@ import {
 } from '@vaultstone/ui';
 
 import { useActiveSection } from '../../../../components/world/ActiveSectionContext';
+import { BodyEditor } from '../../../../components/world/BodyEditor';
 import { PageHead } from '../../../../components/world/PageHead';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
 import { worldHref } from '../../../../components/world/worldHref';
-import type { TemplateKey } from '@vaultstone/types';
+import type { Json, TemplateKey } from '@vaultstone/types';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -37,6 +38,9 @@ export default function PageDetailScreen() {
     worldId ? (s.byWorldId[worldId] ?? []).find((p) => p.id === pageId) : undefined,
   );
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const updatePageInStore = usePagesStore((s) => s.updatePage);
+  const bodyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingBodyRef = useRef<{ body: object; bodyText: string } | null>(null);
 
   const section = useMemo(
     () => sections.find((sec) => sec.id === page?.section_id) ?? null,
@@ -46,6 +50,41 @@ export default function PageDetailScreen() {
   useEffect(() => {
     if (section) setActiveSectionId(section.id);
   }, [section, setActiveSectionId]);
+
+  useEffect(() => {
+    // Flush any pending body write when the page/route changes.
+    return () => {
+      if (bodyTimerRef.current) {
+        clearTimeout(bodyTimerRef.current);
+        bodyTimerRef.current = null;
+      }
+    };
+  }, [pageId]);
+
+  function handleBodyChange(body: object, bodyText: string) {
+    if (!pageId) return;
+    pendingBodyRef.current = { body, bodyText };
+    setSaveState('saving');
+    if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
+    bodyTimerRef.current = setTimeout(async () => {
+      const pending = pendingBodyRef.current;
+      if (!pending) return;
+      pendingBodyRef.current = null;
+      const { data, error } = await updatePage(pageId, {
+        body: pending.body as Json,
+        body_text: pending.bodyText,
+      });
+      if (error || !data) {
+        setSaveState('error');
+        return;
+      }
+      updatePageInStore(pageId, {
+        body: data.body,
+        body_text: data.body_text,
+      });
+      setSaveState('saved');
+    }, 800);
+  }
 
   if (!world || !worldId || !pageId) return null;
 
@@ -102,24 +141,16 @@ export default function PageDetailScreen() {
             onSaveStateChange={setSaveState}
           />
 
-          <Card tier="container" padding="lg" style={styles.bodyPlaceholder}>
-            <MetaLabel size="sm" tone="muted">
+          <View style={styles.bodySection}>
+            <MetaLabel size="sm" tone="muted" style={{ marginBottom: spacing.xs }}>
               Body
             </MetaLabel>
-            <Text
-              variant="body-md"
-              family="serif-body"
-              tone="secondary"
-              style={{
-                marginTop: spacing.sm,
-                color: colors.onSurfaceVariant,
-                fontStyle: 'italic',
-              }}
-            >
-              Rich body editor arrives in Phase 3. For now, facts above are the
-              canonical record for this page.
-            </Text>
-          </Card>
+            <BodyEditor
+              initialContent={(page.body as object) ?? null}
+              onChange={handleBodyChange}
+              placeholder={`Begin the chronicle of ${page.title}…`}
+            />
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -142,9 +173,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.surfaceCanvas,
   },
-  bodyPlaceholder: {
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '33',
-    borderStyle: 'dashed',
+  bodySection: {
+    gap: spacing.xs,
   },
 });

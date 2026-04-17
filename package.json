@@ -17,6 +17,7 @@
     "postinstall": "node scripts/patch-metro.js && node scripts/copy-pdf-worker.js"
   },
   "dependencies": {
+    "@10play/tentap-editor": "^1.0.1",
     "@expo-google-fonts/cinzel": "^0.4.2",
     "@expo-google-fonts/cormorant-garamond": "^0.4.1",
     "@expo-google-fonts/crimson-pro": "^0.4.2",
@@ -26,9 +27,14 @@
     "@react-native-async-storage/async-storage": "^2.1.2",
     "@react-navigation/drawer": "^7.9.8",
     "@supabase/supabase-js": "^2.49.4",
+    "@tiptap/core": "^3.22.3",
+    "@tiptap/pm": "^3.22.3",
+    "@tiptap/react": "^3.22.3",
+    "@tiptap/starter-kit": "^3.22.3",
     "base-64": "^1.0.0",
     "expo": "~53.0.0",
     "expo-blur": "~14.1.5",
+    "expo-constants": "~17.1.8",
     "expo-document-picker": "~13.1.6",
     "expo-file-system": "~18.1.0",
     "expo-font": "~13.3.2",
@@ -56,6 +62,7 @@
     "react-native-pdf": "^7.0.4",
     "react-native-reanimated": "~3.17.4",
     "react-native-web": "~0.20.0",
+    "react-native-webview": "13.13.5",
     "remark-gfm": "^4.0.1",
     "zustand": "^5.0.3"
   },
