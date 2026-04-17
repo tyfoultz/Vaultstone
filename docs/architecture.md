@@ -134,7 +134,7 @@ created_at    timestamptz
 
 ### RLS Notes (hard-won)
 - `campaigns` ↔ `characters` policies were mutually recursive — fixed with security-definer helpers `is_campaign_dm` and `is_campaign_member`
-- `INSERT ... RETURNING` evaluates the SELECT policy; if it calls a security-definer function using `auth.uid()`, it can fail — fix: split INSERT and SELECT into separate queries
+- `INSERT ... RETURNING` evaluates the SELECT policy; if it calls a security-definer function using `auth.uid()`, it can fail. Historical workaround was splitting INSERT and SELECT into separate client queries. **Preferred pattern:** wrap multi-step create flows in a `security definer` RPC (see `create_campaign_with_gm`) — it sidesteps the RETURNING-triggered policy re-eval, keeps the flow atomic, and lets the server own `auth.uid()` and generated values like join codes
 - Campaigns SELECT policy must NOT use `is_campaign_member` — use inline `auth.uid() = dm_user_id` check directly
 - FK violations on RLS-protected tables surface as RLS errors, not FK errors
 

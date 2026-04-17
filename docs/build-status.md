@@ -61,7 +61,7 @@ Tracks progress from initial setup through MVP launch. Work through phases in or
 Sign up, log in, log out, persist session. Route guards in `(auth)` and `(tabs)` layouts. `initialized` flag prevents flash-of-wrong-screen. Forgot/reset password flow complete (2026-04-13).
 
 ### 2. Campaign Creation ✅ Complete
-DM creates campaign with name, 6-char join code (client-side generated), stored in DB. Campaign list shows all user campaigns via RLS. Campaign detail shows join code with copy-to-clipboard.
+DM creates campaign with name, 6-char join code (server-generated with collision retry via the `create_campaign_with_gm` RPC — atomic with the GM membership insert), stored in DB. Campaign list shows all user campaigns via RLS. Campaign detail shows join code with copy-to-clipboard.
 
 ### 3. Campaign Join ✅ Complete
 Player enters 6-char join code. Campaign looked up via security-definer RPC (bypasses RLS safely). Membership recorded in `campaign_members`. Player sees DM vs Player role badge.
