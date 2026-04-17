@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, Image, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getCampaigns, getCampaignMembers } from '@vaultstone/api';
+import { getCampaigns, getMemberCountsForCampaigns } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
@@ -31,13 +31,7 @@ export default function CampaignsScreen() {
       const list = data ?? [];
       setCampaigns(list);
 
-      const counts: Record<string, number> = {};
-      await Promise.all(
-        list.map(async (c) => {
-          const { data: members } = await getCampaignMembers(c.id);
-          counts[c.id] = members?.length ?? 0;
-        }),
-      );
+      const { data: counts } = await getMemberCountsForCampaigns(list.map((c) => c.id));
       setMemberCounts(counts);
       setLoading(false);
     });

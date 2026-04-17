@@ -11,7 +11,7 @@ Running log of known issues in the Vaultstone codebase. Entries move to a
 
 **Surfaced:** 2026-04-16, typecheck audit on feature/world-builder-plan-refinements
 **Severity:** Low — compile-time noise, not a runtime defect. App bundles and runs; Netlify previews succeed.
-**Symptom:** `npm run typecheck` reports 11 errors. Close to the ~13 baseline in
+**Symptom:** `npm run typecheck` reports 10 errors. Close to the ~13 baseline in
 [dev-workflow.md](dev-workflow.md#tier-1--npm-run-typecheck), but the mix has
 shifted since 2026-04-14 — new errors cluster around Feature 6 recap components.
 
@@ -21,11 +21,14 @@ shifted since 2026-04-14 — new errors cluster around Feature 6 recap component
    on a `router.push()` call. `.expo/types/router.d.ts` was generated before the
    `/(tabs)/` → `/(drawer)/` refactor and the route union is out of date.
    Self-resolves: running `npx expo start` once rewrites the file.
-2. **Supabase PostgREST join casting (2 errors, pre-existing baseline).**
-   `app/campaign/[id]/index.tsx:273, 276` — TS2352 on `.select()` joins that
-   pull `profiles` and `characters` from `campaign_members`. Generated types
+2. **Supabase PostgREST join casting (1 error, pre-existing baseline).**
+   `app/campaign/[id]/index.tsx:271` — TS2352 on the `.select()` join that
+   pulls `profiles` and `characters` from `campaign_members`. Generated types
    emit `SelectQueryError<"could not find the relation between
    campaign_members and profiles">`; runtime query works fine. Known baseline.
+   Dropped from 2 occurrences to 1 in `perf/campaign-query-fixes` when the
+   dashboard's second character-fetch loop was collapsed into `useMemo` —
+   the remaining cast is the single `setMembers(data as Member[])`.
 3. **Missing module types in Feature 6 notes/recap (8 errors, new since the
    April 14 baseline).**
    - `components/notes/RichTextRenderer.web.tsx` — TS2307 on `react-markdown`,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, Image, TouchableOpacity, Clipboard, ScrollView,
   ActivityIndicator, Platform, Modal, Pressable, TextInput, StyleSheet,
@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   supabase, regenerateJoinCode, getCampaignMembers,
-  removeCampaignMember, uploadCampaignCover, getCharacterById,
+  removeCampaignMember, uploadCampaignCover,
   updateCampaignContentSource, getActiveSession, startSession,
   endSession, getSessionParticipants,
 } from '@vaultstone/api';
@@ -35,7 +35,7 @@ type Member = {
   character_id: string | null;
   joined_at: string;
   profiles: { id: string; display_name: string | null } | null;
-  characters: { id: string; name: string; base_stats: unknown } | null;
+  characters: { id: string; name: string; system: string; base_stats: unknown } | null;
 };
 
 type ContentSource = { key: string; label: string };
@@ -69,7 +69,6 @@ export default function CampaignDetailScreen() {
     campaigns.find((c) => c.id === id) ?? null,
   );
   const [members, setMembers] = useState<Member[]>([]);
-  const [characterMap, setCharacterMap] = useState<Record<string, { name: string; subtitle: string }>>({});
   const [copied, setCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -173,7 +172,7 @@ export default function CampaignDetailScreen() {
               ...m,
               character_id: characterId,
               characters: character
-                ? { id: character.id, name: character.name, base_stats: character.base_stats }
+                ? { id: character.id, name: character.name, system: character.system, base_stats: character.base_stats }
                 : null,
             }
           : m
@@ -268,33 +267,30 @@ export default function CampaignDetailScreen() {
 
   useEffect(() => {
     if (!id) return;
-    getCampaignMembers(id).then(async ({ data }) => {
-      if (!data) return;
-      setMembers(data as Member[]);
-
-      // Fetch character info for members with assigned characters
-      const charIds = (data as Member[])
-        .map((m) => m.character_id)
-        .filter((cid): cid is string => !!cid);
-      if (charIds.length === 0) return;
-
-      const map: Record<string, { name: string; subtitle: string }> = {};
-      await Promise.all(
-        charIds.map(async (cid) => {
-          const { data: char } = await getCharacterById(cid);
-          if (!char) return;
-          const stats = char.base_stats as Record<string, unknown> | null;
-          const parts: string[] = [];
-          if (stats && typeof stats.classKey === 'string')
-            parts.push(stats.classKey.charAt(0).toUpperCase() + stats.classKey.slice(1));
-          if (stats && typeof stats.level === 'number')
-            parts.push(`Lvl ${stats.level}`);
-          map[cid] = { name: char.name, subtitle: parts.join(' · ') || char.system };
-        }),
-      );
-      setCharacterMap(map);
+    getCampaignMembers(id).then(({ data }) => {
+      if (data) setMembers(data as Member[]);
     });
   }, [id]);
+
+  // Derived from the characters join already selected by getCampaignMembers —
+  // no second round-trip per character.
+  const characterMap = useMemo(() => {
+    const map: Record<string, { name: string; subtitle: string }> = {};
+    for (const m of members) {
+      if (!m.character_id || !m.characters) continue;
+      const stats = m.characters.base_stats as Record<string, unknown> | null;
+      const parts: string[] = [];
+      if (stats && typeof stats.classKey === 'string')
+        parts.push(stats.classKey.charAt(0).toUpperCase() + stats.classKey.slice(1));
+      if (stats && typeof stats.level === 'number')
+        parts.push(`Lvl ${stats.level}`);
+      map[m.character_id] = {
+        name: m.characters.name,
+        subtitle: parts.join(' · ') || m.characters.system,
+      };
+    }
+    return map;
+  }, [members]);
 
   // --- loading state ---
 

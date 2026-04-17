@@ -70,9 +70,23 @@ export async function regenerateJoinCode(campaignId: string) {
 export async function getCampaignMembers(campaignId: string) {
   return supabase
     .from('campaign_members')
-    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, base_stats)')
+    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, system, base_stats)')
     .eq('campaign_id', campaignId)
     .order('joined_at', { ascending: true });
+}
+
+// Batched count for the campaigns list — one round-trip for all campaigns
+// instead of N calls to getCampaignMembers just to read `.length`.
+export async function getMemberCountsForCampaigns(campaignIds: string[]) {
+  if (campaignIds.length === 0) return { data: {} as Record<string, number>, error: null };
+  const { data, error } = await supabase
+    .from('campaign_members')
+    .select('campaign_id')
+    .in('campaign_id', campaignIds);
+  if (error || !data) return { data: {} as Record<string, number>, error };
+  const counts: Record<string, number> = {};
+  for (const row of data) counts[row.campaign_id] = (counts[row.campaign_id] ?? 0) + 1;
+  return { data: counts, error: null };
 }
 
 // Party view needs the full character payload (resources + conditions) so it
