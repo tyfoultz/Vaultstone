@@ -10,44 +10,20 @@ export async function getCampaigns() {
   return supabase.from('campaigns').select('*').order('created_at', { ascending: false });
 }
 
+// Delegates to the create_campaign_with_gm RPC, which atomically inserts
+// the campaign row and its GM membership row inside a single transaction
+// and generates the join code server-side with built-in collision retry.
+// See supabase/migrations/20260419000000_create_campaign_with_gm_rpc.sql.
 export async function createCampaign(
   name: string,
-  dmUserId: string,
-  joinCode: string,
   opts?: { systemLabel?: string; description?: string },
 ) {
-  // Insert without RETURNING to avoid auth.uid() misbehaving in security-definer
-  // SELECT policies during RETURNING evaluation. Fetch separately instead.
-  const { error } = await supabase
-    .from('campaigns')
-    .insert({
-      name,
-      dm_user_id: dmUserId,
-      join_code: joinCode,
-      system_label: opts?.systemLabel?.trim() || null,
-      description: opts?.description?.trim() || null,
-    });
-
-  if (error) return { data: null, error };
-
-  // Fetch the new campaign so we have its id.
-  const { data: campaign, error: fetchError } = await supabase
-    .from('campaigns')
-    .select('*')
-    .eq('join_code', joinCode)
-    .single();
-
-  if (fetchError || !campaign) return { data: null, error: fetchError };
-
-  // Record the DM as an explicit campaign_members row with role 'gm'.
-  // This unifies all membership under one table for member management.
-  const { error: memberError } = await supabase
-    .from('campaign_members')
-    .insert({ campaign_id: campaign.id, user_id: dmUserId, role: 'gm' });
-
-  if (memberError) return { data: null, error: memberError };
-
-  return { data: campaign, error: null };
+  const { data, error } = await supabase.rpc('create_campaign_with_gm', {
+    p_name: name,
+    p_system_label: opts?.systemLabel?.trim() || null,
+    p_description: opts?.description?.trim() || null,
+  });
+  return { data, error };
 }
 
 // Uses a security-definer Postgres function so unauthenticated-to-campaign
@@ -70,9 +46,23 @@ export async function regenerateJoinCode(campaignId: string) {
 export async function getCampaignMembers(campaignId: string) {
   return supabase
     .from('campaign_members')
-    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, base_stats)')
+    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, system, base_stats)')
     .eq('campaign_id', campaignId)
     .order('joined_at', { ascending: true });
+}
+
+// Batched count for the campaigns list — one round-trip for all campaigns
+// instead of N calls to getCampaignMembers just to read `.length`.
+export async function getMemberCountsForCampaigns(campaignIds: string[]) {
+  if (campaignIds.length === 0) return { data: {} as Record<string, number>, error: null };
+  const { data, error } = await supabase
+    .from('campaign_members')
+    .select('campaign_id')
+    .in('campaign_id', campaignIds);
+  if (error || !data) return { data: {} as Record<string, number>, error };
+  const counts: Record<string, number> = {};
+  for (const row of data) counts[row.campaign_id] = (counts[row.campaign_id] ?? 0) + 1;
+  return { data: counts, error: null };
 }
 
 // Party view needs the full character payload (resources + conditions) so it
@@ -189,13 +179,17 @@ export async function uploadCampaignCover(campaignId: string, fileUri: string, m
     .from('campaign-assets')
     .getPublicUrl(path);
 
-  // Save the URL to the campaign row
+  // Append a version query param so clients and CDNs don't serve the prior
+  // upload's cached bytes — the storage path is stable (upsert), so without
+  // this the URL never changes even though the image did.
+  const versionedUrl = `${publicUrl}?v=${Date.now()}`;
+
   const { error: updateError } = await supabase
     .from('campaigns')
-    .update({ cover_image_url: publicUrl })
+    .update({ cover_image_url: versionedUrl })
     .eq('id', campaignId);
 
   if (updateError) return { url: null, error: updateError };
 
-  return { url: publicUrl, error: null };
+  return { url: versionedUrl, error: null };
 }

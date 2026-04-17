@@ -48,7 +48,7 @@ Internal packages: `@vaultstone/api`, `@vaultstone/store`, `@vaultstone/types`, 
 ## RLS Gotchas (hard-won)
 
 - `campaigns` ↔ `characters` policies were mutually recursive — fixed with security-definer helpers `is_campaign_dm` and `is_campaign_member`.
-- `INSERT ... RETURNING` evaluates the SELECT policy; if it calls a security-definer function using `auth.uid()`, it can fail — fix: split INSERT and SELECT into separate queries (see `createCampaign` in `packages/api/src/campaigns.ts`).
+- `INSERT ... RETURNING` evaluates the SELECT policy; if it calls a security-definer function using `auth.uid()`, it can fail. Historical workaround was splitting INSERT and SELECT into separate client queries. **Preferred pattern:** wrap multi-step create flows in a `security definer` RPC (see `create_campaign_with_gm` in `supabase/migrations/20260419000000_*.sql` and its caller in `packages/api/src/campaigns.ts`). The RPC sidesteps the RETURNING-triggered policy re-eval, keeps the flow atomic (no orphan rows on partial failure), and lets the server own `auth.uid()` and generated values like join codes.
 - Campaigns SELECT policy must NOT use `is_campaign_member` — use inline `auth.uid() = dm_user_id` check directly in the policy.
 - FK violations on RLS-protected tables surface as RLS errors, not FK errors.
 

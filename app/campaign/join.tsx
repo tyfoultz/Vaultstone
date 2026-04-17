@@ -9,7 +9,7 @@ import { colors, spacing, fonts } from '@vaultstone/ui';
 export default function JoinCampaignScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { campaigns, setCampaigns } = useCampaignStore();
+  const { campaigns, addCampaign } = useCampaignStore();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -50,7 +50,7 @@ export default function JoinCampaignScreen() {
       return;
     }
 
-    setCampaigns([campaign, ...campaigns]);
+    addCampaign(campaign);
     router.push(`/campaign/${campaign.id}/pick-character`);
   }
 
