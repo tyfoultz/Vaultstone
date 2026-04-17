@@ -1,0 +1,43 @@
+{
+  "key": "npcs",
+  "version": 1,
+  "label": "NPCs",
+  "description": "Non-player characters: allies, rivals, villains, bystanders.",
+  "defaultPageKind": "npc",
+  "allowedPageKinds": ["npc", "custom"],
+  "defaultSectionView": "list",
+  "icon": "skull",
+  "railIcon": "skull",
+  "accentToken": "danger",
+  "fields": [
+    {
+      "key": "role",
+      "label": "Role",
+      "type": "text",
+      "placeholder": "Innkeeper, sellsword captain…"
+    },
+    {
+      "key": "threat",
+      "label": "Threat",
+      "type": "select",
+      "options": ["none", "low", "moderate", "high", "legendary"]
+    },
+    {
+      "key": "species",
+      "label": "Species",
+      "type": "text",
+      "placeholder": "Human, elf, construct…"
+    },
+    {
+      "key": "visibility_note",
+      "label": "Visibility note",
+      "type": "long_text",
+      "helpText": "Quick note for the GM about what players already know."
+    },
+    {
+      "key": "tags",
+      "label": "Tags",
+      "type": "tags"
+    }
+  ]
+}

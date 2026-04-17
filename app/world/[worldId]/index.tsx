@@ -1,28 +1,47 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getCampaignsForWorld } from '@vaultstone/api';
-import { useCurrentWorldStore } from '@vaultstone/store';
+import { getTemplate } from '@vaultstone/content';
 import {
-  Card,
-  Chip,
-  Icon,
-  MetaLabel,
-  SectionHeader,
-  Text,
-  colors,
-  radius,
-  spacing,
-} from '@vaultstone/ui';
-import type { Database } from '@vaultstone/types';
+  selectSectionsForWorld,
+  useCurrentWorldStore,
+  usePagesStore,
+  useSectionsStore,
+} from '@vaultstone/store';
+import { Chip, GhostButton, GradientButton, MetaLabel, Text, colors, spacing } from '@vaultstone/ui';
+import type { Database, WorldSection } from '@vaultstone/types';
+
+import { useActiveSection } from '../../../components/world/ActiveSectionContext';
+import { CreatePageModal } from '../../../components/world/CreatePageModal';
+import { CreateSectionModal } from '../../../components/world/CreateSectionModal';
+import { PageHead } from '../../../components/world/PageHead';
+import {
+  WorldSectionAddCard,
+  WorldSectionCard,
+} from '../../../components/world/WorldSectionCard';
+import { WorldTopBar } from '../../../components/world/WorldTopBar';
+import { worldSectionHref } from '../../../components/world/worldHref';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
+// CSS grid lives inline; see note in SectionPageGrid.tsx.
+const ATLAS_GRID_STYLE = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+  gap: spacing.md,
+} as const;
+
 export default function WorldLandingScreen() {
   const { worldId } = useLocalSearchParams<{ worldId: string }>();
+  const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
+  const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
+  const pagesByWorld = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
+  const { setActiveSectionId } = useActiveSection();
   const [linkedCampaigns, setLinkedCampaigns] = useState<Campaign[]>([]);
+  const [createSectionOpen, setCreateSectionOpen] = useState(false);
+  const [createPageSectionId, setCreatePageSectionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!worldId) return;
@@ -32,108 +51,131 @@ export default function WorldLandingScreen() {
     });
   }, [worldId]);
 
-  if (!world) return null;
+  const pageCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const pages = pagesByWorld ?? [];
+    for (const p of pages) {
+      counts[p.section_id] = (counts[p.section_id] ?? 0) + 1;
+    }
+    return counts;
+  }, [pagesByWorld]);
+
+  if (!world || !worldId) return null;
+
+  const handleSectionPress = (section: WorldSection) => {
+    setActiveSectionId(section.id);
+    router.push(worldSectionHref(worldId, section.id));
+  };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <LinearGradient
-        colors={[colors.primaryContainer, colors.secondaryContainer]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.heroCover}
-      >
-        <Icon name="public" size={72} color={colors.onPrimary} />
-      </LinearGradient>
+    <View style={styles.root}>
+      <WorldTopBar
+        crumbs={[
+          { key: 'chronicle', label: 'Chronicle' },
+          { key: 'world', label: world.name },
+        ]}
+        actions={
+          <>
+            <GhostButton label="New page" onPress={() => setCreatePageSectionId(sections[0]?.id ?? null)} />
+            <GradientButton label="New section" onPress={() => setCreateSectionOpen(true)} />
+          </>
+        }
+      />
 
-      <View style={styles.headerBlock}>
-        <MetaLabel tone="accent">Chronicle</MetaLabel>
-        <Text
-          variant="display-sm"
-          family="headline"
-          weight="bold"
-          style={{ marginTop: 4, letterSpacing: -1 }}
-        >
-          {world.name}
-        </Text>
+      <ScrollView contentContainerStyle={styles.container}>
+        <PageHead
+          icon="globe"
+          title={world.name}
+          meta="Chronicle"
+          accentToken="primary"
+        />
+
         {world.description ? (
           <Text
             variant="body-lg"
+            family="serif-body"
             tone="secondary"
             style={{
               marginTop: spacing.md,
               color: colors.onSurfaceVariant,
               maxWidth: 720,
+              fontStyle: 'italic',
             }}
           >
             {world.description}
           </Text>
         ) : null}
-      </View>
 
-      {linkedCampaigns.length > 0 ? (
-        <View style={{ marginTop: spacing.xl }}>
-          <SectionHeader title="Linked campaigns" />
-          <View style={styles.chipRow}>
-            {linkedCampaigns.map((c) => (
-              <Chip key={c.id} label={c.name} variant="category" />
-            ))}
+        {linkedCampaigns.length > 0 ? (
+          <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
+            <MetaLabel size="sm" tone="muted">
+              Linked campaigns
+            </MetaLabel>
+            <View style={styles.chipRow}>
+              {linkedCampaigns.map((c) => (
+                <Chip key={c.id} label={c.name} variant="category" />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={{ marginTop: spacing.xl + spacing.sm, gap: spacing.md }}>
+          <MetaLabel size="sm" tone="accent">
+            The Atlas
+          </MetaLabel>
+          <Text
+            variant="headline-sm"
+            family="serif-display"
+            weight="bold"
+            style={{ color: colors.onSurface }}
+          >
+            Sections in this world
+          </Text>
+          <View style={ATLAS_GRID_STYLE as object}>
+            {sections.map((section) => {
+              const template = getTemplate(section.template_key);
+              return (
+                <WorldSectionCard
+                  key={section.id}
+                  section={section}
+                  template={template}
+                  pageCount={pageCounts[section.id] ?? 0}
+                  onPress={() => handleSectionPress(section)}
+                />
+              );
+            })}
+            <WorldSectionAddCard onPress={() => setCreateSectionOpen(true)} />
           </View>
         </View>
+      </ScrollView>
+
+      {createSectionOpen ? (
+        <CreateSectionModal worldId={worldId} onClose={() => setCreateSectionOpen(false)} />
       ) : null}
 
-      <Card tier="container" padding="lg" style={styles.comingSoon}>
-        <View style={{ alignItems: 'center', gap: spacing.sm }}>
-          <Icon name="auto-stories" size={36} color={colors.primary} />
-          <Text
-            variant="title-md"
-            family="headline"
-            weight="bold"
-            style={{ textAlign: 'center' }}
-          >
-            Your chronicle begins here.
-          </Text>
-          <Text
-            variant="body-md"
-            tone="secondary"
-            style={{
-              textAlign: 'center',
-              maxWidth: 480,
-              color: colors.onSurfaceVariant,
-            }}
-          >
-            Sections, pages, maps, and timelines arrive in the next phase. For
-            now, the world is claimed — the atlas and lore come next.
-          </Text>
-        </View>
-      </Card>
-    </ScrollView>
+      {createPageSectionId ? (
+        <CreatePageModal
+          worldId={worldId}
+          sectionId={createPageSectionId}
+          onClose={() => setCreatePageSectionId(null)}
+        />
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.surfaceCanvas,
+  },
   container: {
     padding: spacing.xl,
-    gap: spacing.md,
     paddingBottom: spacing['2xl'],
-  },
-  heroCover: {
-    width: '100%',
-    height: 180,
-    borderRadius: radius.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerBlock: {
-    marginTop: spacing.lg,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs + 2,
-  },
-  comingSoon: {
-    marginTop: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '33',
   },
 });

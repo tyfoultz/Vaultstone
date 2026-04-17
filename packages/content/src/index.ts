@@ -29,3 +29,11 @@ export type {
 // PDF parsing — platform-split. Web is implemented; native throws until Phase 5c.
 export { extractPages } from './local/pdf-parser';
 export type { ExtractOptions, PageInput } from './local/pdf-parser.web';
+
+// World-builder section templates (Feature 9 Phase 2).
+export {
+  getTemplate,
+  getLatestVersion,
+  listTemplates,
+} from './world-templates';
+export type { TemplateSummary } from './world-templates';

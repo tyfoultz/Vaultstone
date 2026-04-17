@@ -1,0 +1,32 @@
+{
+  "key": "lore",
+  "version": 1,
+  "label": "Lore",
+  "description": "History, myths, cosmology, and world-building reference.",
+  "defaultPageKind": "lore",
+  "allowedPageKinds": ["lore", "custom"],
+  "defaultSectionView": "list",
+  "icon": "book",
+  "railIcon": "book",
+  "accentToken": "cosmic",
+  "fields": [
+    {
+      "key": "era",
+      "label": "Era",
+      "type": "page_ref",
+      "pageKindFilter": ["timeline"],
+      "helpText": "Tie this entry to an era on the world timeline (Phase 6)."
+    },
+    {
+      "key": "category",
+      "label": "Category",
+      "type": "select",
+      "options": ["history", "myth", "religion", "magic", "science", "culture"]
+    },
+    {
+      "key": "tags",
+      "label": "Tags",
+      "type": "tags"
+    }
+  ]
+}

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { getWorlds } from '@vaultstone/api';
+import { getWorlds, softDeleteWorld } from '@vaultstone/api';
 import { useAuthStore, useWorldsStore } from '@vaultstone/store';
 import {
   colors,
@@ -181,9 +181,26 @@ function WorldCard({
   widthBasis: number;
   onPress: () => void;
 }) {
+  const removeWorld = useWorldsStore((s) => s.removeWorld);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  async function handleDelete() {
+    setDeleting(true);
+    setDeleteError('');
+    const { error: err } = await softDeleteWorld(world.id);
+    setDeleting(false);
+    if (err) {
+      setDeleteError(err.message);
+      return;
+    }
+    removeWorld(world.id);
+  }
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={confirming ? undefined : onPress}
       style={{
         flexBasis: `${100 / widthBasis}%`,
         flexGrow: 1,
@@ -191,14 +208,26 @@ function WorldCard({
       }}
     >
       <Card tier="high" padding="md" style={{ overflow: 'hidden' }}>
-        <LinearGradient
-          colors={[colors.primaryContainer, colors.secondaryContainer]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.cover}
-        >
-          <Icon name="public" size={48} color={colors.onPrimary} />
-        </LinearGradient>
+        <View style={{ position: 'relative' }}>
+          <LinearGradient
+            colors={[colors.primaryContainer, colors.secondaryContainer]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.cover}
+          >
+            <Icon name="public" size={48} color={colors.onPrimary} />
+          </LinearGradient>
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              setConfirming(true);
+            }}
+            style={styles.deleteBtn}
+            accessibilityLabel={`Delete ${world.name}`}
+          >
+            <Icon name="delete" size={18} color={colors.onSurface} />
+          </Pressable>
+        </View>
 
         <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
           <Text
@@ -227,6 +256,48 @@ function WorldCard({
         <View style={{ flexDirection: 'row', gap: spacing.xs, marginTop: spacing.md }}>
           {world.is_archived ? <Chip label="Archived" variant="meta" /> : null}
         </View>
+
+        {confirming ? (
+          <View style={styles.confirmRow}>
+            <Text variant="body-sm" style={{ color: colors.hpDanger, flex: 1 }}>
+              {deleteError || `Delete "${world.name}"? This soft-deletes the world.`}
+            </Text>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                setConfirming(false);
+                setDeleteError('');
+              }}
+              style={[styles.confirmBtn, styles.confirmCancel]}
+            >
+              <Text
+                variant="label-md"
+                weight="semibold"
+                uppercase
+                style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}
+              >
+                Cancel
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                handleDelete();
+              }}
+              style={[styles.confirmBtn, styles.confirmDelete]}
+              disabled={deleting}
+            >
+              <Text
+                variant="label-md"
+                weight="semibold"
+                uppercase
+                style={{ color: '#fff', letterSpacing: 1 }}
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </Card>
     </Pressable>
   );
@@ -268,5 +339,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing['2xl'],
     paddingHorizontal: spacing.xl,
+  },
+  deleteBtn: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(12, 14, 16, 0.55)',
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+  },
+  confirmRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant + '33',
+    flexWrap: 'wrap',
+  },
+  confirmBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  confirmCancel: {
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: 'transparent',
+  },
+  confirmDelete: {
+    borderColor: colors.hpDanger,
+    backgroundColor: colors.hpDanger,
   },
 });

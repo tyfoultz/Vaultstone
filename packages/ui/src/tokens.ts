@@ -45,6 +45,29 @@ export const colors = {
   error: '#ffb4ab',
   errorContainer: '#93000a',
 
+  // --- World-builder semantic accents (Phase 2; additive) ---
+  // `primary` (Noir lavender above) remains the sole primary-action color.
+  // These tokens drive template accents, visibility chips, and event tags.
+  player: '#4ec8c0',
+  onPlayer: '#062321',
+  playerContainer: '#0b3c39',
+  playerGlow: 'rgba(78, 200, 192, 0.18)',
+
+  gm: '#e6a255',
+  onGm: '#2b1708',
+  gmContainer: '#4a2a10',
+  gmGlow: 'rgba(230, 162, 85, 0.18)',
+
+  cosmic: '#6b8af0',
+  onCosmic: '#0b1232',
+  cosmicContainer: '#142040',
+  cosmicGlow: 'rgba(107, 138, 240, 0.18)',
+
+  // danger reuses existing hpDanger (#E24B4A); provide onDanger for parity.
+  onDanger: '#3a0a0a',
+  dangerContainer: '#5a1212',
+  dangerGlow: 'rgba(226, 75, 74, 0.18)',
+
   // --- Legacy aliases (mapped onto the Noir palette) ---
   // Existing screens reference these; they stay valid.
   background: '#121416',

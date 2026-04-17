@@ -9,3 +9,5 @@ export * from './session-sync-filter';
 export * from './homebrew';
 export * from './worlds';
 export * from './world-campaigns';
+export * from './sections';
+export * from './pages';

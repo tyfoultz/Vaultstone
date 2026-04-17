@@ -10,3 +10,5 @@ export { GradientButton } from './GradientButton';
 export { GhostButton } from './GhostButton';
 export { TextButton } from './TextButton';
 export { GlassOverlay } from './GlassOverlay';
+export { VisibilityBadge } from './VisibilityBadge';
+export type { VisibilityState } from './VisibilityBadge';

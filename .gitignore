@@ -19,6 +19,12 @@ android/
 # Playwright MCP runtime artifacts (console logs + page snapshots)
 .playwright-mcp/
 
+# Claude Code local scratch (plans, skills, sessions)
+.claude/
+
+# Stitch design mockup exports (reference material, not source code)
+stitch_ultimate_ttrpg_management_suite/
+
 # Copied from node_modules by scripts/copy-pdf-worker.js on postinstall
 public/pdf.min.mjs
 public/pdf.worker.min.mjs

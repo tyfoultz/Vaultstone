@@ -44,6 +44,22 @@ module.exports = {
         error: '#ffb4ab',
         'error-container': '#93000a',
 
+        // World-builder semantic accents (Phase 2; additive).
+        player: '#4ec8c0',
+        'on-player': '#062321',
+        'player-container': '#0b3c39',
+
+        gm: '#e6a255',
+        'on-gm': '#2b1708',
+        'gm-container': '#4a2a10',
+
+        cosmic: '#6b8af0',
+        'on-cosmic': '#0b1232',
+        'cosmic-container': '#142040',
+
+        'on-danger': '#3a0a0a',
+        'danger-container': '#5a1212',
+
         // Legacy aliases (Noir values).
         background: '#121416',
         border: '#4a4455',
@@ -57,6 +73,9 @@ module.exports = {
         label: ['Manrope'],
         // Legacy.
         display: ['SpaceGrotesk'],
+        // World-builder serif typography (loaded only inside /world/* routes).
+        'serif-display': ['Fraunces', 'SpaceGrotesk'],
+        'serif-body': ['Cormorant Garamond', 'Manrope'],
       },
       borderRadius: {
         DEFAULT: '0.125rem',

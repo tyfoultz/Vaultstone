@@ -22,11 +22,13 @@ type Tone = 'primary' | 'secondary' | 'accent' | 'muted' | 'danger' | 'inherit';
 
 type Weight = 'regular' | 'medium' | 'semibold' | 'bold';
 
+type Family = 'body' | 'headline' | 'serif-display' | 'serif-body';
+
 type Props = TextProps & {
   variant?: Variant;
   tone?: Tone;
   weight?: Weight;
-  family?: 'body' | 'headline';
+  family?: Family;
   uppercase?: boolean;
 };
 
@@ -59,10 +61,20 @@ const TONE_COLOR: Record<Tone, string | undefined> = {
 
 // Family defaults: `display`/`headline` variants use Space Grotesk; everything
 // else uses Manrope. Explicit `family` prop overrides.
-function defaultFamilyFor(variant: Variant): 'body' | 'headline' {
+function defaultFamilyFor(variant: Variant): Family {
   if (variant.startsWith('display') || variant.startsWith('headline')) return 'headline';
   return 'body';
 }
+
+// Serif faces are only loaded inside /world/* routes (see
+// app/world/[worldId]/_layout.tsx). Outside that tree the font names still
+// resolve via RN's system fallback.
+const FAMILY_TO_FONT: Record<Family, string> = {
+  headline: fonts.headline,
+  body: fonts.body,
+  'serif-display': 'Fraunces',
+  'serif-body': 'CormorantGaramond',
+};
 
 export function Text({
   variant = 'body-md',
@@ -75,7 +87,7 @@ export function Text({
   ...rest
 }: Props) {
   const resolvedFamily = family ?? defaultFamilyFor(variant);
-  const fontFamily = resolvedFamily === 'headline' ? fonts.headline : fonts.body;
+  const fontFamily = FAMILY_TO_FONT[resolvedFamily];
   const fontWeight =
     weight === 'regular' ? '400'
     : weight === 'medium' ? '500'
