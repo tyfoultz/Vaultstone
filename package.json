@@ -61,6 +61,7 @@
     "react-native-markdown-display": "^7.0.2",
     "react-native-pdf": "^7.0.4",
     "react-native-reanimated": "~3.17.4",
+    "react-native-safe-area-context": "5.4.0",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
     "remark-gfm": "^4.0.1",
