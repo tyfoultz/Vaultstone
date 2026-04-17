@@ -62,9 +62,16 @@ export const useSectionsStore = create<SectionsState>((set) => ({
     }),
 }));
 
+// Stable empty sentinel so the selector returns the same reference when a
+// world has no sections cached yet. Returning a fresh `[]` from a Zustand
+// selector triggers React #185 ("Maximum update depth exceeded") via
+// useSyncExternalStore, since each call looks like a state change.
+const EMPTY_SECTIONS: WorldSection[] = [];
+
 export function selectSectionsForWorld(
   state: SectionsState,
-  worldId: string,
+  worldId: string | undefined | null,
 ): WorldSection[] {
-  return state.byWorldId[worldId] ?? [];
+  if (!worldId) return EMPTY_SECTIONS;
+  return state.byWorldId[worldId] ?? EMPTY_SECTIONS;
 }

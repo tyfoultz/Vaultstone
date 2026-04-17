@@ -32,9 +32,7 @@ export default function PageDetailScreen() {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
   const { setActiveSectionId } = useActiveSection();
-  const sections = useSectionsStore((s) =>
-    worldId ? selectSectionsForWorld(s, worldId) : [],
-  );
+  const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
   const page = usePagesStore((s) =>
     worldId ? (s.byWorldId[worldId] ?? []).find((p) => p.id === pageId) : undefined,
   );

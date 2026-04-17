@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { selectPagesForSection, usePagesStore, useSectionsStore, selectSectionsForWorld } from '@vaultstone/store';
+import { usePagesStore, useSectionsStore, selectSectionsForWorld } from '@vaultstone/store';
+
+const EMPTY_PAGES: import('@vaultstone/types').WorldPage[] = [];
 import type { StructuredField, WorldPage } from '@vaultstone/types';
 import { Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
 
@@ -12,7 +14,7 @@ type Props = {
 };
 
 export function PageRefField({ field, value, onChange, worldId }: Props) {
-  const pagesByWorld = usePagesStore((s) => s.byWorldId[worldId] ?? []);
+  const pagesByWorld = usePagesStore((s) => s.byWorldId[worldId] ?? EMPTY_PAGES);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
 
   const candidates = useMemo(() => {

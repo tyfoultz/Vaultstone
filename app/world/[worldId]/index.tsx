@@ -36,9 +36,7 @@ export default function WorldLandingScreen() {
   const { worldId } = useLocalSearchParams<{ worldId: string }>();
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
-  const sections = useSectionsStore((s) =>
-    worldId ? selectSectionsForWorld(s, worldId) : [],
-  );
+  const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
   const pagesByWorld = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
   const { setActiveSectionId } = useActiveSection();
   const [linkedCampaigns, setLinkedCampaigns] = useState<Campaign[]>([]);

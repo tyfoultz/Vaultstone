@@ -62,6 +62,14 @@ export const usePagesStore = create<PagesState>((set) => ({
     }),
 }));
 
+// IMPORTANT: don't call these from inside a Zustand selector (e.g.,
+// `usePagesStore((s) => selectPagesForSection(s, ...))`). They allocate
+// fresh arrays every call and trigger React #185 ("Maximum update depth
+// exceeded") via useSyncExternalStore. Instead, subscribe to the stable
+// `byWorldId[worldId]` ref and derive locally with useMemo:
+//
+//   const raw = usePagesStore((s) => s.byWorldId[worldId]);
+//   const pages = useMemo(() => filterPagesBySection(raw, sectionId), [raw, sectionId]);
 export function selectPagesForSection(
   state: PagesState,
   worldId: string,
@@ -71,16 +79,30 @@ export function selectPagesForSection(
   return pages.filter((p) => p.section_id === sectionId);
 }
 
+export function filterPagesBySection(
+  pages: WorldPage[] | undefined,
+  sectionId: string,
+): WorldPage[] {
+  if (!pages || pages.length === 0) return [];
+  return pages.filter((p) => p.section_id === sectionId);
+}
+
 const SIDEBAR_DEPTH_CAP = 6;
 
+// See note on selectPagesForSection — same warning applies here.
 export function selectPageTree(
   state: PagesState,
   worldId: string,
   sectionId: string,
 ): WorldPageTreeNode[] {
-  const pages = (state.byWorldId[worldId] ?? []).filter(
-    (p) => p.section_id === sectionId,
-  );
+  return buildPageTree(state.byWorldId[worldId], sectionId);
+}
+
+export function buildPageTree(
+  allPages: WorldPage[] | undefined,
+  sectionId: string,
+): WorldPageTreeNode[] {
+  const pages = (allPages ?? []).filter((p) => p.section_id === sectionId);
   const byParent = new Map<string | null, WorldPage[]>();
   for (const page of pages) {
     const parent = page.parent_page_id ?? null;

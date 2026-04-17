@@ -18,4 +18,6 @@ export {
   usePagesStore,
   selectPagesForSection,
   selectPageTree,
+  filterPagesBySection,
+  buildPageTree,
 } from './pages.store';

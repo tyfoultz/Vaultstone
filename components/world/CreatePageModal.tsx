@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { createPage } from '@vaultstone/api';
 import { getLatestVersion, getTemplate } from '@vaultstone/content';
 import {
-  selectPagesForSection,
+  filterPagesBySection,
   selectSectionsForWorld,
   usePagesStore,
   useSectionsStore,
@@ -41,15 +41,19 @@ export function CreatePageModal({
   onCreated,
 }: Props) {
   const router = useRouter();
-  const section = useSectionsStore((s) =>
-    selectSectionsForWorld(s, worldId).find((sec) => sec.id === sectionId),
+  const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
+  const section = useMemo(
+    () => sections.find((sec) => sec.id === sectionId),
+    [sections, sectionId],
   );
-  const nextSortOrder = usePagesStore(
-    (s) =>
-      (selectPagesForSection(s, worldId, sectionId)
-        .filter((p) => (p.parent_page_id ?? null) === (parentPageId ?? null))
-        .at(-1)?.sort_order ?? -1) + 1,
-  );
+  const rawPages = usePagesStore((s) => s.byWorldId[worldId]);
+  const nextSortOrder = useMemo(() => {
+    const sectionPages = filterPagesBySection(rawPages, sectionId);
+    const siblings = sectionPages.filter(
+      (p) => (p.parent_page_id ?? null) === (parentPageId ?? null),
+    );
+    return (siblings.at(-1)?.sort_order ?? -1) + 1;
+  }, [rawPages, sectionId, parentPageId]);
   const addPage = usePagesStore((s) => s.addPage);
 
   const template = useMemo(

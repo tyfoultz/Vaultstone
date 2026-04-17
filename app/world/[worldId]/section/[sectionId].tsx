@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getTemplate } from '@vaultstone/content';
 import {
-  selectPagesForSection,
+  filterPagesBySection,
   selectSectionsForWorld,
   useCurrentWorldStore,
   usePagesStore,
@@ -32,11 +32,13 @@ export default function SectionDetailScreen() {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
   const { setActiveSectionId } = useActiveSection();
-  const sections = useSectionsStore((s) =>
-    worldId ? selectSectionsForWorld(s, worldId) : [],
-  );
-  const pages = usePagesStore((s) =>
-    worldId && sectionId ? selectPagesForSection(s, worldId, sectionId) : [],
+  const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
+  // Subscribe to the stable raw pages array; filter locally via useMemo so
+  // we don't return a fresh array from the Zustand selector (React #185).
+  const rawPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
+  const pages = useMemo(
+    () => (sectionId ? filterPagesBySection(rawPages, sectionId) : []),
+    [rawPages, sectionId],
   );
   const [createPageOpen, setCreatePageOpen] = useState(false);
 
