@@ -1,3 +1,12 @@
-// Shared primitive UI components — Text, Button, Card, Input.
-// Built with NativeWind (Tailwind for React Native).
-// TODO: implement components as MVP screens are built.
+export { Surface } from './Surface';
+export { Card } from './Card';
+export { Chip } from './Chip';
+export { Text } from './Text';
+export { MetaLabel } from './MetaLabel';
+export { SectionHeader } from './SectionHeader';
+export { ScreenHeader } from './ScreenHeader';
+export { Input } from './Input';
+export { GradientButton } from './GradientButton';
+export { GhostButton } from './GhostButton';
+export { TextButton } from './TextButton';
+export { GlassOverlay } from './GlassOverlay';

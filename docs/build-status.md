@@ -209,6 +209,20 @@ prep, or sooner if any feature work needs `expo run:ios`/`run:android`).
 
 ---
 
+## Design System Overhaul — Vaultstone Noir
+
+Paradigm shift from warm parchment (Cinzel / Crimson Pro) to "Magical Midnight" void-black + celestial purple/blue, editorial typography (Space Grotesk / Manrope), glass sidebars, bento layouts. Reference designs authored in Stitch; HTML + PNG source kept locally (not tracked).
+
+- [x] **Phase A — Foundation.** Tokens + Tailwind config rewritten to Noir palette; radius scale; typography scale. `expo-blur`, `expo-linear-gradient`, Space Grotesk + Manrope fonts installed. Breakpoint utility + Icon wrapper added to `@vaultstone/ui`. 12 primitives populated in `packages/ui/src/primitives/` (`Surface`, `Card`, `Chip`, `Text`, `MetaLabel`, `SectionHeader`, `ScreenHeader`, `Input`, `GradientButton`, `GhostButton`, `TextButton`, `GlassOverlay`).
+- [x] **Phase B — Shell & auth.** Drawer reskinned with glass sidebar, gradient active nav item, new wordmark, 256px expanded width. Auth screens (login, signup, forgot-password, reset-password) migrated to primitives as the test-bed.
+- [x] **Phase B polish (2026-04-17).** Sidebar moved to `surfaceContainerLow` with a hairline outline-variant border so it reads distinctly against the canvas. Active nav item swapped to a flat `primary-container @ 40%` fill with `primary`-tinted icon and label (matches Stitch reference; covers nested routes via `startsWith`). Collapse-toggle redrawn as a 32px right-anchored pill with 22px chevron. Repointed the legacy `colors.surface` alias from the canvas value (#121416) to `surfaceContainerHigh` (#282a2c) so every existing StyleSheet card pops without per-screen edits; introduced `colors.surfaceCanvas` for code that explicitly wants the void.
+- [ ] **Phase C — Screen reskin.** ~25 content screens (campaigns, characters, campaign detail tabs, character wizard, session mode, notes). Legacy tokens.ts aliases mean these already render with the Noir palette and cards already pop; visual-system migration to primitives is incremental. Screen-by-screen ~0.5–1 day each.
+- [ ] Migrate remaining 18 `MaterialCommunityIcons` callsites to the `Icon` wrapper.
+- [ ] Refactor remaining 9 inline `useWindowDimensions()` callsites to `useBreakpoint()`.
+- [ ] Adopt `Text` primitive across content screens (replaces `import { Text } from 'react-native'`).
+
+---
+
 ## Phase 6: TestFlight / Internal Testing
 
 *After all 7 MVP features are working:*

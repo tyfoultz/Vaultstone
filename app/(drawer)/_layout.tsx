@@ -1,36 +1,41 @@
 import { useState } from 'react';
 import {
   View,
-  Text,
-  TouchableOpacity,
   Pressable,
   StyleSheet,
-  useWindowDimensions,
 } from 'react-native';
-import { Redirect, Slot, usePathname, useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Redirect, Slot, usePathname, useRouter, type Href } from 'expo-router';
 import { useAuthStore, useProfileStore } from '@vaultstone/store';
-import { colors, spacing } from '@vaultstone/ui';
+import {
+  colors,
+  spacing,
+  radius,
+  useBreakpoint,
+  Icon,
+  Text,
+  MetaLabel,
+  GlassOverlay,
+} from '@vaultstone/ui';
 
-type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+type IconName = React.ComponentProps<typeof Icon>['name'];
 
-const NAV_ITEMS: { label: string; href: string; icon: IconName }[] = [
-  { label: 'Home', href: '/(drawer)/home', icon: 'home-outline' },
-  { label: 'Campaigns', href: '/(drawer)/campaigns', icon: 'map-outline' },
-  { label: 'Characters', href: '/(drawer)/characters', icon: 'account-outline' },
-  { label: 'Settings', href: '/(drawer)/settings', icon: 'cog-outline' },
+const NAV_ITEMS: { label: string; href: Href; icon: IconName }[] = [
+  { label: 'Home', href: '/home', icon: 'home' },
+  { label: 'Campaigns', href: '/campaigns', icon: 'map' },
+  { label: 'Characters', href: '/characters', icon: 'person' },
+  { label: 'Settings', href: '/settings', icon: 'settings' },
 ];
 
-const SIDEBAR_EXPANDED = 220;
-const SIDEBAR_COLLAPSED = 56;
-const MOBILE_BREAKPOINT = 768;
+const SIDEBAR_EXPANDED = 256;
+const SIDEBAR_COLLAPSED = 64;
 
 export default function DrawerLayout() {
   const session = useAuthStore((state) => state.session);
   const profile = useProfileStore((state) => state.profile);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { width } = useWindowDimensions();
+  const { isMobile } = useBreakpoint();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -38,38 +43,84 @@ export default function DrawerLayout() {
     return <Redirect href="/(auth)/login" />;
   }
 
-  const isMobile = width < MOBILE_BREAKPOINT;
-
-  function handleNav(href: string) {
+  function handleNav(href: Href) {
     router.push(href);
     if (isMobile) setMobileOpen(false);
   }
 
-  function renderNavItems() {
-    const showLabels = isMobile || !collapsed;
-    return NAV_ITEMS.map((item) => {
-      const isActive = pathname === item.href.replace('/(drawer)', '') || pathname === item.href;
+  function renderWordmark(collapsedForm: boolean) {
+    if (collapsedForm) {
       return (
-        <TouchableOpacity
-          key={item.href}
-          style={[
-            styles.navItem,
-            isActive && styles.navItemActive,
-            !showLabels && styles.navItemCollapsed,
-          ]}
-          onPress={() => handleNav(item.href)}
+        <View style={styles.markSquareWrapper}>
+          <LinearGradient
+            colors={[colors.primary, colors.primaryContainer]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.markSquare}
+          >
+            <Icon name="auto-awesome" size={22} color={colors.onPrimary} />
+          </LinearGradient>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.wordmark}>
+        <LinearGradient
+          colors={[colors.primary, colors.primaryContainer]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.markSquare}
         >
-          <MaterialCommunityIcons
-            name={item.icon}
-            size={22}
-            color={isActive ? colors.brand : colors.textSecondary}
-          />
-          {showLabels && (
-            <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
+          <Icon name="auto-awesome" size={22} color={colors.onPrimary} />
+        </LinearGradient>
+        <View style={{ flex: 1 }}>
+          <Text
+            variant="title-md"
+            family="headline"
+            weight="bold"
+            style={{ color: colors.primary, letterSpacing: -0.5 }}
+          >
+            Vaultstone
+          </Text>
+          <MetaLabel size="sm">Celestial Record</MetaLabel>
+        </View>
+      </View>
+    );
+  }
+
+  function renderNavItems(showLabels: boolean) {
+    return NAV_ITEMS.map((item) => {
+      const hrefStr = typeof item.href === 'string' ? item.href : '';
+      const isActive =
+        pathname === hrefStr || (hrefStr !== '/' && pathname.startsWith(hrefStr + '/'));
+
+      const iconColor = isActive ? colors.primary : colors.onSurfaceVariant;
+      const labelColor = isActive ? colors.primary : colors.onSurfaceVariant;
+
+      return (
+        <Pressable
+          key={item.label}
+          onPress={() => handleNav(item.href)}
+          style={({ pressed }) => [
+            styles.navItemBase,
+            !showLabels && styles.navItemCollapsed,
+            isActive
+              ? { backgroundColor: colors.primaryContainer + '66' }
+              : { backgroundColor: pressed ? colors.surfaceContainerHigh : 'transparent' },
+          ]}
+        >
+          <Icon name={item.icon} size={20} color={iconColor} />
+          {showLabels ? (
+            <Text
+              variant="body-sm"
+              family="body"
+              weight={isActive ? 'bold' : 'medium'}
+              style={{ color: labelColor, letterSpacing: 0.25 }}
+            >
               {item.label}
             </Text>
-          )}
-        </TouchableOpacity>
+          ) : null}
+        </Pressable>
       );
     });
   }
@@ -78,44 +129,52 @@ export default function DrawerLayout() {
 
   function renderProfileBadge(showLabel: boolean) {
     return (
-      <TouchableOpacity
-        style={styles.profileBadge}
-        onPress={() => handleNav('/(drawer)/settings')}
+      <Pressable
+        onPress={() => handleNav('/settings')}
+        style={({ pressed }) => [
+          styles.profileBadge,
+          { backgroundColor: pressed ? colors.surfaceContainerHigh : 'transparent' },
+        ]}
       >
-        <MaterialCommunityIcons name="account-circle" size={22} color={colors.brand} />
-        {showLabel && (
-          <Text style={styles.profileName} numberOfLines={1}>
+        <Icon name="account-circle" size={24} color={colors.primary} />
+        {showLabel ? (
+          <Text
+            variant="body-sm"
+            family="body"
+            weight="semibold"
+            style={{ color: colors.onSurface, flex: 1 }}
+            numberOfLines={1}
+          >
             {displayName || 'Set up profile'}
           </Text>
-        )}
-      </TouchableOpacity>
+        ) : null}
+      </Pressable>
     );
   }
 
-  // Mobile: hamburger button + slide-over menu
+  // Mobile: hamburger + slide-over menu.
   if (isMobile) {
     return (
       <View style={styles.root}>
-        {mobileOpen && (
+        {mobileOpen ? (
           <>
             <Pressable style={styles.overlay} onPress={() => setMobileOpen(false)} />
-            <View style={styles.mobileMenu}>
-              <View style={styles.nav}>{renderNavItems()}</View>
-              <View style={styles.sidebarFooter}>
-                {renderProfileBadge(true)}
-              </View>
-            </View>
+            <GlassOverlay style={styles.mobileMenu} opacity={0.88}>
+              <View style={styles.sidebarHeader}>{renderWordmark(false)}</View>
+              <View style={styles.nav}>{renderNavItems(true)}</View>
+              <View style={styles.sidebarFooter}>{renderProfileBadge(true)}</View>
+            </GlassOverlay>
           </>
-        )}
+        ) : null}
 
         <View style={styles.content}>
           <View style={styles.mobileHeader}>
-            <TouchableOpacity
+            <Pressable
               style={styles.hamburger}
               onPress={() => setMobileOpen(!mobileOpen)}
             >
-              <MaterialCommunityIcons name="menu" size={26} color={colors.textPrimary} />
-            </TouchableOpacity>
+              <Icon name="menu" size={26} color={colors.onSurface} />
+            </Pressable>
           </View>
           <Slot />
         </View>
@@ -123,29 +182,37 @@ export default function DrawerLayout() {
     );
   }
 
-  // Desktop: persistent collapsible sidebar
+  // Desktop: persistent glass sidebar.
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
 
   return (
     <View style={styles.root}>
-      <View style={[styles.sidebar, { width: sidebarWidth }]}>
-        <TouchableOpacity
-          style={styles.toggleBtn}
-          onPress={() => setCollapsed(!collapsed)}
-        >
-          <MaterialCommunityIcons
-            name={collapsed ? 'chevron-right' : 'chevron-left'}
-            size={20}
-            color={colors.textSecondary}
-          />
-        </TouchableOpacity>
-
-        <View style={styles.nav}>{renderNavItems()}</View>
-
-        <View style={styles.sidebarFooter}>
-          {renderProfileBadge(!collapsed)}
+      <GlassOverlay style={[styles.sidebar, { width: sidebarWidth }]} opacity={0.92}>
+        <View style={styles.sidebarHeader}>
+          {renderWordmark(collapsed)}
         </View>
-      </View>
+
+        <View style={collapsed ? styles.toggleRowCollapsed : styles.toggleRowExpanded}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.toggleBtn,
+              { backgroundColor: pressed ? colors.surfaceContainerHighest : colors.surfaceContainerHigh },
+            ]}
+            onPress={() => setCollapsed(!collapsed)}
+            accessibilityLabel={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <Icon
+              name={collapsed ? 'chevron-right' : 'chevron-left'}
+              size={22}
+              color={colors.onSurfaceVariant}
+            />
+          </Pressable>
+        </View>
+
+        <View style={styles.nav}>{renderNavItems(!collapsed)}</View>
+
+        <View style={styles.sidebarFooter}>{renderProfileBadge(!collapsed)}</View>
+      </GlassOverlay>
 
       <View style={styles.content}>
         <Slot />
@@ -158,64 +225,96 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceCanvas,
   },
   sidebar: {
-    backgroundColor: colors.surface,
-    borderRightColor: colors.border,
-    borderRightWidth: 1,
     paddingTop: spacing.lg,
+    paddingHorizontal: spacing.sm + 4,
+    paddingBottom: spacing.lg,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRightWidth: 1,
+    borderRightColor: colors.outlineVariant + '33',
   },
-  toggleBtn: {
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
+  sidebarHeader: {
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.xs,
   },
-  nav: {
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-  },
-  navItem: {
+  wordmark: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    gap: spacing.sm + 4,
   },
-  navItemActive: {
-    backgroundColor: colors.background,
+  markSquareWrapper: {
+    alignItems: 'center',
+  },
+  markSquare: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toggleRowExpanded: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: spacing.md,
+    marginRight: -(spacing.sm + 4),
+    paddingRight: spacing.xs,
+  },
+  toggleRowCollapsed: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  toggleBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+  },
+  nav: {
+    gap: 2,
+  },
+  navItemBase: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 4,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.sm + 4,
+    borderRadius: radius.lg,
+  },
+  navItemInnerPressable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 4,
+    flex: 1,
   },
   navItemCollapsed: {
     justifyContent: 'center',
     paddingHorizontal: 0,
   },
-  navLabel: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  navLabelActive: {
-    color: colors.brand,
-  },
   content: {
     flex: 1,
+    backgroundColor: colors.surfaceCanvas,
   },
-  // Mobile styles
+  // Mobile.
   mobileHeader: {
-    backgroundColor: colors.surface,
-    borderBottomColor: colors.border,
+    backgroundColor: colors.surfaceContainerLowest,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.xs + 2,
     borderBottomWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    borderBottomColor: colors.outlineVariant + '33',
   },
   hamburger: {
-    padding: 2,
+    padding: 4,
     alignSelf: 'flex-start',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(12, 14, 16, 0.6)',
     zIndex: 10,
   },
   mobileMenu: {
@@ -223,30 +322,23 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     bottom: 0,
-    width: 260,
-    backgroundColor: colors.surface,
-    borderRightColor: colors.border,
-    borderRightWidth: 1,
-    paddingTop: 60,
+    width: 280,
+    paddingTop: spacing['2xl'],
+    paddingHorizontal: spacing.sm + 4,
+    paddingBottom: spacing.lg,
     zIndex: 20,
   },
   sidebarFooter: {
     marginTop: 'auto',
-    borderTopColor: colors.border,
+    paddingTop: spacing.sm,
     borderTopWidth: 1,
-    padding: spacing.sm,
+    borderTopColor: colors.outlineVariant + '33',
   },
   profileBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.sm + 4,
     padding: spacing.sm,
-    borderRadius: 8,
-  },
-  profileName: {
-    fontSize: 13,
-    color: colors.textPrimary,
-    fontWeight: '600',
-    flex: 1,
+    borderRadius: radius.lg,
   },
 });

@@ -66,14 +66,33 @@ Internal packages: `@vaultstone/api`, `@vaultstone/store`, `@vaultstone/types`, 
 
 ## Design Tokens
 
-All colors/fonts in `packages/ui/src/tokens.ts`. Never hardcode hex values.
+All colors/fonts in `packages/ui/src/tokens.ts` (mirrored in `tailwind.config.js`). Never hardcode hex values.
+
+**Vaultstone Noir — "Magical Midnight"** (dark-only). Foundation landed via the Noir overhaul; screens not yet migrated to primitives still render through the legacy token aliases below, so the new palette applies everywhere automatically.
 
 ```
-brand: #534AB7 | background: #12110f | surface: #0e0d0b | border: #2e2b25
-textPrimary: #e8e0cc | textSecondary: #7a7568
-hpHealthy: #1D9E75 | hpWarning: #EF9F27 | hpDanger: #E24B4A
-Fonts: Cinzel (display), Crimson Pro (body) — Dark mode only for MVP
+Surface hierarchy (void-first):
+  surface #121416 | surface-container-lowest #0c0e10
+  surface-container #1e2022 | surface-container-high #282a2c | surface-container-highest #333537
+
+Accents:
+  primary #d3bbff | primary-container #6d28d9 | on-primary #3f008d
+  secondary #adc6ff | secondary-container #0566d9
+
+Text + lines:
+  on-surface #e2e2e5 | on-surface-variant #ccc3d7
+  outline #958da1 | outline-variant #4a4455
+
+Semantic state (preserved):
+  hp-healthy #1D9E75 | hp-warning #EF9F27 | hp-danger #E24B4A
+
+Fonts: Space Grotesk (headline/display) + Manrope (body/label).
+Legacy aliases (brand, background, border, textPrimary, textSecondary) remap onto the Noir palette for backward compat.
 ```
+
+**Token semantics gotcha — `surface` vs `surfaceCanvas`.** Legacy `colors.surface` is a *card/elevated* alias mapped to `surfaceContainerHigh` (#282a2c) so existing StyleSheets pop against the canvas without per-screen edits. The explicit void canvas is `colors.surfaceCanvas` (#121416) — use it when you need the page background. The Tailwind config keeps the canonical Noir naming (`bg-surface = #121416 = canvas`), so NativeWind classes follow Material 3 semantics directly. This split is intentional scaffolding for the Phase C reskin: legacy StyleSheet code reads `colors.surface` as cards, NativeWind code reads `bg-surface` as canvas.
+
+**Primitives** — prefer `@vaultstone/ui` primitives (`Surface`, `Card`, `GradientButton`, `GhostButton`, `Input`, `Chip`, `MetaLabel`, `SectionHeader`, `ScreenHeader`, `Text`, `GlassOverlay`, `Icon`) over raw RN components on new screens. Screen-level reskin (Phase C) is incremental — existing `StyleSheet`-based screens keep rendering with the new palette via legacy aliases.
 
 ---
 

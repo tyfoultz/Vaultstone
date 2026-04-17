@@ -1,9 +1,16 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { updatePassword } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
-import { colors } from '@vaultstone/ui';
+import {
+  spacing,
+  Surface,
+  Card,
+  Input,
+  Text,
+  GradientButton,
+} from '@vaultstone/ui';
 
 export default function ResetPasswordScreen() {
   const [password, setPassword] = useState('');
@@ -33,7 +40,6 @@ export default function ResetPasswordScreen() {
     if (updateError) {
       setError('Could not update password. The link may have expired.');
     } else {
-      // Clear session so user lands on login after reset
       setSession(null);
       setDone(true);
     }
@@ -41,100 +47,95 @@ export default function ResetPasswordScreen() {
 
   if (done) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Password updated</Text>
-        <Text style={styles.subtitle}>You can now sign in with your new password.</Text>
-        <TouchableOpacity style={styles.button} onPress={() => router.replace('/(auth)/login')}>
-          <Text style={styles.buttonText}>Sign in</Text>
-        </TouchableOpacity>
-      </View>
+      <Surface tier="void" style={styles.container}>
+        <Card tier="high" padding="lg" style={styles.card}>
+          <Text
+            variant="headline-sm"
+            family="headline"
+            weight="bold"
+            style={{ textAlign: 'center', marginBottom: spacing.sm }}
+          >
+            Password updated
+          </Text>
+          <Text
+            variant="body-md"
+            tone="secondary"
+            style={{ textAlign: 'center', marginBottom: spacing.lg }}
+          >
+            You can now sign in with your new password.
+          </Text>
+          <GradientButton
+            label="Sign In"
+            fullWidth
+            size="lg"
+            onPress={() => router.replace('/(auth)/login')}
+          />
+        </Card>
+      </Surface>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>New password</Text>
-      <Text style={styles.subtitle}>Choose a new password for your account.</Text>
+    <Surface tier="void" style={styles.container}>
+      <Card tier="high" padding="lg" style={styles.card}>
+        <Text
+          variant="headline-sm"
+          family="headline"
+          weight="bold"
+          style={{ marginBottom: spacing.xs }}
+        >
+          New password
+        </Text>
+        <Text variant="body-sm" tone="secondary" style={{ marginBottom: spacing.lg }}>
+          Choose a new password for your account.
+        </Text>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <Text variant="body-sm" tone="danger" style={{ marginBottom: spacing.md }}>
+            {error}
+          </Text>
+        ) : null}
 
-      <TextInput
-        style={styles.input}
-        placeholder="New password"
-        placeholderTextColor={colors.textSecondary}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete="new-password"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Confirm new password"
-        placeholderTextColor={colors.textSecondary}
-        value={confirm}
-        onChangeText={setConfirm}
-        secureTextEntry
-        autoComplete="new-password"
-      />
+        <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
+          <Input
+            label="New password"
+            placeholder="at least 8 characters"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoComplete="new-password"
+          />
+          <Input
+            label="Confirm new password"
+            placeholder="••••••••"
+            value={confirm}
+            onChangeText={setConfirm}
+            secureTextEntry
+            autoComplete="new-password"
+          />
+        </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleUpdate} disabled={loading}>
-        {loading
-          ? <ActivityIndicator color={colors.textPrimary} />
-          : <Text style={styles.buttonText}>Update password</Text>
-        }
-      </TouchableOpacity>
-    </View>
+        <GradientButton
+          label="Update password"
+          fullWidth
+          size="lg"
+          loading={loading}
+          onPress={handleUpdate}
+        />
+      </Card>
+    </Surface>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  title: {
-    fontSize: 36,
-    color: colors.textPrimary,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 40,
-  },
-  error: {
-    color: colors.hpDanger,
-    textAlign: 'center',
-    marginBottom: 16,
-    fontSize: 14,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 8,
-    color: colors.textPrimary,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  button: {
-    backgroundColor: colors.brand,
-    borderRadius: 8,
-    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 24,
+    justifyContent: 'center',
+    padding: spacing.lg,
   },
-  buttonText: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '600',
+  card: {
+    width: '100%',
+    maxWidth: 420,
   },
 });
