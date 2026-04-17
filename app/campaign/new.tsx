@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { createCampaign, generateJoinCode } from '@vaultstone/api';
+import { createCampaign } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, fonts } from '@vaultstone/ui';
 
@@ -26,11 +26,8 @@ export default function NewCampaignScreen() {
     setLoading(true);
     setError('');
 
-    const joinCode = generateJoinCode();
     const { data, error: err } = await createCampaign(
       name.trim(),
-      user.id,
-      joinCode,
       { systemLabel, description },
     );
 

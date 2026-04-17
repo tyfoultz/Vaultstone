@@ -313,6 +313,10 @@ export interface Database {
     };
     Views: Record<never, never>;
     Functions: {
+      create_campaign_with_gm: {
+        Args: { p_name: string; p_system_label?: string | null; p_description?: string | null };
+        Returns: Database['public']['Tables']['campaigns']['Row'];
+      };
       get_campaign_by_join_code: {
         Args: { p_join_code: string };
         Returns: Database['public']['Tables']['campaigns']['Row'][];

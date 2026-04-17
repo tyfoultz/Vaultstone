@@ -10,44 +10,20 @@ export async function getCampaigns() {
   return supabase.from('campaigns').select('*').order('created_at', { ascending: false });
 }
 
+// Delegates to the create_campaign_with_gm RPC, which atomically inserts
+// the campaign row and its GM membership row inside a single transaction
+// and generates the join code server-side with built-in collision retry.
+// See supabase/migrations/20260419000000_create_campaign_with_gm_rpc.sql.
 export async function createCampaign(
   name: string,
-  dmUserId: string,
-  joinCode: string,
   opts?: { systemLabel?: string; description?: string },
 ) {
-  // Insert without RETURNING to avoid auth.uid() misbehaving in security-definer
-  // SELECT policies during RETURNING evaluation. Fetch separately instead.
-  const { error } = await supabase
-    .from('campaigns')
-    .insert({
-      name,
-      dm_user_id: dmUserId,
-      join_code: joinCode,
-      system_label: opts?.systemLabel?.trim() || null,
-      description: opts?.description?.trim() || null,
-    });
-
-  if (error) return { data: null, error };
-
-  // Fetch the new campaign so we have its id.
-  const { data: campaign, error: fetchError } = await supabase
-    .from('campaigns')
-    .select('*')
-    .eq('join_code', joinCode)
-    .single();
-
-  if (fetchError || !campaign) return { data: null, error: fetchError };
-
-  // Record the DM as an explicit campaign_members row with role 'gm'.
-  // This unifies all membership under one table for member management.
-  const { error: memberError } = await supabase
-    .from('campaign_members')
-    .insert({ campaign_id: campaign.id, user_id: dmUserId, role: 'gm' });
-
-  if (memberError) return { data: null, error: memberError };
-
-  return { data: campaign, error: null };
+  const { data, error } = await supabase.rpc('create_campaign_with_gm', {
+    p_name: name,
+    p_system_label: opts?.systemLabel?.trim() || null,
+    p_description: opts?.description?.trim() || null,
+  });
+  return { data, error };
 }
 
 // Uses a security-definer Postgres function so unauthenticated-to-campaign
