@@ -64,7 +64,7 @@ Tiptap on web, 10tap-editor on native. Shared extensions in `packages/ui/src/wor
 
 Each phase ships on its own `feature/world-builder-phase-N-*` branch via PR.
 
-1. **Phase 1 — Foundation** — `worlds`, `world_campaigns`, `is_world_owner`, world list + picker, empty workspace shell, lens placeholder. Spec rewrite.
+1. **Phase 1 — Foundation** ✅ — `worlds`, `world_campaigns`, `is_world_owner`, `create_world_with_owner` atomic RPC, `/worlds` list + create modal, `/world/[id]` shell with sidebar + settings modal (rename / link / archive / soft-delete), lens placeholder. Shipped on `feature/world-builder-phase-1`.
 2. **Phase 2 — Sections & pages (no editor)** — `world_sections`, `world_pages` (with `template_version` + edit-lock columns reserved), section templates v1 + registry + CI hash check, sidebar with unlimited nesting, structured-fields form, move-page-across-sections, Recently Deleted scaffold.
 3. **Phase 3 — Editor, chips, backlinks, edit lock** — Tiptap + 10tap + shared extensions, mention popover (page / pc / timeline kinds; pin added Phase 5), hover preview on web, deleted-target chip, `body_refs` backlinks. Edit-lock RPCs + banner + autosave. BEFORE-trigger on body. Android perf benchmark + progressive-disable feature flag.
 4. **Phase 4 — Visibility, lens, PC stubs, permissions** — `visible_to_players`, section overrides, full PC-stub lifecycle triggers (rename / delete / unlink / re-link / move), `LensDropdown` + entry heuristic + mid-session switch banner, orphan banner, Player View preview. `world_page_permissions` + `ShareModal` + updated page RLS via `user_can_view_page` / `user_can_edit_page`.

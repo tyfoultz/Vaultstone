@@ -310,6 +310,59 @@ export interface Database {
         };
         Relationships: [];
       };
+      worlds: {
+        Row: {
+          id: string;
+          owner_user_id: string;
+          name: string;
+          description: string | null;
+          cover_image_url: string | null;
+          primary_map_id: string | null;
+          primary_timeline_page_id: string | null;
+          is_archived: boolean;
+          deleted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_user_id: string;
+          name: string;
+          description?: string | null;
+          cover_image_url?: string | null;
+          primary_map_id?: string | null;
+          primary_timeline_page_id?: string | null;
+          is_archived?: boolean;
+          deleted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          cover_image_url?: string | null;
+          primary_map_id?: string | null;
+          primary_timeline_page_id?: string | null;
+          is_archived?: boolean;
+          deleted_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      world_campaigns: {
+        Row: {
+          world_id: string;
+          campaign_id: string;
+          created_at: string;
+        };
+        Insert: {
+          world_id: string;
+          campaign_id: string;
+          created_at?: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: {
@@ -328,6 +381,18 @@ export interface Database {
       update_character_state: {
         Args: { character_id: string; patch: Json };
         Returns: undefined;
+      };
+      is_world_owner: {
+        Args: { p_world_id: string };
+        Returns: boolean;
+      };
+      create_world_with_owner: {
+        Args: {
+          p_name: string;
+          p_description?: string | null;
+          p_campaign_ids?: string[] | null;
+        };
+        Returns: Database['public']['Tables']['worlds']['Row'];
       };
     };
     Enums: Record<never, never>;

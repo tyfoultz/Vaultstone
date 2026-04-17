@@ -147,7 +147,7 @@ is still used for the combat state subscriptions.
 **Legal:** PDFs never leave the device. See [legal.md](legal.md). Phase 9
 shares page citations only — never extracted page text.
 
-### 9. World Builder & Campaign Knowledge Base 📋 Planned (not started)
+### 9. World Builder & Campaign Knowledge Base 🟡 Phase 1 Complete
 
 Full rewrite of Feature 7. Notion/OneNote-style world workspace with sections,
 unlimited nested pages, rich editor with `@mention` chips, uploaded maps with
@@ -158,14 +158,14 @@ schemas, unified search, and a campaign-side world lookup drawer. See
 refined spec and [plans/world-builder-rewrite.md](plans/world-builder-rewrite.md)
 for the short-form plan.
 
-**Status:** plan-only — no migrations, routes, or components written yet.
+**Status:** Phase 1 (Foundation) shipped on `feature/world-builder-phase-1`.
 Feature 6 (Session Notes & Campaign Notes Hub) stays on its existing Markdown
 editor and is untouched, aside from one Phase 6 integration (manual
 "Add to world timeline" button on published recaps).
 
 | Phase | Status | Summary |
 |---|---|---|
-| 1 — Foundation | ⬜ | `worlds` + `world_campaigns` tables, `is_world_owner` RLS helper, world list + picker, empty workspace shell, lens dropdown placeholder. |
+| 1 — Foundation | ✅ | `worlds` + `world_campaigns` tables, `is_world_owner` RLS helper, `create_world_with_owner` atomic RPC, `/worlds` list + create modal, `/world/[id]` shell with sidebar + gear-triggered settings modal (rename / link / archive / soft-delete), lens dropdown placeholder. |
 | 2 — Sections & pages (no editor) | ⬜ | `world_sections`, `world_pages` (with `template_version` + edit-lock columns reserved), section templates v1 + registry + CI hash check, sidebar with unlimited nesting, structured-fields form, move-page-across-sections, Recently Deleted scaffold. |
 | 3 — Editor, chips, backlinks, edit lock | ⬜ | Tiptap (web) + 10tap (native) with shared extensions. `@mention` suggestion popover (page / pc / timeline kinds; pin added Phase 5), deleted-target chip UI, hover preview on web, backlinks via `body_refs`. Edit-lock RPCs + banner + autosave indicator. BEFORE-trigger derives `body_text` / `body_refs` server-side. Android perf benchmark + progressive-disable feature flag. |
 | 4 — Visibility, lens, PC stubs, permissions | ⬜ | `visible_to_players`, section overrides, full PC-stub lifecycle triggers (rename / delete / unlink / re-link / move), `LensDropdown` + entry heuristic + mid-session switch banner, orphan banner, Player View preview. `world_page_permissions` + `ShareModal` (cascade toggle, grantees visible to each other) + `user_can_view_page` / `user_can_edit_page` RLS helpers. |

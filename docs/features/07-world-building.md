@@ -423,8 +423,8 @@ Future hook: the same drawer can be embedded into the Combat / Party screens onc
 
 Each phase is a feature branch + PR, independently shippable. All phases after 1 depend on 1.
 
-### Phase 1 — Foundation
-`worlds`, `world_campaigns`, `is_world_owner`, world list + picker, empty workspace shell, lens dropdown placeholder. Rewrite this spec (done on the plan branch) + update `build-status.md`, `README.md`, `features/README.md`.
+### Phase 1 — Foundation ✅ Shipped
+`worlds`, `world_campaigns`, `is_world_owner`, `create_world_with_owner` atomic RPC, `/worlds` list + `CreateWorldModal` (optional campaign linking), `/world/[worldId]` workspace shell with `WorldSidebar` (cover + identity + lens placeholder + inert "Sections arrive next" scaffolding) and gear-triggered `WorldSettingsModal` (rename, link/unlink campaigns, archive/unarchive, soft-delete). Lens dropdown is disabled placeholder. Shipped on `feature/world-builder-phase-1`.
 
 ### Phase 2 — Sections & pages (no editor)
 `world_sections`, `world_pages` (with `template_version` pinned + edit-lock columns reserved), section templates (v1) in `packages/content/src/world-templates/`, template registry, sidebar with unlimited nesting, create-section/page modals, structured-fields form renderer, page-kind change affordance, move-page-across-sections, Recently Deleted scaffolding. Page body is placeholder. **Template versioning rules documented in `world-templates/README.md` and enforced by a CI hash check.**
