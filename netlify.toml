@@ -3,6 +3,13 @@
   command = "npm run build:web"
   publish = "dist"
 
+# Skip production builds on pushes to master to preserve Netlify credits.
+# Deploy Previews (PRs) and Branch Deploys still build normally. To ship
+# to production, use "Trigger deploy → Deploy site" in the Netlify UI —
+# manual triggers bypass the ignore rule.
+[context.production]
+  ignore = "exit 0"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
