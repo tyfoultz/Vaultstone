@@ -7,7 +7,11 @@
 
 export const colors = {
   // Core surface tonal hierarchy (void-first).
-  surface: '#121416',
+  // NOTE: `surface` is the legacy "card/elevated" alias (mapped to Noir's
+  // surfaceContainerHigh) so existing StyleSheets pop against the canvas.
+  // For the explicit Noir canvas, use `background` or `surfaceCanvas`.
+  surface: '#282a2c',
+  surfaceCanvas: '#121416',
   surfaceContainerLowest: '#0c0e10',
   surfaceContainerLow: '#1a1c1e',
   surfaceContainer: '#1e2022',

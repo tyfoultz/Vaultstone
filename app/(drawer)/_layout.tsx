@@ -90,36 +90,12 @@ export default function DrawerLayout() {
 
   function renderNavItems(showLabels: boolean) {
     return NAV_ITEMS.map((item) => {
-      const isActive = pathname === item.href;
+      const hrefStr = typeof item.href === 'string' ? item.href : '';
+      const isActive =
+        pathname === hrefStr || (hrefStr !== '/' && pathname.startsWith(hrefStr + '/'));
 
-      if (isActive) {
-        return (
-          <LinearGradient
-            key={item.label}
-            colors={[colors.primary, colors.primaryContainer]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.navItemBase, !showLabels && styles.navItemCollapsed]}
-          >
-            <Pressable
-              onPress={() => handleNav(item.href)}
-              style={styles.navItemInnerPressable}
-            >
-              <Icon name={item.icon} size={20} color={colors.onPrimary} />
-              {showLabels ? (
-                <Text
-                  variant="body-sm"
-                  family="body"
-                  weight="bold"
-                  style={{ color: colors.onPrimary, letterSpacing: 0.25 }}
-                >
-                  {item.label}
-                </Text>
-              ) : null}
-            </Pressable>
-          </LinearGradient>
-        );
-      }
+      const iconColor = isActive ? colors.primary : colors.onSurfaceVariant;
+      const labelColor = isActive ? colors.primary : colors.onSurfaceVariant;
 
       return (
         <Pressable
@@ -128,16 +104,18 @@ export default function DrawerLayout() {
           style={({ pressed }) => [
             styles.navItemBase,
             !showLabels && styles.navItemCollapsed,
-            { backgroundColor: pressed ? colors.surfaceContainerHigh : 'transparent' },
+            isActive
+              ? { backgroundColor: colors.primaryContainer + '66' }
+              : { backgroundColor: pressed ? colors.surfaceContainerHigh : 'transparent' },
           ]}
         >
-          <Icon name={item.icon} size={20} color={colors.onSurfaceVariant} />
+          <Icon name={item.icon} size={20} color={iconColor} />
           {showLabels ? (
             <Text
               variant="body-sm"
               family="body"
-              weight="medium"
-              style={{ color: colors.onSurfaceVariant, letterSpacing: 0.25 }}
+              weight={isActive ? 'bold' : 'medium'}
+              style={{ color: labelColor, letterSpacing: 0.25 }}
             >
               {item.label}
             </Text>
@@ -209,24 +187,27 @@ export default function DrawerLayout() {
 
   return (
     <View style={styles.root}>
-      <GlassOverlay style={[styles.sidebar, { width: sidebarWidth }]} opacity={0.82}>
+      <GlassOverlay style={[styles.sidebar, { width: sidebarWidth }]} opacity={0.92}>
         <View style={styles.sidebarHeader}>
           {renderWordmark(collapsed)}
         </View>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.toggleBtn,
-            { backgroundColor: pressed ? colors.surfaceContainerHigh : 'transparent' },
-          ]}
-          onPress={() => setCollapsed(!collapsed)}
-        >
-          <Icon
-            name={collapsed ? 'chevron-right' : 'chevron-left'}
-            size={18}
-            color={colors.outline}
-          />
-        </Pressable>
+        <View style={collapsed ? styles.toggleRowCollapsed : styles.toggleRowExpanded}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.toggleBtn,
+              { backgroundColor: pressed ? colors.surfaceContainerHighest : colors.surfaceContainerHigh },
+            ]}
+            onPress={() => setCollapsed(!collapsed)}
+            accessibilityLabel={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <Icon
+              name={collapsed ? 'chevron-right' : 'chevron-left'}
+              size={22}
+              color={colors.onSurfaceVariant}
+            />
+          </Pressable>
+        </View>
 
         <View style={styles.nav}>{renderNavItems(!collapsed)}</View>
 
@@ -244,12 +225,15 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceCanvas,
   },
   sidebar: {
     paddingTop: spacing.lg,
     paddingHorizontal: spacing.sm + 4,
     paddingBottom: spacing.lg,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRightWidth: 1,
+    borderRightColor: colors.outlineVariant + '33',
   },
   sidebarHeader: {
     marginBottom: spacing.lg,
@@ -270,11 +254,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toggleBtn: {
-    alignItems: 'center',
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radius.lg,
+  toggleRowExpanded: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
     marginBottom: spacing.md,
+    marginRight: -(spacing.sm + 4),
+    paddingRight: spacing.xs,
+  },
+  toggleRowCollapsed: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  toggleBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
   },
   nav: {
     gap: 2,
@@ -299,7 +298,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceCanvas,
   },
   // Mobile.
   mobileHeader: {

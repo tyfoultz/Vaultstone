@@ -8,7 +8,7 @@ type Props = ViewProps & {
 };
 
 const TIER_COLORS: Record<Tier, string> = {
-  void: colors.surface,
+  void: colors.surfaceCanvas,
   lowest: colors.surfaceContainerLowest,
   low: colors.surfaceContainerLow,
   container: colors.surfaceContainer,
