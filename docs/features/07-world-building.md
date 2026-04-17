@@ -75,6 +75,54 @@ Locked during vision discovery. Each decision is load-bearing for the data model
 
 ---
 
+## Design handoff & section→screen mapping
+
+The Claude Design handoff at **[`../design/vaultstone-handoff/`](../design/vaultstone-handoff/)** is the visual source of truth. Every screen listed below is mocked in that bundle; implementations must recreate the look faithfully in React Native + NativeWind.
+
+**Section template → specialized screen** (each template drives its own view; the structured-fields form is shared across all of them):
+
+| Template (`template_key`) | Default page kind | Section view | Detail screen (page) | Handoff reference | Ships in |
+|---|---|---|---|---|---|
+| `locations` | `location` | **Grid** (hero card 2×2) | Structured-fields form + body | `screens_a.jsx` Locations (`.cards-grid` + `.card.hero`), `.card-visibility` eye | Phase 2 (grid) |
+| `npcs` | `npc` | List | Structured-fields form + body + (later) secrets/relationships panels | `screens_d.jsx` NPC (`.npc-hero`, relationships column) | Phase 2 (baseline), Phase 4 (secrets/relationships columns) |
+| `players` | `custom` | List | Structured-fields + (later) truncated sheet + personal notes | `screens_f.jsx` Players `PCCard` + party-notes rail | Phase 2 (baseline), Phase 4 (PC stub wiring), Phase 7a (hybrid Players UI) |
+| `factions` | `faction` | List | Structured-fields + body; later a force-directed graph at the section level | `screens_e.jsx` Factions (force-directed node graph) | Phase 2 (list), Phase 7 stretch (graph) |
+| `lore` | `lore` | List | Structured-fields + Tiptap body with @-mentions + backlinks panel | `screens_c.jsx` Wiki (`.wiki-body`, `.mention`, `.backlinks`) | Phase 2 (baseline), Phase 3 (@-mentions + backlinks) |
+| *(special)* `timeline` page kind | `timeline` | — (lives on a page) | Era ribbon at top + L/R alternating event cards | `screens_d.jsx` Timeline (`.era-ribbon`, `.event-card`) | Phase 6 |
+| *(special)* map surface | — | — (lives on `world_maps`) | Pin canvas + sub-maps dock + pin types + map style tokens | `screens_b.jsx` WorldMap (`.map-canvas`, `.pin`, `.submap-list`, `.map-bg.*`) | Phase 5 |
+| `blank` | `custom` | List | Structured-fields (none) + body | — (generic page head) | Phase 2 |
+
+**Shell chrome** (shared by all in-world screens, lands Phase 2):
+
+- **Rail** (56px) → `WorldRail`. Handoff: `.rail` + `.nav-item` + `.nav-tip`. Items: section shortcuts (Locations, NPCs, Players, Factions, Lore) + reserved slots (Map, Timeline) + Settings. Campaign-scoped Home + Party live in the app drawer in Phase 2; Phase 7c integrates campaign↔world nav.
+- **Sidebar** (220/248/280px; density-dependent) → `WorldSidebar`. Handoff: `.sidebar`, `.sidebar-head`, `.campaign-switch`, `.search`, `.nav-tree`, `.nav-group`, `.nav-row`, `.nav-child`. Contextual: tree swaps to show the active section's pages.
+- **TopBar** (48px) → `WorldTopBar`. Handoff: `.topbar`, `.crumbs`, `.save-state`, `.presence`. Presence is a placeholder avatar in Phase 2; Phase 4 wires Realtime.
+- **PageHead** → `PageHead` primitive used on every world landing + page detail + section screen. Handoff: `.page-head`, `.page-icon`, `.page-title`, `.page-sub`, `.page-actions`.
+- **World landing** ("The Atlas") → `app/world/[worldId]/index.tsx`. Handoff: `.world-head`, `.world-grid`, `.world-card`, `.world-card-add`.
+
+**Semantic color tokens** (additive on Noir; lands Phase 2):
+
+| Token | Hex | Handoff var | Role |
+|---|---|---|---|
+| `player` | `#4ec8c0` | `--player` | Player-visible content; player avatar ring; eye-on chip |
+| `gm` | `#e6a255` | `--warn` | GM-only content; eye-off chip; warning state |
+| `cosmic` | `#6b8af0` | `--cosmic` | Timeline/cosmic event tags; alt accent |
+| `danger` | `#E24B4A` (existing `hpDanger`) | `--danger` | Combat/danger tags; HP-low state (existing semantics preserved) |
+
+Noir `primary` (lavender/purple `#d3bbff`/`#6d28d9`) remains the **only** primary-action color. Each semantic token gets matching `on*`, `*Container`, and `*Glow` variants so they compose with existing Noir surface tokens without renames.
+
+**Typography — LOCKED to option 2.** Handoff uses Fraunces (display) + Cormorant Garamond (body italic) + Inter (body sans) + JetBrains Mono. Noir uses Space Grotesk + Manrope. **Decision:** Phase 2 loads Fraunces + Cormorant **only inside `/world/` routes** via `expo-font` in `app/world/[worldId]/_layout.tsx`; the rest of the app stays on Noir's Space Grotesk + Manrope. If the world-scoped serif typography lands well, a future pass can promote it app-wide.
+
+**Card `hero` tier** — first card in a Locations-style grid spans 2×2 with 28px display title and image bleed. Lands in Phase 2 as a new `tier` variant on the Noir `Card` primitive.
+
+**Visibility eye** (`VisibilityBadge`) — 26px backdrop-blur chip top-right on every page/section card. Display-only in Phase 2; interactive in Phase 4.
+
+**Tweaks panel** (prototype-only: accent/density/heading/mapStyle) — **not ported**.
+
+Anything not listed here is either not a world-builder concern (Campaign Home dashboard from `screens_a.jsx` belongs to Feature 2) or is downstream infrastructure not yet designed.
+
+---
+
 ## Data model
 
 All timestamps `timestamptz default now()`. All PKs `uuid default gen_random_uuid()` unless noted. Soft-deletable tables add `deleted_at` + `hard_delete_after` columns.

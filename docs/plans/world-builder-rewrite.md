@@ -12,6 +12,34 @@ Scope is the **entire feature to completion**, not just an MVP cut.
 
 ---
 
+## Visual source of truth
+
+The Claude Design handoff at **[`../design/vaultstone-handoff/`](../design/vaultstone-handoff/)** is the visual source of truth for every world-builder screen. Start from `README.md`, the chat transcript in `chats/chat1.md`, and `project/Vaultstone.html` (which imports `shell.jsx`, `screens_a..f.jsx`, `styles.css`, `data.jsx`, `icons.jsx`). Recreate the look pixel-faithfully in React Native + NativeWind; don't mirror the prototype's internal structure where a Vaultstone primitive fits better.
+
+**Per-phase screen bindings** (phase → handoff artifact → Vaultstone route/component):
+
+| Phase | Handoff artifact | Vaultstone target |
+|---|---|---|
+| 2 — Sections & pages | `.app` shell grid, `.rail`, `.sidebar` + `.nav-tree`, `.topbar`, `.page-head` + `.page-icon`, `.cards-grid` + `.card.hero`, `.world-grid` + `.world-card` | `app/world/[worldId]/_layout.tsx`, `WorldRail`, `WorldSidebar` + `SidebarSection` + `SidebarPageRow`, `WorldTopBar`, `PageHead`, `SectionPageGrid` + `Card tier="hero"`, The Atlas landing |
+| 3 — Editor & backlinks | `screens_c.jsx` Wiki entry (@-mention inline refs, hover preview, backlinks panel, edit-lock banner) | Tiptap/10tap page body + `MentionPopover` + `BacklinksPanel` + `EditLockBanner` |
+| 4 — Visibility & lens | `.card-visibility` player/GM eye variants, semantic `--player` teal / `--warn` amber / `--danger` crimson / `--cosmic` azure tokens, filter chip row | `VisibilityBadge` interactive mode, `LensDropdown`, page-card filter chip row |
+| 5 — Maps & pins | `screens_b.jsx` WorldMap — pin types (city/landmark/npc/faction/quest), sub-maps dock, zoom control, pin hover label, map style tokens (dark/parchment/hex/tactical) | `MapCanvas.{web,native}` + `PinMarker` + `SubMapDock` + `MapToolbar` + `ZoomCtl` |
+| 6 — Timelines | `screens_d.jsx` Timeline — era ribbon, L/R alternating event cards, event icons on axis, cross-link tags | `TimelinePageView` + `EraRibbon` + `TimelineEventCard` |
+| 7 stretch — Faction graph | `screens_e.jsx` Factions — force-directed node graph, ally/enemy/neutral edges, faction detail drawer | `FactionGraphCanvas` + `FactionEdgeRenderer` (Phase 7 or deferred) |
+| Campaign Home (outside this feature) | `screens_a.jsx` Dashboard — hero cover, opening description pull-quote, The World 3-column grid, Party + Next Session pin row, At-a-Glance tiles | Noted as a follow-up on Feature 2 (Campaign); **not** part of the world-builder scope |
+
+**Design decisions locked by the handoff** (lock these into Phase 2 and forward):
+
+- **Three-column in-world shell** = 56px rail + 220/248/280px contextual sidebar + main. Drawer stays at the Expo Router level for global app nav.
+- **Semantic color tokens** added to Noir additively (no renames): `player` (#4ec8c0 teal), `gm` (#e6a255 amber), `cosmic` (#6b8af0 azure). `danger` reuses existing `hpDanger`. `primary` (Noir lavender/purple) remains the single primary-action color.
+- **Page head pattern** — 56×56 gradient icon tile (template accent) + display-font title + uppercase meta kicker + right-aligned actions. Used on every page detail, the world landing, and every section screen.
+- **Visibility eye** — 26px backdrop-blur chip top-right on every page/section card. Display-only in Phase 2; interactive in Phase 4.
+- **Hero card tier** — first card in a grid section spans 2×2 with 28px display title and image bleed. Implemented as `Card tier="hero"` on the existing Noir primitive.
+- **Typography — LOCKED to option 2:** Fraunces display + Cormorant Garamond body-italic loaded inside `/world/` routes only via `expo-font` in `app/world/[worldId]/_layout.tsx`; rest of app stays on Noir's Space Grotesk + Manrope. Future pass may promote serif typography app-wide if world-scoped rollout lands well.
+- **Tweaks panel** (accent/density/heading/mapStyle) is **prototype-only** — not ported.
+
+---
+
 ## Locked design decisions
 
 Twenty-five decisions locked — see the full table in [../features/07-world-building.md#key-design-decisions](../features/07-world-building.md#key-design-decisions). High-level summary:

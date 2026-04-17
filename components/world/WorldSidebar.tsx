@@ -1,7 +1,10 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { selectSectionsForWorld, useSectionsStore } from '@vaultstone/store';
+import type { Database } from '@vaultstone/types';
 import {
+  GhostButton,
   Icon,
   Input,
   MetaLabel,
@@ -10,21 +13,36 @@ import {
   radius,
   spacing,
 } from '@vaultstone/ui';
-import type { Database } from '@vaultstone/types';
-import { LensDropdown } from './LensDropdown';
+
+import { useActiveSection } from './ActiveSectionContext';
+import { CreatePageModal } from './CreatePageModal';
+import { CreateSectionModal } from './CreateSectionModal';
+import { SidebarSection } from './SidebarSection';
 import { WorldSettingsModal } from './WorldSettingsModal';
 
 type World = Database['public']['Tables']['worlds']['Row'];
 
 type Props = {
   world: World;
+  activePageId?: string | null;
 };
 
-// Phase 1 sidebar — world identity + lens placeholder + inert section
-// scaffolding. Phase 2 replaces the "coming next" empty state with the
-// real sections tree (The Atlas / Lore / etc.).
-export function WorldSidebar({ world }: Props) {
+// Rewritten Phase 2 sidebar. Header block (cover + name + gear) + campaign
+// switch + search shell. Main column swaps to the active section's tree;
+// when no section is active on the rail, the sidebar lists every section
+// as a compact header with its tree inline.
+export function WorldSidebar({ world, activePageId }: Props) {
+  const { activeSectionId } = useActiveSection();
+  const allSections = useSectionsStore((s) => selectSectionsForWorld(s, world.id));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [createSectionOpen, setCreateSectionOpen] = useState(false);
+  const [createPageSectionId, setCreatePageSectionId] = useState<string | null>(null);
+
+  const visibleSections = useMemo(() => {
+    if (!activeSectionId) return allSections;
+    const match = allSections.find((s) => s.id === activeSectionId);
+    return match ? [match] : allSections;
+  }, [activeSectionId, allSections]);
 
   return (
     <View style={styles.root}>
@@ -45,7 +63,7 @@ export function WorldSidebar({ world }: Props) {
             </MetaLabel>
             <Text
               variant="title-md"
-              family="headline"
+              family="serif-display"
               weight="bold"
               numberOfLines={2}
               style={{ marginTop: 2, letterSpacing: -0.25 }}
@@ -66,53 +84,53 @@ export function WorldSidebar({ world }: Props) {
         </View>
       </View>
 
-      <View style={{ gap: spacing.sm }}>
-        <LensDropdown />
-        <View pointerEvents="none" style={{ opacity: 0.5 }}>
-          <Input placeholder="Search the lexicon… (Phase 7c)" editable={false} />
-        </View>
+      <View style={{ opacity: 0.5 }} pointerEvents="none">
+        <Input placeholder="Search…  ⌘K" editable={false} />
       </View>
 
-      <View style={styles.sectionBlock}>
-        <MetaLabel size="sm">The Atlas</MetaLabel>
-        <View style={styles.comingNext}>
-          <Icon name="travel-explore" size={18} color={colors.outline} />
+      <ScrollView style={styles.tree} contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}>
+        {visibleSections.length === 0 ? (
           <Text
             variant="body-sm"
             tone="secondary"
-            style={{
-              color: colors.onSurfaceVariant,
-              flex: 1,
-              marginLeft: spacing.xs + 2,
-            }}
+            style={{ color: colors.onSurfaceVariant, textAlign: 'center', marginTop: spacing.lg }}
           >
-            Sections arrive in the next phase.
+            No sections yet.
           </Text>
-        </View>
-      </View>
+        ) : (
+          visibleSections.map((section) => (
+            <SidebarSection
+              key={section.id}
+              section={section}
+              worldId={world.id}
+              activePageId={activePageId}
+              onAddPage={() => setCreatePageSectionId(section.id)}
+            />
+          ))
+        )}
+      </ScrollView>
 
-      <View style={styles.sectionBlock}>
-        <MetaLabel size="sm">Lore</MetaLabel>
-        <View style={styles.comingNext}>
-          <Icon name="auto-stories" size={18} color={colors.outline} />
-          <Text
-            variant="body-sm"
-            tone="secondary"
-            style={{
-              color: colors.onSurfaceVariant,
-              flex: 1,
-              marginLeft: spacing.xs + 2,
-            }}
-          >
-            Pages, characters, and factions join soon.
-          </Text>
-        </View>
+      <View style={styles.footer}>
+        <GhostButton
+          label="+ New section"
+          onPress={() => setCreateSectionOpen(true)}
+        />
       </View>
 
       {settingsOpen ? (
-        <WorldSettingsModal
-          world={world}
-          onClose={() => setSettingsOpen(false)}
+        <WorldSettingsModal world={world} onClose={() => setSettingsOpen(false)} />
+      ) : null}
+      {createSectionOpen ? (
+        <CreateSectionModal
+          worldId={world.id}
+          onClose={() => setCreateSectionOpen(false)}
+        />
+      ) : null}
+      {createPageSectionId ? (
+        <CreatePageModal
+          worldId={world.id}
+          sectionId={createPageSectionId}
+          onClose={() => setCreatePageSectionId(null)}
         />
       ) : null}
     </View>
@@ -121,14 +139,14 @@ export function WorldSidebar({ world }: Props) {
 
 const styles = StyleSheet.create({
   root: {
-    width: 280,
+    width: 248,
     backgroundColor: colors.surfaceContainerLow,
     borderRightWidth: 1,
     borderRightColor: colors.outlineVariant + '33',
     paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
-    paddingBottom: spacing.lg,
-    gap: spacing.lg,
+    paddingBottom: spacing.md,
+    gap: spacing.md,
   },
   header: {
     gap: spacing.md,
@@ -152,16 +170,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.full,
   },
-  sectionBlock: {
-    gap: spacing.sm,
+  tree: {
+    flex: 1,
   },
-  comingNext: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceContainer,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '22',
+  footer: {
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant + '22',
   },
 });

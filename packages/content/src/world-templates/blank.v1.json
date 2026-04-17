@@ -1,0 +1,22 @@
+{
+  "key": "blank",
+  "version": 1,
+  "label": "Blank",
+  "description": "No structured fields — just a title and a body.",
+  "defaultPageKind": "custom",
+  "allowedPageKinds": [
+    "custom",
+    "location",
+    "npc",
+    "faction",
+    "religion",
+    "organization",
+    "item",
+    "lore"
+  ],
+  "defaultSectionView": "list",
+  "icon": "file-text",
+  "railIcon": "file-text",
+  "accentToken": "primary",
+  "fields": []
+}

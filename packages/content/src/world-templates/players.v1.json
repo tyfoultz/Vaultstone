@@ -1,0 +1,37 @@
+{
+  "key": "players",
+  "version": 1,
+  "label": "Players",
+  "description": "Player handouts and PC companion pages.",
+  "defaultPageKind": "custom",
+  "allowedPageKinds": ["custom", "player_character", "pc_stub"],
+  "defaultSectionView": "list",
+  "icon": "user",
+  "railIcon": "user",
+  "accentToken": "player",
+  "fields": [
+    {
+      "key": "tagline",
+      "label": "Tagline",
+      "type": "text",
+      "placeholder": "One-line hook or quote."
+    },
+    {
+      "key": "portrait_note",
+      "label": "Portrait note",
+      "type": "long_text",
+      "helpText": "How the PC looks, dresses, carries themselves."
+    },
+    {
+      "key": "linked_pc",
+      "label": "Linked PC",
+      "type": "pc_ref",
+      "helpText": "Players in linked campaigns become selectable in Phase 4."
+    },
+    {
+      "key": "tags",
+      "label": "Tags",
+      "type": "tags"
+    }
+  ]
+}

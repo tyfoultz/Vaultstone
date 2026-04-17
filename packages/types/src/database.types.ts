@@ -363,6 +363,150 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
+      world_sections: {
+        Row: {
+          id: string;
+          world_id: string;
+          name: string;
+          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank';
+          section_view: 'grid' | 'list';
+          sort_order: number;
+          force_hidden_from_players: boolean;
+          default_pages_visible: boolean;
+          deleted_at: string | null;
+          hard_delete_after: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          world_id: string;
+          name: string;
+          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank';
+          section_view?: 'grid' | 'list';
+          sort_order?: number;
+          force_hidden_from_players?: boolean;
+          default_pages_visible?: boolean;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          template_key?: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank';
+          section_view?: 'grid' | 'list';
+          sort_order?: number;
+          force_hidden_from_players?: boolean;
+          default_pages_visible?: boolean;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      world_pages: {
+        Row: {
+          id: string;
+          world_id: string;
+          section_id: string;
+          parent_page_id: string | null;
+          title: string;
+          page_kind:
+            | 'custom'
+            | 'location'
+            | 'npc'
+            | 'faction'
+            | 'religion'
+            | 'organization'
+            | 'item'
+            | 'lore'
+            | 'timeline'
+            | 'pc_stub'
+            | 'player_character';
+          template_key: string;
+          template_version: number;
+          body: Json;
+          body_text: string | null;
+          body_refs: string[];
+          structured_fields: Json;
+          visible_to_players: boolean;
+          sort_order: number;
+          pc_user_id: string | null;
+          editing_user_id: string | null;
+          editing_since: string | null;
+          deleted_at: string | null;
+          hard_delete_after: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          world_id: string;
+          section_id: string;
+          parent_page_id?: string | null;
+          title: string;
+          page_kind:
+            | 'custom'
+            | 'location'
+            | 'npc'
+            | 'faction'
+            | 'religion'
+            | 'organization'
+            | 'item'
+            | 'lore'
+            | 'timeline'
+            | 'pc_stub'
+            | 'player_character';
+          template_key: string;
+          template_version: number;
+          body?: Json;
+          body_text?: string | null;
+          body_refs?: string[];
+          structured_fields?: Json;
+          visible_to_players?: boolean;
+          sort_order?: number;
+          pc_user_id?: string | null;
+          editing_user_id?: string | null;
+          editing_since?: string | null;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          section_id?: string;
+          parent_page_id?: string | null;
+          title?: string;
+          page_kind?:
+            | 'custom'
+            | 'location'
+            | 'npc'
+            | 'faction'
+            | 'religion'
+            | 'organization'
+            | 'item'
+            | 'lore'
+            | 'timeline'
+            | 'pc_stub'
+            | 'player_character';
+          template_key?: string;
+          template_version?: number;
+          body?: Json;
+          body_text?: string | null;
+          body_refs?: string[];
+          structured_fields?: Json;
+          visible_to_players?: boolean;
+          sort_order?: number;
+          pc_user_id?: string | null;
+          editing_user_id?: string | null;
+          editing_since?: string | null;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: {
@@ -393,6 +537,23 @@ export interface Database {
           p_campaign_ids?: string[] | null;
         };
         Returns: Database['public']['Tables']['worlds']['Row'];
+      };
+      trash_world_section: {
+        Args: { p_section_id: string };
+        Returns: undefined;
+      };
+      trash_world_page: {
+        Args: { p_page_id: string };
+        Returns: undefined;
+      };
+      move_world_page: {
+        Args: {
+          p_page_id: string;
+          p_new_section_id: string;
+          p_new_parent_id: string | null;
+          p_new_sort_order: number;
+        };
+        Returns: undefined;
       };
     };
     Enums: Record<never, never>;
