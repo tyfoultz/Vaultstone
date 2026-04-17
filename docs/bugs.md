@@ -7,6 +7,53 @@ Running log of known issues in the Vaultstone codebase. Entries move to a
 
 ## Open
 
+### BUG-003 — Typecheck noise: stale router types, Supabase join casts, and missing Feature 6 notes/recap module types
+
+**Surfaced:** 2026-04-16, typecheck audit on feature/world-builder-plan-refinements
+**Severity:** Low — compile-time noise, not a runtime defect. App bundles and runs; Netlify previews succeed.
+**Symptom:** `npm run typecheck` reports 11 errors. Close to the ~13 baseline in
+[dev-workflow.md](dev-workflow.md#tier-1--npm-run-typecheck), but the mix has
+shifted since 2026-04-14 — new errors cluster around Feature 6 recap components.
+
+**Current breakdown:**
+
+1. **Stale Expo Router types (1 error).** `app/(drawer)/_layout.tsx:44` — TS2345
+   on a `router.push()` call. `.expo/types/router.d.ts` was generated before the
+   `/(tabs)/` → `/(drawer)/` refactor and the route union is out of date.
+   Self-resolves: running `npx expo start` once rewrites the file.
+2. **Supabase PostgREST join casting (2 errors, pre-existing baseline).**
+   `app/campaign/[id]/index.tsx:273, 276` — TS2352 on `.select()` joins that
+   pull `profiles` and `characters` from `campaign_members`. Generated types
+   emit `SelectQueryError<"could not find the relation between
+   campaign_members and profiles">`; runtime query works fine. Known baseline.
+3. **Missing module types in Feature 6 notes/recap (8 errors, new since the
+   April 14 baseline).**
+   - `components/notes/RichTextRenderer.web.tsx` — TS2307 on `react-markdown`,
+     `remark-gfm`
+   - `components/notes/RichTextRenderer.native.tsx` — TS2307 on
+     `react-native-markdown-display`
+   - `components/notes/recap/RecapDock.web.tsx` — TS2307 on
+     `react-mosaic-component`, plus 4 downstream errors (3× implicit-any in
+     `onChange`, 1× TS7053 index signature) cascading from the missing type
+
+**Suggested fixes (when we get to them):**
+- **(1)** regenerate `.expo/types/router.d.ts` via `npx expo start`. Fixes
+  itself on the next Expo dev session; no code change needed.
+- **(2)** fold into the next normalization pass on the campaign-members query
+  — either hand-write the shape or bypass the `as Member[]` cast. Not
+  blocking.
+- **(3)** install `@types/*` for any package that publishes to DefinitelyTyped,
+  and add a lightweight `declarations.d.ts` shim (`declare module
+  'react-mosaic-component';` etc.) for libraries without published types. The
+  4 downstream RecapDock errors resolve automatically once
+  `react-mosaic-component` is typed.
+
+**Do not fix in isolation** — logged for triage. The recap/renderer cluster is
+a natural cleanup when we next touch Feature 6 or start Feature 7's Tiptap
+editor work (those files are adjacent). Owner: TBD.
+
+---
+
 ### BUG-002 — Players can view other users' characters outside of campaigns
 
 **Surfaced:** 2026-04-15, party-view-live branch review
