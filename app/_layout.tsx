@@ -5,18 +5,34 @@ import {
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useFonts } from 'expo-font';
-import { Cinzel_700Bold } from '@expo-google-fonts/cinzel';
-import { CrimsonPro_400Regular, CrimsonPro_600SemiBold, CrimsonPro_700Bold } from '@expo-google-fonts/crimson-pro';
+import {
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk';
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+} from '@expo-google-fonts/manrope';
 import { supabase, getProfile, upsertProfile } from '@vaultstone/api';
 import { useAuthStore, useProfileStore } from '@vaultstone/store';
 import { colors, spacing, fonts } from '@vaultstone/ui';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Cinzel: Cinzel_700Bold,
-    CrimsonPro: CrimsonPro_400Regular,
-    'CrimsonPro-SemiBold': CrimsonPro_600SemiBold,
-    'CrimsonPro-Bold': CrimsonPro_700Bold,
+    SpaceGrotesk: SpaceGrotesk_400Regular,
+    'SpaceGrotesk-Medium': SpaceGrotesk_500Medium,
+    'SpaceGrotesk-SemiBold': SpaceGrotesk_600SemiBold,
+    'SpaceGrotesk-Bold': SpaceGrotesk_700Bold,
+    Manrope: Manrope_400Regular,
+    'Manrope-Medium': Manrope_500Medium,
+    'Manrope-SemiBold': Manrope_600SemiBold,
+    'Manrope-Bold': Manrope_700Bold,
+    'Manrope-ExtraBold': Manrope_800ExtraBold,
   });
   const { setSession, setInitialized, initialized, user } = useAuthStore();
   const { profile, setProfile } = useProfileStore();

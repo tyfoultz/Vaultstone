@@ -1,9 +1,16 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { Link } from 'expo-router';
-import { Platform } from 'react-native';
 import { resetPasswordForEmail } from '@vaultstone/api';
-import { colors } from '@vaultstone/ui';
+import {
+  colors,
+  spacing,
+  Surface,
+  Card,
+  Input,
+  Text,
+  GradientButton,
+} from '@vaultstone/ui';
 
 function getResetRedirect() {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -36,105 +43,93 @@ export default function ForgotPasswordScreen() {
 
   if (sent) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Check your email</Text>
-        <Text style={styles.subtitle}>
-          A password reset link was sent to{'\n'}{email}
-        </Text>
-        <Link href="/(auth)/login" style={styles.link}>
-          Back to sign in
-        </Link>
-      </View>
+      <Surface tier="void" style={styles.container}>
+        <Card tier="high" padding="lg" style={styles.card}>
+          <Text
+            variant="headline-sm"
+            family="headline"
+            weight="bold"
+            style={{ textAlign: 'center', marginBottom: spacing.sm }}
+          >
+            Check your email
+          </Text>
+          <Text variant="body-md" tone="secondary" style={{ textAlign: 'center', marginBottom: spacing.lg }}>
+            A reset link was sent to{'\n'}{email}
+          </Text>
+          <Link href="/(auth)/login" style={styles.linkText as any}>
+            Back to sign in
+          </Link>
+        </Card>
+      </Surface>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Reset password</Text>
-      <Text style={styles.subtitle}>
-        Enter your email and we'll send a reset link.
-      </Text>
+    <Surface tier="void" style={styles.container}>
+      <Card tier="high" padding="lg" style={styles.card}>
+        <Text
+          variant="headline-sm"
+          family="headline"
+          weight="bold"
+          style={{ marginBottom: spacing.xs }}
+        >
+          Reset password
+        </Text>
+        <Text variant="body-sm" tone="secondary" style={{ marginBottom: spacing.lg }}>
+          Enter your email and we'll send a reset link.
+        </Text>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <Text variant="body-sm" tone="danger" style={{ marginBottom: spacing.md }}>
+            {error}
+          </Text>
+        ) : null}
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor={colors.textSecondary}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        autoComplete="email"
-      />
+        <View style={{ marginBottom: spacing.md }}>
+          <Input
+            label="Email"
+            placeholder="you@example.com"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="email"
+          />
+        </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleReset} disabled={loading}>
-        {loading
-          ? <ActivityIndicator color={colors.textPrimary} />
-          : <Text style={styles.buttonText}>Send reset link</Text>
-        }
-      </TouchableOpacity>
+        <GradientButton
+          label="Send reset link"
+          fullWidth
+          size="lg"
+          loading={loading}
+          onPress={handleReset}
+        />
 
-      <Link href="/(auth)/login" style={styles.link}>
-        Back to sign in
-      </Link>
-    </View>
+        <View style={{ marginTop: spacing.lg, alignItems: 'center' }}>
+          <Link href="/(auth)/login" style={styles.linkText as any}>
+            Back to sign in
+          </Link>
+        </View>
+      </Card>
+    </Surface>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  title: {
-    fontSize: 36,
-    color: colors.textPrimary,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 40,
-  },
-  error: {
-    color: colors.hpDanger,
-    textAlign: 'center',
-    marginBottom: 16,
-    fontSize: 14,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 8,
-    color: colors.textPrimary,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  button: {
-    backgroundColor: colors.brand,
-    borderRadius: 8,
-    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 24,
+    justifyContent: 'center',
+    padding: spacing.lg,
   },
-  buttonText: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '600',
+  card: {
+    width: '100%',
+    maxWidth: 420,
   },
-  link: {
-    color: colors.brand,
-    textAlign: 'center',
+  linkText: {
+    color: colors.primary,
+    fontFamily: 'Manrope',
     fontSize: 14,
+    textAlign: 'center' as const,
   },
 });

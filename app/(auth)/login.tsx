@@ -1,9 +1,19 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { signIn } from '@vaultstone/api';
-import { colors, spacing, fonts } from '@vaultstone/ui';
+import {
+  colors,
+  spacing,
+  radius,
+  Surface,
+  Card,
+  Icon,
+  Input,
+  Text,
+  MetaLabel,
+  GradientButton,
+} from '@vaultstone/ui';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -26,124 +36,119 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={s.container}>
-      <View style={s.card}>
-        <View style={s.logoRow}>
-          <MaterialCommunityIcons name="shield-crown-outline" size={36} color={colors.brand} />
-          <Text style={s.logoText}>Vaultstone</Text>
+    <Surface tier="void" style={styles.container}>
+      <View style={styles.stack}>
+        <View style={styles.logoRow}>
+          <View style={styles.logoMark}>
+            <Icon name="auto-awesome" size={28} color={colors.primary} />
+          </View>
+          <View>
+            <MetaLabel tone="muted">Celestial Record</MetaLabel>
+            <Text
+              variant="display-sm"
+              family="headline"
+              weight="bold"
+              style={{ color: colors.primary, letterSpacing: -1 }}
+            >
+              Vaultstone
+            </Text>
+          </View>
         </View>
-        <Text style={s.subtitle}>Sign in to continue</Text>
 
-        {error ? <Text style={s.error}>{error}</Text> : null}
+        <Card tier="high" padding="lg" style={styles.card}>
+          <Text
+            variant="title-lg"
+            family="headline"
+            weight="semibold"
+            style={{ marginBottom: spacing.xs }}
+          >
+            Sign in
+          </Text>
+          <Text variant="body-sm" tone="secondary" style={{ marginBottom: spacing.lg }}>
+            Cross the threshold into your campaigns.
+          </Text>
 
-        <TextInput
-          style={s.input}
-          placeholder="Email"
-          placeholderTextColor={colors.textSecondary}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
-        />
-        <TextInput
-          style={s.input}
-          placeholder="Password"
-          placeholderTextColor={colors.textSecondary}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoComplete="current-password"
-        />
+          {error ? (
+            <Text variant="body-sm" tone="danger" style={{ marginBottom: spacing.md }}>
+              {error}
+            </Text>
+          ) : null}
 
-        <TouchableOpacity style={s.button} onPress={handleSignIn} disabled={loading}>
-          {loading
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={s.buttonText}>Sign In</Text>
-          }
-        </TouchableOpacity>
+          <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
+            <Input
+              label="Email"
+              placeholder="you@example.com"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+            />
+            <Input
+              label="Password"
+              placeholder="••••••••"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoComplete="current-password"
+            />
+          </View>
 
-        <Link href="/(auth)/forgot-password" style={s.link}>
-          Forgot password?
-        </Link>
-        <Link href="/(auth)/signup" style={[s.link, { marginTop: 12 }]}>
-          Don't have an account? Sign up
-        </Link>
+          <GradientButton
+            label="Sign In"
+            fullWidth
+            size="lg"
+            loading={loading}
+            onPress={handleSignIn}
+          />
+
+          <View style={{ marginTop: spacing.lg, gap: spacing.sm, alignItems: 'center' }}>
+            <Link href="/(auth)/forgot-password" style={styles.linkText as any}>
+              Forgot password?
+            </Link>
+            <Link href="/(auth)/signup" style={styles.linkText as any}>
+              Don't have an account? Sign up
+            </Link>
+          </View>
+        </Card>
       </View>
-    </View>
+    </Surface>
   );
 }
 
-const s = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: spacing.lg,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: spacing.xl,
+  stack: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 420,
+    gap: spacing.lg,
   },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
+    gap: spacing.md,
+    alignSelf: 'center',
   },
-  logoText: {
-    fontSize: 28,
-    fontFamily: fonts.display,
-    color: colors.textPrimary,
-    letterSpacing: 1,
-  },
-  subtitle: {
-    fontSize: 15,
-    fontFamily: fonts.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  error: {
-    color: colors.hpDanger,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-    fontSize: 14,
-  },
-  input: {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 8,
-    color: colors.textPrimary,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    marginBottom: spacing.sm,
-  },
-  button: {
-    backgroundColor: colors.brand,
-    borderRadius: 8,
-    paddingVertical: 14,
+  logoMark: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerHigh,
     alignItems: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.lg,
+    justifyContent: 'center',
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
+  card: {
+    width: '100%',
   },
-  link: {
-    color: colors.brand,
-    textAlign: 'center',
+  linkText: {
+    color: colors.primary,
+    fontFamily: 'Manrope',
     fontSize: 14,
+    textAlign: 'center' as const,
   },
 });
