@@ -13,6 +13,7 @@ import {
 } from '@vaultstone/ui';
 
 import { ACCENT_SWATCH, PAGE_KIND_LABEL, toMaterialIcon } from './helpers';
+import { usePageVisibilityToggle } from './usePageVisibilityToggle';
 
 type Props = {
   pages: WorldPage[];
@@ -51,6 +52,7 @@ function PageListRow({ page, template, onPress }: RowProps) {
   const kindLabel = PAGE_KIND_LABEL[page.page_kind] ?? 'Page';
   const preview = getPreview(page);
   const tags = getTags(page);
+  const toggleVisibility = usePageVisibilityToggle(page);
 
   return (
     <Pressable onPress={onPress}>
@@ -99,7 +101,11 @@ function PageListRow({ page, template, onPress }: RowProps) {
         </View>
 
         <View style={styles.trailing}>
-          <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
+          <VisibilityBadge
+            visibility={page.visible_to_players ? 'player' : 'gm'}
+            interactive={!!toggleVisibility}
+            onPress={toggleVisibility ?? undefined}
+          />
         </View>
       </Card>
     </Pressable>

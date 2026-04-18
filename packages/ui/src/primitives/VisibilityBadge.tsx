@@ -1,4 +1,4 @@
-import { Pressable, View, type ViewStyle } from 'react-native';
+import { Pressable, View, type GestureResponderEvent, type ViewStyle } from 'react-native';
 
 import { Icon } from '../Icon';
 import { colors } from '../tokens';
@@ -58,7 +58,20 @@ export function VisibilityBadge({
   );
 
   if (interactive && onPress) {
-    return <Pressable onPress={onPress}>{content}</Pressable>;
+    return (
+      <Pressable
+        onPress={(e: GestureResponderEvent) => {
+          // Cards wrap the badge in their own Pressable; without stopping
+          // propagation the eye-click would also navigate into the page.
+          // stopPropagation is a no-op on native (single-pressable capture
+          // already handles it) and the real fix on web.
+          e.stopPropagation?.();
+          onPress();
+        }}
+      >
+        {content}
+      </Pressable>
+    );
   }
   return content;
 }

@@ -483,6 +483,15 @@ Tiptap + 10tap install, shared extensions in `packages/ui/src/world-editor/`, `W
 ### Phase 4 — Visibility, lens, PC stubs, permissions
 `visible_to_players`, section overrides, PC-stub materialization triggers on `world_campaigns` INSERT and `characters` INSERT with full PC stub lifecycle (rename/delete/unlink/re-link/move). `LensDropdown`, entry heuristic (campaign-detail → that campaign's lens; homepage → world-only), mid-session lens switch banner, orphan banner, Player View preview toggle. **Permission grant system**: `world_page_permissions` table, `user_can_view_page` / `user_can_edit_page` helpers, `ShareModal.tsx` (add/remove grantees, cascade toggle, grantee list visible to each other), updated page RLS.
 
+**Design handoff references (Phase 4):**
+- Visibility chip → `.card-visibility` with `.player` / `.gm` variants (backdrop-blur, 26px); becomes click-to-toggle for owners in this phase.
+- Lens dropdown → `.campaign-switch` in `shell.jsx` sidebar head (crown icon + campaign label + chevron). The dropdown body lists linked campaigns + a `world-only` entry.
+- Share trigger → topbar button on `screens_c.jsx` (right cluster, alongside save-state + visibility). Launches `ShareModal`.
+- Mid-session lens-switch banner → reuse `.takeover-banner` chrome (amber accent, 3px left border) with copy like "DM switched lens to <Campaign>".
+- Orphan banner → same banner chrome, `hpDanger` accent, inline "Re-link" / "Dismiss" actions.
+- Player View toggle → topbar action, same pill treatment as Share.
+- **Permission source chips in `ShareModal`** — each grantee row badges its source: `Direct` (accent tint) or `Inherited from <ancestor>` (muted tint, page-name link). Needed so GMs can tell why a user has access and decide whether to override vs. edit the ancestor grant.
+
 ### Phase 5 — Maps, pins, nesting
 `world_maps`, `pin_types` (seeded), `map_pins`, `world-maps` bucket, `MapCanvas.{web,native}.tsx`, pin layer + placement mode + filter bar, sub-map drill-down + breadcrumbs, `world-map-stack.store.ts`. Pin mention kind wired into the Phase 3 suggestion popover. Batch signed-URL RPC.
 

@@ -26,6 +26,7 @@ import { StructuredFieldsForm } from '../../../../components/world/StructuredFie
 import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
+import { usePageVisibilityToggle } from '../../../../components/world/usePageVisibilityToggle';
 import { worldHref, worldPageHref } from '../../../../components/world/worldHref';
 import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 
@@ -68,6 +69,7 @@ export default function PageDetailScreen() {
   } | null>(null);
 
   const myUserId = useAuthStore((s) => s.user?.id ?? null);
+  const toggleVisibility = usePageVisibilityToggle(page ?? null);
   // Lock state derived from `page` is authoritative for "who holds the lock
   // right now" (updated via claim RPC's RETURNING row + optimistic store
   // write). `lockError` captures the most recent claim failure so we can
@@ -225,7 +227,11 @@ export default function PageDetailScreen() {
             meta={`${kindLabel} · ${section.name}`}
             accentToken={template.accentToken}
             actions={
-              <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
+              <VisibilityBadge
+              visibility={page.visible_to_players ? 'player' : 'gm'}
+              interactive={!!toggleVisibility}
+              onPress={toggleVisibility ?? undefined}
+            />
             }
           />
 
