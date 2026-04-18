@@ -26,7 +26,7 @@ import { PageHead } from '../../../../components/world/PageHead';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
-import { worldHref } from '../../../../components/world/worldHref';
+import { worldHref, worldPageHref } from '../../../../components/world/worldHref';
 import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 
 // Re-claim the lock every 30s so our editing_since stays within the server-
@@ -258,6 +258,9 @@ export default function PageDetailScreen() {
                 placeholder={`Begin the chronicle of ${page.title}…`}
                 mentionablePages={mentionablePages}
                 getSectionLabel={sectionLabelById}
+                onMentionClick={(targetPageId) =>
+                  router.push(worldPageHref(worldId, targetPageId))
+                }
               />
             </View>
           </View>

@@ -17,6 +17,7 @@ type Props = {
   placeholder?: string;
   mentionablePages?: WorldPage[];
   getSectionLabel?: (sectionId: string) => string;
+  onMentionClick?: (pageId: string) => void;
 };
 
 // Tiptap's internal equality checks are referential, so we need to keep the
@@ -29,12 +30,17 @@ export function BodyEditor({
   placeholder,
   mentionablePages,
   getSectionLabel,
+  onMentionClick,
 }: Props) {
   const initialRef = useRef(initialContent && Object.keys(initialContent).length > 0 ? initialContent : undefined);
   const onChangeRef = useRef(onChange);
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+  const onMentionClickRef = useRef(onMentionClick);
+  useEffect(() => {
+    onMentionClickRef.current = onMentionClick;
+  }, [onMentionClick]);
 
   // Suggestion handlers read pages/labels via getters so the editor instance,
   // created once, always sees the latest list as the parent re-renders.
@@ -78,6 +84,29 @@ export function BodyEditor({
   useEffect(() => {
     if (editor) editor.setEditable(editable);
   }, [editor, editable]);
+
+  // Make mention chips act like links. Tiptap renders each mention as an
+  // inline <span class="vaultstone-mention" data-id="…">; without this
+  // handler, clicking just places the caret. We hook into mousedown so the
+  // caret placement never happens in the first place — Notion-style atomic
+  // chip behavior.
+  useEffect(() => {
+    if (!editor) return;
+    const el = editor.view.dom;
+    const handler = (e: MouseEvent) => {
+      const chip = (e.target as HTMLElement | null)?.closest(
+        '.vaultstone-mention',
+      ) as HTMLElement | null;
+      if (!chip) return;
+      const pageId = chip.getAttribute('data-id');
+      if (!pageId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onMentionClickRef.current?.(pageId);
+    };
+    el.addEventListener('mousedown', handler);
+    return () => el.removeEventListener('mousedown', handler);
+  }, [editor]);
 
   if (!editor) return null;
 
@@ -172,10 +201,9 @@ function EditorStyles() {
             border: 1px solid ${colors.primary}33;
             cursor: pointer;
           }
-          .vaultstone-mention::before {
-            content: '@';
-            opacity: 0.6;
-            margin-right: 1px;
+          .vaultstone-mention:hover {
+            background: ${colors.primaryContainer}55;
+            border-color: ${colors.primary}66;
           }
           .vaultstone-mention-popup {
             z-index: 1000;

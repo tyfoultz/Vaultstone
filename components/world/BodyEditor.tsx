@@ -12,6 +12,7 @@ type Props = {
   // Web-only — accepted here so callers can stay platform-agnostic.
   mentionablePages?: unknown;
   getSectionLabel?: (sectionId: string) => string;
+  onMentionClick?: (pageId: string) => void;
 };
 
 // Native fallback for Phase 3a — plain TextInput. The web variant
