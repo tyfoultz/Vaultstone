@@ -147,7 +147,7 @@ is still used for the combat state subscriptions.
 **Legal:** PDFs never leave the device. See [legal.md](legal.md). Phase 9
 shares page citations only — never extracted page text.
 
-### 9. World Builder & Campaign Knowledge Base 🟡 Phase 2 Complete
+### 9. World Builder & Campaign Knowledge Base 🟡 Phase 3 In Progress
 
 Full rewrite of Feature 7. Notion/OneNote-style world workspace with sections,
 unlimited nested pages, rich editor with `@mention` chips, uploaded maps with
@@ -158,8 +158,27 @@ schemas, unified search, and a campaign-side world lookup drawer. See
 refined spec and [plans/world-builder-rewrite.md](plans/world-builder-rewrite.md)
 for the short-form plan.
 
-**Status:** Phase 2 (Sections + Pages + Templates, design-integrated) shipped
-on `feature/world-builder-phase-2`. Design handoff checked in at
+**Status:** Phase 3 (Editor + mentions + backlinks + edit lock) in progress on
+`feature/world-builder-phase-3`. Shipped incrementally:
+
+- **3a** — Tiptap rich body editor on web with StarterKit + Noir ProseMirror
+  styling, native TextInput fallback, 800ms debounced autosave writing
+  `body` + `body_text`. Commit `1f958c7`.
+- **3b** — `@`-mention typeahead with pages-in-this-world, styled chip
+  inserted into the doc, `body_refs[]` persisted on save, GIN-indexed
+  backlinks panel ("Linked from") rendering pages that mention this one.
+  Commit `5cfff80`.
+- **3c** — `claim_world_page_edit` / `release_world_page_edit` RPCs
+  (migration `20260422000000_world_pages_edit_lock.sql`, 90s TTL),
+  `claimPageEdit` / `releasePageEdit` API wrappers, `EditLockBanner`
+  component, claim-on-mount / 30s heartbeat / release-on-unmount wired
+  into the page-detail screen with the editor + structured-fields surface
+  disabled (pointer-events none + dimmed) when another editor holds the
+  lock. BEFORE-trigger body derivation + native 10tap editor + mention
+  deleted-target chip + Android perf flag still outstanding.
+
+Phase 2 (Sections + Pages + Templates, design-integrated) shipped on
+`feature/world-builder-phase-2`. Design handoff checked in at
 `docs/design/vaultstone-handoff/` and now locks the three-column shell
 (rail + contextual sidebar + main), the serif display typography
 (Fraunces + Cormorant Garamond, scoped to `/world/*`), and the semantic
@@ -172,7 +191,7 @@ integration (manual "Add to world timeline" button on published recaps).
 |---|---|---|
 | 1 — Foundation | ✅ | `worlds` + `world_campaigns` tables, `is_world_owner` RLS helper, `create_world_with_owner` atomic RPC, `/worlds` list + create modal, `/world/[id]` shell with sidebar + gear-triggered settings modal (rename / link / archive / soft-delete), lens dropdown placeholder. |
 | 2 — Sections & pages (no editor) | ✅ | `world_sections`, `world_pages` (with `template_version` + edit-lock columns reserved), section templates v1 + registry + CI hash check, sidebar with unlimited nesting, structured-fields form, move-page-across-sections, Recently Deleted scaffold. Three-column shell (rail + sidebar + main), serif display typography scoped to `/world/*`, semantic accent palette, `Card tier="hero"`, `VisibilityBadge`, `PageHead`, Atlas landing, section grid/list views. |
-| 3 — Editor, chips, backlinks, edit lock | ⬜ | Tiptap (web) + 10tap (native) with shared extensions. `@mention` suggestion popover (page / pc / timeline kinds; pin added Phase 5), deleted-target chip UI, hover preview on web, backlinks via `body_refs`. Edit-lock RPCs + banner + autosave indicator. BEFORE-trigger derives `body_text` / `body_refs` server-side. Android perf benchmark + progressive-disable feature flag. |
+| 3 — Editor, chips, backlinks, edit lock | 🟡 | 3a/3b/3c done: Tiptap web editor + debounced autosave, `@`-mention typeahead + `body_refs` backlinks, edit-lock RPCs + banner + 30s heartbeat. Still outstanding: BEFORE-trigger for server-side `body_text` / `body_refs` derivation, native 10tap editor, deleted-target chip UI, web hover preview on mentions, Android perf benchmark + progressive-disable flag. |
 | 4 — Visibility, lens, PC stubs, permissions | ⬜ | `visible_to_players`, section overrides, full PC-stub lifecycle triggers (rename / delete / unlink / re-link / move), `LensDropdown` + entry heuristic + mid-session switch banner, orphan banner, Player View preview. `world_page_permissions` + `ShareModal` (cascade toggle, grantees visible to each other) + `user_can_view_page` / `user_can_edit_page` RLS helpers. |
 | 5 — Maps, pins & nesting | ⬜ | `world_maps`, seeded `pin_types` (7), `map_pins`, `world-maps` Storage bucket, `MapCanvas.{web,native}`, pin placement + filter bar, sub-map drill-down + breadcrumbs, batch signed-URL RPC. Pin mention kind wired in. |
 | 6 — Timelines + Feature 6 integration | ⬜ | `page_kind='timeline'` machinery — `calendar_schema` editor, `date_values` form, `sort_key` trigger, vertical timeline renderer, auto-primary-timeline per world, timeline pages creatable in any section. Timeline mention kind wired. `AddToWorldTimelineButton` on published recaps with Markdown→Tiptap conversion. |

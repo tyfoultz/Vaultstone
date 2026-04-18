@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { updatePage } from '@vaultstone/api';
+import { claimPageEdit, releasePageEdit, updatePage } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
   selectSectionsForWorld,
+  useAuthStore,
   useCurrentWorldStore,
   usePagesStore,
   useSectionsStore,
@@ -20,12 +21,18 @@ import {
 import { useActiveSection } from '../../../../components/world/ActiveSectionContext';
 import { BacklinksPanel } from '../../../../components/world/BacklinksPanel';
 import { BodyEditor } from '../../../../components/world/BodyEditor';
+import { EditLockBanner } from '../../../../components/world/EditLockBanner';
 import { PageHead } from '../../../../components/world/PageHead';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
 import { worldHref } from '../../../../components/world/worldHref';
 import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
+
+// Re-claim the lock every 30s so our editing_since stays within the server-
+// side 90s TTL. 30s × 3 windows before expiry keeps a brief network blip from
+// surrendering the lock.
+const LOCK_HEARTBEAT_MS = 30_000;
 
 const EMPTY_PAGES: WorldPage[] = [];
 
@@ -60,27 +67,94 @@ export default function PageDetailScreen() {
     bodyRefs: string[];
   } | null>(null);
 
+  const myUserId = useAuthStore((s) => s.user?.id ?? null);
+  // Lock state derived from `page` is authoritative for "who holds the lock
+  // right now" (updated via claim RPC's RETURNING row + optimistic store
+  // write). `lockError` captures the most recent claim failure so we can
+  // render the banner even before the next real-time sync arrives.
+  const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(
+    null,
+  );
+
   const section = useMemo(
     () => sections.find((sec) => sec.id === page?.section_id) ?? null,
     [sections, page],
   );
 
+  // Lock state derived from `page`. Fresh = within the 90s server TTL.
+  const lockOwnerId = page?.editing_user_id ?? null;
+  const lockSince = page?.editing_since ?? null;
+  const lockFresh =
+    lockSince !== null && Date.now() - Date.parse(lockSince) < 90_000;
+  const heldByOther =
+    lockFresh && lockOwnerId !== null && myUserId !== null && lockOwnerId !== myUserId;
+  // Surface the banner either from the page row (other user holds a fresh
+  // lock) or from the most recent claim error (server rejected us — someone
+  // else got it in the gap since our last refetch).
+  const bannerLock = heldByOther
+    ? { ownerId: lockOwnerId as string, since: lockSince as string }
+    : lockError;
+
   useEffect(() => {
     if (section) setActiveSectionId(section.id);
   }, [section, setActiveSectionId]);
 
+  // Ref over the lock state + store writer so the heartbeat effect can read
+  // the latest values without having them in its dep array — otherwise the
+  // release-on-unmount cleanup would fire on every page row change.
+  const lockCtxRef = useRef({ lockOwnerId, lockSince, myUserId, updatePageInStore });
+  lockCtxRef.current = { lockOwnerId, lockSince, myUserId, updatePageInStore };
+
+  const tryClaim = useCallback(async () => {
+    if (!pageId) return;
+    const { data, error } = await claimPageEdit(pageId);
+    const ctx = lockCtxRef.current;
+    if (error) {
+      // Server rejected the claim — someone else got in. Use the current
+      // page row to populate the banner; if the row hasn't synced yet,
+      // fall back to a generic marker.
+      if (ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) {
+        setLockError({ ownerId: ctx.lockOwnerId, since: ctx.lockSince });
+      } else {
+        setLockError({
+          ownerId: ctx.lockOwnerId ?? 'unknown',
+          since: ctx.lockSince ?? new Date().toISOString(),
+        });
+      }
+      return;
+    }
+    if (data) {
+      ctx.updatePageInStore(data.id, {
+        editing_user_id: data.editing_user_id,
+        editing_since: data.editing_since,
+      });
+      setLockError(null);
+    }
+  }, [pageId]);
+
   useEffect(() => {
-    // Flush any pending body write when the page/route changes.
+    if (!pageId) return;
+    // Claim on mount; re-claim every heartbeat to refresh editing_since so
+    // the server's 90s TTL doesn't expire under us.
+    void tryClaim();
+    const t = setInterval(() => {
+      void tryClaim();
+    }, LOCK_HEARTBEAT_MS);
     return () => {
+      clearInterval(t);
       if (bodyTimerRef.current) {
         clearTimeout(bodyTimerRef.current);
         bodyTimerRef.current = null;
       }
+      void releasePageEdit(pageId);
     };
-  }, [pageId]);
+  }, [pageId, tryClaim]);
 
   function handleBodyChange(body: object, bodyText: string, bodyRefs: string[]) {
     if (!pageId) return;
+    // Belt-and-suspenders: even with the editor disabled when locked, a
+    // pending write from before the lock arrived shouldn't fire.
+    if (heldByOther) return;
     pendingBodyRef.current = { body, bodyText, bodyRefs };
     setSaveState('saving');
     if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
@@ -155,23 +229,37 @@ export default function PageDetailScreen() {
         />
 
         <View style={{ marginTop: spacing.xl, gap: spacing.lg }}>
-          <StructuredFieldsForm
-            page={page}
-            template={template}
-            onSaveStateChange={setSaveState}
-          />
-
-          <View style={styles.bodySection}>
-            <MetaLabel size="sm" tone="muted" style={{ marginBottom: spacing.xs }}>
-              Body
-            </MetaLabel>
-            <BodyEditor
-              initialContent={(page.body as object) ?? null}
-              onChange={handleBodyChange}
-              placeholder={`Begin the chronicle of ${page.title}…`}
-              mentionablePages={mentionablePages}
-              getSectionLabel={sectionLabelById}
+          {bannerLock ? (
+            <EditLockBanner
+              ownerUserId={bannerLock.ownerId}
+              lockedSinceIso={bannerLock.since}
+              onRetry={tryClaim}
             />
+          ) : null}
+
+          <View
+            style={heldByOther ? styles.disabledEditor : undefined}
+            pointerEvents={heldByOther ? 'none' : 'auto'}
+          >
+            <StructuredFieldsForm
+              page={page}
+              template={template}
+              onSaveStateChange={setSaveState}
+            />
+
+            <View style={[styles.bodySection, { marginTop: spacing.lg }]}>
+              <MetaLabel size="sm" tone="muted" style={{ marginBottom: spacing.xs }}>
+                Body
+              </MetaLabel>
+              <BodyEditor
+                initialContent={(page.body as object) ?? null}
+                onChange={handleBodyChange}
+                editable={!heldByOther}
+                placeholder={`Begin the chronicle of ${page.title}…`}
+                mentionablePages={mentionablePages}
+                getSectionLabel={sectionLabelById}
+              />
+            </View>
           </View>
 
           <BacklinksPanel pageId={page.id} worldId={worldId} />
@@ -199,5 +287,8 @@ const styles = StyleSheet.create({
   },
   bodySection: {
     gap: spacing.xs,
+  },
+  disabledEditor: {
+    opacity: 0.55,
   },
 });

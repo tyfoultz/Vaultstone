@@ -555,6 +555,14 @@ export interface Database {
         };
         Returns: undefined;
       };
+      claim_world_page_edit: {
+        Args: { p_page_id: string };
+        Returns: Database['public']['Tables']['world_pages']['Row'];
+      };
+      release_world_page_edit: {
+        Args: { p_page_id: string };
+        Returns: undefined;
+      };
     };
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;

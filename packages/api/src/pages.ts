@@ -97,3 +97,15 @@ export async function getPagesLinkingTo(worldId: string, pageId: string) {
     .contains('body_refs', [pageId])
     .order('updated_at', { ascending: false });
 }
+
+// Phase 3c edit lock. claimPageEdit returns the refreshed row (so the caller
+// sees editing_user_id/editing_since as the server wrote them); throws if
+// another editor currently holds a fresh lock. releasePageEdit silently
+// no-ops when the lock isn't ours.
+export async function claimPageEdit(pageId: string) {
+  return supabase.rpc('claim_world_page_edit', { p_page_id: pageId });
+}
+
+export async function releasePageEdit(pageId: string) {
+  return supabase.rpc('release_world_page_edit', { p_page_id: pageId });
+}
