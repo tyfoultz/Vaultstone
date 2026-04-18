@@ -18,13 +18,16 @@ import {
 } from '@vaultstone/ui';
 
 import { useActiveSection } from '../../../../components/world/ActiveSectionContext';
+import { BacklinksPanel } from '../../../../components/world/BacklinksPanel';
 import { BodyEditor } from '../../../../components/world/BodyEditor';
 import { PageHead } from '../../../../components/world/PageHead';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
 import { worldHref } from '../../../../components/world/worldHref';
-import type { Json, TemplateKey } from '@vaultstone/types';
+import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
+
+const EMPTY_PAGES: WorldPage[] = [];
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -34,13 +37,28 @@ export default function PageDetailScreen() {
   const world = useCurrentWorldStore((s) => s.world);
   const { setActiveSectionId } = useActiveSection();
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
-  const page = usePagesStore((s) =>
-    worldId ? (s.byWorldId[worldId] ?? []).find((p) => p.id === pageId) : undefined,
+  const allPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
+  const page = useMemo(
+    () => (allPages ?? []).find((p) => p.id === pageId),
+    [allPages, pageId],
   );
+  const mentionablePages = useMemo(
+    () => (allPages ?? EMPTY_PAGES).filter((p) => p.id !== pageId),
+    [allPages, pageId],
+  );
+  const sectionLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of sections) map.set(s.id, s.name);
+    return (id: string) => map.get(id) ?? '';
+  }, [sections]);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const updatePageInStore = usePagesStore((s) => s.updatePage);
   const bodyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingBodyRef = useRef<{ body: object; bodyText: string } | null>(null);
+  const pendingBodyRef = useRef<{
+    body: object;
+    bodyText: string;
+    bodyRefs: string[];
+  } | null>(null);
 
   const section = useMemo(
     () => sections.find((sec) => sec.id === page?.section_id) ?? null,
@@ -61,9 +79,9 @@ export default function PageDetailScreen() {
     };
   }, [pageId]);
 
-  function handleBodyChange(body: object, bodyText: string) {
+  function handleBodyChange(body: object, bodyText: string, bodyRefs: string[]) {
     if (!pageId) return;
-    pendingBodyRef.current = { body, bodyText };
+    pendingBodyRef.current = { body, bodyText, bodyRefs };
     setSaveState('saving');
     if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
     bodyTimerRef.current = setTimeout(async () => {
@@ -73,6 +91,7 @@ export default function PageDetailScreen() {
       const { data, error } = await updatePage(pageId, {
         body: pending.body as Json,
         body_text: pending.bodyText,
+        body_refs: pending.bodyRefs,
       });
       if (error || !data) {
         setSaveState('error');
@@ -81,6 +100,7 @@ export default function PageDetailScreen() {
       updatePageInStore(pageId, {
         body: data.body,
         body_text: data.body_text,
+        body_refs: data.body_refs,
       });
       setSaveState('saved');
     }, 800);
@@ -149,8 +169,12 @@ export default function PageDetailScreen() {
               initialContent={(page.body as object) ?? null}
               onChange={handleBodyChange}
               placeholder={`Begin the chronicle of ${page.title}…`}
+              mentionablePages={mentionablePages}
+              getSectionLabel={sectionLabelById}
             />
           </View>
+
+          <BacklinksPanel pageId={page.id} worldId={worldId} />
         </View>
       </ScrollView>
     </View>

@@ -6,9 +6,12 @@ import { jsonToPlainText } from '@vaultstone/content';
 
 type Props = {
   initialContent: object | null;
-  onChange: (body: object, bodyText: string) => void;
+  onChange: (body: object, bodyText: string, bodyRefs: string[]) => void;
   editable?: boolean;
   placeholder?: string;
+  // Web-only — accepted here so callers can stay platform-agnostic.
+  mentionablePages?: unknown;
+  getSectionLabel?: (sectionId: string) => string;
 };
 
 // Native fallback for Phase 3a — plain TextInput. The web variant
@@ -24,7 +27,7 @@ export function BodyEditor({ initialContent, onChange, editable = true, placehol
   function handleChange(next: string) {
     setValue(next);
     const doc = textToTiptapDoc(next);
-    onChangeRef.current(doc, next);
+    onChangeRef.current(doc, next, []);
   }
 
   return (

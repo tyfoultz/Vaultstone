@@ -2,36 +2,69 @@ import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { jsonToPlainText } from '@vaultstone/content';
+import { extractMentionedPageIds, jsonToPlainText } from '@vaultstone/content';
+import type { WorldPage } from '@vaultstone/types';
 import { colors, radius, spacing } from '@vaultstone/ui';
 
 import { BodyEditorToolbar } from './BodyEditorToolbar';
+import { VaultstoneMention } from './MentionExtension';
+import { createMentionSuggestion } from './MentionSuggestion.web';
 
 type Props = {
   initialContent: object | null;
-  onChange: (body: object, bodyText: string) => void;
+  onChange: (body: object, bodyText: string, bodyRefs: string[]) => void;
   editable?: boolean;
   placeholder?: string;
+  mentionablePages?: WorldPage[];
+  getSectionLabel?: (sectionId: string) => string;
 };
 
 // Tiptap's internal equality checks are referential, so we need to keep the
 // initial content object stable across renders — otherwise every parent
 // re-render would reset the editor to `initialContent`.
-export function BodyEditor({ initialContent, onChange, editable = true, placeholder }: Props) {
+export function BodyEditor({
+  initialContent,
+  onChange,
+  editable = true,
+  placeholder,
+  mentionablePages,
+  getSectionLabel,
+}: Props) {
   const initialRef = useRef(initialContent && Object.keys(initialContent).length > 0 ? initialContent : undefined);
   const onChangeRef = useRef(onChange);
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
+  // Suggestion handlers read pages/labels via getters so the editor instance,
+  // created once, always sees the latest list as the parent re-renders.
+  const pagesRef = useRef<WorldPage[]>(mentionablePages ?? []);
+  const sectionLabelRef = useRef<(id: string) => string>(getSectionLabel ?? (() => ''));
+  useEffect(() => {
+    pagesRef.current = mentionablePages ?? [];
+  }, [mentionablePages]);
+  useEffect(() => {
+    sectionLabelRef.current = getSectionLabel ?? (() => '');
+  }, [getSectionLabel]);
+
+  const mentionExtension = useRef(
+    VaultstoneMention.configure({
+      HTMLAttributes: { class: 'vaultstone-mention' },
+      suggestion: createMentionSuggestion(
+        () => pagesRef.current,
+        (id) => sectionLabelRef.current(id),
+      ),
+    }),
+  ).current;
+
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [StarterKit, mentionExtension],
     content: initialRef.current,
     editable,
     immediatelyRender: true,
     onUpdate: ({ editor }) => {
       const body = editor.getJSON();
-      onChangeRef.current(body, jsonToPlainText(body));
+      onChangeRef.current(body, jsonToPlainText(body), extractMentionedPageIds(body));
     },
     editorProps: {
       attributes: {
@@ -124,6 +157,97 @@ function EditorStyles() {
             height: 0;
             pointer-events: none;
             font-style: italic;
+          }
+          .vaultstone-mention {
+            display: inline-block;
+            padding: 1px 8px;
+            margin: 0 2px;
+            border-radius: ${radius.full}px;
+            background: ${colors.primaryContainer}33;
+            color: ${colors.primary};
+            font-family: 'Manrope_500Medium', 'Manrope', system-ui, sans-serif;
+            font-style: normal;
+            font-size: 14px;
+            font-weight: 500;
+            border: 1px solid ${colors.primary}33;
+            cursor: pointer;
+          }
+          .vaultstone-mention::before {
+            content: '@';
+            opacity: 0.6;
+            margin-right: 1px;
+          }
+          .vaultstone-mention-popup {
+            z-index: 1000;
+          }
+          .vaultstone-mention-list {
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: ${radius.lg}px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+            min-width: 240px;
+            max-width: 320px;
+            padding: 4px;
+            overflow: hidden;
+          }
+          .vaultstone-mention-empty {
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: ${radius.lg}px;
+            color: ${colors.onSurfaceVariant};
+            padding: 8px 12px;
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 13px;
+            font-style: italic;
+          }
+          .vaultstone-mention-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-radius: ${radius.lg}px;
+            padding: 8px 10px;
+            text-align: left;
+            cursor: pointer;
+            color: ${colors.onSurface};
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+          }
+          .vaultstone-mention-item.is-active,
+          .vaultstone-mention-item:hover {
+            background: ${colors.primaryContainer}33;
+          }
+          .vaultstone-mention-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: ${radius.lg}px;
+            background: ${colors.surfaceContainerHighest};
+            color: ${colors.primary};
+            font-size: 14px;
+          }
+          .vaultstone-mention-text {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            flex: 1;
+          }
+          .vaultstone-mention-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: ${colors.onSurface};
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .vaultstone-mention-meta {
+            font-size: 11px;
+            color: ${colors.onSurfaceVariant};
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
           }
         `,
       }}

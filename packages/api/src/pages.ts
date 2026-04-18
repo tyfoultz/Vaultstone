@@ -84,3 +84,16 @@ export async function movePage(input: {
     p_new_sort_order: input.newSortOrder,
   });
 }
+
+// Pages whose body_refs[] contains the given pageId — used to render the
+// "Linked from" panel under any page. Fast because world_pages_body_refs_gin
+// indexes the column with `using gin`.
+export async function getPagesLinkingTo(worldId: string, pageId: string) {
+  return supabase
+    .from('world_pages')
+    .select('*')
+    .eq('world_id', worldId)
+    .is('deleted_at', null)
+    .contains('body_refs', [pageId])
+    .order('updated_at', { ascending: false });
+}
