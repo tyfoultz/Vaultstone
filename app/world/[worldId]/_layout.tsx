@@ -13,6 +13,7 @@ import {
 } from '@expo-google-fonts/cormorant-garamond';
 import { useFonts } from 'expo-font';
 import {
+  getCampaignsForWorld,
   getPagesForWorld,
   getSectionsForWorld,
   getWorld,
@@ -27,17 +28,24 @@ import type { Database, WorldPage, WorldSection } from '@vaultstone/types';
 import { Text, colors, spacing, useBreakpoint } from '@vaultstone/ui';
 
 import { ActiveSectionProvider } from '../../../components/world/ActiveSectionContext';
+import { LensSwitchBanner } from '../../../components/world/LensSwitchBanner';
+import { PlayerViewBanner } from '../../../components/world/PlayerViewBanner';
 import { WorldRail } from '../../../components/world/WorldRail';
 import { WorldSidebar } from '../../../components/world/WorldSidebar';
 
 type World = Database['public']['Tables']['worlds']['Row'];
 
 export default function WorldLayout() {
-  const { worldId } = useLocalSearchParams<{ worldId: string }>();
+  const { worldId, lens } = useLocalSearchParams<{
+    worldId: string;
+    lens?: string;
+  }>();
   const router = useRouter();
   const session = useAuthStore((s) => s.session);
   const setActiveWorld = useCurrentWorldStore((s) => s.setActiveWorld);
   const clearActiveWorld = useCurrentWorldStore((s) => s.clearActiveWorld);
+  const setLens = useCurrentWorldStore((s) => s.setLens);
+  const setLinkedCampaigns = useCurrentWorldStore((s) => s.setLinkedCampaigns);
   const setSections = useSectionsStore((s) => s.setSectionsForWorld);
   const setPages = usePagesStore((s) => s.setPagesForWorld);
   const [world, setWorld] = useState<World | null>(null);
@@ -66,7 +74,8 @@ export default function WorldLayout() {
       getWorld(worldId),
       getSectionsForWorld(worldId),
       getPagesForWorld(worldId),
-    ]).then(([worldRes, sectionsRes, pagesRes]) => {
+      getCampaignsForWorld(worldId),
+    ]).then(([worldRes, sectionsRes, pagesRes, campaignsRes]) => {
       if (cancelled) return;
       if (worldRes.error || !worldRes.data) {
         setError('World not found or you lack access.');
@@ -78,8 +87,24 @@ export default function WorldLayout() {
       setActiveWorld(w);
       const sections = (sectionsRes.data ?? []) as WorldSection[];
       const pages = (pagesRes.data ?? []) as WorldPage[];
+      const linked = (
+        (campaignsRes.data ?? []) as unknown as Array<{
+          campaigns: Database['public']['Tables']['campaigns']['Row'] | null;
+        }>
+      )
+        .map((row) => row.campaigns)
+        .filter((c): c is Database['public']['Tables']['campaigns']['Row'] => !!c);
       setSections(worldId, sections);
       setPages(worldId, pages);
+      setLinkedCampaigns(linked);
+      // Entry heuristic: ?lens=<campaignId> if present and the campaign is
+      // linked; otherwise default to world-only (null). Phase 4g will add the
+      // mid-session switch banner if the DM flips lenses during play.
+      if (lens && linked.some((c) => c.id === lens)) {
+        setLens(lens);
+      } else {
+        setLens(null);
+      }
       setFirstSectionId(sections[0]?.id ?? null);
       setLoading(false);
     });
@@ -88,7 +113,17 @@ export default function WorldLayout() {
       cancelled = true;
       clearActiveWorld();
     };
-  }, [session, worldId, setActiveWorld, clearActiveWorld, setSections, setPages]);
+  }, [
+    session,
+    worldId,
+    lens,
+    setActiveWorld,
+    clearActiveWorld,
+    setLens,
+    setLinkedCampaigns,
+    setSections,
+    setPages,
+  ]);
 
   if (!session) return null;
 
@@ -124,6 +159,8 @@ export default function WorldLayout() {
         {!isMobile ? <WorldRail world={world} /> : null}
         {!isMobile ? <WorldSidebar world={world} /> : null}
         <View style={styles.content}>
+          <PlayerViewBanner />
+          <LensSwitchBanner />
           <Slot />
         </View>
       </View>

@@ -13,17 +13,22 @@ import type { WorldPage } from '@vaultstone/types';
 import {
   GhostButton,
   GradientButton,
+  Icon,
   MetaLabel,
   Text,
   colors,
+  radius,
   spacing,
 } from '@vaultstone/ui';
+import { Pressable as RNPressable } from 'react-native';
 
 import { useActiveSection } from '../../../../components/world/ActiveSectionContext';
 import { CreatePageModal } from '../../../../components/world/CreatePageModal';
 import { PageHead } from '../../../../components/world/PageHead';
+import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle';
 import { SectionPageGrid } from '../../../../components/world/SectionPageGrid';
 import { SectionPageList } from '../../../../components/world/SectionPageList';
+import { SectionSettingsModal } from '../../../../components/world/SectionSettingsModal';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { worldHref, worldPageHref } from '../../../../components/world/worldHref';
 
@@ -41,6 +46,7 @@ export default function SectionDetailScreen() {
     [rawPages, sectionId],
   );
   const [createPageOpen, setCreatePageOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const section = useMemo(
     () => sections.find((sec) => sec.id === sectionId) ?? null,
@@ -85,7 +91,20 @@ export default function SectionDetailScreen() {
         ]}
         actions={
           <>
+            <PlayerViewToggle />
             <GhostButton label="Back to Atlas" onPress={() => router.push(worldHref(worldId))} />
+            <RNPressable
+              onPress={() => setSettingsOpen(true)}
+              style={{
+                padding: 8,
+                borderRadius: radius.full,
+                borderWidth: 1,
+                borderColor: colors.outlineVariant + '55',
+              }}
+              accessibilityLabel="Section settings"
+            >
+              <Icon name="settings" size={16} color={colors.onSurfaceVariant} />
+            </RNPressable>
             <GradientButton label="New page" onPress={() => setCreatePageOpen(true)} />
           </>
         }
@@ -158,6 +177,14 @@ export default function SectionDetailScreen() {
           worldId={worldId}
           sectionId={sectionId}
           onClose={() => setCreatePageOpen(false)}
+        />
+      ) : null}
+
+      {settingsOpen ? (
+        <SectionSettingsModal
+          section={section}
+          onClose={() => setSettingsOpen(false)}
+          onDeleted={() => router.replace(worldHref(worldId))}
         />
       ) : null}
     </View>

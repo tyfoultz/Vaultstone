@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { claimPageEdit, releasePageEdit, updatePage } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
@@ -11,10 +11,12 @@ import {
   useSectionsStore,
 } from '@vaultstone/store';
 import {
+  Icon,
   MetaLabel,
   Text,
   VisibilityBadge,
   colors,
+  radius,
   spacing,
 } from '@vaultstone/ui';
 
@@ -22,6 +24,9 @@ import { useActiveSection } from '../../../../components/world/ActiveSectionCont
 import { BodyEditor } from '../../../../components/world/BodyEditor';
 import { EditLockBanner } from '../../../../components/world/EditLockBanner';
 import { PageHead } from '../../../../components/world/PageHead';
+import { OrphanBanner } from '../../../../components/world/OrphanBanner';
+import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle';
+import { ShareModal } from '../../../../components/world/ShareModal';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
 import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
@@ -70,6 +75,8 @@ export default function PageDetailScreen() {
 
   const myUserId = useAuthStore((s) => s.user?.id ?? null);
   const toggleVisibility = usePageVisibilityToggle(page ?? null);
+  const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
+  const [shareOpen, setShareOpen] = useState(false);
   // Lock state derived from `page` is authoritative for "who holds the lock
   // right now" (updated via claim RPC's RETURNING row + optimistic store
   // write). `lockError` captures the most recent claim failure so we can
@@ -82,6 +89,14 @@ export default function PageDetailScreen() {
     () => sections.find((sec) => sec.id === page?.section_id) ?? null,
     [sections, page],
   );
+
+  // Orphan detection: page has a parent pointer but the parent has left the
+  // local cache (soft-deleted / unlinked). The store holds only non-deleted
+  // pages, so a missing match == a missing parent.
+  const isOrphan = useMemo(() => {
+    if (!page || !page.parent_page_id) return false;
+    return !(allPages ?? []).some((p) => p.id === page.parent_page_id);
+  }, [page, allPages]);
 
   // Lock state derived from `page`. Fresh = within the 90s server TTL.
   const lockOwnerId = page?.editing_user_id ?? null;
@@ -215,7 +230,31 @@ export default function PageDetailScreen() {
         ]}
         saveState={saveState}
         actions={
-          <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
+          <>
+            <PlayerViewToggle />
+            {isWorldOwner ? (
+              <Pressable
+                onPress={() => setShareOpen(true)}
+                style={styles.shareBtn}
+                accessibilityLabel="Share page"
+              >
+                <Icon name="share" size={14} color={colors.onSurfaceVariant} />
+                <Text
+                  variant="label-md"
+                  uppercase
+                  weight="semibold"
+                  style={{
+                    color: colors.onSurfaceVariant,
+                    letterSpacing: 1,
+                    fontSize: 11,
+                  }}
+                >
+                  Share
+                </Text>
+              </Pressable>
+            ) : null}
+            <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
+          </>
         }
       />
 
@@ -236,6 +275,8 @@ export default function PageDetailScreen() {
           />
 
           <View style={{ marginTop: spacing.xl, gap: spacing.lg }}>
+            {isOrphan ? <OrphanBanner page={page} /> : null}
+
             {bannerLock ? (
               <EditLockBanner
                 ownerUserId={bannerLock.ownerId}
@@ -276,6 +317,10 @@ export default function PageDetailScreen() {
 
         <WikiRightPanel pageId={page.id} worldId={worldId} />
       </View>
+
+      {shareOpen ? (
+        <ShareModal page={page} onClose={() => setShareOpen(false)} />
+      ) : null}
     </View>
   );
 }
@@ -311,5 +356,15 @@ const styles = StyleSheet.create({
   },
   disabledEditor: {
     opacity: 0.55,
+  },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
   },
 });

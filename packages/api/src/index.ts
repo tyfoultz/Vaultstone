@@ -11,3 +11,4 @@ export * from './worlds';
 export * from './world-campaigns';
 export * from './sections';
 export * from './pages';
+export * from './world-permissions';

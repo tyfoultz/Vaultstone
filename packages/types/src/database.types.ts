@@ -433,6 +433,10 @@ export interface Database {
           visible_to_players: boolean;
           sort_order: number;
           pc_user_id: string | null;
+          character_id: string | null;
+          campaign_id: string | null;
+          title_overridden: boolean;
+          is_orphaned: boolean;
           editing_user_id: string | null;
           editing_since: string | null;
           deleted_at: string | null;
@@ -467,6 +471,10 @@ export interface Database {
           visible_to_players?: boolean;
           sort_order?: number;
           pc_user_id?: string | null;
+          character_id?: string | null;
+          campaign_id?: string | null;
+          title_overridden?: boolean;
+          is_orphaned?: boolean;
           editing_user_id?: string | null;
           editing_since?: string | null;
           deleted_at?: string | null;
@@ -499,11 +507,38 @@ export interface Database {
           visible_to_players?: boolean;
           sort_order?: number;
           pc_user_id?: string | null;
+          character_id?: string | null;
+          campaign_id?: string | null;
+          title_overridden?: boolean;
+          is_orphaned?: boolean;
           editing_user_id?: string | null;
           editing_since?: string | null;
           deleted_at?: string | null;
           hard_delete_after?: string | null;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      world_page_permissions: {
+        Row: {
+          page_id: string;
+          user_id: string;
+          permission: 'view' | 'edit';
+          cascade: boolean;
+          granted_by: string;
+          granted_at: string;
+        };
+        Insert: {
+          page_id: string;
+          user_id: string;
+          permission?: 'view' | 'edit';
+          cascade?: boolean;
+          granted_by: string;
+          granted_at?: string;
+        };
+        Update: {
+          permission?: 'view' | 'edit';
+          cascade?: boolean;
         };
         Relationships: [];
       };
@@ -563,8 +598,26 @@ export interface Database {
         Args: { p_page_id: string };
         Returns: undefined;
       };
+      user_can_view_page: {
+        Args: { p_user_id: string; p_page_id: string };
+        Returns: boolean;
+      };
+      user_can_edit_page: {
+        Args: { p_user_id: string; p_page_id: string };
+        Returns: boolean;
+      };
+      effective_page_permission: {
+        Args: { p_user_id: string; p_page_id: string };
+        Returns: 'view' | 'edit' | null;
+      };
+      materialize_pc_stub: {
+        Args: { p_world_id: string; p_character_id: string };
+        Returns: undefined;
+      };
     };
-    Enums: Record<never, never>;
+    Enums: {
+      world_page_permission_level: 'view' | 'edit';
+    };
     CompositeTypes: Record<never, never>;
   };
 }

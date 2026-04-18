@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { selectSectionsForWorld, useSectionsStore } from '@vaultstone/store';
+import {
+  selectSectionsForWorld,
+  useCurrentWorldStore,
+  useSectionsStore,
+} from '@vaultstone/store';
 import type { Database } from '@vaultstone/types';
 import {
   GhostButton,
@@ -17,6 +21,8 @@ import {
 import { useActiveSection } from './ActiveSectionContext';
 import { CreatePageModal } from './CreatePageModal';
 import { CreateSectionModal } from './CreateSectionModal';
+import { LensDropdown } from './LensDropdown';
+import { isSectionVisibleToPlayersPreview } from './playerViewFilters';
 import { SidebarSection } from './SidebarSection';
 import { WorldSettingsModal } from './WorldSettingsModal';
 
@@ -34,15 +40,19 @@ type Props = {
 export function WorldSidebar({ world, activePageId }: Props) {
   const { activeSectionId } = useActiveSection();
   const allSections = useSectionsStore((s) => selectSectionsForWorld(s, world.id));
+  const playerView = useCurrentWorldStore((s) => s.playerViewPreview);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [createSectionOpen, setCreateSectionOpen] = useState(false);
   const [createPageSectionId, setCreatePageSectionId] = useState<string | null>(null);
 
   const visibleSections = useMemo(() => {
-    if (!activeSectionId) return allSections;
-    const match = allSections.find((s) => s.id === activeSectionId);
-    return match ? [match] : allSections;
-  }, [activeSectionId, allSections]);
+    const filtered = playerView
+      ? allSections.filter(isSectionVisibleToPlayersPreview)
+      : allSections;
+    if (!activeSectionId) return filtered;
+    const match = filtered.find((s) => s.id === activeSectionId);
+    return match ? [match] : filtered;
+  }, [activeSectionId, allSections, playerView]);
 
   return (
     <View style={styles.root}>
@@ -83,6 +93,8 @@ export function WorldSidebar({ world, activePageId }: Props) {
           </Pressable>
         </View>
       </View>
+
+      <LensDropdown />
 
       <View style={{ opacity: 0.5 }} pointerEvents="none">
         <Input placeholder="Search…  ⌘K" editable={false} />
