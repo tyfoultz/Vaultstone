@@ -611,7 +611,7 @@ export interface Database {
         Returns: 'view' | 'edit' | null;
       };
       materialize_pc_stub: {
-        Args: { p_world_id: string; p_character_id: string };
+        Args: { p_world_id: string; p_character_id: string; p_campaign_id: string };
         Returns: undefined;
       };
     };
