@@ -176,6 +176,17 @@ for the short-form plan.
   disabled (pointer-events none + dimmed) when another editor holds the
   lock. BEFORE-trigger body derivation + native 10tap editor + mention
   deleted-target chip + Android perf flag still outstanding.
+- **3d — Design fidelity pass.** Page-detail screen now matches the
+  handoff `.wiki-wrap`: 780px main scroll column (28/48/64 padding) +
+  280px `WikiRightPanel` with Sub-pages / Backlinks / History tabs.
+  `PageHead` rebuilt as `.wiki-head` (76px accent-tinted gradient tile,
+  42px display title, icon+label meta pills via `metaPills` prop, legacy
+  `meta` kept for world landing + section-detail). `EditLockBanner`
+  rebuilt as `.takeover-banner` (amber gradient + 3px left accent,
+  pencil icon, live countdown, Request Takeover pill). Tiptap editor
+  prose restyled to `.wiki-p` / `.wiki-h2` (15px/1.7 body, bordered h2),
+  mention chips restyled as tight accent pills (3px radius, nowrap,
+  no double `@`).
 
 Phase 2 (Sections + Pages + Templates, design-integrated) shipped on
 `feature/world-builder-phase-2`. Design handoff checked in at
@@ -191,7 +202,7 @@ integration (manual "Add to world timeline" button on published recaps).
 |---|---|---|
 | 1 — Foundation | ✅ | `worlds` + `world_campaigns` tables, `is_world_owner` RLS helper, `create_world_with_owner` atomic RPC, `/worlds` list + create modal, `/world/[id]` shell with sidebar + gear-triggered settings modal (rename / link / archive / soft-delete), lens dropdown placeholder. |
 | 2 — Sections & pages (no editor) | ✅ | `world_sections`, `world_pages` (with `template_version` + edit-lock columns reserved), section templates v1 + registry + CI hash check, sidebar with unlimited nesting, structured-fields form, move-page-across-sections, Recently Deleted scaffold. Three-column shell (rail + sidebar + main), serif display typography scoped to `/world/*`, semantic accent palette, `Card tier="hero"`, `VisibilityBadge`, `PageHead`, Atlas landing, section grid/list views. |
-| 3 — Editor, chips, backlinks, edit lock | 🟡 | 3a/3b/3c done: Tiptap web editor + debounced autosave, `@`-mention typeahead + `body_refs` backlinks, edit-lock RPCs + banner + 30s heartbeat. Still outstanding: BEFORE-trigger for server-side `body_text` / `body_refs` derivation, native 10tap editor, deleted-target chip UI, web hover preview on mentions, Android perf benchmark + progressive-disable flag. |
+| 3 — Editor, chips, backlinks, edit lock | 🟡 | 3a/3b/3c/3d done: Tiptap web editor + debounced autosave, `@`-mention typeahead + `body_refs` backlinks, edit-lock RPCs + banner + 30s heartbeat, handoff fidelity pass (wiki-wrap layout + WikiRightPanel + restyled page head, banner, prose, chips). Still outstanding: BEFORE-trigger for server-side `body_text` / `body_refs` derivation, native 10tap editor, deleted-target chip UI, web hover preview on mentions, Android perf benchmark + progressive-disable flag. |
 | 4 — Visibility, lens, PC stubs, permissions | ⬜ | `visible_to_players`, section overrides, full PC-stub lifecycle triggers (rename / delete / unlink / re-link / move), `LensDropdown` + entry heuristic + mid-session switch banner, orphan banner, Player View preview. `world_page_permissions` + `ShareModal` (cascade toggle, grantees visible to each other) + `user_can_view_page` / `user_can_edit_page` RLS helpers. |
 | 5 — Maps, pins & nesting | ⬜ | `world_maps`, seeded `pin_types` (7), `map_pins`, `world-maps` Storage bucket, `MapCanvas.{web,native}`, pin placement + filter bar, sub-map drill-down + breadcrumbs, batch signed-URL RPC. Pin mention kind wired in. |
 | 6 — Timelines + Feature 6 integration | ⬜ | `page_kind='timeline'` machinery — `calendar_schema` editor, `date_values` form, `sort_key` trigger, vertical timeline renderer, auto-primary-timeline per world, timeline pages creatable in any section. Timeline mention kind wired. `AddToWorldTimelineButton` on published recaps with Markdown→Tiptap conversion. |

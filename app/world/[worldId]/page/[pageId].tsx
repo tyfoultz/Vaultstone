@@ -19,11 +19,11 @@ import {
 } from '@vaultstone/ui';
 
 import { useActiveSection } from '../../../../components/world/ActiveSectionContext';
-import { BacklinksPanel } from '../../../../components/world/BacklinksPanel';
 import { BodyEditor } from '../../../../components/world/BodyEditor';
 import { EditLockBanner } from '../../../../components/world/EditLockBanner';
 import { PageHead } from '../../../../components/world/PageHead';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
+import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
 import { worldHref, worldPageHref } from '../../../../components/world/worldHref';
@@ -217,57 +217,59 @@ export default function PageDetailScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={styles.container}>
-        <PageHead
-          icon={template.icon}
-          title={page.title}
-          meta={`${kindLabel} · ${section.name}`}
-          accentToken={template.accentToken}
-          actions={
-            <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
-          }
-        />
+      <View style={styles.wikiWrap}>
+        <ScrollView style={styles.wikiDoc} contentContainerStyle={styles.wikiDocInner}>
+          <PageHead
+            icon={template.icon}
+            title={page.title}
+            meta={`${kindLabel} · ${section.name}`}
+            accentToken={template.accentToken}
+            actions={
+              <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
+            }
+          />
 
-        <View style={{ marginTop: spacing.xl, gap: spacing.lg }}>
-          {bannerLock ? (
-            <EditLockBanner
-              ownerUserId={bannerLock.ownerId}
-              lockedSinceIso={bannerLock.since}
-              onRetry={tryClaim}
-            />
-          ) : null}
-
-          <View
-            style={heldByOther ? styles.disabledEditor : undefined}
-            pointerEvents={heldByOther ? 'none' : 'auto'}
-          >
-            <StructuredFieldsForm
-              page={page}
-              template={template}
-              onSaveStateChange={setSaveState}
-            />
-
-            <View style={[styles.bodySection, { marginTop: spacing.lg }]}>
-              <MetaLabel size="sm" tone="muted" style={{ marginBottom: spacing.xs }}>
-                Body
-              </MetaLabel>
-              <BodyEditor
-                initialContent={(page.body as object) ?? null}
-                onChange={handleBodyChange}
-                editable={!heldByOther}
-                placeholder={`Begin the chronicle of ${page.title}…`}
-                mentionablePages={mentionablePages}
-                getSectionLabel={sectionLabelById}
-                onMentionClick={(targetPageId) =>
-                  router.push(worldPageHref(worldId, targetPageId))
-                }
+          <View style={{ marginTop: spacing.xl, gap: spacing.lg }}>
+            {bannerLock ? (
+              <EditLockBanner
+                ownerUserId={bannerLock.ownerId}
+                lockedSinceIso={bannerLock.since}
+                onRetry={tryClaim}
               />
+            ) : null}
+
+            <View
+              style={heldByOther ? styles.disabledEditor : undefined}
+              pointerEvents={heldByOther ? 'none' : 'auto'}
+            >
+              <StructuredFieldsForm
+                page={page}
+                template={template}
+                onSaveStateChange={setSaveState}
+              />
+
+              <View style={[styles.bodySection, { marginTop: spacing.lg }]}>
+                <MetaLabel size="sm" tone="muted" style={{ marginBottom: spacing.xs }}>
+                  Body
+                </MetaLabel>
+                <BodyEditor
+                  initialContent={(page.body as object) ?? null}
+                  onChange={handleBodyChange}
+                  editable={!heldByOther}
+                  placeholder={`Begin the chronicle of ${page.title}…`}
+                  mentionablePages={mentionablePages}
+                  getSectionLabel={sectionLabelById}
+                  onMentionClick={(targetPageId) =>
+                    router.push(worldPageHref(worldId, targetPageId))
+                  }
+                />
+              </View>
             </View>
           </View>
+        </ScrollView>
 
-          <BacklinksPanel pageId={page.id} worldId={worldId} />
-        </View>
-      </ScrollView>
+        <WikiRightPanel pageId={page.id} worldId={worldId} />
+      </View>
     </View>
   );
 }
@@ -277,10 +279,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surfaceCanvas,
   },
-  container: {
-    padding: spacing.xl,
-    paddingBottom: spacing['2xl'],
-    maxWidth: 880,
+  wikiWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    minHeight: 0,
+  },
+  wikiDoc: {
+    flex: 1,
+    backgroundColor: colors.surfaceCanvas,
+  },
+  wikiDocInner: {
+    maxWidth: 780,
+    paddingTop: 28,
+    paddingHorizontal: 48,
+    paddingBottom: 64,
   },
   missing: {
     flex: 1,

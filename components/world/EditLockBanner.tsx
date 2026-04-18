@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { getProfile } from '@vaultstone/api';
-import { Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { Icon, Text, colors, spacing } from '@vaultstone/ui';
 
 type Props = {
   ownerUserId: string;
@@ -11,9 +11,10 @@ type Props = {
 
 const LOCK_TTL_SECONDS = 90;
 
-// Shows who currently holds the edit lock and how long until it expires (the
-// server-side TTL is 90s; after that anyone can claim). Re-renders every
-// second so the "Nn s left" countdown stays live.
+// Matches handoff `.takeover-banner`: amber gradient background with a 3px
+// left accent border, pencil icon, inline message ("<Kira> is editing this
+// page — you're viewing read-only"), and a right-aligned "Request Takeover"
+// pill button. Re-renders every second so the countdown stays live.
 export function EditLockBanner({ ownerUserId, lockedSinceIso, onRetry }: Props) {
   const [name, setName] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -36,27 +37,29 @@ export function EditLockBanner({ ownerUserId, lockedSinceIso, onRetry }: Props) 
 
   const elapsed = Math.max(0, Math.floor((nowTick - Date.parse(lockedSinceIso)) / 1000));
   const remaining = Math.max(0, LOCK_TTL_SECONDS - elapsed);
-  const label = name ?? 'Another editor';
+  const ownerLabel = name ?? 'Another editor';
 
   return (
-    <View style={styles.root}>
-      <View style={styles.iconTile}>
-        <Icon name="lock" size={16} color={colors.gm} />
-      </View>
-      <View style={styles.text}>
-        <Text variant="label-md" weight="semibold">
-          {label} is editing this page
+    <View style={[styles.root, webGradient]}>
+      <Icon name="edit" size={14} color={colors.gm} />
+      <View style={styles.messageWrap}>
+        <Text variant="body-sm" style={styles.message}>
+          <Text variant="body-sm" weight="semibold" style={styles.messageStrong}>
+            {ownerLabel}
+          </Text>{' '}
+          is editing this page
+          {remaining > 0 ? ` — lock expires in ${remaining}s.` : ' — lock expired.'}
         </Text>
-        <MetaLabel tone="muted" size="sm">
-          {remaining > 0
-            ? `Lock expires in ${remaining}s — your edits are disabled until then.`
-            : 'Lock expired. Tap "Try again" to take over.'}
-        </MetaLabel>
       </View>
       {onRetry ? (
-        <Pressable onPress={onRetry} style={styles.retry}>
-          <Text variant="label-md" tone="accent">
-            Try again
+        <Pressable onPress={onRetry} style={styles.takeover}>
+          <Text
+            variant="label-sm"
+            weight="semibold"
+            uppercase
+            style={styles.takeoverLabel}
+          >
+            Request Takeover
           </Text>
         </Pressable>
       ) : null}
@@ -64,31 +67,51 @@ export function EditLockBanner({ ownerUserId, lockedSinceIso, onRetry }: Props) 
   );
 }
 
+// Web-only gradient — RN's StyleSheet can't express linear-gradient, but the
+// handoff .takeover-banner uses a subtle amber fade. On native we fall back
+// to a flat gmContainer background.
+const webGradient =
+  Platform.OS === 'web'
+    ? ({
+        background:
+          'linear-gradient(90deg, rgba(230, 162, 85, 0.15), rgba(230, 162, 85, 0.05))',
+      } as object)
+    : { backgroundColor: colors.gmContainer };
+
 const styles = StyleSheet.create({
   root: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.xl,
-    backgroundColor: colors.gmContainer,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.gm,
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
+  },
+  messageWrap: {
+    flex: 1,
+  },
+  message: {
+    color: colors.onSurface,
+    fontSize: 12.5,
+    lineHeight: 18,
+  },
+  messageStrong: {
+    color: colors.onSurface,
+    fontSize: 12.5,
+  },
+  takeover: {
     borderWidth: 1,
     borderColor: colors.gm,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: 4,
   },
-  iconTile: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceContainerHighest,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  text: {
-    flex: 1,
-    gap: 2,
-  },
-  retry: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+  takeoverLabel: {
+    color: colors.gm,
+    fontSize: 10,
+    letterSpacing: 1,
   },
 });

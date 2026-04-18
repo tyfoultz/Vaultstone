@@ -130,25 +130,43 @@ function EditorStyles() {
           .vaultstone-body-editor {
             min-height: 240px;
             outline: none;
-            color: ${colors.onSurface};
+            color: ${colors.onSurfaceVariant};
             font-family: 'CormorantGaramond_400Regular', 'Cormorant Garamond', Georgia, serif;
-            font-size: 17px;
+            font-size: 15px;
             line-height: 1.7;
             padding: ${spacing.md}px ${spacing.lg}px;
           }
-          .vaultstone-body-editor p { margin: 0 0 ${spacing.sm}px 0; }
+          .vaultstone-body-editor p {
+            margin: 0 0 ${spacing.sm}px 0;
+            color: ${colors.onSurfaceVariant};
+            font-size: 15px;
+            line-height: 1.7;
+          }
           .vaultstone-body-editor h1,
           .vaultstone-body-editor h2,
           .vaultstone-body-editor h3 {
             font-family: 'Fraunces_700Bold', 'Fraunces', Georgia, serif;
             font-weight: 700;
             color: ${colors.onSurface};
-            margin: ${spacing.lg}px 0 ${spacing.sm}px;
             letter-spacing: -0.25px;
           }
-          .vaultstone-body-editor h1 { font-size: 28px; line-height: 1.2; }
-          .vaultstone-body-editor h2 { font-size: 22px; line-height: 1.25; }
-          .vaultstone-body-editor h3 { font-size: 18px; line-height: 1.3; }
+          .vaultstone-body-editor h1 {
+            font-size: 28px;
+            line-height: 1.2;
+            margin: ${spacing.lg}px 0 ${spacing.sm}px;
+          }
+          .vaultstone-body-editor h2 {
+            font-size: 24px;
+            line-height: 1.25;
+            margin: 32px 0 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid ${colors.outlineVariant}55;
+          }
+          .vaultstone-body-editor h3 {
+            font-size: 18px;
+            line-height: 1.3;
+            margin: ${spacing.lg}px 0 ${spacing.sm}px;
+          }
           .vaultstone-body-editor ul,
           .vaultstone-body-editor ol {
             margin: 0 0 ${spacing.sm}px ${spacing.md}px;
@@ -188,11 +206,11 @@ function EditorStyles() {
             font-style: italic;
           }
           .vaultstone-mention {
-            display: inline-block;
-            padding: 1px 8px;
-            margin: 0 2px;
-            border-radius: ${radius.full}px;
-            background: ${colors.primaryContainer}33;
+            display: inline;
+            padding: 1px 6px;
+            margin: 0 1px;
+            border-radius: 3px;
+            background: ${colors.primary}14;
             color: ${colors.primary};
             font-family: 'Manrope_500Medium', 'Manrope', system-ui, sans-serif;
             font-style: normal;
@@ -200,10 +218,11 @@ function EditorStyles() {
             font-weight: 500;
             border: 1px solid ${colors.primary}33;
             cursor: pointer;
+            white-space: nowrap;
           }
           .vaultstone-mention:hover {
-            background: ${colors.primaryContainer}55;
-            border-color: ${colors.primary}66;
+            background: ${colors.primary}26;
+            border-color: ${colors.primary}55;
           }
           .vaultstone-mention-popup {
             z-index: 1000;
