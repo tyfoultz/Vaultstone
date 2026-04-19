@@ -4,12 +4,32 @@ import type { SuggestionOptions, SuggestionProps } from '@tiptap/suggestion';
 import type { WorldPage } from '@vaultstone/types';
 import { getTemplate } from '@vaultstone/content';
 
-type MentionItem = {
+// A pin the editor can link to — shaped to the minimum fields the popover
+// and insert-step need so the route can stay decoupled from MapPin/PinType.
+export type MentionPinItem = {
   id: string;
+  mapId: string;
   label: string;
-  meta: string;
+  mapLabel: string;
   icon: string;
 };
+
+type MentionItem =
+  | {
+      kind: 'page';
+      id: string;
+      label: string;
+      meta: string;
+      icon: string;
+    }
+  | {
+      kind: 'pin';
+      id: string;
+      mapId: string;
+      label: string;
+      meta: string;
+      icon: string;
+    };
 
 type SuggestionListHandle = {
   onKeyDown: (event: KeyboardEvent) => boolean;
@@ -54,14 +74,14 @@ const SuggestionList = forwardRef<SuggestionListHandle, SuggestionListProps>(
     );
 
     if (items.length === 0) {
-      return <div className="vaultstone-mention-empty">No matching pages</div>;
+      return <div className="vaultstone-mention-empty">No matching pages or pins</div>;
     }
 
     return (
       <div className="vaultstone-mention-list" role="listbox">
         {items.map((item, idx) => (
           <button
-            key={item.id}
+            key={`${item.kind}:${item.id}`}
             type="button"
             role="option"
             aria-selected={idx === selected}
@@ -81,7 +101,9 @@ const SuggestionList = forwardRef<SuggestionListHandle, SuggestionListProps>(
             </span>
             <span className="vaultstone-mention-text">
               <span className="vaultstone-mention-title">{item.label}</span>
-              <span className="vaultstone-mention-meta">{item.meta}</span>
+              <span className="vaultstone-mention-meta">
+                {item.kind === 'pin' ? `Pin · ${item.meta}` : item.meta}
+              </span>
             </span>
           </button>
         ))}
@@ -91,10 +113,7 @@ const SuggestionList = forwardRef<SuggestionListHandle, SuggestionListProps>(
 );
 SuggestionList.displayName = 'SuggestionList';
 
-function pageToItem(
-  page: WorldPage,
-  sectionLabel: string,
-): MentionItem {
+function pageToItem(page: WorldPage, sectionLabel: string): MentionItem {
   let icon = '◆';
   try {
     const tpl = getTemplate(
@@ -106,6 +125,7 @@ function pageToItem(
     // template lookup may fail for legacy/custom; fall back to default
   }
   return {
+    kind: 'page',
     id: page.id,
     label: page.title,
     meta: sectionLabel,
@@ -113,12 +133,27 @@ function pageToItem(
   };
 }
 
+function pinToItem(pin: MentionPinItem): MentionItem {
+  return {
+    kind: 'pin',
+    id: pin.id,
+    mapId: pin.mapId,
+    label: pin.label,
+    meta: pin.mapLabel,
+    icon: pin.icon,
+  };
+}
+
 type GetPages = () => WorldPage[];
+type GetPins = () => MentionPinItem[];
 type GetSectionLabel = (sectionId: string) => string;
+
+const MAX_ITEMS = 8;
 
 export function createMentionSuggestion(
   getPages: GetPages,
   getSectionLabel: GetSectionLabel,
+  getPins?: GetPins,
 ): Omit<SuggestionOptions, 'editor'> {
   return {
     char: '@',
@@ -126,22 +161,32 @@ export function createMentionSuggestion(
     items: ({ query }) => {
       const q = query.trim().toLowerCase();
       const pages = getPages();
-      const filtered = q
+      const pins = getPins ? getPins() : [];
+      const pageMatches = q
         ? pages.filter((p) => p.title.toLowerCase().includes(q))
         : pages;
-      return filtered
-        .slice(0, 8)
+      const pinMatches = q
+        ? pins.filter((p) => p.label.toLowerCase().includes(q))
+        : pins;
+      const pageItems = pageMatches
+        .slice(0, MAX_ITEMS)
         .map((p) => pageToItem(p, getSectionLabel(p.section_id)));
+      const pinItems = pinMatches.slice(0, MAX_ITEMS).map(pinToItem);
+      return [...pageItems, ...pinItems].slice(0, MAX_ITEMS);
     },
     command: ({ editor, range, props }) => {
       const item = props as MentionItem;
+      const attrs =
+        item.kind === 'pin'
+          ? { id: item.id, label: item.label, kind: 'pin', mapId: item.mapId }
+          : { id: item.id, label: item.label };
       editor
         .chain()
         .focus()
         .insertContentAt(range, [
           {
             type: 'vaultstoneMention',
-            attrs: { id: item.id, label: item.label },
+            attrs,
           },
           { type: 'text', text: ' ' },
         ])

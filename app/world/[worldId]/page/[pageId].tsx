@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { claimPageEdit, releasePageEdit, updatePage } from '@vaultstone/api';
+import {
+  claimPageEdit,
+  listMaps,
+  listPinsForWorld,
+  listPinTypes,
+  releasePageEdit,
+  updatePage,
+  type MapPin,
+  type PinType,
+  type WorldMap,
+} from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
   selectSectionsForWorld,
@@ -22,6 +32,7 @@ import {
 
 import { useActiveSection } from '../../../../components/world/ActiveSectionContext';
 import { BodyEditor } from '../../../../components/world/BodyEditor';
+import type { MentionPinItem } from '../../../../components/world/MentionSuggestion.web';
 import { EditLockBanner } from '../../../../components/world/EditLockBanner';
 import { PageHead } from '../../../../components/world/PageHead';
 import { OrphanBanner } from '../../../../components/world/OrphanBanner';
@@ -32,7 +43,7 @@ import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
 import { usePageVisibilityToggle } from '../../../../components/world/usePageVisibilityToggle';
-import { worldHref, worldPageHref } from '../../../../components/world/worldHref';
+import { worldHref, worldMapHref, worldPageHref } from '../../../../components/world/worldHref';
 import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 
 // Re-claim the lock every 30s so our editing_since stays within the server-
@@ -77,6 +88,48 @@ export default function PageDetailScreen() {
   const toggleVisibility = usePageVisibilityToggle(page ?? null);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
+
+  // Mention popover can link to pins as well as pages. We fetch pins +
+  // their owning maps + pin types once per world so the @ suggestion list
+  // can render a pin option without an extra round-trip per keystroke.
+  const [worldPins, setWorldPins] = useState<MapPin[]>([]);
+  const [worldMaps, setWorldMaps] = useState<WorldMap[]>([]);
+  const [pinTypes, setPinTypes] = useState<PinType[]>([]);
+  useEffect(() => {
+    if (!worldId) return;
+    let cancelled = false;
+    Promise.all([listPinsForWorld(worldId), listMaps(worldId), listPinTypes()]).then(
+      ([pinsRes, mapsRes, typesRes]) => {
+        if (cancelled) return;
+        setWorldPins((pinsRes.data ?? []) as MapPin[]);
+        setWorldMaps((mapsRes.data ?? []) as WorldMap[]);
+        setPinTypes((typesRes.data ?? []) as PinType[]);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [worldId]);
+
+  const mentionablePins: MentionPinItem[] = useMemo(() => {
+    if (worldPins.length === 0) return [];
+    const mapLabelById = new Map(worldMaps.map((m) => [m.id, m.label]));
+    const typeByKey = new Map(pinTypes.map((t) => [t.key, t]));
+    return worldPins
+      .map((pin) => {
+        const type = typeByKey.get(pin.pin_type);
+        const label = pin.label?.trim() || type?.label || 'Pin';
+        const icon = pin.icon_key_override ?? type?.default_icon_key ?? 'map-pin';
+        const mapLabel = mapLabelById.get(pin.map_id) ?? 'Map';
+        return {
+          id: pin.id,
+          mapId: pin.map_id,
+          label,
+          mapLabel,
+          icon,
+        };
+      });
+  }, [worldPins, worldMaps, pinTypes]);
   // Lock state derived from `page` is authoritative for "who holds the lock
   // right now" (updated via claim RPC's RETURNING row + optimistic store
   // write). `lockError` captures the most recent claim failure so we can
@@ -305,9 +358,13 @@ export default function PageDetailScreen() {
                   editable={!heldByOther}
                   placeholder={`Begin the chronicle of ${page.title}…`}
                   mentionablePages={mentionablePages}
+                  mentionablePins={mentionablePins}
                   getSectionLabel={sectionLabelById}
                   onMentionClick={(targetPageId) =>
                     router.push(worldPageHref(worldId, targetPageId))
+                  }
+                  onPinMentionClick={(_pinId, mapId) =>
+                    router.push(worldMapHref(worldId, mapId))
                   }
                 />
               </View>

@@ -8,7 +8,7 @@ import { colors, radius, spacing } from '@vaultstone/ui';
 
 import { BodyEditorToolbar } from './BodyEditorToolbar';
 import { VaultstoneMention } from './MentionExtension';
-import { createMentionSuggestion } from './MentionSuggestion.web';
+import { createMentionSuggestion, type MentionPinItem } from './MentionSuggestion.web';
 
 type Props = {
   initialContent: object | null;
@@ -16,8 +16,10 @@ type Props = {
   editable?: boolean;
   placeholder?: string;
   mentionablePages?: WorldPage[];
+  mentionablePins?: MentionPinItem[];
   getSectionLabel?: (sectionId: string) => string;
   onMentionClick?: (pageId: string) => void;
+  onPinMentionClick?: (pinId: string, mapId: string) => void;
 };
 
 // Tiptap's internal equality checks are referential, so we need to keep the
@@ -29,8 +31,10 @@ export function BodyEditor({
   editable = true,
   placeholder,
   mentionablePages,
+  mentionablePins,
   getSectionLabel,
   onMentionClick,
+  onPinMentionClick,
 }: Props) {
   const initialRef = useRef(initialContent && Object.keys(initialContent).length > 0 ? initialContent : undefined);
   const onChangeRef = useRef(onChange);
@@ -41,14 +45,23 @@ export function BodyEditor({
   useEffect(() => {
     onMentionClickRef.current = onMentionClick;
   }, [onMentionClick]);
+  const onPinMentionClickRef = useRef(onPinMentionClick);
+  useEffect(() => {
+    onPinMentionClickRef.current = onPinMentionClick;
+  }, [onPinMentionClick]);
 
-  // Suggestion handlers read pages/labels via getters so the editor instance,
-  // created once, always sees the latest list as the parent re-renders.
+  // Suggestion handlers read pages/pins/labels via getters so the editor
+  // instance, created once, always sees the latest list as the parent
+  // re-renders.
   const pagesRef = useRef<WorldPage[]>(mentionablePages ?? []);
+  const pinsRef = useRef<MentionPinItem[]>(mentionablePins ?? []);
   const sectionLabelRef = useRef<(id: string) => string>(getSectionLabel ?? (() => ''));
   useEffect(() => {
     pagesRef.current = mentionablePages ?? [];
   }, [mentionablePages]);
+  useEffect(() => {
+    pinsRef.current = mentionablePins ?? [];
+  }, [mentionablePins]);
   useEffect(() => {
     sectionLabelRef.current = getSectionLabel ?? (() => '');
   }, [getSectionLabel]);
@@ -59,6 +72,7 @@ export function BodyEditor({
       suggestion: createMentionSuggestion(
         () => pagesRef.current,
         (id) => sectionLabelRef.current(id),
+        () => pinsRef.current,
       ),
     }),
   ).current;
@@ -98,11 +112,17 @@ export function BodyEditor({
         '.vaultstone-mention',
       ) as HTMLElement | null;
       if (!chip) return;
-      const pageId = chip.getAttribute('data-id');
-      if (!pageId) return;
+      const id = chip.getAttribute('data-id');
+      if (!id) return;
+      const kind = chip.getAttribute('data-kind') ?? 'page';
       e.preventDefault();
       e.stopPropagation();
-      onMentionClickRef.current?.(pageId);
+      if (kind === 'pin') {
+        const mapId = chip.getAttribute('data-map-id');
+        if (mapId) onPinMentionClickRef.current?.(id, mapId);
+      } else {
+        onMentionClickRef.current?.(id);
+      }
     };
     el.addEventListener('mousedown', handler);
     return () => el.removeEventListener('mousedown', handler);
