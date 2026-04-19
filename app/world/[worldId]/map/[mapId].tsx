@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   createPin,
   deletePin,
   getMap,
   getMapImageSignedUrl,
+  listMaps,
   listPins,
   listPinTypes,
   updatePin,
@@ -23,13 +24,14 @@ import {
 import type { WorldPage } from '@vaultstone/types';
 import { GhostButton, GradientButton, Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
+import { MapBreadcrumbs } from '../../../../components/world/map/MapBreadcrumbs';
 import { MapCanvas } from '../../../../components/world/map/MapCanvas';
 import { MapUploadModal } from '../../../../components/world/map/MapUploadModal';
 import { PinEditorModal, type PinEditorInitial } from '../../../../components/world/map/PinEditorModal';
 import { PinFilterBar } from '../../../../components/world/map/PinFilterBar';
 import { PinLayer } from '../../../../components/world/map/PinLayer';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
-import { worldPageHref } from '../../../../components/world/worldHref';
+import { worldMapHref, worldPageHref } from '../../../../components/world/worldHref';
 
 const EMPTY_PAGES: WorldPage[] = [];
 
@@ -44,10 +46,14 @@ export default function WorldMapScreen() {
   const savedViewport = useWorldMapStackStore(
     (s) => (mapId ? s.viewportByMapId[mapId] : undefined) ?? IDENTITY_VIEWPORT,
   );
+  const stack = useWorldMapStackStore((s) => s.stack);
   const resetStack = useWorldMapStackStore((s) => s.reset);
+  const pushStack = useWorldMapStackStore((s) => s.push);
+  const popStackTo = useWorldMapStackStore((s) => s.popTo);
   const replaceTopViewport = useWorldMapStackStore((s) => s.replaceTopViewport);
 
   const [map, setMap] = useState<WorldMap | null>(null);
+  const [allMaps, setAllMaps] = useState<WorldMap[]>([]);
   const [pins, setPins] = useState<MapPin[]>([]);
   const [pinTypes, setPinTypes] = useState<PinType[]>([]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -58,10 +64,10 @@ export default function WorldMapScreen() {
   const [uploadOpen, setUploadOpen] = useState(false);
 
   useEffect(() => {
-    if (!mapId) return;
+    if (!mapId || !worldId) return;
     let cancelled = false;
-    Promise.all([getMap(mapId), listPins(mapId), listPinTypes()]).then(
-      async ([mapRes, pinsRes, typesRes]) => {
+    Promise.all([getMap(mapId), listPins(mapId), listPinTypes(), listMaps(worldId)]).then(
+      async ([mapRes, pinsRes, typesRes, mapsRes]) => {
         if (cancelled) return;
         if (mapRes.error || !mapRes.data) {
           setError('Map not found or unavailable.');
@@ -69,21 +75,34 @@ export default function WorldMapScreen() {
         }
         const m = mapRes.data as WorldMap;
         setMap(m);
+        setAllMaps((mapsRes.data ?? []) as WorldMap[]);
         setPins((pinsRes.data ?? []) as MapPin[]);
         const types = (typesRes.data ?? []) as PinType[];
         setPinTypes(types);
         setVisibleTypes(new Set(types.map((t) => t.key)));
         const signed = await getMapImageSignedUrl(m.image_key);
         if (!cancelled) setImageUrl(signed.data?.signedUrl ?? null);
+        // Drill-stack sync on mount:
+        //   • not in stack → cold land, reset to single-entry stack
+        //   • already in stack but not at top → user hit the back button or a
+        //     breadcrumb, so truncate back to this depth
+        //   • top of stack → drill-down push already happened before nav;
+        //     leave the stack alone
         if (!cancelled) {
-          resetStack({ mapId: m.id, viewport: IDENTITY_VIEWPORT, breadcrumbLabel: m.label });
+          const current = useWorldMapStackStore.getState().stack;
+          const existingIdx = current.findIndex((e) => e.mapId === m.id);
+          if (existingIdx === -1) {
+            resetStack({ mapId: m.id, viewport: IDENTITY_VIEWPORT, breadcrumbLabel: m.label });
+          } else if (existingIdx < current.length - 1) {
+            popStackTo(existingIdx);
+          }
         }
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [mapId, resetStack]);
+  }, [mapId, worldId, resetStack, popStackTo]);
 
   const toggleType = useCallback((key: string) => {
     setVisibleTypes((prev) => {
@@ -171,6 +190,47 @@ export default function WorldMapScreen() {
 
   const pagesForEditor = useMemo(() => worldPages, [worldPages]);
 
+  const subMapIdByPageId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const wm of allMaps) {
+      if (wm.owner_page_id) m.set(wm.owner_page_id, wm.id);
+    }
+    return m;
+  }, [allMaps]);
+
+  const crumbs = useMemo(
+    () => stack.map((e, i) => ({ mapId: e.mapId, label: e.breadcrumbLabel, depth: i })),
+    [stack],
+  );
+
+  const handleOpenSubMap = useCallback(
+    (targetMapId: string) => {
+      if (!worldId) return;
+      // Stack state: the parent's viewport was already captured via
+      // replaceTopViewport on every pan/zoom, so pushing a fresh IDENTITY
+      // viewport for the child is enough. The child route will see the new
+      // top on mount and skip the cold-land reset.
+      const target = allMaps.find((wm) => wm.id === targetMapId);
+      pushStack({
+        mapId: targetMapId,
+        viewport: IDENTITY_VIEWPORT,
+        breadcrumbLabel: target?.label ?? 'Sub-map',
+      });
+      setEditor(null);
+      router.push(worldMapHref(worldId, targetMapId));
+    },
+    [allMaps, pushStack, router, worldId],
+  );
+
+  const handleCrumbPress = useCallback(
+    (crumb: { mapId: string; depth: number }) => {
+      if (!worldId) return;
+      popStackTo(crumb.depth);
+      router.push(worldMapHref(worldId, crumb.mapId));
+    },
+    [popStackTo, router, worldId],
+  );
+
   if (!world || !worldId) return null;
 
   if (error) {
@@ -200,6 +260,7 @@ export default function WorldMapScreen() {
           { key: 'map', label: map.label },
         ]}
       />
+      <MapBreadcrumbs crumbs={crumbs} onCrumbPress={handleCrumbPress} />
       <View style={styles.canvasFrame}>
         <MapCanvas
           imageUrl={imageUrl}
@@ -256,6 +317,7 @@ export default function WorldMapScreen() {
           initial={editor}
           pinTypes={pinTypes}
           pages={pagesForEditor}
+          subMapIdByPageId={subMapIdByPageId}
           onClose={() => setEditor(null)}
           onSave={handleSave}
           onDelete={editor.id ? handleDelete : undefined}
@@ -263,6 +325,7 @@ export default function WorldMapScreen() {
             setEditor(null);
             router.push(worldPageHref(worldId, pageId));
           }}
+          onOpenSubMap={handleOpenSubMap}
         />
       ) : null}
 

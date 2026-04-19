@@ -32,6 +32,9 @@ type Props = {
   initial: PinEditorInitial;
   pinTypes: PinType[];
   pages: WorldPage[];
+  // Maps keyed by owner_page_id — used to surface a "View sub-map" button
+  // when the pin's linked page owns its own world_map (sub-map nesting).
+  subMapIdByPageId?: Map<string, string>;
   onClose: () => void;
   onSave: (patch: {
     pin_type: string;
@@ -40,6 +43,7 @@ type Props = {
   }) => Promise<void>;
   onDelete?: () => Promise<void>;
   onNavigateToLinkedPage?: (pageId: string) => void;
+  onOpenSubMap?: (mapId: string) => void;
 };
 
 // One modal handles both "new" (no id) and "edit" (id present) paths. The
@@ -48,10 +52,12 @@ export function PinEditorModal({
   initial,
   pinTypes,
   pages,
+  subMapIdByPageId,
   onClose,
   onSave,
   onDelete,
   onNavigateToLinkedPage,
+  onOpenSubMap,
 }: Props) {
   const [pinType, setPinType] = useState<string>(initial.pin_type);
   const [label, setLabel] = useState(initial.label ?? '');
@@ -191,7 +197,17 @@ export function PinEditorModal({
                           {linkedPage.title}
                         </Text>
                       </View>
-                      <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                      <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
+                        {(() => {
+                          const subMapId = subMapIdByPageId?.get(linkedPage.id);
+                          if (!subMapId || !onOpenSubMap) return null;
+                          return (
+                            <GhostButton
+                              label="View sub-map"
+                              onPress={() => onOpenSubMap(subMapId)}
+                            />
+                          );
+                        })()}
                         {onNavigateToLinkedPage ? (
                           <GhostButton
                             label="Open"
