@@ -14,6 +14,10 @@ export const MATERIAL_ICON: Record<string, string> = {
   'file-text': 'article',
   page: 'article',
   globe: 'public',
+  castle: 'location-city',
+  mountain: 'terrain',
+  'calendar-days': 'event',
+  'scroll-text': 'menu-book',
 };
 
 export function toMaterialIcon(name: string): string {

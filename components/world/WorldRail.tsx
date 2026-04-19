@@ -9,7 +9,7 @@ import { Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 import { useActiveSection } from './ActiveSectionContext';
 import { WorldSettingsModal } from './WorldSettingsModal';
-import { worldHref, worldSectionHref } from './worldHref';
+import { worldHref, worldMapIndexHref, worldSectionHref } from './worldHref';
 import type { Database } from '@vaultstone/types';
 
 type World = Database['public']['Tables']['worlds']['Row'];
@@ -127,9 +127,16 @@ export function WorldRail({ world }: Props) {
 
         <View style={styles.divider} />
 
-        <View style={[styles.item, styles.itemDisabled]} accessibilityLabel="Map (Phase 5)">
-          <Icon name="map" size={20} color={colors.outline} />
-        </View>
+        <Pressable
+          onPress={() => {
+            setActiveSectionId(null);
+            router.push(worldMapIndexHref(world.id));
+          }}
+          style={styles.item}
+          accessibilityLabel="Map"
+        >
+          <Icon name="map" size={20} color={colors.onSurfaceVariant} />
+        </Pressable>
         <View style={[styles.item, styles.itemDisabled]} accessibilityLabel="Timeline (Phase 6)">
           <Icon name="timeline" size={20} color={colors.outline} />
         </View>
