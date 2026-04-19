@@ -17,7 +17,7 @@ import {
 } from '@vaultstone/store';
 import { Text, colors, spacing } from '@vaultstone/ui';
 
-import { MapCanvas } from '../../../../components/world/map/MapCanvas.web';
+import { MapCanvas } from '../../../../components/world/map/MapCanvas';
 import { PinLayer } from '../../../../components/world/map/PinLayer';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { worldPageHref } from '../../../../components/world/worldHref';
