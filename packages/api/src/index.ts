@@ -12,3 +12,6 @@ export * from './world-campaigns';
 export * from './sections';
 export * from './pages';
 export * from './world-permissions';
+export * from './maps';
+export * from './pins';
+export * from './pin-types';

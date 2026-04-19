@@ -12,17 +12,20 @@ export interface Database {
           display_name: string | null;
           avatar_url: string | null;
           created_at: string;
+          storage_used_bytes: number;
         };
         Insert: {
           id: string;
           display_name?: string | null;
           avatar_url?: string | null;
           created_at?: string;
+          storage_used_bytes?: number;
         };
         Update: {
           id?: string;
           display_name?: string | null;
           avatar_url?: string | null;
+          storage_used_bytes?: number;
         };
         Relationships: [];
       };
@@ -539,6 +542,116 @@ export interface Database {
         Update: {
           permission?: 'view' | 'edit';
           cascade?: boolean;
+        };
+        Relationships: [];
+      };
+      world_maps: {
+        Row: {
+          id: string;
+          world_id: string;
+          owner_page_id: string | null;
+          campaign_id: string | null;
+          label: string;
+          image_key: string;
+          image_width: number;
+          image_height: number;
+          aspect_ratio: number;
+          byte_size: number;
+          deleted_at: string | null;
+          hard_delete_after: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          world_id: string;
+          owner_page_id?: string | null;
+          campaign_id?: string | null;
+          label: string;
+          image_key: string;
+          image_width: number;
+          image_height: number;
+          aspect_ratio: number;
+          byte_size: number;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          label?: string;
+          image_key?: string;
+          image_width?: number;
+          image_height?: number;
+          aspect_ratio?: number;
+          byte_size?: number;
+          owner_page_id?: string | null;
+          campaign_id?: string | null;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+        };
+        Relationships: [];
+      };
+      pin_types: {
+        Row: {
+          key: string;
+          label: string;
+          default_icon_key: string;
+          default_color_hex: string;
+          sort_order: number;
+        };
+        Insert: {
+          key: string;
+          label: string;
+          default_icon_key: string;
+          default_color_hex: string;
+          sort_order?: number;
+        };
+        Update: {
+          label?: string;
+          default_icon_key?: string;
+          default_color_hex?: string;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
+      map_pins: {
+        Row: {
+          id: string;
+          map_id: string;
+          world_id: string;
+          pin_type: string;
+          x_pct: number;
+          y_pct: number;
+          label: string | null;
+          icon_key_override: string | null;
+          color_override: string | null;
+          linked_page_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          map_id: string;
+          world_id: string;
+          pin_type: string;
+          x_pct: number;
+          y_pct: number;
+          label?: string | null;
+          icon_key_override?: string | null;
+          color_override?: string | null;
+          linked_page_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          pin_type?: string;
+          x_pct?: number;
+          y_pct?: number;
+          label?: string | null;
+          icon_key_override?: string | null;
+          color_override?: string | null;
+          linked_page_id?: string | null;
         };
         Relationships: [];
       };
