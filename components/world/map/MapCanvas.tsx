@@ -21,6 +21,8 @@ type Props = {
   initialViewport?: MapStackViewport;
   onViewportChange?: (v: MapStackViewport) => void;
   onCanvasClick?: (args: { xPct: number; yPct: number }) => void;
+  // Web-only right-click placement — accepted here for API parity, not wired.
+  onCanvasRightClick?: (args: { xPct: number; yPct: number }) => void;
   children?: ReactNode;
 };
 

@@ -11,6 +11,7 @@ type Props = {
   initialViewport?: MapStackViewport;
   onViewportChange?: (v: MapStackViewport) => void;
   onCanvasClick?: (args: { xPct: number; yPct: number }) => void;
+  onCanvasRightClick?: (args: { xPct: number; yPct: number }) => void;
   children?: ReactNode;
 };
 
@@ -24,6 +25,7 @@ export function MapCanvas({
   initialViewport,
   onViewportChange,
   onCanvasClick,
+  onCanvasRightClick,
   children,
 }: Props) {
   const ref = useRef<ReactZoomPanPinchRef | null>(null);
@@ -52,6 +54,22 @@ export function MapCanvas({
     [onCanvasClick],
   );
 
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLImageElement>) => {
+      if (!onCanvasRightClick) return;
+      e.preventDefault();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const xPct = (e.clientX - rect.left) / rect.width;
+      const yPct = (e.clientY - rect.top) / rect.height;
+      if (xPct >= 0 && xPct <= 1 && yPct >= 0 && yPct <= 1) {
+        onCanvasRightClick({ xPct, yPct });
+      }
+    },
+    [onCanvasRightClick],
+  );
+
+  const pointerEventsMode: 'auto' | 'none' = onCanvasClick || onCanvasRightClick ? 'auto' : 'none';
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.surfaceContainerLowest, position: 'relative' }}>
       <TransformWrapper
@@ -61,8 +79,10 @@ export function MapCanvas({
         initialPositionY={initialViewport?.translateY ?? 0}
         minScale={0.5}
         maxScale={4}
-        doubleClick={{ step: 0.7 }}
-        wheel={{ step: 0.2 }}
+        doubleClick={{ step: 0.3 }}
+        wheel={{ step: 0.15 }}
+        panning={{ velocityDisabled: true }}
+        velocityAnimation={{ disabled: true }}
         onTransform={handleTransform}
         limitToBounds={false}
       >
@@ -90,7 +110,8 @@ export function MapCanvas({
                   alt=""
                   draggable={false}
                   onClick={handleClick}
-                  style={{ display: 'block', userSelect: 'none', pointerEvents: onCanvasClick ? 'auto' : 'none' }}
+                  onContextMenu={handleContextMenu}
+                  style={{ display: 'block', userSelect: 'none', pointerEvents: pointerEventsMode }}
                 />
                 {children}
               </div>

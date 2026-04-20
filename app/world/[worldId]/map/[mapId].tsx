@@ -137,6 +137,21 @@ export default function WorldMapScreen() {
     [placementMode],
   );
 
+  const handleCanvasRightClick = useCallback(
+    ({ xPct, yPct }: { xPct: number; yPct: number }) => {
+      if (!isOwner) return;
+      setEditor({
+        pin_type: 'generic',
+        x_pct: xPct,
+        y_pct: yPct,
+        label: null,
+        linked_page_id: null,
+      });
+      setPlacementMode(false);
+    },
+    [isOwner],
+  );
+
   const handlePinPress = useCallback(
     (pin: MapPin) => {
       if (isOwner) {
@@ -269,6 +284,7 @@ export default function WorldMapScreen() {
           initialViewport={savedViewport}
           onViewportChange={replaceTopViewport}
           onCanvasClick={placementMode ? handleCanvasClick : undefined}
+          onCanvasRightClick={isOwner ? handleCanvasRightClick : undefined}
         >
           <PinLayer
             pins={pins}
