@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import {
   createTimelineEvent,
@@ -6,13 +6,13 @@ import {
   trashTimelineEvent,
 } from '@vaultstone/api';
 import { useTimelineEventsStore } from '@vaultstone/store';
-import type { CalendarUnit, Json, TimelineEvent } from '@vaultstone/types';
+import type { EraDefinition, Json, TimelineCalendarSchema, TimelineEvent } from '@vaultstone/types';
 import { Card, GradientButton, GhostButton, Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 type Props = {
   worldId: string;
   timelinePageId: string;
-  calendarSchema: CalendarUnit[];
+  schema: TimelineCalendarSchema;
   event: TimelineEvent | null;
   defaultEra?: string;
   onClose: () => void;
@@ -21,7 +21,7 @@ type Props = {
 export function EventEditorModal({
   worldId,
   timelinePageId,
-  calendarSchema,
+  schema,
   event,
   defaultEra,
   onClose,
@@ -32,14 +32,10 @@ export function EventEditorModal({
     if (event?.date_values && typeof event.date_values === 'object') {
       return event.date_values as Record<string, string>;
     }
-    if (defaultEra && calendarSchema.length > 0) {
-      return { [calendarSchema[0].key]: defaultEra };
-    }
+    if (defaultEra) return { era: defaultEra };
     return {};
   });
-  const [description, setDescription] = useState(() => {
-    return event?.body_text ?? '';
-  });
+  const [description, setDescription] = useState(event?.body_text ?? '');
   const [tagsText, setTagsText] = useState(() => {
     const t = (event as TimelineEvent & { tags?: string[] })?.tags ?? [];
     return t.join(', ');
@@ -47,19 +43,29 @@ export function EventEditorModal({
   const [visibleToPlayers, setVisibleToPlayers] = useState(event?.visible_to_players ?? true);
   const [saving, setSaving] = useState(false);
 
-  const eraUnit = calendarSchema.length > 0 && calendarSchema[0].type === 'ordered_list'
-    ? calendarSchema[0]
-    : null;
-  const dateLevels = eraUnit ? calendarSchema.slice(1) : calendarSchema;
+  const selectedEraKey = dateValues.era ?? '';
+  const selectedEra = useMemo(
+    () => schema.eras.find((e) => e.key === selectedEraKey) ?? null,
+    [schema.eras, selectedEraKey],
+  );
 
   const addEvent = useTimelineEventsStore((s) => s.addEvent);
   const updateEvent = useTimelineEventsStore((s) => s.updateEvent);
   const removeEvent = useTimelineEventsStore((s) => s.removeEvent);
 
-  const parsedTags = tagsText
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
+  const parsedTags = tagsText.split(',').map((t) => t.trim()).filter(Boolean);
+
+  const updateDateField = (key: string, value: string) => {
+    setDateValues((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const selectEra = (era: EraDefinition) => {
+    if (selectedEraKey === era.key) {
+      setDateValues((prev) => { const { era: _, ...rest } = prev; return rest; });
+    } else {
+      setDateValues({ era: era.key });
+    }
+  };
 
   const handleSave = async () => {
     if (!title.trim()) return;
@@ -84,9 +90,7 @@ export function EventEditorModal({
         body_text: description.trim() || null,
         tags: parsedTags,
       });
-      if (data) {
-        updateEvent(data.id, data as TimelineEvent);
-      }
+      if (data) updateEvent(data.id, data as TimelineEvent);
     } else {
       const { data } = await createTimelineEvent({
         timelinePageId,
@@ -98,9 +102,7 @@ export function EventEditorModal({
         bodyText: description.trim() || undefined,
         tags: parsedTags,
       });
-      if (data) {
-        addEvent(data as TimelineEvent);
-      }
+      if (data) addEvent(data as TimelineEvent);
     }
 
     setSaving(false);
@@ -112,10 +114,6 @@ export function EventEditorModal({
     await trashTimelineEvent(event.id);
     removeEvent(event.id);
     onClose();
-  };
-
-  const updateDateField = (key: string, value: string) => {
-    setDateValues((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
@@ -144,33 +142,25 @@ export function EventEditorModal({
               />
             </View>
 
-            {/* Era picker — first unit if it's an ordered_list */}
-            {eraUnit ? (
+            {/* Era picker */}
+            {schema.eras.length > 0 ? (
               <View style={styles.field}>
-                <Text variant="label-md" tone="secondary">
-                  {eraUnit.label || 'Era'}
-                </Text>
+                <Text variant="label-md" tone="secondary">Era</Text>
                 <View style={styles.eraChips}>
-                  {(eraUnit.options ?? []).filter(Boolean).map((opt) => (
+                  {schema.eras.filter((e) => e.label).map((era) => (
                     <Pressable
-                      key={opt}
-                      onPress={() => updateDateField(eraUnit.key, dateValues[eraUnit.key] === opt ? '' : opt)}
-                      style={[
-                        styles.eraChip,
-                        dateValues[eraUnit.key] === opt && styles.eraChipActive,
-                      ]}
+                      key={era.key}
+                      onPress={() => selectEra(era)}
+                      style={[styles.eraChip, selectedEraKey === era.key && styles.eraChipActive]}
                     >
                       <Text
                         variant="label-md"
                         style={{
-                          color:
-                            dateValues[eraUnit.key] === opt
-                              ? colors.primary
-                              : colors.onSurfaceVariant,
+                          color: selectedEraKey === era.key ? colors.primary : colors.onSurfaceVariant,
                           fontStyle: 'italic',
                         }}
                       >
-                        {opt}
+                        {era.label}
                       </Text>
                     </Pressable>
                   ))}
@@ -178,12 +168,12 @@ export function EventEditorModal({
               </View>
             ) : null}
 
-            {/* Remaining date levels */}
-            {dateLevels.length > 0 ? (
+            {/* Era-specific date levels */}
+            {selectedEra && selectedEra.dateLevels.length > 0 ? (
               <View style={styles.field}>
                 <Text variant="label-md" tone="secondary">Date</Text>
                 <View style={styles.dateFields}>
-                  {dateLevels.map((unit) => (
+                  {selectedEra.dateLevels.map((unit) => (
                     <View key={unit.key} style={styles.dateFieldRow}>
                       <Text variant="label-sm" tone="muted" style={{ width: 80 }}>
                         {unit.label}
@@ -193,7 +183,7 @@ export function EventEditorModal({
                           {unit.options.map((opt) => (
                             <Pressable
                               key={opt}
-                              onPress={() => updateDateField(unit.key, opt)}
+                              onPress={() => updateDateField(unit.key, dateValues[unit.key] === opt ? '' : opt)}
                               style={[
                                 styles.optionChip,
                                 dateValues[unit.key] === opt && styles.optionChipActive,
@@ -202,10 +192,7 @@ export function EventEditorModal({
                               <Text
                                 variant="label-sm"
                                 style={{
-                                  color:
-                                    dateValues[unit.key] === opt
-                                      ? colors.cosmic
-                                      : colors.onSurfaceVariant,
+                                  color: dateValues[unit.key] === opt ? colors.cosmic : colors.onSurfaceVariant,
                                 }}
                               >
                                 {opt}
@@ -250,7 +237,7 @@ export function EventEditorModal({
                 style={styles.input}
                 value={tagsText}
                 onChangeText={setTagsText}
-                placeholder="Comma-separated tags (e.g. Combat, Founding)"
+                placeholder="Comma-separated (e.g. Combat, Founding)"
                 placeholderTextColor={colors.outlineVariant}
               />
               {parsedTags.length > 0 ? (
@@ -267,29 +254,23 @@ export function EventEditorModal({
             </View>
 
             {/* Visibility */}
-            <View style={styles.field}>
-              <Pressable
-                style={styles.visibilityRow}
-                onPress={() => setVisibleToPlayers(!visibleToPlayers)}
-              >
-                <Icon
-                  name={visibleToPlayers ? 'visibility' : 'visibility-off'}
-                  size={18}
-                  color={visibleToPlayers ? colors.player : colors.gm}
-                />
-                <Text variant="label-md">
-                  {visibleToPlayers ? 'Visible to players' : 'GM only'}
-                </Text>
-              </Pressable>
-            </View>
+            <Pressable
+              style={styles.visibilityRow}
+              onPress={() => setVisibleToPlayers(!visibleToPlayers)}
+            >
+              <Icon
+                name={visibleToPlayers ? 'visibility' : 'visibility-off'}
+                size={18}
+                color={visibleToPlayers ? colors.player : colors.gm}
+              />
+              <Text variant="label-md">
+                {visibleToPlayers ? 'Visible to players' : 'GM only'}
+              </Text>
+            </Pressable>
           </ScrollView>
 
           <View style={styles.footer}>
-            {isEdit ? (
-              <GhostButton label="Delete" onPress={handleDelete} />
-            ) : (
-              <View />
-            )}
+            {isEdit ? <GhostButton label="Delete" onPress={handleDelete} /> : <View />}
             <GradientButton
               label={saving ? 'Saving…' : isEdit ? 'Save' : 'Add Event'}
               onPress={handleSave}
@@ -304,128 +285,50 @@ export function EventEditorModal({
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: spacing.xl,
   },
-  modal: {
-    width: '100%',
-    maxWidth: 520,
-    maxHeight: '85%',
-    gap: spacing.lg,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  body: {
-    flex: 1,
-    minHeight: 0,
-  },
-  bodyInner: {
-    gap: spacing.lg,
-  },
-  field: {
-    gap: spacing.xs,
-  },
+  modal: { width: '100%', maxWidth: 520, maxHeight: '85%', gap: spacing.lg },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  body: { flex: 1, minHeight: 0 },
+  bodyInner: { gap: spacing.lg },
+  field: { gap: spacing.xs },
   input: {
-    color: colors.onSurface,
-    fontSize: 15,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '55',
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceCanvas,
+    color: colors.onSurface, fontSize: 15,
+    paddingVertical: 10, paddingHorizontal: spacing.md,
+    borderWidth: 1, borderColor: colors.outlineVariant + '55',
+    borderRadius: radius.lg, backgroundColor: colors.surfaceCanvas,
   },
-  descInput: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  eraChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
+  descInput: { minHeight: 80, textAlignVertical: 'top' },
+  eraChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   eraChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '55',
-    backgroundColor: colors.surfaceCanvas,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.xl, borderWidth: 1,
+    borderColor: colors.outlineVariant + '55', backgroundColor: colors.surfaceCanvas,
   },
-  eraChipActive: {
-    borderColor: colors.primary + '88',
-    backgroundColor: colors.primaryContainer + '55',
-  },
-  dateFields: {
-    gap: spacing.sm,
-  },
-  dateFieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
+  eraChipActive: { borderColor: colors.primary + '88', backgroundColor: colors.primaryContainer + '55' },
+  dateFields: { gap: spacing.sm },
+  dateFieldRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   dateInput: {
-    flex: 1,
-    color: colors.onSurface,
-    fontSize: 14,
-    paddingVertical: 8,
-    paddingHorizontal: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '44',
-    borderRadius: radius.DEFAULT,
-    backgroundColor: colors.surfaceCanvas,
+    flex: 1, color: colors.onSurface, fontSize: 14,
+    paddingVertical: 8, paddingHorizontal: spacing.sm,
+    borderWidth: 1, borderColor: colors.outlineVariant + '44',
+    borderRadius: radius.DEFAULT, backgroundColor: colors.surfaceCanvas,
   },
-  optionChips: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-  },
+  optionChips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   optionChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.DEFAULT,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '44',
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: radius.DEFAULT, borderWidth: 1, borderColor: colors.outlineVariant + '44',
   },
-  optionChipActive: {
-    borderColor: colors.cosmic,
-    backgroundColor: colors.cosmicContainer + '33',
-  },
+  optionChipActive: { borderColor: colors.cosmic, backgroundColor: colors.cosmicContainer + '33' },
   visibilityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs,
   },
-  tagPreview: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
+  tagPreview: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs },
   tagChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 3,
-    borderWidth: 1,
-    borderColor: colors.cosmic + '66',
-    backgroundColor: colors.cosmicContainer + '44',
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 3,
+    borderWidth: 1, borderColor: colors.cosmic + '66', backgroundColor: colors.cosmicContainer + '44',
   },
-  tagChipText: {
-    color: colors.cosmic,
-    fontSize: 9,
-    letterSpacing: 0.8,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
+  tagChipText: { color: colors.cosmic, fontSize: 9, letterSpacing: 0.8 },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

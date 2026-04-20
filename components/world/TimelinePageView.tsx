@@ -16,7 +16,7 @@ import {
   useTimelineEventsStore,
   selectEventsForPage,
 } from '@vaultstone/store';
-import type { CalendarSchema, CalendarUnit, Json, TemplateKey, TimelineEvent, WorldPage } from '@vaultstone/types';
+import type { Json, TemplateKey, TimelineCalendarSchema, TimelineEvent, WorldPage } from '@vaultstone/types';
 import {
   Icon,
   MetaLabel,
@@ -131,27 +131,17 @@ export function TimelinePageView({ page, worldId }: Props) {
 
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);
 
-  const calendarSchema: CalendarUnit[] = useMemo(() => {
+  const schema: TimelineCalendarSchema = useMemo(() => {
     const sf = page.structured_fields as Record<string, unknown> | null;
     const raw = sf?.__calendar_schema;
-    if (!Array.isArray(raw)) return [];
-    return raw as CalendarUnit[];
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { eras: [] };
+    const s = raw as TimelineCalendarSchema;
+    if (Array.isArray(s.eras)) return s;
+    return { eras: [] };
   }, [page.structured_fields]);
 
-  const hasSchema = calendarSchema.length > 0;
-
-  // Derived stats for page head
-  const eraCount = useMemo(() => {
-    if (!hasSchema) return 0;
-    const topUnit = calendarSchema[0];
-    const eras = new Set<string>();
-    for (const ev of events) {
-      const dv = ev.date_values as Record<string, unknown>;
-      const val = dv[topUnit.key];
-      if (val) eras.add(String(val));
-    }
-    return eras.size;
-  }, [events, calendarSchema, hasSchema]);
+  const hasEras = schema.eras.length > 0;
+  const eraCount = schema.eras.filter((e) => e.label).length;
 
   const handleEditEvent = (event: TimelineEvent) => {
     setEditingEvent(event);
@@ -249,16 +239,9 @@ export function TimelinePageView({ page, worldId }: Props) {
             <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
               CALENDAR
             </Text>
-            {calendarSchema.map((unit, i) => (
-              <View key={unit.key} style={styles.breadcrumbItem}>
-                {i > 0 ? (
-                  <Text variant="label-sm" style={{ color: colors.outlineVariant }}>›</Text>
-                ) : null}
-                <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
-                  {unit.label || unit.key}
-                </Text>
-              </View>
-            ))}
+            <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
+              {eraCount} era{eraCount !== 1 ? 's' : ''}
+            </Text>
             <Icon
               name={schemaExpanded ? 'expand-less' : 'expand-more'}
               size={16}
@@ -278,10 +261,10 @@ export function TimelinePageView({ page, worldId }: Props) {
         ) : null}
 
         {/* Era ribbon */}
-        {hasSchema ? (
+        {hasEras ? (
           <EraRibbon
             events={events}
-            calendarSchema={calendarSchema}
+            eras={schema.eras}
             activeEra={activeEra}
             onSelectEra={setActiveEra}
           />
@@ -294,7 +277,7 @@ export function TimelinePageView({ page, worldId }: Props) {
         >
           <TimelineSpine
             events={events}
-            calendarSchema={calendarSchema}
+            schema={schema}
             isOwner={isWorldOwner}
             activeEra={activeEra}
             onEditEvent={handleEditEvent}
@@ -311,7 +294,7 @@ export function TimelinePageView({ page, worldId }: Props) {
         <EventEditorModal
           worldId={worldId}
           timelinePageId={page.id}
-          calendarSchema={calendarSchema}
+          schema={schema}
           event={editingEvent}
           defaultEra={defaultEra}
           onClose={() => {

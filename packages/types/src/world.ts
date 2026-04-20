@@ -89,6 +89,17 @@ export interface CalendarUnit {
   options?: string[];
 }
 
+export interface EraDefinition {
+  key: string;
+  label: string;
+  dateLevels: CalendarUnit[];
+}
+
+export interface TimelineCalendarSchema {
+  eras: EraDefinition[];
+}
+
+/** @deprecated Use TimelineCalendarSchema — kept for migration compatibility */
 export type CalendarSchema = CalendarUnit[];
 
 export type TimelineEvent = Database['public']['Tables']['timeline_events']['Row'];
