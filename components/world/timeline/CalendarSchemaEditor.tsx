@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { updatePage } from '@vaultstone/api';
 import { usePagesStore } from '@vaultstone/store';
 import type { CalendarUnit, CalendarUnitType, EraDefinition, Json, TimelineCalendarSchema, WorldPage } from '@vaultstone/types';
-import { Card, Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { Card, GradientButton, Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 function slugify(label: string): string {
   return label
@@ -22,163 +22,221 @@ export function CalendarSchemaEditor({ page, onSaveStateChange }: Props) {
   const [schema, setSchema] = useState<TimelineCalendarSchema>(
     () => parseSchema(page.structured_fields),
   );
+  // Draft era names are local-only until the user clicks Save.
+  const [draftEraNames, setDraftEraNames] = useState<string[]>(() =>
+    parseSchema(page.structured_fields).eras.map((e) => e.label),
+  );
+  const [erasDirty, setErasDirty] = useState(false);
   const [expandedEra, setExpandedEra] = useState<string | null>(null);
   const updatePageInStore = usePagesStore((s) => s.updatePage);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setSchema(parseSchema(page.structured_fields));
+    const parsed = parseSchema(page.structured_fields);
+    setSchema(parsed);
+    setDraftEraNames(parsed.eras.map((e) => e.label));
+    setErasDirty(false);
   }, [page.id, page.structured_fields]);
 
-  const save = useCallback(
-    (next: TimelineCalendarSchema) => {
-      setSchema(next);
+  const persist = useCallback(
+    async (next: TimelineCalendarSchema) => {
       onSaveStateChange?.('saving');
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(async () => {
-        const fields = {
-          ...((page.structured_fields as Record<string, unknown>) ?? {}),
-          __calendar_schema: next,
-        };
-        const { data, error } = await updatePage(page.id, {
-          structured_fields: fields as unknown as Json,
-        });
-        if (error || !data) {
-          onSaveStateChange?.('error');
-          return;
-        }
-        updatePageInStore(page.id, { structured_fields: data.structured_fields });
-        onSaveStateChange?.('saved');
-      }, 800);
+      const fields = {
+        ...((page.structured_fields as Record<string, unknown>) ?? {}),
+        __calendar_schema: next,
+      };
+      const { data, error } = await updatePage(page.id, {
+        structured_fields: fields as unknown as Json,
+      });
+      if (error || !data) {
+        onSaveStateChange?.('error');
+        return;
+      }
+      updatePageInStore(page.id, { structured_fields: data.structured_fields });
+      onSaveStateChange?.('saved');
     },
     [page.id, page.structured_fields, onSaveStateChange, updatePageInStore],
+  );
+
+  const debouncedPersist = useCallback(
+    (next: TimelineCalendarSchema) => {
+      setSchema(next);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => void persist(next), 800);
+    },
+    [persist],
   );
 
   useEffect(() => {
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
 
-  const eras = schema.eras;
-
-  // ── Era CRUD ──
-  const addEra = () => {
-    const key = `era_${eras.length}`;
-    save({ eras: [...eras, { key, label: '', dateLevels: [] }] });
-    setExpandedEra(key);
+  // ── Era names: local draft, explicit save ──
+  const updateDraftEra = (idx: number, value: string) => {
+    setDraftEraNames((prev) => prev.map((n, i) => (i === idx ? value : n)));
+    setErasDirty(true);
+  };
+  const addDraftEra = () => {
+    setDraftEraNames((prev) => [...prev, '']);
+    setErasDirty(true);
+  };
+  const removeDraftEra = (idx: number) => {
+    setDraftEraNames((prev) => prev.filter((_, i) => i !== idx));
+    setErasDirty(true);
   };
 
-  const updateEraLabel = (idx: number, label: string) => {
-    const next = eras.map((e, i) => i === idx ? { ...e, label, key: slugify(label) || e.key } : e);
-    save({ eras: next });
+  const saveEras = async () => {
+    const existingMap = new Map(schema.eras.map((e) => [e.label, e]));
+    const nextEras: EraDefinition[] = draftEraNames
+      .filter((n) => n.trim())
+      .map((label) => {
+        const existing = existingMap.get(label);
+        if (existing) return { ...existing, label, key: slugify(label) || existing.key };
+        return { key: slugify(label), label, dateLevels: [] };
+      });
+    const next: TimelineCalendarSchema = { eras: nextEras };
+    setSchema(next);
+    setErasDirty(false);
+    await persist(next);
+    if (nextEras.length > 0 && !expandedEra) {
+      setExpandedEra(nextEras[0].key);
+    }
   };
 
-  const removeEra = (idx: number) => {
-    save({ eras: eras.filter((_, i) => i !== idx) });
-  };
-
-  // ── Date level CRUD within an era ──
+  // ── Date level CRUD (debounced auto-save) ──
   const addDateLevel = (eraIdx: number) => {
-    const era = eras[eraIdx];
-    const next = eras.map((e, i) => i === eraIdx ? {
-      ...e,
-      dateLevels: [...e.dateLevels, { key: `level_${e.dateLevels.length}`, label: '', type: 'number' as CalendarUnitType }],
-    } : e);
-    save({ eras: next });
+    const next: TimelineCalendarSchema = {
+      eras: schema.eras.map((e, i) => i === eraIdx ? {
+        ...e,
+        dateLevels: [...e.dateLevels, { key: `level_${e.dateLevels.length}`, label: '', type: 'number' as CalendarUnitType }],
+      } : e),
+    };
+    debouncedPersist(next);
   };
 
   const updateDateLevel = (eraIdx: number, levelIdx: number, patch: Partial<CalendarUnit>) => {
-    const next = eras.map((e, i) => {
-      if (i !== eraIdx) return e;
-      const levels = e.dateLevels.map((l, j) => {
-        if (j !== levelIdx) return l;
-        const updated = { ...l, ...patch };
-        if (patch.label !== undefined) updated.key = slugify(patch.label) || l.key;
-        if (updated.type !== 'ordered_list') delete updated.options;
-        return updated;
-      });
-      return { ...e, dateLevels: levels };
-    });
-    save({ eras: next });
+    const next: TimelineCalendarSchema = {
+      eras: schema.eras.map((e, i) => {
+        if (i !== eraIdx) return e;
+        const levels = e.dateLevels.map((l, j) => {
+          if (j !== levelIdx) return l;
+          const updated = { ...l, ...patch };
+          if (patch.label !== undefined) updated.key = slugify(patch.label) || l.key;
+          if (updated.type !== 'ordered_list') delete updated.options;
+          return updated;
+        });
+        return { ...e, dateLevels: levels };
+      }),
+    };
+    debouncedPersist(next);
   };
 
   const removeDateLevel = (eraIdx: number, levelIdx: number) => {
-    const next = eras.map((e, i) => i === eraIdx ? {
-      ...e,
-      dateLevels: e.dateLevels.filter((_, j) => j !== levelIdx),
-    } : e);
-    save({ eras: next });
+    const next: TimelineCalendarSchema = {
+      eras: schema.eras.map((e, i) => i === eraIdx ? {
+        ...e, dateLevels: e.dateLevels.filter((_, j) => j !== levelIdx),
+      } : e),
+    };
+    debouncedPersist(next);
   };
 
   const addLevelOption = (eraIdx: number, levelIdx: number) => {
-    const level = eras[eraIdx].dateLevels[levelIdx];
+    const level = schema.eras[eraIdx].dateLevels[levelIdx];
     updateDateLevel(eraIdx, levelIdx, { options: [...(level.options ?? []), ''] });
   };
-
   const updateLevelOption = (eraIdx: number, levelIdx: number, optIdx: number, value: string) => {
-    const level = eras[eraIdx].dateLevels[levelIdx];
+    const level = schema.eras[eraIdx].dateLevels[levelIdx];
     const opts = [...(level.options ?? [])];
     opts[optIdx] = value;
     updateDateLevel(eraIdx, levelIdx, { options: opts });
   };
-
   const removeLevelOption = (eraIdx: number, levelIdx: number, optIdx: number) => {
-    const level = eras[eraIdx].dateLevels[levelIdx];
+    const level = schema.eras[eraIdx].dateLevels[levelIdx];
     updateDateLevel(eraIdx, levelIdx, { options: (level.options ?? []).filter((_, i) => i !== optIdx) });
   };
 
+  const savedEras = schema.eras;
+
   return (
     <Card tier="container" padding="md" style={styles.root}>
-      <View style={styles.sectionHeader}>
-        <Icon name="auto-awesome" size={16} color={colors.primary} />
-        <Text variant="label-lg" weight="semibold" style={{ color: colors.primary }}>
-          Eras & Date Structure
-        </Text>
+      {/* ── Step 1: Era names (local draft) ── */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Icon name="auto-awesome" size={16} color={colors.primary} />
+          <Text variant="label-lg" weight="semibold" style={{ color: colors.primary }}>
+            Eras & Phases
+          </Text>
+        </View>
+
+        <View style={styles.eraList}>
+          {draftEraNames.map((name, idx) => (
+            <View key={idx} style={styles.eraRow}>
+              <Text variant="label-sm" tone="muted" style={styles.eraNum}>{idx + 1}</Text>
+              <TextInput
+                style={styles.eraInput}
+                value={name}
+                onChangeText={(text) => updateDraftEra(idx, text)}
+                placeholder={`Era ${idx + 1} (e.g. Age of Fire)`}
+                placeholderTextColor={colors.outlineVariant}
+              />
+              <Pressable onPress={() => removeDraftEra(idx)} hitSlop={8}>
+                <Icon name="close" size={14} color={colors.outlineVariant} />
+              </Pressable>
+            </View>
+          ))}
+          <View style={styles.eraActions}>
+            <Pressable onPress={addDraftEra} style={styles.addBtn}>
+              <Icon name="add" size={14} color={colors.primary} />
+              <Text variant="label-sm" style={{ color: colors.primary }}>
+                {draftEraNames.length === 0 ? 'Add your first era' : 'Add era'}
+              </Text>
+            </Pressable>
+            {erasDirty ? (
+              <GradientButton label="Save Eras" onPress={saveEras} />
+            ) : null}
+          </View>
+        </View>
       </View>
 
-      {eras.length > 0 ? (
-        <View style={styles.eraList}>
-          {eras.map((era, eraIdx) => {
+      {/* ── Step 2: Date levels per era (only shown for saved eras) ── */}
+      {savedEras.length > 0 ? (
+        <View style={[styles.section, { marginTop: spacing.md }]}>
+          <View style={styles.sectionHeader}>
+            <Icon name="event" size={16} color={colors.cosmic} />
+            <Text variant="label-lg" weight="semibold" style={{ color: colors.cosmic }}>
+              Date Structure
+            </Text>
+            <MetaLabel size="sm" tone="muted" style={{ marginLeft: 'auto' }}>
+              Configure dates for each era
+            </MetaLabel>
+          </View>
+
+          {savedEras.map((era, eraIdx) => {
+            if (!era.label) return null;
             const isExpanded = expandedEra === era.key;
             return (
-              <View key={era.key + eraIdx} style={styles.eraBlock}>
-                {/* Era header row */}
-                <View style={styles.eraRow}>
-                  <Text variant="label-sm" tone="muted" style={styles.eraNum}>
-                    {eraIdx + 1}
+              <View key={era.key} style={styles.eraDateBlock}>
+                <Pressable
+                  onPress={() => setExpandedEra(isExpanded ? null : era.key)}
+                  style={styles.eraDateHeader}
+                >
+                  <Text variant="label-md" weight="semibold" style={{ color: colors.onSurface, flex: 1 }}>
+                    {era.label}
                   </Text>
-                  <TextInput
-                    style={styles.eraInput}
-                    value={era.label}
-                    onChangeText={(text) => updateEraLabel(eraIdx, text)}
-                    placeholder={`Era ${eraIdx + 1} (e.g. Age of Fire)`}
-                    placeholderTextColor={colors.outlineVariant}
+                  <Text variant="label-sm" style={{ color: colors.cosmic }}>
+                    {era.dateLevels.length > 0
+                      ? era.dateLevels.map((l) => l.label || l.key).join(' › ')
+                      : 'No dates configured'}
+                  </Text>
+                  <Icon
+                    name={isExpanded ? 'expand-less' : 'expand-more'}
+                    size={16}
+                    color={colors.cosmic}
                   />
-                  <Pressable
-                    onPress={() => setExpandedEra(isExpanded ? null : era.key)}
-                    style={styles.expandBtn}
-                  >
-                    <Icon name="event" size={14} color={colors.cosmic} />
-                    <Text variant="label-sm" style={{ color: colors.cosmic }}>
-                      {era.dateLevels.length > 0 ? `${era.dateLevels.length} level${era.dateLevels.length !== 1 ? 's' : ''}` : 'Dates'}
-                    </Text>
-                    <Icon
-                      name={isExpanded ? 'expand-less' : 'expand-more'}
-                      size={14}
-                      color={colors.cosmic}
-                    />
-                  </Pressable>
-                  <Pressable onPress={() => removeEra(eraIdx)} hitSlop={8}>
-                    <Icon name="close" size={14} color={colors.outlineVariant} />
-                  </Pressable>
-                </View>
+                </Pressable>
 
-                {/* Expanded: date levels for this era */}
                 {isExpanded ? (
                   <View style={styles.dateLevelsPanel}>
-                    <MetaLabel size="sm" tone="muted">
-                      Date levels for {era.label || `Era ${eraIdx + 1}`} — events in this era will use these fields
-                    </MetaLabel>
-
                     {era.dateLevels.map((level, levelIdx) => (
                       <View key={levelIdx} style={styles.levelRow}>
                         <View style={styles.levelMain}>
@@ -247,13 +305,6 @@ export function CalendarSchemaEditor({ page, onSaveStateChange }: Props) {
           })}
         </View>
       ) : null}
-
-      <Pressable onPress={addEra} style={styles.addEraBtn}>
-        <Icon name="add" size={16} color={colors.primary} />
-        <Text variant="label-md" style={{ color: colors.primary }}>
-          {eras.length === 0 ? 'Define your first era' : 'Add era'}
-        </Text>
-      </Pressable>
     </Card>
   );
 }
@@ -268,8 +319,7 @@ function parseSchema(fields: unknown): TimelineCalendarSchema {
   if (!fields || typeof fields !== 'object') return { eras: [] };
   const obj = fields as Record<string, unknown>;
   const raw = obj.__calendar_schema;
-  if (!raw || typeof raw !== 'object') return { eras: [] };
-  if (Array.isArray(raw)) return { eras: [] };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { eras: [] };
   const s = raw as TimelineCalendarSchema;
   if (Array.isArray(s.eras)) return s;
   return { eras: [] };
@@ -277,13 +327,9 @@ function parseSchema(fields: unknown): TimelineCalendarSchema {
 
 const styles = StyleSheet.create({
   root: { gap: spacing.sm },
+  section: { gap: spacing.sm },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  eraList: { gap: 0 },
-  eraBlock: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant + '22',
-    paddingVertical: spacing.sm,
-  },
+  eraList: { gap: spacing.xs, marginTop: spacing.xs },
   eraRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   eraNum: { width: 20, textAlign: 'center', color: colors.outlineVariant, fontSize: 12 },
   eraInput: {
@@ -292,15 +338,24 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.outlineVariant + '55',
     borderRadius: radius.lg, backgroundColor: colors.surfaceCanvas,
   },
-  expandBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
-    borderRadius: radius.lg, borderWidth: 1, borderColor: colors.cosmic + '44',
+  eraActions: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: spacing.xs,
+  },
+  addBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: spacing.xs,
+  },
+  // -- Date structure per era --
+  eraDateBlock: {
+    borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '22',
+  },
+  eraDateHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: spacing.sm,
   },
   dateLevelsPanel: {
-    marginLeft: 20 + spacing.sm,
-    marginTop: spacing.sm, gap: spacing.sm,
-    paddingLeft: spacing.md,
+    marginLeft: spacing.md, gap: spacing.sm,
+    paddingLeft: spacing.md, paddingBottom: spacing.sm,
     borderLeftWidth: 2, borderLeftColor: colors.cosmic + '33',
   },
   levelRow: { gap: spacing.xs },
@@ -324,11 +379,5 @@ const styles = StyleSheet.create({
     paddingVertical: 4, paddingHorizontal: spacing.sm,
     borderWidth: 1, borderColor: colors.outlineVariant + '44',
     borderRadius: radius.DEFAULT, backgroundColor: colors.surfaceCanvas,
-  },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: spacing.xs },
-  addEraBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
-    borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary + '44',
   },
 });

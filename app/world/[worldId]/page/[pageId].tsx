@@ -8,6 +8,7 @@ import {
   listPinsForWorld,
   listPinTypes,
   releasePageEdit,
+  trashPage,
   updatePage,
   type MapPin,
   type PinType,
@@ -45,7 +46,7 @@ import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
 import { usePageVisibilityToggle } from '../../../../components/world/usePageVisibilityToggle';
-import { worldHref, worldMapHref, worldPageHref } from '../../../../components/world/worldHref';
+import { worldHref, worldMapHref, worldPageHref, worldSectionHref } from '../../../../components/world/worldHref';
 import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 
 // Re-claim the lock every 30s so our editing_since stays within the server-
@@ -91,6 +92,8 @@ export default function PageDetailScreen() {
   const toggleVisibility = usePageVisibilityToggle(page ?? null);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const removePage = usePagesStore((s) => s.removePage);
 
   // Mention popover can link to pins as well as pages. We fetch pins +
   // their owning maps + pin types once per world so the @ suggestion list
@@ -289,6 +292,17 @@ export default function PageDetailScreen() {
     }, 800);
   }
 
+  async function handleDeletePage() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    if (!pageId || !page) return;
+    await trashPage(pageId);
+    removePage(pageId);
+    router.replace(worldSectionHref(worldId!, page.section_id));
+  }
+
   if (!world || !worldId || !pageId) return null;
 
   if (!page || !section) {
@@ -330,30 +344,62 @@ export default function PageDetailScreen() {
           <>
             <PlayerViewToggle />
             {isWorldOwner ? (
-              <Pressable
-                onPress={() => setShareOpen(true)}
-                style={styles.shareBtn}
-                accessibilityLabel="Share page"
-              >
-                <Icon name="share" size={14} color={colors.onSurfaceVariant} />
-                <Text
-                  variant="label-md"
-                  uppercase
-                  weight="semibold"
-                  style={{
-                    color: colors.onSurfaceVariant,
-                    letterSpacing: 1,
-                    fontSize: 11,
-                  }}
+              <>
+                <Pressable
+                  onPress={() => setShareOpen(true)}
+                  style={styles.shareBtn}
+                  accessibilityLabel="Share page"
                 >
-                  Share
-                </Text>
-              </Pressable>
+                  <Icon name="share" size={14} color={colors.onSurfaceVariant} />
+                  <Text
+                    variant="label-md"
+                    uppercase
+                    weight="semibold"
+                    style={{
+                      color: colors.onSurfaceVariant,
+                      letterSpacing: 1,
+                      fontSize: 11,
+                    }}
+                  >
+                    Share
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleDeletePage}
+                  accessibilityLabel="Delete page"
+                  hitSlop={8}
+                >
+                  <Icon
+                    name="delete-outline"
+                    size={18}
+                    color={confirmDelete ? colors.hpDanger : colors.outlineVariant}
+                  />
+                </Pressable>
+              </>
             ) : null}
             <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
           </>
         }
       />
+
+      {confirmDelete ? (
+        <View style={styles.deleteBanner}>
+          <Text variant="body-sm" style={{ color: colors.hpDanger, flex: 1 }}>
+            Delete this page and all sub-pages? Recoverable for 30 days.
+          </Text>
+          <Pressable onPress={() => setConfirmDelete(false)} style={styles.deleteBannerBtn}>
+            <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+              Cancel
+            </Text>
+          </Pressable>
+          <Pressable onPress={handleDeletePage} style={[styles.deleteBannerBtn, styles.deleteBannerConfirm]}>
+            <Icon name="delete" size={14} color={colors.hpDanger} />
+            <Text variant="label-md" weight="semibold" style={{ color: colors.hpDanger }}>
+              Confirm delete
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.wikiWrap}>
         <ScrollView style={styles.wikiDoc} contentContainerStyle={styles.wikiDocInner}>
@@ -468,5 +514,27 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '55',
+  },
+  deleteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.dangerContainer + '44',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hpDanger + '33',
+  },
+  deleteBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.lg,
+  },
+  deleteBannerConfirm: {
+    borderWidth: 1,
+    borderColor: colors.hpDanger + '55',
   },
 });

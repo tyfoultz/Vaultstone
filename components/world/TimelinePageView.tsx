@@ -5,6 +5,7 @@ import {
   claimPageEdit,
   getEventsForTimeline,
   releasePageEdit,
+  trashPage,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
@@ -34,6 +35,7 @@ import { ShareModal } from './ShareModal';
 import { WorldTopBar } from './WorldTopBar';
 import { PAGE_KIND_LABEL } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
+import { worldSectionHref } from './worldHref';
 import { CalendarSchemaEditor } from './timeline/CalendarSchemaEditor';
 import { EraRibbon } from './timeline/EraRibbon';
 import { TimelineSpine } from './timeline/TimelineSpine.web';
@@ -63,6 +65,8 @@ export function TimelinePageView({ page, worldId }: Props) {
 
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [shareOpen, setShareOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const removePage = usePagesStore((s) => s.removePage);
   const [eventEditorOpen, setEventEditorOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const [defaultEra, setDefaultEra] = useState<string | undefined>(undefined);
@@ -155,6 +159,13 @@ export function TimelinePageView({ page, worldId }: Props) {
     setEventEditorOpen(true);
   };
 
+  async function handleDeletePage() {
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    await trashPage(page.id);
+    removePage(page.id);
+    router.replace(worldSectionHref(worldId, page.section_id));
+  }
+
   if (!world || !section) return null;
 
   return (
@@ -170,26 +181,46 @@ export function TimelinePageView({ page, worldId }: Props) {
           <>
             <PlayerViewToggle />
             {isWorldOwner ? (
-              <Pressable
-                onPress={() => setShareOpen(true)}
-                style={styles.shareBtn}
-                accessibilityLabel="Share page"
-              >
-                <Icon name="share" size={14} color={colors.onSurfaceVariant} />
-                <Text
-                  variant="label-md"
-                  uppercase
-                  weight="semibold"
-                  style={{ color: colors.onSurfaceVariant, letterSpacing: 1, fontSize: 11 }}
+              <>
+                <Pressable
+                  onPress={() => setShareOpen(true)}
+                  style={styles.shareBtn}
+                  accessibilityLabel="Share page"
                 >
-                  Share
-                </Text>
-              </Pressable>
+                  <Icon name="share" size={14} color={colors.onSurfaceVariant} />
+                  <Text
+                    variant="label-md"
+                    uppercase
+                    weight="semibold"
+                    style={{ color: colors.onSurfaceVariant, letterSpacing: 1, fontSize: 11 }}
+                  >
+                    Share
+                  </Text>
+                </Pressable>
+                <Pressable onPress={handleDeletePage} accessibilityLabel="Delete page" hitSlop={8}>
+                  <Icon name="delete-outline" size={18} color={confirmDelete ? colors.hpDanger : colors.outlineVariant} />
+                </Pressable>
+              </>
             ) : null}
             <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
           </>
         }
       />
+
+      {confirmDelete ? (
+        <View style={styles.deleteBanner}>
+          <Text variant="body-sm" style={{ color: colors.hpDanger, flex: 1 }}>
+            Delete this timeline and all events? Recoverable for 30 days.
+          </Text>
+          <Pressable onPress={() => setConfirmDelete(false)} style={styles.deleteBannerBtn}>
+            <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>Cancel</Text>
+          </Pressable>
+          <Pressable onPress={handleDeletePage} style={[styles.deleteBannerBtn, styles.deleteBannerConfirm]}>
+            <Icon name="delete" size={14} color={colors.hpDanger} />
+            <Text variant="label-md" weight="semibold" style={{ color: colors.hpDanger }}>Confirm</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {/* Page head with event stats */}
@@ -375,5 +406,18 @@ const styles = StyleSheet.create({
   },
   disabledEditor: {
     opacity: 0.55,
+  },
+  deleteBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    backgroundColor: colors.dangerContainer + '44',
+    borderBottomWidth: 1, borderBottomColor: colors.hpDanger + '33',
+  },
+  deleteBannerBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.lg,
+  },
+  deleteBannerConfirm: {
+    borderWidth: 1, borderColor: colors.hpDanger + '55',
   },
 });
