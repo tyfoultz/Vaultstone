@@ -12,17 +12,20 @@ export interface Database {
           display_name: string | null;
           avatar_url: string | null;
           created_at: string;
+          storage_used_bytes: number;
         };
         Insert: {
           id: string;
           display_name?: string | null;
           avatar_url?: string | null;
           created_at?: string;
+          storage_used_bytes?: number;
         };
         Update: {
           id?: string;
           display_name?: string | null;
           avatar_url?: string | null;
+          storage_used_bytes?: number;
         };
         Relationships: [];
       };
@@ -433,6 +436,10 @@ export interface Database {
           visible_to_players: boolean;
           sort_order: number;
           pc_user_id: string | null;
+          character_id: string | null;
+          campaign_id: string | null;
+          title_overridden: boolean;
+          is_orphaned: boolean;
           editing_user_id: string | null;
           editing_since: string | null;
           deleted_at: string | null;
@@ -467,6 +474,10 @@ export interface Database {
           visible_to_players?: boolean;
           sort_order?: number;
           pc_user_id?: string | null;
+          character_id?: string | null;
+          campaign_id?: string | null;
+          title_overridden?: boolean;
+          is_orphaned?: boolean;
           editing_user_id?: string | null;
           editing_since?: string | null;
           deleted_at?: string | null;
@@ -499,11 +510,148 @@ export interface Database {
           visible_to_players?: boolean;
           sort_order?: number;
           pc_user_id?: string | null;
+          character_id?: string | null;
+          campaign_id?: string | null;
+          title_overridden?: boolean;
+          is_orphaned?: boolean;
           editing_user_id?: string | null;
           editing_since?: string | null;
           deleted_at?: string | null;
           hard_delete_after?: string | null;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      world_page_permissions: {
+        Row: {
+          page_id: string;
+          user_id: string;
+          permission: 'view' | 'edit';
+          cascade: boolean;
+          granted_by: string;
+          granted_at: string;
+        };
+        Insert: {
+          page_id: string;
+          user_id: string;
+          permission?: 'view' | 'edit';
+          cascade?: boolean;
+          granted_by: string;
+          granted_at?: string;
+        };
+        Update: {
+          permission?: 'view' | 'edit';
+          cascade?: boolean;
+        };
+        Relationships: [];
+      };
+      world_maps: {
+        Row: {
+          id: string;
+          world_id: string;
+          owner_page_id: string | null;
+          campaign_id: string | null;
+          label: string;
+          image_key: string;
+          image_width: number;
+          image_height: number;
+          aspect_ratio: number;
+          byte_size: number;
+          deleted_at: string | null;
+          hard_delete_after: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          world_id: string;
+          owner_page_id?: string | null;
+          campaign_id?: string | null;
+          label: string;
+          image_key: string;
+          image_width: number;
+          image_height: number;
+          aspect_ratio: number;
+          byte_size: number;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          label?: string;
+          image_key?: string;
+          image_width?: number;
+          image_height?: number;
+          aspect_ratio?: number;
+          byte_size?: number;
+          owner_page_id?: string | null;
+          campaign_id?: string | null;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+        };
+        Relationships: [];
+      };
+      pin_types: {
+        Row: {
+          key: string;
+          label: string;
+          default_icon_key: string;
+          default_color_hex: string;
+          sort_order: number;
+        };
+        Insert: {
+          key: string;
+          label: string;
+          default_icon_key: string;
+          default_color_hex: string;
+          sort_order?: number;
+        };
+        Update: {
+          label?: string;
+          default_icon_key?: string;
+          default_color_hex?: string;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
+      map_pins: {
+        Row: {
+          id: string;
+          map_id: string;
+          world_id: string;
+          pin_type: string;
+          x_pct: number;
+          y_pct: number;
+          label: string | null;
+          icon_key_override: string | null;
+          color_override: string | null;
+          linked_page_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          map_id: string;
+          world_id: string;
+          pin_type: string;
+          x_pct: number;
+          y_pct: number;
+          label?: string | null;
+          icon_key_override?: string | null;
+          color_override?: string | null;
+          linked_page_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          pin_type?: string;
+          x_pct?: number;
+          y_pct?: number;
+          label?: string | null;
+          icon_key_override?: string | null;
+          color_override?: string | null;
+          linked_page_id?: string | null;
         };
         Relationships: [];
       };
@@ -555,8 +703,34 @@ export interface Database {
         };
         Returns: undefined;
       };
+      claim_world_page_edit: {
+        Args: { p_page_id: string };
+        Returns: Database['public']['Tables']['world_pages']['Row'];
+      };
+      release_world_page_edit: {
+        Args: { p_page_id: string };
+        Returns: undefined;
+      };
+      user_can_view_page: {
+        Args: { p_user_id: string; p_page_id: string };
+        Returns: boolean;
+      };
+      user_can_edit_page: {
+        Args: { p_user_id: string; p_page_id: string };
+        Returns: boolean;
+      };
+      effective_page_permission: {
+        Args: { p_user_id: string; p_page_id: string };
+        Returns: 'view' | 'edit' | null;
+      };
+      materialize_pc_stub: {
+        Args: { p_world_id: string; p_character_id: string; p_campaign_id: string };
+        Returns: undefined;
+      };
     };
-    Enums: Record<never, never>;
+    Enums: {
+      world_page_permission_level: 'view' | 'edit';
+    };
     CompositeTypes: Record<never, never>;
   };
 }

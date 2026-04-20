@@ -21,3 +21,9 @@ export {
   filterPagesBySection,
   buildPageTree,
 } from './pages.store';
+export {
+  useWorldMapStackStore,
+  IDENTITY_VIEWPORT,
+  selectBreadcrumbs,
+} from './world-map-stack.store';
+export type { MapStackViewport, MapStackEntry } from './world-map-stack.store';

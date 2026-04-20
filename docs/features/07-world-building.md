@@ -409,7 +409,7 @@ The one bridge: "Add to world timeline" on a published recap. Conversion uses `m
 
 - **Storage bucket** `world-maps`, private, signed URLs only. Object path `{worldId}/{mapId}/{filename}`. Accepted: `image/jpeg`, `image/png`, `image/webp`. 20MB cap enforced at the upload API.
 - **Compression:** same strategy as images — client-side via Expo ImageManipulator (native) or canvas (web) before upload; server-side size cap at the upload RPC rejects anything > 20MB.
-- **Pan/zoom library**: `react-zoom-pan-pinch` on web; `react-native-reanimated` 3 + `react-native-gesture-handler` on native. Zoom bounds 0.5×–4×, double-tap 2× on native, "Reset View" button.
+- **Pan/zoom library**: `react-zoom-pan-pinch` on web; `react-native-reanimated` 3 + `react-native-gesture-handler` on native. Zoom range is resolution-aware: `minScale = canvasFit` (smallest scale that fits the whole image inside the frame) and `maxScale = max(canvasFit * 4, 2)` so a high-res upload can zoom past native pixels while small images keep the 4× ceiling. A vertical zoom bar on the canvas (+/- buttons with a 0–100% fill) drives 8 evenly-spaced steps via `setTransform` (not the library's exponential `zoomIn/Out`); mouse-wheel step is pinned to `sliderStep / 100` so one notch ≈ one tick. Cold landings center + fit the map; returning visits restore the stored viewport clamped to the current bounds. Pan momentum disabled (`panning.velocityDisabled`, `velocityAnimation.disabled`) so release-to-stop feels tight. Right-click (web) drops a pin at the cursor for owners without needing placement mode.
 - **Pin coordinates** stored as 0–1 percentages. On render: `pin.x_pct * image.displayedWidth`, same for Y. Placement mode captures click/tap, reverse-projects through current scale/translate, saves a new `map_pins` row.
 - **Nested navigation** is managed by `packages/store/src/world-map-stack.store.ts` — a breadcrumb stack of `{mapId, viewport: {scale, translateX, translateY}, breadcrumbLabel}` entries. "View Sub-map" pushes the stack and swaps to the child map; back pops and restores the viewport. Top-of-stack viewport persisted; mid-drill state session-only.
 - **Filter bar** toggles a `Set<PinTypeKey>` that the pin layer consults before rendering.
@@ -482,6 +482,15 @@ Tiptap + 10tap install, shared extensions in `packages/ui/src/world-editor/`, `W
 
 ### Phase 4 — Visibility, lens, PC stubs, permissions
 `visible_to_players`, section overrides, PC-stub materialization triggers on `world_campaigns` INSERT and `characters` INSERT with full PC stub lifecycle (rename/delete/unlink/re-link/move). `LensDropdown`, entry heuristic (campaign-detail → that campaign's lens; homepage → world-only), mid-session lens switch banner, orphan banner, Player View preview toggle. **Permission grant system**: `world_page_permissions` table, `user_can_view_page` / `user_can_edit_page` helpers, `ShareModal.tsx` (add/remove grantees, cascade toggle, grantee list visible to each other), updated page RLS.
+
+**Design handoff references (Phase 4):**
+- Visibility chip → `.card-visibility` with `.player` / `.gm` variants (backdrop-blur, 26px); becomes click-to-toggle for owners in this phase.
+- Lens dropdown → `.campaign-switch` in `shell.jsx` sidebar head (crown icon + campaign label + chevron). The dropdown body lists linked campaigns + a `world-only` entry.
+- Share trigger → topbar button on `screens_c.jsx` (right cluster, alongside save-state + visibility). Launches `ShareModal`.
+- Mid-session lens-switch banner → reuse `.takeover-banner` chrome (amber accent, 3px left border) with copy like "DM switched lens to <Campaign>".
+- Orphan banner → same banner chrome, `hpDanger` accent, inline "Re-link" / "Dismiss" actions.
+- Player View toggle → topbar action, same pill treatment as Share.
+- **Permission source chips in `ShareModal`** — each grantee row badges its source: `Direct` (accent tint) or `Inherited from <ancestor>` (muted tint, page-name link). Needed so GMs can tell why a user has access and decide whether to override vs. edit the ancestor grant.
 
 ### Phase 5 — Maps, pins, nesting
 `world_maps`, `pin_types` (seeded), `map_pins`, `world-maps` bucket, `MapCanvas.{web,native}.tsx`, pin layer + placement mode + filter bar, sub-map drill-down + breadcrumbs, `world-map-stack.store.ts`. Pin mention kind wired into the Phase 3 suggestion popover. Batch signed-URL RPC.

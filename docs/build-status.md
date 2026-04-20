@@ -147,7 +147,7 @@ is still used for the combat state subscriptions.
 **Legal:** PDFs never leave the device. See [legal.md](legal.md). Phase 9
 shares page citations only — never extracted page text.
 
-### 9. World Builder & Campaign Knowledge Base 🟡 Phase 2 Complete
+### 9. World Builder & Campaign Knowledge Base 🟡 Phase 5 Shipped
 
 Full rewrite of Feature 7. Notion/OneNote-style world workspace with sections,
 unlimited nested pages, rich editor with `@mention` chips, uploaded maps with
@@ -158,8 +158,38 @@ schemas, unified search, and a campaign-side world lookup drawer. See
 refined spec and [plans/world-builder-rewrite.md](plans/world-builder-rewrite.md)
 for the short-form plan.
 
-**Status:** Phase 2 (Sections + Pages + Templates, design-integrated) shipped
-on `feature/world-builder-phase-2`. Design handoff checked in at
+**Status:** Phase 3 (Editor + mentions + backlinks + edit lock) in progress on
+`feature/world-builder-phase-3`. Shipped incrementally:
+
+- **3a** — Tiptap rich body editor on web with StarterKit + Noir ProseMirror
+  styling, native TextInput fallback, 800ms debounced autosave writing
+  `body` + `body_text`. Commit `1f958c7`.
+- **3b** — `@`-mention typeahead with pages-in-this-world, styled chip
+  inserted into the doc, `body_refs[]` persisted on save, GIN-indexed
+  backlinks panel ("Linked from") rendering pages that mention this one.
+  Commit `5cfff80`.
+- **3c** — `claim_world_page_edit` / `release_world_page_edit` RPCs
+  (migration `20260422000000_world_pages_edit_lock.sql`, 90s TTL),
+  `claimPageEdit` / `releasePageEdit` API wrappers, `EditLockBanner`
+  component, claim-on-mount / 30s heartbeat / release-on-unmount wired
+  into the page-detail screen with the editor + structured-fields surface
+  disabled (pointer-events none + dimmed) when another editor holds the
+  lock. BEFORE-trigger body derivation + native 10tap editor + mention
+  deleted-target chip + Android perf flag still outstanding.
+- **3d — Design fidelity pass.** Page-detail screen now matches the
+  handoff `.wiki-wrap`: 780px main scroll column (28/48/64 padding) +
+  280px `WikiRightPanel` with Sub-pages / Backlinks / History tabs.
+  `PageHead` rebuilt as `.wiki-head` (76px accent-tinted gradient tile,
+  42px display title, icon+label meta pills via `metaPills` prop, legacy
+  `meta` kept for world landing + section-detail). `EditLockBanner`
+  rebuilt as `.takeover-banner` (amber gradient + 3px left accent,
+  pencil icon, live countdown, Request Takeover pill). Tiptap editor
+  prose restyled to `.wiki-p` / `.wiki-h2` (15px/1.7 body, bordered h2),
+  mention chips restyled as tight accent pills (3px radius, nowrap,
+  no double `@`).
+
+Phase 2 (Sections + Pages + Templates, design-integrated) shipped on
+`feature/world-builder-phase-2`. Design handoff checked in at
 `docs/design/vaultstone-handoff/` and now locks the three-column shell
 (rail + contextual sidebar + main), the serif display typography
 (Fraunces + Cormorant Garamond, scoped to `/world/*`), and the semantic
@@ -172,9 +202,9 @@ integration (manual "Add to world timeline" button on published recaps).
 |---|---|---|
 | 1 — Foundation | ✅ | `worlds` + `world_campaigns` tables, `is_world_owner` RLS helper, `create_world_with_owner` atomic RPC, `/worlds` list + create modal, `/world/[id]` shell with sidebar + gear-triggered settings modal (rename / link / archive / soft-delete), lens dropdown placeholder. |
 | 2 — Sections & pages (no editor) | ✅ | `world_sections`, `world_pages` (with `template_version` + edit-lock columns reserved), section templates v1 + registry + CI hash check, sidebar with unlimited nesting, structured-fields form, move-page-across-sections, Recently Deleted scaffold. Three-column shell (rail + sidebar + main), serif display typography scoped to `/world/*`, semantic accent palette, `Card tier="hero"`, `VisibilityBadge`, `PageHead`, Atlas landing, section grid/list views. |
-| 3 — Editor, chips, backlinks, edit lock | ⬜ | Tiptap (web) + 10tap (native) with shared extensions. `@mention` suggestion popover (page / pc / timeline kinds; pin added Phase 5), deleted-target chip UI, hover preview on web, backlinks via `body_refs`. Edit-lock RPCs + banner + autosave indicator. BEFORE-trigger derives `body_text` / `body_refs` server-side. Android perf benchmark + progressive-disable feature flag. |
-| 4 — Visibility, lens, PC stubs, permissions | ⬜ | `visible_to_players`, section overrides, full PC-stub lifecycle triggers (rename / delete / unlink / re-link / move), `LensDropdown` + entry heuristic + mid-session switch banner, orphan banner, Player View preview. `world_page_permissions` + `ShareModal` (cascade toggle, grantees visible to each other) + `user_can_view_page` / `user_can_edit_page` RLS helpers. |
-| 5 — Maps, pins & nesting | ⬜ | `world_maps`, seeded `pin_types` (7), `map_pins`, `world-maps` Storage bucket, `MapCanvas.{web,native}`, pin placement + filter bar, sub-map drill-down + breadcrumbs, batch signed-URL RPC. Pin mention kind wired in. |
+| 3 — Editor, chips, backlinks, edit lock | 🟡 | 3a/3b/3c/3d done: Tiptap web editor + debounced autosave, `@`-mention typeahead + `body_refs` backlinks, edit-lock RPCs + banner + 30s heartbeat, handoff fidelity pass (wiki-wrap layout + WikiRightPanel + restyled page head, banner, prose, chips). Still outstanding: BEFORE-trigger for server-side `body_text` / `body_refs` derivation, native 10tap editor, deleted-target chip UI, web hover preview on mentions, Android perf benchmark + progressive-disable flag. |
+| 4 — Visibility, lens, PC stubs, permissions | ✅ | **4a** VisibilityBadge interactive toggle + optimistic write. **4b** section visibility overrides (`force_hidden_from_players`, `default_pages_visible`). **4c** RLS helpers (`user_can_view_page` / `user_can_edit_page`) + updated world/section/page policies. **4d** `world_page_permissions` table + recursive `effective_page_permission` CTE + `ShareModal` with direct / inherited source chips, cascade toggle, profile search. **4e** `LensDropdown` (`.campaign-switch` crown+chevron chrome) + `?lens=<campaignId>` entry heuristic in world layout. **4f** Player View preview toggle (owner-only pill) + teal preview banner + client-side mirror of visibility rules in sidebar. **4g** `OrphanBanner` on pages whose parent is missing locally (re-link via `movePage` to section root) + `LensSwitchBanner` (amber 6s auto-dismiss on lens transition). **4h** PC stub lifecycle triggers — `character_id` / `campaign_id` / `title_overridden` / `is_orphaned` columns on `world_pages`, `(world_id, character_id)` partial unique index, `materialize_pc_stub(world_id, character_id, campaign_id)` SECURITY DEFINER fn with ON CONFLICT relink + `title_overridden` preservation. Triggers drive off `campaign_members` (the real player↔campaign linkage): `tr_campaign_members_sync_stubs` covers INSERT/UPDATE/DELETE (materialize on add, orphan on remove/swap, re-adopt on re-link), `tr_world_campaigns_materialize_stubs` backfills stubs when a world links to a campaign, `tr_world_campaigns_orphan_stubs` flags on unlink, `tr_characters_sync_stubs` syncs title on rename (when not overridden), `tr_characters_orphan_stubs` flags on character delete. Cross-account share flow verified Tier 4 (owner grants view → grantee sees page via `user_can_view_page` RLS helper). |
+| 5 — Maps, pins & nesting | ✅ | **5a** `world_maps` + `pin_types` (7 seeded) + `map_pins` tables, `world-maps` private Storage bucket with RLS matching world ownership/sharing, `storage_used_bytes` tally triggers on upload/delete. **5b** `@vaultstone/api` helpers (`listMaps`, `createMap`, `uploadMapImage`, `listPinsForMap`, `upsertPin`, `deletePin`, `listPinTypes`) + `getSignedMapUrl` RPC. **5c** `MapCanvas.web.tsx` using `react-zoom-pan-pinch` (wheel-zoom, pan, onTransform → viewport store) and `MapCanvas.tsx` using `react-native-gesture-handler` + Reanimated (pinch + pan, composed via `Gesture.Simultaneous`). **5d** `PinLayer` + `PinEditorModal` (type chips from `pin_types`, label, linked-page search, open/unlink actions). **5e** `PinFilterBar` (per-type chips + Show all) positioned absolute top-left on canvas frame. **5f** `/world/[worldId]/map/index.tsx` list page + empty state with owner-only Upload button; `MapUploadModal.web.tsx` (DOM file input + `URL.createObjectURL` for dims) and `MapUploadModal.tsx` (expo-image-picker + `fetch(uri).blob()`) validate MIME (jpeg/png/webp) + 20MB cap. **5g** Tiptap mention extension extended with `kind='page'\|'pin'` + `mapId` attrs; `MentionSuggestion.web.tsx` accepts optional `getPins`; `body_refs` extraction filters to `kind==='page'\|\|null` for legacy parity; pin mentions deep-link to `/world/[worldId]/map/[mapId]`. **5h** `MapBreadcrumbs` renders drill stack above canvas; `viewportByMapId` Zustand store persists pan/zoom per map; drill-stack cold-land reconciles push/pop/reset by stack index; "View sub-map" action appears on `PinEditorModal` when the linked page owns its own `world_map`. **5i** Native upload modal ships. Native (iOS/Android) smoke test deferred — file added to Deferred verification list. **5j — Canvas UX polish.** Double-tap zoom replaced with a vertical `ZoomControl` bar (+/-, 0–100% fill, 8 even steps driven by `setTransform` instead of the library's exponential `zoomIn/Out`). Mouse-wheel step pinned to `sliderStep / 100` so one notch = one tick. Pan momentum disabled. Owner-only right-click on the canvas drops a pin at the cursor (bypasses placement mode). Default zoom is resolution-aware: `minScale = canvas-fit` so the whole map is visible on cold landing regardless of image size, `maxScale = max(fit * 4, 2)` so 8k uploads can zoom past native pixels. Stored viewports restored on return, clamped to new bounds. Migration `20260423000000_world_maps_drop_image_key_unique.sql` drops the `world_maps.image_key` unique constraint so sub-maps can legitimately share parent imagery. `WorldRail` now routes the diamond brand tile to `/(drawer)/home` (Vaultstone home) and adds a dedicated home icon below it for the current world's landing page. |
 | 6 — Timelines + Feature 6 integration | ⬜ | `page_kind='timeline'` machinery — `calendar_schema` editor, `date_values` form, `sort_key` trigger, vertical timeline renderer, auto-primary-timeline per world, timeline pages creatable in any section. Timeline mention kind wired. `AddToWorldTimelineButton` on published recaps with Markdown→Tiptap conversion. |
 | 7a — Players section & stub enrichment | ⬜ | Players-section hybrid UI, stub enrichment + orphan resolution (re-link / re-home / dismiss), `title_overridden` tracking in UI. |
 | 7b — Images, storage, compression | ⬜ | `world_images` bucket + inline image insertion, client-side compression (Expo ImageManipulator / canvas), server-side size cap at upload RPC, Supabase Storage read-side resize, `profiles.storage_used_bytes` triggers + reconciliation job, 80% warning banner + 100% upload block. |
@@ -212,7 +242,16 @@ prep, or sooner if any feature work needs `expo run:ios`/`run:android`).
   - See [features/08-pdf-rulebook.md Phase 5c](features/08-pdf-rulebook.md#phase-5c--native-pdf-text-extraction--done-2026-04-14)
     for full polyfill list and the implementation rationale.
 
----
+- **World Builder Phase 5 — native map canvas + upload.** Code is in place
+  (`MapCanvas.tsx` uses gesture-handler + Reanimated; `MapUploadModal.tsx`
+  uses expo-image-picker + `fetch(uri).blob()` — same pattern as
+  `uploadCampaignCover`) but has only been exercised on web.
+  - Smoke test: open a world → map list → upload a JPEG from camera roll →
+    confirm image lands and pan/pinch/double-tap gestures feel right →
+    place a pin, link a page, verify the pin tap opens the editor. Sub-map
+    drill + breadcrumbs are web-tested; re-run on native to catch any
+    stack-sync regressions. **Expo Go works for this** — no native module
+    beyond gesture-handler/reanimated, both already in the Go manifest.
 
 ## Design System Overhaul — Vaultstone Noir
 

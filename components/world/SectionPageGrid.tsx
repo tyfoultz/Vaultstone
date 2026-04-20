@@ -13,6 +13,7 @@ import {
 } from '@vaultstone/ui';
 
 import { ACCENT_SWATCH, PAGE_KIND_LABEL, toMaterialIcon } from './helpers';
+import { usePageVisibilityToggle } from './usePageVisibilityToggle';
 
 type Props = {
   pages: WorldPage[];
@@ -63,6 +64,7 @@ function PageGridCard({ page, template, hero, onPress }: CardProps) {
   const iconName = toMaterialIcon(template.icon);
   const kindLabel = PAGE_KIND_LABEL[page.page_kind] ?? 'Page';
   const preview = getPreview(page);
+  const toggleVisibility = usePageVisibilityToggle(page);
 
   return (
     <Pressable onPress={onPress} style={hero ? undefined : (CARD_SLOT_STYLE as object)}>
@@ -79,7 +81,11 @@ function PageGridCard({ page, template, hero, onPress }: CardProps) {
             color={swatch.fg}
           />
           <View style={styles.visibility}>
-            <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
+            <VisibilityBadge
+              visibility={page.visible_to_players ? 'player' : 'gm'}
+              interactive={!!toggleVisibility}
+              onPress={toggleVisibility ?? undefined}
+            />
           </View>
         </LinearGradient>
 

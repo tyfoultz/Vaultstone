@@ -1,0 +1,472 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  createPin,
+  deletePin,
+  getMap,
+  getMapImageSignedUrl,
+  listMaps,
+  listPins,
+  listPinTypes,
+  updatePin,
+  type MapPin,
+  type PinType,
+  type WorldMap,
+} from '@vaultstone/api';
+import {
+  IDENTITY_VIEWPORT,
+  useAuthStore,
+  useCurrentWorldStore,
+  usePagesStore,
+  useWorldMapStackStore,
+} from '@vaultstone/store';
+import type { WorldPage } from '@vaultstone/types';
+import { GhostButton, GradientButton, Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
+
+import { MapBreadcrumbs } from '../../../../components/world/map/MapBreadcrumbs';
+import { MapCanvas, type MapCanvasHandle } from '../../../../components/world/map/MapCanvas';
+import { MapUploadModal } from '../../../../components/world/map/MapUploadModal';
+import { PinEditorModal, type PinEditorInitial } from '../../../../components/world/map/PinEditorModal';
+import { PinFilterBar } from '../../../../components/world/map/PinFilterBar';
+import { PinLayer } from '../../../../components/world/map/PinLayer';
+import { ZoomControl } from '../../../../components/world/map/ZoomControl';
+import { WorldTopBar } from '../../../../components/world/WorldTopBar';
+import { worldMapHref, worldPageHref } from '../../../../components/world/worldHref';
+
+const EMPTY_PAGES: WorldPage[] = [];
+
+export default function WorldMapScreen() {
+  const { worldId, mapId } = useLocalSearchParams<{ worldId: string; mapId: string }>();
+  const router = useRouter();
+  const world = useCurrentWorldStore((s) => s.world);
+  const myUserId = useAuthStore((s) => s.user?.id ?? null);
+  const isOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
+  const worldPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] ?? EMPTY_PAGES : EMPTY_PAGES));
+
+  // Raw stored viewport (undefined = first landing on this map). We deliberately
+  // don't fall back to IDENTITY_VIEWPORT here — the route needs to know the
+  // difference so the first view can start at fitScale instead of 1.
+  const storedViewport = useWorldMapStackStore(
+    (s) => (mapId ? s.viewportByMapId[mapId] : undefined),
+  );
+  const stack = useWorldMapStackStore((s) => s.stack);
+  const resetStack = useWorldMapStackStore((s) => s.reset);
+  const pushStack = useWorldMapStackStore((s) => s.push);
+  const popStackTo = useWorldMapStackStore((s) => s.popTo);
+  const replaceTopViewport = useWorldMapStackStore((s) => s.replaceTopViewport);
+
+  const [map, setMap] = useState<WorldMap | null>(null);
+  const [allMaps, setAllMaps] = useState<WorldMap[]>([]);
+  const [pins, setPins] = useState<MapPin[]>([]);
+  const [pinTypes, setPinTypes] = useState<PinType[]>([]);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [visibleTypes, setVisibleTypes] = useState<Set<string>>(new Set());
+  const [placementMode, setPlacementMode] = useState(false);
+  const [editor, setEditor] = useState<PinEditorInitial | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [liveScale, setLiveScale] = useState(storedViewport?.scale ?? 1);
+  const [canvasSize, setCanvasSize] = useState<{ w: number; h: number } | null>(null);
+  const canvasRef = useRef<MapCanvasHandle | null>(null);
+
+  useEffect(() => {
+    if (!mapId || !worldId) return;
+    let cancelled = false;
+    Promise.all([getMap(mapId), listPins(mapId), listPinTypes(), listMaps(worldId)]).then(
+      async ([mapRes, pinsRes, typesRes, mapsRes]) => {
+        if (cancelled) return;
+        if (mapRes.error || !mapRes.data) {
+          setError('Map not found or unavailable.');
+          return;
+        }
+        const m = mapRes.data as WorldMap;
+        setMap(m);
+        setAllMaps((mapsRes.data ?? []) as WorldMap[]);
+        setPins((pinsRes.data ?? []) as MapPin[]);
+        const types = (typesRes.data ?? []) as PinType[];
+        setPinTypes(types);
+        setVisibleTypes(new Set(types.map((t) => t.key)));
+        const signed = await getMapImageSignedUrl(m.image_key);
+        if (!cancelled) setImageUrl(signed.data?.signedUrl ?? null);
+        // Drill-stack sync on mount:
+        //   • not in stack → cold land, reset to single-entry stack
+        //   • already in stack but not at top → user hit the back button or a
+        //     breadcrumb, so truncate back to this depth
+        //   • top of stack → drill-down push already happened before nav;
+        //     leave the stack alone
+        if (!cancelled) {
+          const current = useWorldMapStackStore.getState().stack;
+          const existingIdx = current.findIndex((e) => e.mapId === m.id);
+          if (existingIdx === -1) {
+            resetStack({ mapId: m.id, viewport: IDENTITY_VIEWPORT, breadcrumbLabel: m.label });
+          } else if (existingIdx < current.length - 1) {
+            popStackTo(existingIdx);
+          }
+        }
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [mapId, worldId, resetStack, popStackTo]);
+
+  const toggleType = useCallback((key: string) => {
+    setVisibleTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    setVisibleTypes((prev) => {
+      if (prev.size === pinTypes.length) return new Set<string>();
+      return new Set(pinTypes.map((t) => t.key));
+    });
+  }, [pinTypes]);
+
+  const allVisible = visibleTypes.size === pinTypes.length && pinTypes.length > 0;
+
+  const handleCanvasClick = useCallback(
+    ({ xPct, yPct }: { xPct: number; yPct: number }) => {
+      if (!placementMode) return;
+      setEditor({
+        pin_type: 'generic',
+        x_pct: xPct,
+        y_pct: yPct,
+        label: null,
+        linked_page_id: null,
+      });
+      setPlacementMode(false);
+    },
+    [placementMode],
+  );
+
+  const handleCanvasRightClick = useCallback(
+    ({ xPct, yPct }: { xPct: number; yPct: number }) => {
+      if (!isOwner) return;
+      setEditor({
+        pin_type: 'generic',
+        x_pct: xPct,
+        y_pct: yPct,
+        label: null,
+        linked_page_id: null,
+      });
+      setPlacementMode(false);
+    },
+    [isOwner],
+  );
+
+  const handlePinPress = useCallback(
+    (pin: MapPin) => {
+      if (isOwner) {
+        setEditor({
+          id: pin.id,
+          pin_type: pin.pin_type,
+          x_pct: pin.x_pct,
+          y_pct: pin.y_pct,
+          label: pin.label,
+          linked_page_id: pin.linked_page_id,
+          icon_key_override: pin.icon_key_override,
+          color_override: pin.color_override,
+        });
+      } else if (pin.linked_page_id && worldId) {
+        router.push(worldPageHref(worldId, pin.linked_page_id));
+      }
+    },
+    [isOwner, router, worldId],
+  );
+
+  const handleSave = useCallback(
+    async (patch: { pin_type: string; label: string | null; linked_page_id: string | null }) => {
+      if (!editor || !mapId || !worldId) return;
+      if (editor.id) {
+        const { data, error: err } = await updatePin(editor.id, patch);
+        if (err || !data) throw new Error(err?.message ?? 'Update failed');
+        setPins((prev) => prev.map((p) => (p.id === data.id ? (data as MapPin) : p)));
+      } else {
+        const { data, error: err } = await createPin({
+          map_id: mapId,
+          world_id: worldId,
+          pin_type: patch.pin_type,
+          x_pct: editor.x_pct,
+          y_pct: editor.y_pct,
+          label: patch.label,
+          linked_page_id: patch.linked_page_id,
+        });
+        if (err || !data) throw new Error(err?.message ?? 'Create failed');
+        setPins((prev) => [...prev, data as MapPin]);
+      }
+    },
+    [editor, mapId, worldId],
+  );
+
+  const handleDelete = useCallback(async () => {
+    if (!editor?.id) return;
+    const { error: err } = await deletePin(editor.id);
+    if (err) throw new Error(err.message);
+    setPins((prev) => prev.filter((p) => p.id !== editor.id));
+  }, [editor]);
+
+  // Fit-to-view minScale: smallest scale that fits the whole image inside
+  // the canvas frame. Upper bound = 4× that so the zoom bar always has the
+  // same 8 even steps regardless of image resolution. Null while we're still
+  // waiting on the first onLayout measurement.
+  // Max zoom: 4× fit for small/normal images, but at least 2× native pixels
+  // (scale = 2) for large images. An 8k image in an 800px canvas has
+  // fitScale ≈ 0.1, so fit × 4 ≈ 0.4 — still well below native res and not
+  // zoomed-in enough to read labels. The Math.max bump keeps the 8 slider
+  // steps evenly spaced while granting detail on high-res uploads.
+  const scaleBounds = useMemo(() => {
+    if (!canvasSize || !map) return null;
+    const fit = Math.min(canvasSize.w / map.image_width, canvasSize.h / map.image_height);
+    if (!Number.isFinite(fit) || fit <= 0) return null;
+    return { min: fit, max: Math.max(fit * 4, 2) };
+  }, [canvasSize, map]);
+
+  // Cold landings start at fitScale so the whole map is visible regardless
+  // of image resolution. Returning visits restore the stored viewport,
+  // clamped to the current bounds in case the frame has resized.
+  // We also treat a literal-identity stored viewport (scale=1, tx=0, ty=0)
+  // as "never touched" — resetStack seeds it that way on first landing,
+  // so distinguishing would require a store-shape change.
+  const initialViewport = useMemo(() => {
+    if (!scaleBounds) return null;
+    const isUntouched =
+      !storedViewport ||
+      (storedViewport.scale === 1 && storedViewport.translateX === 0 && storedViewport.translateY === 0);
+    if (isUntouched) {
+      return { scale: scaleBounds.min, translateX: 0, translateY: 0 };
+    }
+    return {
+      scale: Math.max(scaleBounds.min, Math.min(scaleBounds.max, storedViewport!.scale)),
+      translateX: storedViewport!.translateX,
+      translateY: storedViewport!.translateY,
+    };
+  }, [scaleBounds, storedViewport]);
+
+  const pagesForEditor = useMemo(() => worldPages, [worldPages]);
+
+  const subMapIdByPageId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const wm of allMaps) {
+      if (wm.owner_page_id) m.set(wm.owner_page_id, wm.id);
+    }
+    return m;
+  }, [allMaps]);
+
+  const crumbs = useMemo(
+    () => stack.map((e, i) => ({ mapId: e.mapId, label: e.breadcrumbLabel, depth: i })),
+    [stack],
+  );
+
+  const handleOpenSubMap = useCallback(
+    (targetMapId: string) => {
+      if (!worldId) return;
+      // Stack state: the parent's viewport was already captured via
+      // replaceTopViewport on every pan/zoom, so pushing a fresh IDENTITY
+      // viewport for the child is enough. The child route will see the new
+      // top on mount and skip the cold-land reset.
+      const target = allMaps.find((wm) => wm.id === targetMapId);
+      pushStack({
+        mapId: targetMapId,
+        viewport: IDENTITY_VIEWPORT,
+        breadcrumbLabel: target?.label ?? 'Sub-map',
+      });
+      setEditor(null);
+      router.push(worldMapHref(worldId, targetMapId));
+    },
+    [allMaps, pushStack, router, worldId],
+  );
+
+  const handleCrumbPress = useCallback(
+    (crumb: { mapId: string; depth: number }) => {
+      if (!worldId) return;
+      popStackTo(crumb.depth);
+      router.push(worldMapHref(worldId, crumb.mapId));
+    },
+    [popStackTo, router, worldId],
+  );
+
+  if (!world || !worldId) return null;
+
+  if (error) {
+    return (
+      <View style={styles.centered}>
+        <Text variant="body-md" style={{ color: colors.hpDanger }}>
+          {error}
+        </Text>
+      </View>
+    );
+  }
+
+  if (!map || !imageUrl) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.root}>
+      <WorldTopBar
+        crumbs={[
+          { key: 'chronicle', label: 'Chronicle' },
+          { key: 'world', label: world.name },
+          { key: 'map', label: map.label },
+        ]}
+      />
+      <MapBreadcrumbs crumbs={crumbs} onCrumbPress={handleCrumbPress} />
+      <View
+        style={styles.canvasFrame}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          setCanvasSize((prev) =>
+            prev && prev.w === width && prev.h === height ? prev : { w: width, h: height },
+          );
+        }}
+      >
+        {scaleBounds && initialViewport ? (
+          <MapCanvas
+            ref={canvasRef}
+            imageUrl={imageUrl}
+            imageWidth={map.image_width}
+            imageHeight={map.image_height}
+            minScale={scaleBounds.min}
+            maxScale={scaleBounds.max}
+            initialViewport={initialViewport}
+            onViewportChange={(v) => {
+              setLiveScale(v.scale);
+              replaceTopViewport(v);
+            }}
+            onCanvasClick={placementMode ? handleCanvasClick : undefined}
+            onCanvasRightClick={isOwner ? handleCanvasRightClick : undefined}
+          >
+            <PinLayer
+              pins={pins}
+              pinTypes={pinTypes}
+              imageWidth={map.image_width}
+              imageHeight={map.image_height}
+              visibleTypes={visibleTypes}
+              onPinPress={handlePinPress}
+            />
+          </MapCanvas>
+        ) : null}
+
+        <PinFilterBar
+          pinTypes={pinTypes}
+          visibleTypes={visibleTypes}
+          onToggle={toggleType}
+          onAllToggle={toggleAll}
+          allVisible={allVisible}
+        />
+
+        {scaleBounds ? (
+          <View style={styles.zoomControl} pointerEvents="box-none">
+            <ZoomControl
+              scale={liveScale}
+              minScale={scaleBounds.min}
+              maxScale={scaleBounds.max}
+              onZoomIn={() => canvasRef.current?.zoomIn()}
+              onZoomOut={() => canvasRef.current?.zoomOut()}
+            />
+          </View>
+        ) : null}
+
+        {isOwner ? (
+          <View style={styles.toolbar} pointerEvents="box-none">
+            <GhostButton label="Upload map" onPress={() => setUploadOpen(true)} />
+            {placementMode ? (
+              <GhostButton label="Cancel placement" onPress={() => setPlacementMode(false)} />
+            ) : (
+              <GradientButton
+                label="+ Pin"
+                onPress={() => setPlacementMode(true)}
+              />
+            )}
+          </View>
+        ) : null}
+
+        {placementMode ? (
+          <View style={styles.placementBanner} pointerEvents="none">
+            <Icon name="place" size={14} color={colors.primary} />
+            <Text variant="label-sm" style={{ marginLeft: 6, color: colors.onSurface }}>
+              Click the map to drop a pin — or right-click anywhere, any time
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      {editor ? (
+        <PinEditorModal
+          initial={editor}
+          pinTypes={pinTypes}
+          pages={pagesForEditor}
+          subMapIdByPageId={subMapIdByPageId}
+          onClose={() => setEditor(null)}
+          onSave={handleSave}
+          onDelete={editor.id ? handleDelete : undefined}
+          onNavigateToLinkedPage={(pageId) => {
+            setEditor(null);
+            router.push(worldPageHref(worldId, pageId));
+          }}
+          onOpenSubMap={handleOpenSubMap}
+        />
+      ) : null}
+
+      {uploadOpen ? (
+        <MapUploadModal
+          worldId={worldId}
+          onClose={() => setUploadOpen(false)}
+          onUploaded={(newMap) => {
+            setUploadOpen(false);
+            router.push(`/world/${worldId}/map/${newMap.id}`);
+          }}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.surfaceCanvas },
+  canvasFrame: { flex: 1, position: 'relative' },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceCanvas,
+  },
+  toolbar: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    right: spacing.lg,
+    zIndex: 3,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+  zoomControl: {
+    position: 'absolute',
+    bottom: spacing.lg + 56,
+    right: spacing.lg,
+    zIndex: 3,
+  },
+  placementBanner: {
+    position: 'absolute',
+    top: spacing.md + 44,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: colors.primary + '55',
+    zIndex: 3,
+  },
+});

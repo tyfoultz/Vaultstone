@@ -1,10 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { buildPageTree, usePagesStore } from '@vaultstone/store';
-import type { WorldSection } from '@vaultstone/types';
+import {
+  buildPageTree,
+  useCurrentWorldStore,
+  usePagesStore,
+} from '@vaultstone/store';
+import type { WorldPage, WorldSection } from '@vaultstone/types';
 import { Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
 
+import { isPageVisibleToPlayersPreview } from './playerViewFilters';
 import { SidebarPageRow } from './SidebarPageRow';
 import { worldSectionHref } from './worldHref';
 
@@ -21,7 +26,15 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage }: Pr
   // useMemo. Doing the tree build inside the Zustand selector returned a
   // fresh nested object on every call → React #185 infinite re-render.
   const rawPages = usePagesStore((s) => s.byWorldId[worldId]);
-  const tree = useMemo(() => buildPageTree(rawPages, section.id), [rawPages, section.id]);
+  const playerView = useCurrentWorldStore((s) => s.playerViewPreview);
+  const tree = useMemo(() => {
+    const filtered = playerView
+      ? (rawPages ?? []).filter((p: WorldPage) =>
+          isPageVisibleToPlayersPreview(p, section),
+        )
+      : rawPages;
+    return buildPageTree(filtered, section.id);
+  }, [rawPages, section, playerView]);
   const router = useRouter();
 
   return (

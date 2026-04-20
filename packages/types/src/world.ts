@@ -68,6 +68,9 @@ export type WorldPage = Database['public']['Tables']['world_pages']['Row'];
 export type WorldPageInsert = Database['public']['Tables']['world_pages']['Insert'];
 export type WorldPageUpdate = Database['public']['Tables']['world_pages']['Update'];
 
+export type WorldPagePermission = Database['public']['Tables']['world_page_permissions']['Row'];
+export type WorldPagePermissionLevel = Database['public']['Enums']['world_page_permission_level'];
+
 export interface WorldPageTreeNode {
   page: WorldPage;
   children: WorldPageTreeNode[];

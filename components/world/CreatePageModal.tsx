@@ -78,6 +78,12 @@ export function CreatePageModal({
     if (!template || !section) return;
     setSubmitting(true);
     setError('');
+    // Inherit visibility from the section: force_hidden_from_players is the
+    // trump card (section-wide GM-only), otherwise default_pages_visible
+    // seeds the new page. The page-level eye can still be flipped later.
+    const visibleToPlayers = section.force_hidden_from_players
+      ? false
+      : section.default_pages_visible;
     const { data, error: err } = await createPage({
       worldId,
       sectionId,
@@ -86,6 +92,7 @@ export function CreatePageModal({
       pageKind,
       templateKey: section.template_key,
       templateVersion: getLatestVersion(section.template_key),
+      visibleToPlayers,
       sortOrder: nextSortOrder,
     });
     setSubmitting(false);

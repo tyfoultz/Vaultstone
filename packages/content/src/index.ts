@@ -37,3 +37,7 @@ export {
   listTemplates,
 } from './world-templates';
 export type { TemplateSummary } from './world-templates';
+
+// World-builder page body helpers (Feature 9 Phase 3).
+export { jsonToPlainText } from './body-text';
+export { extractMentionedPageIds, MENTION_NODE_NAME } from './body-refs';
