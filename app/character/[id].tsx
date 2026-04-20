@@ -548,7 +548,7 @@ export default function CharacterSheetScreen() {
   if (error || !character || !stats || !resources || !scores) {
     return (
       <View style={s.loadingContainer}>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginBottom: spacing.lg }}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(drawer)/characters')} style={{ marginBottom: spacing.lg }}>
           <Text style={{ color: colors.brand, fontSize: 14 }}>← Back</Text>
         </TouchableOpacity>
         <Text style={{ color: colors.hpDanger }}>{error || 'Character not found.'}</Text>
@@ -652,7 +652,7 @@ export default function CharacterSheetScreen() {
 
             {/* Back + portrait + name */}
             <View style={s.deskHeader}>
-              <TouchableOpacity onPress={() => router.back()} style={s.deskBackBtn} hitSlop={8}>
+              <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(drawer)/characters')} style={s.deskBackBtn} hitSlop={8}>
                 <MaterialCommunityIcons name="chevron-left" size={20} color={colors.onSurfaceVariant} />
                 <Text style={s.deskBackLabel}>Characters</Text>
               </TouchableOpacity>
@@ -783,7 +783,7 @@ export default function CharacterSheetScreen() {
         <>
           {/* Top Chrome */}
           <View style={s.topChrome}>
-            <TouchableOpacity onPress={() => router.back()} style={s.backBtn} hitSlop={8}>
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(drawer)/characters')} style={s.backBtn} hitSlop={8}>
               <MaterialCommunityIcons name="chevron-left" size={22} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
 
