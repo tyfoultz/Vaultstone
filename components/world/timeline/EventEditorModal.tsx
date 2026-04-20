@@ -55,8 +55,22 @@ export function EventEditorModal({
 
   const parsedTags = tagsText.split(',').map((t) => t.trim()).filter(Boolean);
 
-  const updateDateField = (key: string, value: string) => {
-    setDateValues((prev) => ({ ...prev, [key]: value }));
+  const [dateErrors, setDateErrors] = useState<Record<string, string>>({});
+
+  const updateDateField = (key: string, value: string, unitType?: string) => {
+    if (unitType === 'number') {
+      const cleaned = value.replace(/[^0-9\-]/g, '');
+      if (value !== cleaned) {
+        setDateErrors((prev) => ({ ...prev, [key]: 'Numbers only' }));
+        setTimeout(() => setDateErrors((prev) => { const { [key]: _, ...rest } = prev; return rest; }), 2000);
+      } else {
+        setDateErrors((prev) => { const { [key]: _, ...rest } = prev; return rest; });
+      }
+      setDateValues((prev) => ({ ...prev, [key]: cleaned }));
+    } else {
+      setDateErrors((prev) => { const { [key]: _, ...rest } = prev; return rest; });
+      setDateValues((prev) => ({ ...prev, [key]: value }));
+    }
   };
 
   const selectEra = (era: EraDefinition) => {
@@ -201,14 +215,25 @@ export function EventEditorModal({
                           ))}
                         </View>
                       ) : (
-                        <TextInput
-                          style={styles.dateInput}
-                          value={dateValues[unit.key] ?? ''}
-                          onChangeText={(v) => updateDateField(unit.key, v)}
-                          placeholder={unit.label}
-                          placeholderTextColor={colors.outlineVariant}
-                          keyboardType={unit.type === 'number' ? 'numeric' : 'default'}
-                        />
+                        <View style={{ flex: 1, gap: 2 }}>
+                          <TextInput
+                            style={[
+                              styles.dateInput,
+                              dateErrors[unit.key] ? styles.dateInputError : undefined,
+                            ]}
+                            value={dateValues[unit.key] ?? ''}
+                            onChangeText={(v) => updateDateField(unit.key, v, unit.type)}
+                            placeholder={unit.type === 'number' ? `${unit.label} (number)` : unit.label}
+                            placeholderTextColor={colors.outlineVariant}
+                            keyboardType={unit.type === 'number' ? 'numeric' : 'default'}
+                            inputMode={unit.type === 'number' ? 'numeric' : 'text'}
+                          />
+                          {dateErrors[unit.key] ? (
+                            <Text variant="label-sm" style={styles.dateErrorText}>
+                              {dateErrors[unit.key]}
+                            </Text>
+                          ) : null}
+                        </View>
                       )}
                     </View>
                   ))}
@@ -310,10 +335,16 @@ const styles = StyleSheet.create({
   dateFields: { gap: spacing.sm },
   dateFieldRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   dateInput: {
-    flex: 1, color: colors.onSurface, fontSize: 14,
+    color: colors.onSurface, fontSize: 14,
     paddingVertical: 8, paddingHorizontal: spacing.sm,
     borderWidth: 1, borderColor: colors.outlineVariant + '44',
     borderRadius: radius.DEFAULT, backgroundColor: colors.surfaceCanvas,
+  },
+  dateInputError: {
+    borderColor: colors.hpDanger + '88',
+  },
+  dateErrorText: {
+    color: colors.hpDanger, fontSize: 10,
   },
   optionChips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   optionChip: {
