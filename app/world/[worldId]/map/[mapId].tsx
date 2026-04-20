@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -25,11 +25,12 @@ import type { WorldPage } from '@vaultstone/types';
 import { GhostButton, GradientButton, Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 import { MapBreadcrumbs } from '../../../../components/world/map/MapBreadcrumbs';
-import { MapCanvas } from '../../../../components/world/map/MapCanvas';
+import { MapCanvas, type MapCanvasHandle } from '../../../../components/world/map/MapCanvas';
 import { MapUploadModal } from '../../../../components/world/map/MapUploadModal';
 import { PinEditorModal, type PinEditorInitial } from '../../../../components/world/map/PinEditorModal';
 import { PinFilterBar } from '../../../../components/world/map/PinFilterBar';
 import { PinLayer } from '../../../../components/world/map/PinLayer';
+import { ZoomControl } from '../../../../components/world/map/ZoomControl';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { worldMapHref, worldPageHref } from '../../../../components/world/worldHref';
 
@@ -62,6 +63,8 @@ export default function WorldMapScreen() {
   const [placementMode, setPlacementMode] = useState(false);
   const [editor, setEditor] = useState<PinEditorInitial | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [liveScale, setLiveScale] = useState(savedViewport.scale);
+  const canvasRef = useRef<MapCanvasHandle | null>(null);
 
   useEffect(() => {
     if (!mapId || !worldId) return;
@@ -278,11 +281,15 @@ export default function WorldMapScreen() {
       <MapBreadcrumbs crumbs={crumbs} onCrumbPress={handleCrumbPress} />
       <View style={styles.canvasFrame}>
         <MapCanvas
+          ref={canvasRef}
           imageUrl={imageUrl}
           imageWidth={map.image_width}
           imageHeight={map.image_height}
           initialViewport={savedViewport}
-          onViewportChange={replaceTopViewport}
+          onViewportChange={(v) => {
+            setLiveScale(v.scale);
+            replaceTopViewport(v);
+          }}
           onCanvasClick={placementMode ? handleCanvasClick : undefined}
           onCanvasRightClick={isOwner ? handleCanvasRightClick : undefined}
         >
@@ -303,6 +310,16 @@ export default function WorldMapScreen() {
           onAllToggle={toggleAll}
           allVisible={allVisible}
         />
+
+        <View style={styles.zoomControl} pointerEvents="box-none">
+          <ZoomControl
+            scale={liveScale}
+            minScale={1}
+            maxScale={4}
+            onZoomIn={() => canvasRef.current?.zoomIn()}
+            onZoomOut={() => canvasRef.current?.zoomOut()}
+          />
+        </View>
 
         {isOwner ? (
           <View style={styles.toolbar} pointerEvents="box-none">
@@ -376,6 +393,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     alignItems: 'center',
+  },
+  zoomControl: {
+    position: 'absolute',
+    bottom: spacing.lg + 56,
+    right: spacing.lg,
+    zIndex: 3,
   },
   placementBanner: {
     position: 'absolute',

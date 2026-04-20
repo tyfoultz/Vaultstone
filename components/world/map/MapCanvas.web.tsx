@@ -1,8 +1,23 @@
-import { useCallback, useRef, type ReactNode } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useRef, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { GhostButton, colors, spacing } from '@vaultstone/ui';
 import type { MapStackViewport } from '@vaultstone/store';
+
+// Scale bounds and step shared with the ZoomControl bar. 8 linear steps
+// from minScale → maxScale means each +/- button click changes scale by
+// 0.375. Wheel step is sized so one typical mouse-wheel notch (deltaY≈100)
+// produces the same 0.375 change — trackpads (small deltaY) still feel
+// smooth because the library multiplies step × |deltaY| in smooth mode.
+export const MIN_SCALE = 1;
+export const MAX_SCALE = 4;
+const SLIDER_STEP = (MAX_SCALE - MIN_SCALE) / 8;
+const WHEEL_STEP = SLIDER_STEP / 100;
+
+export type MapCanvasHandle = {
+  zoomIn: () => void;
+  zoomOut: () => void;
+};
 
 type Props = {
   imageUrl: string;
@@ -15,20 +30,29 @@ type Props = {
   children?: ReactNode;
 };
 
-// Pan/zoom map canvas (web). The TransformWrapper applies a CSS transform
-// to the inner content box; PinLayer lives inside that box so pin positions
-// move with the image naturally.
-export function MapCanvas({
-  imageUrl,
-  imageWidth,
-  imageHeight,
-  initialViewport,
-  onViewportChange,
-  onCanvasClick,
-  onCanvasRightClick,
-  children,
-}: Props) {
-  const ref = useRef<ReactZoomPanPinchRef | null>(null);
+export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
+  {
+    imageUrl,
+    imageWidth,
+    imageHeight,
+    initialViewport,
+    onViewportChange,
+    onCanvasClick,
+    onCanvasRightClick,
+    children,
+  },
+  ref,
+) {
+  const transformRef = useRef<ReactZoomPanPinchRef | null>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      zoomIn: () => transformRef.current?.zoomIn(SLIDER_STEP),
+      zoomOut: () => transformRef.current?.zoomOut(SLIDER_STEP),
+    }),
+    [],
+  );
 
   const handleTransform = useCallback(
     (_ref: ReactZoomPanPinchRef, state: { scale: number; positionX: number; positionY: number }) => {
@@ -73,19 +97,14 @@ export function MapCanvas({
   return (
     <View style={{ flex: 1, backgroundColor: colors.surfaceContainerLowest, position: 'relative' }}>
       <TransformWrapper
-        ref={ref}
+        ref={transformRef}
         initialScale={initialViewport?.scale ?? 1}
         initialPositionX={initialViewport?.translateX ?? 0}
         initialPositionY={initialViewport?.translateY ?? 0}
-        minScale={0.5}
-        maxScale={4}
-        // Smooth zoom uses scale *= exp(step). With max=4 and min=1,
-        // step = ln(4) / 8 ≈ 0.175 gives exactly 8 double-click levels
-        // between the default view and max zoom. Wheel step is the
-        // library default (0.015) — our previous value was 10× too
-        // aggressive and blew past the intended granularity in one scroll.
-        doubleClick={{ step: 0.175 }}
-        wheel={{ step: 0.015 }}
+        minScale={MIN_SCALE}
+        maxScale={MAX_SCALE}
+        doubleClick={{ disabled: true }}
+        wheel={{ step: WHEEL_STEP }}
         panning={{ velocityDisabled: true }}
         velocityAnimation={{ disabled: true }}
         onTransform={handleTransform}
@@ -126,4 +145,4 @@ export function MapCanvas({
       </TransformWrapper>
     </View>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, type ReactNode } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Animated, {
   runOnJS,
@@ -26,22 +26,32 @@ type Props = {
   children?: ReactNode;
 };
 
-const MIN_SCALE = 0.5;
+const MIN_SCALE = 1;
 const MAX_SCALE = 4;
+const ZOOM_STEP = (MAX_SCALE - MIN_SCALE) / 8;
+
+export type MapCanvasHandle = {
+  zoomIn: () => void;
+  zoomOut: () => void;
+};
 
 // Pan/zoom map canvas (native). Mirrors MapCanvas.web's API so the route
 // layer stays platform-agnostic. Gestures are composed simultaneously
-// (pinch + pan) with an exclusive tap branch (double-tap zooms to 2x,
-// single-tap reports a normalised coordinate for placement mode).
-export function MapCanvas({
-  imageUrl,
-  imageWidth,
-  imageHeight,
-  initialViewport,
-  onViewportChange,
-  onCanvasClick,
-  children,
-}: Props) {
+// (pinch + pan); a single-tap reports a normalised coordinate for
+// placement mode. Double-tap zoom is intentionally absent — the canvas
+// exposes imperative zoomIn/zoomOut via ref for the ZoomControl bar.
+export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
+  {
+    imageUrl,
+    imageWidth,
+    imageHeight,
+    initialViewport,
+    onViewportChange,
+    onCanvasClick,
+    children,
+  },
+  handleRef,
+) {
   const scale = useSharedValue(initialViewport?.scale ?? 1);
   const translateX = useSharedValue(initialViewport?.translateX ?? 0);
   const translateY = useSharedValue(initialViewport?.translateY ?? 0);
@@ -88,19 +98,8 @@ export function MapCanvas({
       runOnJS(emit)(scale.value, translateX.value, translateY.value);
     });
 
-  const doubleTap = Gesture.Tap()
-    .numberOfTaps(2)
-    .onEnd(() => {
-      const next = scale.value >= 2 ? 1 : 2;
-      scale.value = withTiming(next, { duration: 200 });
-      translateX.value = withTiming(0, { duration: 200 });
-      translateY.value = withTiming(0, { duration: 200 });
-      runOnJS(emit)(next, 0, 0);
-    });
-
   const singleTap = Gesture.Tap()
     .maxDuration(250)
-    .requireExternalGestureToFail(doubleTap)
     .onEnd((e, success) => {
       if (!success) return;
       const xPct = e.x / imageWidth;
@@ -110,7 +109,25 @@ export function MapCanvas({
       }
     });
 
-  const composed = Gesture.Simultaneous(pinch, pan, Gesture.Exclusive(doubleTap, singleTap));
+  const composed = Gesture.Simultaneous(pinch, pan, singleTap);
+
+  const zoomBy = useCallback(
+    (delta: number) => {
+      const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale.value + delta));
+      scale.value = withTiming(next, { duration: 150 });
+      emit(next, translateX.value, translateY.value);
+    },
+    [emit, scale, translateX, translateY],
+  );
+
+  useImperativeHandle(
+    handleRef,
+    () => ({
+      zoomIn: () => zoomBy(ZOOM_STEP),
+      zoomOut: () => zoomBy(-ZOOM_STEP),
+    }),
+    [zoomBy],
+  );
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -144,7 +161,7 @@ export function MapCanvas({
       </View>
     </GestureHandlerRootView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   root: {
