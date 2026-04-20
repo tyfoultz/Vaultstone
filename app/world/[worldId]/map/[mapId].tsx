@@ -44,8 +44,11 @@ export default function WorldMapScreen() {
   const isOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const worldPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] ?? EMPTY_PAGES : EMPTY_PAGES));
 
-  const savedViewport = useWorldMapStackStore(
-    (s) => (mapId ? s.viewportByMapId[mapId] : undefined) ?? IDENTITY_VIEWPORT,
+  // Raw stored viewport (undefined = first landing on this map). We deliberately
+  // don't fall back to IDENTITY_VIEWPORT here — the route needs to know the
+  // difference so the first view can start at fitScale instead of 1.
+  const storedViewport = useWorldMapStackStore(
+    (s) => (mapId ? s.viewportByMapId[mapId] : undefined),
   );
   const stack = useWorldMapStackStore((s) => s.stack);
   const resetStack = useWorldMapStackStore((s) => s.reset);
@@ -63,7 +66,8 @@ export default function WorldMapScreen() {
   const [placementMode, setPlacementMode] = useState(false);
   const [editor, setEditor] = useState<PinEditorInitial | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [liveScale, setLiveScale] = useState(savedViewport.scale);
+  const [liveScale, setLiveScale] = useState(storedViewport?.scale ?? 1);
+  const [canvasSize, setCanvasSize] = useState<{ w: number; h: number } | null>(null);
   const canvasRef = useRef<MapCanvasHandle | null>(null);
 
   useEffect(() => {
@@ -206,6 +210,38 @@ export default function WorldMapScreen() {
     setPins((prev) => prev.filter((p) => p.id !== editor.id));
   }, [editor]);
 
+  // Fit-to-view minScale: smallest scale that fits the whole image inside
+  // the canvas frame. Upper bound = 4× that so the zoom bar always has the
+  // same 8 even steps regardless of image resolution. Null while we're still
+  // waiting on the first onLayout measurement.
+  const scaleBounds = useMemo(() => {
+    if (!canvasSize || !map) return null;
+    const fit = Math.min(canvasSize.w / map.image_width, canvasSize.h / map.image_height);
+    if (!Number.isFinite(fit) || fit <= 0) return null;
+    return { min: fit, max: fit * 4 };
+  }, [canvasSize, map]);
+
+  // Cold landings start at fitScale so the whole map is visible regardless
+  // of image resolution. Returning visits restore the stored viewport,
+  // clamped to the current bounds in case the frame has resized.
+  // We also treat a literal-identity stored viewport (scale=1, tx=0, ty=0)
+  // as "never touched" — resetStack seeds it that way on first landing,
+  // so distinguishing would require a store-shape change.
+  const initialViewport = useMemo(() => {
+    if (!scaleBounds) return null;
+    const isUntouched =
+      !storedViewport ||
+      (storedViewport.scale === 1 && storedViewport.translateX === 0 && storedViewport.translateY === 0);
+    if (isUntouched) {
+      return { scale: scaleBounds.min, translateX: 0, translateY: 0 };
+    }
+    return {
+      scale: Math.max(scaleBounds.min, Math.min(scaleBounds.max, storedViewport!.scale)),
+      translateX: storedViewport!.translateX,
+      translateY: storedViewport!.translateY,
+    };
+  }, [scaleBounds, storedViewport]);
+
   const pagesForEditor = useMemo(() => worldPages, [worldPages]);
 
   const subMapIdByPageId = useMemo(() => {
@@ -279,29 +315,41 @@ export default function WorldMapScreen() {
         ]}
       />
       <MapBreadcrumbs crumbs={crumbs} onCrumbPress={handleCrumbPress} />
-      <View style={styles.canvasFrame}>
-        <MapCanvas
-          ref={canvasRef}
-          imageUrl={imageUrl}
-          imageWidth={map.image_width}
-          imageHeight={map.image_height}
-          initialViewport={savedViewport}
-          onViewportChange={(v) => {
-            setLiveScale(v.scale);
-            replaceTopViewport(v);
-          }}
-          onCanvasClick={placementMode ? handleCanvasClick : undefined}
-          onCanvasRightClick={isOwner ? handleCanvasRightClick : undefined}
-        >
-          <PinLayer
-            pins={pins}
-            pinTypes={pinTypes}
+      <View
+        style={styles.canvasFrame}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          setCanvasSize((prev) =>
+            prev && prev.w === width && prev.h === height ? prev : { w: width, h: height },
+          );
+        }}
+      >
+        {scaleBounds && initialViewport ? (
+          <MapCanvas
+            ref={canvasRef}
+            imageUrl={imageUrl}
             imageWidth={map.image_width}
             imageHeight={map.image_height}
-            visibleTypes={visibleTypes}
-            onPinPress={handlePinPress}
-          />
-        </MapCanvas>
+            minScale={scaleBounds.min}
+            maxScale={scaleBounds.max}
+            initialViewport={initialViewport}
+            onViewportChange={(v) => {
+              setLiveScale(v.scale);
+              replaceTopViewport(v);
+            }}
+            onCanvasClick={placementMode ? handleCanvasClick : undefined}
+            onCanvasRightClick={isOwner ? handleCanvasRightClick : undefined}
+          >
+            <PinLayer
+              pins={pins}
+              pinTypes={pinTypes}
+              imageWidth={map.image_width}
+              imageHeight={map.image_height}
+              visibleTypes={visibleTypes}
+              onPinPress={handlePinPress}
+            />
+          </MapCanvas>
+        ) : null}
 
         <PinFilterBar
           pinTypes={pinTypes}
@@ -311,15 +359,17 @@ export default function WorldMapScreen() {
           allVisible={allVisible}
         />
 
-        <View style={styles.zoomControl} pointerEvents="box-none">
-          <ZoomControl
-            scale={liveScale}
-            minScale={1}
-            maxScale={4}
-            onZoomIn={() => canvasRef.current?.zoomIn()}
-            onZoomOut={() => canvasRef.current?.zoomOut()}
-          />
-        </View>
+        {scaleBounds ? (
+          <View style={styles.zoomControl} pointerEvents="box-none">
+            <ZoomControl
+              scale={liveScale}
+              minScale={scaleBounds.min}
+              maxScale={scaleBounds.max}
+              onZoomIn={() => canvasRef.current?.zoomIn()}
+              onZoomOut={() => canvasRef.current?.zoomOut()}
+            />
+          </View>
+        ) : null}
 
         {isOwner ? (
           <View style={styles.toolbar} pointerEvents="box-none">

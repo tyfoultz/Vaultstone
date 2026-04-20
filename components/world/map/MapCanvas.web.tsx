@@ -4,16 +4,6 @@ import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 
 import { GhostButton, colors, spacing } from '@vaultstone/ui';
 import type { MapStackViewport } from '@vaultstone/store';
 
-// Scale bounds and step shared with the ZoomControl bar. 8 linear steps
-// from minScale → maxScale means each +/- button click changes scale by
-// 0.375. Wheel step is sized so one typical mouse-wheel notch (deltaY≈100)
-// produces the same 0.375 change — trackpads (small deltaY) still feel
-// smooth because the library multiplies step × |deltaY| in smooth mode.
-export const MIN_SCALE = 1;
-export const MAX_SCALE = 4;
-const SLIDER_STEP = (MAX_SCALE - MIN_SCALE) / 8;
-const WHEEL_STEP = SLIDER_STEP / 100;
-
 export type MapCanvasHandle = {
   zoomIn: () => void;
   zoomOut: () => void;
@@ -23,6 +13,11 @@ type Props = {
   imageUrl: string;
   imageWidth: number;
   imageHeight: number;
+  // Scale bounds for this map. Route computes fit-scale from canvas
+  // dimensions so the whole map is visible at the default view, and
+  // passes fitScale (minScale + initialScale) and fitScale * 4 (maxScale).
+  minScale: number;
+  maxScale: number;
   initialViewport?: MapStackViewport;
   onViewportChange?: (v: MapStackViewport) => void;
   onCanvasClick?: (args: { xPct: number; yPct: number }) => void;
@@ -35,6 +30,8 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     imageUrl,
     imageWidth,
     imageHeight,
+    minScale,
+    maxScale,
     initialViewport,
     onViewportChange,
     onCanvasClick,
@@ -45,13 +42,33 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
 ) {
   const transformRef = useRef<ReactZoomPanPinchRef | null>(null);
 
+  // 8 linear steps between min and max. setTransform (not zoomIn/Out)
+  // so each click is an EVEN scale delta — zoomIn/Out uses scale*exp(step)
+  // in smooth mode, which bunches levels at the high end.
+  const sliderStep = (maxScale - minScale) / 8;
+  // Mouse wheel: one notch (deltaY ≈ 100) = one slider step. Trackpads
+  // (small deltaY) stay smooth because the library multiplies step × |deltaY|.
+  const wheelStep = sliderStep / 100;
+
+  const zoomBy = useCallback(
+    (delta: number) => {
+      const t = transformRef.current;
+      if (!t) return;
+      const { scale, positionX, positionY } = t.state;
+      const next = Math.max(minScale, Math.min(maxScale, scale + delta));
+      if (next === scale) return;
+      t.setTransform(positionX, positionY, next, 150);
+    },
+    [minScale, maxScale],
+  );
+
   useImperativeHandle(
     ref,
     () => ({
-      zoomIn: () => transformRef.current?.zoomIn(SLIDER_STEP),
-      zoomOut: () => transformRef.current?.zoomOut(SLIDER_STEP),
+      zoomIn: () => zoomBy(sliderStep),
+      zoomOut: () => zoomBy(-sliderStep),
     }),
-    [],
+    [zoomBy, sliderStep],
   );
 
   const handleTransform = useCallback(
@@ -94,17 +111,22 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
 
   const pointerEventsMode: 'auto' | 'none' = onCanvasClick || onCanvasRightClick ? 'auto' : 'none';
 
+  const initialScale = initialViewport?.scale ?? minScale;
+  const initialX = initialViewport?.translateX ?? 0;
+  const initialY = initialViewport?.translateY ?? 0;
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.surfaceContainerLowest, position: 'relative' }}>
       <TransformWrapper
         ref={transformRef}
-        initialScale={initialViewport?.scale ?? 1}
-        initialPositionX={initialViewport?.translateX ?? 0}
-        initialPositionY={initialViewport?.translateY ?? 0}
-        minScale={MIN_SCALE}
-        maxScale={MAX_SCALE}
+        initialScale={initialScale}
+        initialPositionX={initialX}
+        initialPositionY={initialY}
+        minScale={minScale}
+        maxScale={maxScale}
+        centerOnInit
         doubleClick={{ disabled: true }}
-        wheel={{ step: WHEEL_STEP }}
+        wheel={{ step: wheelStep }}
         panning={{ velocityDisabled: true }}
         velocityAnimation={{ disabled: true }}
         onTransform={handleTransform}

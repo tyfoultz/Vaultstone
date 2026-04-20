@@ -18,6 +18,10 @@ type Props = {
   imageUrl: string;
   imageWidth: number;
   imageHeight: number;
+  // Scale bounds derived by the route from canvas dimensions so the default
+  // view fits the whole map regardless of image resolution.
+  minScale: number;
+  maxScale: number;
   initialViewport?: MapStackViewport;
   onViewportChange?: (v: MapStackViewport) => void;
   onCanvasClick?: (args: { xPct: number; yPct: number }) => void;
@@ -25,10 +29,6 @@ type Props = {
   onCanvasRightClick?: (args: { xPct: number; yPct: number }) => void;
   children?: ReactNode;
 };
-
-const MIN_SCALE = 1;
-const MAX_SCALE = 4;
-const ZOOM_STEP = (MAX_SCALE - MIN_SCALE) / 8;
 
 export type MapCanvasHandle = {
   zoomIn: () => void;
@@ -45,6 +45,8 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     imageUrl,
     imageWidth,
     imageHeight,
+    minScale,
+    maxScale,
     initialViewport,
     onViewportChange,
     onCanvasClick,
@@ -52,7 +54,8 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
   },
   handleRef,
 ) {
-  const scale = useSharedValue(initialViewport?.scale ?? 1);
+  const sliderStep = (maxScale - minScale) / 8;
+  const scale = useSharedValue(initialViewport?.scale ?? minScale);
   const translateX = useSharedValue(initialViewport?.translateX ?? 0);
   const translateY = useSharedValue(initialViewport?.translateY ?? 0);
   const savedScale = useSharedValue(scale.value);
@@ -78,7 +81,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
       savedScale.value = scale.value;
     })
     .onUpdate((e) => {
-      const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, savedScale.value * e.scale));
+      const next = Math.max(minScale, Math.min(maxScale, savedScale.value * e.scale));
       scale.value = next;
     })
     .onEnd(() => {
@@ -113,20 +116,20 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
 
   const zoomBy = useCallback(
     (delta: number) => {
-      const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale.value + delta));
+      const next = Math.max(minScale, Math.min(maxScale, scale.value + delta));
       scale.value = withTiming(next, { duration: 150 });
       emit(next, translateX.value, translateY.value);
     },
-    [emit, scale, translateX, translateY],
+    [emit, scale, translateX, translateY, minScale, maxScale],
   );
 
   useImperativeHandle(
     handleRef,
     () => ({
-      zoomIn: () => zoomBy(ZOOM_STEP),
-      zoomOut: () => zoomBy(-ZOOM_STEP),
+      zoomIn: () => zoomBy(sliderStep),
+      zoomOut: () => zoomBy(-sliderStep),
     }),
-    [zoomBy],
+    [zoomBy, sliderStep],
   );
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -138,10 +141,10 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
   }));
 
   const reset = () => {
-    scale.value = withTiming(1, { duration: 200 });
+    scale.value = withTiming(minScale, { duration: 200 });
     translateX.value = withTiming(0, { duration: 200 });
     translateY.value = withTiming(0, { duration: 200 });
-    emit(1, 0, 0);
+    emit(minScale, 0, 0);
   };
 
   return (
