@@ -47,6 +47,11 @@ export function EventEditorModal({
   const [visibleToPlayers, setVisibleToPlayers] = useState(event?.visible_to_players ?? true);
   const [saving, setSaving] = useState(false);
 
+  const eraUnit = calendarSchema.length > 0 && calendarSchema[0].type === 'ordered_list'
+    ? calendarSchema[0]
+    : null;
+  const dateLevels = eraUnit ? calendarSchema.slice(1) : calendarSchema;
+
   const addEvent = useTimelineEventsStore((s) => s.addEvent);
   const updateEvent = useTimelineEventsStore((s) => s.updateEvent);
   const removeEvent = useTimelineEventsStore((s) => s.removeEvent);
@@ -139,12 +144,46 @@ export function EventEditorModal({
               />
             </View>
 
-            {/* Date fields from calendar schema */}
-            {calendarSchema.length > 0 ? (
+            {/* Era picker — first unit if it's an ordered_list */}
+            {eraUnit ? (
+              <View style={styles.field}>
+                <Text variant="label-md" tone="secondary">
+                  {eraUnit.label || 'Era'}
+                </Text>
+                <View style={styles.eraChips}>
+                  {(eraUnit.options ?? []).filter(Boolean).map((opt) => (
+                    <Pressable
+                      key={opt}
+                      onPress={() => updateDateField(eraUnit.key, dateValues[eraUnit.key] === opt ? '' : opt)}
+                      style={[
+                        styles.eraChip,
+                        dateValues[eraUnit.key] === opt && styles.eraChipActive,
+                      ]}
+                    >
+                      <Text
+                        variant="label-md"
+                        style={{
+                          color:
+                            dateValues[eraUnit.key] === opt
+                              ? colors.primary
+                              : colors.onSurfaceVariant,
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        {opt}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {/* Remaining date levels */}
+            {dateLevels.length > 0 ? (
               <View style={styles.field}>
                 <Text variant="label-md" tone="secondary">Date</Text>
                 <View style={styles.dateFields}>
-                  {calendarSchema.map((unit) => (
+                  {dateLevels.map((unit) => (
                     <View key={unit.key} style={styles.dateFieldRow}>
                       <Text variant="label-sm" tone="muted" style={{ width: 80 }}>
                         {unit.label}
@@ -305,6 +344,23 @@ const styles = StyleSheet.create({
   descInput: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  eraChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  eraChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: colors.surfaceCanvas,
+  },
+  eraChipActive: {
+    borderColor: colors.primary + '88',
+    backgroundColor: colors.primaryContainer + '55',
   },
   dateFields: {
     gap: spacing.sm,

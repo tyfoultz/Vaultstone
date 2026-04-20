@@ -5,12 +5,6 @@ import { usePagesStore } from '@vaultstone/store';
 import type { CalendarSchema, CalendarUnit, CalendarUnitType, Json, WorldPage } from '@vaultstone/types';
 import { Card, Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
 
-const UNIT_TYPE_OPTIONS: { value: CalendarUnitType; label: string }[] = [
-  { value: 'text', label: 'Text' },
-  { value: 'number', label: 'Number' },
-  { value: 'ordered_list', label: 'Ordered list' },
-];
-
 function slugify(label: string): string {
   return label
     .toLowerCase()
@@ -25,7 +19,6 @@ type Props = {
 };
 
 export function CalendarSchemaEditor({ page, onSaveStateChange }: Props) {
-  const [collapsed, setCollapsed] = useState(true);
   const [schema, setSchema] = useState<CalendarSchema>(
     () => parseSchema(page.structured_fields),
   );
@@ -69,20 +62,48 @@ export function CalendarSchemaEditor({ page, onSaveStateChange }: Props) {
     };
   }, []);
 
-  const addUnit = () => {
-    const next: CalendarSchema = [
-      ...schema,
-      { key: `unit_${schema.length}`, label: '', type: 'text' },
-    ];
-    save(next);
+  // --- Derived state ---
+  const eraUnit = schema.length > 0 && schema[0].type === 'ordered_list' ? schema[0] : null;
+  const dateLevels = eraUnit ? schema.slice(1) : schema;
+  const eras = eraUnit?.options ?? [];
+
+  // --- Era management ---
+  const setEras = (nextEras: string[]) => {
+    const unit: CalendarUnit = {
+      key: eraUnit?.key ?? 'era',
+      label: eraUnit?.label ?? 'Era',
+      type: 'ordered_list',
+      options: nextEras,
+    };
+    save([unit, ...dateLevels]);
   };
 
-  const removeUnit = (idx: number) => {
-    save(schema.filter((_, i) => i !== idx));
+  const addEra = () => setEras([...eras, '']);
+  const updateEra = (idx: number, value: string) => {
+    const next = [...eras];
+    next[idx] = value;
+    setEras(next);
+  };
+  const removeEra = (idx: number) => setEras(eras.filter((_, i) => i !== idx));
+
+  const initEras = () => {
+    const unit: CalendarUnit = {
+      key: 'era',
+      label: 'Era',
+      type: 'ordered_list',
+      options: [''],
+    };
+    save([unit, ...dateLevels]);
   };
 
-  const updateUnit = (idx: number, patch: Partial<CalendarUnit>) => {
-    const next = schema.map((u, i) => {
+  // --- Date level management ---
+  const addDateLevel = () => {
+    const base = eraUnit ? [eraUnit] : [];
+    save([...base, ...dateLevels, { key: `level_${dateLevels.length}`, label: '', type: 'number' }]);
+  };
+
+  const updateDateLevel = (idx: number, patch: Partial<CalendarUnit>) => {
+    const next = dateLevels.map((u, i) => {
       if (i !== idx) return u;
       const updated = { ...u, ...patch };
       if (patch.label !== undefined) {
@@ -93,132 +114,189 @@ export function CalendarSchemaEditor({ page, onSaveStateChange }: Props) {
       }
       return updated;
     });
-    save(next);
+    const base = eraUnit ? [eraUnit] : [];
+    save([...base, ...next]);
   };
 
-  const addOption = (unitIdx: number) => {
-    const unit = schema[unitIdx];
-    const opts = [...(unit.options ?? []), ''];
-    updateUnit(unitIdx, { options: opts });
+  const removeDateLevel = (idx: number) => {
+    const next = dateLevels.filter((_, i) => i !== idx);
+    const base = eraUnit ? [eraUnit] : [];
+    save([...base, ...next]);
   };
 
-  const updateOption = (unitIdx: number, optIdx: number, value: string) => {
-    const unit = schema[unitIdx];
-    const opts = [...(unit.options ?? [])];
+  const addLevelOption = (levelIdx: number) => {
+    const level = dateLevels[levelIdx];
+    updateDateLevel(levelIdx, { options: [...(level.options ?? []), ''] });
+  };
+  const updateLevelOption = (levelIdx: number, optIdx: number, value: string) => {
+    const level = dateLevels[levelIdx];
+    const opts = [...(level.options ?? [])];
     opts[optIdx] = value;
-    updateUnit(unitIdx, { options: opts });
+    updateDateLevel(levelIdx, { options: opts });
   };
-
-  const removeOption = (unitIdx: number, optIdx: number) => {
-    const unit = schema[unitIdx];
-    const opts = (unit.options ?? []).filter((_, i) => i !== optIdx);
-    updateUnit(unitIdx, { options: opts });
+  const removeLevelOption = (levelIdx: number, optIdx: number) => {
+    const level = dateLevels[levelIdx];
+    updateDateLevel(levelIdx, { options: (level.options ?? []).filter((_, i) => i !== optIdx) });
   };
-
-  // Auto-expand when schema is empty (first-time setup)
-  const isEmpty = schema.length === 0;
-  const isOpen = isEmpty || !collapsed;
 
   return (
     <Card tier="container" padding="md" style={styles.root}>
-      <Pressable
-        style={styles.header}
-        onPress={() => setCollapsed(!collapsed)}
-        accessibilityRole="button"
-        accessibilityLabel={isOpen ? 'Collapse calendar schema' : 'Expand calendar schema'}
-      >
-        <Icon
-          name={isOpen ? 'expand-less' : 'expand-more'}
-          size={20}
-          color={colors.cosmic}
-        />
-        <Text variant="label-lg" weight="semibold" style={{ color: colors.cosmic }}>
-          Calendar Schema
-        </Text>
-        <MetaLabel size="sm" tone="muted" style={{ marginLeft: 'auto' }}>
-          {schema.length} unit{schema.length !== 1 ? 's' : ''}
-        </MetaLabel>
-      </Pressable>
+      {/* ── Section 1: Eras / Phases ── */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Icon name="auto-awesome" size={16} color={colors.primary} />
+          <Text variant="label-lg" weight="semibold" style={{ color: colors.primary }}>
+            Eras & Phases
+          </Text>
+          <MetaLabel size="sm" tone="muted" style={{ marginLeft: 'auto' }}>
+            Events are grouped under these
+          </MetaLabel>
+        </View>
 
-      {isOpen ? (
-        <View style={styles.body}>
-          {schema.map((unit, idx) => (
-            <View key={idx} style={styles.unitRow}>
-              <View style={styles.unitMain}>
+        {eraUnit ? (
+          <View style={styles.eraList}>
+            {eras.map((era, idx) => (
+              <View key={idx} style={styles.eraRow}>
+                <Text variant="label-sm" tone="muted" style={styles.eraNum}>
+                  {idx + 1}
+                </Text>
                 <TextInput
-                  style={styles.labelInput}
-                  value={unit.label}
-                  onChangeText={(text) => updateUnit(idx, { label: text })}
-                  placeholder="Label (e.g. Era, Year)"
+                  style={styles.eraInput}
+                  value={era}
+                  onChangeText={(text) => updateEra(idx, text)}
+                  placeholder={`Era ${idx + 1} (e.g. Age of Fire)`}
                   placeholderTextColor={colors.outlineVariant}
                 />
-                <View style={styles.typeSelector}>
-                  {UNIT_TYPE_OPTIONS.map((opt) => (
-                    <Pressable
-                      key={opt.value}
-                      onPress={() => updateUnit(idx, { type: opt.value })}
-                      style={[
-                        styles.typeChip,
-                        unit.type === opt.value && styles.typeChipActive,
-                      ]}
-                    >
-                      <Text
-                        variant="label-sm"
-                        style={{
-                          color: unit.type === opt.value ? colors.cosmic : colors.onSurfaceVariant,
-                        }}
-                      >
-                        {opt.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <Pressable onPress={() => removeUnit(idx)} hitSlop={8}>
-                  <Icon name="close" size={16} color={colors.outlineVariant} />
+                <Pressable onPress={() => removeEra(idx)} hitSlop={8}>
+                  <Icon name="close" size={14} color={colors.outlineVariant} />
                 </Pressable>
               </View>
-
-              {unit.type === 'ordered_list' ? (
-                <View style={styles.optionsList}>
-                  {(unit.options ?? []).map((opt, optIdx) => (
-                    <View key={optIdx} style={styles.optionRow}>
-                      <Text variant="label-sm" tone="muted" style={{ width: 18 }}>
-                        {optIdx + 1}.
-                      </Text>
-                      <TextInput
-                        style={styles.optionInput}
-                        value={opt}
-                        onChangeText={(text) => updateOption(idx, optIdx, text)}
-                        placeholder="Option value"
-                        placeholderTextColor={colors.outlineVariant}
-                      />
-                      <Pressable onPress={() => removeOption(idx, optIdx)} hitSlop={8}>
-                        <Icon name="close" size={14} color={colors.outlineVariant} />
-                      </Pressable>
-                    </View>
-                  ))}
-                  <Pressable onPress={() => addOption(idx)} style={styles.addOptionBtn}>
-                    <Icon name="add" size={14} color={colors.cosmic} />
-                    <Text variant="label-sm" style={{ color: colors.cosmic }}>
-                      Add option
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : null}
-            </View>
-          ))}
-
-          <Pressable onPress={addUnit} style={styles.addUnitBtn}>
-            <Icon name="add" size={16} color={colors.cosmic} />
-            <Text variant="label-md" style={{ color: colors.cosmic }}>
-              Add date unit
+            ))}
+            <Pressable onPress={addEra} style={styles.addBtn}>
+              <Icon name="add" size={14} color={colors.primary} />
+              <Text variant="label-sm" style={{ color: colors.primary }}>
+                Add era
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={initEras} style={styles.setupBtn}>
+            <Icon name="add" size={16} color={colors.primary} />
+            <Text variant="label-md" style={{ color: colors.primary }}>
+              Define your eras
             </Text>
           </Pressable>
+        )}
+      </View>
+
+      {/* ── Section 2: Date Levels ── */}
+      <View style={[styles.section, { marginTop: spacing.md }]}>
+        <View style={styles.sectionHeader}>
+          <Icon name="event" size={16} color={colors.cosmic} />
+          <Text variant="label-lg" weight="semibold" style={{ color: colors.cosmic }}>
+            Date Levels
+          </Text>
+          <MetaLabel size="sm" tone="muted" style={{ marginLeft: 'auto' }}>
+            Optional — adds finer dating within eras
+          </MetaLabel>
         </View>
-      ) : null}
+
+        {dateLevels.length > 0 ? (
+          <View style={styles.levelList}>
+            {dateLevels.map((level, idx) => (
+              <View key={idx} style={styles.levelRow}>
+                <View style={styles.levelMain}>
+                  <TextInput
+                    style={styles.levelLabelInput}
+                    value={level.label}
+                    onChangeText={(text) => updateDateLevel(idx, { label: text })}
+                    placeholder="Label (e.g. Year, Season)"
+                    placeholderTextColor={colors.outlineVariant}
+                  />
+                  <View style={styles.typeSelector}>
+                    {DATE_LEVEL_TYPES.map((opt) => (
+                      <Pressable
+                        key={opt.value}
+                        onPress={() => updateDateLevel(idx, { type: opt.value })}
+                        style={[
+                          styles.typeChip,
+                          level.type === opt.value && styles.typeChipActive,
+                        ]}
+                      >
+                        <Text
+                          variant="label-sm"
+                          style={{
+                            color: level.type === opt.value ? colors.cosmic : colors.onSurfaceVariant,
+                          }}
+                        >
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Pressable onPress={() => removeDateLevel(idx)} hitSlop={8}>
+                    <Icon name="close" size={14} color={colors.outlineVariant} />
+                  </Pressable>
+                </View>
+
+                {level.type === 'ordered_list' ? (
+                  <View style={styles.optionsList}>
+                    {(level.options ?? []).map((opt, optIdx) => (
+                      <View key={optIdx} style={styles.optionRow}>
+                        <Text variant="label-sm" tone="muted" style={{ width: 18 }}>
+                          {optIdx + 1}.
+                        </Text>
+                        <TextInput
+                          style={styles.optionInput}
+                          value={opt}
+                          onChangeText={(text) => updateLevelOption(idx, optIdx, text)}
+                          placeholder="Option value"
+                          placeholderTextColor={colors.outlineVariant}
+                        />
+                        <Pressable onPress={() => removeLevelOption(idx, optIdx)} hitSlop={8}>
+                          <Icon name="close" size={14} color={colors.outlineVariant} />
+                        </Pressable>
+                      </View>
+                    ))}
+                    <Pressable onPress={() => addLevelOption(idx)} style={styles.addBtn}>
+                      <Icon name="add" size={14} color={colors.cosmic} />
+                      <Text variant="label-sm" style={{ color: colors.cosmic }}>
+                        Add option
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                {level.type === 'number' ? (
+                  <MetaLabel size="sm" tone="muted" style={{ marginLeft: spacing.lg }}>
+                    Numeric — events sorted by value (e.g. Year 1, Year 42)
+                  </MetaLabel>
+                ) : level.type === 'text' ? (
+                  <MetaLabel size="sm" tone="muted" style={{ marginLeft: spacing.lg }}>
+                    Free text — for non-numeric dates (e.g. "The Long Night")
+                  </MetaLabel>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        <Pressable onPress={addDateLevel} style={styles.addBtn}>
+          <Icon name="add" size={14} color={colors.cosmic} />
+          <Text variant="label-sm" style={{ color: colors.cosmic }}>
+            Add date level
+          </Text>
+        </Pressable>
+      </View>
     </Card>
   );
 }
+
+const DATE_LEVEL_TYPES: { value: CalendarUnitType; label: string; hint: string }[] = [
+  { value: 'number', label: 'Number', hint: 'Numeric year or day' },
+  { value: 'ordered_list', label: 'List', hint: 'Fixed options in order' },
+  { value: 'text', label: 'Text', hint: 'Free-form label' },
+];
 
 function parseSchema(fields: unknown): CalendarSchema {
   if (!fields || typeof fields !== 'object') return [];
@@ -232,27 +310,70 @@ const styles = StyleSheet.create({
   root: {
     gap: 0,
   },
-  header: {
+  section: {
+    gap: spacing.sm,
+  },
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
   },
-  body: {
-    marginTop: spacing.md,
-    gap: spacing.md,
+  // -- Eras --
+  eraList: {
+    gap: spacing.xs,
+    marginTop: spacing.xs,
   },
-  unitRow: {
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant + '33',
-  },
-  unitMain: {
+  eraRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  labelInput: {
+  eraNum: {
+    width: 20,
+    textAlign: 'center',
+    color: colors.outlineVariant,
+    fontSize: 12,
+  },
+  eraInput: {
+    flex: 1,
+    color: colors.onSurface,
+    fontSize: 14,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceCanvas,
+  },
+  setupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.primary + '44',
+    marginTop: spacing.xs,
+  },
+  // -- Date levels --
+  levelList: {
+    gap: spacing.md,
+    marginTop: spacing.xs,
+  },
+  levelRow: {
+    gap: spacing.xs,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '22',
+  },
+  levelMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  levelLabelInput: {
     flex: 1,
     color: colors.onSurface,
     fontSize: 14,
@@ -260,7 +381,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '55',
-    borderRadius: radius.DEFAULT,
+    borderRadius: radius.lg,
     backgroundColor: colors.surfaceCanvas,
   },
   typeSelector: {
@@ -298,16 +419,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.DEFAULT,
     backgroundColor: colors.surfaceCanvas,
   },
-  addOptionBtn: {
+  addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 4,
-  },
-  addUnitBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
   },
 });
