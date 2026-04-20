@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, Image, TouchableOpacity, TextInput,
-  ActivityIndicator, Modal, Pressable, Switch, StyleSheet, useWindowDimensions, Platform,
+  ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform,
 } from 'react-native';
 import { ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,10 +9,16 @@ import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, supabase } from '@vaultstone/api';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
-import { colors, spacing, fonts } from '@vaultstone/ui';
+import { colors, spacing, fonts, radius } from '@vaultstone/ui';
 import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature } from '@vaultstone/types';
 import { HpModal } from '../../components/character-sheet/HpModal';
 import { ConditionsPanel } from '../../components/character-sheet/ConditionsPanel';
+import { RollToast } from '../../components/character-sheet/RollToast';
+import type { RollResult } from '../../components/character-sheet/RollToast';
+import { CombatTab } from '../../components/character-sheet/CombatTab';
+import { SkillsTab } from '../../components/character-sheet/SkillsTab';
+import { AbilitiesTab } from '../../components/character-sheet/AbilitiesTab';
+import { StoryTab } from '../../components/character-sheet/StoryTab';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
@@ -94,6 +100,9 @@ export default function CharacterSheetScreen() {
   const [portraitUploading, setPortraitUploading] = useState(false);
   const [editLayout, setEditLayout] = useState(false);
   const [cardItems, setCardItems] = useState<CardItem[]>(DEFAULT_CARD_ORDER.map((id) => ({ id })));
+  const [activeTab, setActiveTab] = useState<'combat' | 'skills' | 'abilities' | 'story'>('combat');
+  const [rollResult, setRollResult] = useState<RollResult | null>(null);
+  const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -507,6 +516,12 @@ export default function CharacterSheetScreen() {
     persistResources({ ...resources, exhaustionLevel: Math.max(0, level) });
   }
 
+  function handleRoll(result: RollResult) {
+    setRollResult(result);
+    if (rollTimeoutRef.current) clearTimeout(rollTimeoutRef.current);
+    rollTimeoutRef.current = setTimeout(() => setRollResult(null), 3000);
+  }
+
   function handleDeathSave(type: 'success' | 'failure') {
     if (!resources) return;
     const ds = resources.deathSaves;
@@ -545,972 +560,212 @@ export default function CharacterSheetScreen() {
   const exhaustionLevel = resources.exhaustionLevel ?? 0;
   const hpC = hpColor();
 
-  // ── Render ──────────────────────────────────────────────────────────────
 
-  function renderSection(id: CardId, moveUp: () => void, moveDown: () => void, index: number, total: number) {
-    const isFirst = index === 0;
-    const isLast = index === total - 1;
-    switch (id) {
-      case 'combat':
-        return (
-          <View>
-            {editLayout && (
-              <View style={s.dragHandle}>
-                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
-                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            <View style={s.fourColRow}>
-          {/* HP card */}
-          <View style={[s.hpCard, { flex: 1 }]}>
-            <Text style={s.cardLabel}>Hit Points</Text>
-            {isDead ? (
-              <Text style={[s.hpValue, { color: colors.hpDanger }]}>Dead</Text>
-            ) : isStabilized ? (
-              <Text style={[s.hpValue, { color: colors.hpWarning, fontSize: 20 }]}>Stabilized</Text>
-            ) : (
-              <View style={s.hpRow}>
-                <TouchableOpacity
-                  style={[s.hpQuickBtn, s.hpQuickBtnLeft]}
-                  onPress={() => { setHpQuickInput(''); setHpQuickMode('damage'); }}
-                >
-                  <MaterialCommunityIcons name="sword" size={22} color={colors.hpDanger} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[s.hpBox, { borderColor: resources.hpTemp > 0 ? '#3B82F6' : hpC }]}
-                  onPress={() => { setEditingField('hpCurrent'); setFieldInput(String(resources.hpCurrent)); setTempHpFieldInput(String(resources.hpTemp)); }}
-                >
-                  <Text style={[s.hpValue, { color: hpC }]}>
-                    {resources.hpCurrent}
-                  </Text>
-                  {resources.hpTemp > 0 && (
-                    <Text style={s.hpTempInline}>+{resources.hpTemp}</Text>
-                  )}
-                </TouchableOpacity>
-                <Text style={s.hpSep}>/</Text>
-                {manualMode ? (
-                  <TouchableOpacity onPress={() => startEditField('hpMax', stats.hpMax)}>
-                    <Text style={[s.hpMax, { textDecorationLine: 'underline' }]}>{stats.hpMax}</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <Text style={s.hpMax}>{stats.hpMax}</Text>
-                )}
-
-                <TouchableOpacity
-                  style={[s.hpQuickBtn, { marginLeft: 'auto' }]}
-                  onPress={() => { setHpQuickInput(''); setHpQuickMode('heal'); }}
-                >
-                  <MaterialCommunityIcons name="heart-plus" size={22} color={colors.hpHealthy} />
-                </TouchableOpacity>
-              </View>
-            )}
-            <View style={s.hpBarTrack}>
-              <View style={[s.hpBarFill, {
-                width: `${Math.max(0, Math.min(100, (resources.hpCurrent / stats.hpMax) * 100))}%` as any,
-                backgroundColor: hpC,
-              }]} />
-              {resources.hpTemp > 0 && (
-                <View style={[s.hpBarTemp, {
-                  width: `${Math.min(100 - (resources.hpCurrent / stats.hpMax) * 100, (resources.hpTemp / stats.hpMax) * 100)}%` as any,
-                }]} />
-              )}
-            </View>
-
-
-            <View style={s.combatDivider} />
-            <View style={s.combatGrid}>
-              <View style={s.combatStat}>
-                <Text style={[s.combatLabel, { textAlign: 'center' }]}>Armor Class</Text>
-                <Text style={[s.combatValue, { color: colors.brand }]}>{ac}</Text>
-                {(() => {
-                  const hasShieldEquipped = equipment.some((e) => e.slot === 'shield' && e.equipped);
-                  return (
-                    <TouchableOpacity
-                      style={[s.shieldToggle, hasShieldEquipped && s.shieldToggleActive]}
-                      onPress={() => {
-                        const shield = equipment.find((e) => e.slot === 'shield');
-                        if (shield) handleToggleEquipped(shield.id);
-                      }}
-                      disabled={!equipment.some((e) => e.slot === 'shield')}
-                    >
-                      <MaterialCommunityIcons
-                        name={hasShieldEquipped ? 'shield-check' : 'shield-off-outline'}
-                        size={14}
-                        color={hasShieldEquipped ? colors.brand : colors.textSecondary}
-                      />
-                      <Text style={[s.shieldToggleText, hasShieldEquipped && { color: colors.brand }]}>
-                        Shield
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })()}
-              </View>
-              <TouchableOpacity
-                style={s.combatStat}
-                onPress={() => { setEditingField('hitDiceRemaining'); setFieldInput(String(resources.hitDiceRemaining)); }}
-              >
-                <Text style={s.combatLabel}>Hit Dice</Text>
-                <Text style={s.combatValue}>{resources.hitDiceRemaining} / {stats.level}</Text>
-                <Text style={s.combatLabel}>D{stats.hitDie}</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Death Saves — always visible */}
-            <View style={s.combatDivider} />
-            <Text style={s.cardLabel}>Death Saves</Text>
-            <View style={s.deathSavesRow}>
-              <View style={s.deathSaveSide}>
-                <Text style={s.deathSaveLabel}>Successes</Text>
-                <View style={s.savePips}>
-                  {[0, 1, 2].map((i) => (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={() => handleDeathSave('success')}
-                      style={[s.savePip, i < resources.deathSaves.successes && s.savePipSuccess]}
-                    />
-                  ))}
-                </View>
-              </View>
-              <View style={s.deathSaveSide}>
-                <Text style={s.deathSaveLabel}>Failures</Text>
-                <View style={s.savePips}>
-                  {[0, 1, 2].map((i) => (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={() => handleDeathSave('failure')}
-                      style={[s.savePip, i < resources.deathSaves.failures && s.savePipFailure]}
-                    />
-                  ))}
-                </View>
-              </View>
-            </View>
-            {isStabilized && (
-              <Text style={s.stabilizedHint}>Stabilized — HP stays at 0 until healed.</Text>
-            )}
-
-            {/* Concentration */}
-            <View style={s.combatDivider} />
-            <Text style={s.cardLabel}>Concentration</Text>
-            {resources.concentrationSpell ? (
-              <View style={s.concentrationRow}>
-                <MaterialCommunityIcons name="meditation" size={16} color={colors.brand} />
-                <Text style={s.concentrationSpell} numberOfLines={1}>
-                  {resources.concentrationSpell}
-                </Text>
-                <TouchableOpacity
-                  disabled={isReadOnly}
-                  onPress={() => persistResources({ ...resources, concentrationSpell: null })}
-                  style={s.concentrationClearBtn}
-                >
-                  <Text style={s.concentrationClearText}>Clear</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                disabled={isReadOnly}
-                onPress={() => { setEditingField('concentrationSpell'); setFieldInput(''); }}
-                style={s.concentrationSetBtn}
-              >
-                <MaterialCommunityIcons name="meditation" size={14} color={colors.textSecondary} />
-                <Text style={s.concentrationSetText}>
-                  {isReadOnly ? 'None' : 'Set concentration…'}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Movement & Senses card */}
-          <View style={[s.card, { flex: 1 }]}>
-            <Text style={s.cardLabel}>Movement & Senses</Text>
-            <View style={s.movGrid}>
-              <TouchableOpacity
-                style={s.movStat}
-                disabled={!manualMode}
-                onPress={() => startEditField('speed', stats.speed)}
-              >
-                <Text style={s.abilityQuickValue}>{stats.speed}ft</Text>
-                <Text style={s.abilityQuickLabel}>Speed{manualMode ? ' ✎' : ''}</Text>
-              </TouchableOpacity>
-              <View style={s.movStat}>
-                <Text style={s.abilityQuickValue}>{fmtMod(initiative)}</Text>
-                <Text style={s.abilityQuickLabel}>Initiative</Text>
-              </View>
-            </View>
-            <View style={s.movGrid}>
-              <View style={s.movStat}>
-                <Text style={[s.abilityQuickValue, { color: colors.brand }]}>{passivePerception}</Text>
-                <Text style={s.abilityQuickLabel}>Passive{'\n'}Perception</Text>
-              </View>
-              <View style={s.movStat}>
-                <Text style={s.abilityQuickValue}>Med</Text>
-                <Text style={s.abilityQuickLabel}>Size</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Ability Scores card */}
-          <View style={[s.card, { flex: 1 }]}>
-            <Text style={s.cardLabel}>Ability Scores</Text>
-            <View style={s.abilityHeaderRow}>
-              <Text style={[s.abilityHeaderText, { width: 36 }]} />
-              <Text style={[s.abilityHeaderText, { width: 32, textAlign: 'center' }]}>Base</Text>
-              <Text style={[s.abilityHeaderText, { width: 36, textAlign: 'center' }]}>Mod</Text>
-              <View style={{ flex: 1 }} />
-              <Text style={[s.abilityHeaderText, { width: 54, textAlign: 'center' }]}>Save</Text>
-            </View>
-            <View style={s.abilityBody}>
-              {ABILITY_KEYS.map((ability) => {
-                const proficient = stats.savingThrowProficiencies.includes(ability);
-                return (
-                  <TouchableOpacity
-                    key={ability}
-                    style={s.abilityRow}
-                    disabled={!manualMode}
-                    onPress={() => startEditField(ability, scores[ability])}
-                  >
-                    <Text style={s.abilityLabel}>{ABILITY_SHORT[ability]}</Text>
-                    <Text style={s.abilityScore}>{scores[ability]}</Text>
-                    <Text style={s.abilityModCol}>{fmtMod(abilityMod(scores[ability]))}</Text>
-                    {manualMode && (
-                      <MaterialCommunityIcons name="pencil-outline" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
-                    )}
-                    <View style={s.saveSpacer} />
-                    <View style={s.saveCell}>
-                      <Text style={s.saveModText}>{fmtMod(saveMod(ability))}</Text>
-                      <View style={[s.profDotSmall, proficient && s.profDotFilled]} />
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Skills card */}
-          <View style={[s.card, { flex: 1.5 }]}>
-            <Text style={s.cardLabel}>Skills</Text>
-            {ALL_SKILLS.map((skill) => {
-              const proficient = stats.skillProficiencies.includes(skill);
-              return (
-                <View key={skill} style={s.skillRow}>
-                  <View style={[s.profDot, proficient && s.profDotFilled]} />
-                  <Text style={s.skillName}>{titleCase(skill)}</Text>
-                  <Text style={s.skillAbility}>({ABILITY_SHORT[SKILL_ABILITY[skill]]})</Text>
-                  <Text style={s.skillModText}>{fmtMod(skillMod(skill))}</Text>
-                </View>
-              );
-            })}
-          </View>
-          </View>
-          </View>
-        );
-      case 'weapons-equipment':
-        return (
-          <View>
-            {editLayout && (
-              <View style={s.dragHandle}>
-                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
-                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            {/* Row 2: Weapons + Equipment */}
-          <View style={s.fourColRow}>
-          {/* Weapons & Damage Cantrips table */}
-          <View style={[s.card, { flex: 1 }]}>
-            <View style={s.equipHeader}>
-              <Text style={s.cardLabel}>Weapons & Damage Cantrips</Text>
-              <TouchableOpacity onPress={() => {
-                setEditEquip({
-                  id: Date.now().toString(),
-                  name: '', slot: 'weapon', equipped: true,
-                });
-                setEquipModal(true);
-              }}>
-                <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.brand} />
-              </TouchableOpacity>
-            </View>
-            {/* Table header */}
-            <View style={s.atkTableHeader}>
-              <Text style={[s.atkHeaderText, { flex: 2 }]}>Name</Text>
-              <Text style={[s.atkHeaderText, { flex: 1, textAlign: 'center' }]}>Atk / DC</Text>
-              <Text style={[s.atkHeaderText, { flex: 1.5, textAlign: 'center' }]}>Damage & Type</Text>
-              <Text style={[s.atkHeaderText, { flex: 1, textAlign: 'right' }]}>Notes</Text>
-            </View>
-            {/* Table rows */}
-            {equipment.filter((e) => e.slot === 'weapon').length === 0 ? (
-              <View style={s.atkTableRow}>
-                <Text style={[s.atkCellText, { flex: 1, fontStyle: 'italic' }]}>No weapons added</Text>
-              </View>
-            ) : (
-              equipment.filter((e) => e.slot === 'weapon').map((w) => (
-                <TouchableOpacity
-                  key={w.id}
-                  style={[s.atkTableRow, !w.equipped && { opacity: 0.4 }]}
-                  onPress={() => { setEditEquip(w); setEquipModal(true); }}
-                >
-                  <Text style={[s.atkCellName, { flex: 2 }]} numberOfLines={1}>{w.name || '—'}</Text>
-                  <Text style={[s.atkCellText, { flex: 1, textAlign: 'center' }]}>{fmtMod(getAttackBonus(w))}</Text>
-                  <Text style={[s.atkCellText, { flex: 1.5, textAlign: 'center' }]}>{w.damage || '—'}</Text>
-                  <Text style={[s.atkCellNotes, { flex: 1, textAlign: 'right' }]} numberOfLines={1}>
-                    {[w.range ? `${w.range}ft` : '', ...(w.properties ?? [])].filter(Boolean).join(', ') || '—'}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-
-          {/* Equipment card */}
-          <View style={[s.card, { flex: 1 }]}>
-            <View style={s.equipHeader}>
-              <Text style={s.cardLabel}>Equipment</Text>
-              <TouchableOpacity onPress={() => {
-                setEditEquip({
-                  id: Date.now().toString(),
-                  name: '', slot: 'weapon', equipped: true,
-                });
-                setEquipModal(true);
-              }}>
-                <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.brand} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Attacks */}
-            {(() => {
-              const weapons = equipment.filter((e) => e.slot === 'weapon');
-              if (weapons.length === 0 && equipment.filter((e) => e.slot === 'armor' || e.slot === 'shield').length === 0) {
-                return <Text style={s.equipEmpty}>No equipment. Tap + to add weapons and armor.</Text>;
-              }
-              return (
-                <>
-                  {weapons.length > 0 && (
-                    <>
-                      <Text style={s.equipSubLabel}>Attacks</Text>
-                      {weapons.map((w) => (
-                        <TouchableOpacity
-                          key={w.id}
-                          style={[s.equipRow, !w.equipped && s.equipRowDim]}
-                          onPress={() => { setEditEquip(w); setEquipModal(true); }}
-                        >
-                          <TouchableOpacity onPress={() => handleToggleEquipped(w.id)} style={s.equipToggle}>
-                            <MaterialCommunityIcons
-                              name={w.equipped ? 'sword' : 'sword-cross'}
-                              size={18}
-                              color={w.equipped ? colors.brand : colors.textSecondary}
-                            />
-                          </TouchableOpacity>
-                          <View style={s.equipInfo}>
-                            <Text style={s.equipName}>{w.name || 'Unnamed'}</Text>
-                            <Text style={s.equipDetail}>
-                              {fmtMod(getAttackBonus(w))} to hit · {w.damage || '—'}{w.range ? ` · ${w.range}ft` : ''}
-                            </Text>
-                          </View>
-                          {w.properties && w.properties.length > 0 && (
-                            <Text style={s.equipProps}>{w.properties.join(', ')}</Text>
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Defense */}
-                  {equipment.filter((e) => (e.slot === 'armor' || e.slot === 'shield')).length > 0 && (
-                    <>
-                      <Text style={[s.equipSubLabel, { marginTop: spacing.sm }]}>Defense</Text>
-                      {equipment.filter((e) => e.slot === 'armor' || e.slot === 'shield').map((a) => (
-                        <TouchableOpacity
-                          key={a.id}
-                          style={[s.equipRow, !a.equipped && s.equipRowDim]}
-                          onPress={() => { setEditEquip(a); setEquipModal(true); }}
-                        >
-                          <TouchableOpacity onPress={() => handleToggleEquipped(a.id)} style={s.equipToggle}>
-                            <MaterialCommunityIcons
-                              name={a.equipped ? 'shield-check' : 'shield-outline'}
-                              size={18}
-                              color={a.equipped ? colors.brand : colors.textSecondary}
-                            />
-                          </TouchableOpacity>
-                          <View style={s.equipInfo}>
-                            <Text style={s.equipName}>{a.name || 'Unnamed'}</Text>
-                            <Text style={s.equipDetail}>
-                              {a.slot === 'armor'
-                                ? `AC ${a.acBase ?? '?'}${a.dexCap !== undefined && a.dexCap !== null ? ` (max DEX +${a.dexCap})` : ' + DEX'}`
-                                : `+${a.acBonus ?? 2} AC`}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Other items */}
-                  {equipment.filter((e) => e.slot === 'other').length > 0 && (
-                    <>
-                      <Text style={[s.equipSubLabel, { marginTop: spacing.sm }]}>Other</Text>
-                      {equipment.filter((e) => e.slot === 'other').map((o) => (
-                        <TouchableOpacity
-                          key={o.id}
-                          style={s.equipRow}
-                          onPress={() => { setEditEquip(o); setEquipModal(true); }}
-                        >
-                          <MaterialCommunityIcons name="bag-personal-outline" size={18} color={colors.textSecondary} style={{ marginRight: spacing.sm }} />
-                          <View style={s.equipInfo}>
-                            <Text style={s.equipName}>{o.name || 'Unnamed'}</Text>
-                            {o.notes && <Text style={s.equipDetail}>{o.notes}</Text>}
-                          </View>
-                        </TouchableOpacity>
-                      ))}
-                    </>
-                  )}
-                </>
-              );
-            })()}
-
-            {/* Attunement section */}
-            {(() => {
-              const attuned = equipment.filter((e) => e.requiresAttunement);
-              const attunedCount = attuned.filter((e) => e.attuned).length;
-              return (
-                <>
-                  <Text style={[s.equipSubLabel, { marginTop: spacing.md }]}>
-                    Attunement ({attunedCount}/3)
-                  </Text>
-                  {[0, 1, 2].map((slot) => {
-                    const item = attuned.filter((e) => e.attuned)[slot];
-                    return (
-                      <View key={slot} style={s.attunementSlot}>
-                        <MaterialCommunityIcons
-                          name={item ? 'star-four-points' : 'star-four-points-outline'}
-                          size={16}
-                          color={item ? colors.brand : colors.border}
-                        />
-                        {item ? (
-                          <TouchableOpacity
-                            style={{ flex: 1 }}
-                            onPress={() => { setEditEquip(item); setEquipModal(true); }}
-                          >
-                            <Text style={s.attunementItemName}>{item.name}</Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <Text style={s.attunementEmpty}>— empty slot —</Text>
-                        )}
-                      </View>
-                    );
-                  })}
-                </>
-              );
-            })()}
-          </View>
-          </View>
-          </View>
-        );
-      case 'class-features':
-        return (
-          <View>
-            {editLayout && (
-              <View style={s.dragHandle}>
-                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
-                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            {/* Class Features card */}
-          <View style={s.card}>
-            <View style={s.equipHeader}>
-              <Text style={s.cardLabel}>Class Features</Text>
-              <TouchableOpacity onPress={() => {
-                setFeatureCategory('classFeatures');
-                setEditFeature({ id: Date.now().toString(), name: '', description: '' });
-                setFeatureModal(true);
-              }}>
-                <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.brand} />
-              </TouchableOpacity>
-            </View>
-            {getFeatureList('classFeatures').length === 0 ? (
-              <Text style={s.equipEmpty}>No class features added yet.</Text>
-            ) : (
-              getFeatureList('classFeatures').map((f) => (
-                <TouchableOpacity key={f.id} style={s.featureRow} onPress={() => {
-                  setFeatureCategory('classFeatures');
-                  setEditFeature(f);
-                  setFeatureModal(true);
-                }}>
-                  <View style={s.featureInfo}>
-                    <Text style={s.featureName}>{f.name}</Text>
-                    {f.description ? <Text style={s.featureDesc} numberOfLines={2}>{f.description}</Text> : null}
-                  </View>
-                  {f.uses && (
-                    <View style={s.featureUses}>
-                      <TouchableOpacity onPress={() => toggleFeatureUse('classFeatures', f.id, -1)}>
-                        <MaterialCommunityIcons name="minus-circle-outline" size={18} color={colors.textSecondary} />
-                      </TouchableOpacity>
-                      <Text style={s.featureUsesText}>{f.uses.current}/{f.uses.max}</Text>
-                      <TouchableOpacity onPress={() => toggleFeatureUse('classFeatures', f.id, 1)}>
-                        <MaterialCommunityIcons name="plus-circle-outline" size={18} color={colors.brand} />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-          </View>
-        );
-      case 'species-traits':
-        return (
-          <View>
-            {editLayout && (
-              <View style={s.dragHandle}>
-                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
-                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            {/* Species Traits card */}
-          <View style={s.card}>
-            <View style={s.equipHeader}>
-              <Text style={s.cardLabel}>Species Traits</Text>
-              <TouchableOpacity onPress={() => {
-                setFeatureCategory('speciesTraits');
-                setEditFeature({ id: Date.now().toString(), name: '', description: '' });
-                setFeatureModal(true);
-              }}>
-                <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.brand} />
-              </TouchableOpacity>
-            </View>
-            {getFeatureList('speciesTraits').length === 0 ? (
-              <Text style={s.equipEmpty}>No species traits added yet.</Text>
-            ) : (
-              getFeatureList('speciesTraits').map((f) => (
-                <TouchableOpacity key={f.id} style={s.featureRow} onPress={() => {
-                  setFeatureCategory('speciesTraits');
-                  setEditFeature(f);
-                  setFeatureModal(true);
-                }}>
-                  <View style={s.featureInfo}>
-                    <Text style={s.featureName}>{f.name}</Text>
-                    {f.description ? <Text style={s.featureDesc} numberOfLines={2}>{f.description}</Text> : null}
-                  </View>
-                  {f.uses && (
-                    <View style={s.featureUses}>
-                      <TouchableOpacity onPress={() => toggleFeatureUse('speciesTraits', f.id, -1)}>
-                        <MaterialCommunityIcons name="minus-circle-outline" size={18} color={colors.textSecondary} />
-                      </TouchableOpacity>
-                      <Text style={s.featureUsesText}>{f.uses.current}/{f.uses.max}</Text>
-                      <TouchableOpacity onPress={() => toggleFeatureUse('speciesTraits', f.id, 1)}>
-                        <MaterialCommunityIcons name="plus-circle-outline" size={18} color={colors.brand} />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-          </View>
-        );
-      case 'feats':
-        return (
-          <View>
-            {editLayout && (
-              <View style={s.dragHandle}>
-                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
-                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            {/* Feats card */}
-          <View style={s.card}>
-            <View style={s.equipHeader}>
-              <Text style={s.cardLabel}>Feats</Text>
-              <TouchableOpacity onPress={() => {
-                setFeatureCategory('feats');
-                setEditFeature({ id: Date.now().toString(), name: '', description: '' });
-                setFeatureModal(true);
-              }}>
-                <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.brand} />
-              </TouchableOpacity>
-            </View>
-            {getFeatureList('feats').length === 0 ? (
-              <Text style={s.equipEmpty}>No feats added yet.</Text>
-            ) : (
-              getFeatureList('feats').map((f) => (
-                <TouchableOpacity key={f.id} style={s.featureRow} onPress={() => {
-                  setFeatureCategory('feats');
-                  setEditFeature(f);
-                  setFeatureModal(true);
-                }}>
-                  <View style={s.featureInfo}>
-                    <Text style={s.featureName}>{f.name}</Text>
-                    {f.description ? <Text style={s.featureDesc} numberOfLines={2}>{f.description}</Text> : null}
-                  </View>
-                  {f.uses && (
-                    <View style={s.featureUses}>
-                      <TouchableOpacity onPress={() => toggleFeatureUse('feats', f.id, -1)}>
-                        <MaterialCommunityIcons name="minus-circle-outline" size={18} color={colors.textSecondary} />
-                      </TouchableOpacity>
-                      <Text style={s.featureUsesText}>{f.uses.current}/{f.uses.max}</Text>
-                      <TouchableOpacity onPress={() => toggleFeatureUse('feats', f.id, 1)}>
-                        <MaterialCommunityIcons name="plus-circle-outline" size={18} color={colors.brand} />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-          </View>
-        );
-      case 'proficiencies':
-        return (
-          <View>
-            {editLayout && (
-              <View style={s.dragHandle}>
-                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
-                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            {/* Proficiencies & Training card */}
-          <View style={[s.card, s.cardWide]}>
-            <Text style={s.cardLabel}>Proficiencies &amp; Training</Text>
-            <View style={s.profTrainingGrid}>
-              {[
-                { label: 'Armor', icon: 'shield-half-full' as const, items: stats.armorProficiencies },
-                { label: 'Weapons', icon: 'sword-cross' as const, items: stats.weaponProficiencies },
-                { label: 'Tools', icon: 'toolbox-outline' as const, items: stats.toolProficiencies },
-                { label: 'Languages', icon: 'translate' as const, items: stats.languages },
-              ].map(({ label, icon, items }) => (
-                <View key={label} style={s.profTrainingCol}>
-                  <View style={s.profTrainingHeader}>
-                    <MaterialCommunityIcons name={icon} size={14} color={colors.brand} />
-                    <Text style={s.profTrainingLabel}>{label}</Text>
-                  </View>
-                  {items.length === 0 ? (
-                    <Text style={s.profTrainingEmpty}>None</Text>
-                  ) : (
-                    items.map((item) => (
-                      <Text key={item} style={s.profTrainingItem}>{titleCase(item)}</Text>
-                    ))
-                  )}
-                </View>
-              ))}
-            </View>
-          </View>
-          </View>
-        );
-      case 'conditions':
-        return (
-          <View>
-            {editLayout && (
-              <View style={s.dragHandle}>
-                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
-                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            {/* Conditions card */}
-          <View style={s.card}>
-            <Text style={s.cardLabel}>Conditions</Text>
-            <ConditionsPanel
-              conditions={activeConditions}
-              exhaustionLevel={exhaustionLevel}
-              onToggle={handleToggleCondition}
-              onSetExhaustion={handleSetExhaustion}
-            />
-          </View>
-          </View>
-        );
-      case 'coins':
-        return (
-          <View>
-            {editLayout && (
-              <View style={s.dragHandle}>
-                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
-                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            {/* Coins card */}
-          <View style={s.card}>
-            <Text style={s.cardLabel}>Coins</Text>
-            <View style={s.coinRow}>
-              {(['cp', 'sp', 'ep', 'gp', 'pp'] as const).map((denom) => {
-                const coins = resources.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
-                const val = coins[denom];
-                const update = (delta: number) => {
-                  const updated = { ...coins, [denom]: Math.max(0, val + delta) };
-                  persistResources({ ...resources, coins: updated });
-                };
-                return (
-                  <View key={denom} style={s.coinCell}>
-                    <TouchableOpacity onPress={() => update(1)} style={s.coinArrow}>
-                      <MaterialCommunityIcons name="chevron-up" size={18} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.coinValueBox}
-                      onPress={() => {
-                        setEditingField(`coin_${denom}` as any);
-                        setFieldInput(String(val));
-                      }}
-                    >
-                      <Text style={s.coinValue}>{val}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => update(-1)} style={s.coinArrow}>
-                      <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                    <Text style={s.coinLabel}>{denom.toUpperCase()}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-          </View>
-        );
-      case 'scratchpad':
-        return (
-          <View>
-            {editLayout && (
-              <View style={s.dragHandle}>
-                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
-                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            {/* Scratchpad card */}
-          <View style={[s.card, s.cardWide]}>
-            <Text style={s.cardLabel}>Scratchpad</Text>
-            <TextInput
-              style={s.scratchpadInput}
-              value={scratchpad}
-              onChangeText={setScratchpad}
-              onBlur={() => {
-                if (!resources) return;
-                persistResources({ ...resources, notes: scratchpad });
-              }}
-              placeholder="Freetext notes, reminders, loot tracking..."
-              placeholderTextColor={colors.textSecondary}
-              multiline
-              textAlignVertical="top"
-            />
-          </View>
-          </View>
-        );
-      default:
-        return null;
-    }
-  }
+  const hpRatio = Math.max(0, Math.min(1, resources.hpCurrent / stats.hpMax));
 
   return (
     <View style={s.root}>
-      <ScrollView style={s.scroll} contentContainerStyle={s.container}>
-        {/* Back + Settings */}
-        <View style={s.topBar}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={s.backText}>← Characters</Text>
-          </TouchableOpacity>
-          <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
-            <TouchableOpacity
-              onPress={() => setEditLayout((v) => !v)}
-              style={[s.settingsBtn, editLayout && { borderColor: colors.brand, borderWidth: 1 }]}
-            >
-              <MaterialCommunityIcons name="view-grid-outline" size={18} color={editLayout ? colors.brand : colors.textSecondary} />
-              <Text style={[s.settingsBtnText, editLayout && { color: colors.brand }]}>
-                {editLayout ? 'Done' : 'Layout'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setSettingsModal(true)} style={s.settingsBtn}>
-              <Text style={s.settingsBtnText}>Character Settings</Text>
-              <MaterialCommunityIcons name="cog-outline" size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        </View>
 
-        {/* Hero card */}
-        <View style={s.heroCard}>
-          <View style={s.heroTopRow}>
-          <View style={s.heroLeft}>
-            <TouchableOpacity style={s.heroAvatar} onPress={handlePickPortrait} disabled={portraitUploading}>
-              {portraitUploading ? (
-                <ActivityIndicator color={colors.brand} />
-              ) : character.avatar_url ? (
-                <Image source={{ uri: character.avatar_url }} style={s.heroAvatarImage} />
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="account-outline" size={36} color={colors.brand} />
-                  <MaterialCommunityIcons name="camera-plus-outline" size={14} color={colors.textSecondary} style={s.heroAvatarEditIcon} />
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-          <View style={s.heroBody}>
-            {editingName ? (
-              <TextInput
-                style={s.heroNameInput}
-                value={nameInput}
-                onChangeText={setNameInput}
-                onBlur={() => {
-                  if (nameInput.trim()) persistName(nameInput.trim());
-                  setEditingName(false);
-                }}
-                onSubmitEditing={() => {
-                  if (nameInput.trim()) persistName(nameInput.trim());
-                  setEditingName(false);
-                }}
-                autoFocus
-                returnKeyType="done"
-              />
-            ) : (
-              <TouchableOpacity onPress={() => { setNameInput(stats.characterName); setEditingName(true); }}>
-                <View style={s.heroNameRow}>
-                  <Text style={s.heroName}>{stats.characterName}</Text>
-                  <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textSecondary} />
-                </View>
-              </TouchableOpacity>
-            )}
-            <Text style={s.heroSubtitle}>
-              {capitalize(stats.speciesKey)} {capitalize(stats.classKey)}
-            </Text>
-            <View style={s.heroMeta}>
-              <Text style={s.heroDetail}>{capitalize(stats.backgroundKey)}</Text>
-              <Text style={s.heroDetail}>
-                {stats.srdVersion === 'SRD_2.0' ? '2024 Rules' : '2014 Rules'}
-              </Text>
-              {manualMode && (
-                <View style={s.manualBadge}>
-                  <Text style={s.manualBadgeText}>Manual</Text>
-                </View>
-              )}
-            </View>
-          </View>
-          {/* Right side: Level, XP, Prof, Inspiration */}
-          <View style={s.heroRightGrid}>
-            <TouchableOpacity
-              style={s.heroRightBox}
-              disabled={!manualMode}
-              onPress={() => startEditField('level', stats.level)}
-            >
-              <Text style={[s.heroRightValue, { color: colors.brand }]}>{stats.level}</Text>
-              <Text style={s.heroRightLabel}>Lvl{manualMode ? ' ✎' : ''}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.heroRightBox, { paddingHorizontal: 24 }]}
-              onPress={() => { setEditingField('xp'); setFieldInput(String(resources.xp ?? 0)); }}
-            >
-              <View style={s.heroXpRow}>
-                <Text style={s.heroRightValue}>{resources.xp ?? 0}</Text>
-                <TouchableOpacity
-                  style={s.heroXpAdd}
-                  onPress={() => { setXpAddInput(''); setXpAddMode(true); }}
-                >
-                  <MaterialCommunityIcons name="plus" size={12} color={colors.brand} />
-                </TouchableOpacity>
-              </View>
-              <Text style={s.heroRightLabel}>XP</Text>
-            </TouchableOpacity>
-            <View style={s.heroRightBox}>
-              <Text style={s.heroRightValue}>{fmtMod(prof)}</Text>
-              <Text style={s.heroRightLabel}>Prof</Text>
-            </View>
-            <TouchableOpacity
-              style={s.heroRightBox}
-              onPress={() => {
-                if (!resources) return;
-                persistResources({ ...resources, inspiration: !resources.inspiration });
-              }}
-            >
-              <MaterialCommunityIcons
-                name={resources.inspiration ? 'star' : 'star-outline'}
-                size={22}
-                color={resources.inspiration ? colors.hpWarning : colors.textSecondary}
-              />
-              <Text style={[s.heroRightLabel, resources.inspiration && { color: colors.hpWarning }]}>Insp</Text>
-            </TouchableOpacity>
-          </View>
-          </View>
-        </View>
+      {/* ── Top Chrome ───────────────────────────────────────────────── */}
+      <View style={s.topChrome}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} hitSlop={8}>
+          <MaterialCommunityIcons name="chevron-left" size={22} color={colors.onSurfaceVariant} />
+        </TouchableOpacity>
 
-        <View style={s.grid}>
-          {cardItems.map((item, index) =>
-            renderSection(
-              item.id,
-              () => {
-                const next = [...cardItems];
-                if (index === 0) return;
-                [next[index - 1], next[index]] = [next[index], next[index - 1]];
-                handleDragEnd(next);
-              },
-              () => {
-                const next = [...cardItems];
-                if (index === cardItems.length - 1) return;
-                [next[index], next[index + 1]] = [next[index + 1], next[index]];
-                handleDragEnd(next);
-              },
-              index,
-              cardItems.length,
-            )
+        {/* Portrait */}
+        <TouchableOpacity style={s.chromePortrait} onPress={handlePickPortrait} disabled={portraitUploading} activeOpacity={0.85}>
+          {portraitUploading ? (
+            <ActivityIndicator color={colors.primary} size="small" />
+          ) : (character as any).avatar_url ? (
+            <Image source={{ uri: (character as any).avatar_url }} style={s.chromePortraitImg} />
+          ) : (
+            <MaterialCommunityIcons name="account-outline" size={24} color={colors.outline} />
           )}
+        </TouchableOpacity>
+
+        {/* Name + identity */}
+        <View style={s.chromeIdentity}>
+          {editingName ? (
+            <TextInput
+              style={s.chromeNameInput}
+              value={nameInput}
+              onChangeText={setNameInput}
+              onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+              onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+              autoFocus returnKeyType="done"
+            />
+          ) : (
+            <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
+              <Text style={s.chromeName} numberOfLines={1}>{stats.characterName}</Text>
+            </TouchableOpacity>
+          )}
+          <Text style={s.chromeSub} numberOfLines={1}>
+            {capitalize(stats.speciesKey)} {capitalize(stats.classKey)} · Lv {stats.level}
+          </Text>
         </View>
 
-        <Text style={s.attribution}>
-          Content from the Systems Reference Document 5.1 / 2.0 is available under the Creative Commons Attribution 4.0 International License.
-        </Text>
-      </ScrollView>
+        {/* Inspiration */}
+        <TouchableOpacity
+          style={[s.inspirationBtn, resources.inspiration && s.inspirationBtnActive]}
+          onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
+          activeOpacity={0.7}
+          hitSlop={6}
+        >
+          <MaterialCommunityIcons
+            name={resources.inspiration ? 'star' : 'star-outline'}
+            size={18}
+            color={resources.inspiration ? colors.gm : colors.outline}
+          />
+        </TouchableOpacity>
 
+        {/* Settings */}
+        <TouchableOpacity onPress={() => setSettingsModal(true)} hitSlop={8} style={s.settingsIconBtn}>
+          <MaterialCommunityIcons name="cog-outline" size={20} color={colors.outline} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Stat Rail ────────────────────────────────────────────────── */}
+      <View style={s.statRail}>
+        {/* AC */}
+        <View style={s.railStat}>
+          <Text style={[s.railValue, { color: colors.secondary }]}>{ac}</Text>
+          <Text style={s.railLabel}>AC</Text>
+        </View>
+
+        {/* HP — central, wider */}
+        <TouchableOpacity
+          style={s.railHp}
+          onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
+          onLongPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
+          activeOpacity={0.8}
+        >
+          <View style={s.hpNumRow}>
+            <Text style={[s.railHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
+            <Text style={s.railHpSep}>/</Text>
+            <Text style={s.railHpMax}>{stats.hpMax}</Text>
+            {resources.hpTemp > 0 && (
+              <Text style={s.railHpTemp}>+{resources.hpTemp}</Text>
+            )}
+          </View>
+          <View style={s.hpTrack}>
+            <View style={[s.hpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
+            {resources.hpTemp > 0 && (
+              <View style={[s.hpTempFill, {
+                width: `${Math.min((1 - hpRatio) * 100, (resources.hpTemp / stats.hpMax) * 100)}%` as any,
+              }]} />
+            )}
+          </View>
+          <Text style={s.railLabel}>HP{showDeathSaves ? ' · SAVE' : isDead ? ' · DEAD' : isStabilized ? ' · STABLE' : ''}</Text>
+        </TouchableOpacity>
+
+        {/* Init */}
+        <View style={s.railStat}>
+          <Text style={s.railValue}>{fmtMod(initiative)}</Text>
+          <Text style={s.railLabel}>INIT</Text>
+        </View>
+
+        {/* Speed */}
+        <View style={s.railStat}>
+          <Text style={s.railValue}>{stats.speed}</Text>
+          <Text style={s.railLabel}>SPD</Text>
+        </View>
+
+        {/* Prof */}
+        <View style={s.railStat}>
+          <Text style={[s.railValue, { color: colors.primary }]}>{fmtMod(prof)}</Text>
+          <Text style={s.railLabel}>PROF</Text>
+        </View>
+      </View>
+
+      {/* ── Tab Content ──────────────────────────────────────────────── */}
+      <View style={{ flex: 1 }}>
+        {activeTab === 'combat' && (
+          <CombatTab
+            stats={stats}
+            resources={resources}
+            scores={scores}
+            prof={prof}
+            activeConditions={activeConditions}
+            showDeathSaves={showDeathSaves}
+            isDead={isDead}
+            isStabilized={isStabilized}
+            canEditAny={canEditAny}
+            equipment={equipment}
+            onRoll={handleRoll}
+            onToggleCondition={handleToggleCondition}
+            onDeathSave={handleDeathSave}
+            getAttackBonus={getAttackBonus}
+          />
+        )}
+        {activeTab === 'skills' && (
+          <SkillsTab
+            stats={stats}
+            scores={scores}
+            prof={prof}
+            onRoll={handleRoll}
+          />
+        )}
+        {activeTab === 'abilities' && (
+          <AbilitiesTab
+            stats={stats}
+            resources={resources}
+            isOwner={isOwner}
+            onToggleFeatureUse={toggleFeatureUse}
+            onAddFeature={(cat) => {
+              setFeatureCategory(cat);
+              setEditFeature({ id: Date.now().toString(), name: '', description: '' });
+              setFeatureModal(true);
+            }}
+            onEditFeature={(cat, feature) => {
+              setFeatureCategory(cat);
+              setEditFeature(feature);
+              setFeatureModal(true);
+            }}
+          />
+        )}
+        {activeTab === 'story' && (
+          <StoryTab
+            stats={stats}
+            resources={resources}
+            isOwner={isOwner}
+            onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
+            onToggleEquipped={handleToggleEquipped}
+            onNotesChange={(text) => {
+              setScratchpad(text);
+              persistResources({ ...resources, notes: text });
+            }}
+          />
+        )}
+      </View>
+
+      {/* ── Bottom Tab Bar ───────────────────────────────────────────── */}
+      <View style={s.tabBar}>
+        {([
+          { id: 'combat', icon: 'sword-cross', label: 'Combat' },
+          { id: 'skills', icon: 'star-outline', label: 'Skills' },
+          { id: 'abilities', icon: 'lightning-bolt-outline', label: 'Abilities' },
+          { id: 'story', icon: 'book-open-outline', label: 'Story' },
+        ] as const).map((tab) => (
+          <TouchableOpacity
+            key={tab.id}
+            style={[s.tabBtn, activeTab === tab.id && s.tabBtnActive]}
+            onPress={() => setActiveTab(tab.id)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name={tab.icon}
+              size={20}
+              color={activeTab === tab.id ? colors.primary : colors.outline}
+            />
+            <Text style={[s.tabLabel, activeTab === tab.id && s.tabLabelActive]}>{tab.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Roll Toast */}
+      <RollToast result={rollResult} />
+
+      {/* ── Modals ───────────────────────────────────────────────────── */}
       <HpModal
         visible={hpModalVisible}
         resources={resources}
@@ -1547,6 +802,7 @@ export default function CharacterSheetScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
 
       {/* Field edit modal */}
       <Modal visible={!!editingField} transparent animationType="fade">
@@ -2002,13 +1258,103 @@ const CARD = {
 };
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   scroll: { flex: 1 },
   container: { padding: spacing.lg, paddingBottom: 48 },
   loadingContainer: {
-    flex: 1, backgroundColor: colors.background,
+    flex: 1, backgroundColor: colors.surfaceCanvas,
     justifyContent: 'center', alignItems: 'center',
   },
+
+  // ── HUD layout ──────────────────────────────────────────────────────────────
+  topChrome: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  backBtn: { padding: 4 },
+  chromePortrait: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
+  },
+  chromePortraitImg: { width: 36, height: 36, borderRadius: 18 },
+  chromeIdentity: { flex: 1, minWidth: 0 },
+  chromeName: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: -0.2,
+  },
+  chromeNameInput: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.primary, borderBottomWidth: 1, borderBottomColor: colors.primary,
+    paddingVertical: 1,
+  },
+  chromeSub: {
+    fontSize: 11, fontFamily: fonts.label, color: colors.outline,
+    marginTop: 1, textTransform: 'capitalize',
+  },
+  inspirationBtn: {
+    width: 30, height: 30, borderRadius: 15,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  inspirationBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
+  settingsIconBtn: { padding: 4 },
+
+  statRail: {
+    flexDirection: 'row', alignItems: 'stretch',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  railStat: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 10, gap: 2,
+    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.outlineVariant,
+  },
+  railValue: {
+    fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
+  },
+  railLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
+  },
+  railHp: {
+    flex: 2.2, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 8, paddingHorizontal: 8,
+    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.outlineVariant,
+    gap: 3,
+  },
+  hpNumRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
+  railHpCurrent: { fontSize: 20, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 22 },
+  railHpSep: { fontSize: 12, color: colors.outline, marginHorizontal: 1 },
+  railHpMax: { fontSize: 12, fontFamily: fonts.headline, fontWeight: '600', color: colors.outline },
+  railHpTemp: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: '#3B82F6', marginLeft: 2 },
+  hpTrack: {
+    width: '90%', height: 4, borderRadius: 2,
+    backgroundColor: colors.outlineVariant, flexDirection: 'row', overflow: 'hidden',
+  },
+  hpFill: { height: '100%', borderRadius: 2 },
+  hpTempFill: { height: '100%', backgroundColor: '#3B82F6' },
+
+  // ── Tab bar ──────────────────────────────────────────────────────────────────
+  tabBar: {
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLowest,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 6,
+  },
+  tabBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingTop: 8, paddingBottom: 4, gap: 3,
+  },
+  tabBtnActive: {},
+  tabLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.8, textTransform: 'uppercase', color: colors.outline,
+  },
+  tabLabelActive: { color: colors.primary },
   topBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: spacing.md,

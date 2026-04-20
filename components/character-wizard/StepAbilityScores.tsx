@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { useCharacterDraftStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
-import { colors } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Dnd5eAbilityScores } from '@vaultstone/types';
 
 const ABILITIES: (keyof Dnd5eAbilityScores)[] = [
@@ -12,33 +12,41 @@ const SHORT: Record<keyof Dnd5eAbilityScores, string> = {
   strength: 'STR', dexterity: 'DEX', constitution: 'CON',
   intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
 };
+const BLURB: Record<keyof Dnd5eAbilityScores, string> = {
+  strength: 'Lifting, breaking, brawling.',
+  dexterity: 'Agility, reflexes and stealth.',
+  constitution: 'Endurance and hit points.',
+  intelligence: 'Memory, analysis, arcana.',
+  wisdom: 'Perception, insight, nature.',
+  charisma: 'Persuasion, deception, command.',
+};
 
 const STANDARD_ARRAY = [15, 14, 13, 12, 10, 8];
 const POINT_COST: Record<number, number> = { 8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9 };
 const POINT_BUDGET = 27;
-const BLANK_SCORES: Dnd5eAbilityScores = {
+const BLANK: Dnd5eAbilityScores = {
   strength: 8, dexterity: 8, constitution: 8, intelligence: 8, wisdom: 8, charisma: 8,
 };
 
-const METHODS = [
-  { key: 'roll_dice' as const, label: 'Roll Dice' },
-  { key: 'standard_array' as const, label: 'Array' },
-  { key: 'point_buy' as const, label: 'Point Buy' },
-  { key: 'roll' as const, label: 'Manual' },
-];
-
 type DiceRoll = { dice: number[]; sum: number };
 
-function roll4d6DropLowest(): DiceRoll {
+function roll4d6Drop(): DiceRoll {
   const raw = Array.from({ length: 4 }, () => Math.floor(Math.random() * 6) + 1);
   const sorted = [...raw].sort((a, b) => b - a);
   return { dice: sorted, sum: sorted[0] + sorted[1] + sorted[2] };
 }
 
-function mod(score: number) {
+function fmtMod(score: number) {
   const m = Math.floor((score - 10) / 2);
   return m >= 0 ? `+${m}` : `${m}`;
 }
+
+const METHODS = [
+  { key: 'point_buy' as const, label: 'Point Buy' },
+  { key: 'standard_array' as const, label: 'Array' },
+  { key: 'roll_dice' as const, label: 'Roll 4d6' },
+  { key: 'roll' as const, label: 'Manual' },
+];
 
 export function StepAbilityScores() {
   const { abilityScoreMethod, abilityScores, setAbilityScoreMethod, setAbilityScores } =
@@ -51,434 +59,415 @@ export function StepAbilityScores() {
       }))
     );
 
-  // --- Roll Dice local state ---
   const [rolls, setRolls] = useState<Partial<Record<keyof Dnd5eAbilityScores, DiceRoll>>>({});
+  const [arrayAssignments, setArrayAssignments] = useState<Partial<Record<keyof Dnd5eAbilityScores, number>>>(() => {
+    if (abilityScoreMethod !== 'standard_array' || !abilityScores) return {};
+    return Object.fromEntries(ABILITIES.map((a) => [a, abilityScores[a]])) as any;
+  });
+  const [selectedArrayValue, setSelectedArrayValue] = useState<number | null>(null);
 
-  // Seed roll_dice scores to BLANK on method switch so the step isn't blocked
   useEffect(() => {
     if (abilityScoreMethod === 'roll_dice' && abilityScores === null) {
-      setAbilityScores({ ...BLANK_SCORES });
+      setAbilityScores({ ...BLANK });
     }
   }, [abilityScoreMethod]);
 
-  // --- Standard Array local state ---
-  const [arrayAssignments, setArrayAssignments] = useState<Partial<Record<keyof Dnd5eAbilityScores, number>>>(
-    () => {
-      if (abilityScoreMethod !== 'standard_array' || !abilityScores) return {};
-      return Object.fromEntries(ABILITIES.map((a) => [a, abilityScores[a]])) as Partial<Record<keyof Dnd5eAbilityScores, number>>;
-    }
-  );
-  const [selectedArrayValue, setSelectedArrayValue] = useState<number | null>(null);
+  const scores: Dnd5eAbilityScores = abilityScores ?? { ...BLANK };
 
-  // Working scores for point buy / manual
-  const workingScores: Dnd5eAbilityScores =
-    abilityScores ?? { ...BLANK_SCORES };
-
-  // ── Roll Dice helpers ──────────────────────────────────────────────────────
-
-  function rollAbility(ability: keyof Dnd5eAbilityScores) {
-    const result = roll4d6DropLowest();
-    const next = { ...rolls, [ability]: result };
+  // ── Roll Dice ──────────────────────────────────────────────────────────────
+  function rollAbility(ab: keyof Dnd5eAbilityScores) {
+    const r = roll4d6Drop();
+    const next = { ...rolls, [ab]: r };
     setRolls(next);
-    setAbilityScores({ ...workingScores, [ability]: result.sum });
+    setAbilityScores({ ...scores, [ab]: r.sum });
   }
-
   function rollAll() {
-    const nextRolls: Partial<Record<keyof Dnd5eAbilityScores, DiceRoll>> = {};
-    const nextScores = { ...BLANK_SCORES };
-    for (const ability of ABILITIES) {
-      const result = roll4d6DropLowest();
-      nextRolls[ability] = result;
-      nextScores[ability] = result.sum;
-    }
-    setRolls(nextRolls);
-    setAbilityScores(nextScores);
+    const nr: Partial<Record<keyof Dnd5eAbilityScores, DiceRoll>> = {};
+    const ns = { ...BLANK };
+    for (const ab of ABILITIES) { const r = roll4d6Drop(); nr[ab] = r; ns[ab] = r.sum; }
+    setRolls(nr); setAbilityScores(ns);
   }
+  const allRolled = ABILITIES.every((a) => rolls[a] !== undefined);
 
-  // ── Standard Array helpers ─────────────────────────────────────────────────
-
-  function assignArrayValue(ability: keyof Dnd5eAbilityScores) {
+  // ── Standard Array ─────────────────────────────────────────────────────────
+  function assignArrayValue(ab: keyof Dnd5eAbilityScores) {
     if (selectedArrayValue === null) {
-      const current = arrayAssignments[ability];
-      if (current !== undefined) {
+      const cur = arrayAssignments[ab];
+      if (cur !== undefined) {
         const next = { ...arrayAssignments };
-        delete next[ability];
+        delete next[ab];
         setArrayAssignments(next);
         syncArray(next);
       }
       return;
     }
     const next = { ...arrayAssignments };
-    for (const a of ABILITIES) {
-      if (next[a] === selectedArrayValue) delete next[a];
-    }
-    next[ability] = selectedArrayValue;
+    for (const a of ABILITIES) { if (next[a] === selectedArrayValue) delete next[a]; }
+    next[ab] = selectedArrayValue;
     setArrayAssignments(next);
     setSelectedArrayValue(null);
     syncArray(next);
   }
-
-  function syncArray(assignments: Partial<Record<keyof Dnd5eAbilityScores, number>>) {
-    const scores = { ...BLANK_SCORES };
-    for (const a of ABILITIES) {
-      if (assignments[a] !== undefined) scores[a] = assignments[a]!;
-    }
-    setAbilityScores(scores);
+  function syncArray(asgn: Partial<Record<keyof Dnd5eAbilityScores, number>>) {
+    const s = { ...BLANK };
+    for (const a of ABILITIES) { if (asgn[a] !== undefined) s[a] = asgn[a]!; }
+    setAbilityScores(s);
   }
+  const usedArrayVals = Object.values(arrayAssignments).filter((v): v is number => v !== undefined);
 
-  function usedArrayValues() {
-    return Object.values(arrayAssignments).filter((v): v is number => v !== undefined);
-  }
-
-  // ── Point Buy helper ───────────────────────────────────────────────────────
-
-  function updatePointBuy(ability: keyof Dnd5eAbilityScores, delta: number) {
-    const current = workingScores[ability];
-    const next = current + delta;
+  // ── Point Buy ──────────────────────────────────────────────────────────────
+  function stepPointBuy(ab: keyof Dnd5eAbilityScores, delta: number) {
+    const next = scores[ab] + delta;
     if (next < 8 || next > 15) return;
-    const newScores = { ...workingScores, [ability]: next };
-    const spent = ABILITIES.reduce((acc, a) => acc + (POINT_COST[newScores[a]] ?? 0), 0);
+    const ns = { ...scores, [ab]: next };
+    const spent = ABILITIES.reduce((acc, a) => acc + (POINT_COST[ns[a]] ?? 0), 0);
     if (spent > POINT_BUDGET) return;
-    setAbilityScores(newScores);
+    setAbilityScores(ns);
   }
+  const pointsSpent = ABILITIES.reduce((acc, a) => acc + (POINT_COST[scores[a]] ?? 0), 0);
+  const pointsRemaining = POINT_BUDGET - pointsSpent;
 
-  // ── Manual helper ──────────────────────────────────────────────────────────
-
-  function updateManual(ability: keyof Dnd5eAbilityScores, raw: string) {
+  // ── Manual ─────────────────────────────────────────────────────────────────
+  function updateManual(ab: keyof Dnd5eAbilityScores, raw: string) {
     const n = parseInt(raw, 10);
     if (isNaN(n)) return;
-    setAbilityScores({ ...workingScores, [ability]: Math.max(1, Math.min(30, n)) });
+    setAbilityScores({ ...scores, [ab]: Math.max(1, Math.min(30, n)) });
   }
 
-  const pointsSpent = ABILITIES.reduce((acc, a) => acc + (POINT_COST[workingScores[a]] ?? 0), 0);
-  const pointsRemaining = POINT_BUDGET - pointsSpent;
-  const allRolled = ABILITIES.every((a) => rolls[a] !== undefined);
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Assign Ability Scores</Text>
+    <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
+      <Text style={s.title}>Assign ability scores</Text>
+      <Text style={s.guidance}>Pick a method. Your modifier (shown next to each score) is what matters at the table.</Text>
 
-      {/* Method selector */}
-      <View style={styles.methodRow}>
-        {METHODS.map(({ key, label }) => (
+      {/* Segmented method switcher */}
+      <View style={s.methodBar}>
+        {METHODS.map((m) => (
           <TouchableOpacity
-            key={key}
-            style={[styles.methodBtn, abilityScoreMethod === key && styles.methodBtnActive]}
-            onPress={() => setAbilityScoreMethod(key)}
+            key={m.key}
+            style={[s.methodBtn, abilityScoreMethod === m.key && s.methodBtnActive]}
+            onPress={() => setAbilityScoreMethod(m.key)}
           >
-            <Text style={[styles.methodBtnText, abilityScoreMethod === key && styles.methodBtnTextActive]}>
-              {label}
+            <Text style={[s.methodBtnText, abilityScoreMethod === m.key && s.methodBtnTextActive]}>
+              {m.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* ── Roll Dice ─────────────────────────────────────────────────────── */}
-      {abilityScoreMethod === 'roll_dice' && (
-        <View>
-          <View style={styles.rollHeader}>
-            <Text style={styles.rollInstructions}>
-              Roll 4d6 per ability — highest 3 dice count.
-            </Text>
-            <TouchableOpacity style={styles.rollAllBtn} onPress={rollAll}>
-              <Text style={styles.rollAllBtnText}>{allRolled ? 'Reroll All' : 'Roll All'}</Text>
-            </TouchableOpacity>
+      {/* ── POINT BUY ─────────────────────────────────────────────────────── */}
+      {abilityScoreMethod === 'point_buy' && (
+        <>
+          <View style={s.budgetCard}>
+            <Text style={s.budgetLabel}>POINTS REMAINING</Text>
+            <Text style={[
+              s.budgetNum,
+              pointsRemaining === 0 && { color: colors.hpHealthy },
+              pointsRemaining < 0 && { color: colors.hpDanger },
+            ]}>{pointsRemaining}</Text>
           </View>
-
-          {ABILITIES.map((ability) => {
-            const roll = rolls[ability];
-            const score = workingScores[ability];
-            return (
-              <View key={ability} style={styles.rollRow}>
-                <View style={styles.rollRowLeft}>
-                  <Text style={styles.abilityShort}>{SHORT[ability]}</Text>
-                  <Text style={styles.abilityName}>{capitalize(ability)}</Text>
-                </View>
-
-                {roll ? (
-                  <View style={styles.diceGroup}>
-                    {roll.dice.map((val, i) => (
-                      <View
-                        key={i}
-                        style={[styles.diePip, i === 3 && styles.diePipDropped]}
-                      >
-                        <Text style={[styles.diePipText, i === 3 && styles.diePipTextDropped]}>
-                          {val}
-                        </Text>
-                      </View>
-                    ))}
-                    <Text style={styles.diceEquals}>=</Text>
-                    <View style={styles.rollScoreBox}>
-                      <Text style={styles.rollScore}>{score}</Text>
-                      <Text style={styles.rollMod}>{mod(score)}</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.diceGroupEmpty}>
-                    {[0, 1, 2, 3].map((i) => (
-                      <View key={i} style={[styles.diePip, styles.diePipEmpty]}>
-                        <Text style={styles.diePipTextEmpty}>?</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                <TouchableOpacity style={styles.rerollBtn} onPress={() => rollAbility(ability)}>
-                  <Text style={styles.rerollBtnText}>{roll ? '↺' : 'Roll'}</Text>
-                </TouchableOpacity>
+          {ABILITIES.map((ab) => (
+            <AbilityRow key={ab} ability={ab} right={
+              <View style={s.stepperRow}>
+                <StepBtn onPress={() => stepPointBuy(ab, -1)} disabled={scores[ab] <= 8}>−</StepBtn>
+                <ScorePill score={scores[ab]} />
+                <StepBtn
+                  onPress={() => stepPointBuy(ab, 1)}
+                  disabled={scores[ab] >= 15 || pointsRemaining < ((POINT_COST[scores[ab] + 1] ?? 99) - POINT_COST[scores[ab]])}
+                >+</StepBtn>
               </View>
-            );
-          })}
-
-          {!allRolled && (
-            <Text style={styles.rollHint}>Unrolled abilities default to 8.</Text>
-          )}
-        </View>
+            } />
+          ))}
+        </>
       )}
 
-      {/* ── Standard Array ────────────────────────────────────────────────── */}
+      {/* ── STANDARD ARRAY ────────────────────────────────────────────────── */}
       {abilityScoreMethod === 'standard_array' && (
-        <View>
-          <Text style={styles.hint}>
-            Tap a value to select it, then tap an ability to assign. Tap an assigned ability to clear it.
-          </Text>
-          <View style={styles.arrayChips}>
-            {STANDARD_ARRAY.map((val) => {
-              const used = usedArrayValues().includes(val);
-              const selected = selectedArrayValue === val;
+        <>
+          <Text style={s.subGuidance}>Pick a value, then tap an ability to assign it. Tap an assigned ability to clear it.</Text>
+          <View style={s.arrayValues}>
+            {STANDARD_ARRAY.map((v) => {
+              const used = usedArrayVals.includes(v);
+              const sel = selectedArrayValue === v;
               return (
                 <TouchableOpacity
-                  key={val}
-                  style={[styles.arrayChip, used && styles.arrayChipUsed, selected && styles.arrayChipSelected]}
-                  onPress={() => setSelectedArrayValue(selected ? null : val)}
+                  key={v}
+                  style={[s.arrayVal, sel && s.arrayValSelected, used && s.arrayValUsed]}
+                  onPress={() => setSelectedArrayValue(sel ? null : v)}
                   disabled={used}
                 >
-                  <Text style={[styles.arrayChipText, selected && styles.arrayChipTextSelected]}>{val}</Text>
+                  <Text style={[s.arrayValText, sel && s.arrayValTextSelected]}>{v}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
-          {ABILITIES.map((ability) => {
-            const value = arrayAssignments[ability];
+          {ABILITIES.map((ab) => {
+            const val = arrayAssignments[ab];
             return (
-              <TouchableOpacity
-                key={ability}
-                style={[styles.abilityRow, value !== undefined && styles.abilityRowAssigned]}
-                onPress={() => assignArrayValue(ability)}
-              >
-                <Text style={styles.abilityShort}>{SHORT[ability]}</Text>
-                <Text style={styles.abilityName}>{capitalize(ability)}</Text>
-                <View style={styles.abilityScoreBox}>
-                  {value !== undefined ? (
+              <AbilityRow key={ab} ability={ab} right={
+                <TouchableOpacity
+                  style={[s.assignSlot, val !== undefined && s.assignSlotFilled]}
+                  onPress={() => assignArrayValue(ab)}
+                >
+                  {val !== undefined ? (
                     <>
-                      <Text style={styles.abilityScore}>{value}</Text>
-                      <Text style={styles.abilityMod}>{mod(value)}</Text>
+                      <Text style={s.assignScore}>{val}</Text>
+                      <Text style={s.assignMod}>{fmtMod(val)}</Text>
                     </>
                   ) : (
-                    <Text style={styles.abilityEmpty}>—</Text>
+                    <Text style={s.assignEmpty}>
+                      {selectedArrayValue !== null ? `Assign ${selectedArrayValue}` : 'Tap to assign'}
+                    </Text>
                   )}
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              } />
             );
           })}
-        </View>
+        </>
       )}
 
-      {/* ── Point Buy ─────────────────────────────────────────────────────── */}
-      {abilityScoreMethod === 'point_buy' && (
-        <View>
-          <View style={styles.pointBudget}>
-            <Text style={styles.pointBudgetText}>Points remaining: </Text>
-            <Text style={[styles.pointBudgetCount, pointsRemaining === 0 && styles.pointBudgetDone]}>
-              {pointsRemaining}
-            </Text>
+      {/* ── ROLL 4D6 ──────────────────────────────────────────────────────── */}
+      {abilityScoreMethod === 'roll_dice' && (
+        <>
+          <View style={s.rollHeader}>
+            <Text style={s.subGuidance} >Roll 4d6, drop the lowest for each ability.</Text>
+            <TouchableOpacity style={s.rollAllBtn} onPress={rollAll}>
+              <Text style={s.rollAllBtnText}>{allRolled ? '↺ REROLL ALL' : '🎲 ROLL ALL'}</Text>
+            </TouchableOpacity>
           </View>
-          {ABILITIES.map((ability) => {
-            const score = workingScores[ability];
-            const canIncrease = score < 15 && pointsRemaining >= ((POINT_COST[score + 1] ?? 99) - POINT_COST[score]);
-            const canDecrease = score > 8;
+          {ABILITIES.map((ab) => {
+            const r = rolls[ab];
             return (
-              <View key={ability} style={styles.abilityRow}>
-                <Text style={styles.abilityShort}>{SHORT[ability]}</Text>
-                <Text style={styles.abilityName}>{capitalize(ability)}</Text>
-                <View style={styles.stepper}>
-                  <TouchableOpacity
-                    style={[styles.stepBtn, !canDecrease && styles.stepBtnDisabled]}
-                    onPress={() => updatePointBuy(ability, -1)}
-                    disabled={!canDecrease}
-                  >
-                    <Text style={styles.stepBtnText}>−</Text>
-                  </TouchableOpacity>
-                  <View style={styles.abilityScoreBox}>
-                    <Text style={styles.abilityScore}>{score}</Text>
-                    <Text style={styles.abilityMod}>{mod(score)}</Text>
+              <AbilityRow key={ab} ability={ab} right={
+                <View style={s.rollRight}>
+                  <View style={s.diceRow}>
+                    {(r ? r.dice : [0, 0, 0, 0]).map((d, i) => (
+                      <View key={i} style={[
+                        s.diePip,
+                        i === 3 && (r ? s.diePipDropped : s.diePipEmpty),
+                        !r && s.diePipEmpty,
+                      ]}>
+                        <Text style={[
+                          s.diePipText,
+                          i === 3 && r && s.diePipTextDropped,
+                          !r && s.diePipTextEmpty,
+                        ]}>{r ? d : '?'}</Text>
+                      </View>
+                    ))}
                   </View>
                   <TouchableOpacity
-                    style={[styles.stepBtn, !canIncrease && styles.stepBtnDisabled]}
-                    onPress={() => updatePointBuy(ability, 1)}
-                    disabled={!canIncrease}
+                    style={[s.rollBtn, r && s.rollBtnUsed]}
+                    onPress={() => rollAbility(ab)}
                   >
-                    <Text style={styles.stepBtnText}>+</Text>
+                    <Text style={[s.rollBtnText, r && s.rollBtnTextUsed]}>{r ? '↺' : 'Roll'}</Text>
                   </TouchableOpacity>
+                  {r && <ScorePill score={scores[ab]} />}
                 </View>
-              </View>
+              } />
             );
           })}
-        </View>
+          {!allRolled && (
+            <Text style={s.rollHint}>Unrolled abilities default to 8.</Text>
+          )}
+        </>
       )}
 
-      {/* ── Manual Entry ──────────────────────────────────────────────────── */}
+      {/* ── MANUAL ────────────────────────────────────────────────────────── */}
       {abilityScoreMethod === 'roll' && (
-        <View>
-          <Text style={styles.hint}>
-            Roll your dice outside the app and enter each score next to the ability.
-          </Text>
-          {ABILITIES.map((ability) => {
-            const score = workingScores[ability];
-            const isOutOfRange = score < 3 || score > 18;
-            return (
-              <View key={ability} style={styles.abilityRow}>
-                <Text style={styles.abilityShort}>{SHORT[ability]}</Text>
-                <Text style={styles.abilityName}>{capitalize(ability)}</Text>
-                <View style={styles.manualInputGroup}>
-                  {isOutOfRange && <Text style={styles.warningBadge}>!</Text>}
-                  <TextInput
-                    style={styles.manualInput}
-                    keyboardType="number-pad"
-                    value={score.toString()}
-                    onChangeText={(t) => updateManual(ability, t)}
-                    maxLength={2}
-                    selectTextOnFocus
-                  />
-                  <Text style={styles.abilityMod}>{mod(score)}</Text>
-                </View>
+        <>
+          <Text style={s.subGuidance}>Enter scores rolled outside the app. Typical range: 3–18.</Text>
+          {ABILITIES.map((ab) => (
+            <AbilityRow key={ab} ability={ab} right={
+              <View style={s.manualRow}>
+                <TextInput
+                  style={s.manualInput}
+                  keyboardType="number-pad"
+                  value={String(scores[ab])}
+                  onChangeText={(t) => updateManual(ab, t)}
+                  maxLength={2}
+                  selectTextOnFocus
+                />
+                <Text style={s.manualMod}>{fmtMod(scores[ab])}</Text>
               </View>
-            );
-          })}
-        </View>
+            } />
+          ))}
+        </>
       )}
     </ScrollView>
   );
 }
 
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function AbilityRow({ ability, right }: { ability: keyof Dnd5eAbilityScores; right: React.ReactNode }) {
+  return (
+    <View style={s.abilityRow}>
+      <View style={s.abilityBadge}>
+        <Text style={s.abilityShort}>{SHORT[ability]}</Text>
+      </View>
+      <View style={s.abilityInfo}>
+        <Text style={s.abilityName}>{ability.charAt(0).toUpperCase() + ability.slice(1)}</Text>
+        <Text style={s.abilityBlurb}>{BLURB[ability]}</Text>
+      </View>
+      <View style={s.abilityRight}>{right}</View>
+    </View>
+  );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingBottom: 32 },
-  heading: { fontSize: 22, fontWeight: '700', color: colors.textPrimary, marginBottom: 16 },
+function ScorePill({ score }: { score: number }) {
+  return (
+    <View style={s.scorePill}>
+      <Text style={s.scorePillScore}>{score}</Text>
+      <Text style={s.scorePillMod}>{fmtMod(score)}</Text>
+    </View>
+  );
+}
 
-  // Method tabs
-  methodRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  methodBtn: {
-    paddingVertical: 7, paddingHorizontal: 12,
-    borderRadius: 8, borderWidth: 1, borderColor: colors.border,
+function StepBtn({ children, onClick, onPress, disabled }: {
+  children: string; onClick?: () => void; onPress?: () => void; disabled?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[s.stepBtn, disabled && s.stepBtnDisabled]}
+      onPress={onPress ?? onClick}
+      disabled={disabled}
+    >
+      <Text style={[s.stepBtnText, disabled && s.stepBtnTextDisabled]}>{children}</Text>
+    </TouchableOpacity>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
+  title: {
+    fontSize: 26, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: -0.5, marginTop: 12, marginBottom: 8, lineHeight: 30,
   },
-  methodBtnActive: { borderColor: colors.brand, backgroundColor: colors.brand + '22' },
-  methodBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
-  methodBtnTextActive: { color: colors.brand },
-
-  hint: { fontSize: 12, color: colors.textSecondary, marginBottom: 14, lineHeight: 17 },
-
-  // Roll Dice
-  rollHeader: {
+  guidance: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 19, marginBottom: 14 },
+  subGuidance: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 17, marginBottom: 12 },
+  // Method switcher
+  methodBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: 999,
+    padding: 3,
     marginBottom: 16,
   },
-  rollInstructions: { fontSize: 13, color: colors.textSecondary, flex: 1 },
-  rollAllBtn: {
-    backgroundColor: colors.brand,
-    paddingVertical: 8, paddingHorizontal: 14,
-    borderRadius: 8,
-  },
-  rollAllBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  rollRow: {
-    flexDirection: 'row',
+  methodBtn: {
+    flex: 1, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 999,
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderColor: colors.border,
-    gap: 8,
   },
-  rollRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 90 },
-  diceGroup: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  diceGroupEmpty: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  diePip: {
-    width: 28, height: 28, borderRadius: 6,
-    borderWidth: 1, borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: 'center', justifyContent: 'center',
+  methodBtnActive: { backgroundColor: colors.primary },
+  methodBtnText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
+    letterSpacing: 0.5, textTransform: 'uppercase', color: colors.onSurfaceVariant,
   },
-  diePipDropped: {
-    borderColor: colors.hpDanger + '66',
-    backgroundColor: colors.hpDanger + '11',
+  methodBtnTextActive: { color: colors.onPrimary },
+  // Budget card
+  budgetCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: colors.surfaceContainerLow, borderWidth: 1,
+    borderColor: colors.outlineVariant, borderRadius: radius.xl, marginBottom: 6,
   },
-  diePipEmpty: { borderColor: colors.border, opacity: 0.4 },
-  diePipText: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
-  diePipTextDropped: { color: colors.hpDanger, textDecorationLine: 'line-through' },
-  diePipTextEmpty: { fontSize: 12, color: colors.textSecondary },
-  diceEquals: { fontSize: 14, color: colors.textSecondary, marginHorizontal: 2 },
-  rollScoreBox: { alignItems: 'center', minWidth: 32 },
-  rollScore: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
-  rollMod: { fontSize: 11, color: colors.textSecondary },
-  rerollBtn: {
-    paddingVertical: 5, paddingHorizontal: 10,
-    borderRadius: 6, borderWidth: 1, borderColor: colors.border,
+  budgetLabel: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    letterSpacing: 1.5, textTransform: 'uppercase', color: colors.secondary,
   },
-  rerollBtnText: { fontSize: 14, color: colors.brand, fontWeight: '700' },
-  rollHint: { fontSize: 11, color: colors.textSecondary, marginTop: 10, textAlign: 'center' },
-
-  // Standard Array
-  arrayChips: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  arrayChip: {
-    width: 44, height: 44, borderRadius: 8,
-    borderWidth: 1, borderColor: colors.border,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.surface,
-  },
-  arrayChipUsed: { opacity: 0.3 },
-  arrayChipSelected: { borderColor: colors.brand, backgroundColor: colors.brand + '33' },
-  arrayChipText: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-  arrayChipTextSelected: { color: colors.brand },
-
-  // Shared ability row
+  budgetNum: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.primary },
+  // Ability row
   abilityRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 10, borderBottomWidth: 1, borderColor: colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant,
   },
-  abilityRowAssigned: { borderColor: colors.brand + '44' },
-  abilityShort: { width: 36, fontSize: 13, fontWeight: '700', color: colors.brand },
-  abilityName: { flex: 1, fontSize: 14, color: colors.textSecondary },
-  abilityScoreBox: { alignItems: 'center', minWidth: 40 },
-  abilityScore: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
-  abilityMod: { fontSize: 12, color: colors.textSecondary },
-  abilityEmpty: { fontSize: 18, color: colors.border },
-
-  // Point Buy stepper
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  abilityBadge: {
+    width: 46, height: 40, borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerHigh, borderWidth: 1, borderColor: colors.outlineVariant,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  abilityShort: { fontSize: 12, fontFamily: fonts.headline, fontWeight: '800', color: colors.primary, letterSpacing: 0.8 },
+  abilityInfo: { flex: 1, minWidth: 0 },
+  abilityName: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface, textTransform: 'capitalize' },
+  abilityBlurb: { fontSize: 10, fontFamily: fonts.body, color: colors.outline, lineHeight: 14, marginTop: 1 },
+  abilityRight: { flexShrink: 0 },
+  // Score pill
+  scorePill: {
+    flexDirection: 'row', alignItems: 'baseline', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: colors.surfaceContainerHighest, borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+  },
+  scorePillScore: { fontSize: 16, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  scorePillMod: { fontSize: 11, fontFamily: fonts.body, fontWeight: '700', color: colors.primary },
+  // Point buy stepper
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   stepBtn: {
-    width: 32, height: 32, borderRadius: 6,
-    borderWidth: 1, borderColor: colors.border,
+    width: 30, height: 30, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerHigh,
     alignItems: 'center', justifyContent: 'center',
   },
-  stepBtnDisabled: { opacity: 0.3 },
-  stepBtnText: { fontSize: 18, color: colors.textPrimary, lineHeight: 22 },
-  pointBudget: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  pointBudgetText: { fontSize: 14, color: colors.textSecondary },
-  pointBudgetCount: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-  pointBudgetDone: { color: colors.hpHealthy },
-
-  // Manual entry
-  manualInputGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  manualInput: {
-    width: 48, height: 40, textAlign: 'center',
-    fontSize: 17, fontWeight: '700', color: colors.textPrimary,
-    backgroundColor: colors.surface, borderRadius: 6,
-    borderWidth: 1, borderColor: colors.border,
+  stepBtnDisabled: { opacity: 0.4 },
+  stepBtnText: { fontSize: 18, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface, lineHeight: 22 },
+  stepBtnTextDisabled: { color: colors.outlineVariant },
+  // Standard array
+  arrayValues: { flexDirection: 'row', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
+  arrayVal: {
+    width: 48, height: 48, borderRadius: radius.xl,
+    borderWidth: 1, borderColor: colors.outlineVariant, backgroundColor: colors.surfaceContainerHigh,
+    alignItems: 'center', justifyContent: 'center',
   },
-  warningBadge: { fontSize: 14, fontWeight: '700', color: colors.hpWarning },
+  arrayValSelected: {
+    borderColor: colors.primary,
+    backgroundColor: `${colors.primary}33`,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 6,
+  },
+  arrayValUsed: { opacity: 0.25 },
+  arrayValText: { fontSize: 18, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  arrayValTextSelected: { color: colors.primary },
+  assignSlot: {
+    minWidth: 84, height: 40, borderRadius: radius.lg,
+    borderWidth: 1, borderStyle: 'dashed' as any, borderColor: colors.outlineVariant,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8,
+  },
+  assignSlotFilled: { borderStyle: 'solid', borderColor: 'transparent', backgroundColor: colors.surfaceContainerHighest },
+  assignScore: { fontSize: 18, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  assignMod: { fontSize: 11, fontFamily: fonts.body, fontWeight: '700', color: colors.primary },
+  assignEmpty: { fontSize: 12, fontFamily: fonts.body, color: colors.outline },
+  // Roll dice
+  rollHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 8 },
+  rollAllBtn: {
+    paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.lg,
+    backgroundColor: colors.primary, flexShrink: 0,
+  },
+  rollAllBtnText: { fontSize: 12, fontFamily: fonts.label, fontWeight: '700', color: colors.onPrimary, letterSpacing: 0.5, textTransform: 'uppercase' },
+  rollRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  diceRow: { flexDirection: 'row', gap: 3 },
+  diePip: {
+    width: 22, height: 22, borderRadius: 4,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerHighest,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  diePipDropped: { borderColor: `${colors.hpDanger}66`, backgroundColor: `${colors.hpDanger}15` },
+  diePipEmpty: { borderStyle: 'dashed' as any, opacity: 0.5 },
+  diePipText: { fontSize: 11, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  diePipTextDropped: { color: colors.hpDanger, textDecorationLine: 'line-through' },
+  diePipTextEmpty: { fontSize: 11, color: colors.outlineVariant },
+  rollBtn: {
+    width: 46, height: 32, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.primary,
+    backgroundColor: `${colors.primary}22`,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  rollBtnUsed: { borderColor: colors.outlineVariant, backgroundColor: 'transparent' },
+  rollBtnText: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '700', color: colors.primary },
+  rollBtnTextUsed: { color: colors.onSurfaceVariant },
+  rollHint: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, textAlign: 'center', marginTop: 12 },
+  // Manual
+  manualRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  manualInput: {
+    width: 52, height: 40, textAlign: 'center',
+    fontSize: 17, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurface, backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: radius.lg,
+  },
+  manualMod: { fontSize: 11, fontFamily: fonts.body, fontWeight: '700', color: colors.primary, minWidth: 28 },
 });

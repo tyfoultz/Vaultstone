@@ -1,18 +1,19 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCharacterDraftStore, useAuthStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
 import { createCharacter } from '@vaultstone/api';
-import { colors } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius } from '@vaultstone/ui';
+import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
 import { StepSpecies } from '../../components/character-wizard/StepSpecies';
 import { StepClass } from '../../components/character-wizard/StepClass';
 import { StepBackground } from '../../components/character-wizard/StepBackground';
 import { StepAbilityScores } from '../../components/character-wizard/StepAbilityScores';
 import { StepReview } from '../../components/character-wizard/StepReview';
-import type { Dnd5eStats, Dnd5eResources, ClassResult, BackgroundResult } from '@vaultstone/types';
-import { ContentResolver } from '@vaultstone/content';
+import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
+import type { Dnd5eStats, Dnd5eResources, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
 
 const STEPS = [
   { key: 'ruleset', label: 'Ruleset' },
@@ -44,21 +45,84 @@ export default function NewCharacterScreen() {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [inPreview, setInPreview] = useState(false);
+
+  // Resolved content names for SheetSoFar
+  const [speciesName, setSpeciesName] = useState<string | null>(null);
+  const [className, setClassName] = useState<string | null>(null);
+  const [classDie, setClassDie] = useState<number | null>(null);
+  const [classSkillCount, setClassSkillCount] = useState<number>(0);
+  const [backgroundName, setBackgroundName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (draft.speciesKey) {
+      ContentResolver.search({ type: 'species', system: 'dnd5e', tiers: ['srd'] }).then((r) => {
+        const sp = (r as SpeciesResult[]).find((x) => x.key === draft.speciesKey);
+        setSpeciesName(sp?.name ?? null);
+      });
+    } else {
+      setSpeciesName(null);
+    }
+  }, [draft.speciesKey]);
+
+  useEffect(() => {
+    if (draft.classKey) {
+      ContentResolver.search({ type: 'class', system: 'dnd5e', tiers: ['srd'] }).then((r) => {
+        const cls = (r as ClassResult[]).find((x) => x.key === draft.classKey);
+        setClassName(cls?.name ?? null);
+        setClassDie(cls?.hitDie ?? null);
+        setClassSkillCount(cls?.skillChoices?.count ?? 0);
+      });
+    } else {
+      setClassName(null);
+      setClassDie(null);
+      setClassSkillCount(0);
+    }
+  }, [draft.classKey]);
+
+  useEffect(() => {
+    if (draft.backgroundKey) {
+      ContentResolver.search({ type: 'background', system: 'dnd5e', tiers: ['srd'] }).then((r) => {
+        const bg = (r as BackgroundResult[]).find((x) => x.key === draft.backgroundKey);
+        setBackgroundName(bg?.name ?? null);
+      });
+    } else {
+      setBackgroundName(null);
+    }
+  }, [draft.backgroundKey]);
+
+  // Highest ability score for SheetSoFar
+  const highestStat = draft.abilityScores
+    ? (() => {
+        const entries = Object.entries(draft.abilityScores) as [string, number][];
+        const best = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
+        const SHORT: Record<string, string> = {
+          strength: 'STR', dexterity: 'DEX', constitution: 'CON',
+          intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
+        };
+        return { label: SHORT[best[0]] ?? best[0].toUpperCase(), value: best[1] };
+      })()
+    : null;
 
   function isStepComplete(index: number): boolean {
     switch (index) {
       case 0: return true;
       case 1: return draft.speciesKey !== null;
-      case 2: return draft.classKey !== null;
+      case 2: return draft.classKey !== null && (classSkillCount === 0 || draft.chosenSkills.length >= classSkillCount);
       case 3: return draft.backgroundKey !== null;
       case 4: return draft.abilityScores !== null;
-      case 5: return draft.characterName.trim().length > 0;
+      case 5: return (draft.characterName ?? '').trim().length > 0;
       default: return false;
     }
   }
 
-  function canAdvance() {
-    return isStepComplete(step);
+  function handleBack() {
+    if (step === 0) {
+      router.back();
+    } else {
+      setStep(step - 1);
+      setInPreview(false);
+    }
   }
 
   async function handleFinish() {
@@ -67,7 +131,6 @@ export default function NewCharacterScreen() {
     setSaveError('');
 
     try {
-      // Load class + background for proficiencies snapshot
       const [clsResults, bgResults, speciesResults] = await Promise.all([
         ContentResolver.search({ type: 'class', system: 'dnd5e', tiers: ['srd'] }),
         ContentResolver.search({ type: 'background', system: 'dnd5e', tiers: ['srd'] }),
@@ -137,110 +200,231 @@ export default function NewCharacterScreen() {
 
       resetDraft();
       router.replace(`/character/${data.id}`);
-    } catch (e) {
+    } catch {
       setSaveError('Unexpected error. Please try again.');
       setSaving(false);
     }
   }
 
   const isLast = step === STEPS.length - 1;
+  const canAdvance = isStepComplete(step);
+
+  // Class skills hint: class chosen but skills not yet all picked
+  const showSkillHint = step === 2 && draft.classKey !== null && classSkillCount > 0 && draft.chosenSkills.length < classSkillCount;
+
+  // SheetSoFar visible between steps 1-4, not when in a detail preview, not on last step
+  const showSheetSoFar = step >= 1 && step <= 4 && !inPreview;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={s.safeArea}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => (step === 0 ? router.back() : setStep(step - 1))} style={styles.backBtn}>
-          <Text style={styles.backText}>{step === 0 ? 'Cancel' : '← Back'}</Text>
+      <View style={s.header}>
+        <TouchableOpacity onPress={handleBack} style={s.headerSide} hitSlop={8}>
+          <Text style={s.headerAction}>{step === 0 ? 'Cancel' : '← Back'}</Text>
         </TouchableOpacity>
-        <Text style={styles.stepTitle}>{STEPS[step].label}</Text>
-        <View style={styles.backBtn} />
+        <View style={s.headerCenter}>
+          <Text style={s.stepCounter}>STEP {String(step + 1).padStart(2, '0')}/{String(STEPS.length).padStart(2, '0')}</Text>
+          <Text style={s.stepLabel}>{STEPS[step].label}</Text>
+        </View>
+        <View style={s.headerSide} />
       </View>
 
-      {/* Step progress */}
-      <View style={styles.progress}>
-        {STEPS.map((s, i) => (
-          <View
-            key={s.key}
-            style={[
-              styles.progressDot,
-              i < step && styles.progressDotDone,
-              i === step && styles.progressDotActive,
-            ]}
-          />
-        ))}
+      {/* Constellation progress */}
+      <View style={s.constellation}>
+        {STEPS.map((st, i) => {
+          const done = i < step;
+          const active = i === step;
+          return (
+            <View key={st.key} style={s.constellationItem}>
+              {i > 0 && (
+                <View style={[s.constellationLine, (done || active) && s.constellationLineActive]} />
+              )}
+              <View style={[s.constellationNode, done && s.constellationNodeDone, active && s.constellationNodeActive]}>
+                {done ? (
+                  <Text style={s.constellationCheck}>✓</Text>
+                ) : (
+                  <Text style={[s.constellationNum, active && s.constellationNumActive]}>{i + 1}</Text>
+                )}
+              </View>
+            </View>
+          );
+        })}
       </View>
 
       {/* Step content */}
-      <View style={styles.content}>
+      <View style={s.content}>
         {step === 0 && <StepRuleset />}
-        {step === 1 && <StepSpecies />}
-        {step === 2 && <StepClass />}
-        {step === 3 && <StepBackground />}
+        {step === 1 && (
+          <StepSpecies
+            onPreviewChange={setInPreview}
+            onAdvance={() => { setStep(2); setInPreview(false); }}
+          />
+        )}
+        {step === 2 && (
+          <StepClass
+            onPreviewChange={setInPreview}
+            onAdvance={() => { setStep(3); setInPreview(false); }}
+          />
+        )}
+        {step === 3 && (
+          <StepBackground
+            onPreviewChange={setInPreview}
+            onAdvance={() => { setStep(4); setInPreview(false); }}
+          />
+        )}
         {step === 4 && <StepAbilityScores />}
         {step === 5 && <StepReview />}
       </View>
 
-      {/* Footer nav */}
-      <View style={styles.footer}>
-        {step === 2 && draft.classKey !== null && draft.chosenSkills.length === 0 && (
-          <Text style={styles.footerHint}>↑ Scroll down in the class card to pick your skills</Text>
-        )}
-        {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
-        <TouchableOpacity
-          style={[styles.nextBtn, !canAdvance() && styles.nextBtnDisabled]}
-          disabled={!canAdvance() || saving}
-          onPress={isLast ? handleFinish : () => setStep(step + 1)}
-        >
-          <Text style={styles.nextBtnText}>
-            {saving ? 'Saving…' : isLast ? 'Finish' : 'Next →'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* SheetSoFar summary bar */}
+      {showSheetSoFar && (
+        <SheetSoFar
+          speciesName={speciesName}
+          className={className}
+          classDie={classDie}
+          backgroundName={backgroundName}
+          highestStat={highestStat}
+          onJumpTo={(target) => { setStep(target); setInPreview(false); }}
+        />
+      )}
+
+      {/* Footer */}
+      {!inPreview && (
+        <View style={s.footer}>
+          {showSkillHint && (
+            <Text style={s.footerHint}>
+              Pick {classSkillCount - draft.chosenSkills.length} more skill{classSkillCount - draft.chosenSkills.length !== 1 ? 's' : ''} to continue
+            </Text>
+          )}
+          {saveError ? <Text style={s.saveError}>{saveError}</Text> : null}
+          <TouchableOpacity
+            style={[s.nextBtn, !canAdvance && s.nextBtnDisabled]}
+            disabled={!canAdvance || saving}
+            onPress={isLast ? handleFinish : () => { setStep(step + 1); setInPreview(false); }}
+            activeOpacity={0.85}
+          >
+            <Text style={[s.nextBtnText, !canAdvance && s.nextBtnTextDisabled]}>
+              {saving ? 'Creating…' : isLast ? 'Create Character' : 'Continue →'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
+const s = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.surfaceCanvas },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant,
   },
-  backBtn: { width: 70 },
-  backText: { fontSize: 14, color: colors.brand, fontWeight: '600' },
-  stepTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  progress: {
+  headerSide: { width: 70 },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerAction: {
+    fontSize: 13, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.primary, letterSpacing: 0.3,
+  },
+  stepCounter: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '600',
+    letterSpacing: 2, textTransform: 'uppercase', color: colors.outline, marginBottom: 2,
+  },
+  stepLabel: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: -0.3,
+  },
+
+  // Constellation progress
+  constellation: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-  },
-  progressDot: {
-    width: 8, height: 8, borderRadius: 4,
-    backgroundColor: colors.border,
-  },
-  progressDotDone: { backgroundColor: colors.brand + '88' },
-  progressDotActive: { backgroundColor: colors.brand, width: 20, borderRadius: 4 },
-  content: { flex: 1 },
-  footer: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderColor: colors.border,
-  },
-  footerHint: { fontSize: 12, color: colors.hpWarning, textAlign: 'center', marginBottom: 8 },
-  saveError: { fontSize: 13, color: colors.hpDanger, textAlign: 'center', marginBottom: 8 },
-  nextBtn: {
-    backgroundColor: colors.brand,
-    borderRadius: 10,
     paddingVertical: 14,
+    paddingHorizontal: spacing.md,
+  },
+  constellationItem: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  nextBtnDisabled: { opacity: 0.4 },
-  nextBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  constellationLine: {
+    width: 24,
+    height: 1,
+    backgroundColor: colors.outlineVariant,
+  },
+  constellationLineActive: {
+    backgroundColor: colors.primary,
+    opacity: 0.5,
+  },
+  constellationNode: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLowest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  constellationNodeDone: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
+  },
+  constellationNodeActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceContainer,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  constellationNum: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.outline,
+  },
+  constellationNumActive: { color: colors.primary },
+  constellationCheck: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary,
+  },
+
+  content: { flex: 1 },
+
+  // Footer
+  footer: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: Platform.OS === 'android' ? 20 : 12,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceCanvas,
+  },
+  footerHint: {
+    fontSize: 12, fontFamily: fonts.body,
+    color: colors.hpWarning, textAlign: 'center', marginBottom: 8,
+  },
+  saveError: {
+    fontSize: 13, fontFamily: fonts.body,
+    color: colors.hpDanger, textAlign: 'center', marginBottom: 8,
+  },
+  nextBtn: {
+    borderRadius: radius.xl,
+    paddingVertical: 16,
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+  },
+  nextBtnDisabled: {
+    backgroundColor: colors.surfaceContainerHighest,
+  },
+  nextBtnText: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onPrimary, letterSpacing: 0.3,
+  },
+  nextBtnTextDisabled: { color: colors.outline },
 });

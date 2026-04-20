@@ -8,6 +8,7 @@ import { colors, spacing } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
 type Character = Database['public']['Tables']['characters']['Row'];
+type ListItem = Character | { id: '__new__' };
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -61,14 +62,33 @@ export default function CharactersScreen() {
     });
   }, [user]);
 
-  function renderItem({ item }: { item: Character }) {
-    const { classKey, level, speciesKey } = getStats(item);
-    const campaignName = campaignMap[item.id];
+  function renderItem({ item }: { item: ListItem }) {
+    if (item.id === '__new__') {
+      return (
+        <TouchableOpacity
+          style={[styles.card, styles.newCard, { flex: 1 / numColumns }]}
+          onPress={() => router.push('/character/new')}
+          activeOpacity={0.75}
+        >
+          <View style={styles.avatarArea}>
+            <MaterialCommunityIcons name="plus-circle-outline" size={36} color={colors.brand} />
+          </View>
+          <View style={styles.cardBody}>
+            <Text style={styles.newCardText}>New Character</Text>
+            <Text style={styles.subtitle}>Start building</Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    const char = item as Character;
+    const { classKey, level, speciesKey } = getStats(char);
+    const campaignName = campaignMap[char.id];
 
     return (
       <TouchableOpacity
         style={[styles.card, { flex: 1 / numColumns }]}
-        onPress={() => router.push(`/character/${item.id}`)}
+        onPress={() => router.push(`/character/${char.id}`)}
       >
         {/* Avatar placeholder */}
         <View style={styles.avatarArea}>
@@ -76,7 +96,7 @@ export default function CharactersScreen() {
         </View>
 
         <View style={styles.cardBody}>
-          <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.cardName} numberOfLines={1}>{char.name}</Text>
 
           {(classKey || speciesKey) && (
             <Text style={styles.subtitle} numberOfLines={1}>
@@ -90,7 +110,7 @@ export default function CharactersScreen() {
                 <Text style={styles.levelText}>Lvl {level}</Text>
               </View>
             )}
-            <Text style={styles.systemText}>{item.system}</Text>
+            <Text style={styles.systemText}>{char.system}</Text>
           </View>
 
           <View style={styles.campaignRow}>
@@ -115,26 +135,14 @@ export default function CharactersScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Characters</Text>
-        <TouchableOpacity onPress={() => router.push('/character/new')}>
-          <Text style={styles.newButton}>+ New</Text>
-        </TouchableOpacity>
       </View>
 
       {loading && <ActivityIndicator color={colors.brand} style={styles.loader} />}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {!loading && characters.length === 0 && !error && (
-        <View style={styles.emptyState}>
-          <Text style={styles.empty}>No characters yet.</Text>
-          <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/character/new')}>
-            <Text style={styles.emptyBtnText}>Create your first character</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       <FlatList
         key={numColumns}
-        data={characters}
+        data={[{ id: '__new__' } as ListItem, ...characters]}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         numColumns={numColumns}
@@ -163,36 +171,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textPrimary,
   },
-  newButton: {
-    fontSize: 16,
-    color: colors.brand,
-    fontWeight: '600',
-  },
   loader: { marginTop: 40 },
   error: {
     color: colors.hpDanger,
     textAlign: 'center',
     marginTop: 16,
   },
-  emptyState: { alignItems: 'center', marginTop: 60 },
-  empty: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    marginBottom: 20,
-  },
-  emptyBtn: {
-    backgroundColor: colors.brand,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-  },
-  emptyBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   list: {
     gap: spacing.md,
     paddingBottom: spacing.xl,
   },
   row: {
     gap: spacing.md,
+  },
+  newCard: {
+    borderStyle: 'dashed' as any,
+    borderColor: colors.brand + '66',
+    backgroundColor: colors.brand + '0d',
+  },
+  newCardText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.brand,
   },
   // Card
   card: {
