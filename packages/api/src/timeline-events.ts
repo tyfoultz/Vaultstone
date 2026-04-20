@@ -20,6 +20,7 @@ export async function createTimelineEvent(input: {
   body?: Json;
   bodyText?: string;
   bodyRefs?: string[];
+  tags?: string[];
   sourceSessionId?: string | null;
   visibleToPlayers?: boolean;
   tieBreaker?: number;
@@ -34,6 +35,7 @@ export async function createTimelineEvent(input: {
       body: input.body ?? {},
       body_text: input.bodyText ?? null,
       body_refs: input.bodyRefs ?? [],
+      tags: input.tags ?? [],
       source_session_id: input.sourceSessionId ?? null,
       visible_to_players: input.visibleToPlayers ?? true,
       tie_breaker: input.tieBreaker ?? 0,
@@ -53,6 +55,7 @@ export async function updateTimelineEvent(
       | 'body'
       | 'body_text'
       | 'body_refs'
+      | 'tags'
       | 'tie_breaker'
     >
   >,

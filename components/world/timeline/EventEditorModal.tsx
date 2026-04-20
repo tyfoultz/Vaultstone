@@ -14,6 +14,7 @@ type Props = {
   timelinePageId: string;
   calendarSchema: CalendarUnit[];
   event: TimelineEvent | null;
+  defaultEra?: string;
   onClose: () => void;
 };
 
@@ -22,13 +23,26 @@ export function EventEditorModal({
   timelinePageId,
   calendarSchema,
   event,
+  defaultEra,
   onClose,
 }: Props) {
   const isEdit = event !== null;
   const [title, setTitle] = useState(event?.title ?? '');
   const [dateValues, setDateValues] = useState<Record<string, string>>(() => {
-    if (!event?.date_values || typeof event.date_values !== 'object') return {};
-    return event.date_values as Record<string, string>;
+    if (event?.date_values && typeof event.date_values === 'object') {
+      return event.date_values as Record<string, string>;
+    }
+    if (defaultEra && calendarSchema.length > 0) {
+      return { [calendarSchema[0].key]: defaultEra };
+    }
+    return {};
+  });
+  const [description, setDescription] = useState(() => {
+    return event?.body_text ?? '';
+  });
+  const [tagsText, setTagsText] = useState(() => {
+    const t = (event as TimelineEvent & { tags?: string[] })?.tags ?? [];
+    return t.join(', ');
   });
   const [visibleToPlayers, setVisibleToPlayers] = useState(event?.visible_to_players ?? true);
   const [saving, setSaving] = useState(false);
@@ -37,15 +51,33 @@ export function EventEditorModal({
   const updateEvent = useTimelineEventsStore((s) => s.updateEvent);
   const removeEvent = useTimelineEventsStore((s) => s.removeEvent);
 
+  const parsedTags = tagsText
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+
   const handleSave = async () => {
     if (!title.trim()) return;
     setSaving(true);
+
+    const bodyDoc = description.trim()
+      ? {
+          type: 'doc',
+          content: description.split(/\n{2,}/).map((p) => ({
+            type: 'paragraph',
+            content: p.trim() ? [{ type: 'text', text: p.trim() }] : [],
+          })),
+        }
+      : {};
 
     if (isEdit) {
       const { data } = await updateTimelineEvent(event.id, {
         title: title.trim(),
         date_values: dateValues as Json,
         visible_to_players: visibleToPlayers,
+        body: bodyDoc as Json,
+        body_text: description.trim() || null,
+        tags: parsedTags,
       });
       if (data) {
         updateEvent(data.id, data as TimelineEvent);
@@ -57,6 +89,9 @@ export function EventEditorModal({
         title: title.trim(),
         dateValues: dateValues as Json,
         visibleToPlayers,
+        body: bodyDoc as Json,
+        bodyText: description.trim() || undefined,
+        tags: parsedTags,
       });
       if (data) {
         addEvent(data as TimelineEvent);
@@ -92,10 +127,9 @@ export function EventEditorModal({
           </View>
 
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyInner}>
+            {/* Title */}
             <View style={styles.field}>
-              <Text variant="label-md" tone="secondary">
-                Title
-              </Text>
+              <Text variant="label-md" tone="secondary">Title</Text>
               <TextInput
                 style={styles.input}
                 value={title}
@@ -105,11 +139,10 @@ export function EventEditorModal({
               />
             </View>
 
+            {/* Date fields from calendar schema */}
             {calendarSchema.length > 0 ? (
               <View style={styles.field}>
-                <Text variant="label-md" tone="secondary">
-                  Date
-                </Text>
+                <Text variant="label-md" tone="secondary">Date</Text>
                 <View style={styles.dateFields}>
                   {calendarSchema.map((unit) => (
                     <View key={unit.key} style={styles.dateFieldRow}>
@@ -157,6 +190,44 @@ export function EventEditorModal({
               </View>
             ) : null}
 
+            {/* Description */}
+            <View style={styles.field}>
+              <Text variant="label-md" tone="secondary">Description</Text>
+              <TextInput
+                style={[styles.input, styles.descInput]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="A short description of this event…"
+                placeholderTextColor={colors.outlineVariant}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Tags */}
+            <View style={styles.field}>
+              <Text variant="label-md" tone="secondary">Tags</Text>
+              <TextInput
+                style={styles.input}
+                value={tagsText}
+                onChangeText={setTagsText}
+                placeholder="Comma-separated tags (e.g. Combat, Founding)"
+                placeholderTextColor={colors.outlineVariant}
+              />
+              {parsedTags.length > 0 ? (
+                <View style={styles.tagPreview}>
+                  {parsedTags.map((tag) => (
+                    <View key={tag} style={styles.tagChip}>
+                      <Text variant="label-sm" uppercase weight="bold" style={styles.tagChipText}>
+                        {tag}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+
+            {/* Visibility */}
             <View style={styles.field}>
               <Pressable
                 style={styles.visibilityRow}
@@ -181,7 +252,7 @@ export function EventEditorModal({
               <View />
             )}
             <GradientButton
-              label={saving ? 'Saving…' : isEdit ? 'Save' : 'Add'}
+              label={saving ? 'Saving…' : isEdit ? 'Save' : 'Add Event'}
               onPress={handleSave}
               disabled={saving || !title.trim()}
             />
@@ -203,7 +274,7 @@ const styles = StyleSheet.create({
   modal: {
     width: '100%',
     maxWidth: 520,
-    maxHeight: '80%',
+    maxHeight: '85%',
     gap: spacing.lg,
   },
   header: {
@@ -230,6 +301,10 @@ const styles = StyleSheet.create({
     borderColor: colors.outlineVariant + '55',
     borderRadius: radius.lg,
     backgroundColor: colors.surfaceCanvas,
+  },
+  descInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
   dateFields: {
     gap: spacing.sm,
@@ -272,6 +347,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.xs,
+  },
+  tagPreview: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  tagChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: colors.cosmic + '66',
+    backgroundColor: colors.cosmicContainer + '44',
+  },
+  tagChipText: {
+    color: colors.cosmic,
+    fontSize: 9,
+    letterSpacing: 0.8,
   },
   footer: {
     flexDirection: 'row',

@@ -559,6 +559,7 @@ export interface Database {
           body: Json;
           body_text: string | null;
           body_refs: string[];
+          tags: string[];
           deleted_at: string | null;
           hard_delete_after: string | null;
           created_at: string;
@@ -577,6 +578,7 @@ export interface Database {
           body?: Json;
           body_text?: string | null;
           body_refs?: string[];
+          tags?: string[];
           deleted_at?: string | null;
           hard_delete_after?: string | null;
           created_at?: string;
@@ -592,6 +594,7 @@ export interface Database {
           body?: Json;
           body_text?: string | null;
           body_refs?: string[];
+          tags?: string[];
           deleted_at?: string | null;
           hard_delete_after?: string | null;
           updated_at?: string;

@@ -5,7 +5,6 @@ import {
   claimPageEdit,
   getEventsForTimeline,
   releasePageEdit,
-  updatePage,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
@@ -17,7 +16,7 @@ import {
   useTimelineEventsStore,
   selectEventsForPage,
 } from '@vaultstone/store';
-import type { Json, TemplateKey, TimelineEvent, WorldPage } from '@vaultstone/types';
+import type { CalendarSchema, CalendarUnit, Json, TemplateKey, TimelineEvent, WorldPage } from '@vaultstone/types';
 import {
   Icon,
   MetaLabel,
@@ -35,9 +34,9 @@ import { ShareModal } from './ShareModal';
 import { WorldTopBar } from './WorldTopBar';
 import { PAGE_KIND_LABEL } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
-import { worldHref } from './worldHref';
 import { CalendarSchemaEditor } from './timeline/CalendarSchemaEditor';
-import { TimelineEventCard } from './timeline/TimelineEventCard';
+import { EraRibbon } from './timeline/EraRibbon';
+import { TimelineSpine } from './timeline/TimelineSpine.web';
 import { EventEditorModal } from './timeline/EventEditorModal';
 
 const LOCK_HEARTBEAT_MS = 30_000;
@@ -66,6 +65,9 @@ export function TimelinePageView({ page, worldId }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [eventEditorOpen, setEventEditorOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
+  const [defaultEra, setDefaultEra] = useState<string | undefined>(undefined);
+  const [activeEra, setActiveEra] = useState<string | null>(null);
+  const [schemaExpanded, setSchemaExpanded] = useState(false);
 
   // Edit lock
   const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(null);
@@ -129,20 +131,37 @@ export function TimelinePageView({ page, worldId }: Props) {
 
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);
 
-  const calendarSchema = useMemo(() => {
+  const calendarSchema: CalendarUnit[] = useMemo(() => {
     const sf = page.structured_fields as Record<string, unknown> | null;
     const raw = sf?.__calendar_schema;
     if (!Array.isArray(raw)) return [];
-    return raw;
+    return raw as CalendarUnit[];
   }, [page.structured_fields]);
+
+  const hasSchema = calendarSchema.length > 0;
+
+  // Derived stats for page head
+  const eraCount = useMemo(() => {
+    if (!hasSchema) return 0;
+    const topUnit = calendarSchema[0];
+    const eras = new Set<string>();
+    for (const ev of events) {
+      const dv = ev.date_values as Record<string, unknown>;
+      const val = dv[topUnit.key];
+      if (val) eras.add(String(val));
+    }
+    return eras.size;
+  }, [events, calendarSchema, hasSchema]);
 
   const handleEditEvent = (event: TimelineEvent) => {
     setEditingEvent(event);
+    setDefaultEra(undefined);
     setEventEditorOpen(true);
   };
 
-  const handleAddEvent = () => {
+  const handleAddEvent = (eraValue?: string) => {
     setEditingEvent(null);
+    setDefaultEra(eraValue);
     setEventEditorOpen(true);
   };
 
@@ -183,76 +202,104 @@ export function TimelinePageView({ page, worldId }: Props) {
       />
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        <PageHead
-          icon={template.icon}
-          title={page.title}
-          meta={`${PAGE_KIND_LABEL[page.page_kind] ?? 'Page'} · ${section.name}`}
-          accentToken={template.accentToken}
-          actions={
-            <VisibilityBadge
-              visibility={page.visible_to_players ? 'player' : 'gm'}
-              interactive={!!toggleVisibility}
-              onPress={toggleVisibility ?? undefined}
+        {/* Page head with event stats */}
+        <View style={styles.headRow}>
+          <View style={{ flex: 1 }}>
+            <PageHead
+              icon={template.icon}
+              title={page.title}
+              meta={`${events.length} events · ${eraCount} eras`}
+              accentToken={template.accentToken}
+              actions={
+                <VisibilityBadge
+                  visibility={page.visible_to_players ? 'player' : 'gm'}
+                  interactive={!!toggleVisibility}
+                  onPress={toggleVisibility ?? undefined}
+                />
+              }
             />
-          }
-        />
-
-        <View style={{ marginTop: spacing.xl, gap: spacing.lg }}>
-          {bannerLock ? (
-            <EditLockBanner
-              ownerUserId={bannerLock.ownerId}
-              lockedSinceIso={bannerLock.since}
-              onRetry={tryClaim}
-            />
+          </View>
+          {isWorldOwner && !heldByOther ? (
+            <View style={styles.headActions}>
+              <Pressable onPress={() => handleAddEvent()} style={styles.addEventBtn}>
+                <Icon name="add" size={16} color={colors.onPrimary} />
+                <Text variant="label-md" weight="bold" style={{ color: colors.onPrimary, fontSize: 12 }}>
+                  ADD EVENT
+                </Text>
+              </Pressable>
+            </View>
           ) : null}
+        </View>
 
+        {bannerLock ? (
+          <EditLockBanner
+            ownerUserId={bannerLock.ownerId}
+            lockedSinceIso={bannerLock.since}
+            onRetry={tryClaim}
+          />
+        ) : null}
+
+        {/* Calendar breadcrumb + schema editor toggle */}
+        <View style={styles.calendarBar}>
+          <Pressable
+            style={styles.calendarBreadcrumb}
+            onPress={() => setSchemaExpanded(!schemaExpanded)}
+          >
+            <Icon name="event" size={16} color={colors.onSurfaceVariant} />
+            <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+              CALENDAR
+            </Text>
+            {calendarSchema.map((unit, i) => (
+              <View key={unit.key} style={styles.breadcrumbItem}>
+                {i > 0 ? (
+                  <Text variant="label-sm" style={{ color: colors.outlineVariant }}>›</Text>
+                ) : null}
+                <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
+                  {unit.label || unit.key}
+                </Text>
+              </View>
+            ))}
+            <Icon
+              name={schemaExpanded ? 'expand-less' : 'expand-more'}
+              size={16}
+              color={colors.outlineVariant}
+            />
+          </Pressable>
+        </View>
+
+        {/* Collapsible schema editor */}
+        {schemaExpanded ? (
           <View
             style={heldByOther ? styles.disabledEditor : undefined}
             pointerEvents={heldByOther ? 'none' : 'auto'}
           >
             <CalendarSchemaEditor page={page} onSaveStateChange={setSaveState} />
           </View>
+        ) : null}
 
-          {/* Timeline events */}
-          <View style={styles.eventsSection}>
-            <View style={styles.eventsHeader}>
-              <Text variant="label-lg" weight="semibold" style={{ color: colors.onSurface }}>
-                Events
-              </Text>
-              <MetaLabel size="sm" tone="muted">
-                {events.length} event{events.length !== 1 ? 's' : ''}
-              </MetaLabel>
-              {isWorldOwner && !heldByOther ? (
-                <Pressable onPress={handleAddEvent} style={styles.addEventBtn}>
-                  <Icon name="add" size={16} color={colors.cosmic} />
-                  <Text variant="label-md" style={{ color: colors.cosmic }}>
-                    Add event
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
+        {/* Era ribbon */}
+        {hasSchema ? (
+          <EraRibbon
+            events={events}
+            calendarSchema={calendarSchema}
+            activeEra={activeEra}
+            onSelectEra={setActiveEra}
+          />
+        ) : null}
 
-            {events.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Icon name="event" size={32} color={colors.outlineVariant} />
-                <Text variant="body-md" tone="secondary" style={{ marginTop: spacing.sm }}>
-                  No events yet. Add your first timeline event.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.eventsList}>
-                {events.map((event) => (
-                  <TimelineEventCard
-                    key={event.id}
-                    event={event}
-                    calendarSchema={calendarSchema}
-                    isOwner={isWorldOwner}
-                    onEdit={() => handleEditEvent(event)}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
+        {/* Timeline spine */}
+        <View
+          style={heldByOther ? styles.disabledEditor : undefined}
+          pointerEvents={heldByOther ? 'none' : 'auto'}
+        >
+          <TimelineSpine
+            events={events}
+            calendarSchema={calendarSchema}
+            isOwner={isWorldOwner}
+            activeEra={activeEra}
+            onEditEvent={handleEditEvent}
+            onAddEvent={handleAddEvent}
+          />
         </View>
       </ScrollView>
 
@@ -266,9 +313,11 @@ export function TimelinePageView({ page, worldId }: Props) {
           timelinePageId={page.id}
           calendarSchema={calendarSchema}
           event={editingEvent}
+          defaultEra={defaultEra}
           onClose={() => {
             setEventEditorOpen(false);
             setEditingEvent(null);
+            setDefaultEra(undefined);
           }}
         />
       ) : null}
@@ -285,10 +334,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    maxWidth: 780,
+    maxWidth: 900,
     paddingTop: 28,
     paddingHorizontal: 48,
     paddingBottom: 64,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  headRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.lg,
+  },
+  headActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  addEventBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryContainer,
   },
   shareBtn: {
     flexDirection: 'row',
@@ -300,33 +370,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.outlineVariant + '55',
   },
-  disabledEditor: {
-    opacity: 0.55,
+  calendarBar: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
   },
-  eventsSection: {
-    gap: spacing.md,
-  },
-  eventsHeader: {
+  calendarBreadcrumb: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
   },
-  addEventBtn: {
+  breadcrumbItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginLeft: 'auto',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.DEFAULT,
-    borderWidth: 1,
-    borderColor: colors.cosmic + '44',
+    gap: spacing.xs,
   },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing['2xl'],
-  },
-  eventsList: {
-    gap: spacing.md,
+  disabledEditor: {
+    opacity: 0.55,
   },
 });

@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import type { CalendarUnit, TimelineEvent } from '@vaultstone/types';
 import { trashTimelineEvent } from '@vaultstone/api';
 import { useTimelineEventsStore } from '@vaultstone/store';
-import { Card, Icon, MetaLabel, Text, VisibilityBadge, colors, radius, spacing } from '@vaultstone/ui';
+import { Icon, Text, colors, spacing } from '@vaultstone/ui';
 
 type Props = {
   event: TimelineEvent;
@@ -15,7 +15,8 @@ export function TimelineEventCard({ event, calendarSchema, isOwner, onEdit }: Pr
   const removeEvent = useTimelineEventsStore((s) => s.removeEvent);
 
   const dateLabel = formatDateValues(event.date_values, calendarSchema);
-  const bodyPreview = event.body_text?.slice(0, 120) ?? '';
+  const bodyPreview = event.body_text?.slice(0, 200) ?? '';
+  const tags = (event as TimelineEvent & { tags?: string[] }).tags ?? [];
 
   const handleTrash = async () => {
     await trashTimelineEvent(event.id);
@@ -23,49 +24,61 @@ export function TimelineEventCard({ event, calendarSchema, isOwner, onEdit }: Pr
   };
 
   return (
-    <Card tier="container" padding="md" style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.dot} />
-        <View style={styles.titleBlock}>
-          <Text variant="label-lg" weight="semibold" numberOfLines={1}>
-            {event.title}
+    <View style={styles.card}>
+      {/* Drag handle + menu row */}
+      <View style={styles.topRow}>
+        {isOwner ? (
+          <View style={styles.dragHandle}>
+            <Icon name="drag-indicator" size={14} color={colors.outlineVariant + '88'} />
+          </View>
+        ) : (
+          <View style={styles.dragHandle} />
+        )}
+        {dateLabel ? (
+          <Text variant="label-sm" uppercase style={styles.dateLabel}>
+            {dateLabel}
           </Text>
-          {dateLabel ? (
-            <MetaLabel size="sm" tone="muted">
-              {dateLabel}
-            </MetaLabel>
-          ) : null}
-        </View>
-        <View style={styles.actions}>
-          <VisibilityBadge visibility={event.visible_to_players ? 'player' : 'gm'} />
-          {isOwner ? (
-            <>
-              <Pressable onPress={onEdit} hitSlop={8}>
-                <Icon name="edit" size={14} color={colors.onSurfaceVariant} />
-              </Pressable>
-              <Pressable onPress={handleTrash} hitSlop={8}>
-                <Icon name="delete-outline" size={14} color={colors.outlineVariant} />
-              </Pressable>
-            </>
-          ) : null}
-        </View>
+        ) : null}
+        <View style={{ flex: 1 }} />
+        {isOwner ? (
+          <Pressable onPress={onEdit} hitSlop={8} style={styles.menuBtn}>
+            <Icon name="more-vert" size={16} color={colors.outlineVariant} />
+          </Pressable>
+        ) : null}
       </View>
 
+      {/* Title */}
+      <Pressable onPress={onEdit}>
+        <Text
+          variant="title-lg"
+          weight="bold"
+          style={styles.title}
+          numberOfLines={2}
+        >
+          {event.title}
+        </Text>
+      </Pressable>
+
+      {/* Description */}
       {bodyPreview ? (
-        <Text variant="body-sm" tone="secondary" numberOfLines={3} style={styles.body}>
+        <Text variant="body-sm" tone="secondary" style={styles.body}>
           {bodyPreview}
         </Text>
       ) : null}
 
-      {event.source_session_id ? (
-        <View style={styles.sessionBadge}>
-          <Icon name="history" size={12} color={colors.cosmic} />
-          <Text variant="label-sm" style={{ color: colors.cosmic }}>
-            From session recap
-          </Text>
+      {/* Tags */}
+      {tags.length > 0 ? (
+        <View style={styles.tagsRow}>
+          {tags.map((tag) => (
+            <View key={tag} style={styles.tag}>
+              <Text variant="label-sm" uppercase weight="bold" style={styles.tagText}>
+                {tag}
+              </Text>
+            </View>
+          ))}
         </View>
       ) : null}
-    </Card>
+    </View>
   );
 }
 
@@ -77,52 +90,70 @@ function formatDateValues(
   const dv = dateValues as Record<string, unknown>;
   const parts: string[] = [];
   for (const unit of schema) {
+    if (unit === schema[0]) continue;
     const val = dv[unit.key];
     if (val != null && val !== '') {
       parts.push(`${String(val)}`);
     }
   }
-  return parts.join(' · ');
+  return parts.join(', ');
 }
 
 const styles = StyleSheet.create({
   card: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    padding: spacing.md,
     gap: spacing.sm,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.cosmic + '66',
+    maxWidth: 380,
+    width: '100%',
   },
-  header: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.cosmic,
-  },
-  titleBlock: {
-    flex: 1,
-    gap: 2,
-  },
-  actions: {
-    flexDirection: 'row',
+  dragHandle: {
+    width: 16,
     alignItems: 'center',
-    gap: spacing.sm,
+  },
+  dateLabel: {
+    color: colors.onSurfaceVariant,
+    fontSize: 10,
+    letterSpacing: 1.2,
+  },
+  menuBtn: {
+    padding: 2,
+  },
+  title: {
+    color: colors.onSurface,
+    fontSize: 20,
+    lineHeight: 26,
   },
   body: {
-    marginLeft: 8 + spacing.sm,
+    color: colors.onSurfaceVariant,
+    fontSize: 13,
+    lineHeight: 19,
   },
-  sessionBadge: {
+  tagsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginLeft: 8 + spacing.sm,
-    paddingVertical: 2,
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  tag: {
     paddingHorizontal: 8,
-    borderRadius: radius.DEFAULT,
-    backgroundColor: colors.cosmicContainer + '33',
-    alignSelf: 'flex-start',
+    paddingVertical: 3,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: colors.cosmic + '66',
+    backgroundColor: colors.cosmicContainer + '44',
+  },
+  tagText: {
+    color: colors.cosmic,
+    fontSize: 9,
+    letterSpacing: 0.8,
   },
 });
