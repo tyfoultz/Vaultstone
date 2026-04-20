@@ -76,6 +76,9 @@ export default function CharacterSheetScreen() {
   const { updateCharacterLocally } = useCharacterStore();
   const authUser = useAuthStore((state) => state.user);
 
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
   const [character, setCharacter] = useState<Character | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -561,8 +564,6 @@ export default function CharacterSheetScreen() {
   const hpC = hpColor();
 
 
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
   const hpRatio = Math.max(0, Math.min(1, resources.hpCurrent / stats.hpMax));
 
   // ── Shared: tab panel content (same JSX regardless of layout) ───────────
