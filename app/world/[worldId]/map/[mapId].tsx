@@ -214,11 +214,16 @@ export default function WorldMapScreen() {
   // the canvas frame. Upper bound = 4× that so the zoom bar always has the
   // same 8 even steps regardless of image resolution. Null while we're still
   // waiting on the first onLayout measurement.
+  // Max zoom: 4× fit for small/normal images, but at least 2× native pixels
+  // (scale = 2) for large images. An 8k image in an 800px canvas has
+  // fitScale ≈ 0.1, so fit × 4 ≈ 0.4 — still well below native res and not
+  // zoomed-in enough to read labels. The Math.max bump keeps the 8 slider
+  // steps evenly spaced while granting detail on high-res uploads.
   const scaleBounds = useMemo(() => {
     if (!canvasSize || !map) return null;
     const fit = Math.min(canvasSize.w / map.image_width, canvasSize.h / map.image_height);
     if (!Number.isFinite(fit) || fit <= 0) return null;
-    return { min: fit, max: fit * 4 };
+    return { min: fit, max: Math.max(fit * 4, 2) };
   }, [canvasSize, map]);
 
   // Cold landings start at fitScale so the whole map is visible regardless

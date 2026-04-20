@@ -70,9 +70,9 @@ export function WorldRail({ world }: Props) {
       <Pressable
         onPress={() => {
           setActiveSectionId(null);
-          router.push(worldHref(world.id));
+          router.push('/(drawer)/home');
         }}
-        accessibilityLabel="World home"
+        accessibilityLabel="Vaultstone home"
       >
         <LinearGradient
           colors={[colors.primaryContainer, colors.secondaryContainer]}
@@ -82,6 +82,17 @@ export function WorldRail({ world }: Props) {
         >
           <Icon name="diamond" size={16} color={colors.onPrimary} />
         </LinearGradient>
+      </Pressable>
+
+      <Pressable
+        onPress={() => {
+          setActiveSectionId(null);
+          router.push(worldHref(world.id));
+        }}
+        style={styles.item}
+        accessibilityLabel="World home"
+      >
+        <Icon name="home" size={20} color={colors.onSurfaceVariant} />
       </Pressable>
 
       <View style={styles.items}>
