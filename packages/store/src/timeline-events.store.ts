@@ -74,10 +74,12 @@ export const useTimelineEventsStore = create<TimelineEventsState>((set) => ({
     }),
 }));
 
+const EMPTY_EVENTS: TimelineEvent[] = [];
+
 export function selectEventsForPage(
   state: TimelineEventsState,
   pageId: string | undefined,
 ): TimelineEvent[] {
-  if (!pageId) return [];
-  return state.byTimelinePageId[pageId] ?? [];
+  if (!pageId) return EMPTY_EVENTS;
+  return state.byTimelinePageId[pageId] ?? EMPTY_EVENTS;
 }

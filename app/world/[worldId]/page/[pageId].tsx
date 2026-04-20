@@ -54,6 +54,7 @@ import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 const LOCK_HEARTBEAT_MS = 30_000;
 
 const EMPTY_PAGES: WorldPage[] = [];
+const EMPTY_MENTION_EVENTS: MentionEventItem[] = [];
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -135,14 +136,14 @@ export default function PageDetailScreen() {
 
   // Timeline events for the @ mention popover. Fetch events from all timeline
   // pages in this world so any event is mentionable from any page.
-  const [mentionableEvents, setMentionableEvents] = useState<MentionEventItem[]>([]);
+  const [mentionableEvents, setMentionableEvents] = useState<MentionEventItem[]>(EMPTY_MENTION_EVENTS);
   const timelinePages = useMemo(
-    () => (allPages ?? []).filter((p) => p.page_kind === 'timeline'),
+    () => (allPages ?? EMPTY_PAGES).filter((p) => p.page_kind === 'timeline'),
     [allPages],
   );
   useEffect(() => {
     if (timelinePages.length === 0) {
-      setMentionableEvents([]);
+      setMentionableEvents(EMPTY_MENTION_EVENTS);
       return;
     }
     let cancelled = false;
