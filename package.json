@@ -47,6 +47,7 @@
     "expo-router": "~5.1.11",
     "expo-secure-store": "~14.2.0",
     "expo-sqlite": "~15.2.0",
+    "happy-dom": "^20.9.0",
     "marked": "^18.0.2",
     "metro": "~0.82.5",
     "metro-source-map": "~0.82.5",
