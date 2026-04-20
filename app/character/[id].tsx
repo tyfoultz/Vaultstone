@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Modal, Pressable, Switch, StyleSheet, useWindowDimensions,
+  View, Text, Image, TouchableOpacity, TextInput,
+  ActivityIndicator, Modal, Pressable, Switch, StyleSheet, useWindowDimensions, Platform,
 } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getCharacterById, updateCharacter, updateCharacterState, supabase } from '@vaultstone/api';
+import { getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, supabase } from '@vaultstone/api';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts } from '@vaultstone/ui';
 import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature } from '@vaultstone/types';
@@ -40,6 +42,26 @@ const ABILITY_SHORT: Record<keyof Dnd5eAbilityScores, string> = {
   intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
 };
 
+type CardId = 'combat' | 'weapons-equipment' | 'class-features' | 'species-traits' | 'feats' | 'proficiencies' | 'conditions' | 'coins' | 'scratchpad';
+type CardItem = { id: CardId };
+
+const DEFAULT_CARD_ORDER: CardId[] = [
+  'combat', 'weapons-equipment', 'class-features', 'species-traits',
+  'feats', 'proficiencies', 'conditions', 'coins', 'scratchpad',
+];
+
+const CARD_LABELS: Record<CardId, string> = {
+  'combat': 'HP / Movement / Ability Scores / Skills',
+  'weapons-equipment': 'Weapons & Equipment',
+  'class-features': 'Class Features',
+  'species-traits': 'Species Traits',
+  'feats': 'Feats',
+  'proficiencies': 'Proficiencies & Training',
+  'conditions': 'Conditions',
+  'coins': 'Coins',
+  'scratchpad': 'Scratchpad',
+};
+
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
 export default function CharacterSheetScreen() {
@@ -69,6 +91,9 @@ export default function CharacterSheetScreen() {
   const [hpQuickInput, setHpQuickInput] = useState('');
   const [scratchpad, setScratchpad] = useState('');
   const [isDmOfLinkedCampaign, setIsDmOfLinkedCampaign] = useState(false);
+  const [portraitUploading, setPortraitUploading] = useState(false);
+  const [editLayout, setEditLayout] = useState(false);
+  const [cardItems, setCardItems] = useState<CardItem[]>(DEFAULT_CARD_ORDER.map((id) => ({ id })));
 
   useEffect(() => {
     if (!id) return;
@@ -78,6 +103,10 @@ export default function CharacterSheetScreen() {
         setCharacter(data);
         const res = data?.resources as Dnd5eResources | null;
         if (res?.notes) setScratchpad(res.notes);
+        const st = data?.base_stats as Dnd5eStats | null;
+        if (st?.settings?.cardOrder) {
+          setCardItems(st.settings.cardOrder.map((id) => ({ id: id as CardId })));
+        }
       }
       setLoading(false);
     });
@@ -211,6 +240,33 @@ export default function CharacterSheetScreen() {
     }
     if (Object.keys(patch).length > 0) {
       await updateCharacterState(character.id, patch);
+    }
+  }
+
+  async function handleDragEnd(newItems: CardItem[]) {
+    setCardItems(newItems);
+    const order = newItems.map((i) => i.id);
+    const newSettings: CharacterSettings = { ...stats.settings, manualMode: stats.settings?.manualMode ?? false, cardOrder: order };
+    persistStats({ ...stats, settings: newSettings });
+  }
+
+  async function handlePickPortrait() {
+    if (!character) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    setPortraitUploading(true);
+    const { url } = await uploadCharacterPortrait(character.id, asset.uri, asset.mimeType ?? 'image/jpeg');
+    setPortraitUploading(false);
+    if (url) {
+      const updated = { ...character, avatar_url: url };
+      setCharacter(updated);
+      updateCharacterLocally(character.id, { avatar_url: url });
     }
   }
 
@@ -491,118 +547,27 @@ export default function CharacterSheetScreen() {
 
   // ── Render ──────────────────────────────────────────────────────────────
 
-  return (
-    <View style={s.root}>
-      <ScrollView style={s.scroll} contentContainerStyle={s.container}>
-        {/* Back + Settings */}
-        <View style={s.topBar}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={s.backText}>← Characters</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setSettingsModal(true)} style={s.settingsBtn}>
-            <Text style={s.settingsBtnText}>Character Settings</Text>
-            <MaterialCommunityIcons name="cog-outline" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Hero card */}
-        <View style={s.heroCard}>
-          <View style={s.heroTopRow}>
-          <View style={s.heroLeft}>
-            <View style={s.heroAvatar}>
-              <MaterialCommunityIcons name="account-outline" size={36} color={colors.brand} />
-            </View>
-          </View>
-          <View style={s.heroBody}>
-            {editingName ? (
-              <TextInput
-                style={s.heroNameInput}
-                value={nameInput}
-                onChangeText={setNameInput}
-                onBlur={() => {
-                  if (nameInput.trim()) persistName(nameInput.trim());
-                  setEditingName(false);
-                }}
-                onSubmitEditing={() => {
-                  if (nameInput.trim()) persistName(nameInput.trim());
-                  setEditingName(false);
-                }}
-                autoFocus
-                returnKeyType="done"
-              />
-            ) : (
-              <TouchableOpacity onPress={() => { setNameInput(stats.characterName); setEditingName(true); }}>
-                <View style={s.heroNameRow}>
-                  <Text style={s.heroName}>{stats.characterName}</Text>
-                  <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textSecondary} />
+  function renderSection(id: CardId, moveUp: () => void, moveDown: () => void, index: number, total: number) {
+    const isFirst = index === 0;
+    const isLast = index === total - 1;
+    switch (id) {
+      case 'combat':
+        return (
+          <View>
+            {editLayout && (
+              <View style={s.dragHandle}>
+                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            )}
-            <Text style={s.heroSubtitle}>
-              {capitalize(stats.speciesKey)} {capitalize(stats.classKey)}
-            </Text>
-            <View style={s.heroMeta}>
-              <Text style={s.heroDetail}>{capitalize(stats.backgroundKey)}</Text>
-              <Text style={s.heroDetail}>
-                {stats.srdVersion === 'SRD_2.0' ? '2024 Rules' : '2014 Rules'}
-              </Text>
-              {manualMode && (
-                <View style={s.manualBadge}>
-                  <Text style={s.manualBadgeText}>Manual</Text>
-                </View>
-              )}
-            </View>
-          </View>
-          {/* Right side: Level, XP, Prof, Inspiration */}
-          <View style={s.heroRightGrid}>
-            <TouchableOpacity
-              style={s.heroRightBox}
-              disabled={!manualMode}
-              onPress={() => startEditField('level', stats.level)}
-            >
-              <Text style={[s.heroRightValue, { color: colors.brand }]}>{stats.level}</Text>
-              <Text style={s.heroRightLabel}>Lvl{manualMode ? ' ✎' : ''}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.heroRightBox, { paddingHorizontal: 24 }]}
-              onPress={() => { setEditingField('xp'); setFieldInput(String(resources.xp ?? 0)); }}
-            >
-              <View style={s.heroXpRow}>
-                <Text style={s.heroRightValue}>{resources.xp ?? 0}</Text>
-                <TouchableOpacity
-                  style={s.heroXpAdd}
-                  onPress={() => { setXpAddInput(''); setXpAddMode(true); }}
-                >
-                  <MaterialCommunityIcons name="plus" size={12} color={colors.brand} />
-                </TouchableOpacity>
               </View>
-              <Text style={s.heroRightLabel}>XP</Text>
-            </TouchableOpacity>
-            <View style={s.heroRightBox}>
-              <Text style={s.heroRightValue}>{fmtMod(prof)}</Text>
-              <Text style={s.heroRightLabel}>Prof</Text>
-            </View>
-            <TouchableOpacity
-              style={s.heroRightBox}
-              onPress={() => {
-                if (!resources) return;
-                persistResources({ ...resources, inspiration: !resources.inspiration });
-              }}
-            >
-              <MaterialCommunityIcons
-                name={resources.inspiration ? 'star' : 'star-outline'}
-                size={22}
-                color={resources.inspiration ? colors.hpWarning : colors.textSecondary}
-              />
-              <Text style={[s.heroRightLabel, resources.inspiration && { color: colors.hpWarning }]}>Insp</Text>
-            </TouchableOpacity>
-          </View>
-          </View>
-        </View>
-
-        <View style={s.grid}>
-          {/* Row 1: HP, Movement, Ability Scores, Skills */}
-          <View style={s.fourColRow}>
+            )}
+            <View style={s.fourColRow}>
           {/* HP card */}
           <View style={[s.hpCard, { flex: 1 }]}>
             <Text style={s.cardLabel}>Hit Points</Text>
@@ -844,8 +809,25 @@ export default function CharacterSheetScreen() {
             })}
           </View>
           </View>
-
-          {/* Row 2: Weapons + Equipment */}
+          </View>
+        );
+      case 'weapons-equipment':
+        return (
+          <View>
+            {editLayout && (
+              <View style={s.dragHandle}>
+                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {/* Row 2: Weapons + Equipment */}
           <View style={s.fourColRow}>
           {/* Weapons & Damage Cantrips table */}
           <View style={[s.card, { flex: 1 }]}>
@@ -996,10 +978,62 @@ export default function CharacterSheetScreen() {
                 </>
               );
             })()}
-          </View>
-          </View>
 
-          {/* Class Features card */}
+            {/* Attunement section */}
+            {(() => {
+              const attuned = equipment.filter((e) => e.requiresAttunement);
+              const attunedCount = attuned.filter((e) => e.attuned).length;
+              return (
+                <>
+                  <Text style={[s.equipSubLabel, { marginTop: spacing.md }]}>
+                    Attunement ({attunedCount}/3)
+                  </Text>
+                  {[0, 1, 2].map((slot) => {
+                    const item = attuned.filter((e) => e.attuned)[slot];
+                    return (
+                      <View key={slot} style={s.attunementSlot}>
+                        <MaterialCommunityIcons
+                          name={item ? 'star-four-points' : 'star-four-points-outline'}
+                          size={16}
+                          color={item ? colors.brand : colors.border}
+                        />
+                        {item ? (
+                          <TouchableOpacity
+                            style={{ flex: 1 }}
+                            onPress={() => { setEditEquip(item); setEquipModal(true); }}
+                          >
+                            <Text style={s.attunementItemName}>{item.name}</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={s.attunementEmpty}>— empty slot —</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </>
+              );
+            })()}
+          </View>
+          </View>
+          </View>
+        );
+      case 'class-features':
+        return (
+          <View>
+            {editLayout && (
+              <View style={s.dragHandle}>
+                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {/* Class Features card */}
           <View style={s.card}>
             <View style={s.equipHeader}>
               <Text style={s.cardLabel}>Class Features</Text>
@@ -1039,8 +1073,25 @@ export default function CharacterSheetScreen() {
               ))
             )}
           </View>
-
-          {/* Species Traits card */}
+          </View>
+        );
+      case 'species-traits':
+        return (
+          <View>
+            {editLayout && (
+              <View style={s.dragHandle}>
+                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {/* Species Traits card */}
           <View style={s.card}>
             <View style={s.equipHeader}>
               <Text style={s.cardLabel}>Species Traits</Text>
@@ -1080,8 +1131,25 @@ export default function CharacterSheetScreen() {
               ))
             )}
           </View>
-
-          {/* Feats card */}
+          </View>
+        );
+      case 'feats':
+        return (
+          <View>
+            {editLayout && (
+              <View style={s.dragHandle}>
+                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {/* Feats card */}
           <View style={s.card}>
             <View style={s.equipHeader}>
               <Text style={s.cardLabel}>Feats</Text>
@@ -1121,8 +1189,69 @@ export default function CharacterSheetScreen() {
               ))
             )}
           </View>
-
-          {/* Conditions card */}
+          </View>
+        );
+      case 'proficiencies':
+        return (
+          <View>
+            {editLayout && (
+              <View style={s.dragHandle}>
+                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {/* Proficiencies & Training card */}
+          <View style={[s.card, s.cardWide]}>
+            <Text style={s.cardLabel}>Proficiencies &amp; Training</Text>
+            <View style={s.profTrainingGrid}>
+              {[
+                { label: 'Armor', icon: 'shield-half-full' as const, items: stats.armorProficiencies },
+                { label: 'Weapons', icon: 'sword-cross' as const, items: stats.weaponProficiencies },
+                { label: 'Tools', icon: 'toolbox-outline' as const, items: stats.toolProficiencies },
+                { label: 'Languages', icon: 'translate' as const, items: stats.languages },
+              ].map(({ label, icon, items }) => (
+                <View key={label} style={s.profTrainingCol}>
+                  <View style={s.profTrainingHeader}>
+                    <MaterialCommunityIcons name={icon} size={14} color={colors.brand} />
+                    <Text style={s.profTrainingLabel}>{label}</Text>
+                  </View>
+                  {items.length === 0 ? (
+                    <Text style={s.profTrainingEmpty}>None</Text>
+                  ) : (
+                    items.map((item) => (
+                      <Text key={item} style={s.profTrainingItem}>{titleCase(item)}</Text>
+                    ))
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+          </View>
+        );
+      case 'conditions':
+        return (
+          <View>
+            {editLayout && (
+              <View style={s.dragHandle}>
+                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {/* Conditions card */}
           <View style={s.card}>
             <Text style={s.cardLabel}>Conditions</Text>
             <ConditionsPanel
@@ -1132,8 +1261,25 @@ export default function CharacterSheetScreen() {
               onSetExhaustion={handleSetExhaustion}
             />
           </View>
-
-          {/* Coins card */}
+          </View>
+        );
+      case 'coins':
+        return (
+          <View>
+            {editLayout && (
+              <View style={s.dragHandle}>
+                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {/* Coins card */}
           <View style={s.card}>
             <Text style={s.cardLabel}>Coins</Text>
             <View style={s.coinRow}>
@@ -1167,8 +1313,25 @@ export default function CharacterSheetScreen() {
               })}
             </View>
           </View>
-
-          {/* Scratchpad card */}
+          </View>
+        );
+      case 'scratchpad':
+        return (
+          <View>
+            {editLayout && (
+              <View style={s.dragHandle}>
+                <Text style={s.dragHandleLabel}>{CARD_LABELS[id]}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+                  <TouchableOpacity onPress={moveUp} disabled={isFirst} style={[s.dragArrow, isFirst && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-up" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={moveDown} disabled={isLast} style={[s.dragArrow, isLast && { opacity: 0.3 }]}>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {/* Scratchpad card */}
           <View style={[s.card, s.cardWide]}>
             <Text style={s.cardLabel}>Scratchpad</Text>
             <TextInput
@@ -1185,7 +1348,162 @@ export default function CharacterSheetScreen() {
               textAlignVertical="top"
             />
           </View>
+          </View>
+        );
+      default:
+        return null;
+    }
+  }
 
+  return (
+    <View style={s.root}>
+      <ScrollView style={s.scroll} contentContainerStyle={s.container}>
+        {/* Back + Settings */}
+        <View style={s.topBar}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={s.backText}>← Characters</Text>
+          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={() => setEditLayout((v) => !v)}
+              style={[s.settingsBtn, editLayout && { borderColor: colors.brand, borderWidth: 1 }]}
+            >
+              <MaterialCommunityIcons name="view-grid-outline" size={18} color={editLayout ? colors.brand : colors.textSecondary} />
+              <Text style={[s.settingsBtnText, editLayout && { color: colors.brand }]}>
+                {editLayout ? 'Done' : 'Layout'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setSettingsModal(true)} style={s.settingsBtn}>
+              <Text style={s.settingsBtnText}>Character Settings</Text>
+              <MaterialCommunityIcons name="cog-outline" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Hero card */}
+        <View style={s.heroCard}>
+          <View style={s.heroTopRow}>
+          <View style={s.heroLeft}>
+            <TouchableOpacity style={s.heroAvatar} onPress={handlePickPortrait} disabled={portraitUploading}>
+              {portraitUploading ? (
+                <ActivityIndicator color={colors.brand} />
+              ) : character.avatar_url ? (
+                <Image source={{ uri: character.avatar_url }} style={s.heroAvatarImage} />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="account-outline" size={36} color={colors.brand} />
+                  <MaterialCommunityIcons name="camera-plus-outline" size={14} color={colors.textSecondary} style={s.heroAvatarEditIcon} />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+          <View style={s.heroBody}>
+            {editingName ? (
+              <TextInput
+                style={s.heroNameInput}
+                value={nameInput}
+                onChangeText={setNameInput}
+                onBlur={() => {
+                  if (nameInput.trim()) persistName(nameInput.trim());
+                  setEditingName(false);
+                }}
+                onSubmitEditing={() => {
+                  if (nameInput.trim()) persistName(nameInput.trim());
+                  setEditingName(false);
+                }}
+                autoFocus
+                returnKeyType="done"
+              />
+            ) : (
+              <TouchableOpacity onPress={() => { setNameInput(stats.characterName); setEditingName(true); }}>
+                <View style={s.heroNameRow}>
+                  <Text style={s.heroName}>{stats.characterName}</Text>
+                  <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textSecondary} />
+                </View>
+              </TouchableOpacity>
+            )}
+            <Text style={s.heroSubtitle}>
+              {capitalize(stats.speciesKey)} {capitalize(stats.classKey)}
+            </Text>
+            <View style={s.heroMeta}>
+              <Text style={s.heroDetail}>{capitalize(stats.backgroundKey)}</Text>
+              <Text style={s.heroDetail}>
+                {stats.srdVersion === 'SRD_2.0' ? '2024 Rules' : '2014 Rules'}
+              </Text>
+              {manualMode && (
+                <View style={s.manualBadge}>
+                  <Text style={s.manualBadgeText}>Manual</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          {/* Right side: Level, XP, Prof, Inspiration */}
+          <View style={s.heroRightGrid}>
+            <TouchableOpacity
+              style={s.heroRightBox}
+              disabled={!manualMode}
+              onPress={() => startEditField('level', stats.level)}
+            >
+              <Text style={[s.heroRightValue, { color: colors.brand }]}>{stats.level}</Text>
+              <Text style={s.heroRightLabel}>Lvl{manualMode ? ' ✎' : ''}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.heroRightBox, { paddingHorizontal: 24 }]}
+              onPress={() => { setEditingField('xp'); setFieldInput(String(resources.xp ?? 0)); }}
+            >
+              <View style={s.heroXpRow}>
+                <Text style={s.heroRightValue}>{resources.xp ?? 0}</Text>
+                <TouchableOpacity
+                  style={s.heroXpAdd}
+                  onPress={() => { setXpAddInput(''); setXpAddMode(true); }}
+                >
+                  <MaterialCommunityIcons name="plus" size={12} color={colors.brand} />
+                </TouchableOpacity>
+              </View>
+              <Text style={s.heroRightLabel}>XP</Text>
+            </TouchableOpacity>
+            <View style={s.heroRightBox}>
+              <Text style={s.heroRightValue}>{fmtMod(prof)}</Text>
+              <Text style={s.heroRightLabel}>Prof</Text>
+            </View>
+            <TouchableOpacity
+              style={s.heroRightBox}
+              onPress={() => {
+                if (!resources) return;
+                persistResources({ ...resources, inspiration: !resources.inspiration });
+              }}
+            >
+              <MaterialCommunityIcons
+                name={resources.inspiration ? 'star' : 'star-outline'}
+                size={22}
+                color={resources.inspiration ? colors.hpWarning : colors.textSecondary}
+              />
+              <Text style={[s.heroRightLabel, resources.inspiration && { color: colors.hpWarning }]}>Insp</Text>
+            </TouchableOpacity>
+          </View>
+          </View>
+        </View>
+
+        <View style={s.grid}>
+          {cardItems.map((item, index) =>
+            renderSection(
+              item.id,
+              () => {
+                const next = [...cardItems];
+                if (index === 0) return;
+                [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                handleDragEnd(next);
+              },
+              () => {
+                const next = [...cardItems];
+                if (index === cardItems.length - 1) return;
+                [next[index], next[index + 1]] = [next[index + 1], next[index]];
+                handleDragEnd(next);
+              },
+              index,
+              cardItems.length,
+            )
+          )}
         </View>
 
         <Text style={s.attribution}>
@@ -1548,6 +1866,40 @@ export default function CharacterSheetScreen() {
                   </>
                 )}
 
+                {/* Attunement toggles */}
+                <TouchableOpacity
+                  style={s.eqToggleRow}
+                  onPress={() => setEditEquip({ ...editEquip, requiresAttunement: !editEquip.requiresAttunement, attuned: false })}
+                >
+                  <MaterialCommunityIcons
+                    name={editEquip.requiresAttunement ? 'checkbox-marked-outline' : 'checkbox-blank-outline'}
+                    size={20} color={colors.brand}
+                  />
+                  <Text style={s.eqToggleText}>Requires Attunement</Text>
+                </TouchableOpacity>
+
+                {editEquip.requiresAttunement && (() => {
+                  const currentlyAttuned = equipment.filter((e) => e.attuned && e.id !== editEquip.id).length;
+                  const canAttune = currentlyAttuned < 3 || editEquip.attuned;
+                  return (
+                    <TouchableOpacity
+                      style={[s.eqToggleRow, !canAttune && { opacity: 0.4 }]}
+                      onPress={() => {
+                        if (!canAttune) return;
+                        setEditEquip({ ...editEquip, attuned: !editEquip.attuned });
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name={editEquip.attuned ? 'star-four-points' : 'star-four-points-outline'}
+                        size={20} color={colors.brand}
+                      />
+                      <Text style={s.eqToggleText}>
+                        {editEquip.attuned ? 'Attuned' : 'Attune'}{!canAttune ? ' (max 3)' : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })()}
+
                 <Text style={s.eqLabel}>Notes</Text>
                 <TextInput
                   style={s.eqInput}
@@ -1731,6 +2083,13 @@ const s = StyleSheet.create({
     width: 64, height: 64, borderRadius: 32,
     backgroundColor: colors.background,
     alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  heroAvatarImage: {
+    width: 64, height: 64, borderRadius: 32,
+  },
+  heroAvatarEditIcon: {
+    position: 'absolute', bottom: 2, right: 2,
   },
   heroBody: { flex: 1 },
   heroName: {
@@ -1753,6 +2112,20 @@ const s = StyleSheet.create({
   grid: {
     flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md,
   },
+  dragHandle: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 6, paddingHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.background, borderRadius: 8,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  dragHandleLabel: {
+    fontSize: 11, color: colors.textSecondary, fontStyle: 'italic',
+    textTransform: 'uppercase', letterSpacing: 0.5,
+  },
+  dragArrow: {
+    padding: 2,
+  },
 
   fourColRow: {
     flexDirection: 'row', gap: spacing.md, width: '100%',
@@ -1760,6 +2133,39 @@ const s = StyleSheet.create({
   // Generic card
   card: { ...CARD, minWidth: 200, flex: 1, flexBasis: 200 },
   cardWide: { flexBasis: '100%' },
+  profTrainingGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, marginTop: spacing.xs,
+  },
+  profTrainingCol: {
+    flex: 1, minWidth: 140,
+  },
+  profTrainingHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    marginBottom: spacing.xs,
+    paddingBottom: 4, borderBottomColor: colors.border, borderBottomWidth: 1,
+  },
+  profTrainingLabel: {
+    fontSize: 11, fontWeight: '700', color: colors.brand,
+    textTransform: 'uppercase', letterSpacing: 0.8,
+  },
+  profTrainingItem: {
+    fontSize: 13, color: colors.textPrimary, paddingVertical: 2,
+  },
+  profTrainingEmpty: {
+    fontSize: 12, color: colors.textSecondary, fontStyle: 'italic',
+  },
+  attunementSlot: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: 6, borderBottomColor: colors.border, borderBottomWidth: 1,
+  },
+  attunementItemName: { fontSize: 13, color: colors.textPrimary },
+  attunementEmpty: { fontSize: 12, color: colors.border, fontStyle: 'italic' },
+  eqToggleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: 10, borderBottomColor: colors.border, borderBottomWidth: 1,
+    marginBottom: spacing.sm,
+  },
+  eqToggleText: { fontSize: 14, color: colors.textPrimary },
   coinRow: {
     flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm,
   },

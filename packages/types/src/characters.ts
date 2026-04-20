@@ -10,6 +10,8 @@
 export interface CharacterSettings {
   /** When true, all fields are manually editable by the player. */
   manualMode: boolean;
+  /** Saved card order for the character sheet grid. */
+  cardOrder?: string[];
 }
 
 export interface Dnd5eAbilityScores {
@@ -91,6 +93,10 @@ export interface Dnd5eEquipmentItem {
   acBonus?: number;
   /** Freeform notes */
   notes?: string;
+  /** Whether this item requires and is currently attuned */
+  attuned?: boolean;
+  /** Whether this item is a magic item requiring attunement */
+  requiresAttunement?: boolean;
 }
 
 export interface Dnd5eFeature {
