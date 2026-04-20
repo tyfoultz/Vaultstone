@@ -281,16 +281,8 @@ export function TimelinePageView({ page, worldId }: Props) {
           >
             <Icon name="event" size={14} color={colors.outlineVariant} />
             <Text variant="label-sm" uppercase weight="semibold" style={styles.calLabel}>
-              Calendar
+              Timeline Structure
             </Text>
-            {calendarBreadcrumbLevels.map((level, i) => (
-              <View key={i} style={styles.breadcrumbItem}>
-                <Text variant="label-sm" style={{ color: colors.outlineVariant }}>›</Text>
-                <Text variant="label-sm" weight={i === 0 ? 'bold' : 'regular'} style={{ color: colors.onSurfaceVariant }}>
-                  {level}
-                </Text>
-              </View>
-            ))}
             <View style={{ flex: 1 }} />
             <Icon
               name={schemaExpanded ? 'expand-less' : 'expand-more'}

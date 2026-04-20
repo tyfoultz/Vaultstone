@@ -92,12 +92,13 @@ const styles = StyleSheet.create({
   },
   era: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: 1,
     borderRightColor: colors.outlineVariant + '22',
+    minHeight: 48,
   },
   eraFirst: {
     borderTopLeftRadius: 7,
@@ -110,12 +111,9 @@ const styles = StyleSheet.create({
   },
   eraActive: {
     backgroundColor: colors.primaryContainer,
-    borderColor: colors.primaryContainer,
-    borderWidth: 1,
     borderRadius: 6,
-    marginVertical: -1,
-    marginHorizontal: -1,
     zIndex: 1,
+    borderRightWidth: 0,
   },
   eraLabel: {
     color: colors.onSurfaceVariant,
