@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, Image, TouchableOpacity, TextInput,
-  ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform,
+  ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform, useWindowDimensions,
 } from 'react-native';
 import { ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -561,208 +561,339 @@ export default function CharacterSheetScreen() {
   const hpC = hpColor();
 
 
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
   const hpRatio = Math.max(0, Math.min(1, resources.hpCurrent / stats.hpMax));
+
+  // ── Shared: tab panel content (same JSX regardless of layout) ───────────
+  const TAB_DEFS = [
+    { id: 'combat', icon: 'sword-cross', label: 'Combat' },
+    { id: 'skills', icon: 'star-outline', label: 'Skills' },
+    { id: 'abilities', icon: 'lightning-bolt-outline', label: 'Abilities' },
+    { id: 'story', icon: 'book-open-outline', label: 'Story' },
+  ] as const;
+
+  const tabContent = (
+    <>
+      {activeTab === 'combat' && (
+        <CombatTab
+          stats={stats}
+          resources={resources}
+          scores={scores}
+          prof={prof}
+          activeConditions={activeConditions}
+          showDeathSaves={showDeathSaves}
+          isDead={isDead}
+          isStabilized={isStabilized}
+          canEditAny={canEditAny}
+          equipment={equipment}
+          onRoll={handleRoll}
+          onToggleCondition={handleToggleCondition}
+          onDeathSave={handleDeathSave}
+          getAttackBonus={getAttackBonus}
+        />
+      )}
+      {activeTab === 'skills' && (
+        <SkillsTab stats={stats} scores={scores} prof={prof} onRoll={handleRoll} />
+      )}
+      {activeTab === 'abilities' && (
+        <AbilitiesTab
+          stats={stats}
+          resources={resources}
+          isOwner={isOwner}
+          onToggleFeatureUse={toggleFeatureUse}
+          onAddFeature={(cat) => {
+            setFeatureCategory(cat);
+            setEditFeature({ id: Date.now().toString(), name: '', description: '' });
+            setFeatureModal(true);
+          }}
+          onEditFeature={(cat, feature) => {
+            setFeatureCategory(cat);
+            setEditFeature(feature);
+            setFeatureModal(true);
+          }}
+        />
+      )}
+      {activeTab === 'story' && (
+        <StoryTab
+          stats={stats}
+          resources={resources}
+          isOwner={isOwner}
+          onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
+          onToggleEquipped={handleToggleEquipped}
+          onNotesChange={(text) => {
+            setScratchpad(text);
+            persistResources({ ...resources, notes: text });
+          }}
+        />
+      )}
+    </>
+  );
+
+  // ── Portrait helper ──────────────────────────────────────────────────────
+  const portraitContent = portraitUploading
+    ? <ActivityIndicator color={colors.primary} size="small" />
+    : (character as any).avatar_url
+      ? <Image source={{ uri: (character as any).avatar_url }} style={isDesktop ? s.deskPortraitImg : s.chromePortraitImg} />
+      : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 32 : 24} color={colors.outline} />;
 
   return (
     <View style={s.root}>
 
-      {/* ── Top Chrome ───────────────────────────────────────────────── */}
-      <View style={s.topChrome}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} hitSlop={8}>
-          <MaterialCommunityIcons name="chevron-left" size={22} color={colors.onSurfaceVariant} />
-        </TouchableOpacity>
+      {isDesktop ? (
+        /* ════════════════════════════════════════════════════════════════
+           DESKTOP LAYOUT — two-column sidebar
+           ════════════════════════════════════════════════════════════════ */
+        <View style={s.deskShell}>
 
-        {/* Portrait */}
-        <TouchableOpacity style={s.chromePortrait} onPress={handlePickPortrait} disabled={portraitUploading} activeOpacity={0.85}>
-          {portraitUploading ? (
-            <ActivityIndicator color={colors.primary} size="small" />
-          ) : (character as any).avatar_url ? (
-            <Image source={{ uri: (character as any).avatar_url }} style={s.chromePortraitImg} />
-          ) : (
-            <MaterialCommunityIcons name="account-outline" size={24} color={colors.outline} />
-          )}
-        </TouchableOpacity>
+          {/* ── Left rail ───────────────────────────────────────────── */}
+          <View style={s.deskRail}>
 
-        {/* Name + identity */}
-        <View style={s.chromeIdentity}>
-          {editingName ? (
-            <TextInput
-              style={s.chromeNameInput}
-              value={nameInput}
-              onChangeText={setNameInput}
-              onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-              onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-              autoFocus returnKeyType="done"
-            />
-          ) : (
-            <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
-              <Text style={s.chromeName} numberOfLines={1}>{stats.characterName}</Text>
+            {/* Back + portrait + name */}
+            <View style={s.deskHeader}>
+              <TouchableOpacity onPress={() => router.back()} style={s.deskBackBtn} hitSlop={8}>
+                <MaterialCommunityIcons name="chevron-left" size={20} color={colors.onSurfaceVariant} />
+                <Text style={s.deskBackLabel}>Characters</Text>
+              </TouchableOpacity>
+
+              <View style={s.deskIdentityRow}>
+                <TouchableOpacity style={s.deskPortrait} onPress={handlePickPortrait} disabled={portraitUploading} activeOpacity={0.85}>
+                  {portraitContent}
+                </TouchableOpacity>
+
+                <View style={s.deskNameBlock}>
+                  {editingName ? (
+                    <TextInput
+                      style={s.deskNameInput}
+                      value={nameInput}
+                      onChangeText={setNameInput}
+                      onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                      onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                      autoFocus returnKeyType="done"
+                    />
+                  ) : (
+                    <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
+                      <Text style={s.deskName} numberOfLines={2}>{stats.characterName}</Text>
+                    </TouchableOpacity>
+                  )}
+                  <Text style={s.deskSub} numberOfLines={1}>
+                    {capitalize(stats.speciesKey)} {capitalize(stats.classKey)}
+                  </Text>
+                  <Text style={s.deskLevel}>Level {stats.level} · {fmtMod(prof)} Prof</Text>
+                </View>
+
+                <View style={s.deskHeaderIcons}>
+                  <TouchableOpacity
+                    style={[s.deskIconBtn, resources.inspiration && s.deskIconBtnActive]}
+                    onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
+                    hitSlop={6} activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons
+                      name={resources.inspiration ? 'star' : 'star-outline'}
+                      size={16}
+                      color={resources.inspiration ? colors.gm : colors.outline}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.deskIconBtn} onPress={() => setSettingsModal(true)} hitSlop={6}>
+                    <MaterialCommunityIcons name="cog-outline" size={16} color={colors.outline} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            {/* ── Stats block ─────────────────────────────────────── */}
+            <View style={s.deskStats}>
+              {/* HP — full-width row */}
+              <TouchableOpacity
+                style={s.deskHpRow}
+                onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
+                onLongPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
+                activeOpacity={0.8}
+              >
+                <View style={s.deskHpNums}>
+                  <Text style={[s.deskHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
+                  <Text style={s.deskHpSep}>/</Text>
+                  <Text style={s.deskHpMax}>{stats.hpMax}</Text>
+                  {resources.hpTemp > 0 && <Text style={s.deskHpTemp}>+{resources.hpTemp}</Text>}
+                </View>
+                <Text style={s.deskStatLabel}>
+                  HP{showDeathSaves ? ' · DEATH SAVES' : isDead ? ' · DEAD' : isStabilized ? ' · STABLE' : ''}
+                </Text>
+                <View style={s.deskHpTrack}>
+                  <View style={[s.deskHpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
+                  {resources.hpTemp > 0 && (
+                    <View style={[s.deskHpTempFill, {
+                      width: `${Math.min((1 - hpRatio) * 100, (resources.hpTemp / stats.hpMax) * 100)}%` as any,
+                    }]} />
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {/* 4-stat grid */}
+              <View style={s.deskStatGrid}>
+                {([
+                  { label: 'AC', value: String(ac), color: colors.secondary },
+                  { label: 'INIT', value: fmtMod(initiative), color: colors.onSurface },
+                  { label: 'SPEED', value: String(stats.speed), color: colors.onSurface },
+                  { label: 'HIT DIE', value: `d${stats.hitDie}`, color: colors.onSurface },
+                ] as const).map(({ label, value, color }) => (
+                  <View key={label} style={s.deskStatCell}>
+                    <Text style={[s.deskStatValue, { color }]}>{value}</Text>
+                    <Text style={s.deskStatLabel}>{label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* ── Vertical tab list ───────────────────────────────── */}
+            <View style={s.deskTabList}>
+              {TAB_DEFS.map((tab) => (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[s.deskTabBtn, activeTab === tab.id && s.deskTabBtnActive]}
+                  onPress={() => setActiveTab(tab.id)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name={tab.icon}
+                    size={18}
+                    color={activeTab === tab.id ? colors.primary : colors.outline}
+                  />
+                  <Text style={[s.deskTabLabel, activeTab === tab.id && s.deskTabLabelActive]}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+          </View>
+
+          {/* ── Right content pane ──────────────────────────────────── */}
+          <View style={s.deskContent}>
+            {tabContent}
+          </View>
+
+        </View>
+
+      ) : (
+        /* ════════════════════════════════════════════════════════════════
+           MOBILE LAYOUT — stacked HUD
+           ════════════════════════════════════════════════════════════════ */
+        <>
+          {/* Top Chrome */}
+          <View style={s.topChrome}>
+            <TouchableOpacity onPress={() => router.back()} style={s.backBtn} hitSlop={8}>
+              <MaterialCommunityIcons name="chevron-left" size={22} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
-          )}
-          <Text style={s.chromeSub} numberOfLines={1}>
-            {capitalize(stats.speciesKey)} {capitalize(stats.classKey)} · Lv {stats.level}
-          </Text>
-        </View>
 
-        {/* Inspiration */}
-        <TouchableOpacity
-          style={[s.inspirationBtn, resources.inspiration && s.inspirationBtnActive]}
-          onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
-          activeOpacity={0.7}
-          hitSlop={6}
-        >
-          <MaterialCommunityIcons
-            name={resources.inspiration ? 'star' : 'star-outline'}
-            size={18}
-            color={resources.inspiration ? colors.gm : colors.outline}
-          />
-        </TouchableOpacity>
+            <TouchableOpacity style={s.chromePortrait} onPress={handlePickPortrait} disabled={portraitUploading} activeOpacity={0.85}>
+              {portraitContent}
+            </TouchableOpacity>
 
-        {/* Settings */}
-        <TouchableOpacity onPress={() => setSettingsModal(true)} hitSlop={8} style={s.settingsIconBtn}>
-          <MaterialCommunityIcons name="cog-outline" size={20} color={colors.outline} />
-        </TouchableOpacity>
-      </View>
+            <View style={s.chromeIdentity}>
+              {editingName ? (
+                <TextInput
+                  style={s.chromeNameInput}
+                  value={nameInput}
+                  onChangeText={setNameInput}
+                  onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                  onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                  autoFocus returnKeyType="done"
+                />
+              ) : (
+                <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
+                  <Text style={s.chromeName} numberOfLines={1}>{stats.characterName}</Text>
+                </TouchableOpacity>
+              )}
+              <Text style={s.chromeSub} numberOfLines={1}>
+                {capitalize(stats.speciesKey)} {capitalize(stats.classKey)} · Lv {stats.level}
+              </Text>
+            </View>
 
-      {/* ── Stat Rail ────────────────────────────────────────────────── */}
-      <View style={s.statRail}>
-        {/* AC */}
-        <View style={s.railStat}>
-          <Text style={[s.railValue, { color: colors.secondary }]}>{ac}</Text>
-          <Text style={s.railLabel}>AC</Text>
-        </View>
+            <TouchableOpacity
+              style={[s.inspirationBtn, resources.inspiration && s.inspirationBtnActive]}
+              onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
+              activeOpacity={0.7} hitSlop={6}
+            >
+              <MaterialCommunityIcons
+                name={resources.inspiration ? 'star' : 'star-outline'}
+                size={18}
+                color={resources.inspiration ? colors.gm : colors.outline}
+              />
+            </TouchableOpacity>
 
-        {/* HP — central, wider */}
-        <TouchableOpacity
-          style={s.railHp}
-          onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
-          onLongPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
-          activeOpacity={0.8}
-        >
-          <View style={s.hpNumRow}>
-            <Text style={[s.railHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
-            <Text style={s.railHpSep}>/</Text>
-            <Text style={s.railHpMax}>{stats.hpMax}</Text>
-            {resources.hpTemp > 0 && (
-              <Text style={s.railHpTemp}>+{resources.hpTemp}</Text>
-            )}
+            <TouchableOpacity onPress={() => setSettingsModal(true)} hitSlop={8} style={s.settingsIconBtn}>
+              <MaterialCommunityIcons name="cog-outline" size={20} color={colors.outline} />
+            </TouchableOpacity>
           </View>
-          <View style={s.hpTrack}>
-            <View style={[s.hpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
-            {resources.hpTemp > 0 && (
-              <View style={[s.hpTempFill, {
-                width: `${Math.min((1 - hpRatio) * 100, (resources.hpTemp / stats.hpMax) * 100)}%` as any,
-              }]} />
-            )}
+
+          {/* Stat Rail */}
+          <View style={s.statRail}>
+            <View style={s.railStat}>
+              <Text style={[s.railValue, { color: colors.secondary }]}>{ac}</Text>
+              <Text style={s.railLabel}>AC</Text>
+            </View>
+            <TouchableOpacity
+              style={s.railHp}
+              onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
+              onLongPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
+              activeOpacity={0.8}
+            >
+              <View style={s.hpNumRow}>
+                <Text style={[s.railHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
+                <Text style={s.railHpSep}>/</Text>
+                <Text style={s.railHpMax}>{stats.hpMax}</Text>
+                {resources.hpTemp > 0 && <Text style={s.railHpTemp}>+{resources.hpTemp}</Text>}
+              </View>
+              <View style={s.hpTrack}>
+                <View style={[s.hpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
+                {resources.hpTemp > 0 && (
+                  <View style={[s.hpTempFill, {
+                    width: `${Math.min((1 - hpRatio) * 100, (resources.hpTemp / stats.hpMax) * 100)}%` as any,
+                  }]} />
+                )}
+              </View>
+              <Text style={s.railLabel}>HP{showDeathSaves ? ' · SAVE' : isDead ? ' · DEAD' : isStabilized ? ' · STABLE' : ''}</Text>
+            </TouchableOpacity>
+            <View style={s.railStat}>
+              <Text style={s.railValue}>{fmtMod(initiative)}</Text>
+              <Text style={s.railLabel}>INIT</Text>
+            </View>
+            <View style={s.railStat}>
+              <Text style={s.railValue}>{stats.speed}</Text>
+              <Text style={s.railLabel}>SPD</Text>
+            </View>
+            <View style={s.railStat}>
+              <Text style={[s.railValue, { color: colors.primary }]}>{fmtMod(prof)}</Text>
+              <Text style={s.railLabel}>PROF</Text>
+            </View>
           </View>
-          <Text style={s.railLabel}>HP{showDeathSaves ? ' · SAVE' : isDead ? ' · DEAD' : isStabilized ? ' · STABLE' : ''}</Text>
-        </TouchableOpacity>
 
-        {/* Init */}
-        <View style={s.railStat}>
-          <Text style={s.railValue}>{fmtMod(initiative)}</Text>
-          <Text style={s.railLabel}>INIT</Text>
-        </View>
+          {/* Tab content */}
+          <View style={{ flex: 1 }}>{tabContent}</View>
 
-        {/* Speed */}
-        <View style={s.railStat}>
-          <Text style={s.railValue}>{stats.speed}</Text>
-          <Text style={s.railLabel}>SPD</Text>
-        </View>
+          {/* Bottom tab bar */}
+          <View style={s.tabBar}>
+            {TAB_DEFS.map((tab) => (
+              <TouchableOpacity
+                key={tab.id}
+                style={[s.tabBtn, activeTab === tab.id && s.tabBtnActive]}
+                onPress={() => setActiveTab(tab.id)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name={tab.icon}
+                  size={20}
+                  color={activeTab === tab.id ? colors.primary : colors.outline}
+                />
+                <Text style={[s.tabLabel, activeTab === tab.id && s.tabLabelActive]}>{tab.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
 
-        {/* Prof */}
-        <View style={s.railStat}>
-          <Text style={[s.railValue, { color: colors.primary }]}>{fmtMod(prof)}</Text>
-          <Text style={s.railLabel}>PROF</Text>
-        </View>
-      </View>
-
-      {/* ── Tab Content ──────────────────────────────────────────────── */}
-      <View style={{ flex: 1 }}>
-        {activeTab === 'combat' && (
-          <CombatTab
-            stats={stats}
-            resources={resources}
-            scores={scores}
-            prof={prof}
-            activeConditions={activeConditions}
-            showDeathSaves={showDeathSaves}
-            isDead={isDead}
-            isStabilized={isStabilized}
-            canEditAny={canEditAny}
-            equipment={equipment}
-            onRoll={handleRoll}
-            onToggleCondition={handleToggleCondition}
-            onDeathSave={handleDeathSave}
-            getAttackBonus={getAttackBonus}
-          />
-        )}
-        {activeTab === 'skills' && (
-          <SkillsTab
-            stats={stats}
-            scores={scores}
-            prof={prof}
-            onRoll={handleRoll}
-          />
-        )}
-        {activeTab === 'abilities' && (
-          <AbilitiesTab
-            stats={stats}
-            resources={resources}
-            isOwner={isOwner}
-            onToggleFeatureUse={toggleFeatureUse}
-            onAddFeature={(cat) => {
-              setFeatureCategory(cat);
-              setEditFeature({ id: Date.now().toString(), name: '', description: '' });
-              setFeatureModal(true);
-            }}
-            onEditFeature={(cat, feature) => {
-              setFeatureCategory(cat);
-              setEditFeature(feature);
-              setFeatureModal(true);
-            }}
-          />
-        )}
-        {activeTab === 'story' && (
-          <StoryTab
-            stats={stats}
-            resources={resources}
-            isOwner={isOwner}
-            onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
-            onToggleEquipped={handleToggleEquipped}
-            onNotesChange={(text) => {
-              setScratchpad(text);
-              persistResources({ ...resources, notes: text });
-            }}
-          />
-        )}
-      </View>
-
-      {/* ── Bottom Tab Bar ───────────────────────────────────────────── */}
-      <View style={s.tabBar}>
-        {([
-          { id: 'combat', icon: 'sword-cross', label: 'Combat' },
-          { id: 'skills', icon: 'star-outline', label: 'Skills' },
-          { id: 'abilities', icon: 'lightning-bolt-outline', label: 'Abilities' },
-          { id: 'story', icon: 'book-open-outline', label: 'Story' },
-        ] as const).map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[s.tabBtn, activeTab === tab.id && s.tabBtnActive]}
-            onPress={() => setActiveTab(tab.id)}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons
-              name={tab.icon}
-              size={20}
-              color={activeTab === tab.id ? colors.primary : colors.outline}
-            />
-            <Text style={[s.tabLabel, activeTab === tab.id && s.tabLabelActive]}>{tab.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Roll Toast */}
+      {/* Roll Toast — works for both layouts */}
       <RollToast result={rollResult} />
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
@@ -1355,6 +1486,136 @@ const s = StyleSheet.create({
     letterSpacing: 0.8, textTransform: 'uppercase', color: colors.outline,
   },
   tabLabelActive: { color: colors.primary },
+
+  // ── Desktop two-column layout ────────────────────────────────────────────
+  deskShell: {
+    flex: 1, flexDirection: 'row',
+  },
+
+  // Left rail
+  deskRail: {
+    width: 264,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: colors.outlineVariant,
+    flexDirection: 'column',
+  },
+  deskHeader: {
+    paddingTop: 16, paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant,
+  },
+  deskBackBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 14, paddingBottom: 12,
+  },
+  deskBackLabel: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.outline, letterSpacing: 0.3,
+  },
+  deskIdentityRow: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    paddingHorizontal: 14, gap: 10,
+  },
+  deskPortrait: {
+    width: 48, height: 48, borderRadius: 24, flexShrink: 0,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+  },
+  deskPortraitImg: { width: 48, height: 48, borderRadius: 24 },
+  deskNameBlock: { flex: 1, minWidth: 0, paddingTop: 2 },
+  deskName: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: -0.2, lineHeight: 18,
+  },
+  deskNameInput: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.primary, borderBottomWidth: 1, borderBottomColor: colors.primary,
+    paddingVertical: 1,
+  },
+  deskSub: {
+    fontSize: 11, fontFamily: fonts.label, color: colors.outline,
+    marginTop: 2, textTransform: 'capitalize',
+  },
+  deskLevel: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.outline, marginTop: 2, letterSpacing: 0.3,
+  },
+  deskHeaderIcons: {
+    flexDirection: 'column', gap: 6, paddingTop: 2,
+  },
+  deskIconBtn: {
+    width: 26, height: 26, borderRadius: 13,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  deskIconBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
+
+  // Stats block
+  deskStats: {
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant,
+    gap: 8,
+  },
+  deskHpRow: { gap: 4 },
+  deskHpNums: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
+  deskHpCurrent: {
+    fontSize: 24, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 26,
+  },
+  deskHpSep: { fontSize: 13, color: colors.outline, marginHorizontal: 1 },
+  deskHpMax: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '600', color: colors.outline },
+  deskHpTemp: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: '#3B82F6', marginLeft: 3 },
+  deskHpTrack: {
+    height: 5, borderRadius: 3, marginTop: 4,
+    backgroundColor: colors.outlineVariant, flexDirection: 'row', overflow: 'hidden',
+  },
+  deskHpFill: { height: '100%', borderRadius: 3 },
+  deskHpTempFill: { height: '100%', backgroundColor: '#3B82F6' },
+  deskStatGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+  },
+  deskStatCell: {
+    flex: 1, minWidth: '40%',
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, paddingVertical: 7, paddingHorizontal: 8,
+    alignItems: 'center', gap: 2,
+  },
+  deskStatValue: {
+    fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
+  },
+  deskStatLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
+  },
+
+  // Vertical tab list
+  deskTabList: {
+    flex: 1, paddingTop: 6, paddingBottom: 12,
+  },
+  deskTabBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderRadius: 0,
+  },
+  deskTabBtnActive: {
+    backgroundColor: colors.surfaceContainer,
+    borderRightWidth: 2,
+    borderRightColor: colors.primary,
+  },
+  deskTabLabel: {
+    fontSize: 13, fontFamily: fonts.body, fontWeight: '600',
+    color: colors.outline,
+  },
+  deskTabLabelActive: { color: colors.primary },
+
+  // Right content pane
+  deskContent: {
+    flex: 1,
+    backgroundColor: colors.surfaceCanvas,
+  },
   topBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: spacing.md,
