@@ -12,6 +12,7 @@ type Props = {
   // Web-only — accepted here so callers can stay platform-agnostic.
   mentionablePages?: unknown;
   mentionablePins?: unknown;
+  mentionableEvents?: unknown;
   getSectionLabel?: (sectionId: string) => string;
   onMentionClick?: (pageId: string) => void;
   onPinMentionClick?: (pinId: string, mapId: string) => void;

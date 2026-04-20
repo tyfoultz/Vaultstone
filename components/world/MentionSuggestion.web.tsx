@@ -14,6 +14,16 @@ export type MentionPinItem = {
   icon: string;
 };
 
+// A timeline event the editor can link to. id is the parent timeline page id
+// (for body_refs backlinks), eventId is the actual event row (for routing).
+export type MentionEventItem = {
+  id: string;
+  eventId: string;
+  label: string;
+  timelineTitle: string;
+  icon: string;
+};
+
 type MentionItem =
   | {
       kind: 'page';
@@ -26,6 +36,14 @@ type MentionItem =
       kind: 'pin';
       id: string;
       mapId: string;
+      label: string;
+      meta: string;
+      icon: string;
+    }
+  | {
+      kind: 'event';
+      id: string;
+      eventId: string;
       label: string;
       meta: string;
       icon: string;
@@ -74,7 +92,7 @@ const SuggestionList = forwardRef<SuggestionListHandle, SuggestionListProps>(
     );
 
     if (items.length === 0) {
-      return <div className="vaultstone-mention-empty">No matching pages or pins</div>;
+      return <div className="vaultstone-mention-empty">No matches</div>;
     }
 
     return (
@@ -102,7 +120,11 @@ const SuggestionList = forwardRef<SuggestionListHandle, SuggestionListProps>(
             <span className="vaultstone-mention-text">
               <span className="vaultstone-mention-title">{item.label}</span>
               <span className="vaultstone-mention-meta">
-                {item.kind === 'pin' ? `Pin · ${item.meta}` : item.meta}
+                {item.kind === 'pin'
+                  ? `Pin · ${item.meta}`
+                  : item.kind === 'event'
+                    ? `Event · ${item.meta}`
+                    : item.meta}
               </span>
             </span>
           </button>
@@ -144,8 +166,20 @@ function pinToItem(pin: MentionPinItem): MentionItem {
   };
 }
 
+function eventToItem(ev: MentionEventItem): MentionItem {
+  return {
+    kind: 'event',
+    id: ev.id,
+    eventId: ev.eventId,
+    label: ev.label,
+    meta: ev.timelineTitle,
+    icon: ev.icon,
+  };
+}
+
 type GetPages = () => WorldPage[];
 type GetPins = () => MentionPinItem[];
+type GetEvents = () => MentionEventItem[];
 type GetSectionLabel = (sectionId: string) => string;
 
 const MAX_ITEMS = 8;
@@ -154,6 +188,7 @@ export function createMentionSuggestion(
   getPages: GetPages,
   getSectionLabel: GetSectionLabel,
   getPins?: GetPins,
+  getEvents?: GetEvents,
 ): Omit<SuggestionOptions, 'editor'> {
   return {
     char: '@',
@@ -162,24 +197,31 @@ export function createMentionSuggestion(
       const q = query.trim().toLowerCase();
       const pages = getPages();
       const pins = getPins ? getPins() : [];
+      const events = getEvents ? getEvents() : [];
       const pageMatches = q
         ? pages.filter((p) => p.title.toLowerCase().includes(q))
         : pages;
       const pinMatches = q
         ? pins.filter((p) => p.label.toLowerCase().includes(q))
         : pins;
+      const eventMatches = q
+        ? events.filter((e) => e.label.toLowerCase().includes(q))
+        : events;
       const pageItems = pageMatches
         .slice(0, MAX_ITEMS)
         .map((p) => pageToItem(p, getSectionLabel(p.section_id)));
       const pinItems = pinMatches.slice(0, MAX_ITEMS).map(pinToItem);
-      return [...pageItems, ...pinItems].slice(0, MAX_ITEMS);
+      const eventItems = eventMatches.slice(0, MAX_ITEMS).map(eventToItem);
+      return [...pageItems, ...pinItems, ...eventItems].slice(0, MAX_ITEMS);
     },
     command: ({ editor, range, props }) => {
       const item = props as MentionItem;
       const attrs =
         item.kind === 'pin'
           ? { id: item.id, label: item.label, kind: 'pin', mapId: item.mapId }
-          : { id: item.id, label: item.label };
+          : item.kind === 'event'
+            ? { id: item.id, label: item.label, kind: 'event' }
+            : { id: item.id, label: item.label };
       editor
         .chain()
         .focus()

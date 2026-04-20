@@ -6,7 +6,8 @@ export type TemplateKey =
   | 'players'
   | 'factions'
   | 'lore'
-  | 'blank';
+  | 'blank'
+  | 'timeline';
 
 export type PageKind =
   | 'custom'
@@ -76,3 +77,20 @@ export interface WorldPageTreeNode {
   children: WorldPageTreeNode[];
   depth: number;
 }
+
+// ─── Timeline types ──────────────────────────────────────────────────────
+
+export type CalendarUnitType = 'text' | 'number' | 'ordered_list';
+
+export interface CalendarUnit {
+  key: string;
+  label: string;
+  type: CalendarUnitType;
+  options?: string[];
+}
+
+export type CalendarSchema = CalendarUnit[];
+
+export type TimelineEvent = Database['public']['Tables']['timeline_events']['Row'];
+export type TimelineEventInsert = Database['public']['Tables']['timeline_events']['Insert'];
+export type TimelineEventUpdate = Database['public']['Tables']['timeline_events']['Update'];

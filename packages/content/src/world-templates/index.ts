@@ -6,6 +6,7 @@ import locationsV1 from './locations.v1.json';
 import loreV1 from './lore.v1.json';
 import npcsV1 from './npcs.v1.json';
 import playersV1 from './players.v1.json';
+import timelineV1 from './timeline.v1.json';
 
 const REGISTRY: Record<TemplateKey, SectionTemplate[]> = {
   locations: [locationsV1 as SectionTemplate],
@@ -14,6 +15,7 @@ const REGISTRY: Record<TemplateKey, SectionTemplate[]> = {
   factions: [factionsV1 as SectionTemplate],
   lore: [loreV1 as SectionTemplate],
   blank: [blankV1 as SectionTemplate],
+  timeline: [timelineV1 as SectionTemplate],
 };
 
 export function getLatestVersion(key: TemplateKey): number {

@@ -371,7 +371,7 @@ export interface Database {
           id: string;
           world_id: string;
           name: string;
-          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank';
+          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline';
           section_view: 'grid' | 'list';
           sort_order: number;
           force_hidden_from_players: boolean;
@@ -385,7 +385,7 @@ export interface Database {
           id?: string;
           world_id: string;
           name: string;
-          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank';
+          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline';
           section_view?: 'grid' | 'list';
           sort_order?: number;
           force_hidden_from_players?: boolean;
@@ -542,6 +542,59 @@ export interface Database {
         Update: {
           permission?: 'view' | 'edit';
           cascade?: boolean;
+        };
+        Relationships: [];
+      };
+      timeline_events: {
+        Row: {
+          id: string;
+          timeline_page_id: string;
+          world_id: string;
+          title: string;
+          date_values: Json;
+          sort_key: number;
+          tie_breaker: number;
+          source_session_id: string | null;
+          visible_to_players: boolean;
+          body: Json;
+          body_text: string | null;
+          body_refs: string[];
+          deleted_at: string | null;
+          hard_delete_after: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          timeline_page_id: string;
+          world_id: string;
+          title: string;
+          date_values?: Json;
+          sort_key?: number;
+          tie_breaker?: number;
+          source_session_id?: string | null;
+          visible_to_players?: boolean;
+          body?: Json;
+          body_text?: string | null;
+          body_refs?: string[];
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          title?: string;
+          date_values?: Json;
+          sort_key?: number;
+          tie_breaker?: number;
+          source_session_id?: string | null;
+          visible_to_players?: boolean;
+          body?: Json;
+          body_text?: string | null;
+          body_refs?: string[];
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -725,6 +778,10 @@ export interface Database {
       };
       materialize_pc_stub: {
         Args: { p_world_id: string; p_character_id: string; p_campaign_id: string };
+        Returns: undefined;
+      };
+      trash_timeline_event: {
+        Args: { p_event_id: string };
         Returns: undefined;
       };
     };

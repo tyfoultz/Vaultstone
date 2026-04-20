@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   claimPageEdit,
+  getEventsForTimeline,
   listMaps,
   listPinsForWorld,
   listPinTypes,
@@ -32,13 +33,14 @@ import {
 
 import { useActiveSection } from '../../../../components/world/ActiveSectionContext';
 import { BodyEditor } from '../../../../components/world/BodyEditor';
-import type { MentionPinItem } from '../../../../components/world/MentionSuggestion.web';
+import type { MentionPinItem, MentionEventItem } from '../../../../components/world/MentionSuggestion.web';
 import { EditLockBanner } from '../../../../components/world/EditLockBanner';
 import { PageHead } from '../../../../components/world/PageHead';
 import { OrphanBanner } from '../../../../components/world/OrphanBanner';
 import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle';
 import { ShareModal } from '../../../../components/world/ShareModal';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
+import { TimelinePageView } from '../../../../components/world/TimelinePageView';
 import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
@@ -130,6 +132,42 @@ export default function PageDetailScreen() {
         };
       });
   }, [worldPins, worldMaps, pinTypes]);
+
+  // Timeline events for the @ mention popover. Fetch events from all timeline
+  // pages in this world so any event is mentionable from any page.
+  const [mentionableEvents, setMentionableEvents] = useState<MentionEventItem[]>([]);
+  const timelinePages = useMemo(
+    () => (allPages ?? []).filter((p) => p.page_kind === 'timeline'),
+    [allPages],
+  );
+  useEffect(() => {
+    if (timelinePages.length === 0) {
+      setMentionableEvents([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(timelinePages.map((tp) => getEventsForTimeline(tp.id))).then(
+      (results) => {
+        if (cancelled) return;
+        const items: MentionEventItem[] = [];
+        results.forEach((res, idx) => {
+          const tp = timelinePages[idx];
+          for (const ev of (res.data ?? []) as { id: string; title: string; timeline_page_id: string }[]) {
+            items.push({
+              id: tp.id,
+              eventId: ev.id,
+              label: ev.title,
+              timelineTitle: tp.title,
+              icon: 'calendar-days',
+            });
+          }
+        });
+        setMentionableEvents(items);
+      },
+    );
+    return () => { cancelled = true; };
+  }, [timelinePages]);
+
   // Lock state derived from `page` is authoritative for "who holds the lock
   // right now" (updated via claim RPC's RETURNING row + optimistic store
   // write). `lockError` captures the most recent claim failure so we can
@@ -270,6 +308,11 @@ export default function PageDetailScreen() {
     );
   }
 
+  // Timeline pages get their own dedicated view
+  if (page.page_kind === 'timeline') {
+    return <TimelinePageView page={page} worldId={worldId} />;
+  }
+
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);
   const kindLabel = PAGE_KIND_LABEL[page.page_kind] ?? 'Page';
 
@@ -359,6 +402,7 @@ export default function PageDetailScreen() {
                   placeholder={`Begin the chronicle of ${page.title}…`}
                   mentionablePages={mentionablePages}
                   mentionablePins={mentionablePins}
+                  mentionableEvents={mentionableEvents}
                   getSectionLabel={sectionLabelById}
                   onMentionClick={(targetPageId) =>
                     router.push(worldPageHref(worldId, targetPageId))
