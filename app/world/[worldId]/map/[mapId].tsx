@@ -322,7 +322,7 @@ export default function WorldMapScreen() {
           <View style={styles.placementBanner} pointerEvents="none">
             <Icon name="place" size={14} color={colors.primary} />
             <Text variant="label-sm" style={{ marginLeft: 6, color: colors.onSurface }}>
-              Tap the map to drop a pin
+              Click the map to drop a pin — or right-click anywhere, any time
             </Text>
           </View>
         ) : null}

@@ -79,8 +79,13 @@ export function MapCanvas({
         initialPositionY={initialViewport?.translateY ?? 0}
         minScale={0.5}
         maxScale={4}
-        doubleClick={{ step: 0.3 }}
-        wheel={{ step: 0.15 }}
+        // Smooth zoom uses scale *= exp(step). With max=4 and min=1,
+        // step = ln(4) / 8 ≈ 0.175 gives exactly 8 double-click levels
+        // between the default view and max zoom. Wheel step is the
+        // library default (0.015) — our previous value was 10× too
+        // aggressive and blew past the intended granularity in one scroll.
+        doubleClick={{ step: 0.175 }}
+        wheel={{ step: 0.015 }}
         panning={{ velocityDisabled: true }}
         velocityAnimation={{ disabled: true }}
         onTransform={handleTransform}

@@ -203,7 +203,7 @@ export function PinEditorModal({
                           if (!subMapId || !onOpenSubMap) return null;
                           return (
                             <GhostButton
-                              label="View sub-map"
+                              label="Open sub-map"
                               onPress={() => onOpenSubMap(subMapId)}
                             />
                           );
