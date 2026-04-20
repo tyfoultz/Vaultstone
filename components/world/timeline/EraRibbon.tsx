@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { EraDefinition, TimelineEvent } from '@vaultstone/types';
 import { Text, colors, spacing } from '@vaultstone/ui';
 
@@ -10,51 +10,61 @@ type Props = {
 };
 
 export function EraRibbon({ events, eras, activeEra, onSelectEra }: Props) {
-  if (eras.length === 0) return null;
+  const visible = eras.filter((e) => e.label);
+  if (visible.length === 0) return null;
 
   return (
     <View style={styles.root}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {eras.filter((e) => e.label).map((era) => {
-          const isActive = activeEra === era.key;
-          const eraEvents = events.filter((ev) => {
-            const dv = ev.date_values as Record<string, unknown>;
-            return dv.era === era.key;
-          });
-          const yearRange = computeYearRange(eraEvents, era);
+      {visible.map((era, idx) => {
+        const isActive = activeEra === era.key;
+        const eraEvents = events.filter((ev) => {
+          const dv = ev.date_values as Record<string, unknown>;
+          return dv.era === era.key;
+        });
+        const yearRange = computeYearRange(eraEvents, era);
+        const isFirst = idx === 0;
+        const isLast = idx === visible.length - 1;
 
-          return (
-            <Pressable
-              key={era.key}
-              onPress={() => onSelectEra(isActive ? null : era.key)}
-              style={[styles.era, isActive && styles.eraActive]}
+        return (
+          <Pressable
+            key={era.key}
+            onPress={() => onSelectEra(isActive ? null : era.key)}
+            style={[
+              styles.era,
+              isActive && styles.eraActive,
+              isFirst && styles.eraFirst,
+              isLast && styles.eraLast,
+            ]}
+          >
+            <Text
+              variant="label-md"
+              style={[styles.eraLabel, isActive && styles.eraLabelActive]}
+              numberOfLines={1}
             >
+              {era.label}
+            </Text>
+            {yearRange ? (
               <Text
-                variant="label-md"
-                style={[styles.eraLabel, isActive && styles.eraLabelActive]}
-                numberOfLines={1}
+                variant="label-sm"
+                style={[styles.eraRange, isActive && styles.eraRangeActive]}
               >
-                {era.label}
+                {yearRange}
               </Text>
-              {yearRange ? (
-                <Text
-                  variant="label-sm"
-                  style={[styles.eraRange, isActive && styles.eraRangeActive]}
-                >
-                  {yearRange}
-                </Text>
-              ) : null}
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+            ) : null}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
 function computeYearRange(events: TimelineEvent[], era: EraDefinition): string {
   const numericLevel = era.dateLevels.find((l) => l.type === 'number');
-  if (!numericLevel || events.length === 0) return '';
+  if (!numericLevel) return '';
+
+  const suffix = numericLevel.label ? ` ${numericLevel.label}` : '';
+
+  if (events.length === 0) return '';
 
   const years = events
     .map((e) => {
@@ -67,25 +77,62 @@ function computeYearRange(events: TimelineEvent[], era: EraDefinition): string {
   if (years.length === 0) return '';
   const min = Math.min(...years);
   const max = Math.max(...years);
-  const suffix = numericLevel.label ? ` ${numericLevel.label}` : '';
   return min === max ? `${min}${suffix}` : `${min} – ${max}${suffix}`;
 }
 
 const styles = StyleSheet.create({
-  root: { marginBottom: spacing.lg },
-  scroll: { gap: 0 },
+  root: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    backgroundColor: colors.surfaceContainerLow,
+    marginBottom: spacing.lg,
+  },
   era: {
-    flex: 1, minWidth: 120,
-    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.sm,
     alignItems: 'center',
-    borderWidth: 1, borderColor: colors.outlineVariant + '44', borderRightWidth: 0,
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: colors.outlineVariant + '22',
+  },
+  eraFirst: {
+    borderTopLeftRadius: 7,
+    borderBottomLeftRadius: 7,
+  },
+  eraLast: {
+    borderTopRightRadius: 7,
+    borderBottomRightRadius: 7,
+    borderRightWidth: 0,
   },
   eraActive: {
     backgroundColor: colors.primaryContainer,
-    borderColor: colors.primary + '66', borderRightWidth: 1,
+    borderColor: colors.primaryContainer,
+    borderWidth: 1,
+    borderRadius: 6,
+    marginVertical: -1,
+    marginHorizontal: -1,
+    zIndex: 1,
   },
-  eraLabel: { color: colors.onSurfaceVariant, fontStyle: 'italic', fontSize: 13 },
-  eraLabelActive: { color: colors.primary, fontWeight: '700', fontStyle: 'normal' },
-  eraRange: { color: colors.outlineVariant, fontSize: 10, marginTop: 2 },
-  eraRangeActive: { color: colors.onSurfaceVariant },
+  eraLabel: {
+    color: colors.onSurfaceVariant,
+    fontStyle: 'italic',
+    fontSize: 14,
+  },
+  eraLabelActive: {
+    color: colors.onPrimaryContainer,
+    fontWeight: '700',
+    fontStyle: 'normal',
+  },
+  eraRange: {
+    color: colors.outlineVariant,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  eraRangeActive: {
+    color: colors.primary,
+  },
 });

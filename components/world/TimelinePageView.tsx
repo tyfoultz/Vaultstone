@@ -147,6 +147,19 @@ export function TimelinePageView({ page, worldId }: Props) {
   const hasEras = schema.eras.length > 0;
   const eraCount = schema.eras.filter((e) => e.label).length;
 
+  const calendarBreadcrumbLevels = useMemo(() => {
+    if (!hasEras) return [];
+    const levels = ['Era'];
+    const allLevelNames = new Set<string>();
+    for (const era of schema.eras) {
+      for (const dl of era.dateLevels) {
+        if (dl.label) allLevelNames.add(dl.label);
+      }
+    }
+    for (const name of allLevelNames) levels.push(name);
+    return levels;
+  }, [schema.eras, hasEras]);
+
   const handleEditEvent = (event: TimelineEvent) => {
     setEditingEvent(event);
     setDefaultEra(undefined);
@@ -266,13 +279,19 @@ export function TimelinePageView({ page, worldId }: Props) {
             style={styles.calendarBreadcrumb}
             onPress={() => setSchemaExpanded(!schemaExpanded)}
           >
-            <Icon name="event" size={16} color={colors.onSurfaceVariant} />
-            <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
-              CALENDAR
+            <Icon name="event" size={14} color={colors.outlineVariant} />
+            <Text variant="label-sm" uppercase weight="semibold" style={styles.calLabel}>
+              Calendar
             </Text>
-            <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
-              {eraCount} era{eraCount !== 1 ? 's' : ''}
-            </Text>
+            {calendarBreadcrumbLevels.map((level, i) => (
+              <View key={i} style={styles.breadcrumbItem}>
+                <Text variant="label-sm" style={{ color: colors.outlineVariant }}>›</Text>
+                <Text variant="label-sm" weight={i === 0 ? 'bold' : 'regular'} style={{ color: colors.onSurfaceVariant }}>
+                  {level}
+                </Text>
+              </View>
+            ))}
+            <View style={{ flex: 1 }} />
             <Icon
               name={schemaExpanded ? 'expand-less' : 'expand-more'}
               size={16}
@@ -386,23 +405,28 @@ const styles = StyleSheet.create({
   },
   calendarBar: {
     marginTop: spacing.lg,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   calendarBreadcrumb: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 6,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.lg,
+    borderRadius: 6,
     backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1,
-    borderColor: colors.outlineVariant + '33',
+    borderColor: colors.outlineVariant + '22',
+  },
+  calLabel: {
+    color: colors.outlineVariant,
+    letterSpacing: 1,
+    fontSize: 11,
   },
   breadcrumbItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 4,
   },
   disabledEditor: {
     opacity: 0.55,
