@@ -455,10 +455,13 @@ function ActionRow({ feature }: { feature: Dnd5eFeature }) {
   const isSrd = ['attack', 'dash', 'disengage', 'dodge', 'help', 'hide', 'ready', 'search', 'use-object', 'cast-spell', 'opp-attack'].includes(feature.id);
   return (
     <View style={s.actionRow}>
-      <Text style={[s.actionName, isSrd && s.actionNameSrd]}>{feature.name}</Text>
-      {feature.uses && (
-        <Text style={s.actionUses}>{feature.uses.current}/{feature.uses.max}</Text>
-      )}
+      <View style={s.actionRowHeader}>
+        <Text style={[s.actionName, isSrd && s.actionNameSrd]}>{feature.name}</Text>
+        {feature.uses && (
+          <Text style={s.actionUses}>{feature.uses.current}/{feature.uses.max}</Text>
+        )}
+      </View>
+      <Text style={s.actionDesc}>{feature.description}</Text>
     </View>
   );
 }
@@ -663,13 +666,15 @@ const s = StyleSheet.create({
   actionGroupLabelAccent: { color: colors.hpDanger },
   actionGroupCount: { fontSize: 9, fontFamily: fonts.label, color: colors.outline },
   actionRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingVertical: 8,
+    paddingHorizontal: 10, paddingVertical: 9,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+    gap: 3,
   },
+  actionRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   actionName: { flex: 1, fontSize: 12, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
   actionNameSrd: { color: colors.onSurfaceVariant },
   actionUses: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
+  actionDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, lineHeight: 16 },
 
   // Mobile ability scores
   abilityGrid: { flexDirection: 'row', gap: 6 },
