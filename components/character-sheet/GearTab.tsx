@@ -28,9 +28,14 @@ interface Props {
   strengthScore: number;
   onUpdateCoins?: (coins: NonNullable<Dnd5eResources['coins']>) => void;
   onToggleEquipped?: (id: string) => void;
+  onUpdateNotes?: (notes: string) => void;
+  onUpdateTreasure?: (treasure: string) => void;
 }
 
-export function GearTab({ stats, resources, isOwner, strengthScore, onUpdateCoins, onToggleEquipped }: Props) {
+export function GearTab({
+  stats, resources, isOwner, strengthScore,
+  onUpdateCoins, onToggleEquipped, onUpdateNotes, onUpdateTreasure,
+}: Props) {
   const equipment = resources.equipment ?? [];
   const coins = resources.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
 
@@ -38,66 +43,61 @@ export function GearTab({ stats, resources, isOwner, strengthScore, onUpdateCoin
   const carriedItems = equipment.filter((i) => !i.equipped);
 
   // Attunement
-  const requiresAttunement = equipment.filter((i) => i.requiresAttunement);
-  const attuned = requiresAttunement.filter((i) => i.attuned);
-  const attunementUsed = attuned.length;
+  const attuned = equipment.filter((i) => i.requiresAttunement && i.attuned);
   const attunementMax = 3;
 
-  // Carry weight (STR × 15 lbs — simple encumbrance)
+  // Carry weight
   const carryMax = strengthScore * 15;
+  const carryWeight = equipment.reduce((sum, i) => sum + (i.weight ?? 0), 0);
+  const carryRatio = carryMax > 0 ? Math.min(carryWeight / carryMax, 1) : 0;
+  const carryLoad = carryWeight <= carryMax * 0.33
+    ? 'Unencumbered'
+    : carryWeight <= carryMax * 0.66
+    ? 'Encumbered'
+    : 'Heavily Encumbered';
 
   return (
-    <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
+    <View style={s.root}>
+      {/* ── LEFT COLUMN ─────────────────────────────────────────────── */}
+      <ScrollView style={s.col} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
 
-      {/* ── ATTUNEMENT ── */}
-      {requiresAttunement.length > 0 && (
-        <>
-          <SectionLabel accent>ATTUNEMENT</SectionLabel>
-          <View style={s.attunementCard}>
-            <View style={s.attunementPips}>
-              {Array.from({ length: attunementMax }).map((_, i) => (
-                <View key={i} style={[s.attunementPip, i < attunementUsed && s.attunementPipActive]} />
-              ))}
-            </View>
-            <Text style={s.attunementCount}>{attunementUsed}/{attunementMax} slots used</Text>
-            {attuned.length > 0 && (
-              <View style={s.attunedList}>
-                {attuned.map((item) => (
-                  <View key={item.id} style={s.attunedRow}>
-                    <MaterialCommunityIcons name="star-four-points" size={10} color={colors.primary} />
-                    <Text style={s.attunedName}>{item.name}</Text>
-                  </View>
-                ))}
+        {/* Attunement Slots */}
+        <SectionLabel>Attunement Slots</SectionLabel>
+        <View style={s.attunementSlots}>
+          {Array.from({ length: attunementMax }).map((_, i) => {
+            const item = attuned[i];
+            return (
+              <View key={i} style={[s.attuneSlot, item ? s.attuneSlotActive : s.attuneSlotEmpty]}>
+                <Text style={s.attuneLbl}>Slot {i + 1}</Text>
+                {item
+                  ? <Text style={s.attuneName} numberOfLines={1}>{item.name}</Text>
+                  : <Text style={s.attuneEmpty}>— empty —</Text>}
               </View>
-            )}
-          </View>
-        </>
-      )}
-
-      {/* ── EQUIPPED ── */}
-      <SectionLabel style={requiresAttunement.length > 0 ? { marginTop: 14 } : undefined}>EQUIPPED</SectionLabel>
-      {equippedItems.length === 0 ? (
-        <EmptyHint text="Nothing equipped." />
-      ) : (
-        <View style={s.equipCard}>
-          {equippedItems.map((item, i) => (
-            <EquipRow
-              key={item.id}
-              item={item}
-              canToggle={isOwner}
-              onToggle={() => onToggleEquipped?.(item.id)}
-              isLast={i === equippedItems.length - 1}
-            />
-          ))}
+            );
+          })}
         </View>
-      )}
 
-      {/* ── CARRYING ── */}
-      {carriedItems.length > 0 && (
-        <>
-          <SectionLabel style={{ marginTop: 14 }}>CARRYING</SectionLabel>
-          <View style={s.equipCard}>
-            {carriedItems.map((item, i) => (
+        {/* Equipped */}
+        <CardBlock title="Equipped" action={isOwner ? '+ Add' : undefined}>
+          {equippedItems.length === 0
+            ? <Text style={s.emptyHint}>Nothing equipped.</Text>
+            : equippedItems.map((item, i) => (
+              <EquipRow
+                key={item.id}
+                item={item}
+                canToggle={isOwner}
+                onToggle={() => onToggleEquipped?.(item.id)}
+                isLast={i === equippedItems.length - 1}
+              />
+            ))
+          }
+        </CardBlock>
+
+        {/* Carrying */}
+        <CardBlock title="Carrying" action={isOwner ? '+ Add' : undefined}>
+          {carriedItems.length === 0
+            ? <Text style={s.emptyHint}>Nothing else carried.</Text>
+            : carriedItems.map((item, i) => (
               <EquipRow
                 key={item.id}
                 item={item}
@@ -105,42 +105,91 @@ export function GearTab({ stats, resources, isOwner, strengthScore, onUpdateCoin
                 onToggle={() => onToggleEquipped?.(item.id)}
                 isLast={i === carriedItems.length - 1}
               />
-            ))}
-          </View>
-        </>
-      )}
+            ))
+          }
+        </CardBlock>
 
-      {/* ── CARRY WEIGHT ── */}
-      <View style={s.carryRow}>
-        <MaterialCommunityIcons name="weight" size={12} color={colors.outline} />
-        <Text style={s.carryText}>Carry capacity: <Text style={s.carryMax}>{carryMax} lb</Text></Text>
-      </View>
+      </ScrollView>
 
-      {/* ── COINS ── */}
-      <SectionLabel style={{ marginTop: 14 }}>COIN POUCH</SectionLabel>
-      <View style={s.coinsGrid}>
-        {COIN_LABELS.map(({ key, label, color }) => (
-          <CoinCell
-            key={key}
-            label={label}
-            value={coins[key]}
-            color={color}
+      <View style={s.colDivider} />
+
+      {/* ── RIGHT COLUMN ────────────────────────────────────────────── */}
+      <ScrollView style={s.col} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
+
+        {/* Currency */}
+        <SectionLabel>Currency</SectionLabel>
+        <View style={s.coinRow}>
+          {COIN_LABELS.map(({ key, label, color }) => (
+            <CoinCell
+              key={key}
+              label={label}
+              value={coins[key]}
+              color={color}
+              editable={isOwner}
+              onChange={(v) => onUpdateCoins?.({ ...coins, [key]: v })}
+            />
+          ))}
+        </View>
+
+        {/* Treasure & Valuables */}
+        <CardBlock title="Treasure & Valuables">
+          <EditableText
+            value={resources.treasure ?? ''}
+            placeholder="Notable loot, gems, art objects…"
             editable={isOwner}
-            onChange={(v) => onUpdateCoins?.({ ...coins, [key]: v })}
+            onCommit={(v) => onUpdateTreasure?.(v)}
           />
-        ))}
-      </View>
+        </CardBlock>
 
-      <View style={{ height: 16 }} />
-    </ScrollView>
+        {/* Carry Capacity */}
+        <CardBlock title="Carry Capacity">
+          <View style={s.carryNums}>
+            <Text style={s.carryWeight}>{carryWeight}</Text>
+            <Text style={s.carryMax}>/ {carryMax} lbs</Text>
+          </View>
+          <View style={s.carryTrack}>
+            <View style={[s.carryFill, { width: `${carryRatio * 100}%` as any }]} />
+          </View>
+          <Text style={s.carryLoad}>{carryLoad} · STR {strengthScore} × 15</Text>
+        </CardBlock>
+
+        {/* Notes */}
+        <CardBlock title="Notes" style={{ flex: 1 }}>
+          <EditableText
+            value={resources.notes ?? ''}
+            placeholder="Session notes, reminders, loot to identify…"
+            editable={isOwner}
+            onCommit={(v) => onUpdateNotes?.(v)}
+            multiline
+          />
+        </CardBlock>
+
+      </ScrollView>
+    </View>
   );
 }
 
-function SectionLabel({ children, style, accent }: { children: string; style?: any; accent?: boolean }) {
+// ── Sub-components ──────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: string }) {
   return (
-    <View style={[s.sectionRow, style]}>
-      <Text style={[s.sectionLabel, accent && s.sectionLabelAccent]}>{children}</Text>
-      <View style={[s.sectionLine, accent && s.sectionLineAccent]} />
+    <View style={s.sectionRow}>
+      <Text style={s.sectionLabel}>{children}</Text>
+      <View style={s.sectionLine} />
+    </View>
+  );
+}
+
+function CardBlock({ title, action, children, style }: {
+  title: string; action?: string; children: React.ReactNode; style?: any;
+}) {
+  return (
+    <View style={[s.card, style]}>
+      <View style={s.cardHead}>
+        <Text style={s.cardTitle}>{title}</Text>
+        {action && <Text style={s.cardAction}>{action}</Text>}
+      </View>
+      <View style={s.cardBody}>{children}</View>
     </View>
   );
 }
@@ -153,41 +202,40 @@ function EquipRow({ item, canToggle, onToggle, isLast }: {
 }) {
   return (
     <View style={[s.equipRow, !isLast && s.equipRowBorder]}>
-      <View style={s.equipSlotIcon}>
-        <MaterialCommunityIcons
-          name={SLOT_ICON[item.slot] as any}
-          size={14}
-          color={item.equipped ? colors.primary : colors.outline}
-        />
-      </View>
-      <View style={s.equipInfo}>
-        <View style={s.equipNameRow}>
-          <Text style={[s.equipName, item.equipped && s.equipNameActive]}>{item.name}</Text>
-          {item.requiresAttunement && (
-            <MaterialCommunityIcons
-              name={item.attuned ? 'star-four-points' : 'star-four-points-outline'}
-              size={11}
-              color={item.attuned ? colors.primary : colors.outline}
-            />
-          )}
-        </View>
-        {item.damage ? (
-          <Text style={s.equipSub}>{item.damage}{item.range ? ` · ${item.range} ft` : ''}</Text>
-        ) : item.acBase ? (
-          <Text style={s.equipSub}>AC {item.acBase}{item.dexCap != null ? ` (DEX max ${item.dexCap})` : ''}</Text>
-        ) : item.notes ? (
-          <Text style={s.equipSub}>{item.notes}</Text>
-        ) : null}
+      <Text style={s.equipName} numberOfLines={1}>{item.name}</Text>
+      <View style={s.equipPills}>
+        {item.attuned && <Pill label="Attuned" variant="primary" />}
+        {item.slot === 'armor' && <Pill label="Armor" />}
+        {item.slot === 'weapon' && item.damage && <Pill label={item.damage} />}
+        {item.notes && !item.damage && !item.acBase && <Pill label={item.notes} />}
       </View>
       {canToggle && (
         <TouchableOpacity onPress={onToggle} hitSlop={8} activeOpacity={0.7}>
           <MaterialCommunityIcons
             name={item.equipped ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
-            size={18}
+            size={16}
             color={item.equipped ? colors.primary : colors.outline}
           />
         </TouchableOpacity>
       )}
+    </View>
+  );
+}
+
+function Pill({ label, variant }: { label: string; variant?: 'primary' | 'gm' }) {
+  const pillStyle = variant === 'primary'
+    ? [s.pill, s.pillPrimary]
+    : variant === 'gm'
+    ? [s.pill, s.pillGm]
+    : [s.pill];
+  const textStyle = variant === 'primary'
+    ? [s.pillText, s.pillTextPrimary]
+    : variant === 'gm'
+    ? [s.pillText, s.pillTextGm]
+    : [s.pillText];
+  return (
+    <View style={pillStyle}>
+      <Text style={textStyle} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -232,100 +280,149 @@ function CoinCell({ label, value, color, editable, onChange }: {
   );
 }
 
-function EmptyHint({ text }: { text: string }) {
+function EditableText({ value, placeholder, editable, onCommit, multiline }: {
+  value: string; placeholder: string; editable: boolean;
+  onCommit: (v: string) => void; multiline?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value);
+
+  if (editable && editing) {
+    return (
+      <TextInput
+        style={[s.editableInput, multiline && s.editableInputMulti]}
+        value={text}
+        onChangeText={setText}
+        onBlur={() => { setEditing(false); onCommit(text); }}
+        autoFocus
+        multiline={multiline}
+        placeholder={placeholder}
+        placeholderTextColor={colors.outline}
+      />
+    );
+  }
+
   return (
-    <View style={s.emptyHint}>
-      <Text style={s.emptyHintText}>{text}</Text>
-    </View>
+    <TouchableOpacity onPress={() => editable && setEditing(true)} activeOpacity={editable ? 0.7 : 1}>
+      {value
+        ? <Text style={s.editableText}>{value}</Text>
+        : <Text style={s.editablePlaceholder}>{placeholder}</Text>}
+    </TouchableOpacity>
   );
 }
 
-const s = StyleSheet.create({
-  container: { paddingHorizontal: spacing.md, paddingTop: 14 },
+// ── Styles ──────────────────────────────────────────────────────────────────
 
-  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+const s = StyleSheet.create({
+  root: { flex: 1, flexDirection: 'row' },
+
+  col: { flex: 1 },
+  colContent: { padding: 10, gap: 8, paddingBottom: 24 },
+  colDivider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.outlineVariant },
+
+  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 2 },
   sectionLabel: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.5, textTransform: 'uppercase', color: colors.outline,
   },
-  sectionLabelAccent: { color: colors.primary },
   sectionLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.outlineVariant },
-  sectionLineAccent: { backgroundColor: `${colors.primary}44` },
 
   // Attunement
-  attunementCard: {
-    backgroundColor: `${colors.primary}10`,
-    borderWidth: 1, borderColor: `${colors.primary}44`,
-    borderRadius: radius.lg, padding: 14, gap: 8,
+  attunementSlots: { flexDirection: 'row', gap: 5, marginBottom: 4 },
+  attuneSlot: {
+    flex: 1, borderRadius: 6, padding: 6,
   },
-  attunementPips: { flexDirection: 'row', gap: 8 },
-  attunementPip: {
-    width: 16, height: 16, borderRadius: 8,
-    borderWidth: 1.5, borderColor: colors.outlineVariant,
+  attuneSlotActive: {
+    backgroundColor: `${colors.primary}18`,
+    borderWidth: 1, borderColor: `${colors.primary}55`,
   },
-  attunementPipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  attunementCount: {
-    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
-    letterSpacing: 0.5, color: colors.onSurfaceVariant,
+  attuneSlotEmpty: {
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
   },
-  attunedList: { gap: 4, marginTop: 2 },
-  attunedRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  attunedName: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurface },
+  attuneLbl: { fontSize: 7, color: colors.outline, letterSpacing: 0.8, textTransform: 'uppercase' },
+  attuneName: { fontSize: 9, fontWeight: '700', color: colors.primary, marginTop: 2 },
+  attuneEmpty: { fontSize: 9, color: colors.outline, marginTop: 2 },
 
-  // Equipment
-  equipCard: {
+  // Card block
+  card: {
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg, overflow: 'hidden',
   },
+  cardHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 10, paddingVertical: 7,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  cardTitle: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.onSurfaceVariant,
+  },
+  cardAction: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.primary, letterSpacing: 0.3,
+  },
+  cardBody: { padding: 8 },
+
+  // Equip rows
   equipRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 12, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8,
   },
   equipRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  equipSlotIcon: {
-    width: 26, height: 26, borderRadius: 6,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  equipInfo: { flex: 1, minWidth: 0 },
-  equipNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  equipName: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurfaceVariant },
-  equipNameActive: { color: colors.onSurface },
-  equipSub: { fontSize: 10, fontFamily: fonts.label, color: colors.outline, marginTop: 1 },
+  equipName: { flex: 1, fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
+  equipPills: { flexDirection: 'row', gap: 4, flexShrink: 1 },
 
-  // Carry weight
-  carryRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    marginTop: 8, paddingHorizontal: 2,
+  // Pills
+  pill: {
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
   },
-  carryText: {
-    fontSize: 11, fontFamily: fonts.label, fontWeight: '500', color: colors.outline,
-  },
-  carryMax: { fontWeight: '700', color: colors.onSurfaceVariant },
+  pillPrimary: { borderColor: `${colors.primary}66`, backgroundColor: `${colors.primary}18` },
+  pillGm: { borderColor: `${colors.gm}66`, backgroundColor: `${colors.gmContainer}` },
+  pillText: { fontSize: 8, fontWeight: '700', color: colors.onSurfaceVariant },
+  pillTextPrimary: { color: colors.primary },
+  pillTextGm: { color: colors.gm },
 
-  // Coins
-  coinsGrid: { flexDirection: 'row', gap: 6 },
+  emptyHint: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic', padding: 2 },
+
+  // Currency
+  coinRow: { flexDirection: 'row', gap: 5 },
   coinCell: {
     flex: 1, alignItems: 'center',
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, paddingVertical: 10, paddingHorizontal: 4,
-    gap: 4,
+    borderRadius: radius.lg, paddingVertical: 8, paddingHorizontal: 2,
+    gap: 3,
   },
-  coinDot: { width: 8, height: 8, borderRadius: 4 },
-  coinValue: {
-    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
-  },
+  coinDot: { width: 7, height: 7, borderRadius: 4 },
+  coinValue: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
   coinInput: {
-    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700', color: colors.primary,
-    textAlign: 'center', minWidth: 36,
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.primary,
+    textAlign: 'center', minWidth: 30,
   },
   coinLabel: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    fontSize: 7, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
   },
 
-  emptyHint: { paddingVertical: 10, paddingHorizontal: 2, marginBottom: 4 },
-  emptyHintText: { fontSize: 12, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic' },
+  // Carry capacity
+  carryNums: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 6 },
+  carryWeight: { fontSize: 20, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  carryMax: { fontSize: 11, color: colors.outline },
+  carryTrack: {
+    height: 5, borderRadius: 3,
+    backgroundColor: colors.outlineVariant, overflow: 'hidden', marginBottom: 4,
+  },
+  carryFill: { height: '100%', borderRadius: 3, backgroundColor: colors.hpHealthy },
+  carryLoad: { fontSize: 9, color: colors.outline, letterSpacing: 0.3 },
+
+  // Editable text areas
+  editableText: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 17 },
+  editablePlaceholder: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic', lineHeight: 17 },
+  editableInput: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurface, lineHeight: 17 },
+  editableInputMulti: { minHeight: 60 },
 });

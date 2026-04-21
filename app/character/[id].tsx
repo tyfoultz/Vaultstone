@@ -658,6 +658,8 @@ export default function CharacterSheetScreen() {
           strengthScore={scores.strength}
           onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
           onToggleEquipped={handleToggleEquipped}
+          onUpdateNotes={(notes) => persistResources({ ...resources, notes })}
+          onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
         />
       )}
       {activeTab === 'lore' && (

@@ -97,6 +97,8 @@ export interface Dnd5eEquipmentItem {
   attuned?: boolean;
   /** Whether this item is a magic item requiring attunement */
   requiresAttunement?: boolean;
+  /** Item weight in lbs */
+  weight?: number;
 }
 
 export interface Dnd5eFeature {
@@ -195,6 +197,8 @@ export interface Dnd5eResources {
   };
   /** Freetext scratchpad notes. */
   notes?: string;
+  /** Treasure, gems, art objects, and other valuables. */
+  treasure?: string;
   /** Spell slots by level. Only populated for spellcasting classes. */
   spellSlots: {
     1: Dnd5eSpellSlotLevel;
