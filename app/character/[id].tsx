@@ -622,15 +622,11 @@ export default function CharacterSheetScreen() {
           scores={scores}
           prof={prof}
           activeConditions={activeConditions}
-          showDeathSaves={showDeathSaves}
-          isDead={isDead}
-          isStabilized={isStabilized}
           canEditAny={canEditAny}
           equipment={equipment}
           isDesktop={isDesktop}
           onRoll={handleRoll}
           onToggleCondition={handleToggleCondition}
-          onDeathSave={handleDeathSave}
           getAttackBonus={getAttackBonus}
           onOpenHpModal={() => setHpModalVisible(true)}
         />
