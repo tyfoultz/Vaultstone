@@ -791,48 +791,39 @@ export default function CharacterSheetScreen() {
               </View>
             </View>
 
-            {/* ── Ability scores ────────────────────────────────────── */}
+            {/* ── Abilities & Saves (Option C — combined rows) ──────── */}
             <View style={s.deskSection}>
-              <Text style={s.deskSectionLabel}>Ability Scores</Text>
-              <View style={s.deskScoreGrid}>
-                {ABILITY_KEYS.map((key) => {
-                  const score = scores[key];
-                  const mod = abilityMod(score);
-                  const isSpellMod = stats.spellcastingAbility === key;
-                  return (
-                    <TouchableOpacity
-                      key={key}
-                      style={[s.deskScoreTile, isSpellMod && s.deskScoreTileHot]}
-                      onPress={() => handleRoll({ label: ABILITY_SHORT[key], rolls: [Math.floor(Math.random() * 20) + 1], bonus: mod, total: Math.floor(Math.random() * 20) + 1 + mod })}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={[s.deskScoreMod, isSpellMod && { color: colors.primary }]}>{fmtMod(mod)}</Text>
-                      <Text style={s.deskScoreRaw}>{score}</Text>
-                      <Text style={s.deskScoreLbl}>{ABILITY_SHORT[key]}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* ── Saving throws ─────────────────────────────────────── */}
-            <View style={s.deskSection}>
-              <Text style={s.deskSectionLabel}>Saving Throws</Text>
+              <Text style={s.deskSectionLabel}>Abilities &amp; Saves</Text>
               {ABILITY_KEYS.map((key) => {
-                const mod = abilityMod(scores[key]);
+                const score = scores[key];
+                const mod = abilityMod(score);
+                const isSpellMod = stats.spellcastingAbility === key;
                 const isProficient = stats.savingThrowProficiencies?.includes(key) ?? false;
-                const bonus = mod + (isProficient ? prof : 0);
+                const saveBonus = mod + (isProficient ? prof : 0);
                 return (
-                  <TouchableOpacity
-                    key={key}
-                    style={s.deskSaveRow}
-                    onPress={() => handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [Math.floor(Math.random() * 20) + 1], bonus: bonus, total: Math.floor(Math.random() * 20) + 1 + bonus })}
-                    activeOpacity={0.75}
-                  >
-                    <View style={[s.deskSaveDot, isProficient && s.deskSaveDotProf]} />
-                    <Text style={[s.deskSaveName, isProficient && s.deskSaveNameProf]}>{capitalize(key)}</Text>
-                    <Text style={[s.deskSaveVal, isProficient && s.deskSaveValProf]}>{fmtMod(bonus)}</Text>
-                  </TouchableOpacity>
+                  <View key={key} style={s.deskAbilityRow}>
+                    <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
+                    <Text style={[s.deskAbilName, isSpellMod && { color: colors.primary }]}>
+                      {capitalize(key)}
+                    </Text>
+                    <TouchableOpacity
+                      style={[s.deskAbilBadge, isSpellMod && s.deskAbilBadgeHot]}
+                      onPress={() => handleRoll({ label: ABILITY_SHORT[key], rolls: [Math.floor(Math.random() * 20) + 1], bonus: mod, total: Math.floor(Math.random() * 20) + 1 + mod })}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.deskAbilMod, isSpellMod && { color: colors.primary }]}>{fmtMod(mod)}</Text>
+                      <Text style={s.deskAbilRaw}>{score}</Text>
+                    </TouchableOpacity>
+                    <View style={s.deskAbilSep} />
+                    <TouchableOpacity
+                      style={s.deskAbilSaveArea}
+                      onPress={() => handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [Math.floor(Math.random() * 20) + 1], bonus: saveBonus, total: Math.floor(Math.random() * 20) + 1 + saveBonus })}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.deskAbilSaveVal, isProficient && { color: colors.primary }]}>{fmtMod(saveBonus)}</Text>
+                      <Text style={s.deskAbilSaveLbl}>save</Text>
+                    </TouchableOpacity>
+                  </View>
                 );
               })}
             </View>
@@ -1646,7 +1637,7 @@ const s = StyleSheet.create({
 
   // Left rail
   deskRail: {
-    width: 200,
+    width: 260,
     backgroundColor: colors.surfaceContainerLowest,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.outlineVariant,
@@ -2328,58 +2319,58 @@ const s = StyleSheet.create({
   },
   fieldSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
-  // ── Left rail: ability scores ────────────────────────────────────────────
+  // ── Left rail: ability scores + saves (Option C combined rows) ──────────
   deskSection: {
     paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
   deskSectionLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline, marginBottom: 6,
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline, marginBottom: 4,
   },
-  deskScoreGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 4,
+  deskAbilityRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 0,
+    paddingVertical: 3, paddingHorizontal: 4,
+    borderRadius: 6,
   },
-  deskScoreTile: {
-    flex: 1, minWidth: '28%',
-    backgroundColor: colors.surfaceContainer,
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, paddingVertical: 6,
-    alignItems: 'center', gap: 1,
-  },
-  deskScoreTileHot: {
-    borderColor: colors.primary,
-  },
-  deskScoreMod: {
-    fontSize: 14, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface,
-  },
-  deskScoreRaw: {
-    fontSize: 8, color: colors.outline,
-  },
-  deskScoreLbl: {
-    fontSize: 6, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
-  },
-
-  // ── Left rail: saving throws ─────────────────────────────────────────────
-  deskSaveRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 4,
-  },
-  deskSaveDot: {
+  deskAbilDot: {
     width: 7, height: 7, borderRadius: 4,
-    borderWidth: 1.5, borderColor: colors.outline, flexShrink: 0,
+    borderWidth: 1.5, borderColor: colors.outline,
+    flexShrink: 0, marginRight: 7,
   },
-  deskSaveDotProf: {
+  deskAbilDotProf: {
     backgroundColor: colors.primary, borderColor: colors.primary,
   },
-  deskSaveName: {
-    flex: 1, fontSize: 10, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+  deskAbilName: {
+    flex: 1, fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant,
   },
-  deskSaveNameProf: { color: colors.onSurface, fontWeight: '600' },
-  deskSaveVal: {
-    fontSize: 10, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurfaceVariant,
+  deskAbilBadge: {
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 5, paddingVertical: 2, paddingHorizontal: 7,
+    alignItems: 'center', minWidth: 40, marginRight: 4,
   },
-  deskSaveValProf: { color: colors.primary },
+  deskAbilBadgeHot: { borderColor: colors.primaryContainer },
+  deskAbilMod: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface, lineHeight: 16,
+  },
+  deskAbilRaw: {
+    fontSize: 9, color: colors.outline,
+  },
+  deskAbilSep: {
+    width: 1, height: 22,
+    backgroundColor: colors.outlineVariant,
+    marginHorizontal: 8,
+  },
+  deskAbilSaveArea: {
+    alignItems: 'flex-end', minWidth: 28,
+  },
+  deskAbilSaveVal: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface, lineHeight: 16,
+  },
+  deskAbilSaveLbl: {
+    fontSize: 9, color: colors.outline,
+  },
 
   // ── Left rail: campaign link ─────────────────────────────────────────────
   deskCampSection: {
@@ -2402,7 +2393,7 @@ const s = StyleSheet.create({
 
   // ── Right skills rail ────────────────────────────────────────────────────
   skillsRail: {
-    width: 182, flexShrink: 0,
+    width: 200, flexShrink: 0,
     backgroundColor: colors.surfaceContainerLowest,
     borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.outlineVariant,
     flexDirection: 'column',
