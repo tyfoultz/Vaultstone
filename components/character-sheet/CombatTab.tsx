@@ -60,6 +60,13 @@ function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void
 
 const ALL_CONDITIONS = ['Blinded', 'Charmed', 'Deafened', 'Exhausted', 'Frightened', 'Grappled', 'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned', 'Prone', 'Restrained', 'Stunned', 'Unconscious'];
 
+// SRD full-caster level-1 default (fallback for characters created before slot init)
+const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
+  1: { max: 2, remaining: 2 }, 2: { max: 0, remaining: 0 }, 3: { max: 0, remaining: 0 },
+  4: { max: 0, remaining: 0 }, 5: { max: 0, remaining: 0 }, 6: { max: 0, remaining: 0 },
+  7: { max: 0, remaining: 0 }, 8: { max: 0, remaining: 0 }, 9: { max: 0, remaining: 0 },
+};
+
 export function CombatTab({
   stats, resources, scores, prof,
   activeConditions, showDeathSaves, isDead, isStabilized,
@@ -68,9 +75,12 @@ export function CombatTab({
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
   const passivePerception = 10 + (abilityMod(scores.wisdom) + (stats.skillProficiencies.includes('perception') ? prof : 0));
 
-  // Active spell slot levels (max > 0)
-  const activeSlotLevels = resources.spellSlots
-    ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((lvl) => resources.spellSlots![lvl].max > 0)
+  const isSpellcaster = !!stats.spellcastingAbility;
+  // Use stored slots if available; fall back to level-1 defaults for spellcasters created
+  // before slot initialization was added.
+  const spellSlots = resources.spellSlots ?? (isSpellcaster ? DEFAULT_SLOTS : null);
+  const activeSlotLevels = spellSlots
+    ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((lvl) => spellSlots[lvl].max > 0)
     : [];
 
   const classResources = resources.classResources ?? [];
@@ -132,28 +142,34 @@ export function CombatTab({
       )}
 
       {/* ── SPELL SLOTS ── */}
-      {activeSlotLevels.length > 0 && (
+      {isSpellcaster && (
         <>
           <SectionLabel style={{ marginTop: isDesktop ? 0 : 14 }} accent>SPELL SLOTS</SectionLabel>
-          <View style={s.slotsRow}>
-            {activeSlotLevels.map((lvl) => {
-              const slot = resources.spellSlots![lvl];
-              return (
-                <View key={lvl} style={s.slotGroup}>
-                  <Text style={s.slotLevel}>{lvl}</Text>
-                  <View style={s.slotPips}>
-                    {Array.from({ length: slot.max }).map((_, i) => (
-                      <View
-                        key={i}
-                        style={[s.slotPip, i < slot.remaining ? s.slotPipFull : s.slotPipEmpty]}
-                      />
-                    ))}
+          {activeSlotLevels.length > 0 ? (
+            <View style={s.slotsRow}>
+              {activeSlotLevels.map((lvl) => {
+                const slot = spellSlots![lvl];
+                return (
+                  <View key={lvl} style={s.slotGroup}>
+                    <Text style={s.slotLevel}>{lvl}</Text>
+                    <View style={s.slotPips}>
+                      {Array.from({ length: slot.max }).map((_, i) => (
+                        <View
+                          key={i}
+                          style={[s.slotPip, i < slot.remaining ? s.slotPipFull : s.slotPipEmpty]}
+                        />
+                      ))}
+                    </View>
+                    <Text style={s.slotCount}>{slot.remaining}/{slot.max}</Text>
                   </View>
-                  <Text style={s.slotCount}>{slot.remaining}/{slot.max}</Text>
-                </View>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={s.emptyHint}>
+              <Text style={s.emptyHintText}>Configure spell slots in the Spells tab.</Text>
+            </View>
+          )}
         </>
       )}
 
@@ -184,9 +200,9 @@ export function CombatTab({
       )}
 
       {/* ── ATTACKS ── */}
-      {weapons.length > 0 && (
-        <>
-          <SectionLabel style={{ marginTop: 14 }} accent>ATTACKS</SectionLabel>
+      <>
+        <SectionLabel style={{ marginTop: 14 }} accent>ATTACKS</SectionLabel>
+        {weapons.length > 0 ? (
           <View style={s.attacksCard}>
             <View style={s.attacksHeader}>
               <Text style={[s.attacksHeaderCell, { flex: 1 }]}>WEAPON</Text>
@@ -222,8 +238,12 @@ export function CombatTab({
               );
             })}
           </View>
-        </>
-      )}
+        ) : (
+          <View style={s.emptyHint}>
+            <Text style={s.emptyHintText}>No weapons equipped — add gear in the Gear tab.</Text>
+          </View>
+        )}
+      </>
 
       {/* ── STATUS — death saves, exhaustion ── */}
       {(isDead || isStabilized || showDeathSaves || exhaustionLevel > 0) && (
@@ -557,4 +577,7 @@ const s = StyleSheet.create({
     fontSize: 18, fontFamily: fonts.headline, fontWeight: '800', color: colors.primary,
   },
   passiveSuffix: { fontSize: 11, color: colors.outline },
+
+  emptyHint: { paddingVertical: 10, paddingHorizontal: 2 },
+  emptyHintText: { fontSize: 12, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic' },
 });

@@ -852,7 +852,38 @@ export default function CharacterSheetScreen() {
 
           </View>
 
-          {/* ── Skills rail (always-visible, collapsible) ────────────── */}
+          {/* ── Center content pane ─────────────────────────────────── */}
+          <View style={s.deskContent}>
+
+            {/* Horizontal tab bar */}
+            <View style={s.deskTabBar}>
+              {TAB_DEFS.map((tab) => (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[s.deskTabBtn, activeTab === tab.id && s.deskTabBtnActive]}
+                  onPress={() => setActiveTab(tab.id as 'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore')}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name={tab.icon}
+                    size={16}
+                    color={activeTab === tab.id ? colors.primary : colors.outline}
+                  />
+                  <Text style={[s.deskTabLabel, activeTab === tab.id && s.deskTabLabelActive]}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Tab content */}
+            <View style={{ flex: 1 }}>
+              {tabContent}
+            </View>
+
+          </View>
+
+          {/* ── Skills rail (right side, collapsible) ───────────────── */}
           {!rightRailCollapsed && (
             <View style={s.skillsRail}>
               <View style={s.skillsRailHead}>
@@ -893,37 +924,6 @@ export default function CharacterSheetScreen() {
               <Text style={s.skillsRailCollapsedLabel}>Skills</Text>
             </TouchableOpacity>
           )}
-
-          {/* ── Right content pane ──────────────────────────────────── */}
-          <View style={s.deskContent}>
-
-            {/* Horizontal tab bar */}
-            <View style={s.deskTabBar}>
-              {TAB_DEFS.map((tab) => (
-                <TouchableOpacity
-                  key={tab.id}
-                  style={[s.deskTabBtn, activeTab === tab.id && s.deskTabBtnActive]}
-                  onPress={() => setActiveTab(tab.id as 'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore')}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name={tab.icon}
-                    size={16}
-                    color={activeTab === tab.id ? colors.primary : colors.outline}
-                  />
-                  <Text style={[s.deskTabLabel, activeTab === tab.id && s.deskTabLabelActive]}>
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Tab content */}
-            <View style={{ flex: 1 }}>
-              {tabContent}
-            </View>
-
-          </View>
 
         </View>
 

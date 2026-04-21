@@ -13,7 +13,41 @@ import { StepBackground } from '../../components/character-wizard/StepBackground
 import { StepAbilityScores } from '../../components/character-wizard/StepAbilityScores';
 import { StepReview } from '../../components/character-wizard/StepReview';
 import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
-import type { Dnd5eStats, Dnd5eResources, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
+import type { Dnd5eStats, Dnd5eResources, Dnd5eSpellSlotLevel, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
+
+// SRD 5e full-caster spell slot progression [level → [lvl1, lvl2, ... lvl9]]
+const FULL_CASTER_SLOTS: Record<number, number[]> = {
+  1:  [2, 0, 0, 0, 0, 0, 0, 0, 0],
+  2:  [3, 0, 0, 0, 0, 0, 0, 0, 0],
+  3:  [4, 2, 0, 0, 0, 0, 0, 0, 0],
+  4:  [4, 3, 0, 0, 0, 0, 0, 0, 0],
+  5:  [4, 3, 2, 0, 0, 0, 0, 0, 0],
+  6:  [4, 3, 3, 0, 0, 0, 0, 0, 0],
+  7:  [4, 3, 3, 1, 0, 0, 0, 0, 0],
+  8:  [4, 3, 3, 2, 0, 0, 0, 0, 0],
+  9:  [4, 3, 3, 3, 1, 0, 0, 0, 0],
+  10: [4, 3, 3, 3, 2, 0, 0, 0, 0],
+  11: [4, 3, 3, 3, 2, 1, 0, 0, 0],
+  12: [4, 3, 3, 3, 2, 1, 0, 0, 0],
+  13: [4, 3, 3, 3, 2, 1, 1, 0, 0],
+  14: [4, 3, 3, 3, 2, 1, 1, 0, 0],
+  15: [4, 3, 3, 3, 2, 1, 1, 1, 0],
+  16: [4, 3, 3, 3, 2, 1, 1, 1, 0],
+  17: [4, 3, 3, 3, 2, 1, 1, 1, 1],
+  18: [4, 3, 3, 3, 3, 1, 1, 1, 1],
+  19: [4, 3, 3, 3, 3, 2, 1, 1, 1],
+  20: [4, 3, 3, 3, 3, 2, 2, 1, 1],
+};
+
+function initSpellSlots(level: number): Dnd5eResources['spellSlots'] {
+  const row = FULL_CASTER_SLOTS[Math.min(level, 20)] ?? FULL_CASTER_SLOTS[1];
+  const make = (max: number): Dnd5eSpellSlotLevel => ({ max, remaining: max });
+  return {
+    1: make(row[0]), 2: make(row[1]), 3: make(row[2]),
+    4: make(row[3]), 5: make(row[4]), 6: make(row[5]),
+    7: make(row[6]), 8: make(row[7]), 9: make(row[8]),
+  };
+}
 
 const STEPS = [
   { key: 'ruleset', label: 'Ruleset' },
@@ -180,7 +214,7 @@ export default function NewCharacterScreen() {
         inspiration: false,
         deathSaves: { successes: 0, failures: 0 },
         exhaustionLevel: 0,
-        spellSlots: null,
+        spellSlots: cls.spellcasting ? initSpellSlots(1) : null,
       };
 
       const { data, error } = await createCharacter({
