@@ -317,7 +317,7 @@ const s = StyleSheet.create({
   root: { flex: 1, flexDirection: 'row' },
 
   col: { flex: 1 },
-  colContent: { padding: 10, gap: 8, paddingBottom: 24 },
+  colContent: { padding: 12, gap: 12, paddingBottom: 24 },
   colDivider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.outlineVariant },
 
   sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 2 },
@@ -330,7 +330,7 @@ const s = StyleSheet.create({
   // Attunement
   attunementSlots: { flexDirection: 'row', gap: 5, marginBottom: 4 },
   attuneSlot: {
-    flex: 1, borderRadius: 6, padding: 6,
+    flex: 1, borderRadius: 6, padding: 9,
   },
   attuneSlotActive: {
     backgroundColor: `${colors.primary}18`,
@@ -352,7 +352,7 @@ const s = StyleSheet.create({
   },
   cardHead: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 10, paddingVertical: 7,
+    paddingHorizontal: 12, paddingVertical: 9,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainerHigh,
   },
@@ -364,12 +364,12 @@ const s = StyleSheet.create({
     fontSize: 9, fontFamily: fonts.label, fontWeight: '600',
     color: colors.primary, letterSpacing: 0.3,
   },
-  cardBody: { padding: 8 },
+  cardBody: { padding: 4 },
 
   // Equip rows
   equipRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingVertical: 8,
+    paddingHorizontal: 12, paddingVertical: 11,
   },
   equipRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
   equipName: { flex: 1, fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
