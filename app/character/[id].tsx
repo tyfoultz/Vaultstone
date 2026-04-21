@@ -804,7 +804,7 @@ export default function CharacterSheetScreen() {
                   <View key={label} style={s.deskStatCell}>
                     <MaterialCommunityIcons name={icon as any} size={18} color={color} style={{ opacity: 0.75 }} />
                     <View style={s.deskStatText}>
-                      <Text style={[s.deskStatValue, { color }]}>{value}</Text>
+                      <Text style={[s.deskStatValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
                       <Text style={s.deskStatLabel}>{label}</Text>
                     </View>
                   </View>
@@ -1772,7 +1772,7 @@ const s = StyleSheet.create({
     flex: 1, flexDirection: 'column', gap: 1,
   },
   deskStatValue: {
-    fontSize: 20, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 22,
+    fontSize: 17, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 20,
   },
   deskStatLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
