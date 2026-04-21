@@ -23,6 +23,12 @@ const SCHOOL_COLORS: Record<string, string> = {
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 
+const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
+  1: { max: 2, remaining: 2 }, 2: { max: 0, remaining: 0 }, 3: { max: 0, remaining: 0 },
+  4: { max: 0, remaining: 0 }, 5: { max: 0, remaining: 0 }, 6: { max: 0, remaining: 0 },
+  7: { max: 0, remaining: 0 }, 8: { max: 0, remaining: 0 }, 9: { max: 0, remaining: 0 },
+};
+
 interface Props {
   stats: Dnd5eStats;
   resources: Dnd5eResources;
@@ -37,7 +43,8 @@ export function SpellsTab({
   stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
 }: Props) {
   const spellAbility = stats.spellcastingAbility;
-  const spellSlots = resources.spellSlots;
+  const isSpellcaster = !!spellAbility;
+  const spellSlots = resources.spellSlots ?? (isSpellcaster ? DEFAULT_SLOTS : null);
   const concentration = resources.concentrationSpell ?? null;
   const preparedSpells = resources.preparedSpells ?? [];
 
