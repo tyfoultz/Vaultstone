@@ -42,6 +42,7 @@ import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle'
 import { ShareModal } from '../../../../components/world/ShareModal';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
 import { TimelinePageView } from '../../../../components/world/TimelinePageView';
+import { PCStubPageView } from '../../../../components/world/players/PCStubPageView';
 import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
@@ -326,6 +327,11 @@ export default function PageDetailScreen() {
   // Timeline pages get their own dedicated view
   if (page.page_kind === 'timeline') {
     return <TimelinePageView page={page} worldId={worldId} />;
+  }
+
+  // PC stub / player character pages get the enrichment view
+  if (page.page_kind === 'pc_stub' || page.page_kind === 'player_character') {
+    return <PCStubPageView page={page} worldId={worldId} />;
   }
 
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);

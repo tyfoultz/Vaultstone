@@ -29,6 +29,7 @@ import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle'
 import { SectionPageGrid } from '../../../../components/world/SectionPageGrid';
 import { SectionPageList } from '../../../../components/world/SectionPageList';
 import { SectionSettingsModal } from '../../../../components/world/SectionSettingsModal';
+import { PlayersSectionView } from '../../../../components/world/players/PlayersSectionView';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { worldHref, worldPageHref } from '../../../../components/world/worldHref';
 
@@ -135,7 +136,14 @@ export default function SectionDetailScreen() {
         ) : null}
 
         <View style={{ marginTop: spacing.xl }}>
-          {rootPages.length === 0 ? (
+          {template.key === 'players' ? (
+            <PlayersSectionView
+              worldId={worldId}
+              pages={rootPages}
+              template={template}
+              onCreatePage={() => setCreatePageOpen(true)}
+            />
+          ) : rootPages.length === 0 ? (
             <View style={styles.empty}>
               <MetaLabel size="sm" tone="muted">
                 Empty section
