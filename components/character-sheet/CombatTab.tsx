@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eFeature } from '@vaultstone/types';
@@ -387,8 +387,14 @@ function ConditionsSection({
   activeConditions, canEditAny, onToggle,
 }: { activeConditions: string[]; canEditAny: boolean; onToggle: (c: string) => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const normalizedActive = activeConditions.map((x) => x.toLowerCase());
   const available = ALL_CONDITIONS.filter((c) => !normalizedActive.includes(c.toLowerCase()));
+  const filtered = search.trim()
+    ? available.filter((c) => c.toLowerCase().includes(search.toLowerCase()))
+    : available;
+
+  function closePicker() { setPickerOpen(false); setSearch(''); }
 
   return (
     <View style={{ gap: 6 }}>
@@ -423,31 +429,55 @@ function ConditionsSection({
       )}
 
       {/* Condition picker modal */}
-      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
-        <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={() => setPickerOpen(false)}>
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={closePicker}>
+        <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={closePicker}>
           <View style={s.modalSheet} onStartShouldSetResponder={() => true}>
+
+            {/* Header */}
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Add Condition</Text>
-              <TouchableOpacity onPress={() => setPickerOpen(false)} activeOpacity={0.7}>
+              <TouchableOpacity onPress={closePicker} activeOpacity={0.7}>
                 <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
               </TouchableOpacity>
             </View>
-            {available.length > 0 ? (
-              <View style={s.conditionsWrap}>
-                {available.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    style={s.condChip}
-                    onPress={() => { onToggle(c); if (available.length === 1) setPickerOpen(false); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={s.condText}>{c}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : (
-              <Text style={s.condNone}>All conditions are active</Text>
-            )}
+
+            {/* Search */}
+            <View style={s.modalSearch}>
+              <MaterialCommunityIcons name="magnify" size={14} color={colors.outline} />
+              <TextInput
+                style={s.modalSearchInput}
+                placeholder="Search conditions..."
+                placeholderTextColor={colors.outline}
+                value={search}
+                onChangeText={setSearch}
+                autoFocus
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')} activeOpacity={0.7}>
+                  <MaterialCommunityIcons name="close-circle" size={13} color={colors.outline} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Scrollable list */}
+            <ScrollView style={s.modalList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              {filtered.length > 0 ? filtered.map((c, i) => (
+                <TouchableOpacity
+                  key={c}
+                  style={[s.condRow, i < filtered.length - 1 && s.condRowBorder]}
+                  onPress={() => { onToggle(c); if (available.length === 1) closePicker(); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={s.condRowText}>{c}</Text>
+                  <MaterialCommunityIcons name="plus-circle-outline" size={16} color={colors.outline} />
+                </TouchableOpacity>
+              )) : (
+                <Text style={[s.condNone, { paddingVertical: 12 }]}>
+                  {available.length === 0 ? 'All conditions are active' : 'No matches'}
+                </Text>
+              )}
+            </ScrollView>
+
           </View>
         </TouchableOpacity>
       </Modal>
@@ -642,12 +672,26 @@ const s = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', padding: 24,
   },
   modalSheet: {
-    width: '100%', maxWidth: 380,
+    width: '100%', maxWidth: 360,
     backgroundColor: colors.surfaceContainerHigh,
-    borderRadius: 12, padding: 16, gap: 12,
+    borderRadius: 12, padding: 16, gap: 10,
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalTitle: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  modalSearch: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, paddingHorizontal: 10, paddingVertical: 7,
+  },
+  modalSearchInput: { flex: 1, fontSize: 13, fontFamily: fonts.body, color: colors.onSurface },
+  modalList: { maxHeight: 280 },
+  condRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 11, paddingHorizontal: 2,
+  },
+  condRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
+  condRowText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '500', color: colors.onSurface },
 
   // Exhaustion
   exhaustionBadges: { flexDirection: 'row', gap: 4 },
