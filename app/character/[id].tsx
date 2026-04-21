@@ -783,9 +783,7 @@ export default function CharacterSheetScreen() {
                 onLongPress={() => canEditAny && setHpModalVisible(true)}
                 activeOpacity={0.8}
               >
-              <Text style={s.deskHpSectionLabel}>
-                {showDeathSaves ? 'Death Saves' : isDead ? 'Dead' : isStabilized ? 'Stable' : 'Hit Points'}
-              </Text>
+              <Text style={s.deskHpSectionLabel}>Hit Points</Text>
               <View
                 style={s.deskHpRow}
               >
@@ -815,6 +813,47 @@ export default function CharacterSheetScreen() {
                 </View>
               </View>
               </TouchableOpacity>
+
+              {/* ── Death Saves (only at 0 HP) ── */}
+              {resources.hpCurrent === 0 && (
+                <View style={s.deskDeathBox}>
+                  <Text style={[
+                    s.deskDeathLabel,
+                    isDead && { color: colors.hpDanger },
+                    isStabilized && { color: colors.hpHealthy },
+                  ]}>
+                    {isDead ? 'DEAD' : isStabilized ? 'STABLE' : 'DEATH SAVES'}
+                  </Text>
+                  {!isDead && (
+                    <View style={s.deskDeathPipRows}>
+                      <View style={s.deskDeathPipRow}>
+                        <Text style={[s.deskDeathPipLabel, { color: colors.hpHealthy }]}>S</Text>
+                        {[0, 1, 2].map((i) => (
+                          <TouchableOpacity
+                            key={i}
+                            onPress={() => canEditAny && handleDeathSave('success')}
+                            activeOpacity={canEditAny ? 0.7 : 1}
+                          >
+                            <View style={[s.deskDeathPip, i < resources.deathSaves.successes && s.deskDeathPipSuccess]} />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <View style={s.deskDeathPipRow}>
+                        <Text style={[s.deskDeathPipLabel, { color: colors.hpDanger }]}>F</Text>
+                        {[0, 1, 2].map((i) => (
+                          <TouchableOpacity
+                            key={i}
+                            onPress={() => canEditAny && handleDeathSave('failure')}
+                            activeOpacity={canEditAny ? 0.7 : 1}
+                          >
+                            <View style={[s.deskDeathPip, i < resources.deathSaves.failures && s.deskDeathPipFailure]} />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
 
               {/* Stat grid — AC full row, then 2+2 */}
               <View style={s.deskStatGrid}>
@@ -1781,6 +1820,27 @@ const s = StyleSheet.create({
   deskHpInspiredLabel: {
     fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.gm,
   },
+  // Inline death saves (shown below HP when hpCurrent === 0)
+  deskDeathBox: {
+    paddingVertical: 8, gap: 5,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  },
+  deskDeathLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+  },
+  deskDeathPipRows: { gap: 5 },
+  deskDeathPipRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  deskDeathPipLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '800', letterSpacing: 1, width: 10,
+  },
+  deskDeathPip: {
+    width: 13, height: 13, borderRadius: 7,
+    borderWidth: 1.5, borderColor: colors.outlineVariant,
+  },
+  deskDeathPipSuccess: { backgroundColor: colors.hpHealthy, borderColor: colors.hpHealthy },
+  deskDeathPipFailure: { backgroundColor: colors.hpDanger, borderColor: colors.hpDanger },
+
   deskStatGrid: { gap: 6 },
   deskStatRow: { flexDirection: 'row', gap: 6 },
 
