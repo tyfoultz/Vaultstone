@@ -826,6 +826,37 @@ export interface Database {
         Args: { p_event_id: string };
         Returns: undefined;
       };
+      search_world: {
+        Args: { p_world_id: string; p_query: string; p_limit: number; p_offset: number };
+        Returns: {
+          result_type: string;
+          id: string;
+          world_id: string;
+          title: string;
+          preview: string;
+          section_name: string;
+          page_kind: string;
+          is_orphaned: boolean;
+          visible_to_players: boolean;
+          updated_at: string;
+        }[];
+      };
+      search_campaign_worlds: {
+        Args: { p_campaign_id: string; p_query: string; p_limit: number; p_offset: number };
+        Returns: {
+          result_type: string;
+          id: string;
+          world_id: string;
+          world_name: string;
+          title: string;
+          preview: string;
+          section_name: string;
+          page_kind: string;
+          is_orphaned: boolean;
+          visible_to_players: boolean;
+          updated_at: string;
+        }[];
+      };
     };
     Enums: {
       world_page_permission_level: 'view' | 'edit';

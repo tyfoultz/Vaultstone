@@ -25,6 +25,8 @@ import { SessionNotesPanel } from '../../../components/session/SessionNotesPanel
 import { SessionHistoryCard } from '../../../components/session/SessionHistoryCard';
 import { SessionLogCard } from '../../../components/session/SessionLogCard';
 import { CampaignNotesCard } from '../../../components/notes/CampaignNotesCard';
+import { CampaignWorldsCard } from '../../../components/world/CampaignWorldsCard';
+import { CampaignWorldLookupDrawer } from '../../../components/world/CampaignWorldLookupDrawer';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type Character = Database['public']['Tables']['characters']['Row'];
@@ -84,6 +86,7 @@ export default function CampaignDetailScreen() {
   const [localSources, setLocalSources] = useState<LocalSource[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
+  const [worldLookupOpen, setWorldLookupOpen] = useState(false);
   const [endingSession, setEndingSession] = useState(false);
   const [startModal, setStartModal] = useState(false);
   const [endModal, setEndModal] = useState(false);
@@ -610,6 +613,9 @@ export default function CampaignDetailScreen() {
         {/* ---- Campaign Notes Hub (DM-only placeholder) ---- */}
         {isDM && <CampaignNotesCard campaignId={campaign.id} />}
 
+        {/* ---- Linked Worlds ---- */}
+        <CampaignWorldsCard campaignId={campaign.id} onSearchOpen={() => setWorldLookupOpen(true)} />
+
         {/* ---- Session Log (live when a session is active, last session otherwise) ---- */}
         <SessionLogCard campaignId={campaign.id} />
 
@@ -785,6 +791,11 @@ export default function CampaignDetailScreen() {
         onClose={() => setEndModal(false)}
         onConfirm={handleConfirmEnd}
       />
+
+      {/* ======== World Lookup Drawer ======== */}
+      {worldLookupOpen && (
+        <CampaignWorldLookupDrawer campaignId={campaign.id} onClose={() => setWorldLookupOpen(false)} />
+      )}
     </ScrollView>
   );
 }

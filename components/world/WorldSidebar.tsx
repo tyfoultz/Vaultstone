@@ -24,6 +24,7 @@ import { CreateSectionModal } from './CreateSectionModal';
 import { LensDropdown } from './LensDropdown';
 import { isSectionVisibleToPlayersPreview } from './playerViewFilters';
 import { SidebarSection } from './SidebarSection';
+import { WorldSearchDrawer } from './WorldSearchDrawer';
 import { WorldSettingsModal } from './WorldSettingsModal';
 
 type World = Database['public']['Tables']['worlds']['Row'];
@@ -96,9 +97,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
 
       <LensDropdown />
 
-      <View style={{ opacity: 0.5 }} pointerEvents="none">
-        <Input placeholder="Search…  ⌘K" editable={false} />
-      </View>
+      <WorldSearchDrawer worldId={world.id} />
 
       <ScrollView style={styles.tree} contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}>
         {visibleSections.length === 0 ? (
