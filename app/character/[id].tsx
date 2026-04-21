@@ -799,7 +799,6 @@ export default function CharacterSheetScreen() {
                   { label: 'Speed',       icon: 'run-fast',          value: `${stats.speed} ft`,  color: colors.onSurface },
                   { label: 'Hit Die',     icon: 'dice-d8-outline',   value: `d${stats.hitDie}`,   color: colors.onSurface },
                   { label: 'Prof Bonus',  icon: 'star-four-points',  value: fmtMod(prof),         color: colors.onSurface },
-                  { label: 'Size',        icon: 'human',             value: stats.size ?? 'Medium', color: colors.onSurface },
                 ] as const).map(({ label, icon, value, color }) => (
                   <View key={label} style={s.deskStatCell}>
                     <MaterialCommunityIcons name={icon as any} size={18} color={color} style={{ opacity: 0.75 }} />
