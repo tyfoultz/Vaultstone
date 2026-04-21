@@ -1,33 +1,25 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { useState, useMemo } from 'react';
+import {
+  View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, useWindowDimensions,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, spacing, radius } from '@vaultstone/ui';
+import { colors, fonts, radius } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5ePreparedSpell } from '@vaultstone/types';
-
-const ABILITY_SHORT: Record<string, string> = {
-  strength: 'STR', dexterity: 'DEX', constitution: 'CON',
-  intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
-};
-
-const SCHOOL_COLORS: Record<string, string> = {
-  abjuration: '#adc6ff',
-  conjuration: '#b5e8b0',
-  divination: '#f5c518',
-  enchantment: '#ffb3de',
-  evocation: '#ff8a65',
-  illusion: '#ce93d8',
-  necromancy: '#78909c',
-  transmutation: '#a5d6a7',
-};
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
+function capitalize(str: string) { return str.charAt(0).toUpperCase() + str.slice(1); }
 
 const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
   1: { max: 2, remaining: 2 }, 2: { max: 0, remaining: 0 }, 3: { max: 0, remaining: 0 },
   4: { max: 0, remaining: 0 }, 5: { max: 0, remaining: 0 }, 6: { max: 0, remaining: 0 },
   7: { max: 0, remaining: 0 }, 8: { max: 0, remaining: 0 }, 9: { max: 0, remaining: 0 },
 };
+
+const CHIP_LABELS = ['-0-', '1ST', '2ND', '3RD', '4TH', '5TH', '6TH', '7TH', '8TH', '9TH'];
+const LEVEL_LABELS = ['', '1ST LEVEL', '2ND LEVEL', '3RD LEVEL', '4TH LEVEL', '5TH LEVEL', '6TH LEVEL', '7TH LEVEL', '8TH LEVEL', '9TH LEVEL'];
+
+type FilterKey = 'all' | 'conc' | number;
 
 interface Props {
   stats: Dnd5eStats;
@@ -42,128 +34,201 @@ interface Props {
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
 }: Props) {
+  const { width } = useWindowDimensions();
+  const isWide = width >= 560;
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<FilterKey>('all');
+
   const spellAbility = stats.spellcastingAbility;
   const isSpellcaster = !!spellAbility;
   const spellSlots = resources.spellSlots ?? (isSpellcaster ? DEFAULT_SLOTS : null);
-  const concentration = resources.concentrationSpell ?? null;
   const preparedSpells = resources.preparedSpells ?? [];
+  const concentration = resources.concentrationSpell ?? null;
 
-  const spellMod = spellAbility ? abilityMod(scores[spellAbility as keyof Dnd5eAbilityScores] ?? 10) : null;
+  const spellMod = spellAbility
+    ? abilityMod(scores[spellAbility as keyof Dnd5eAbilityScores] ?? 10)
+    : null;
   const spellDC = spellMod !== null ? 8 + prof + spellMod : null;
   const spellAttack = spellMod !== null ? prof + spellMod : null;
 
-  const cantrips = preparedSpells.filter((s) => s.level === 0);
-  const spellsByLevel = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((lvl) => ({
+  const availableLevels = useMemo(() => {
+    const levels = new Set<number>();
+    preparedSpells.forEach((s) => levels.add(s.level));
+    if (spellSlots) {
+      ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).forEach((l) => {
+        if (spellSlots[l].max > 0) levels.add(l);
+      });
+    }
+    return [...levels].sort((a, b) => a - b);
+  }, [preparedSpells, spellSlots]);
+
+  const filteredSpells = useMemo(() => {
+    let spells = preparedSpells;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      spells = spells.filter((s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.notes?.toLowerCase().includes(q) ||
+        s.school?.toLowerCase().includes(q) ||
+        s.source?.toLowerCase().includes(q)
+      );
+    }
+    if (filter === 'conc') return spells.filter((s) => s.concentration);
+    if (filter !== 'all') return spells.filter((s) => s.level === filter);
+    return spells;
+  }, [preparedSpells, search, filter]);
+
+  const cantrips = filteredSpells.filter((s) => s.level === 0);
+  const leveledGroups = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((lvl) => ({
     level: lvl,
-    spells: preparedSpells.filter((s) => s.level === lvl),
-    slot: spellSlots?.[lvl as 1] ?? null,
-  })).filter((g) => g.spells.length > 0 || (g.slot && g.slot.max > 0));
+    spells: filteredSpells.filter((s) => s.level === lvl),
+    slot: spellSlots?.[lvl] ?? null,
+  })).filter((g) => {
+    if (filter !== 'all' && filter !== 'conc' && filter !== g.level) return false;
+    return g.spells.length > 0 || (g.slot && g.slot.max > 0);
+  });
 
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
 
-      {/* ── SPELLCASTING STATS ── */}
+      {/* ── Spellcasting stats header ── */}
       {spellAbility && (
-        <>
-          <SectionLabel>SPELLCASTING</SectionLabel>
-          <View style={s.statsRow}>
-            <StatTile label="ABILITY" value={ABILITY_SHORT[spellAbility] ?? spellAbility.toUpperCase()} />
-            <StatTile label="SPELL DC" value={spellDC !== null ? String(spellDC) : '—'} accent />
-            <StatTile label="ATTACK" value={spellAttack !== null ? fmtMod(spellAttack) : '—'} accent />
+        <View style={s.statsRow}>
+          <View style={s.statBlock}>
+            <Text style={s.statValue}>{spellMod !== null ? fmtMod(spellMod) : '—'}</Text>
+            <Text style={s.statLabel}>MODIFIER</Text>
           </View>
-        </>
+          <View style={s.statDivider} />
+          <View style={s.statBlock}>
+            <Text style={s.statValue}>{spellAttack !== null ? fmtMod(spellAttack) : '—'}</Text>
+            <Text style={s.statLabel}>SPELL ATTACK</Text>
+          </View>
+          <View style={s.statDivider} />
+          <View style={s.statBlock}>
+            <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
+            <Text style={s.statLabel}>SAVE DC</Text>
+          </View>
+        </View>
       )}
 
-      {/* ── CONCENTRATION ── */}
+      {/* ── Search + Manage ── */}
+      <View style={s.searchRow}>
+        <View style={s.searchBox}>
+          <MaterialCommunityIcons name="magnify" size={15} color={colors.outline} />
+          <TextInput
+            style={s.searchInput}
+            placeholder="Search Spell Names, Schools or Notes"
+            placeholderTextColor={colors.outline}
+            value={search}
+            onChangeText={setSearch}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="close-circle" size={14} color={colors.outline} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity style={s.manageBtn} activeOpacity={0.7}>
+          <Text style={s.manageBtnText}>MANAGE SPELLS</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Level filter chips ── */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filtersRow}>
+        <FilterChip label="ALL" active={filter === 'all'} onPress={() => setFilter('all')} />
+        {availableLevels.map((lvl) => (
+          <FilterChip
+            key={lvl}
+            label={CHIP_LABELS[lvl]}
+            active={filter === lvl}
+            onPress={() => setFilter(filter === lvl ? 'all' : lvl)}
+          />
+        ))}
+        <TouchableOpacity
+          style={[s.chip, filter === 'conc' && s.chipActive]}
+          onPress={() => setFilter(filter === 'conc' ? 'all' : 'conc')}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name="diamond-stone"
+            size={12}
+            color={filter === 'conc' ? colors.onPrimary : colors.outline}
+          />
+        </TouchableOpacity>
+      </ScrollView>
+
+      {/* ── Concentration banner ── */}
       {concentration && (
-        <>
-          <SectionLabel style={{ marginTop: 14 }} accent>CONCENTRATION</SectionLabel>
-          <View style={s.concentrationCard}>
-            <MaterialCommunityIcons name="focus-field" size={16} color={colors.primary} />
-            <Text style={s.concentrationName} numberOfLines={1}>{concentration}</Text>
-            {isOwner && (
-              <TouchableOpacity
-                style={s.concentrationEnd}
-                onPress={onConcentrationClear}
-                activeOpacity={0.7}
-              >
-                <Text style={s.concentrationEndText}>End</Text>
-              </TouchableOpacity>
+        <View style={s.concBanner}>
+          <MaterialCommunityIcons name="focus-field" size={14} color={colors.primary} />
+          <Text style={s.concName} numberOfLines={1}>{concentration}</Text>
+          {isOwner && (
+            <TouchableOpacity onPress={onConcentrationClear} style={s.concEnd} activeOpacity={0.7}>
+              <Text style={s.concEndText}>End</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* ── Cantrips ── */}
+      {cantrips.length > 0 && (
+        <View style={s.section}>
+          <View style={s.sectionHead}>
+            <Text style={s.sectionHeadLabel}>CANTRIP</Text>
+          </View>
+          <ColHeaders isWide={isWide} />
+          {cantrips.map((spell, i) => (
+            <SpellRow
+              key={spell.id}
+              spell={spell}
+              isLast={i === cantrips.length - 1}
+              isWide={isWide}
+            />
+          ))}
+        </View>
+      )}
+
+      {/* ── Leveled spell groups ── */}
+      {leveledGroups.map(({ level, spells, slot }) => (
+        <View key={level} style={s.section}>
+          <View style={s.sectionHead}>
+            <Text style={s.sectionHeadLabel}>{LEVEL_LABELS[level]}</Text>
+            {slot && slot.max > 0 && (
+              <View style={s.slotRow}>
+                {Array.from({ length: slot.max }).map((_, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => {
+                      if (!isOwner || !onSpellSlotChange) return;
+                      onSpellSlotChange(level, i < slot.remaining ? -1 : 1);
+                    }}
+                    activeOpacity={isOwner ? 0.7 : 1}
+                  >
+                    <View style={[s.slotBox, i < slot.remaining && s.slotBoxFull]} />
+                  </TouchableOpacity>
+                ))}
+                <Text style={s.slotsLabel}>SLOTS</Text>
+              </View>
             )}
           </View>
-        </>
-      )}
-
-      {/* ── SPELL SLOTS ── */}
-      {spellSlots && (
-        <>
-          <SectionLabel style={{ marginTop: 14 }} accent>SPELL SLOTS</SectionLabel>
-          <View style={s.slotsGrid}>
-            {([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((lvl) => {
-              const slot = spellSlots[lvl];
-              if (slot.max === 0) return null;
-              return (
-                <View key={lvl} style={s.slotCard}>
-                  <Text style={s.slotLevel}>LVL {lvl}</Text>
-                  <View style={s.slotPips}>
-                    {Array.from({ length: slot.max }).map((_, i) => (
-                      <TouchableOpacity
-                        key={i}
-                        onPress={() => {
-                          if (!isOwner || !onSpellSlotChange) return;
-                          onSpellSlotChange(lvl, i < slot.remaining ? -1 : 1);
-                        }}
-                        activeOpacity={isOwner ? 0.7 : 1}
-                      >
-                        <View style={[s.slotPip, i < slot.remaining ? s.slotPipFull : s.slotPipEmpty]} />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <Text style={s.slotCount}>{slot.remaining}/{slot.max}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </>
-      )}
-
-      {/* ── CANTRIPS ── */}
-      {cantrips.length > 0 && (
-        <>
-          <SectionLabel style={{ marginTop: 14 }}>CANTRIPS</SectionLabel>
-          <View style={s.spellsCard}>
-            {cantrips.map((spell, i) => (
-              <SpellRow
-                key={spell.id}
-                spell={spell}
-                isLast={i === cantrips.length - 1}
-              />
-            ))}
-          </View>
-        </>
-      )}
-
-      {/* ── PREPARED SPELLS (by level) ── */}
-      {spellsByLevel.map(({ level, spells, slot }) => (
-        spells.length > 0 ? (
-          <View key={level}>
-            <SectionLabel style={{ marginTop: 14 }}>
-              {`LEVEL ${level}${slot ? ` · ${slot.remaining}/${slot.max} SLOTS` : ''}`}
-            </SectionLabel>
-            <View style={s.spellsCard}>
-              {spells.map((spell, i) => (
-                <SpellRow
-                  key={spell.id}
-                  spell={spell}
-                  isLast={i === spells.length - 1}
-                />
-              ))}
-            </View>
-          </View>
-        ) : null
+          {spells.length > 0 && <ColHeaders isWide={isWide} />}
+          {spells.map((spell, i) => (
+            <SpellRow
+              key={spell.id}
+              spell={spell}
+              isLast={i === spells.length - 1}
+              slot={slot}
+              isOwner={isOwner}
+              isWide={isWide}
+            />
+          ))}
+          {spells.length === 0 && slot && slot.max > 0 && (
+            <Text style={s.emptyLevel}>No spells prepared at this level</Text>
+          )}
+        </View>
       ))}
 
-      {/* ── EMPTY STATE ── */}
+      {/* ── Empty states ── */}
       {preparedSpells.length === 0 && !spellAbility && (
         <View style={s.emptyState}>
           <MaterialCommunityIcons name="auto-fix" size={32} color={colors.outlineVariant} />
@@ -183,164 +248,247 @@ export function SpellsTab({
         </View>
       )}
 
-      <View style={{ height: 16 }} />
+      <View style={{ height: 24 }} />
     </ScrollView>
   );
 }
 
-function SectionLabel({ children, style, accent }: { children: string; style?: any; accent?: boolean }) {
+// ── Sub-components ──────────────────────────────────────────────────────────
+
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <View style={[s.sectionRow, style]}>
-      <Text style={[s.sectionLabel, accent && s.sectionLabelAccent]}>{children}</Text>
-      <View style={[s.sectionLine, accent && s.sectionLineAccent]} />
+    <TouchableOpacity style={[s.chip, active && s.chipActive]} onPress={onPress} activeOpacity={0.7}>
+      <Text style={[s.chipText, active && s.chipTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function ColHeaders({ isWide }: { isWide: boolean }) {
+  return (
+    <View style={s.colHead}>
+      <View style={s.colBadge} />
+      <Text style={[s.colLabel, s.colName]}>NAME</Text>
+      <Text style={[s.colLabel, s.colTime]}>TIME</Text>
+      <Text style={[s.colLabel, s.colRange]}>RANGE</Text>
+      {isWide && <Text style={[s.colLabel, s.colHit]}>HIT / DC</Text>}
+      {isWide && <Text style={[s.colLabel, s.colEffect]}>EFFECT</Text>}
+      <Text style={[s.colLabel, s.colNotes]}>NOTES</Text>
     </View>
   );
 }
 
-function StatTile({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <View style={s.statTile}>
-      <Text style={s.statLabel}>{label}</Text>
-      <Text style={[s.statValue, accent && s.statValueAccent]}>{value}</Text>
-    </View>
-  );
-}
+function SpellRow({
+  spell, isLast, slot, isOwner, isWide,
+}: {
+  spell: Dnd5ePreparedSpell;
+  isLast: boolean;
+  slot?: { max: number; remaining: number } | null;
+  isOwner?: boolean;
+  isWide?: boolean;
+}) {
+  const isCantrip = spell.level === 0;
+  const hasSlots = slot ? slot.remaining > 0 : false;
 
-function SpellRow({ spell, isLast }: { spell: Dnd5ePreparedSpell; isLast: boolean }) {
-  const schoolColor = spell.school ? (SCHOOL_COLORS[spell.school.toLowerCase()] ?? colors.outline) : colors.outline;
   return (
     <View style={[s.spellRow, !isLast && s.spellRowBorder]}>
-      {spell.school && (
-        <View style={[s.schoolDot, { backgroundColor: schoolColor }]} />
+
+      {/* Badge: AT WILL or USE */}
+      <View style={s.colBadge}>
+        {isCantrip ? (
+          <View style={s.badgeAtWill}>
+            <Text style={s.badgeAtWillText}>AT{'\n'}WILL</Text>
+          </View>
+        ) : (
+          <View style={[s.badgeUse, !hasSlots && s.badgeUsed]}>
+            <Text style={[s.badgeUseText, !hasSlots && s.badgeUsedText]}>USE</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Spell name + optional source line */}
+      <View style={s.colName}>
+        <View style={s.nameInner}>
+          <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
+          {spell.ritual && (
+            <MaterialCommunityIcons name="rotate-right" size={10} color={colors.outline} />
+          )}
+          {spell.concentration && (
+            <MaterialCommunityIcons name="diamond-stone" size={10} color={colors.outline} />
+          )}
+        </View>
+        {(spell.source || spell.school) && (
+          <Text style={s.spellSource} numberOfLines={1}>
+            {spell.source ?? capitalize(spell.school!)}
+          </Text>
+        )}
+      </View>
+
+      {/* Stat columns */}
+      <Text style={[s.cellText, s.colTime]} numberOfLines={1}>{spell.castingTime ?? '1A'}</Text>
+      <Text style={[s.cellText, s.colRange]} numberOfLines={1}>{spell.range ?? '—'}</Text>
+      {isWide && <Text style={[s.cellText, s.colHit]} numberOfLines={1}>{spell.hitDc ?? '—'}</Text>}
+      {isWide && (
+        <Text style={[s.cellText, s.colEffect]} numberOfLines={1}>
+          {spell.effectType ?? (spell.school ? capitalize(spell.school) : '—')}
+        </Text>
       )}
-      <View style={s.spellInfo}>
-        <Text style={s.spellName}>{spell.name}</Text>
-        {spell.school && <Text style={s.spellSchool}>{spell.school}</Text>}
-      </View>
-      <View style={s.spellBadges}>
-        {spell.ritual && (
-          <View style={s.badge}>
-            <Text style={s.badgeText}>R</Text>
-          </View>
-        )}
-        {spell.concentration && (
-          <View style={[s.badge, s.badgeConc]}>
-            <Text style={[s.badgeText, s.badgeTextConc]}>C</Text>
-          </View>
-        )}
-      </View>
+      <Text style={[s.cellText, s.colNotes]} numberOfLines={2}>{spell.notes ?? '—'}</Text>
     </View>
   );
 }
 
+// ── Styles ──────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
-  container: { paddingHorizontal: spacing.md, paddingTop: 14, paddingBottom: 16 },
+  container: { paddingBottom: 16 },
 
-  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  sectionLabel: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.5, textTransform: 'uppercase', color: colors.outline,
+  // Spellcasting stats header
+  statsRow: {
+    flexDirection: 'row',
+    paddingVertical: 18, paddingHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
-  sectionLabelAccent: { color: colors.primary },
-  sectionLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.outlineVariant },
-  sectionLineAccent: { backgroundColor: `${colors.primary}44` },
+  statBlock: { flex: 1, alignItems: 'center', gap: 4 },
+  statValue: { fontSize: 26, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  statLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.5, color: colors.outline },
+  statDivider: { width: StyleSheet.hairlineWidth, height: 30, backgroundColor: colors.outlineVariant, alignSelf: 'center' },
 
-  // Spellcasting stats
-  statsRow: { flexDirection: 'row', gap: 8 },
-  statTile: {
-    flex: 1, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 6,
+  // Search row
+  searchRow: { flexDirection: 'row', gap: 8, padding: 12 },
+  searchBox: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg,
+    borderRadius: radius.lg, paddingHorizontal: 10, paddingVertical: 7,
   },
-  statLabel: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.5, color: colors.outline, marginBottom: 4,
+  searchInput: { flex: 1, fontSize: 12, fontFamily: fonts.body, color: colors.onSurface },
+  manageBtn: {
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderWidth: 1.5, borderColor: colors.primary,
+    borderRadius: radius.lg, justifyContent: 'center',
   },
-  statValue: {
-    fontSize: 20, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface,
-  },
-  statValueAccent: { color: colors.primary },
+  manageBtnText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, color: colors.primary },
 
-  // Concentration
-  concentrationCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 14, paddingVertical: 11,
+  // Filter chips
+  filtersRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingBottom: 10 },
+  chip: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 100, alignItems: 'center', justifyContent: 'center', minWidth: 36,
+  },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
+  chipTextActive: { color: colors.onPrimary },
+
+  // Concentration banner
+  concBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 12, marginBottom: 8,
+    paddingHorizontal: 12, paddingVertical: 8,
     backgroundColor: `${colors.primary}14`,
     borderWidth: 1, borderColor: `${colors.primary}44`,
     borderRadius: radius.lg,
   },
-  concentrationName: {
-    flex: 1, fontSize: 14, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface,
-  },
-  concentrationEnd: {
-    paddingHorizontal: 10, paddingVertical: 4,
+  concName: { flex: 1, fontSize: 13, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface },
+  concEnd: {
+    paddingHorizontal: 8, paddingVertical: 3,
     backgroundColor: colors.surfaceContainerHighest,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
   },
-  concentrationEndText: {
-    fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline,
+  concEndText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
+
+  // Spell sections
+  section: { marginTop: 6 },
+  sectionHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  },
+  sectionHeadLabel: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '800', letterSpacing: 1.5, color: colors.primary,
+  },
+  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  slotBox: {
+    width: 16, height: 16, borderRadius: 2,
+    borderWidth: 1.5, borderColor: colors.outlineVariant,
+  },
+  slotBoxFull: { backgroundColor: colors.primary, borderColor: colors.primary },
+  slotsLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, color: colors.outline, marginLeft: 2,
   },
 
-  // Spell slots grid
-  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  slotCard: {
-    alignItems: 'center',
-    paddingHorizontal: 10, paddingVertical: 8,
-    backgroundColor: colors.surfaceContainer,
-    borderWidth: 1, borderColor: `${colors.primary}44`,
-    borderRadius: radius.lg, gap: 5,
+  // Column headers
+  colHead: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 5,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
-  slotLevel: {
+  colLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.5, color: colors.primary,
-  },
-  slotPips: { flexDirection: 'row', gap: 4 },
-  slotPip: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5 },
-  slotPipFull: { backgroundColor: colors.primary, borderColor: colors.primary },
-  slotPipEmpty: { backgroundColor: 'transparent', borderColor: colors.outlineVariant },
-  slotCount: {
-    fontSize: 10, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurfaceVariant,
+    letterSpacing: 1.2, color: colors.outline,
   },
 
-  // Spells list
-  spellsCard: {
-    backgroundColor: colors.surfaceContainer,
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, overflow: 'hidden',
-  },
+  // Column layout (shared between header + spell rows)
+  colBadge: { width: 50 },
+  colName: { flex: 1.5, minWidth: 80 },
+  colTime: { width: 38 },
+  colRange: { width: 68, paddingLeft: 4 },
+  colHit: { width: 56, paddingLeft: 4 },
+  colEffect: { width: 76, paddingLeft: 4 },
+  colNotes: { flex: 1, minWidth: 60, paddingLeft: 4 },
+
+  // Spell rows
   spellRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 12, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 9,
   },
   spellRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  schoolDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  spellInfo: { flex: 1, minWidth: 0 },
-  spellName: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
-  spellSchool: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '600',
-    textTransform: 'capitalize', color: colors.outline, marginTop: 1,
-  },
-  spellBadges: { flexDirection: 'row', gap: 4 },
-  badge: {
-    width: 18, height: 18, borderRadius: 9,
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  badgeConc: { borderColor: `${colors.primary}66`, backgroundColor: `${colors.primary}18` },
-  badgeText: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
-  badgeTextConc: { color: colors.primary },
 
-  // Empty state
-  emptyState: {
-    alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20, gap: 10,
+  // AT WILL badge (cantrips)
+  badgeAtWill: {
+    width: 36, alignItems: 'center',
+    paddingVertical: 3,
+    borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: 3,
   },
-  emptyTitle: {
-    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurfaceVariant,
+  badgeAtWillText: {
+    fontSize: 7, fontFamily: fonts.label, fontWeight: '800',
+    letterSpacing: 0.3, textAlign: 'center', lineHeight: 9, color: colors.outline,
   },
-  emptyBody: {
-    fontSize: 13, fontFamily: fonts.body, color: colors.outline,
-    textAlign: 'center', lineHeight: 19,
+
+  // USE badge (leveled spells)
+  badgeUse: {
+    width: 36, alignItems: 'center',
+    paddingVertical: 5,
+    backgroundColor: colors.primary, borderRadius: 3,
   },
+  badgeUsed: { backgroundColor: colors.surfaceContainerHighest, opacity: 0.55 },
+  badgeUseText: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '800',
+    letterSpacing: 0.5, color: colors.onPrimary,
+  },
+  badgeUsedText: { color: colors.outline },
+
+  // Spell name cell
+  nameInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  spellName: {
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, fontStyle: 'italic', flexShrink: 1,
+  },
+  spellSource: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '500',
+    color: colors.outline, marginTop: 1,
+  },
+  cellText: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant },
+
+  // Empty
+  emptyLevel: {
+    fontSize: 11, fontFamily: fonts.label, fontStyle: 'italic',
+    color: colors.outline, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20, gap: 10 },
+  emptyTitle: { fontSize: 15, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurfaceVariant },
+  emptyBody: { fontSize: 13, fontFamily: fonts.body, color: colors.outline, textAlign: 'center', lineHeight: 19 },
 });
