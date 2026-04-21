@@ -1762,17 +1762,17 @@ const s = StyleSheet.create({
     flexDirection: 'row', flexWrap: 'wrap', gap: 6,
   },
   deskStatCell: {
-    flex: 1, minWidth: '40%',
+    flex: 1, minWidth: '28%',
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, paddingVertical: 8, paddingHorizontal: 10,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: radius.lg, paddingVertical: 8, paddingHorizontal: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
   },
   deskStatText: {
-    flex: 1, flexDirection: 'column', gap: 1,
+    flex: 1, flexDirection: 'column', gap: 1, minWidth: 0,
   },
   deskStatValue: {
-    fontSize: 17, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 20,
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 17,
   },
   deskStatLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
