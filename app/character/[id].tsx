@@ -876,7 +876,7 @@ export default function CharacterSheetScreen() {
                 >
                   <MaterialCommunityIcons
                     name={tab.icon}
-                    size={16}
+                    size={18}
                     color={activeTab === tab.id ? colors.primary : colors.outline}
                   />
                   <Text style={[s.deskTabLabel, activeTab === tab.id && s.deskTabLabelActive]}>
@@ -1786,14 +1786,14 @@ const s = StyleSheet.create({
   },
   deskTabBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 20, paddingVertical: 13,
+    paddingHorizontal: 22, paddingVertical: 18,
     borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
   deskTabBtnActive: {
     borderBottomColor: colors.primary,
   },
   deskTabLabel: {
-    fontSize: 13, fontFamily: fonts.body, fontWeight: '600',
+    fontSize: 14, fontFamily: fonts.body, fontWeight: '600',
     color: colors.outline,
   },
   deskTabLabelActive: { color: colors.primary },
