@@ -112,6 +112,45 @@ export interface Dnd5eSpellSlotLevel {
   remaining: number;
 }
 
+export interface Dnd5ePersonality {
+  traits?: string;
+  ideals?: string;
+  bonds?: string;
+  flaws?: string;
+  backstory?: string;
+  allies?: string;
+  faction?: string;
+}
+
+export interface Dnd5eAppearance {
+  alignment?: string;
+  age?: string;
+  height?: string;
+  weight?: string;
+  eyes?: string;
+  hair?: string;
+  skin?: string;
+}
+
+export interface Dnd5eJournalEntry {
+  id: string;
+  title: string;
+  body: string;
+  date?: string;
+  tags?: string[];
+}
+
+export interface Dnd5ePreparedSpell {
+  id: string;
+  name: string;
+  /** 0 = cantrip */
+  level: number;
+  school?: string;
+  ritual?: boolean;
+  concentration?: boolean;
+  notes?: string;
+}
+
 /** Generic per-class resource pool: Barbarian rages, Ki points, Channel Divinity, etc. */
 export interface Dnd5eClassResource {
   key: string;
@@ -172,6 +211,14 @@ export interface Dnd5eResources {
   concentrationSpell?: string | null;
   /** Optional class resource pools (rages, ki, superiority dice, etc.). */
   classResources?: Dnd5eClassResource[];
+  /** Personality text fields (traits, ideals, bonds, flaws, backstory, allies, faction). */
+  personality?: Dnd5ePersonality;
+  /** Physical appearance fields. */
+  appearance?: Dnd5eAppearance;
+  /** Campaign journal entries. */
+  journal?: Dnd5eJournalEntry[];
+  /** Prepared spells and cantrips. */
+  preparedSpells?: Dnd5ePreparedSpell[];
 }
 
 export interface PartyViewSettings {

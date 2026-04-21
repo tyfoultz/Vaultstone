@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem } from '@vaultstone/types';
 import type { RollResult } from './RollToast';
@@ -10,6 +10,16 @@ const ABILITY_SHORT: Record<keyof Dnd5eAbilityScores, string> = {
   strength: 'STR', dexterity: 'DEX', constitution: 'CON',
   intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
 };
+
+const EXHAUSTION_EFFECTS = [
+  '', // 0
+  'Disadvantage on ability checks',
+  'Speed halved',
+  'Disadvantage on attacks & saves',
+  'HP max halved',
+  'Speed reduced to 0',
+  'Death',
+];
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
@@ -25,6 +35,8 @@ interface Props {
   isStabilized: boolean;
   canEditAny: boolean;
   equipment: Dnd5eEquipmentItem[];
+  isDesktop?: boolean;
+  onOpenHpModal?: () => void;
   onRoll: (result: RollResult) => void;
   onToggleCondition: (c: string) => void;
   onDeathSave: (type: 'success' | 'failure') => void;
@@ -51,57 +63,125 @@ const ALL_CONDITIONS = ['Blinded', 'Charmed', 'Deafened', 'Exhausted', 'Frighten
 export function CombatTab({
   stats, resources, scores, prof,
   activeConditions, showDeathSaves, isDead, isStabilized,
-  canEditAny, equipment, onRoll, onToggleCondition, onDeathSave, getAttackBonus,
+  canEditAny, equipment, isDesktop, onRoll, onToggleCondition, onDeathSave, getAttackBonus,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
   const passivePerception = 10 + (abilityMod(scores.wisdom) + (stats.skillProficiencies.includes('perception') ? prof : 0));
 
+  // Active spell slot levels (max > 0)
+  const activeSlotLevels = resources.spellSlots
+    ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((lvl) => resources.spellSlots![lvl].max > 0)
+    : [];
+
+  const classResources = resources.classResources ?? [];
+  const exhaustionLevel = resources.exhaustionLevel ?? 0;
+
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
 
-      {/* ── ABILITY SCORES ── */}
-      <SectionLabel>ABILITIES · TAP TO CHECK</SectionLabel>
-      <View style={s.abilityGrid}>
-        {ABILITY_KEYS.map((abi) => {
-          const score = scores[abi];
-          const m = abilityMod(score);
-          return (
-            <TouchableOpacity
-              key={abi}
-              style={s.abilityTile}
-              onPress={() => rollD20(`${ABILITY_SHORT[abi]} check`, m, onRoll)}
-              activeOpacity={0.7}
-            >
-              <Text style={s.abilityShort}>{ABILITY_SHORT[abi]}</Text>
-              <Text style={s.abilityMod}>{fmtMod(m)}</Text>
-              <View style={s.abilityScorePill}>
-                <Text style={s.abilityScore}>{score}</Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {/* ── ABILITY SCORES — mobile only (desktop shows in left rail) ── */}
+      {!isDesktop && (
+        <>
+          <SectionLabel>ABILITIES · TAP TO CHECK</SectionLabel>
+          <View style={s.abilityGrid}>
+            {ABILITY_KEYS.map((abi) => {
+              const score = scores[abi];
+              const m = abilityMod(score);
+              return (
+                <TouchableOpacity
+                  key={abi}
+                  style={s.abilityTile}
+                  onPress={() => rollD20(`${ABILITY_SHORT[abi]} check`, m, onRoll)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={s.abilityShort}>{ABILITY_SHORT[abi]}</Text>
+                  <Text style={s.abilityMod}>{fmtMod(m)}</Text>
+                  <View style={s.abilityScorePill}>
+                    <Text style={s.abilityScore}>{score}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      )}
 
-      {/* ── SAVING THROWS ── */}
-      <SectionLabel style={{ marginTop: 14 }}>SAVING THROWS</SectionLabel>
-      <View style={s.savesGrid}>
-        {ABILITY_KEYS.map((abi) => {
-          const isProf = stats.savingThrowProficiencies.includes(abi);
-          const bonus = abilityMod(scores[abi]) + (isProf ? prof : 0);
-          return (
-            <TouchableOpacity
-              key={abi}
-              style={[s.saveRow, isProf && s.saveRowProf]}
-              onPress={() => rollD20(`${ABILITY_SHORT[abi]} save`, bonus, onRoll)}
-              activeOpacity={0.7}
-            >
-              <View style={[s.profDot, isProf && s.profDotFilled]} />
-              <Text style={[s.saveAbility, isProf && s.saveAbilityProf]}>{ABILITY_SHORT[abi]}</Text>
-              <Text style={[s.saveBonus, isProf && s.saveBonusProf]}>{fmtMod(bonus)}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {/* ── SAVING THROWS — mobile only ── */}
+      {!isDesktop && (
+        <>
+          <SectionLabel style={{ marginTop: 14 }}>SAVING THROWS</SectionLabel>
+          <View style={s.savesGrid}>
+            {ABILITY_KEYS.map((abi) => {
+              const isProf = stats.savingThrowProficiencies.includes(abi);
+              const bonus = abilityMod(scores[abi]) + (isProf ? prof : 0);
+              return (
+                <TouchableOpacity
+                  key={abi}
+                  style={[s.saveRow, isProf && s.saveRowProf]}
+                  onPress={() => rollD20(`${ABILITY_SHORT[abi]} save`, bonus, onRoll)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[s.profDot, isProf && s.profDotFilled]} />
+                  <Text style={[s.saveAbility, isProf && s.saveAbilityProf]}>{ABILITY_SHORT[abi]}</Text>
+                  <Text style={[s.saveBonus, isProf && s.saveBonusProf]}>{fmtMod(bonus)}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      )}
+
+      {/* ── SPELL SLOTS ── */}
+      {activeSlotLevels.length > 0 && (
+        <>
+          <SectionLabel style={{ marginTop: isDesktop ? 0 : 14 }} accent>SPELL SLOTS</SectionLabel>
+          <View style={s.slotsRow}>
+            {activeSlotLevels.map((lvl) => {
+              const slot = resources.spellSlots![lvl];
+              return (
+                <View key={lvl} style={s.slotGroup}>
+                  <Text style={s.slotLevel}>{lvl}</Text>
+                  <View style={s.slotPips}>
+                    {Array.from({ length: slot.max }).map((_, i) => (
+                      <View
+                        key={i}
+                        style={[s.slotPip, i < slot.remaining ? s.slotPipFull : s.slotPipEmpty]}
+                      />
+                    ))}
+                  </View>
+                  <Text style={s.slotCount}>{slot.remaining}/{slot.max}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      )}
+
+      {/* ── CLASS RESOURCES ── */}
+      {classResources.length > 0 && (
+        <>
+          <SectionLabel style={{ marginTop: 14 }} accent>RESOURCES</SectionLabel>
+          <View style={s.resourcesRow}>
+            {classResources.map((res) => (
+              <View key={res.key} style={s.resourceCard}>
+                <Text style={s.resourceLabel}>{res.label.toUpperCase()}</Text>
+                <View style={s.resourcePips}>
+                  {Array.from({ length: res.max }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[s.resourcePip, i < res.current ? s.resourcePipFull : s.resourcePipEmpty]}
+                    />
+                  ))}
+                </View>
+                <Text style={s.resourceCount}>{res.current}/{res.max}</Text>
+                {res.recharge && (
+                  <Text style={s.resourceRecharge}>{res.recharge === 'short' ? 'SR' : 'LR'}</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        </>
+      )}
 
       {/* ── ATTACKS ── */}
       {weapons.length > 0 && (
@@ -145,15 +225,29 @@ export function CombatTab({
         </>
       )}
 
-      {/* ── DEATH SAVES / STATUS ── */}
-      {(isDead || isStabilized || showDeathSaves) && (
+      {/* ── STATUS — death saves, exhaustion ── */}
+      {(isDead || isStabilized || showDeathSaves || exhaustionLevel > 0) && (
         <>
           <SectionLabel style={{ marginTop: 14 }}>STATUS</SectionLabel>
           <View style={s.deathCard}>
             {isDead && <Text style={[s.statusText, { color: colors.hpDanger }]}>Dead</Text>}
             {isStabilized && <Text style={[s.statusText, { color: colors.hpWarning }]}>Stabilized</Text>}
+            {exhaustionLevel > 0 && (
+              <View style={s.exhaustionRow}>
+                <Text style={s.exhaustionLabel}>Exhaustion</Text>
+                <View style={s.exhaustionPips}>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[s.exhaustionPip, i < exhaustionLevel && s.exhaustionPipActive]}
+                    />
+                  ))}
+                </View>
+                <Text style={s.exhaustionEffect}>{EXHAUSTION_EFFECTS[exhaustionLevel]}</Text>
+              </View>
+            )}
             {showDeathSaves && (
-              <View style={s.deathSavesRow}>
+              <View style={[s.deathSavesRow, exhaustionLevel > 0 && { marginTop: 10 }]}>
                 <DeathSaveGroup
                   label="Successes"
                   count={resources.deathSaves.successes}
@@ -280,9 +374,7 @@ const s = StyleSheet.create({
   },
 
   // Saving throws
-  savesGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
-  },
+  savesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   saveRow: {
     width: '30.5%',
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -310,6 +402,62 @@ const s = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
   saveBonusProf: { color: colors.primary },
+
+  // Spell slots
+  slotsRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+  },
+  slotGroup: {
+    alignItems: 'center',
+    paddingHorizontal: 10, paddingVertical: 8,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: `${colors.primary}44`,
+    borderRadius: radius.lg,
+    gap: 4,
+  },
+  slotLevel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.primary,
+  },
+  slotPips: { flexDirection: 'row', gap: 3 },
+  slotPip: { width: 8, height: 8, borderRadius: 4, borderWidth: 1 },
+  slotPipFull: { backgroundColor: colors.primary, borderColor: colors.primary },
+  slotPipEmpty: { backgroundColor: 'transparent', borderColor: colors.outlineVariant },
+  slotCount: {
+    fontSize: 10, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurfaceVariant,
+  },
+
+  // Class resources
+  resourcesRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+  },
+  resourceCard: {
+    alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: `${colors.secondary}55`,
+    borderRadius: radius.lg, gap: 4,
+  },
+  resourceLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, color: colors.secondary,
+  },
+  resourcePips: { flexDirection: 'row', gap: 4 },
+  resourcePip: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5 },
+  resourcePipFull: { backgroundColor: colors.secondary, borderColor: colors.secondary },
+  resourcePipEmpty: { backgroundColor: 'transparent', borderColor: colors.outlineVariant },
+  resourceCount: {
+    fontSize: 11, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurfaceVariant,
+  },
+  resourceRecharge: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.outline,
+    paddingHorizontal: 5, paddingVertical: 2,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderRadius: 4,
+  },
 
   // Attacks
   attacksCard: {
@@ -349,7 +497,7 @@ const s = StyleSheet.create({
   },
   dmgBtnText: { fontSize: 11, fontFamily: fonts.headline, fontWeight: '800', color: colors.hpDanger },
 
-  // Death saves
+  // Status / Death saves
   deathCard: {
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
@@ -359,8 +507,22 @@ const s = StyleSheet.create({
   deathSavesRow: { flexDirection: 'row', justifyContent: 'space-around' },
   deathGroup: { alignItems: 'center', gap: 8 },
   deathGroupLabel: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1 },
-  deathDot: {
-    width: 14, height: 14, borderRadius: 7, borderWidth: 1.5,
+  deathDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5 },
+
+  // Exhaustion
+  exhaustionRow: { gap: 6, marginBottom: 4 },
+  exhaustionLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, color: colors.hpWarning,
+  },
+  exhaustionPips: { flexDirection: 'row', gap: 4 },
+  exhaustionPip: {
+    width: 12, height: 12, borderRadius: 6,
+    borderWidth: 1.5, borderColor: colors.outlineVariant,
+  },
+  exhaustionPipActive: { backgroundColor: colors.hpWarning, borderColor: colors.hpWarning },
+  exhaustionEffect: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.hpWarning, fontStyle: 'italic',
   },
 
   // Conditions

@@ -18,7 +18,9 @@ import type { RollResult } from '../../components/character-sheet/RollToast';
 import { CombatTab } from '../../components/character-sheet/CombatTab';
 import { SkillsTab } from '../../components/character-sheet/SkillsTab';
 import { AbilitiesTab } from '../../components/character-sheet/AbilitiesTab';
-import { StoryTab } from '../../components/character-sheet/StoryTab';
+import { SpellsTab } from '../../components/character-sheet/SpellsTab';
+import { GearTab } from '../../components/character-sheet/GearTab';
+import { LoreTab } from '../../components/character-sheet/LoreTab';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
@@ -103,7 +105,8 @@ export default function CharacterSheetScreen() {
   const [portraitUploading, setPortraitUploading] = useState(false);
   const [editLayout, setEditLayout] = useState(false);
   const [cardItems, setCardItems] = useState<CardItem[]>(DEFAULT_CARD_ORDER.map((id) => ({ id })));
-  const [activeTab, setActiveTab] = useState<'combat' | 'skills' | 'abilities' | 'story'>('combat');
+  const [activeTab, setActiveTab] = useState<'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore'>('combat');
+  const [rightRailCollapsed, setRightRailCollapsed] = useState(false);
   const [rollResult, setRollResult] = useState<RollResult | null>(null);
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -566,14 +569,25 @@ export default function CharacterSheetScreen() {
 
   const hpRatio = Math.max(0, Math.min(1, resources.hpCurrent / stats.hpMax));
 
-  // ── Shared: tab panel content (same JSX regardless of layout) ───────────
-  const TAB_DEFS = [
-    { id: 'combat', icon: 'sword-cross', label: 'Combat' },
-    { id: 'skills', icon: 'star-outline', label: 'Skills' },
-    { id: 'abilities', icon: 'lightning-bolt-outline', label: 'Abilities' },
-    { id: 'story', icon: 'book-open-outline', label: 'Story' },
-  ] as const;
+  // ── Tab definitions — desktop omits Skills (always-visible right rail) ──
+  const DESKTOP_TAB_DEFS = [
+    { id: 'combat',  icon: 'sword-cross' as const,        label: 'Combat' },
+    { id: 'spells',  icon: 'auto-fix' as const,           label: 'Spells' },
+    { id: 'traits',  icon: 'lightning-bolt-outline' as const, label: 'Traits' },
+    { id: 'gear',    icon: 'bag-personal-outline' as const, label: 'Gear' },
+    { id: 'lore',    icon: 'book-open-outline' as const,  label: 'Lore' },
+  ];
+  const MOBILE_TAB_DEFS = [
+    { id: 'combat',  icon: 'sword-cross' as const,        label: 'Combat' },
+    { id: 'spells',  icon: 'auto-fix' as const,           label: 'Spells' },
+    { id: 'skills',  icon: 'star-outline' as const,       label: 'Skills' },
+    { id: 'traits',  icon: 'lightning-bolt-outline' as const, label: 'Traits' },
+    { id: 'gear',    icon: 'bag-personal-outline' as const, label: 'Gear' },
+    { id: 'lore',    icon: 'book-open-outline' as const,  label: 'Lore' },
+  ];
+  const TAB_DEFS = isDesktop ? DESKTOP_TAB_DEFS : MOBILE_TAB_DEFS;
 
+  // ── Tab panel content ────────────────────────────────────────────────────
   const tabContent = (
     <>
       {activeTab === 'combat' && (
@@ -588,16 +602,37 @@ export default function CharacterSheetScreen() {
           isStabilized={isStabilized}
           canEditAny={canEditAny}
           equipment={equipment}
+          isDesktop={isDesktop}
           onRoll={handleRoll}
           onToggleCondition={handleToggleCondition}
           onDeathSave={handleDeathSave}
           getAttackBonus={getAttackBonus}
+          onOpenHpModal={() => setHpModalVisible(true)}
+        />
+      )}
+      {activeTab === 'spells' && (
+        <SpellsTab
+          stats={stats}
+          resources={resources}
+          scores={scores}
+          prof={prof}
+          isOwner={isOwner}
+          onSpellSlotChange={(level, delta) => {
+            if (!resources.spellSlots) return;
+            const slot = resources.spellSlots[level];
+            const next = Math.max(0, Math.min(slot.max, slot.remaining + delta));
+            persistResources({
+              ...resources,
+              spellSlots: { ...resources.spellSlots, [level]: { ...slot, remaining: next } },
+            });
+          }}
+          onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
         />
       )}
       {activeTab === 'skills' && (
         <SkillsTab stats={stats} scores={scores} prof={prof} onRoll={handleRoll} />
       )}
-      {activeTab === 'abilities' && (
+      {activeTab === 'traits' && (
         <AbilitiesTab
           stats={stats}
           resources={resources}
@@ -615,17 +650,27 @@ export default function CharacterSheetScreen() {
           }}
         />
       )}
-      {activeTab === 'story' && (
-        <StoryTab
+      {activeTab === 'gear' && (
+        <GearTab
           stats={stats}
           resources={resources}
           isOwner={isOwner}
+          strengthScore={scores.strength}
           onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
           onToggleEquipped={handleToggleEquipped}
-          onNotesChange={(text) => {
-            setScratchpad(text);
-            persistResources({ ...resources, notes: text });
-          }}
+        />
+      )}
+      {activeTab === 'lore' && (
+        <LoreTab
+          stats={stats}
+          resources={resources}
+          isOwner={isOwner}
+          onPersonalityChange={(field, value) =>
+            persistResources({ ...resources, personality: { ...resources.personality, [field]: value } })
+          }
+          onAppearanceChange={(field, value) =>
+            persistResources({ ...resources, appearance: { ...resources.appearance, [field]: value } })
+          }
         />
       )}
     </>
@@ -707,8 +752,8 @@ export default function CharacterSheetScreen() {
               {/* HP — full-width row */}
               <TouchableOpacity
                 style={s.deskHpRow}
-                onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
-                onLongPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
+                onPress={() => canEditAny && setHpModalVisible(true)}
+                onLongPress={() => canEditAny && setHpModalVisible(true)}
                 activeOpacity={0.8}
               >
                 <View style={s.deskHpNums}>
@@ -746,18 +791,124 @@ export default function CharacterSheetScreen() {
               </View>
             </View>
 
-            {/* ── Vertical tab list ───────────────────────────────── */}
-            <View style={s.deskTabList}>
+            {/* ── Ability scores ────────────────────────────────────── */}
+            <View style={s.deskSection}>
+              <Text style={s.deskSectionLabel}>Ability Scores</Text>
+              <View style={s.deskScoreGrid}>
+                {ABILITY_KEYS.map((key) => {
+                  const score = scores[key];
+                  const mod = abilityMod(score);
+                  const isSpellMod = stats.spellcastingAbility === key;
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[s.deskScoreTile, isSpellMod && s.deskScoreTileHot]}
+                      onPress={() => handleRoll({ label: ABILITY_SHORT[key], rolls: [Math.floor(Math.random() * 20) + 1], bonus: mod, total: Math.floor(Math.random() * 20) + 1 + mod })}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[s.deskScoreMod, isSpellMod && { color: colors.primary }]}>{fmtMod(mod)}</Text>
+                      <Text style={s.deskScoreRaw}>{score}</Text>
+                      <Text style={s.deskScoreLbl}>{ABILITY_SHORT[key]}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* ── Saving throws ─────────────────────────────────────── */}
+            <View style={s.deskSection}>
+              <Text style={s.deskSectionLabel}>Saving Throws</Text>
+              {ABILITY_KEYS.map((key) => {
+                const mod = abilityMod(scores[key]);
+                const isProficient = stats.savingThrowProficiencies?.includes(key) ?? false;
+                const bonus = mod + (isProficient ? prof : 0);
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={s.deskSaveRow}
+                    onPress={() => handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [Math.floor(Math.random() * 20) + 1], bonus: bonus, total: Math.floor(Math.random() * 20) + 1 + bonus })}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[s.deskSaveDot, isProficient && s.deskSaveDotProf]} />
+                    <Text style={[s.deskSaveName, isProficient && s.deskSaveNameProf]}>{capitalize(key)}</Text>
+                    <Text style={[s.deskSaveVal, isProficient && s.deskSaveValProf]}>{fmtMod(bonus)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* ── Campaign link ─────────────────────────────────────── */}
+            <View style={{ flex: 1 }} />
+            <View style={s.deskCampSection}>
+              <View style={s.deskCampCard}>
+                <MaterialCommunityIcons name="castle" size={16} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.deskCampCardLbl}>Campaign</Text>
+                  <Text style={s.deskCampCardName} numberOfLines={1}>Not linked</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} style={{ opacity: 0.6 }} />
+              </View>
+            </View>
+
+          </View>
+
+          {/* ── Skills rail (always-visible, collapsible) ────────────── */}
+          {!rightRailCollapsed && (
+            <View style={s.skillsRail}>
+              <View style={s.skillsRailHead}>
+                <View>
+                  <Text style={s.skillsRailTitle}>Skills</Text>
+                  <Text style={s.skillsRailSub}>Passive Perc {10 + abilityMod(scores.wisdom) + (stats.skillProficiencies?.includes('perception') ? prof : 0)}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setRightRailCollapsed(true)} hitSlop={8}>
+                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.outline} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                {ALL_SKILLS.map((skill) => {
+                  const abilKey = SKILL_ABILITY[skill];
+                  const mod = abilityMod(scores[abilKey]);
+                  const isProficient = stats.skillProficiencies?.includes(skill) ?? false;
+                  const bonus = mod + (isProficient ? prof : 0);
+                  return (
+                    <TouchableOpacity
+                      key={skill}
+                      style={s.skillsRailRow}
+                      onPress={() => handleRoll({ label: titleCase(skill), rolls: [Math.floor(Math.random() * 20) + 1], bonus: bonus, total: Math.floor(Math.random() * 20) + 1 + bonus })}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[s.skillsRailDot, isProficient && s.skillsRailDotProf]} />
+                      <Text style={[s.skillsRailName, isProficient && s.skillsRailNameProf]} numberOfLines={1}>{titleCase(skill)}</Text>
+                      <Text style={s.skillsRailAbi}>{ABILITY_SHORT[abilKey].slice(0, 3)}</Text>
+                      <Text style={[s.skillsRailVal, isProficient && s.skillsRailValProf]}>{fmtMod(bonus)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+          {rightRailCollapsed && (
+            <TouchableOpacity style={s.skillsRailCollapsed} onPress={() => setRightRailCollapsed(false)} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="chevron-left" size={16} color={colors.outline} />
+              <Text style={s.skillsRailCollapsedLabel}>Skills</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* ── Right content pane ──────────────────────────────────── */}
+          <View style={s.deskContent}>
+
+            {/* Horizontal tab bar */}
+            <View style={s.deskTabBar}>
               {TAB_DEFS.map((tab) => (
                 <TouchableOpacity
                   key={tab.id}
                   style={[s.deskTabBtn, activeTab === tab.id && s.deskTabBtnActive]}
-                  onPress={() => setActiveTab(tab.id)}
+                  onPress={() => setActiveTab(tab.id as 'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore')}
                   activeOpacity={0.7}
                 >
                   <MaterialCommunityIcons
                     name={tab.icon}
-                    size={18}
+                    size={16}
                     color={activeTab === tab.id ? colors.primary : colors.outline}
                   />
                   <Text style={[s.deskTabLabel, activeTab === tab.id && s.deskTabLabelActive]}>
@@ -767,11 +918,11 @@ export default function CharacterSheetScreen() {
               ))}
             </View>
 
-          </View>
+            {/* Tab content */}
+            <View style={{ flex: 1 }}>
+              {tabContent}
+            </View>
 
-          {/* ── Right content pane ──────────────────────────────────── */}
-          <View style={s.deskContent}>
-            {tabContent}
           </View>
 
         </View>
@@ -879,7 +1030,7 @@ export default function CharacterSheetScreen() {
               <TouchableOpacity
                 key={tab.id}
                 style={[s.tabBtn, activeTab === tab.id && s.tabBtnActive]}
-                onPress={() => setActiveTab(tab.id)}
+                onPress={() => setActiveTab(tab.id as 'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore')}
                 activeOpacity={0.7}
               >
                 <MaterialCommunityIcons
@@ -1495,7 +1646,7 @@ const s = StyleSheet.create({
 
   // Left rail
   deskRail: {
-    width: 264,
+    width: 200,
     backgroundColor: colors.surfaceContainerLowest,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.outlineVariant,
@@ -1592,19 +1743,20 @@ const s = StyleSheet.create({
     letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
   },
 
-  // Vertical tab list
-  deskTabList: {
-    flex: 1, paddingTop: 6, paddingBottom: 12,
+  // Horizontal tab bar (top of right pane)
+  deskTabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLowest,
   },
   deskTabBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderRadius: 0,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 20, paddingVertical: 13,
+    borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
   deskTabBtnActive: {
-    backgroundColor: colors.surfaceContainer,
-    borderRightWidth: 2,
-    borderRightColor: colors.primary,
+    borderBottomColor: colors.primary,
   },
   deskTabLabel: {
     fontSize: 13, fontFamily: fonts.body, fontWeight: '600',
@@ -2175,4 +2327,129 @@ const s = StyleSheet.create({
     paddingVertical: 12, alignItems: 'center',
   },
   fieldSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  // ── Left rail: ability scores ────────────────────────────────────────────
+  deskSection: {
+    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  },
+  deskSectionLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline, marginBottom: 6,
+  },
+  deskScoreGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 4,
+  },
+  deskScoreTile: {
+    flex: 1, minWidth: '28%',
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, paddingVertical: 6,
+    alignItems: 'center', gap: 1,
+  },
+  deskScoreTileHot: {
+    borderColor: colors.primary,
+  },
+  deskScoreMod: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface,
+  },
+  deskScoreRaw: {
+    fontSize: 8, color: colors.outline,
+  },
+  deskScoreLbl: {
+    fontSize: 6, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
+  },
+
+  // ── Left rail: saving throws ─────────────────────────────────────────────
+  deskSaveRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 4,
+  },
+  deskSaveDot: {
+    width: 7, height: 7, borderRadius: 4,
+    borderWidth: 1.5, borderColor: colors.outline, flexShrink: 0,
+  },
+  deskSaveDotProf: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
+  },
+  deskSaveName: {
+    flex: 1, fontSize: 10, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+  },
+  deskSaveNameProf: { color: colors.onSurface, fontWeight: '600' },
+  deskSaveVal: {
+    fontSize: 10, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurfaceVariant,
+  },
+  deskSaveValProf: { color: colors.primary },
+
+  // ── Left rail: campaign link ─────────────────────────────────────────────
+  deskCampSection: {
+    padding: 10,
+  },
+  deskCampCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.primaryContainer,
+    borderWidth: 1, borderColor: colors.primary,
+    borderRadius: radius.lg, padding: 9,
+  },
+  deskCampCardLbl: {
+    fontSize: 7, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
+  },
+  deskCampCardName: {
+    fontSize: 10, fontFamily: fonts.headline, fontWeight: '700', color: colors.primary,
+    marginTop: 1,
+  },
+
+  // ── Right skills rail ────────────────────────────────────────────────────
+  skillsRail: {
+    width: 182, flexShrink: 0,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.outlineVariant,
+    flexDirection: 'column',
+  },
+  skillsRailHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: 10, paddingBottom: 7,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  },
+  skillsRailTitle: {
+    fontSize: 10, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface,
+  },
+  skillsRailSub: {
+    fontSize: 8, fontFamily: fonts.label, color: colors.outline, marginTop: 1,
+  },
+  skillsRailRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderBottomWidth: 1, borderBottomColor: '#ffffff06',
+  },
+  skillsRailDot: {
+    width: 6, height: 6, borderRadius: 3,
+    borderWidth: 1.5, borderColor: colors.outline, flexShrink: 0,
+  },
+  skillsRailDotProf: { backgroundColor: colors.primary, borderColor: colors.primary },
+  skillsRailName: {
+    flex: 1, fontSize: 9, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+  },
+  skillsRailNameProf: { color: colors.onSurface, fontWeight: '600' },
+  skillsRailAbi: {
+    fontSize: 7, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.5, textTransform: 'uppercase', color: colors.outline,
+  },
+  skillsRailVal: {
+    fontSize: 10, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurfaceVariant, minWidth: 24, textAlign: 'right',
+  },
+  skillsRailValProf: { color: colors.primary },
+  skillsRailCollapsed: {
+    width: 28, flexShrink: 0,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.outlineVariant,
+    alignItems: 'center', paddingTop: 12, gap: 8,
+  },
+  skillsRailCollapsedLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, textTransform: 'uppercase', color: colors.outline,
+    transform: [{ rotate: '90deg' }],
+  },
 });
