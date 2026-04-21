@@ -750,14 +750,17 @@ export default function CharacterSheetScreen() {
             {/* ── Stats block ─────────────────────────────────────── */}
             <View style={s.deskStats}>
               {/* HP section */}
-              <Text style={s.deskHpSectionLabel}>
-                {showDeathSaves ? 'Death Saves' : isDead ? 'Dead' : isStabilized ? 'Stable' : 'Hit Points'}
-              </Text>
               <TouchableOpacity
-                style={s.deskHpRow}
+                style={s.deskHpBox}
                 onPress={() => canEditAny && setHpModalVisible(true)}
                 onLongPress={() => canEditAny && setHpModalVisible(true)}
                 activeOpacity={0.8}
+              >
+              <Text style={s.deskHpSectionLabel}>
+                {showDeathSaves ? 'Death Saves' : isDead ? 'Dead' : isStabilized ? 'Stable' : 'Hit Points'}
+              </Text>
+              <View
+                style={s.deskHpRow}
               >
                 <View style={s.deskHpNums}>
                   <Text style={[s.deskHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
@@ -783,6 +786,7 @@ export default function CharacterSheetScreen() {
                     </View>
                   )}
                 </View>
+              </View>
               </TouchableOpacity>
 
               {/* 2×2 stat grid */}
@@ -1714,6 +1718,12 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
     gap: 4,
+  },
+  deskHpBox: {
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8,
+    gap: 6,
   },
   deskHpSectionLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
