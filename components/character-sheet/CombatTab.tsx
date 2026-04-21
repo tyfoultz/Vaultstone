@@ -54,16 +54,12 @@ interface Props {
   scores: Dnd5eAbilityScores;
   prof: number;
   activeConditions: string[];
-  showDeathSaves: boolean;
-  isDead: boolean;
-  isStabilized: boolean;
   canEditAny: boolean;
   equipment: Dnd5eEquipmentItem[];
   isDesktop?: boolean;
   onOpenHpModal?: () => void;
   onRoll: (result: RollResult) => void;
   onToggleCondition: (c: string) => void;
-  onDeathSave: (type: 'success' | 'failure') => void;
   getAttackBonus: (item: Dnd5eEquipmentItem) => number;
 }
 
@@ -84,8 +80,7 @@ function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void
 
 export function CombatTab({
   stats, resources, scores, prof,
-  activeConditions, showDeathSaves, isDead, isStabilized,
-  canEditAny, equipment, isDesktop, onRoll, onToggleCondition, onDeathSave, getAttackBonus,
+  activeConditions, canEditAny, equipment, isDesktop, onRoll, onToggleCondition, getAttackBonus,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
 
@@ -228,7 +223,7 @@ export function CombatTab({
         {/* DIVIDER */}
         <View style={s.colDivider} />
 
-        {/* RIGHT COLUMN — Conditions · Exhaustion · Death Saves */}
+        {/* RIGHT COLUMN — Conditions · Exhaustion */}
         <ScrollView style={s.col} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
 
           {/* Conditions */}
@@ -268,30 +263,6 @@ export function CombatTab({
             </View>
           </CardBlock>
 
-          {/* Death Saves — always visible */}
-          <CardBlock title="Death Saves">
-            {(isDead || isStabilized) && (
-              <Text style={[s.statusText, { color: isDead ? colors.hpDanger : colors.hpWarning, marginBottom: 8 }]}>
-                {isDead ? 'Dead' : 'Stabilized'}
-              </Text>
-            )}
-            <View style={s.deathSavesRow}>
-              <DeathSaveGroup
-                label="Successes"
-                count={resources.deathSaves.successes}
-                max={3}
-                color={colors.hpHealthy}
-                onPress={canEditAny ? () => onDeathSave('success') : undefined}
-              />
-              <DeathSaveGroup
-                label="Failures"
-                count={resources.deathSaves.failures}
-                max={3}
-                color={colors.hpDanger}
-                onPress={canEditAny ? () => onDeathSave('failure') : undefined}
-              />
-            </View>
-          </CardBlock>
 
         </ScrollView>
       </View>
@@ -487,20 +458,6 @@ function SectionLabel({ children, style, accent }: { children: string; style?: a
   );
 }
 
-function DeathSaveGroup({ label, count, max, color, onPress }: {
-  label: string; count: number; max: number; color: string; onPress?: () => void;
-}) {
-  return (
-    <TouchableOpacity style={s.deathGroup} onPress={onPress} disabled={!onPress} activeOpacity={0.7}>
-      <Text style={[s.deathGroupLabel, { color }]}>{label}</Text>
-      <View style={{ flexDirection: 'row', gap: 6 }}>
-        {Array.from({ length: max }).map((_, i) => (
-          <View key={i} style={[s.deathDot, { borderColor: color }, i < count && { backgroundColor: color }]} />
-        ))}
-      </View>
-    </TouchableOpacity>
-  );
-}
 
 function PassiveCard({ label, value, suffix }: { label: string; value: number | string; suffix?: string }) {
   return (
@@ -627,12 +584,6 @@ const s = StyleSheet.create({
   exBadgeText: { fontSize: 9, fontFamily: fonts.headline, fontWeight: '800', color: colors.outline },
   exBadgeTextActive: { color: colors.hpDanger },
 
-  // Death saves
-  deathSavesRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  deathGroup: { alignItems: 'center', gap: 8 },
-  deathGroupLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1 },
-  deathDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5 },
-  statusText: { fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', textAlign: 'center' },
 
   // ── Mobile section-based layout
   mobileContainer: { paddingHorizontal: spacing.md, paddingTop: 14, paddingBottom: 16 },
