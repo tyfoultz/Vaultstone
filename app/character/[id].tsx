@@ -775,17 +775,20 @@ export default function CharacterSheetScreen() {
                 </View>
               </TouchableOpacity>
 
-              {/* 4-stat grid */}
+              {/* 2×2 stat grid */}
               <View style={s.deskStatGrid}>
                 {([
-                  { label: 'AC', value: String(ac), color: colors.secondary },
-                  { label: 'INIT', value: fmtMod(initiative), color: colors.onSurface },
-                  { label: 'SPEED', value: String(stats.speed), color: colors.onSurface },
-                  { label: 'HIT DIE', value: `d${stats.hitDie}`, color: colors.onSurface },
-                ] as const).map(({ label, value, color }) => (
+                  { label: 'Armor Class', icon: 'shield-outline', value: String(ac), color: colors.secondary },
+                  { label: 'Initiative',  icon: 'lightning-bolt',  value: fmtMod(initiative), color: colors.onSurface },
+                  { label: 'Speed',       icon: 'run-fast',        value: `${stats.speed} ft`, color: colors.onSurface },
+                  { label: 'Hit Die',     icon: 'dice-d8-outline', value: `d${stats.hitDie}`, color: colors.onSurface },
+                ] as const).map(({ label, icon, value, color }) => (
                   <View key={label} style={s.deskStatCell}>
-                    <Text style={[s.deskStatValue, { color }]}>{value}</Text>
-                    <Text style={s.deskStatLabel}>{label}</Text>
+                    <MaterialCommunityIcons name={icon as any} size={18} color={color} style={{ opacity: 0.75 }} />
+                    <View style={s.deskStatText}>
+                      <Text style={[s.deskStatValue, { color }]}>{value}</Text>
+                      <Text style={s.deskStatLabel}>{label}</Text>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -1723,11 +1726,14 @@ const s = StyleSheet.create({
     flex: 1, minWidth: '40%',
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, paddingVertical: 7, paddingHorizontal: 8,
-    alignItems: 'center', gap: 2,
+    borderRadius: radius.lg, paddingVertical: 8, paddingHorizontal: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  deskStatText: {
+    flex: 1, flexDirection: 'column', gap: 1,
   },
   deskStatValue: {
-    fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
+    fontSize: 20, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 22,
   },
   deskStatLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
