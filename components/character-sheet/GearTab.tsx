@@ -131,16 +131,6 @@ export function GearTab({
           ))}
         </View>
 
-        {/* Treasure & Valuables */}
-        <CardBlock title="Treasure & Valuables">
-          <EditableText
-            value={resources.treasure ?? ''}
-            placeholder="Notable loot, gems, art objects…"
-            editable={isOwner}
-            onCommit={(v) => onUpdateTreasure?.(v)}
-          />
-        </CardBlock>
-
         {/* Carry Capacity */}
         <CardBlock title="Carry Capacity">
           <View style={s.carryNums}>
@@ -151,6 +141,16 @@ export function GearTab({
             <View style={[s.carryFill, { width: `${carryRatio * 100}%` as any }]} />
           </View>
           <Text style={s.carryLoad}>{carryLoad} · STR {strengthScore} × 15</Text>
+        </CardBlock>
+
+        {/* Treasure & Valuables */}
+        <CardBlock title="Treasure & Valuables">
+          <EditableText
+            value={resources.treasure ?? ''}
+            placeholder="Notable loot, gems, art objects…"
+            editable={isOwner}
+            onCommit={(v) => onUpdateTreasure?.(v)}
+          />
         </CardBlock>
 
         {/* Notes */}
