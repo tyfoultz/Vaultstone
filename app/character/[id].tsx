@@ -1720,9 +1720,8 @@ const s = StyleSheet.create({
     gap: 4,
   },
   deskHpBox: {
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg,
-    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    paddingBottom: 12,
     gap: 6,
   },
   deskHpSectionLabel: {
