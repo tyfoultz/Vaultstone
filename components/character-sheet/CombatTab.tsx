@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eFeature } from '@vaultstone/types';
@@ -228,21 +228,11 @@ export function CombatTab({
 
           {/* Conditions */}
           <CardBlock title="Conditions">
-            <View style={s.conditionsWrap}>
-              {ALL_CONDITIONS.map((c) => {
-                const active = activeConditions.map((x) => x.toLowerCase()).includes(c.toLowerCase());
-                return (
-                  <TouchableOpacity
-                    key={c}
-                    style={[s.condChip, active && s.condChipActive]}
-                    onPress={canEditAny ? () => onToggleCondition(c) : undefined}
-                    activeOpacity={canEditAny ? 0.7 : 1}
-                  >
-                    <Text style={[s.condText, active && s.condTextActive]}>{c}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <ConditionsSection
+              activeConditions={activeConditions}
+              canEditAny={canEditAny}
+              onToggle={onToggleCondition}
+            />
           </CardBlock>
 
           {/* Exhaustion */}
@@ -372,21 +362,11 @@ export function CombatTab({
 
       {/* Conditions */}
       <SectionLabel style={{ marginTop: 14 }}>CONDITIONS</SectionLabel>
-      <View style={s.conditionsWrap}>
-        {ALL_CONDITIONS.map((c) => {
-          const active = activeConditions.map((x) => x.toLowerCase()).includes(c.toLowerCase());
-          return (
-            <TouchableOpacity
-              key={c}
-              style={[s.condChip, active && s.condChipActive]}
-              onPress={canEditAny ? () => onToggleCondition(c) : undefined}
-              activeOpacity={canEditAny ? 0.7 : 1}
-            >
-              <Text style={[s.condText, active && s.condTextActive]}>{c}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <ConditionsSection
+        activeConditions={activeConditions}
+        canEditAny={canEditAny}
+        onToggle={onToggleCondition}
+      />
 
       {/* Passives */}
       <SectionLabel style={{ marginTop: 14 }}>PASSIVES</SectionLabel>
@@ -402,6 +382,78 @@ export function CombatTab({
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
+
+function ConditionsSection({
+  activeConditions, canEditAny, onToggle,
+}: { activeConditions: string[]; canEditAny: boolean; onToggle: (c: string) => void }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const normalizedActive = activeConditions.map((x) => x.toLowerCase());
+  const available = ALL_CONDITIONS.filter((c) => !normalizedActive.includes(c.toLowerCase()));
+
+  return (
+    <View style={{ gap: 6 }}>
+      {/* Active condition chips */}
+      {activeConditions.length > 0 && (
+        <View style={s.conditionsWrap}>
+          {activeConditions.map((c) => (
+            <TouchableOpacity
+              key={c}
+              style={s.condChipActive}
+              onPress={canEditAny ? () => onToggle(c) : undefined}
+              activeOpacity={canEditAny ? 0.7 : 1}
+            >
+              <Text style={s.condTextActive}>{c}</Text>
+              {canEditAny && (
+                <MaterialCommunityIcons name="close" size={9} color={colors.hpDanger} style={{ marginLeft: 3 }} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Add condition button */}
+      {canEditAny && (
+        <TouchableOpacity style={s.addCondBtn} onPress={() => setPickerOpen(true)} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="plus" size={12} color={colors.outline} />
+          <Text style={s.addCondText}>Add condition</Text>
+        </TouchableOpacity>
+      )}
+      {!canEditAny && activeConditions.length === 0 && (
+        <Text style={s.condNone}>No active conditions</Text>
+      )}
+
+      {/* Condition picker modal */}
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
+        <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={() => setPickerOpen(false)}>
+          <View style={s.modalSheet} onStartShouldSetResponder={() => true}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Add Condition</Text>
+              <TouchableOpacity onPress={() => setPickerOpen(false)} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+              </TouchableOpacity>
+            </View>
+            {available.length > 0 ? (
+              <View style={s.conditionsWrap}>
+                {available.map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    style={s.condChip}
+                    onPress={() => { onToggle(c); if (available.length === 1) setPickerOpen(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.condText}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <Text style={s.condNone}>All conditions are active</Text>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
 
 function ActionGroup({ label, items, accent }: { label: string; items: Dnd5eFeature[]; accent?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -567,11 +619,35 @@ const s = StyleSheet.create({
     borderRadius: 4,
   },
   condChipActive: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 8, paddingVertical: 4,
     backgroundColor: `${colors.hpDanger}18`,
-    borderColor: colors.hpDanger,
+    borderWidth: 1, borderColor: colors.hpDanger,
+    borderRadius: 4,
   },
   condText: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.onSurfaceVariant },
-  condTextActive: { color: colors.hpDanger },
+  condTextActive: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.hpDanger },
+  condNone: { fontSize: 11, fontFamily: fonts.label, color: colors.outline, fontStyle: 'italic' },
+  addCondBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderWidth: 1, borderColor: colors.outlineVariant, borderStyle: 'dashed',
+    borderRadius: 4,
+  },
+  addCondText: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
+
+  // Condition picker modal
+  modalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  modalSheet: {
+    width: '100%', maxWidth: 380,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 12, padding: 16, gap: 12,
+  },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalTitle: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
 
   // Exhaustion
   exhaustionBadges: { flexDirection: 'row', gap: 4 },
