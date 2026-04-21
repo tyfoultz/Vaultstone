@@ -425,6 +425,8 @@ export function PCStubPageView({ page, worldId }: Props) {
                   onChange={handleBodyChange}
                   editable={!heldByOther}
                   placeholder={`Notes about ${page.title}…`}
+                  worldId={worldId}
+                  pageId={page.id}
                   mentionablePages={mentionablePages}
                   onMentionClick={(targetPageId) => router.push(worldPageHref(worldId, targetPageId))}
                 />

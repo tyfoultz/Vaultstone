@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -7,7 +7,10 @@ import type { WorldPage } from '@vaultstone/types';
 import { colors, radius, spacing } from '@vaultstone/ui';
 
 import { BodyEditorToolbar } from './BodyEditorToolbar';
+import { ImageUploadModal } from './ImageUploadModal.web';
 import { VaultstoneMention } from './MentionExtension';
+import { WorldImageNode } from './WorldImageNode';
+import { worldImageStyles } from './WorldImageNodeView.web';
 import { createMentionSuggestion, type MentionPinItem, type MentionEventItem } from './MentionSuggestion.web';
 
 type Props = {
@@ -15,6 +18,8 @@ type Props = {
   onChange: (body: object, bodyText: string, bodyRefs: string[]) => void;
   editable?: boolean;
   placeholder?: string;
+  worldId?: string;
+  pageId?: string;
   mentionablePages?: WorldPage[];
   mentionablePins?: MentionPinItem[];
   mentionableEvents?: MentionEventItem[];
@@ -31,6 +36,8 @@ export function BodyEditor({
   onChange,
   editable = true,
   placeholder,
+  worldId,
+  pageId,
   mentionablePages,
   mentionablePins,
   mentionableEvents,
@@ -38,6 +45,7 @@ export function BodyEditor({
   onMentionClick,
   onPinMentionClick,
 }: Props) {
+  const [imageModalOpen, setImageModalOpen] = useState(false);
   const initialRef = useRef(initialContent && Object.keys(initialContent).length > 0 ? initialContent : undefined);
   const onChangeRef = useRef(onChange);
   useEffect(() => {
@@ -85,7 +93,7 @@ export function BodyEditor({
   ).current;
 
   const editor = useEditor({
-    extensions: [StarterKit, mentionExtension],
+    extensions: [StarterKit, mentionExtension, WorldImageNode],
     content: initialRef.current,
     editable,
     immediatelyRender: true,
@@ -135,16 +143,36 @@ export function BodyEditor({
     return () => el.removeEventListener('mousedown', handler);
   }, [editor]);
 
+  const handleImageInsert = useCallback(
+    (attrs: { imageId: string; alt: string; width: number; height: number }) => {
+      if (!editor) return;
+      editor.chain().focus().insertWorldImage(attrs).run();
+    },
+    [editor],
+  );
+
+  const canInsertImage = !!worldId && !!pageId && editable;
+
   if (!editor) return null;
 
   return (
     <View style={styles.root}>
-      <BodyEditorToolbar editor={editor} />
+      <BodyEditorToolbar
+        editor={editor}
+        onImagePress={canInsertImage ? () => setImageModalOpen(true) : undefined}
+      />
       <View style={styles.editorFrame}>
-        {/* EditorContent renders a plain HTML div; we wrap it in a styled View. */}
         <EditorContent editor={editor} />
       </View>
       <EditorStyles />
+      {imageModalOpen && worldId && pageId ? (
+        <ImageUploadModal
+          worldId={worldId}
+          pageId={pageId}
+          onInsert={handleImageInsert}
+          onClose={() => setImageModalOpen(false)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -323,6 +351,7 @@ function EditorStyles() {
             text-transform: uppercase;
             letter-spacing: 0.4px;
           }
+          ${worldImageStyles()}
         `,
       }}
     />

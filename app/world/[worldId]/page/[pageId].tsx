@@ -453,6 +453,8 @@ export default function PageDetailScreen() {
                   onChange={handleBodyChange}
                   editable={!heldByOther}
                   placeholder={`Begin the chronicle of ${page.title}…`}
+                  worldId={worldId}
+                  pageId={pageId}
                   mentionablePages={mentionablePages}
                   mentionablePins={mentionablePins}
                   mentionableEvents={mentionableEvents}

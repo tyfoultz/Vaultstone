@@ -10,6 +10,8 @@ type Props = {
   editable?: boolean;
   placeholder?: string;
   // Web-only — accepted here so callers can stay platform-agnostic.
+  worldId?: string;
+  pageId?: string;
   mentionablePages?: unknown;
   mentionablePins?: unknown;
   mentionableEvents?: unknown;

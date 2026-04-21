@@ -648,6 +648,45 @@ export interface Database {
         };
         Relationships: [];
       };
+      world_images: {
+        Row: {
+          id: string;
+          world_id: string;
+          page_id: string | null;
+          image_key: string;
+          width: number;
+          height: number;
+          alt: string;
+          byte_size: number;
+          content_type: string;
+          deleted_at: string | null;
+          hard_delete_after: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          world_id: string;
+          page_id?: string | null;
+          image_key: string;
+          width: number;
+          height: number;
+          alt?: string;
+          byte_size: number;
+          content_type?: string;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          page_id?: string | null;
+          alt?: string;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+        };
+        Relationships: [];
+      };
       pin_types: {
         Row: {
           key: string;
