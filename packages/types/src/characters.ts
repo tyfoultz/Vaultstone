@@ -10,6 +10,8 @@
 export interface CharacterSettings {
   /** When true, all fields are manually editable by the player. */
   manualMode: boolean;
+  /** Saved card order for the character sheet grid. */
+  cardOrder?: string[];
 }
 
 export interface Dnd5eAbilityScores {
@@ -59,6 +61,9 @@ export interface Dnd5eStats {
   /** Base movement speed in feet, from species. */
   speed: number;
 
+  /** Creature size: Tiny, Small, Medium, Large, Huge, Gargantuan. */
+  size?: string;
+
   /** hitDie + CON modifier, computed and stored at creation/level-up. */
   hpMax: number;
 
@@ -91,6 +96,12 @@ export interface Dnd5eEquipmentItem {
   acBonus?: number;
   /** Freeform notes */
   notes?: string;
+  /** Whether this item requires and is currently attuned */
+  attuned?: boolean;
+  /** Whether this item is a magic item requiring attunement */
+  requiresAttunement?: boolean;
+  /** Item weight in lbs */
+  weight?: number;
 }
 
 export interface Dnd5eFeature {
@@ -104,6 +115,45 @@ export interface Dnd5eFeature {
 export interface Dnd5eSpellSlotLevel {
   max: number;
   remaining: number;
+}
+
+export interface Dnd5ePersonality {
+  traits?: string;
+  ideals?: string;
+  bonds?: string;
+  flaws?: string;
+  backstory?: string;
+  allies?: string;
+  faction?: string;
+}
+
+export interface Dnd5eAppearance {
+  alignment?: string;
+  age?: string;
+  height?: string;
+  weight?: string;
+  eyes?: string;
+  hair?: string;
+  skin?: string;
+}
+
+export interface Dnd5eJournalEntry {
+  id: string;
+  title: string;
+  body: string;
+  date?: string;
+  tags?: string[];
+}
+
+export interface Dnd5ePreparedSpell {
+  id: string;
+  name: string;
+  /** 0 = cantrip */
+  level: number;
+  school?: string;
+  ritual?: boolean;
+  concentration?: boolean;
+  notes?: string;
 }
 
 /** Generic per-class resource pool: Barbarian rages, Ki points, Channel Divinity, etc. */
@@ -150,6 +200,8 @@ export interface Dnd5eResources {
   };
   /** Freetext scratchpad notes. */
   notes?: string;
+  /** Treasure, gems, art objects, and other valuables. */
+  treasure?: string;
   /** Spell slots by level. Only populated for spellcasting classes. */
   spellSlots: {
     1: Dnd5eSpellSlotLevel;
@@ -166,6 +218,14 @@ export interface Dnd5eResources {
   concentrationSpell?: string | null;
   /** Optional class resource pools (rages, ki, superiority dice, etc.). */
   classResources?: Dnd5eClassResource[];
+  /** Personality text fields (traits, ideals, bonds, flaws, backstory, allies, faction). */
+  personality?: Dnd5ePersonality;
+  /** Physical appearance fields. */
+  appearance?: Dnd5eAppearance;
+  /** Campaign journal entries. */
+  journal?: Dnd5eJournalEntry[];
+  /** Prepared spells and cantrips. */
+  preparedSpells?: Dnd5ePreparedSpell[];
 }
 
 export interface PartyViewSettings {

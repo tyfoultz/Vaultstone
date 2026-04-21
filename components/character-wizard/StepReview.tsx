@@ -3,7 +3,7 @@ import { View, Text, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { useCharacterDraftStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
 import { ContentResolver } from '@vaultstone/content';
-import { colors } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { SpeciesResult, ClassResult, BackgroundResult, Dnd5eAbilityScores } from '@vaultstone/types';
 
 const ATTRIBUTION = 'Content from the Systems Reference Document 5.1 / 2.0 is available under the Creative Commons Attribution 4.0 International License.';
@@ -34,6 +34,7 @@ export function StepReview() {
     }))
   );
   const setCharacterName = useCharacterDraftStore((s) => s.setCharacterName);
+  const [nameFocused, setNameFocused] = useState(false);
 
   const [species, setSpecies] = useState<SpeciesResult | null>(null);
   const [cls, setCls] = useState<ClassResult | null>(null);
@@ -58,115 +59,199 @@ export function StepReview() {
   const conMod = scores ? Math.floor((scores.constitution - 10) / 2) : 0;
   const hitDie = cls?.hitDie ?? 8;
   const hpMax = scores ? hitDie + conMod : null;
-  const profBonus = 2; // level 1
+  const profBonus = 2;
 
   const allSkillProfs = [
     ...(bg?.skillProficiencies ?? []),
     ...draft.chosenSkills,
   ];
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Review & Finalize</Text>
+  const nameFilled = (draft.characterName ?? '').trim().length > 0;
+  const nameActive = nameFocused || nameFilled;
 
-      <View style={styles.nameSection}>
-        <Text style={styles.sectionLabel}>Character Name</Text>
+  return (
+    <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <Text style={s.title}>Review & name your character</Text>
+      <Text style={s.guidance}>Give your character a name and confirm your choices before creating them.</Text>
+
+      {/* Name input */}
+      <View style={[s.nameWrap, nameActive && s.nameWrapActive]}>
+        <Text style={[s.nameLabel, nameActive && s.nameLabelActive]}>CHARACTER NAME</Text>
         <TextInput
-          style={styles.nameInput}
-          placeholder="Enter a name..."
-          placeholderTextColor={colors.textSecondary}
-          value={draft.characterName}
+          style={s.nameInput}
+          placeholder="Enter a name…"
+          placeholderTextColor={colors.outline}
+          value={draft.characterName ?? ''}
           onChangeText={setCharacterName}
+          onFocus={() => setNameFocused(true)}
+          onBlur={() => setNameFocused(false)}
           maxLength={60}
           autoFocus
+          returnKeyType="done"
         />
       </View>
 
-      <Section title="Identity">
-        <Row label="Ruleset" value={draft.srdVersion === 'SRD_2.0' ? 'D&D 5e 2024 (SRD 2.0)' : 'D&D 5e 2014 (SRD 5.1)'} />
-        <Row label="Species" value={species?.name ?? draft.speciesKey ?? '—'} />
-        <Row label="Class" value={cls?.name ?? draft.classKey ?? '—'} />
-        <Row label="Background" value={bg?.name ?? draft.backgroundKey ?? '—'} />
-      </Section>
+      {/* Identity section */}
+      <ReviewSection title="Identity">
+        <RevRow
+          label="Ruleset"
+          value={draft.srdVersion === 'SRD_2.0' ? 'D&D 5e 2024' : 'D&D 5e 2014'}
+          detail={draft.srdVersion === 'SRD_2.0' ? 'SRD 2.0' : 'SRD 5.1'}
+        />
+        <RevRow label="Species" value={species?.name ?? draft.speciesKey ?? '—'} detail={species ? `${species.size} · ${species.speed} ft` : undefined} />
+        <RevRow label="Class" value={cls?.name ?? draft.classKey ?? '—'} detail={cls ? `d${cls.hitDie} hit die` : undefined} />
+        <RevRow label="Background" value={bg?.name ?? draft.backgroundKey ?? '—'} detail={bg?.originFeat ? `Feat: ${bg.originFeat}` : undefined} accent={!!bg?.originFeat} />
+      </ReviewSection>
 
+      {/* Ability Scores section */}
       {scores && (
-        <Section title="Ability Scores">
-          <View style={styles.scoresGrid}>
+        <ReviewSection title="Ability Scores">
+          <View style={s.scoresGrid}>
             {ABILITY_KEYS.map((ability) => (
-              <View key={ability} style={styles.scoreCell}>
-                <Text style={styles.scoreMod}>{mod(scores[ability])}</Text>
-                <Text style={styles.scoreValue}>{scores[ability]}</Text>
-                <Text style={styles.scoreLabel}>{SHORT[ability]}</Text>
+              <View key={ability} style={s.scoreCell}>
+                <Text style={s.scoreMod}>{mod(scores[ability])}</Text>
+                <Text style={s.scoreValue}>{scores[ability]}</Text>
+                <Text style={s.scoreShort}>{SHORT[ability]}</Text>
               </View>
             ))}
           </View>
-        </Section>
+        </ReviewSection>
       )}
 
-      <Section title="Combat (Level 1)">
-        <Row label="Hit Points" value={hpMax !== null ? `${hpMax} (d${hitDie} + ${conMod >= 0 ? '+' : ''}${conMod} CON)` : '—'} />
-        <Row label="Proficiency Bonus" value={`+${profBonus}`} />
-        {species && <Row label="Speed" value={`${species.speed} ft.`} />}
-        {cls && <Row label="Saving Throws" value={cls.savingThrows.join(', ')} />}
-      </Section>
+      {/* Combat section */}
+      <ReviewSection title="Combat (Level 1)">
+        <RevRow
+          label="Hit Points"
+          value={hpMax !== null ? `${hpMax} HP` : '—'}
+          detail={hpMax !== null ? `d${hitDie} + ${conMod >= 0 ? '+' : ''}${conMod} CON` : undefined}
+        />
+        <RevRow label="Proficiency Bonus" value={`+${profBonus}`} />
+        {species && <RevRow label="Speed" value={`${species.speed} ft`} />}
+        {cls && <RevRow label="Saving Throws" value={cls.savingThrows.join(', ')} />}
+      </ReviewSection>
 
+      {/* Skills section */}
       {allSkillProfs.length > 0 && (
-        <Section title="Skill Proficiencies">
-          <Text style={styles.skillList}>{allSkillProfs.join(' · ')}</Text>
-        </Section>
+        <ReviewSection title="Skill Proficiencies">
+          <View style={s.skillChips}>
+            {allSkillProfs.map((skill) => (
+              <View key={skill} style={s.skillChip}>
+                <Text style={s.skillChipText}>{skill}</Text>
+              </View>
+            ))}
+          </View>
+        </ReviewSection>
       )}
 
-      <Text style={styles.attribution}>{ATTRIBUTION}</Text>
+      <Text style={s.attribution}>{ATTRIBUTION}</Text>
     </ScrollView>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function ReviewSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {children}
+    <View style={s.section}>
+      <Text style={s.sectionTitle}>{title}</Text>
+      <View style={s.sectionBody}>{children}</View>
     </View>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function RevRow({ label, value, detail, accent }: {
+  label: string; value: string; detail?: string; accent?: boolean;
+}) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+    <View style={s.revRow}>
+      <Text style={s.revLabel}>{label}</Text>
+      <View style={s.revRight}>
+        <Text style={[s.revValue, accent && s.revValueAccent]}>{value}</Text>
+        {detail ? <Text style={[s.revDetail, accent && s.revDetailAccent]}>{detail}</Text> : null}
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingBottom: 32 },
-  heading: { fontSize: 22, fontWeight: '700', color: colors.textPrimary, marginBottom: 20 },
-  nameSection: { marginBottom: 24 },
-  sectionLabel: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+const s = StyleSheet.create({
+  container: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg },
+  title: {
+    fontSize: 26, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: -0.5, marginTop: 12, marginBottom: 8, lineHeight: 30,
+  },
+  guidance: {
+    fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 19, marginBottom: 20,
+  },
+
+  // Name input
+  nameWrap: {
+    borderWidth: 1.5, borderColor: colors.outlineVariant,
+    borderRadius: radius.xl, padding: 14, marginBottom: 16,
+    backgroundColor: colors.surfaceContainer,
+  },
+  nameWrapActive: { borderColor: colors.primary },
+  nameLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '600',
+    letterSpacing: 1.5, textTransform: 'uppercase',
+    color: colors.outline, marginBottom: 6,
+  },
+  nameLabelActive: { color: colors.primary },
   nameInput: {
-    fontSize: 18, fontWeight: '600', color: colors.textPrimary,
-    borderWidth: 1, borderColor: colors.border, borderRadius: 8,
-    paddingHorizontal: 14, paddingVertical: 12,
-    backgroundColor: colors.surface,
+    fontSize: 22, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, padding: 0,
   },
-  section: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: 10,
-    padding: 14, marginBottom: 12, backgroundColor: colors.surface,
+
+  // Sections
+  section: { marginBottom: 12 },
+  sectionTitle: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '600',
+    letterSpacing: 1.5, textTransform: 'uppercase',
+    color: colors.outline, marginBottom: 6, marginLeft: 2,
   },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  rowLabel: { fontSize: 14, color: colors.textSecondary },
-  rowValue: { fontSize: 14, color: colors.textPrimary, fontWeight: '600', textAlign: 'right', flex: 1, marginLeft: 8 },
-  scoresGrid: { flexDirection: 'row', justifyContent: 'space-between' },
-  scoreCell: { alignItems: 'center', flex: 1 },
-  scoreMod: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  scoreValue: { fontSize: 20, fontWeight: '700', color: colors.brand },
-  scoreLabel: { fontSize: 11, color: colors.textSecondary, fontWeight: '600' },
-  skillList: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
+  sectionBody: {
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.xl, overflow: 'hidden',
+    backgroundColor: colors.surfaceContainer,
+  },
+
+  // Rev rows
+  revRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  },
+  revLabel: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant, flex: 1 },
+  revRight: { alignItems: 'flex-end' },
+  revValue: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface },
+  revValueAccent: { color: colors.gm },
+  revDetail: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, marginTop: 1 },
+  revDetailAccent: { color: `${colors.gm}99` },
+
+  // Ability scores grid
+  scoresGrid: { flexDirection: 'row', paddingVertical: 8 },
+  scoreCell: { flex: 1, alignItems: 'center', paddingVertical: 6 },
+  scoreMod: {
+    fontSize: 18, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.primary, lineHeight: 22,
+  },
+  scoreValue: {
+    fontSize: 13, fontFamily: fonts.body, fontWeight: '600',
+    color: colors.onSurfaceVariant, lineHeight: 18,
+  },
+  scoreShort: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '600',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline, marginTop: 2,
+  },
+
+  // Skill chips
+  skillChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 12 },
+  skillChip: {
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 999, backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  skillChipText: { fontSize: 12, fontFamily: fonts.label, fontWeight: '600', color: colors.onSurfaceVariant },
+
   attribution: {
-    fontSize: 11, color: colors.textSecondary,
-    textAlign: 'center', marginTop: 8, lineHeight: 16,
+    fontSize: 10, fontFamily: fonts.body, color: colors.outline,
+    textAlign: 'center', marginTop: 12, lineHeight: 16,
   },
 });

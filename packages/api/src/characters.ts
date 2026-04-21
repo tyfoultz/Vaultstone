@@ -154,3 +154,36 @@ export async function updateCharacterState(
     patch: patch as never,
   });
 }
+
+const ALLOWED_PORTRAIT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+export async function uploadCharacterPortrait(characterId: string, fileUri: string, mimeType: string) {
+  if (!ALLOWED_PORTRAIT_TYPES.includes(mimeType)) {
+    return { url: null, error: { message: 'Only JPEG, PNG, and WebP images are allowed.' } };
+  }
+
+  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const path = `character-portraits/${characterId}.${ext}`;
+
+  const response = await fetch(fileUri);
+  const blob = await response.blob();
+
+  const { error: uploadError } = await supabase.storage
+    .from('campaign-assets')
+    .upload(path, blob, { contentType: mimeType, upsert: true });
+
+  if (uploadError) return { url: null, error: uploadError };
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('campaign-assets')
+    .getPublicUrl(path);
+
+  const { error: updateError } = await supabase
+    .from('characters')
+    .update({ avatar_url: publicUrl })
+    .eq('id', characterId);
+
+  if (updateError) return { url: null, error: updateError };
+
+  return { url: publicUrl, error: null };
+}
