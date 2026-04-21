@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
-import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem } from '@vaultstone/types';
+import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eFeature } from '@vaultstone/types';
 import type { RollResult } from './RollToast';
 
 const ABILITY_KEYS: (keyof Dnd5eAbilityScores)[] = [
@@ -27,6 +29,24 @@ const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
+
+// SRD standard actions — always available
+const SRD_ACTIONS: Dnd5eFeature[] = [
+  { id: 'attack',     name: 'Attack',           actionType: 'action',   description: 'Make one melee or ranged attack.' },
+  { id: 'dash',       name: 'Dash',             actionType: 'action',   description: 'Gain extra movement equal to your speed for this turn.' },
+  { id: 'disengage',  name: 'Disengage',        actionType: 'action',   description: 'Your movement doesn\'t provoke opportunity attacks for the rest of the turn.' },
+  { id: 'dodge',      name: 'Dodge',            actionType: 'action',   description: 'Attackers have disadvantage on attacks against you; you have advantage on DEX saves.' },
+  { id: 'help',       name: 'Help',             actionType: 'action',   description: 'Give an ally advantage on their next ability check or attack roll.' },
+  { id: 'hide',       name: 'Hide',             actionType: 'action',   description: 'Make a Stealth check to become hidden.' },
+  { id: 'ready',      name: 'Ready',            actionType: 'action',   description: 'Prepare a reaction to trigger on a specific condition before your next turn.' },
+  { id: 'search',     name: 'Search',           actionType: 'action',   description: 'Devote attention to finding something using Perception or Investigation.' },
+  { id: 'use-object', name: 'Use an Object',    actionType: 'action',   description: 'Interact with a second object or use a special item feature.' },
+];
+const SRD_SPELL_ACTION: Dnd5eFeature =
+  { id: 'cast-spell', name: 'Cast a Spell',     actionType: 'action',   description: 'Cast a spell with a casting time of 1 action.' };
+const SRD_REACTIONS: Dnd5eFeature[] = [
+  { id: 'opp-attack', name: 'Opportunity Attack', actionType: 'reaction', description: 'When a creature leaves your reach, you can make one melee attack against it.' },
+];
 
 interface Props {
   stats: Dnd5eStats;
@@ -77,6 +97,23 @@ export function CombatTab({
 
   const classResources = resources.classResources ?? [];
   const exhaustionLevel = resources.exhaustionLevel ?? 0;
+
+  // Gather all features with an actionType from class, species, feats
+  const allFeatures = [
+    ...(resources.classFeatures ?? []),
+    ...(resources.speciesTraits ?? []),
+    ...(resources.feats ?? []),
+  ].filter((f) => f.actionType);
+
+  const featureActions   = allFeatures.filter((f) => f.actionType === 'action');
+  const featureBonus     = allFeatures.filter((f) => f.actionType === 'bonus');
+  const featureReactions = allFeatures.filter((f) => f.actionType === 'reaction');
+  const featureFree      = allFeatures.filter((f) => f.actionType === 'free');
+
+  const actions   = [...SRD_ACTIONS, ...(isSpellcaster ? [SRD_SPELL_ACTION] : []), ...featureActions];
+  const bonuses   = featureBonus;
+  const reactions = [...SRD_REACTIONS, ...featureReactions];
+  const freeActions = featureFree;
 
   // ── Desktop: 2-column grid layout ──────────────────────────────────────────
   if (isDesktop) {
@@ -177,6 +214,14 @@ export function CombatTab({
               ))}
             </CardBlock>
           )}
+
+          {/* Actions */}
+          <CardBlock title="Actions">
+            <ActionGroup label="Actions" items={actions} />
+            {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} />}
+            {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} accent />}
+            {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} />}
+          </CardBlock>
 
         </ScrollView>
 
@@ -387,6 +432,45 @@ export function CombatTab({
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
+function ActionGroup({ label, items, accent }: { label: string; items: Dnd5eFeature[]; accent?: boolean }) {
+  return (
+    <View style={s.actionGroup}>
+      <View style={s.actionGroupHead}>
+        <View style={[s.actionGroupBar, accent && s.actionGroupBarAccent]} />
+        <Text style={[s.actionGroupLabel, accent && s.actionGroupLabelAccent]}>{label}</Text>
+      </View>
+      {items.map((item) => <ActionRow key={item.id} feature={item} />)}
+    </View>
+  );
+}
+
+function ActionRow({ feature }: { feature: Dnd5eFeature }) {
+  const [expanded, setExpanded] = useState(false);
+  const isSrd = ['attack', 'dash', 'disengage', 'dodge', 'help', 'hide', 'ready', 'search', 'use-object', 'cast-spell', 'opp-attack'].includes(feature.id);
+  return (
+    <TouchableOpacity
+      style={s.actionRow}
+      onPress={() => setExpanded((v) => !v)}
+      activeOpacity={0.75}
+    >
+      <View style={s.actionRowTop}>
+        <Text style={[s.actionName, isSrd && s.actionNameSrd]}>{feature.name}</Text>
+        {feature.uses && (
+          <Text style={s.actionUses}>{feature.uses.current}/{feature.uses.max}</Text>
+        )}
+        <MaterialCommunityIcons
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={14}
+          color={colors.outline}
+        />
+      </View>
+      {expanded && (
+        <Text style={s.actionDesc}>{feature.description}</Text>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 function CardBlock({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <View style={s.card}>
@@ -574,6 +658,20 @@ const s = StyleSheet.create({
   sectionLineAccent: { backgroundColor: `${colors.primary}44` },
 
   emptyHint: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic' },
+
+  // Actions
+  actionGroup: { marginBottom: 2 },
+  actionGroupHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4 },
+  actionGroupBar: { width: 3, height: 12, borderRadius: 2, backgroundColor: colors.outlineVariant },
+  actionGroupBarAccent: { backgroundColor: colors.hpDanger },
+  actionGroupLabel: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline },
+  actionGroupLabelAccent: { color: colors.hpDanger },
+  actionRow: { paddingHorizontal: 10, paddingVertical: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant },
+  actionRowTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  actionName: { flex: 1, fontSize: 12, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
+  actionNameSrd: { color: colors.onSurfaceVariant },
+  actionUses: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
+  actionDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 16, marginTop: 5 },
 
   // Mobile ability scores
   abilityGrid: { flexDirection: 'row', gap: 6 },

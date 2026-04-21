@@ -110,6 +110,8 @@ export interface Dnd5eFeature {
   description: string;
   /** Optional: uses per rest, null if passive */
   uses?: { current: number; max: number; recharge: 'short' | 'long' } | null;
+  /** If set, surfaces this feature in the Combat tab Actions section */
+  actionType?: 'action' | 'bonus' | 'reaction' | 'free';
 }
 
 export interface Dnd5eSpellSlotLevel {
