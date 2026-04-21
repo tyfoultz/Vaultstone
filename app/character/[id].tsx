@@ -727,7 +727,7 @@ export default function CharacterSheetScreen() {
                   <Text style={s.deskSub} numberOfLines={1}>
                     {capitalize(stats.speciesKey)} {capitalize(stats.classKey)}
                   </Text>
-                  <Text style={s.deskLevel}>Level {stats.level} · {fmtMod(prof)} Prof</Text>
+                  <Text style={s.deskLevel}>Level {stats.level}</Text>
                 </View>
 
                 <View style={s.deskHeaderIcons}>
@@ -791,13 +791,15 @@ export default function CharacterSheetScreen() {
               </View>
               </TouchableOpacity>
 
-              {/* 2×2 stat grid */}
+              {/* 3×2 stat grid */}
               <View style={s.deskStatGrid}>
                 {([
-                  { label: 'Armor Class', icon: 'shield-outline', value: String(ac), color: colors.secondary },
-                  { label: 'Initiative',  icon: 'lightning-bolt',  value: fmtMod(initiative), color: colors.onSurface },
-                  { label: 'Speed',       icon: 'run-fast',        value: `${stats.speed} ft`, color: colors.onSurface },
-                  { label: 'Hit Die',     icon: 'dice-d8-outline', value: `d${stats.hitDie}`, color: colors.onSurface },
+                  { label: 'Armor Class', icon: 'shield-outline',   value: String(ac),           color: colors.secondary },
+                  { label: 'Initiative',  icon: 'lightning-bolt',    value: fmtMod(initiative),   color: colors.onSurface },
+                  { label: 'Speed',       icon: 'run-fast',          value: `${stats.speed} ft`,  color: colors.onSurface },
+                  { label: 'Hit Die',     icon: 'dice-d8-outline',   value: `d${stats.hitDie}`,   color: colors.onSurface },
+                  { label: 'Prof Bonus',  icon: 'star-four-points',  value: fmtMod(prof),         color: colors.onSurface },
+                  { label: 'Size',        icon: 'human',             value: stats.size ?? 'Medium', color: colors.onSurface },
                 ] as const).map(({ label, icon, value, color }) => (
                   <View key={label} style={s.deskStatCell}>
                     <MaterialCommunityIcons name={icon as any} size={18} color={color} style={{ opacity: 0.75 }} />

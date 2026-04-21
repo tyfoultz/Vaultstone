@@ -61,6 +61,9 @@ export interface Dnd5eStats {
   /** Base movement speed in feet, from species. */
   speed: number;
 
+  /** Creature size: Tiny, Small, Medium, Large, Huge, Gargantuan. */
+  size?: string;
+
   /** hitDie + CON modifier, computed and stored at creation/level-up. */
   hpMax: number;
 
