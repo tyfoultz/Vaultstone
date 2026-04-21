@@ -32,9 +32,9 @@ function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function titleCase(s: string) { return s.split(' ').map(capitalize).join(' '); }
 
-function StatCell({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
+function StatCell({ icon, value, label, color, centered }: { icon: string; value: string; label: string; color: string; centered?: boolean }) {
   return (
-    <View style={statCellStyle.cell}>
+    <View style={[statCellStyle.cell, centered && statCellStyle.cellCentered]}>
       <MaterialCommunityIcons name={icon as any} size={16} color={color} style={{ opacity: 0.75 }} />
       <View style={statCellStyle.text}>
         <Text style={[statCellStyle.value, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
@@ -51,6 +51,7 @@ const statCellStyle = StyleSheet.create({
     borderRadius: radius.lg, paddingVertical: 8, paddingHorizontal: 8,
     flexDirection: 'row', alignItems: 'center', gap: 6,
   },
+  cellCentered: { justifyContent: 'center' },
   text: { flex: 1, minWidth: 0, gap: 1 },
   value: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 17 },
   label: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.outline },
@@ -819,7 +820,7 @@ export default function CharacterSheetScreen() {
               <View style={s.deskStatGrid}>
                 {/* Row 1: AC solo */}
                 <View style={s.deskStatRow}>
-                  <StatCell icon="shield-outline" value={String(ac)} label="Armor Class" color={colors.secondary} />
+                  <StatCell icon="shield-outline" value={String(ac)} label="Armor Class" color={colors.secondary} centered />
                 </View>
                 {/* Row 2: Speed | Initiative */}
                 <View style={s.deskStatRow}>
