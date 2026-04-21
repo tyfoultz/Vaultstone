@@ -433,41 +433,33 @@ export function CombatTab({
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
 function ActionGroup({ label, items, accent }: { label: string; items: Dnd5eFeature[]; accent?: boolean }) {
+  const [collapsed, setCollapsed] = useState(false);
   return (
     <View style={s.actionGroup}>
-      <View style={s.actionGroupHead}>
+      <TouchableOpacity style={s.actionGroupHead} onPress={() => setCollapsed((v) => !v)} activeOpacity={0.7}>
         <View style={[s.actionGroupBar, accent && s.actionGroupBarAccent]} />
         <Text style={[s.actionGroupLabel, accent && s.actionGroupLabelAccent]}>{label}</Text>
-      </View>
-      {items.map((item) => <ActionRow key={item.id} feature={item} />)}
+        <Text style={s.actionGroupCount}>{items.length}</Text>
+        <MaterialCommunityIcons
+          name={collapsed ? 'chevron-down' : 'chevron-up'}
+          size={13}
+          color={colors.outline}
+        />
+      </TouchableOpacity>
+      {!collapsed && items.map((item) => <ActionRow key={item.id} feature={item} />)}
     </View>
   );
 }
 
 function ActionRow({ feature }: { feature: Dnd5eFeature }) {
-  const [expanded, setExpanded] = useState(false);
   const isSrd = ['attack', 'dash', 'disengage', 'dodge', 'help', 'hide', 'ready', 'search', 'use-object', 'cast-spell', 'opp-attack'].includes(feature.id);
   return (
-    <TouchableOpacity
-      style={s.actionRow}
-      onPress={() => setExpanded((v) => !v)}
-      activeOpacity={0.75}
-    >
-      <View style={s.actionRowTop}>
-        <Text style={[s.actionName, isSrd && s.actionNameSrd]}>{feature.name}</Text>
-        {feature.uses && (
-          <Text style={s.actionUses}>{feature.uses.current}/{feature.uses.max}</Text>
-        )}
-        <MaterialCommunityIcons
-          name={expanded ? 'chevron-up' : 'chevron-down'}
-          size={14}
-          color={colors.outline}
-        />
-      </View>
-      {expanded && (
-        <Text style={s.actionDesc}>{feature.description}</Text>
+    <View style={s.actionRow}>
+      <Text style={[s.actionName, isSrd && s.actionNameSrd]}>{feature.name}</Text>
+      {feature.uses && (
+        <Text style={s.actionUses}>{feature.uses.current}/{feature.uses.max}</Text>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -661,17 +653,23 @@ const s = StyleSheet.create({
 
   // Actions
   actionGroup: { marginBottom: 2 },
-  actionGroupHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4 },
+  actionGroupHead: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingTop: 8, paddingBottom: 5,
+  },
   actionGroupBar: { width: 3, height: 12, borderRadius: 2, backgroundColor: colors.outlineVariant },
   actionGroupBarAccent: { backgroundColor: colors.hpDanger },
-  actionGroupLabel: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline },
+  actionGroupLabel: { flex: 1, fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline },
   actionGroupLabelAccent: { color: colors.hpDanger },
-  actionRow: { paddingHorizontal: 10, paddingVertical: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant },
-  actionRowTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  actionGroupCount: { fontSize: 9, fontFamily: fonts.label, color: colors.outline },
+  actionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
   actionName: { flex: 1, fontSize: 12, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
   actionNameSrd: { color: colors.onSurfaceVariant },
   actionUses: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
-  actionDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 16, marginTop: 5 },
 
   // Mobile ability scores
   abilityGrid: { flexDirection: 'row', gap: 6 },
