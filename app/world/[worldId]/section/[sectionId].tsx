@@ -205,7 +205,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceCanvas,
   },
   container: {
-    padding: spacing.xl,
+    maxWidth: 1400,
+    alignSelf: 'center',
+    width: '100%',
+    paddingTop: 28,
+    paddingHorizontal: 36,
     paddingBottom: spacing['2xl'],
   },
   missing: {

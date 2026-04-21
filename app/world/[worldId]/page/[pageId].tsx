@@ -41,6 +41,7 @@ import { OrphanBanner } from '../../../../components/world/OrphanBanner';
 import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle';
 import { ShareModal } from '../../../../components/world/ShareModal';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
+import { NPCPageView } from '../../../../components/world/NPCPageView';
 import { TimelinePageView } from '../../../../components/world/TimelinePageView';
 import { PCStubPageView } from '../../../../components/world/players/PCStubPageView';
 import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
@@ -334,6 +335,11 @@ export default function PageDetailScreen() {
     return <PCStubPageView page={page} worldId={worldId} />;
   }
 
+  // NPC pages get the profile layout
+  if (page.page_kind === 'npc') {
+    return <NPCPageView page={page} worldId={worldId} />;
+  }
+
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);
   const kindLabel = PAGE_KIND_LABEL[page.page_kind] ?? 'Page';
 
@@ -444,7 +450,7 @@ export default function PageDetailScreen() {
                 onSaveStateChange={setSaveState}
               />
 
-              <View style={[styles.bodySection, { marginTop: spacing.lg }]}>
+              <View style={[styles.bodySection, { marginTop: spacing.lg, flex: 1 }]}>
                 <MetaLabel size="sm" tone="muted" style={{ marginBottom: spacing.xs }}>
                   Body
                 </MetaLabel>
@@ -498,7 +504,7 @@ const styles = StyleSheet.create({
   wikiDocInner: {
     maxWidth: 780,
     paddingTop: 28,
-    paddingHorizontal: 48,
+    paddingHorizontal: 36,
     paddingBottom: 64,
   },
   missing: {

@@ -17,16 +17,9 @@ type Props = {
 
 type Tab = 'subpages' | 'backlinks' | 'history';
 
-// Right-rail companion panel for the page screen. Mirrors the handoff
-// `.wiki-right` (280px column, border-left) with three tabs:
-//   Sub-pages — child pages (parent_page_id === pageId) + quick add affordance
-//   Backlinks — pages whose body_refs include this page
-//   History  — revision history (not yet built; empty state)
-// Sub-pages is the default because most pages will have children before they
-// get referenced; Backlinks gets its own tab AND a secondary preview under the
-// sub-page list (matching the handoff's combined "Sub-pages" view).
 export function WikiRightPanel({ pageId, worldId }: Props) {
   const [tab, setTab] = useState<Tab>('subpages');
+  const [expanded, setExpanded] = useState(false);
   const allPages = usePagesStore((s) => s.byWorldId[worldId]);
   const sections = useSectionsStore((s) => s.byWorldId[worldId]);
 
@@ -56,7 +49,27 @@ export function WikiRightPanel({ pageId, worldId }: Props) {
     };
   }, [pageId, worldId]);
 
+  const isEmpty = subpages.length === 0 && backlinksLoaded && backlinks.length === 0;
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [pageId]);
+
   const sectionName = (id: string) => sections?.find((s) => s.id === id)?.name ?? '';
+
+  if (isEmpty && !expanded) {
+    return (
+      <View style={styles.collapsedRoot}>
+        <Pressable
+          onPress={() => setExpanded(true)}
+          style={styles.expandPill}
+          accessibilityLabel="Show right panel"
+        >
+          <Icon name="chevron-left" size={14} color={colors.onSurfaceVariant} />
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -68,6 +81,15 @@ export function WikiRightPanel({ pageId, worldId }: Props) {
           onPress={() => setTab('backlinks')}
         />
         <TabButton label="History" active={tab === 'history'} onPress={() => setTab('history')} />
+        {isEmpty ? (
+          <Pressable
+            onPress={() => setExpanded(false)}
+            style={styles.collapseBtn}
+            accessibilityLabel="Collapse panel"
+          >
+            <Icon name="chevron-right" size={14} color={colors.outline} />
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
@@ -216,6 +238,29 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.outlineVariant + '55',
     flexDirection: 'column',
     overflow: 'hidden',
+  },
+  collapsedRoot: {
+    width: 32,
+    backgroundColor: colors.surfaceContainer,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.outlineVariant + '55',
+    alignItems: 'center',
+    paddingTop: spacing.md,
+  },
+  expandPill: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
+  collapseBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tabs: {
     flexDirection: 'row',

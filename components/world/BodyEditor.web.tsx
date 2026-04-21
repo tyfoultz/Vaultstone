@@ -360,6 +360,7 @@ function EditorStyles() {
 
 const styles = StyleSheet.create({
   root: {
+    flex: 1,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '33',
     borderRadius: radius.lg,
@@ -367,6 +368,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   editorFrame: {
+    flex: 1,
     minHeight: 240,
   },
 });

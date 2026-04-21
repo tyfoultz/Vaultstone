@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getCampaignsForWorld } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
@@ -9,13 +10,12 @@ import {
   usePagesStore,
   useSectionsStore,
 } from '@vaultstone/store';
-import { Chip, GhostButton, GradientButton, MetaLabel, Text, colors, spacing } from '@vaultstone/ui';
+import { Chip, GhostButton, GradientButton, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
 import type { Database, WorldSection } from '@vaultstone/types';
 
 import { useActiveSection } from '../../../components/world/ActiveSectionContext';
 import { CreatePageModal } from '../../../components/world/CreatePageModal';
 import { CreateSectionModal } from '../../../components/world/CreateSectionModal';
-import { PageHead } from '../../../components/world/PageHead';
 import {
   WorldSectionAddCard,
   WorldSectionCard,
@@ -83,28 +83,46 @@ export default function WorldLandingScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.container}>
-        <PageHead
-          icon="globe"
-          title={world.name}
-          meta="Chronicle"
-          accentToken="primary"
-        />
-
-        {world.description ? (
-          <Text
-            variant="body-lg"
-            family="serif-body"
-            tone="secondary"
-            style={{
-              marginTop: spacing.md,
-              color: colors.onSurfaceVariant,
-              maxWidth: 720,
-              fontStyle: 'italic',
-            }}
-          >
-            {world.description}
-          </Text>
-        ) : null}
+        {/* Hero banner */}
+        <View style={styles.heroBanner}>
+          {world.cover_image_url ? (
+            <Image source={{ uri: world.cover_image_url }} style={styles.heroImage} resizeMode="cover" />
+          ) : (
+            <LinearGradient
+              colors={[colors.primaryContainer, colors.surfaceContainerLowest]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroPlaceholder}
+            />
+          )}
+          <LinearGradient
+            colors={['transparent', colors.surfaceCanvas]}
+            locations={[0.3, 1]}
+            style={styles.heroScrim}
+          />
+          <View style={styles.heroOverlay}>
+            <Text
+              variant="display-lg"
+              family="serif-display"
+              weight="bold"
+              style={styles.heroTitle}
+              numberOfLines={2}
+            >
+              {world.name}
+            </Text>
+            {world.description ? (
+              <Text
+                variant="body-lg"
+                family="serif-body"
+                tone="secondary"
+                style={styles.heroDescription}
+                numberOfLines={3}
+              >
+                {world.description}
+              </Text>
+            ) : null}
+          </View>
+        </View>
 
         {linkedCampaigns.length > 0 ? (
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
@@ -170,12 +188,70 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceCanvas,
   },
   container: {
-    padding: spacing.xl,
+    maxWidth: 1400,
+    alignSelf: 'center',
+    width: '100%',
+    paddingTop: 28,
+    paddingHorizontal: 36,
     paddingBottom: spacing['2xl'],
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs + 2,
+  },
+  heroBanner: {
+    width: '100%',
+    aspectRatio: 21 / 7,
+    minHeight: 200,
+    maxHeight: 360,
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+    marginBottom: spacing.lg,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  heroImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  heroPlaceholder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  heroScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  heroOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: spacing.xl,
+    paddingBottom: spacing.lg,
+  },
+  heroTitle: {
+    color: colors.onSurface,
+    fontSize: 48,
+    lineHeight: 52,
+    letterSpacing: -1,
+  },
+  heroDescription: {
+    color: colors.onSurfaceVariant,
+    maxWidth: 600,
+    fontStyle: 'italic',
+    marginTop: spacing.sm,
   },
 });
