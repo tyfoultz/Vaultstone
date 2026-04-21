@@ -749,22 +749,24 @@ export default function CharacterSheetScreen() {
 
             {/* ── Stats block ─────────────────────────────────────── */}
             <View style={s.deskStats}>
-              {/* HP — full-width row */}
+              {/* HP card */}
               <TouchableOpacity
-                style={s.deskHpRow}
+                style={s.deskHpCard}
                 onPress={() => canEditAny && setHpModalVisible(true)}
                 onLongPress={() => canEditAny && setHpModalVisible(true)}
                 activeOpacity={0.8}
               >
-                <View style={s.deskHpNums}>
-                  <Text style={[s.deskHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
-                  <Text style={s.deskHpSep}>/</Text>
-                  <Text style={s.deskHpMax}>{stats.hpMax}</Text>
-                  {resources.hpTemp > 0 && <Text style={s.deskHpTemp}>+{resources.hpTemp}</Text>}
+                <View style={s.deskHpCardTop}>
+                  <View style={s.deskHpNums}>
+                    <Text style={[s.deskHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
+                    <Text style={s.deskHpSep}>/</Text>
+                    <Text style={s.deskHpMax}>{stats.hpMax}</Text>
+                    {resources.hpTemp > 0 && <Text style={s.deskHpTemp}>+{resources.hpTemp}</Text>}
+                  </View>
+                  <Text style={s.deskHpCardLabel}>
+                    {showDeathSaves ? 'DEATH SAVES' : isDead ? 'DEAD' : isStabilized ? 'STABLE' : 'HIT POINTS'}
+                  </Text>
                 </View>
-                <Text style={s.deskStatLabel}>
-                  HP{showDeathSaves ? ' · DEATH SAVES' : isDead ? ' · DEAD' : isStabilized ? ' · STABLE' : ''}
-                </Text>
                 <View style={s.deskHpTrack}>
                   <View style={[s.deskHpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
                   {resources.hpTemp > 0 && (
@@ -1700,21 +1702,35 @@ const s = StyleSheet.create({
 
   // Stats block
   deskStats: {
-    paddingHorizontal: 14, paddingVertical: 12,
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
     gap: 8,
   },
-  deskHpRow: { gap: 4 },
+  deskHpCard: {
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10,
+    gap: 10,
+  },
+  deskHpCardTop: {
+    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
+  },
+  deskHpCardLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+    paddingBottom: 2,
+  },
   deskHpNums: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
   deskHpCurrent: {
-    fontSize: 24, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 26,
+    fontSize: 28, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 30,
   },
-  deskHpSep: { fontSize: 13, color: colors.outline, marginHorizontal: 1 },
-  deskHpMax: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '600', color: colors.outline },
-  deskHpTemp: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: '#3B82F6', marginLeft: 3 },
+  deskHpSep: { fontSize: 14, color: colors.outline, marginHorizontal: 2 },
+  deskHpMax: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '600', color: colors.outline },
+  deskHpTemp: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: '#3B82F6', marginLeft: 4 },
   deskHpTrack: {
-    height: 5, borderRadius: 3, marginTop: 4,
+    height: 6, borderRadius: 3,
     backgroundColor: colors.outlineVariant, flexDirection: 'row', overflow: 'hidden',
   },
   deskHpFill: { height: '100%', borderRadius: 3 },
