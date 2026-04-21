@@ -32,6 +32,30 @@ function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function titleCase(s: string) { return s.split(' ').map(capitalize).join(' '); }
 
+function StatCell({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
+  return (
+    <View style={statCellStyle.cell}>
+      <MaterialCommunityIcons name={icon as any} size={16} color={color} style={{ opacity: 0.75 }} />
+      <View style={statCellStyle.text}>
+        <Text style={[statCellStyle.value, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+        <Text style={statCellStyle.label}>{label}</Text>
+      </View>
+    </View>
+  );
+}
+const statCellStyle = StyleSheet.create({
+  cell: {
+    flex: 1,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, paddingVertical: 8, paddingHorizontal: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+  },
+  text: { flex: 1, minWidth: 0, gap: 1 },
+  value: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 17 },
+  label: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.outline },
+});
+
 const SKILL_ABILITY: Record<string, keyof Dnd5eAbilityScores> = {
   acrobatics: 'dexterity', 'animal handling': 'wisdom', arcana: 'intelligence',
   athletics: 'strength', deception: 'charisma', history: 'intelligence',
@@ -791,23 +815,22 @@ export default function CharacterSheetScreen() {
               </View>
               </TouchableOpacity>
 
-              {/* 3×2 stat grid */}
+              {/* Stat grid — AC full row, then 2+2 */}
               <View style={s.deskStatGrid}>
-                {([
-                  { label: 'Armor Class', icon: 'shield-outline',   value: String(ac),           color: colors.secondary },
-                  { label: 'Initiative',  icon: 'lightning-bolt',    value: fmtMod(initiative),   color: colors.onSurface },
-                  { label: 'Speed',       icon: 'run-fast',          value: `${stats.speed} ft`,  color: colors.onSurface },
-                  { label: 'Hit Die',     icon: 'dice-d8-outline',   value: `d${stats.hitDie}`,   color: colors.onSurface },
-                  { label: 'Prof Bonus',  icon: 'star-four-points',  value: fmtMod(prof),         color: colors.onSurface },
-                ] as const).map(({ label, icon, value, color }) => (
-                  <View key={label} style={s.deskStatCell}>
-                    <MaterialCommunityIcons name={icon as any} size={18} color={color} style={{ opacity: 0.75 }} />
-                    <View style={s.deskStatText}>
-                      <Text style={[s.deskStatValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
-                      <Text style={s.deskStatLabel}>{label}</Text>
-                    </View>
-                  </View>
-                ))}
+                {/* Row 1: AC solo */}
+                <View style={s.deskStatRow}>
+                  <StatCell icon="shield-outline" value={String(ac)} label="Armor Class" color={colors.secondary} />
+                </View>
+                {/* Row 2: Speed | Initiative */}
+                <View style={s.deskStatRow}>
+                  <StatCell icon="run-fast"       value={`${stats.speed} ft`} label="Speed"      color={colors.onSurface} />
+                  <StatCell icon="lightning-bolt" value={fmtMod(initiative)}  label="Initiative" color={colors.onSurface} />
+                </View>
+                {/* Row 3: Prof | Hit Die */}
+                <View style={s.deskStatRow}>
+                  <StatCell icon="star-four-points" value={fmtMod(prof)}       label="Prof"    color={colors.onSurface} />
+                  <StatCell icon="dice-d8-outline"  value={`d${stats.hitDie}`} label="Hit Die" color={colors.onSurface} />
+                </View>
               </View>
             </View>
 
@@ -1757,26 +1780,8 @@ const s = StyleSheet.create({
   deskHpInspiredLabel: {
     fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.gm,
   },
-  deskStatGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
-  },
-  deskStatCell: {
-    flex: 1, minWidth: '28%',
-    backgroundColor: colors.surfaceContainer,
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, paddingVertical: 8, paddingHorizontal: 8,
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-  },
-  deskStatText: {
-    flex: 1, flexDirection: 'column', gap: 1, minWidth: 0,
-  },
-  deskStatValue: {
-    fontSize: 14, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 17,
-  },
-  deskStatLabel: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
-  },
+  deskStatGrid: { gap: 6 },
+  deskStatRow: { flexDirection: 'row', gap: 6 },
 
   // Horizontal tab bar (top of right pane)
   deskTabBar: {
