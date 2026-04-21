@@ -15,3 +15,4 @@ export * from './world-permissions';
 export * from './maps';
 export * from './pins';
 export * from './pin-types';
+export * from './timeline-events';

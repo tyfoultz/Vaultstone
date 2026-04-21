@@ -1,0 +1,365 @@
+import { useMemo, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  createTimelineEvent,
+  updateTimelineEvent,
+  trashTimelineEvent,
+} from '@vaultstone/api';
+import { useTimelineEventsStore } from '@vaultstone/store';
+import type { EraDefinition, Json, TimelineCalendarSchema, TimelineEvent } from '@vaultstone/types';
+import { Card, GradientButton, GhostButton, Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
+
+type Props = {
+  worldId: string;
+  timelinePageId: string;
+  schema: TimelineCalendarSchema;
+  event: TimelineEvent | null;
+  defaultEra?: string;
+  onClose: () => void;
+};
+
+export function EventEditorModal({
+  worldId,
+  timelinePageId,
+  schema,
+  event,
+  defaultEra,
+  onClose,
+}: Props) {
+  const isEdit = event !== null;
+  const [title, setTitle] = useState(event?.title ?? '');
+  const [dateValues, setDateValues] = useState<Record<string, string>>(() => {
+    if (event?.date_values && typeof event.date_values === 'object') {
+      return event.date_values as Record<string, string>;
+    }
+    if (defaultEra) return { era: defaultEra };
+    return {};
+  });
+  const [description, setDescription] = useState(event?.body_text ?? '');
+  const [tagsText, setTagsText] = useState(() => {
+    const t = (event as TimelineEvent & { tags?: string[] })?.tags ?? [];
+    return t.join(', ');
+  });
+  const [visibleToPlayers, setVisibleToPlayers] = useState(event?.visible_to_players ?? true);
+  const [saving, setSaving] = useState(false);
+
+  const selectedEraKey = dateValues.era ?? '';
+  const selectedEra = useMemo(
+    () => schema.eras.find((e) => e.key === selectedEraKey) ?? null,
+    [schema.eras, selectedEraKey],
+  );
+
+  const addEvent = useTimelineEventsStore((s) => s.addEvent);
+  const updateEvent = useTimelineEventsStore((s) => s.updateEvent);
+  const removeEvent = useTimelineEventsStore((s) => s.removeEvent);
+
+  const parsedTags = tagsText.split(',').map((t) => t.trim()).filter(Boolean);
+
+  const [dateErrors, setDateErrors] = useState<Record<string, string>>({});
+
+  const updateDateField = (key: string, value: string, unitType?: string) => {
+    if (unitType === 'number') {
+      const cleaned = value.replace(/[^0-9\-]/g, '');
+      if (value !== cleaned) {
+        setDateErrors((prev) => ({ ...prev, [key]: 'Numbers only' }));
+        setTimeout(() => setDateErrors((prev) => { const { [key]: _, ...rest } = prev; return rest; }), 2000);
+      } else {
+        setDateErrors((prev) => { const { [key]: _, ...rest } = prev; return rest; });
+      }
+      setDateValues((prev) => ({ ...prev, [key]: cleaned }));
+    } else {
+      setDateErrors((prev) => { const { [key]: _, ...rest } = prev; return rest; });
+      setDateValues((prev) => ({ ...prev, [key]: value }));
+    }
+  };
+
+  const selectEra = (era: EraDefinition) => {
+    if (selectedEraKey === era.key) {
+      setDateValues((prev) => { const { era: _, ...rest } = prev; return rest; });
+    } else {
+      setDateValues({ era: era.key });
+    }
+  };
+
+  const handleSave = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+
+    const bodyDoc = description.trim()
+      ? {
+          type: 'doc',
+          content: description.split(/\n{2,}/).map((p) => ({
+            type: 'paragraph',
+            content: p.trim() ? [{ type: 'text', text: p.trim() }] : [],
+          })),
+        }
+      : {};
+
+    if (isEdit) {
+      const { data } = await updateTimelineEvent(event.id, {
+        title: title.trim(),
+        date_values: dateValues as Json,
+        visible_to_players: visibleToPlayers,
+        body: bodyDoc as Json,
+        body_text: description.trim() || null,
+        tags: parsedTags,
+      });
+      if (data) updateEvent(data.id, data as TimelineEvent);
+    } else {
+      const { data } = await createTimelineEvent({
+        timelinePageId,
+        worldId,
+        title: title.trim(),
+        dateValues: dateValues as Json,
+        visibleToPlayers,
+        body: bodyDoc as Json,
+        bodyText: description.trim() || undefined,
+        tags: parsedTags,
+      });
+      if (data) addEvent(data as TimelineEvent);
+    }
+
+    setSaving(false);
+    onClose();
+  };
+
+  const handleDelete = async () => {
+    if (!event) return;
+    await trashTimelineEvent(event.id);
+    removeEvent(event.id);
+    onClose();
+  };
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.backdrop}>
+        <Card tier="high" padding="lg" style={styles.modal}>
+          <View style={styles.header}>
+            <Text variant="label-lg" weight="semibold">
+              {isEdit ? 'Edit Event' : 'Add Event'}
+            </Text>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Icon name="close" size={20} color={colors.onSurfaceVariant} />
+            </Pressable>
+          </View>
+
+          <ScrollView style={styles.body} contentContainerStyle={styles.bodyInner}>
+            {/* Title */}
+            <View style={styles.field}>
+              <Text variant="label-md" tone="secondary">Title</Text>
+              <TextInput
+                style={styles.input}
+                value={title}
+                onChangeText={setTitle}
+                placeholder="Event title"
+                placeholderTextColor={colors.outlineVariant}
+              />
+            </View>
+
+            {/* Era picker */}
+            {schema.eras.length > 0 ? (
+              <View style={styles.field}>
+                <Text variant="label-md" tone="secondary">Era</Text>
+                <View style={styles.eraChips}>
+                  {schema.eras.filter((e) => e.label).map((era) => (
+                    <Pressable
+                      key={era.key}
+                      onPress={() => selectEra(era)}
+                      style={[styles.eraChip, selectedEraKey === era.key && styles.eraChipActive]}
+                    >
+                      <Text
+                        variant="label-md"
+                        style={{
+                          color: selectedEraKey === era.key ? colors.primary : colors.onSurfaceVariant,
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        {era.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {/* Era-specific date levels */}
+            {selectedEra && selectedEra.dateLevels.length > 0 ? (
+              <View style={styles.field}>
+                <Text variant="label-md" tone="secondary">Date</Text>
+                <View style={styles.dateFields}>
+                  {selectedEra.dateLevels.map((unit) => (
+                    <View key={unit.key} style={styles.dateFieldRow}>
+                      <Text variant="label-sm" tone="muted" style={{ width: 80 }}>
+                        {unit.label}
+                      </Text>
+                      {unit.type === 'ordered_list' && unit.options ? (
+                        <View style={styles.optionChips}>
+                          {unit.options.map((opt) => (
+                            <Pressable
+                              key={opt}
+                              onPress={() => updateDateField(unit.key, dateValues[unit.key] === opt ? '' : opt)}
+                              style={[
+                                styles.optionChip,
+                                dateValues[unit.key] === opt && styles.optionChipActive,
+                              ]}
+                            >
+                              <Text
+                                variant="label-sm"
+                                style={{
+                                  color: dateValues[unit.key] === opt ? colors.cosmic : colors.onSurfaceVariant,
+                                }}
+                              >
+                                {opt}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ) : (
+                        <View style={{ flex: 1, gap: 2 }}>
+                          <TextInput
+                            style={[
+                              styles.dateInput,
+                              dateErrors[unit.key] ? styles.dateInputError : undefined,
+                            ]}
+                            value={dateValues[unit.key] ?? ''}
+                            onChangeText={(v) => updateDateField(unit.key, v, unit.type)}
+                            placeholder={unit.type === 'number' ? `${unit.label} (number)` : unit.label}
+                            placeholderTextColor={colors.outlineVariant}
+                            keyboardType={unit.type === 'number' ? 'numeric' : 'default'}
+                            inputMode={unit.type === 'number' ? 'numeric' : 'text'}
+                          />
+                          {dateErrors[unit.key] ? (
+                            <Text variant="label-sm" style={styles.dateErrorText}>
+                              {dateErrors[unit.key]}
+                            </Text>
+                          ) : null}
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {/* Description */}
+            <View style={styles.field}>
+              <Text variant="label-md" tone="secondary">Description</Text>
+              <TextInput
+                style={[styles.input, styles.descInput]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="A short description of this event…"
+                placeholderTextColor={colors.outlineVariant}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Tags */}
+            <View style={styles.field}>
+              <Text variant="label-md" tone="secondary">Tags</Text>
+              <TextInput
+                style={styles.input}
+                value={tagsText}
+                onChangeText={setTagsText}
+                placeholder="Comma-separated (e.g. Combat, Founding)"
+                placeholderTextColor={colors.outlineVariant}
+              />
+              {parsedTags.length > 0 ? (
+                <View style={styles.tagPreview}>
+                  {parsedTags.map((tag) => (
+                    <View key={tag} style={styles.tagChip}>
+                      <Text variant="label-sm" uppercase weight="bold" style={styles.tagChipText}>
+                        {tag}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+
+            {/* Visibility */}
+            <Pressable
+              style={styles.visibilityRow}
+              onPress={() => setVisibleToPlayers(!visibleToPlayers)}
+            >
+              <Icon
+                name={visibleToPlayers ? 'visibility' : 'visibility-off'}
+                size={18}
+                color={visibleToPlayers ? colors.player : colors.gm}
+              />
+              <Text variant="label-md">
+                {visibleToPlayers ? 'Visible to players' : 'GM only'}
+              </Text>
+            </Pressable>
+          </ScrollView>
+
+          <View style={styles.footer}>
+            {isEdit ? <GhostButton label="Delete" onPress={handleDelete} /> : <View />}
+            <GradientButton
+              label={saving ? 'Saving…' : isEdit ? 'Save' : 'Add Event'}
+              onPress={handleSave}
+              disabled={saving || !title.trim()}
+            />
+          </View>
+        </Card>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: spacing.xl,
+  },
+  modal: { width: '100%', maxWidth: 520, maxHeight: '85%', gap: spacing.lg },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  body: { flex: 1, minHeight: 0 },
+  bodyInner: { gap: spacing.lg },
+  field: { gap: spacing.xs },
+  input: {
+    color: colors.onSurface, fontSize: 15,
+    paddingVertical: 10, paddingHorizontal: spacing.md,
+    borderWidth: 1, borderColor: colors.outlineVariant + '55',
+    borderRadius: radius.lg, backgroundColor: colors.surfaceCanvas,
+  },
+  descInput: { minHeight: 80, textAlignVertical: 'top' },
+  eraChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  eraChip: {
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.xl, borderWidth: 1,
+    borderColor: colors.outlineVariant + '55', backgroundColor: colors.surfaceCanvas,
+  },
+  eraChipActive: { borderColor: colors.primary + '88', backgroundColor: colors.primaryContainer + '55' },
+  dateFields: { gap: spacing.sm },
+  dateFieldRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  dateInput: {
+    color: colors.onSurface, fontSize: 14,
+    paddingVertical: 8, paddingHorizontal: spacing.sm,
+    borderWidth: 1, borderColor: colors.outlineVariant + '44',
+    borderRadius: radius.DEFAULT, backgroundColor: colors.surfaceCanvas,
+  },
+  dateInputError: {
+    borderColor: colors.hpDanger + '88',
+  },
+  dateErrorText: {
+    color: colors.hpDanger, fontSize: 10,
+  },
+  optionChips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  optionChip: {
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: radius.DEFAULT, borderWidth: 1, borderColor: colors.outlineVariant + '44',
+  },
+  optionChipActive: { borderColor: colors.cosmic, backgroundColor: colors.cosmicContainer + '33' },
+  visibilityRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs,
+  },
+  tagPreview: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs },
+  tagChip: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 3,
+    borderWidth: 1, borderColor: colors.cosmic + '66', backgroundColor: colors.cosmicContainer + '44',
+  },
+  tagChipText: { color: colors.cosmic, fontSize: 9, letterSpacing: 0.8 },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+});

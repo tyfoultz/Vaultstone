@@ -5,10 +5,13 @@ import { updateSessionSummary } from '@vaultstone/api';
 import { useRecapDraftStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import { RichTextEditor } from '../RichTextEditor';
+import { AddToWorldTimelineButton } from './AddToWorldTimelineButton';
 import { usePanelPresence } from './usePanelPresence';
 
 interface Props {
   sessionId: string;
+  campaignId?: string;
+  sessionLabel?: string;
   publishedSummary: string | null;
   isLive: boolean;
   mode: 'dock' | 'popout';
@@ -21,7 +24,7 @@ function fmtSavedAt(iso: string | null): string {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-export function RecapEditorPanel({ sessionId, publishedSummary, isLive, mode, onPublished }: Props) {
+export function RecapEditorPanel({ sessionId, campaignId, sessionLabel, publishedSummary, isLive, mode, onPublished }: Props) {
   const draft = useRecapDraftStore((s) => s.bySessionId[sessionId] ?? null);
   const setDraft = useRecapDraftStore((s) => s.setDraft);
   const clearDraft = useRecapDraftStore((s) => s.clearDraft);
@@ -112,6 +115,14 @@ export function RecapEditorPanel({ sessionId, publishedSummary, isLive, mode, on
       </View>
       <View style={styles.footer}>
         <Text style={styles.status}>{status}</Text>
+        {campaignId && publishedSummary ? (
+          <AddToWorldTimelineButton
+            campaignId={campaignId}
+            sessionId={sessionId}
+            sessionLabel={sessionLabel ?? `Session recap`}
+            publishedSummary={publishedSummary}
+          />
+        ) : null}
         <TouchableOpacity
           onPress={handlePublish}
           disabled={publishing || body.trim().length === 0 || readOnly}

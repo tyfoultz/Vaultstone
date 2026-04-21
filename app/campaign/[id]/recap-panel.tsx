@@ -136,6 +136,7 @@ export default function RecapPanelPopoutScreen() {
         {panel === 'recap' && (
           <RecapEditorPanel
             sessionId={session.id}
+            campaignId={campaignId}
             publishedSummary={session.summary}
             isLive={isLive}
             mode="popout"

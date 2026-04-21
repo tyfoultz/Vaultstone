@@ -10,6 +10,7 @@ interface SessionMeta {
   id: string;
   summary: string | null;
   isLive: boolean;
+  label?: string;
 }
 
 interface Props {
@@ -23,12 +24,13 @@ interface Props {
 // Native devices (phones / tablets) get a stacked single-column layout — the
 // drag-to-rearrange dock is web-only because the libraries powering it are
 // React DOM. Pop-out is also a no-op here (no concept of separate windows).
-export function RecapDock({ session, dmUserId, displayNameByUserId, onSummaryPublished }: Props) {
+export function RecapDock({ campaignId, session, dmUserId, displayNameByUserId, onSummaryPublished }: Props) {
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <Section icon="text-box-outline" title="Recap">
         <RecapEditorPanel
           sessionId={session.id}
+          campaignId={campaignId}
           publishedSummary={session.summary}
           isLive={session.isLive}
           mode="dock"

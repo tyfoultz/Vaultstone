@@ -3,10 +3,12 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   claimPageEdit,
+  getEventsForTimeline,
   listMaps,
   listPinsForWorld,
   listPinTypes,
   releasePageEdit,
+  trashPage,
   updatePage,
   type MapPin,
   type PinType,
@@ -32,18 +34,19 @@ import {
 
 import { useActiveSection } from '../../../../components/world/ActiveSectionContext';
 import { BodyEditor } from '../../../../components/world/BodyEditor';
-import type { MentionPinItem } from '../../../../components/world/MentionSuggestion.web';
+import type { MentionPinItem, MentionEventItem } from '../../../../components/world/MentionSuggestion.web';
 import { EditLockBanner } from '../../../../components/world/EditLockBanner';
 import { PageHead } from '../../../../components/world/PageHead';
 import { OrphanBanner } from '../../../../components/world/OrphanBanner';
 import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle';
 import { ShareModal } from '../../../../components/world/ShareModal';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
+import { TimelinePageView } from '../../../../components/world/TimelinePageView';
 import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
 import { usePageVisibilityToggle } from '../../../../components/world/usePageVisibilityToggle';
-import { worldHref, worldMapHref, worldPageHref } from '../../../../components/world/worldHref';
+import { worldHref, worldMapHref, worldPageHref, worldSectionHref } from '../../../../components/world/worldHref';
 import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 
 // Re-claim the lock every 30s so our editing_since stays within the server-
@@ -52,6 +55,7 @@ import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 const LOCK_HEARTBEAT_MS = 30_000;
 
 const EMPTY_PAGES: WorldPage[] = [];
+const EMPTY_MENTION_EVENTS: MentionEventItem[] = [];
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -88,6 +92,8 @@ export default function PageDetailScreen() {
   const toggleVisibility = usePageVisibilityToggle(page ?? null);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const removePage = usePagesStore((s) => s.removePage);
 
   // Mention popover can link to pins as well as pages. We fetch pins +
   // their owning maps + pin types once per world so the @ suggestion list
@@ -130,6 +136,42 @@ export default function PageDetailScreen() {
         };
       });
   }, [worldPins, worldMaps, pinTypes]);
+
+  // Timeline events for the @ mention popover. Fetch events from all timeline
+  // pages in this world so any event is mentionable from any page.
+  const [mentionableEvents, setMentionableEvents] = useState<MentionEventItem[]>(EMPTY_MENTION_EVENTS);
+  const timelinePages = useMemo(
+    () => (allPages ?? EMPTY_PAGES).filter((p) => p.page_kind === 'timeline'),
+    [allPages],
+  );
+  useEffect(() => {
+    if (timelinePages.length === 0) {
+      setMentionableEvents(EMPTY_MENTION_EVENTS);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(timelinePages.map((tp) => getEventsForTimeline(tp.id))).then(
+      (results) => {
+        if (cancelled) return;
+        const items: MentionEventItem[] = [];
+        results.forEach((res, idx) => {
+          const tp = timelinePages[idx];
+          for (const ev of (res.data ?? []) as { id: string; title: string; timeline_page_id: string }[]) {
+            items.push({
+              id: tp.id,
+              eventId: ev.id,
+              label: ev.title,
+              timelineTitle: tp.title,
+              icon: 'calendar-days',
+            });
+          }
+        });
+        setMentionableEvents(items);
+      },
+    );
+    return () => { cancelled = true; };
+  }, [timelinePages]);
+
   // Lock state derived from `page` is authoritative for "who holds the lock
   // right now" (updated via claim RPC's RETURNING row + optimistic store
   // write). `lockError` captures the most recent claim failure so we can
@@ -250,6 +292,17 @@ export default function PageDetailScreen() {
     }, 800);
   }
 
+  async function handleDeletePage() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    if (!pageId || !page) return;
+    await trashPage(pageId);
+    removePage(pageId);
+    router.replace(worldSectionHref(worldId!, page.section_id));
+  }
+
   if (!world || !worldId || !pageId) return null;
 
   if (!page || !section) {
@@ -270,6 +323,11 @@ export default function PageDetailScreen() {
     );
   }
 
+  // Timeline pages get their own dedicated view
+  if (page.page_kind === 'timeline') {
+    return <TimelinePageView page={page} worldId={worldId} />;
+  }
+
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);
   const kindLabel = PAGE_KIND_LABEL[page.page_kind] ?? 'Page';
 
@@ -286,30 +344,62 @@ export default function PageDetailScreen() {
           <>
             <PlayerViewToggle />
             {isWorldOwner ? (
-              <Pressable
-                onPress={() => setShareOpen(true)}
-                style={styles.shareBtn}
-                accessibilityLabel="Share page"
-              >
-                <Icon name="share" size={14} color={colors.onSurfaceVariant} />
-                <Text
-                  variant="label-md"
-                  uppercase
-                  weight="semibold"
-                  style={{
-                    color: colors.onSurfaceVariant,
-                    letterSpacing: 1,
-                    fontSize: 11,
-                  }}
+              <>
+                <Pressable
+                  onPress={() => setShareOpen(true)}
+                  style={styles.shareBtn}
+                  accessibilityLabel="Share page"
                 >
-                  Share
-                </Text>
-              </Pressable>
+                  <Icon name="share" size={14} color={colors.onSurfaceVariant} />
+                  <Text
+                    variant="label-md"
+                    uppercase
+                    weight="semibold"
+                    style={{
+                      color: colors.onSurfaceVariant,
+                      letterSpacing: 1,
+                      fontSize: 11,
+                    }}
+                  >
+                    Share
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleDeletePage}
+                  accessibilityLabel="Delete page"
+                  hitSlop={8}
+                >
+                  <Icon
+                    name="delete-outline"
+                    size={18}
+                    color={confirmDelete ? colors.hpDanger : colors.outlineVariant}
+                  />
+                </Pressable>
+              </>
             ) : null}
             <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
           </>
         }
       />
+
+      {confirmDelete ? (
+        <View style={styles.deleteBanner}>
+          <Text variant="body-sm" style={{ color: colors.hpDanger, flex: 1 }}>
+            Delete this page and all sub-pages? Recoverable for 30 days.
+          </Text>
+          <Pressable onPress={() => setConfirmDelete(false)} style={styles.deleteBannerBtn}>
+            <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+              Cancel
+            </Text>
+          </Pressable>
+          <Pressable onPress={handleDeletePage} style={[styles.deleteBannerBtn, styles.deleteBannerConfirm]}>
+            <Icon name="delete" size={14} color={colors.hpDanger} />
+            <Text variant="label-md" weight="semibold" style={{ color: colors.hpDanger }}>
+              Confirm delete
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.wikiWrap}>
         <ScrollView style={styles.wikiDoc} contentContainerStyle={styles.wikiDocInner}>
@@ -359,6 +449,7 @@ export default function PageDetailScreen() {
                   placeholder={`Begin the chronicle of ${page.title}…`}
                   mentionablePages={mentionablePages}
                   mentionablePins={mentionablePins}
+                  mentionableEvents={mentionableEvents}
                   getSectionLabel={sectionLabelById}
                   onMentionClick={(targetPageId) =>
                     router.push(worldPageHref(worldId, targetPageId))
@@ -423,5 +514,27 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '55',
+  },
+  deleteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.dangerContainer + '44',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hpDanger + '33',
+  },
+  deleteBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.lg,
+  },
+  deleteBannerConfirm: {
+    borderWidth: 1,
+    borderColor: colors.hpDanger + '55',
   },
 });

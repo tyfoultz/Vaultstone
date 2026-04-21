@@ -20,6 +20,7 @@ interface SessionMeta {
   id: string;
   summary: string | null;
   isLive: boolean;
+  label?: string;
 }
 
 interface Props {
@@ -50,6 +51,8 @@ export function RecapDock({ campaignId, session, dmUserId, displayNameByUserId, 
       return (
         <RecapEditorPanel
           sessionId={session.id}
+          campaignId={campaignId}
+          sessionLabel={session.label}
           publishedSummary={session.summary}
           isLive={session.isLive}
           mode="dock"

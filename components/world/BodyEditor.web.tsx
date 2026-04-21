@@ -8,7 +8,7 @@ import { colors, radius, spacing } from '@vaultstone/ui';
 
 import { BodyEditorToolbar } from './BodyEditorToolbar';
 import { VaultstoneMention } from './MentionExtension';
-import { createMentionSuggestion, type MentionPinItem } from './MentionSuggestion.web';
+import { createMentionSuggestion, type MentionPinItem, type MentionEventItem } from './MentionSuggestion.web';
 
 type Props = {
   initialContent: object | null;
@@ -17,6 +17,7 @@ type Props = {
   placeholder?: string;
   mentionablePages?: WorldPage[];
   mentionablePins?: MentionPinItem[];
+  mentionableEvents?: MentionEventItem[];
   getSectionLabel?: (sectionId: string) => string;
   onMentionClick?: (pageId: string) => void;
   onPinMentionClick?: (pinId: string, mapId: string) => void;
@@ -32,6 +33,7 @@ export function BodyEditor({
   placeholder,
   mentionablePages,
   mentionablePins,
+  mentionableEvents,
   getSectionLabel,
   onMentionClick,
   onPinMentionClick,
@@ -55,6 +57,7 @@ export function BodyEditor({
   // re-renders.
   const pagesRef = useRef<WorldPage[]>(mentionablePages ?? []);
   const pinsRef = useRef<MentionPinItem[]>(mentionablePins ?? []);
+  const eventsRef = useRef<MentionEventItem[]>(mentionableEvents ?? []);
   const sectionLabelRef = useRef<(id: string) => string>(getSectionLabel ?? (() => ''));
   useEffect(() => {
     pagesRef.current = mentionablePages ?? [];
@@ -62,6 +65,9 @@ export function BodyEditor({
   useEffect(() => {
     pinsRef.current = mentionablePins ?? [];
   }, [mentionablePins]);
+  useEffect(() => {
+    eventsRef.current = mentionableEvents ?? [];
+  }, [mentionableEvents]);
   useEffect(() => {
     sectionLabelRef.current = getSectionLabel ?? (() => '');
   }, [getSectionLabel]);
@@ -73,6 +79,7 @@ export function BodyEditor({
         () => pagesRef.current,
         (id) => sectionLabelRef.current(id),
         () => pinsRef.current,
+        () => eventsRef.current,
       ),
     }),
   ).current;
