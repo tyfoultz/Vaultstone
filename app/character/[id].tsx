@@ -749,23 +749,20 @@ export default function CharacterSheetScreen() {
 
             {/* ── Stats block ─────────────────────────────────────── */}
             <View style={s.deskStats}>
-              {/* HP card */}
+              {/* HP section */}
+              <Text style={s.deskHpSectionLabel}>
+                {showDeathSaves ? 'Death Saves' : isDead ? 'Dead' : isStabilized ? 'Stable' : 'Hit Points'}
+              </Text>
               <TouchableOpacity
-                style={s.deskHpCard}
+                style={s.deskHpRow}
                 onPress={() => canEditAny && setHpModalVisible(true)}
                 onLongPress={() => canEditAny && setHpModalVisible(true)}
                 activeOpacity={0.8}
               >
-                <View style={s.deskHpCardTop}>
-                  <View style={s.deskHpNums}>
-                    <Text style={[s.deskHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
-                    <Text style={s.deskHpSep}>/</Text>
-                    <Text style={s.deskHpMax}>{stats.hpMax}</Text>
-                    {resources.hpTemp > 0 && <Text style={s.deskHpTemp}>+{resources.hpTemp}</Text>}
-                  </View>
-                  <Text style={s.deskHpCardLabel}>
-                    {showDeathSaves ? 'DEATH SAVES' : isDead ? 'DEAD' : isStabilized ? 'STABLE' : 'HIT POINTS'}
-                  </Text>
+                <View style={s.deskHpNums}>
+                  <Text style={[s.deskHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
+                  <Text style={s.deskHpSep}>/</Text>
+                  <Text style={s.deskHpMax}>{stats.hpMax}</Text>
                 </View>
                 <View style={s.deskHpTrack}>
                   <View style={[s.deskHpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
@@ -773,6 +770,17 @@ export default function CharacterSheetScreen() {
                     <View style={[s.deskHpTempFill, {
                       width: `${Math.min((1 - hpRatio) * 100, (resources.hpTemp / stats.hpMax) * 100)}%` as any,
                     }]} />
+                  )}
+                </View>
+                <View style={s.deskHpMeta}>
+                  {resources.hpTemp > 0
+                    ? <Text style={s.deskHpTempLabel}>+{resources.hpTemp} temp</Text>
+                    : <View />}
+                  {resources.inspiration && (
+                    <View style={s.deskHpInspired}>
+                      <MaterialCommunityIcons name="star" size={11} color={colors.gm} />
+                      <Text style={s.deskHpInspiredLabel}>Inspired</Text>
+                    </View>
                   )}
                 </View>
               </TouchableOpacity>
@@ -1702,26 +1710,16 @@ const s = StyleSheet.create({
 
   // Stats block
   deskStats: {
-    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 14,
+    paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
-    gap: 8,
+    gap: 4,
   },
-  deskHpCard: {
-    backgroundColor: colors.surfaceContainer,
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg,
-    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10,
-    gap: 10,
-  },
-  deskHpCardTop: {
-    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
-  },
-  deskHpCardLabel: {
+  deskHpSectionLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
-    paddingBottom: 2,
   },
+  deskHpRow: { gap: 6 },
   deskHpNums: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
   deskHpCurrent: {
     fontSize: 28, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 30,
@@ -1730,11 +1728,23 @@ const s = StyleSheet.create({
   deskHpMax: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '600', color: colors.outline },
   deskHpTemp: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: '#3B82F6', marginLeft: 4 },
   deskHpTrack: {
-    height: 6, borderRadius: 3,
+    height: 5, borderRadius: 3,
     backgroundColor: colors.outlineVariant, flexDirection: 'row', overflow: 'hidden',
   },
   deskHpFill: { height: '100%', borderRadius: 3 },
   deskHpTempFill: { height: '100%', backgroundColor: '#3B82F6' },
+  deskHpMeta: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  deskHpTempLabel: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: '#3B82F6',
+  },
+  deskHpInspired: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+  },
+  deskHpInspiredLabel: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.gm,
+  },
   deskStatGrid: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 6,
   },
