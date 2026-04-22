@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -106,13 +106,13 @@ export default function WorldLandingScreen() {
     });
   }, [worldId]);
 
-  const pageCounts = useMemo(() => {
+  const { pageCounts, totalPages } = useMemo(() => {
     const counts: Record<string, number> = {};
     const pages = pagesByWorld ?? [];
     for (const p of pages) {
       counts[p.section_id] = (counts[p.section_id] ?? 0) + 1;
     }
-    return counts;
+    return { pageCounts: counts, totalPages: pages.length };
   }, [pagesByWorld]);
 
   if (!world || !worldId) return null;
@@ -139,16 +139,12 @@ export default function WorldLandingScreen() {
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* Hero banner */}
-        <Pressable
-          onPress={isOwner ? handlePickCover : undefined}
-          disabled={!isOwner || uploading}
-          style={styles.heroBanner}
-        >
+        <View style={styles.heroBanner}>
           {world.cover_image_url ? (
             <Image source={{ uri: world.cover_image_url }} style={styles.heroImage} resizeMode="cover" />
           ) : (
             <LinearGradient
-              colors={[colors.primaryContainer, colors.surfaceContainerLowest]}
+              colors={[colors.primaryContainer + '44', colors.surfaceContainerLowest]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.heroPlaceholder}
@@ -159,7 +155,62 @@ export default function WorldLandingScreen() {
             locations={[0.3, 1]}
             style={styles.heroScrim}
           />
+
+          {/* Top toolbar */}
+          <View style={styles.heroToolbar}>
+            {!world.cover_image_url ? (
+              <View style={styles.placeholderBadge}>
+                <Icon name="auto-fix-high" size={14} color={colors.onSurfaceVariant} />
+                <Text
+                  variant="label-sm"
+                  weight="semibold"
+                  uppercase
+                  style={{ color: colors.onSurfaceVariant, letterSpacing: 1.2 }}
+                >
+                  Placeholder cover
+                </Text>
+              </View>
+            ) : (
+              <View />
+            )}
+            {isOwner ? (
+              <View style={styles.heroActions}>
+                {!world.cover_image_url && world.thumbnail_url ? (
+                  <GhostButton
+                    label="Use sidebar image"
+                    icon="content-copy"
+                    onPress={handleCopyFromSidebar}
+                    style={styles.heroBtnCompact}
+                  />
+                ) : null}
+                <GhostButton
+                  label="Change cover"
+                  icon="edit"
+                  onPress={handlePickCover}
+                  loading={uploading}
+                  style={styles.heroBtnCompact}
+                />
+              </View>
+            ) : null}
+          </View>
+
+          {/* Bottom overlay */}
           <View style={styles.heroOverlay}>
+            <Text
+              variant="label-sm"
+              weight="semibold"
+              uppercase
+              style={styles.heroMeta}
+            >
+              {[
+                'Chronicle',
+                `${sections.length} section${sections.length !== 1 ? 's' : ''}`,
+                `${totalPages} page${totalPages !== 1 ? 's' : ''}`,
+                ...(linkedCampaigns.length > 0
+                  ? [`${linkedCampaigns.length} campaign${linkedCampaigns.length !== 1 ? 's' : ''}`]
+                  : []),
+              ].join('  ·  ')}
+            </Text>
             <Text
               variant="display-lg"
               family="serif-display"
@@ -181,35 +232,7 @@ export default function WorldLandingScreen() {
               </Text>
             ) : null}
           </View>
-          {isOwner && !world.cover_image_url && !uploading ? (
-            <View style={styles.coverHintRow}>
-              <View style={styles.coverHint}>
-                <Icon name="add-a-photo" size={20} color={colors.onSurfaceVariant} />
-                <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
-                  Add banner image
-                </Text>
-              </View>
-              {world.thumbnail_url ? (
-                <Pressable onPress={handleCopyFromSidebar} style={styles.coverHint}>
-                  <Icon name="content-copy" size={16} color={colors.primary} />
-                  <Text variant="label-md" style={{ color: colors.primary }}>
-                    Use sidebar image
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-          {isOwner && world.cover_image_url && !uploading ? (
-            <View style={styles.coverEditBtn}>
-              <Icon name="photo-camera" size={16} color="#fff" />
-            </View>
-          ) : null}
-          {uploading ? (
-            <View style={styles.coverHint}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          ) : null}
-        </Pressable>
+        </View>
 
         {cropUri ? (
           <ImageCropModal
@@ -331,6 +354,38 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  heroToolbar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: spacing.md,
+    zIndex: 2,
+  },
+  placeholderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '66',
+    backgroundColor: colors.surfaceContainerHigh + '99',
+  },
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  heroBtnCompact: {
+    height: 36,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surfaceContainerHigh + '99',
+  },
   heroOverlay: {
     position: 'absolute',
     bottom: 0,
@@ -338,6 +393,11 @@ const styles = StyleSheet.create({
     right: 0,
     padding: spacing.xl,
     paddingBottom: spacing.lg,
+  },
+  heroMeta: {
+    color: colors.primary,
+    letterSpacing: 1.5,
+    marginBottom: spacing.xs,
   },
   heroTitle: {
     color: colors.onSurface,
@@ -350,32 +410,5 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     fontStyle: 'italic',
     marginTop: spacing.sm,
-  },
-  coverHintRow: {
-    position: 'absolute',
-    top: spacing.md,
-    right: spacing.md,
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  coverHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceContainerHigh + 'CC',
-  },
-  coverEditBtn: {
-    position: 'absolute',
-    top: spacing.md,
-    right: spacing.md,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
