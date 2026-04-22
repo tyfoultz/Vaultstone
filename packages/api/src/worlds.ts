@@ -40,6 +40,7 @@ export async function updateWorld(
     name: string;
     description: string | null;
     cover_image_url: string | null;
+    thumbnail_url: string | null;
     is_archived: boolean;
   }>,
 ) {
@@ -82,6 +83,39 @@ export async function uploadWorldCover(worldId: string, fileUri: string, mimeTyp
   const { error: updateError } = await supabase
     .from('worlds')
     .update({ cover_image_url: versionedUrl })
+    .eq('id', worldId);
+
+  if (updateError) return { url: null, error: updateError };
+
+  return { url: versionedUrl, error: null };
+}
+
+export async function uploadWorldThumbnail(worldId: string, fileUri: string, mimeType: string) {
+  if (!ALLOWED_COVER_TYPES.includes(mimeType)) {
+    return { url: null, error: { message: 'Only JPEG, PNG, and WebP images are allowed.' } };
+  }
+
+  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const path = `world-thumbnails/${worldId}.${ext}`;
+
+  const response = await fetch(fileUri);
+  const blob = await response.blob();
+
+  const { error: uploadError } = await supabase.storage
+    .from('campaign-assets')
+    .upload(path, blob, { contentType: mimeType, upsert: true });
+
+  if (uploadError) return { url: null, error: uploadError };
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('campaign-assets')
+    .getPublicUrl(path);
+
+  const versionedUrl = `${publicUrl}?v=${Date.now()}`;
+
+  const { error: updateError } = await supabase
+    .from('worlds')
+    .update({ thumbnail_url: versionedUrl })
     .eq('id', worldId);
 
   if (updateError) return { url: null, error: updateError };

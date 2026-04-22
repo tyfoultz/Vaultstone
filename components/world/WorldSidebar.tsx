@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadWorldCover } from '@vaultstone/api';
+import { updateWorld, uploadWorldThumbnail } from '@vaultstone/api';
 import {
   selectSectionsForWorld,
   useAuthStore,
@@ -57,22 +57,22 @@ export function WorldSidebar({ world, activePageId }: Props) {
 
   const isOwner = !!(user && user.id === world.owner_user_id);
 
-  async function handleUploadCover(uri: string, mime: string) {
+  async function handleUploadThumbnail(uri: string, mime: string) {
     setUploading(true);
-    const { url } = await uploadWorldCover(world.id, uri, mime);
+    const { url } = await uploadWorldThumbnail(world.id, uri, mime);
     setUploading(false);
     if (url) {
-      storeUpdateWorld(world.id, { cover_image_url: url });
-      setActiveWorld({ ...world, cover_image_url: url });
+      storeUpdateWorld(world.id, { thumbnail_url: url });
+      setActiveWorld({ ...world, thumbnail_url: url });
     }
   }
 
-  async function handlePickCover() {
+  async function handlePickThumbnail() {
     const isWeb = Platform.OS === 'web';
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: !isWeb,
-      aspect: [21, 7],
+      aspect: [3, 1],
       quality: 0.5,
     });
     if (result.canceled || !result.assets[0]) return;
@@ -80,13 +80,24 @@ export function WorldSidebar({ world, activePageId }: Props) {
     if (isWeb) {
       setCropUri(asset.uri);
     } else {
-      await handleUploadCover(asset.uri, asset.mimeType ?? 'image/jpeg');
+      await handleUploadThumbnail(asset.uri, asset.mimeType ?? 'image/jpeg');
     }
   }
 
   async function handleCropConfirm(croppedUri: string) {
     setCropUri(null);
-    await handleUploadCover(croppedUri, 'image/jpeg');
+    await handleUploadThumbnail(croppedUri, 'image/jpeg');
+  }
+
+  async function handleCopyFromBanner() {
+    if (!world.cover_image_url) return;
+    setUploading(true);
+    const { error } = await updateWorld(world.id, { thumbnail_url: world.cover_image_url });
+    setUploading(false);
+    if (!error) {
+      storeUpdateWorld(world.id, { thumbnail_url: world.cover_image_url });
+      setActiveWorld({ ...world, thumbnail_url: world.cover_image_url });
+    }
   }
 
   const visibleSections = useMemo(() => {
@@ -102,12 +113,12 @@ export function WorldSidebar({ world, activePageId }: Props) {
     <View style={styles.root}>
       <View style={styles.header}>
         <Pressable
-          onPress={isOwner ? handlePickCover : undefined}
+          onPress={isOwner ? handlePickThumbnail : undefined}
           disabled={!isOwner || uploading}
           style={styles.cover}
         >
-          {world.cover_image_url ? (
-            <Image source={{ uri: world.cover_image_url }} style={styles.coverImage} resizeMode="cover" />
+          {world.thumbnail_url ? (
+            <Image source={{ uri: world.thumbnail_url }} style={styles.coverImage} resizeMode="cover" />
           ) : (
             <LinearGradient
               colors={[colors.primaryContainer, colors.secondaryContainer]}
@@ -131,6 +142,14 @@ export function WorldSidebar({ world, activePageId }: Props) {
             </View>
           ) : null}
         </Pressable>
+        {isOwner && !world.thumbnail_url && world.cover_image_url && !uploading ? (
+          <Pressable onPress={handleCopyFromBanner} style={styles.copyHint}>
+            <Icon name="content-copy" size={12} color={colors.primary} />
+            <Text variant="label-sm" style={{ color: colors.primary }}>
+              Use banner image
+            </Text>
+          </Pressable>
+        ) : null}
 
         <View style={styles.titleRow}>
           <View style={{ flex: 1 }}>
@@ -213,7 +232,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
         <ImageCropModal
           visible
           imageUri={cropUri}
-          aspect={[21, 7]}
+          aspect={[3, 1]}
           onConfirm={handleCropConfirm}
           onCancel={() => setCropUri(null)}
         />
@@ -269,6 +288,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  copyHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 4,
+    marginTop: 4,
   },
   titleRow: {
     flexDirection: 'row',

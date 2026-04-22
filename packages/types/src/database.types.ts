@@ -320,6 +320,7 @@ export interface Database {
           name: string;
           description: string | null;
           cover_image_url: string | null;
+          thumbnail_url: string | null;
           primary_map_id: string | null;
           primary_timeline_page_id: string | null;
           is_archived: boolean;
@@ -333,6 +334,7 @@ export interface Database {
           name: string;
           description?: string | null;
           cover_image_url?: string | null;
+          thumbnail_url?: string | null;
           primary_map_id?: string | null;
           primary_timeline_page_id?: string | null;
           is_archived?: boolean;
@@ -344,6 +346,7 @@ export interface Database {
           name?: string;
           description?: string | null;
           cover_image_url?: string | null;
+          thumbnail_url?: string | null;
           primary_map_id?: string | null;
           primary_timeline_page_id?: string | null;
           is_archived?: boolean;

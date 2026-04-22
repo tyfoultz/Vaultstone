@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, 
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { getCampaignsForWorld, uploadWorldCover } from '@vaultstone/api';
+import { getCampaignsForWorld, updateWorld, uploadWorldCover } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
   selectSectionsForWorld,
@@ -85,6 +85,17 @@ export default function WorldLandingScreen() {
   async function handleCropConfirm(croppedUri: string) {
     setCropUri(null);
     await uploadCover(croppedUri, 'image/jpeg');
+  }
+
+  async function handleCopyFromSidebar() {
+    if (!world?.thumbnail_url) return;
+    setUploading(true);
+    const { error } = await updateWorld(world.id, { cover_image_url: world.thumbnail_url });
+    setUploading(false);
+    if (!error) {
+      storeUpdateWorld(world.id, { cover_image_url: world.thumbnail_url });
+      setActiveWorld({ ...world, cover_image_url: world.thumbnail_url });
+    }
   }
 
   useEffect(() => {
@@ -171,11 +182,21 @@ export default function WorldLandingScreen() {
             ) : null}
           </View>
           {isOwner && !world.cover_image_url && !uploading ? (
-            <View style={styles.coverHint}>
-              <Icon name="add-a-photo" size={20} color={colors.onSurfaceVariant} />
-              <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
-                Add cover image
-              </Text>
+            <View style={styles.coverHintRow}>
+              <View style={styles.coverHint}>
+                <Icon name="add-a-photo" size={20} color={colors.onSurfaceVariant} />
+                <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
+                  Add banner image
+                </Text>
+              </View>
+              {world.thumbnail_url ? (
+                <Pressable onPress={handleCopyFromSidebar} style={styles.coverHint}>
+                  <Icon name="content-copy" size={16} color={colors.primary} />
+                  <Text variant="label-md" style={{ color: colors.primary }}>
+                    Use sidebar image
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
           {isOwner && world.cover_image_url && !uploading ? (
@@ -330,10 +351,14 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: spacing.sm,
   },
-  coverHint: {
+  coverHintRow: {
     position: 'absolute',
     top: spacing.md,
     right: spacing.md,
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  coverHint: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
