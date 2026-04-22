@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import {
   getActiveSession,
   getCampaignMembers,
@@ -10,7 +9,6 @@ import {
   getCompletedSessionCount,
   getPage,
   startSession,
-  uploadWorldCover,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
@@ -19,9 +17,8 @@ import {
   useCurrentWorldStore,
   usePagesStore,
   useSectionsStore,
-  useWorldsStore,
 } from '@vaultstone/store';
-import { Chip, GhostButton, GradientButton, Icon, ImageCropModal, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { Chip, GhostButton, GradientButton, Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
 import type { Database, TimelineCalendarSchema, WorldSection } from '@vaultstone/types';
 
 import { useActiveSection } from '../../../components/world/ActiveSectionContext';
@@ -49,16 +46,12 @@ export default function WorldLandingScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const world = useCurrentWorldStore((s) => s.world);
-  const setActiveWorld = useCurrentWorldStore((s) => s.setActiveWorld);
-  const storeUpdateWorld = useWorldsStore((s) => s.updateWorld);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
   const pagesByWorld = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
   const { setActiveSectionId } = useActiveSection();
   const [linkedCampaigns, setLinkedCampaigns] = useState<Campaign[]>([]);
   const [createSectionOpen, setCreateSectionOpen] = useState(false);
   const [createPageSectionId, setCreatePageSectionId] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [cropUri, setCropUri] = useState<string | null>(null);
   const [totalSessions, setTotalSessions] = useState(0);
   const [calendarSchema, setCalendarSchema] = useState<TimelineCalendarSchema | null>(null);
   const [activeSessionCampaignId, setActiveSessionCampaignId] = useState<string | null>(null);
@@ -72,40 +65,6 @@ export default function WorldLandingScreen() {
     () => linkedCampaigns.filter((c) => c.dm_user_id === user?.id),
     [linkedCampaigns, user?.id],
   );
-
-  async function uploadCover(uri: string, mime: string) {
-    if (!world) return;
-    setUploading(true);
-    const { url } = await uploadWorldCover(world.id, uri, mime);
-    setUploading(false);
-    if (url) {
-      storeUpdateWorld(world.id, { cover_image_url: url });
-      setActiveWorld({ ...world, cover_image_url: url });
-    }
-  }
-
-  async function handlePickCover() {
-    if (!world) return;
-    const isWeb = Platform.OS === 'web';
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: !isWeb,
-      aspect: [21, 7],
-      quality: 0.5,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    if (isWeb) {
-      setCropUri(asset.uri);
-    } else {
-      await uploadCover(asset.uri, asset.mimeType ?? 'image/jpeg');
-    }
-  }
-
-  async function handleCropConfirm(croppedUri: string) {
-    setCropUri(null);
-    await uploadCover(croppedUri, 'image/jpeg');
-  }
 
   useEffect(() => {
     if (!worldId) return;
@@ -243,11 +202,7 @@ export default function WorldLandingScreen() {
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* Hero banner */}
-        <Pressable
-          onPress={isOwner && !world.cover_image_url ? handlePickCover : undefined}
-          disabled={!isOwner || !!world.cover_image_url || uploading}
-          style={styles.heroBanner}
-        >
+        <View style={styles.heroBanner}>
           {world.cover_image_url ? (
             <Image source={{ uri: world.cover_image_url }} style={styles.heroImage} resizeMode="cover" />
           ) : (
@@ -282,15 +237,6 @@ export default function WorldLandingScreen() {
               <View />
             )}
             <View style={styles.heroActions}>
-              {isOwner && world.cover_image_url ? (
-                <GhostButton
-                  label="Change cover"
-                  icon="edit"
-                  onPress={handlePickCover}
-                  loading={uploading}
-                  style={styles.heroBtnCompact}
-                />
-              ) : null}
               {dmCampaigns.length > 0 && !activeSessionCampaignId ? (
                 <View>
                   <GradientButton
@@ -317,12 +263,15 @@ export default function WorldLandingScreen() {
                 </View>
               ) : null}
               {activeSessionCampaignId ? (
-                <View style={styles.liveSessionBadge}>
+                <Pressable
+                  onPress={() => router.push(`/campaign/${activeSessionCampaignId}`)}
+                  style={styles.liveSessionBadge}
+                >
                   <View style={styles.liveDot} />
                   <Text variant="label-sm" weight="bold" style={{ color: colors.hpHealthy }}>
                     Session Live
                   </Text>
-                </View>
+                </Pressable>
               ) : null}
             </View>
           </View>
@@ -398,17 +347,7 @@ export default function WorldLandingScreen() {
               </Text>
             ) : null}
           </View>
-        </Pressable>
-
-        {cropUri ? (
-          <ImageCropModal
-            visible
-            imageUri={cropUri}
-            aspect={[21, 7]}
-            onConfirm={handleCropConfirm}
-            onCancel={() => setCropUri(null)}
-          />
-        ) : null}
+        </View>
 
         {linkedCampaigns.length > 0 ? (
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
