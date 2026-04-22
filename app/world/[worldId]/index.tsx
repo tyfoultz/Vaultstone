@@ -3,7 +3,7 @@ import { Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { getCampaignsForWorld, updateWorld, uploadWorldCover } from '@vaultstone/api';
+import { getCampaignsForWorld, uploadWorldCover } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
   selectSectionsForWorld,
@@ -87,17 +87,6 @@ export default function WorldLandingScreen() {
     await uploadCover(croppedUri, 'image/jpeg');
   }
 
-  async function handleCopyFromSidebar() {
-    if (!world?.thumbnail_url) return;
-    setUploading(true);
-    const { error } = await updateWorld(world.id, { cover_image_url: world.thumbnail_url });
-    setUploading(false);
-    if (!error) {
-      storeUpdateWorld(world.id, { cover_image_url: world.thumbnail_url });
-      setActiveWorld({ ...world, cover_image_url: world.thumbnail_url });
-    }
-  }
-
   useEffect(() => {
     if (!worldId) return;
     getCampaignsForWorld(worldId).then(({ data }) => {
@@ -139,7 +128,11 @@ export default function WorldLandingScreen() {
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* Hero banner */}
-        <View style={styles.heroBanner}>
+        <Pressable
+          onPress={isOwner && !world.cover_image_url ? handlePickCover : undefined}
+          disabled={!isOwner || !!world.cover_image_url || uploading}
+          style={styles.heroBanner}
+        >
           {world.cover_image_url ? (
             <Image source={{ uri: world.cover_image_url }} style={styles.heroImage} resizeMode="cover" />
           ) : (
@@ -173,24 +166,14 @@ export default function WorldLandingScreen() {
             ) : (
               <View />
             )}
-            {isOwner ? (
-              <View style={styles.heroActions}>
-                {!world.cover_image_url && world.thumbnail_url ? (
-                  <GhostButton
-                    label="Use sidebar image"
-                    icon="content-copy"
-                    onPress={handleCopyFromSidebar}
-                    style={styles.heroBtnCompact}
-                  />
-                ) : null}
-                <GhostButton
-                  label="Change cover"
-                  icon="edit"
-                  onPress={handlePickCover}
-                  loading={uploading}
-                  style={styles.heroBtnCompact}
-                />
-              </View>
+            {isOwner && world.cover_image_url ? (
+              <GhostButton
+                label="Change cover"
+                icon="edit"
+                onPress={handlePickCover}
+                loading={uploading}
+                style={styles.heroBtnCompact}
+              />
             ) : null}
           </View>
 
@@ -232,7 +215,7 @@ export default function WorldLandingScreen() {
               </Text>
             ) : null}
           </View>
-        </View>
+        </Pressable>
 
         {cropUri ? (
           <ImageCropModal
@@ -375,11 +358,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.outlineVariant + '66',
     backgroundColor: colors.surfaceContainerHigh + '99',
-  },
-  heroActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
   },
   heroBtnCompact: {
     height: 36,

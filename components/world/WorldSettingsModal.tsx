@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import {
   archiveWorld,
   getCampaigns,
@@ -10,6 +11,8 @@ import {
   unarchiveWorld,
   unlinkWorldFromCampaign,
   updateWorld,
+  uploadWorldCover,
+  uploadWorldThumbnail,
 } from '@vaultstone/api';
 import { useAuthStore, useCurrentWorldStore, useWorldsStore } from '@vaultstone/store';
 import {
@@ -17,6 +20,7 @@ import {
   GhostButton,
   GradientButton,
   Icon,
+  ImageCropModal,
   Input,
   MetaLabel,
   SectionHeader,
@@ -53,6 +57,10 @@ export function WorldSettingsModal({ world, onClose }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
+  const [cropUri, setCropUri] = useState<string | null>(null);
+  const [cropTarget, setCropTarget] = useState<'cover' | 'thumbnail'>('cover');
 
   useEffect(() => {
     if (!user) return;
@@ -82,6 +90,51 @@ export function WorldSettingsModal({ world, onClose }: Props) {
     }
     storeUpdateWorld(world.id, patch);
     setActiveWorld({ ...world, ...patch });
+  }
+
+  async function pickImage(target: 'cover' | 'thumbnail') {
+    const isWeb = Platform.OS === 'web';
+    const aspect: [number, number] = target === 'cover' ? [21, 7] : [3, 1];
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: !isWeb,
+      aspect,
+      quality: 0.5,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (isWeb) {
+      setCropTarget(target);
+      setCropUri(asset.uri);
+    } else {
+      await doUpload(target, asset.uri, asset.mimeType ?? 'image/jpeg');
+    }
+  }
+
+  async function handleCropConfirm(croppedUri: string) {
+    const target = cropTarget;
+    setCropUri(null);
+    await doUpload(target, croppedUri, 'image/jpeg');
+  }
+
+  async function doUpload(target: 'cover' | 'thumbnail', uri: string, mime: string) {
+    if (target === 'cover') {
+      setUploadingCover(true);
+      const { url } = await uploadWorldCover(world.id, uri, mime);
+      setUploadingCover(false);
+      if (url) {
+        storeUpdateWorld(world.id, { cover_image_url: url });
+        setActiveWorld({ ...world, cover_image_url: url });
+      }
+    } else {
+      setUploadingThumb(true);
+      const { url } = await uploadWorldThumbnail(world.id, uri, mime);
+      setUploadingThumb(false);
+      if (url) {
+        storeUpdateWorld(world.id, { thumbnail_url: url });
+        setActiveWorld({ ...world, thumbnail_url: url });
+      }
+    }
   }
 
   async function toggleCampaignLink(campaignId: string) {
@@ -200,6 +253,40 @@ export function WorldSettingsModal({ world, onClose }: Props) {
 
               {isOwner ? (
                 <View style={{ marginTop: spacing.xl }}>
+                  <SectionHeader title="Images" />
+                  <View style={{ gap: spacing.md }}>
+                    <View style={{ gap: spacing.xs }}>
+                      <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                        Banner image
+                      </Text>
+                      {world.cover_image_url ? (
+                        <View style={styles.imagePreviewRow}>
+                          <Image source={{ uri: world.cover_image_url }} style={styles.bannerPreview} resizeMode="cover" />
+                          <GhostButton label="Change" icon="edit" onPress={() => pickImage('cover')} loading={uploadingCover} />
+                        </View>
+                      ) : (
+                        <GhostButton label="Upload banner image" icon="add-a-photo" onPress={() => pickImage('cover')} loading={uploadingCover} />
+                      )}
+                    </View>
+                    <View style={{ gap: spacing.xs }}>
+                      <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                        Sidebar image
+                      </Text>
+                      {world.thumbnail_url ? (
+                        <View style={styles.imagePreviewRow}>
+                          <Image source={{ uri: world.thumbnail_url }} style={styles.thumbPreview} resizeMode="cover" />
+                          <GhostButton label="Change" icon="edit" onPress={() => pickImage('thumbnail')} loading={uploadingThumb} />
+                        </View>
+                      ) : (
+                        <GhostButton label="Upload sidebar image" icon="add-a-photo" onPress={() => pickImage('thumbnail')} loading={uploadingThumb} />
+                      )}
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+
+              {isOwner ? (
+                <View style={{ marginTop: spacing.xl }}>
                   <SectionHeader title="Linked campaigns" />
                   {myCampaigns.length === 0 ? (
                     <Text
@@ -300,6 +387,15 @@ export function WorldSettingsModal({ world, onClose }: Props) {
           </Card>
         </Pressable>
       </Pressable>
+      {cropUri ? (
+        <ImageCropModal
+          visible
+          imageUri={cropUri}
+          aspect={cropTarget === 'cover' ? [21, 7] : [3, 1]}
+          onConfirm={handleCropConfirm}
+          onCancel={() => setCropUri(null)}
+        />
+      ) : null}
     </Modal>
   );
 }
@@ -348,6 +444,21 @@ const styles = StyleSheet.create({
   selectChipActive: {
     backgroundColor: colors.primaryContainer + '33',
     borderColor: colors.primary + '66',
+  },
+  imagePreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  bannerPreview: {
+    flex: 1,
+    height: 64,
+    borderRadius: radius.lg,
+  },
+  thumbPreview: {
+    width: 120,
+    height: 40,
+    borderRadius: radius.lg,
   },
   confirmRow: {
     flexDirection: 'row',

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { updateWorld, uploadWorldThumbnail } from '@vaultstone/api';
+import { uploadWorldThumbnail } from '@vaultstone/api';
 import {
   selectSectionsForWorld,
   useAuthStore,
@@ -89,17 +89,6 @@ export function WorldSidebar({ world, activePageId }: Props) {
     await handleUploadThumbnail(croppedUri, 'image/jpeg');
   }
 
-  async function handleCopyFromBanner() {
-    if (!world.cover_image_url) return;
-    setUploading(true);
-    const { error } = await updateWorld(world.id, { thumbnail_url: world.cover_image_url });
-    setUploading(false);
-    if (!error) {
-      storeUpdateWorld(world.id, { thumbnail_url: world.cover_image_url });
-      setActiveWorld({ ...world, thumbnail_url: world.cover_image_url });
-    }
-  }
-
   const visibleSections = useMemo(() => {
     const filtered = playerView
       ? allSections.filter(isSectionVisibleToPlayersPreview)
@@ -113,8 +102,8 @@ export function WorldSidebar({ world, activePageId }: Props) {
     <View style={styles.root}>
       <View style={styles.header}>
         <Pressable
-          onPress={isOwner ? handlePickThumbnail : undefined}
-          disabled={!isOwner || uploading}
+          onPress={isOwner && !world.thumbnail_url ? handlePickThumbnail : undefined}
+          disabled={!isOwner || !!world.thumbnail_url || uploading}
           style={styles.cover}
         >
           {world.thumbnail_url ? (
@@ -127,29 +116,20 @@ export function WorldSidebar({ world, activePageId }: Props) {
               style={StyleSheet.absoluteFill}
             >
               <View style={styles.coverPlaceholder}>
-                <Icon name="public" size={28} color={colors.onPrimary} />
+                {isOwner && !uploading ? (
+                  <Icon name="add-a-photo" size={24} color={colors.onPrimary} />
+                ) : (
+                  <Icon name="public" size={28} color={colors.onPrimary} />
+                )}
               </View>
             </LinearGradient>
           )}
-          {isOwner && !uploading ? (
-            <View style={styles.coverEditOverlay}>
-              <Icon name="photo-camera" size={14} color="#fff" />
-            </View>
-          ) : null}
           {uploading ? (
             <View style={styles.coverUploadingOverlay}>
               <ActivityIndicator size="small" color={colors.primary} />
             </View>
           ) : null}
         </Pressable>
-        {isOwner && !world.thumbnail_url && world.cover_image_url && !uploading ? (
-          <Pressable onPress={handleCopyFromBanner} style={styles.copyHint}>
-            <Icon name="content-copy" size={12} color={colors.primary} />
-            <Text variant="label-sm" style={{ color: colors.primary }}>
-              Use banner image
-            </Text>
-          </Pressable>
-        ) : null}
 
         <View style={styles.titleRow}>
           <View style={{ flex: 1 }}>
@@ -272,29 +252,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  coverEditOverlay: {
-    position: 'absolute',
-    bottom: 6,
-    right: 6,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   coverUploadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  copyHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    gap: 4,
-    marginTop: 4,
   },
   titleRow: {
     flexDirection: 'row',

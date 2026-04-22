@@ -42,6 +42,7 @@ export default function WorldLayout() {
   }>();
   const router = useRouter();
   const session = useAuthStore((s) => s.session);
+  const storeWorld = useCurrentWorldStore((s) => s.world);
   const setActiveWorld = useCurrentWorldStore((s) => s.setActiveWorld);
   const clearActiveWorld = useCurrentWorldStore((s) => s.clearActiveWorld);
   const setLens = useCurrentWorldStore((s) => s.setLens);
@@ -156,8 +157,8 @@ export default function WorldLayout() {
   return (
     <ActiveSectionProvider initialSectionId={firstSectionId}>
       <View style={styles.root}>
-        {!isMobile ? <WorldRail world={world} /> : null}
-        {!isMobile ? <WorldSidebar world={world} /> : null}
+        {!isMobile ? <WorldRail world={storeWorld ?? world} /> : null}
+        {!isMobile ? <WorldSidebar world={storeWorld ?? world} /> : null}
         <View style={styles.content}>
           <PlayerViewBanner />
           <LensSwitchBanner />
