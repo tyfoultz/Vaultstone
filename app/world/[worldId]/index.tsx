@@ -43,6 +43,7 @@ type PartyMember = {
   level: number;
   hpCurrent: number;
   hpMax: number;
+  ac: number;
   initials: string;
 };
 
@@ -50,13 +51,25 @@ function formatKey(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).replace(/^Srd /, '');
 }
 
-// CSS grid lives inline; see note in SectionPageGrid.tsx.
-const PARTY_GRID_STYLE = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-  gap: spacing.md,
-} as const;
+function computeAC(stats: Record<string, unknown>, resources: Record<string, unknown> | null): number {
+  const scores = stats?.abilityScores as Record<string, number> | undefined;
+  if (!scores) return 10;
+  const dexMod = Math.floor((scores.dexterity - 10) / 2);
+  const equipment = (resources?.equipment ?? []) as Array<{
+    slot: string; equipped: boolean; acBase?: number; acBonus?: number; dexCap?: number | null;
+  }>;
+  const armor = equipment.find((e) => e.slot === 'armor' && e.equipped);
+  const shield = equipment.find((e) => e.slot === 'shield' && e.equipped);
+  let base = 10 + dexMod;
+  if (armor) {
+    const dexBonus = armor.dexCap != null ? Math.min(dexMod, armor.dexCap) : dexMod;
+    base = (armor.acBase ?? 10) + dexBonus;
+  }
+  if (shield) base += shield.acBonus ?? 2;
+  return base;
+}
 
+// CSS grid lives inline; see note in SectionPageGrid.tsx.
 const ATLAS_GRID_STYLE = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
@@ -119,19 +132,25 @@ export default function WorldLandingScreen() {
             }>) {
               if (raw.role !== 'player' || !raw.characters || seen.has(raw.user_id)) continue;
               seen.add(raw.user_id);
-              const stats = raw.characters.base_stats as { level?: number; hpMax?: number; speciesKey?: string; classKey?: string } | null;
-              const res = raw.characters.resources as { hpCurrent?: number } | null;
+              const stats = raw.characters.base_stats as Record<string, unknown> | null;
+              const res = raw.characters.resources as Record<string, unknown> | null;
               const name = raw.characters.name;
               const initials = name.split(/\s+/).map((w) => w[0]?.toUpperCase()).join('').slice(0, 2);
+              const level = (stats?.level as number) ?? 1;
+              const hpMax = (stats?.hpMax as number) ?? 0;
+              const hpCurrent = (res?.hpCurrent as number) ?? hpMax;
+              const speciesKey = stats?.speciesKey as string | undefined;
+              const classKey = stats?.classKey as string | undefined;
               members.push({
                 userId: raw.user_id,
                 displayName: raw.profiles?.display_name ?? 'Anonymous',
                 characterName: name,
-                species: stats?.speciesKey ? formatKey(stats.speciesKey) : null,
-                className: stats?.classKey ? formatKey(stats.classKey) : null,
-                level: stats?.level ?? 1,
-                hpCurrent: res?.hpCurrent ?? stats?.hpMax ?? 0,
-                hpMax: stats?.hpMax ?? 0,
+                species: speciesKey ? formatKey(speciesKey) : null,
+                className: classKey ? formatKey(classKey) : null,
+                level,
+                hpCurrent,
+                hpMax,
+                ac: computeAC(stats ?? {}, res),
                 initials,
               });
             }
@@ -232,6 +251,16 @@ export default function WorldLandingScreen() {
       setCampaignPickerOpen(!campaignPickerOpen);
     }
   }
+
+  const partyGridStyle = useMemo(() => {
+    const count = partyMembers.length;
+    const cols = count <= 2 ? count : count <= 4 ? 2 : count <= 6 ? 3 : 4;
+    return {
+      display: 'grid' as const,
+      gridTemplateColumns: `repeat(${cols}, 1fr)`,
+      gap: spacing.md,
+    };
+  }, [partyMembers.length]);
 
   if (!world || !worldId) return null;
 
@@ -418,7 +447,7 @@ export default function WorldLandingScreen() {
         ) : null}
 
         {partyMembers.length > 0 ? (
-          <View style={{ marginTop: spacing.xl + spacing.sm }}>
+          <View style={styles.partyContainer}>
             <View style={styles.partySectionHeader}>
               <View style={styles.partyTitleRow}>
                 <Icon name="groups" size={18} color={colors.primary} />
@@ -442,7 +471,7 @@ export default function WorldLandingScreen() {
                 </Pressable>
               ) : null}
             </View>
-            <View style={PARTY_GRID_STYLE as object}>
+            <View style={partyGridStyle as object}>
               {partyMembers.map((member) => {
                 const hpPct = member.hpMax > 0 ? member.hpCurrent / member.hpMax : 1;
                 const hpColor = hpPct > 0.5 ? colors.hpHealthy : hpPct > 0.25 ? colors.hpWarning : colors.hpDanger;
@@ -469,6 +498,9 @@ export default function WorldLandingScreen() {
                       </Text>
                       <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
                         /{member.hpMax} HP
+                      </Text>
+                      <Text variant="label-sm" weight="semibold" style={styles.acBadge}>
+                        AC {member.ac}
                       </Text>
                     </View>
                     <View style={styles.hpBarTrack}>
@@ -689,6 +721,14 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: spacing.sm,
   },
+  partyContainer: {
+    marginTop: spacing.xl + spacing.sm,
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '22',
+  },
   partySectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -723,6 +763,10 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     gap: 2,
     marginTop: 2,
+  },
+  acBadge: {
+    color: colors.onSurfaceVariant,
+    marginLeft: spacing.sm,
   },
   hpBarTrack: {
     height: 3,
