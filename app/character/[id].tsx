@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import {
   View, Text, Image, TouchableOpacity, TextInput,
   ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform, useWindowDimensions,
@@ -15,7 +17,7 @@ import { HpModal } from '../../components/character-sheet/HpModal';
 import { ConditionsPanel } from '../../components/character-sheet/ConditionsPanel';
 import { RollToast } from '../../components/character-sheet/RollToast';
 import type { RollResult } from '../../components/character-sheet/RollToast';
-import { CombatTab } from '../../components/character-sheet/CombatTab';
+import { CombatTab, ConditionsSection } from '../../components/character-sheet/CombatTab';
 import { SkillsTab } from '../../components/character-sheet/SkillsTab';
 import { AbilitiesTab } from '../../components/character-sheet/AbilitiesTab';
 import { SpellsTab } from '../../components/character-sheet/SpellsTab';
@@ -23,6 +25,34 @@ import { GearTab } from '../../components/character-sheet/GearTab';
 import { LoreTab } from '../../components/character-sheet/LoreTab';
 
 type Character = Database['public']['Tables']['characters']['Row'];
+
+type TabId = 'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore';
+type TabLayoutState = {
+  left: TabId[];
+  right: TabId[];
+  activeLeft: TabId;
+  activeRight: TabId | null;
+};
+const DEFAULT_TAB_LAYOUT: TabLayoutState = {
+  left: ['combat', 'spells', 'gear'],
+  right: ['skills', 'traits', 'lore'],
+  activeLeft: 'combat',
+  activeRight: 'skills',
+};
+
+type ActivityEntry = { id: string; at: number } & (
+  | { kind: 'roll'; result: RollResult }
+  | { kind: 'hp'; from: number; to: number; delta: number }
+  | { kind: 'tempHp'; from: number; to: number; delta: number }
+  | { kind: 'condition'; name: string; action: 'added' | 'removed' }
+  | { kind: 'exhaustion'; from: number; to: number }
+  | { kind: 'deathSave'; result: 'success' | 'failure' }
+);
+type ActivityInput = ActivityEntry extends infer U
+  ? U extends { id: string; at: number }
+    ? Omit<U, 'id' | 'at'>
+    : never
+  : never;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -95,6 +125,222 @@ const CARD_LABELS: Record<CardId, string> = {
   'scratchpad': 'Scratchpad',
 };
 
+type EntryDescriptor = { icon: string; label: string; detail: string; accent: string; total: string };
+
+function describeEntry(e: ActivityEntry): EntryDescriptor {
+  switch (e.kind) {
+    case 'roll': {
+      const { label, rolls, bonus, total, crit, fumble } = e.result;
+      const rollStr = `[${rolls.join(', ')}]${bonus !== 0 ? (bonus > 0 ? ` + ${bonus}` : ` − ${Math.abs(bonus)}`) : ''}`;
+      return {
+        icon: 'dice-d20',
+        label,
+        detail: `${rollStr}${crit ? ' · CRIT' : fumble ? ' · FUMBLE' : ''}`,
+        accent: crit ? colors.hpHealthy : fumble ? colors.hpDanger : colors.primary,
+        total: String(total),
+      };
+    }
+    case 'hp': {
+      const healed = e.delta > 0;
+      return {
+        icon: healed ? 'heart-plus' : 'sword',
+        label: healed ? 'Healed' : 'Damage',
+        detail: `${e.from} → ${e.to}`,
+        accent: healed ? colors.hpHealthy : colors.hpDanger,
+        total: `${healed ? '+' : ''}${e.delta}`,
+      };
+    }
+    case 'tempHp': {
+      return {
+        icon: 'shield-plus-outline',
+        label: 'Temp HP',
+        detail: `${e.from} → ${e.to}`,
+        accent: '#3B82F6',
+        total: `${e.delta > 0 ? '+' : ''}${e.delta}`,
+      };
+    }
+    case 'condition': {
+      const added = e.action === 'added';
+      return {
+        icon: added ? 'alert-circle-outline' : 'close-circle-outline',
+        label: added ? `+ ${e.name}` : `− ${e.name}`,
+        detail: added ? 'Condition applied' : 'Condition cleared',
+        accent: added ? colors.hpDanger : colors.outline,
+        total: '',
+      };
+    }
+    case 'exhaustion': {
+      return {
+        icon: 'battery-low',
+        label: 'Exhaustion',
+        detail: `Lv ${e.from} → ${e.to}`,
+        accent: colors.hpDanger,
+        total: `${e.to > e.from ? '+' : ''}${e.to - e.from}`,
+      };
+    }
+    case 'deathSave': {
+      const success = e.result === 'success';
+      return {
+        icon: success ? 'shield-check-outline' : 'skull-outline',
+        label: `Death ${success ? 'Success' : 'Failure'}`,
+        detail: '',
+        accent: success ? colors.hpHealthy : colors.hpDanger,
+        total: '',
+      };
+    }
+  }
+}
+
+// ─── TabPane (desktop two-column support) ──────────────────────────────────
+
+const ALL_TAB_DEFS: { id: TabId; icon: any; label: string }[] = [
+  { id: 'combat',  icon: 'sword-cross',             label: 'Combat' },
+  { id: 'spells',  icon: 'auto-fix',                label: 'Spells' },
+  { id: 'skills',  icon: 'star-outline',            label: 'Skills' },
+  { id: 'traits',  icon: 'lightning-bolt-outline',  label: 'Traits' },
+  { id: 'gear',    icon: 'bag-personal-outline',    label: 'Gear' },
+  { id: 'lore',    icon: 'book-open-outline',       label: 'Lore' },
+];
+const TAB_ORDER: Record<TabId, number> = Object.fromEntries(
+  ALL_TAB_DEFS.map((d, i) => [d.id, i])
+) as Record<TabId, number>;
+function sortTabs(tabs: TabId[]): TabId[] {
+  return [...tabs].sort((a, b) => TAB_ORDER[a] - TAB_ORDER[b]);
+}
+
+const DND_TAB = 'char-tab';
+type TabDragItem = { id: TabId; fromSide: 'left' | 'right' };
+
+function TabPane({
+  tabs, activeId, side, onActivate, onMoveToSide, renderTab,
+}: {
+  tabs: TabId[];
+  activeId: TabId;
+  side: 'left' | 'right';
+  onActivate: (id: TabId) => void;
+  onMoveToSide: (id: TabId, toSide: 'left' | 'right') => void;
+  renderTab: (id: TabId) => React.ReactNode;
+}) {
+  const [{ isOver, canDrop }, dropRef] = useDrop<TabDragItem, void, { isOver: boolean; canDrop: boolean }>(() => ({
+    accept: DND_TAB,
+    canDrop: (item) => item.fromSide !== side,
+    drop: (item) => { onMoveToSide(item.id, side); },
+    collect: (m) => ({ isOver: m.isOver(), canDrop: m.canDrop() }),
+  }), [side, onMoveToSide]);
+
+  return (
+    <View style={paneStyle.pane}>
+      <View
+        ref={dropRef as any}
+        style={[
+          paneStyle.tabBar,
+          canDrop && paneStyle.tabBarDroppable,
+          canDrop && isOver && paneStyle.tabBarDropHot,
+        ]}
+      >
+        {tabs.map((id) => {
+          const def = ALL_TAB_DEFS.find((d) => d.id === id)!;
+          return (
+            <DraggableTab
+              key={id}
+              id={id}
+              side={side}
+              icon={def.icon}
+              label={def.label}
+              active={id === activeId}
+              onPress={() => onActivate(id)}
+            />
+          );
+        })}
+        {canDrop && tabs.length === 0 && (
+          <Text style={paneStyle.tabBarHint}>Drop tab here</Text>
+        )}
+      </View>
+      <View style={{ flex: 1 }}>{renderTab(activeId)}</View>
+    </View>
+  );
+}
+
+function DraggableTab({
+  id, side, icon, label, active, onPress,
+}: {
+  id: TabId;
+  side: 'left' | 'right';
+  icon: any;
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const [{ isDragging }, dragRef] = useDrag<TabDragItem, void, { isDragging: boolean }>(() => ({
+    type: DND_TAB,
+    item: { id, fromSide: side },
+    collect: (m) => ({ isDragging: m.isDragging() }),
+  }), [id, side]);
+  return (
+    <View ref={dragRef as any} style={{ opacity: isDragging ? 0.4 : 1 }}>
+      <TouchableOpacity
+        style={[paneStyle.tabBtn, active && paneStyle.tabBtnActive]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <MaterialCommunityIcons name={icon} size={16} color={active ? colors.primary : colors.outline} />
+        <Text style={[paneStyle.tabLabel, active && paneStyle.tabLabelActive]}>{label}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function SplitDropZone({ onMove }: { onMove: (id: TabId) => void }) {
+  const [{ isOver, canDrop }, dropRef] = useDrop<TabDragItem, void, { isOver: boolean; canDrop: boolean }>(() => ({
+    accept: DND_TAB,
+    canDrop: (item) => item.fromSide === 'left',
+    drop: (item) => onMove(item.id),
+    collect: (m) => ({ isOver: m.isOver(), canDrop: m.canDrop() }),
+  }), [onMove]);
+  if (!canDrop) return null;
+  return (
+    <View ref={dropRef as any} style={[paneStyle.splitZone, isOver && paneStyle.splitZoneHot]}>
+      <Text style={paneStyle.splitZoneLabel}>Drop here to split</Text>
+    </View>
+  );
+}
+
+const paneStyle = StyleSheet.create({
+  pane: { flex: 1, flexDirection: 'column' },
+  tabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    paddingHorizontal: 6, paddingTop: 6, gap: 2,
+    flexWrap: 'wrap',
+  },
+  tabBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 7,
+    borderRadius: 6, borderWidth: 1, borderColor: 'transparent',
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  tabBtnActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}14` },
+  tabLabel: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
+  tabLabelActive: { color: colors.primary },
+  tabBarDroppable: { backgroundColor: `${colors.primary}08` },
+  tabBarDropHot: { backgroundColor: `${colors.primary}22` },
+  tabBarHint: {
+    fontSize: 11, fontFamily: fonts.label, color: colors.outline, fontStyle: 'italic',
+    paddingVertical: 8, paddingHorizontal: 10, alignSelf: 'center',
+  },
+  splitZone: {
+    width: 120, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: `${colors.primary}0a`,
+    borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.outlineVariant,
+    borderStyle: 'dashed', borderRightWidth: 2, borderRightColor: `${colors.primary}55`,
+  },
+  splitZoneHot: { backgroundColor: `${colors.primary}22` },
+  splitZoneLabel: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, textAlign: 'center', paddingHorizontal: 8,
+  },
+});
+
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
 export default function CharacterSheetScreen() {
@@ -130,9 +376,12 @@ export default function CharacterSheetScreen() {
   const [portraitUploading, setPortraitUploading] = useState(false);
   const [editLayout, setEditLayout] = useState(false);
   const [cardItems, setCardItems] = useState<CardItem[]>(DEFAULT_CARD_ORDER.map((id) => ({ id })));
-  const [activeTab, setActiveTab] = useState<'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore'>('combat');
+  const [activeTab, setActiveTab] = useState<TabId>('combat');
+  const [tabLayout, setTabLayout] = useState<TabLayoutState>(DEFAULT_TAB_LAYOUT);
   const [rightRailCollapsed, setRightRailCollapsed] = useState(false);
   const [rollResult, setRollResult] = useState<RollResult | null>(null);
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
+  const [logModal, setLogModal] = useState(false);
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -146,6 +395,9 @@ export default function CharacterSheetScreen() {
         const st = data?.base_stats as Dnd5eStats | null;
         if (st?.settings?.cardOrder) {
           setCardItems(st.settings.cardOrder.map((id) => ({ id: id as CardId })));
+        }
+        if (st?.settings?.tabLayout) {
+          setTabLayout(st.settings.tabLayout as TabLayoutState);
         }
       }
       setLoading(false);
@@ -259,6 +511,13 @@ export default function CharacterSheetScreen() {
 
   async function persistResources(updated: Dnd5eResources) {
     if (!character || !canEditAny) return;
+    const prev = (character.resources ?? {}) as unknown as Dnd5eResources;
+    if (prev.hpCurrent !== undefined && prev.hpCurrent !== updated.hpCurrent) {
+      logActivity({ kind: 'hp', from: prev.hpCurrent, to: updated.hpCurrent, delta: updated.hpCurrent - prev.hpCurrent });
+    }
+    if (prev.hpTemp !== undefined && prev.hpTemp !== updated.hpTemp) {
+      logActivity({ kind: 'tempHp', from: prev.hpTemp, to: updated.hpTemp, delta: updated.hpTemp - prev.hpTemp });
+    }
     const res = updated as unknown as import('@vaultstone/types').Json;
     setCharacter({ ...character, resources: res });
     updateCharacterLocally(character.id, { resources: res });
@@ -327,6 +586,41 @@ export default function CharacterSheetScreen() {
     setCharacter({ ...character, base_stats: bs });
     updateCharacterLocally(character.id, { base_stats: bs });
     await updateCharacter(character.id, { base_stats: bs });
+  }
+
+  function persistTabLayout(next: TabLayoutState) {
+    setTabLayout(next);
+    if (stats && isOwner) {
+      const currentSettings = stats.settings ?? { manualMode: false };
+      persistStats({ ...stats, settings: { ...currentSettings, tabLayout: next } });
+    }
+  }
+
+  function moveTab(tabId: TabId, toSide: 'left' | 'right') {
+    const current = tabLayout;
+    const fromSide: 'left' | 'right' = current.left.includes(tabId) ? 'left' : 'right';
+    if (fromSide === toSide) return;
+    const fromList = current[fromSide].filter((t) => t !== tabId);
+    const toList = sortTabs([...current[toSide], tabId]);
+    const originActive: 'activeLeft' | 'activeRight' = fromSide === 'left' ? 'activeLeft' : 'activeRight';
+    const targetActive: 'activeLeft' | 'activeRight' = toSide === 'left' ? 'activeLeft' : 'activeRight';
+    const next: TabLayoutState = {
+      ...current,
+      [fromSide]: sortTabs(fromList),
+      [toSide]: toList,
+    } as TabLayoutState;
+    next[targetActive] = tabId;
+    if (current[originActive] === tabId) {
+      next[originActive] = (sortTabs(fromList)[0] ?? null) as any;
+    }
+    persistTabLayout(next);
+  }
+
+  function setSideActive(side: 'left' | 'right', tabId: TabId) {
+    persistTabLayout({
+      ...tabLayout,
+      [side === 'left' ? 'activeLeft' : 'activeRight']: tabId,
+    });
   }
 
   async function persistName(newName: string) {
@@ -539,16 +833,28 @@ export default function CharacterSheetScreen() {
     const current = character.conditions ?? [];
     const lower = condition.toLowerCase();
     const exists = current.map((c) => c.toLowerCase()).includes(lower);
+    logActivity({ kind: 'condition', name: condition, action: exists ? 'removed' : 'added' });
     persistConditions(exists ? current.filter((c) => c.toLowerCase() !== lower) : [...current, condition]);
   }
 
   function handleSetExhaustion(level: number) {
     if (!resources) return;
-    persistResources({ ...resources, exhaustionLevel: Math.max(0, level) });
+    const clamped = Math.max(0, level);
+    const from = resources.exhaustionLevel ?? 0;
+    if (from !== clamped) logActivity({ kind: 'exhaustion', from, to: clamped });
+    persistResources({ ...resources, exhaustionLevel: clamped });
+  }
+
+  function logActivity(entry: ActivityInput) {
+    setActivityLog((prev) => [
+      { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, at: Date.now(), ...entry } as ActivityEntry,
+      ...prev,
+    ].slice(0, 50));
   }
 
   function handleRoll(result: RollResult) {
     setRollResult(result);
+    logActivity({ kind: 'roll', result });
     if (rollTimeoutRef.current) clearTimeout(rollTimeoutRef.current);
     rollTimeoutRef.current = setTimeout(() => setRollResult(null), 3000);
   }
@@ -556,10 +862,13 @@ export default function CharacterSheetScreen() {
   function handleDeathSave(type: 'success' | 'failure') {
     if (!resources) return;
     const ds = resources.deathSaves;
+    const nextVal = type === 'success' ? (ds.successes + 1) % 4 : (ds.failures + 1) % 4;
+    const prevVal = type === 'success' ? ds.successes : ds.failures;
+    if (nextVal > prevVal) logActivity({ kind: 'deathSave', result: type });
     if (type === 'success') {
-      persistResources({ ...resources, deathSaves: { ...ds, successes: (ds.successes + 1) % 4 } });
+      persistResources({ ...resources, deathSaves: { ...ds, successes: nextVal } });
     } else {
-      persistResources({ ...resources, deathSaves: { ...ds, failures: (ds.failures + 1) % 4 } });
+      persistResources({ ...resources, deathSaves: { ...ds, failures: nextVal } });
     }
   }
 
@@ -594,10 +903,11 @@ export default function CharacterSheetScreen() {
 
   const hpRatio = Math.max(0, Math.min(1, resources.hpCurrent / stats.hpMax));
 
-  // ── Tab definitions — desktop omits Skills (always-visible right rail) ──
+  // ── Tab definitions — right rail is activity log, Skills is its own tab ──
   const DESKTOP_TAB_DEFS = [
     { id: 'combat',  icon: 'sword-cross' as const,        label: 'Combat' },
     { id: 'spells',  icon: 'auto-fix' as const,           label: 'Spells' },
+    { id: 'skills',  icon: 'star-outline' as const,       label: 'Skills' },
     { id: 'traits',  icon: 'lightning-bolt-outline' as const, label: 'Traits' },
     { id: 'gear',    icon: 'bag-personal-outline' as const, label: 'Gear' },
     { id: 'lore',    icon: 'book-open-outline' as const,  label: 'Lore' },
@@ -613,91 +923,97 @@ export default function CharacterSheetScreen() {
   const TAB_DEFS = isDesktop ? DESKTOP_TAB_DEFS : MOBILE_TAB_DEFS;
 
   // ── Tab panel content ────────────────────────────────────────────────────
-  const tabContent = (
-    <>
-      {activeTab === 'combat' && (
-        <CombatTab
-          stats={stats}
-          resources={resources}
-          scores={scores}
-          prof={prof}
-          activeConditions={activeConditions}
-          canEditAny={canEditAny}
-          equipment={equipment}
-          isDesktop={isDesktop}
-          onRoll={handleRoll}
-          onToggleCondition={handleToggleCondition}
-          getAttackBonus={getAttackBonus}
-          onOpenHpModal={() => setHpModalVisible(true)}
-        />
-      )}
-      {activeTab === 'spells' && (
-        <SpellsTab
-          stats={stats}
-          resources={resources}
-          scores={scores}
-          prof={prof}
-          isOwner={isOwner}
-          onSpellSlotChange={(level, delta) => {
-            if (!resources.spellSlots) return;
-            const slot = resources.spellSlots[level];
-            const next = Math.max(0, Math.min(slot.max, slot.remaining + delta));
-            persistResources({
-              ...resources,
-              spellSlots: { ...resources.spellSlots, [level]: { ...slot, remaining: next } },
-            });
-          }}
-          onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
-        />
-      )}
-      {activeTab === 'skills' && (
-        <SkillsTab stats={stats} scores={scores} prof={prof} onRoll={handleRoll} />
-      )}
-      {activeTab === 'traits' && (
-        <AbilitiesTab
-          stats={stats}
-          resources={resources}
-          isOwner={isOwner}
-          onToggleFeatureUse={toggleFeatureUse}
-          onAddFeature={(cat) => {
-            setFeatureCategory(cat);
-            setEditFeature({ id: Date.now().toString(), name: '', description: '' });
-            setFeatureModal(true);
-          }}
-          onEditFeature={(cat, feature) => {
-            setFeatureCategory(cat);
-            setEditFeature(feature);
-            setFeatureModal(true);
-          }}
-        />
-      )}
-      {activeTab === 'gear' && (
-        <GearTab
-          stats={stats}
-          resources={resources}
-          isOwner={isOwner}
-          strengthScore={scores.strength}
-          onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
-          onToggleEquipped={handleToggleEquipped}
-          onUpdateNotes={(notes) => persistResources({ ...resources, notes })}
-          onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
-        />
-      )}
-      {activeTab === 'lore' && (
-        <LoreTab
-          stats={stats}
-          resources={resources}
-          isOwner={isOwner}
-          onPersonalityChange={(field, value) =>
-            persistResources({ ...resources, personality: { ...resources.personality, [field]: value } })
-          }
-          onAppearanceChange={(field, value) =>
-            persistResources({ ...resources, appearance: { ...resources.appearance, [field]: value } })
-          }
-        />
-      )}
-    </>
-  );
+  function renderTab(id: TabId) {
+    if (!stats || !resources || !scores) return null;
+    switch (id) {
+      case 'combat':
+        return (
+          <CombatTab
+            stats={stats}
+            resources={resources}
+            scores={scores}
+            prof={prof}
+            activeConditions={activeConditions}
+            canEditAny={canEditAny}
+            equipment={equipment}
+            isDesktop={isDesktop}
+            onRoll={handleRoll}
+            onToggleCondition={handleToggleCondition}
+            onSetExhaustion={handleSetExhaustion}
+            getAttackBonus={getAttackBonus}
+            onOpenHpModal={() => setHpModalVisible(true)}
+          />
+        );
+      case 'spells':
+        return (
+          <SpellsTab
+            stats={stats}
+            resources={resources}
+            scores={scores}
+            prof={prof}
+            isOwner={isOwner}
+            onSpellSlotChange={(level, delta) => {
+              if (!resources.spellSlots) return;
+              const slot = resources.spellSlots[level];
+              const next = Math.max(0, Math.min(slot.max, slot.remaining + delta));
+              persistResources({
+                ...resources,
+                spellSlots: { ...resources.spellSlots, [level]: { ...slot, remaining: next } },
+              });
+            }}
+            onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
+          />
+        );
+      case 'skills':
+        return <SkillsTab stats={stats} scores={scores} prof={prof} onRoll={handleRoll} />;
+      case 'traits':
+        return (
+          <AbilitiesTab
+            stats={stats}
+            resources={resources}
+            isOwner={isOwner}
+            onToggleFeatureUse={toggleFeatureUse}
+            onAddFeature={(cat) => {
+              setFeatureCategory(cat);
+              setEditFeature({ id: Date.now().toString(), name: '', description: '' });
+              setFeatureModal(true);
+            }}
+            onEditFeature={(cat, feature) => {
+              setFeatureCategory(cat);
+              setEditFeature(feature);
+              setFeatureModal(true);
+            }}
+          />
+        );
+      case 'gear':
+        return (
+          <GearTab
+            stats={stats}
+            resources={resources}
+            isOwner={isOwner}
+            strengthScore={scores.strength}
+            onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
+            onToggleEquipped={handleToggleEquipped}
+            onUpdateNotes={(notes) => persistResources({ ...resources, notes })}
+            onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
+          />
+        );
+      case 'lore':
+        return (
+          <LoreTab
+            stats={stats}
+            resources={resources}
+            isOwner={isOwner}
+            onPersonalityChange={(field, value) =>
+              persistResources({ ...resources, personality: { ...resources.personality, [field]: value } })
+            }
+            onAppearanceChange={(field, value) =>
+              persistResources({ ...resources, appearance: { ...resources.appearance, [field]: value } })
+            }
+          />
+        );
+    }
+  }
 
   // ── Portrait helper ──────────────────────────────────────────────────────
   const portraitContent = portraitUploading
@@ -713,6 +1029,7 @@ export default function CharacterSheetScreen() {
         /* ════════════════════════════════════════════════════════════════
            DESKTOP LAYOUT — two-column sidebar
            ════════════════════════════════════════════════════════════════ */
+        <DndProvider backend={HTML5Backend}>
         <View style={s.deskShell}>
 
           {/* ── Left rail ───────────────────────────────────────────── */}
@@ -773,21 +1090,41 @@ export default function CharacterSheetScreen() {
             {/* ── Stats block ─────────────────────────────────────── */}
             <View style={s.deskStats}>
               {/* HP section */}
-              <TouchableOpacity
-                style={s.deskHpBox}
-                onPress={() => canEditAny && setHpModalVisible(true)}
-                onLongPress={() => canEditAny && setHpModalVisible(true)}
-                activeOpacity={0.8}
-              >
-              <Text style={s.deskHpSectionLabel}>Hit Points</Text>
-              <View
-                style={s.deskHpRow}
-              >
-                <View style={s.deskHpNums}>
-                  <Text style={[s.deskHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
-                  <Text style={s.deskHpSep}>/</Text>
-                  <Text style={s.deskHpMax}>{stats.hpMax}</Text>
+              <View style={s.deskHpBox}>
+                <Text style={s.deskHpSectionLabel}>Hit Points</Text>
+                <View style={s.deskHpCenterRow}>
+                  <TouchableOpacity
+                    style={s.deskHpActionBtn}
+                    onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
+                    disabled={!canEditAny}
+                    activeOpacity={0.7}
+                    hitSlop={6}
+                  >
+                    <MaterialCommunityIcons name="sword" size={20} color={colors.hpDanger} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={s.deskHpNumsCenter}
+                    onPress={() => canEditAny && setHpModalVisible(true)}
+                    onLongPress={() => canEditAny && setHpModalVisible(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.deskHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
+                    <Text style={s.deskHpSep}>/</Text>
+                    <Text style={s.deskHpMax}>{stats.hpMax}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={s.deskHpActionBtn}
+                    onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
+                    disabled={!canEditAny}
+                    activeOpacity={0.7}
+                    hitSlop={6}
+                  >
+                    <MaterialCommunityIcons name="heart-plus" size={20} color={colors.hpHealthy} />
+                  </TouchableOpacity>
                 </View>
+
                 <View style={s.deskHpTrack}>
                   <View style={[s.deskHpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
                   {resources.hpTemp > 0 && (
@@ -796,6 +1133,7 @@ export default function CharacterSheetScreen() {
                     }]} />
                   )}
                 </View>
+
                 <View style={s.deskHpMeta}>
                   {resources.hpTemp > 0
                     ? <Text style={s.deskHpTempLabel}>+{resources.hpTemp} temp</Text>
@@ -808,7 +1146,6 @@ export default function CharacterSheetScreen() {
                   )}
                 </View>
               </View>
-              </TouchableOpacity>
 
               {/* ── Death Saves (only at 0 HP) ── */}
               {resources.hpCurrent === 0 && (
@@ -851,6 +1188,18 @@ export default function CharacterSheetScreen() {
                 </View>
               )}
 
+              {/* Conditions */}
+              <View style={s.deskConditions}>
+                <Text style={s.deskSectionLabel}>Conditions</Text>
+                <ConditionsSection
+                  activeConditions={activeConditions}
+                  exhaustionLevel={exhaustionLevel}
+                  canEditAny={canEditAny}
+                  onToggle={handleToggleCondition}
+                  onSetExhaustion={handleSetExhaustion}
+                />
+              </View>
+
               {/* Stat grid — AC full row, then 2+2 */}
               <View style={s.deskStatGrid}>
                 {/* Row 1: AC solo */}
@@ -870,39 +1219,41 @@ export default function CharacterSheetScreen() {
               </View>
             </View>
 
-            {/* ── Abilities & Saves (Option C — combined rows) ──────── */}
+            {/* ── Senses (passive skills) ───────────────────────────── */}
             <View style={s.deskSection}>
-              <Text style={s.deskSectionLabel}>Abilities &amp; Saves</Text>
+              <Text style={s.deskSectionLabel}>Senses</Text>
+              {(['perception', 'investigation', 'insight'] as const).map((skill) => {
+                const abi: keyof Dnd5eAbilityScores = skill === 'investigation' ? 'intelligence' : 'wisdom';
+                const isProficient = stats.skillProficiencies?.includes(skill) ?? false;
+                const passive = 10 + abilityMod(scores[abi]) + (isProficient ? prof : 0);
+                return (
+                  <View key={skill} style={s.deskAbilityRow}>
+                    <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
+                    <Text style={s.deskAbilName}>Passive {capitalize(skill)}</Text>
+                    <Text style={[s.deskAbilSaveVal, isProficient && { color: colors.primary }]}>{passive}</Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* ── Saving Throws ─────────────────────────────────────── */}
+            <View style={s.deskSection}>
+              <Text style={s.deskSectionLabel}>Saving Throws</Text>
               {ABILITY_KEYS.map((key) => {
-                const score = scores[key];
-                const mod = abilityMod(score);
-                const isSpellMod = stats.spellcastingAbility === key;
+                const mod = abilityMod(scores[key]);
                 const isProficient = stats.savingThrowProficiencies?.includes(key) ?? false;
                 const saveBonus = mod + (isProficient ? prof : 0);
                 return (
-                  <View key={key} style={s.deskAbilityRow}>
+                  <TouchableOpacity
+                    key={key}
+                    style={s.deskAbilityRow}
+                    onPress={() => handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [Math.floor(Math.random() * 20) + 1], bonus: saveBonus, total: Math.floor(Math.random() * 20) + 1 + saveBonus })}
+                    activeOpacity={0.7}
+                  >
                     <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
-                    <Text style={[s.deskAbilName, isSpellMod && { color: colors.primary }]}>
-                      {capitalize(key)}
-                    </Text>
-                    <TouchableOpacity
-                      style={[s.deskAbilBadge, isSpellMod && s.deskAbilBadgeHot]}
-                      onPress={() => handleRoll({ label: ABILITY_SHORT[key], rolls: [Math.floor(Math.random() * 20) + 1], bonus: mod, total: Math.floor(Math.random() * 20) + 1 + mod })}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.deskAbilMod, isSpellMod && { color: colors.primary }]}>{fmtMod(mod)}</Text>
-                      <Text style={s.deskAbilRaw}>{score}</Text>
-                    </TouchableOpacity>
-                    <View style={s.deskAbilSep} />
-                    <TouchableOpacity
-                      style={s.deskAbilSaveArea}
-                      onPress={() => handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [Math.floor(Math.random() * 20) + 1], bonus: saveBonus, total: Math.floor(Math.random() * 20) + 1 + saveBonus })}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.deskAbilSaveVal, isProficient && { color: colors.primary }]}>{fmtMod(saveBonus)}</Text>
-                      <Text style={s.deskAbilSaveLbl}>save</Text>
-                    </TouchableOpacity>
-                  </View>
+                    <Text style={s.deskAbilName}>{capitalize(key)}</Text>
+                    <Text style={[s.deskAbilSaveVal, isProficient && { color: colors.primary }]}>{fmtMod(saveBonus)}</Text>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -924,78 +1275,76 @@ export default function CharacterSheetScreen() {
 
           {/* ── Center content pane ─────────────────────────────────── */}
           <View style={s.deskContent}>
-
-            {/* Horizontal tab bar */}
-            <View style={s.deskTabBar}>
-              {TAB_DEFS.map((tab) => (
-                <TouchableOpacity
-                  key={tab.id}
-                  style={[s.deskTabBtn, activeTab === tab.id && s.deskTabBtnActive]}
-                  onPress={() => setActiveTab(tab.id as 'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore')}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name={tab.icon}
-                    size={18}
-                    color={activeTab === tab.id ? colors.primary : colors.outline}
+            <View style={s.deskPanes}>
+              {/* Left pane */}
+              <TabPane
+                tabs={tabLayout.left}
+                activeId={tabLayout.activeLeft}
+                side="left"
+                onActivate={(id) => setSideActive('left', id)}
+                onMoveToSide={(id, toSide) => moveTab(id, toSide)}
+                renderTab={renderTab}
+              />
+              {tabLayout.right.length > 0 ? (
+                <>
+                  <View style={s.deskPaneDivider} />
+                  <TabPane
+                    tabs={tabLayout.right}
+                    activeId={tabLayout.activeRight ?? tabLayout.right[0]}
+                    side="right"
+                    onActivate={(id) => setSideActive('right', id)}
+                    onMoveToSide={(id, toSide) => moveTab(id, toSide)}
+                    renderTab={renderTab}
                   />
-                  <Text style={[s.deskTabLabel, activeTab === tab.id && s.deskTabLabelActive]}>
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                </>
+              ) : (
+                <SplitDropZone onMove={(id) => moveTab(id, 'right')} />
+              )}
             </View>
-
-            {/* Tab content */}
-            <View style={{ flex: 1 }}>
-              {tabContent}
-            </View>
-
           </View>
 
-          {/* ── Skills rail (right side, collapsible) ───────────────── */}
+          {/* ── Activity log rail (right side, collapsible) ─────────── */}
           {!rightRailCollapsed && (
             <View style={s.skillsRail}>
               <View style={s.skillsRailHead}>
                 <View>
-                  <Text style={s.skillsRailTitle}>Skills</Text>
-                  <Text style={s.skillsRailSub}>Passive Perc {10 + abilityMod(scores.wisdom) + (stats.skillProficiencies?.includes('perception') ? prof : 0)}</Text>
+                  <Text style={s.skillsRailTitle}>Activity Log</Text>
+                  <Text style={s.skillsRailSub}>{activityLog.length} event{activityLog.length === 1 ? '' : 's'}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setRightRailCollapsed(true)} hitSlop={8}>
                   <MaterialCommunityIcons name="chevron-right" size={18} color={colors.outline} />
                 </TouchableOpacity>
               </View>
-              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                {ALL_SKILLS.map((skill) => {
-                  const abilKey = SKILL_ABILITY[skill];
-                  const mod = abilityMod(scores[abilKey]);
-                  const isProficient = stats.skillProficiencies?.includes(skill) ?? false;
-                  const bonus = mod + (isProficient ? prof : 0);
-                  return (
-                    <TouchableOpacity
-                      key={skill}
-                      style={s.skillsRailRow}
-                      onPress={() => handleRoll({ label: titleCase(skill), rolls: [Math.floor(Math.random() * 20) + 1], bonus: bonus, total: Math.floor(Math.random() * 20) + 1 + bonus })}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[s.skillsRailDot, isProficient && s.skillsRailDotProf]} />
-                      <Text style={[s.skillsRailName, isProficient && s.skillsRailNameProf]} numberOfLines={1}>{titleCase(skill)}</Text>
-                      <Text style={s.skillsRailAbi}>{ABILITY_SHORT[abilKey].slice(0, 3)}</Text>
-                      <Text style={[s.skillsRailVal, isProficient && s.skillsRailValProf]}>{fmtMod(bonus)}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              {activityLog.length === 0 ? (
+                <Text style={s.logRailEmpty}>No activity yet.</Text>
+              ) : (
+                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                  {activityLog.map((entry) => {
+                    const d = describeEntry(entry);
+                    return (
+                      <View key={entry.id} style={s.logRailRow}>
+                        <MaterialCommunityIcons name={d.icon as any} size={12} color={d.accent} />
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={s.logRailLabel} numberOfLines={1}>{d.label}</Text>
+                          {!!d.detail && <Text style={s.logRailDice} numberOfLines={1}>{d.detail}</Text>}
+                        </View>
+                        {!!d.total && <Text style={[s.logRailTotal, { color: d.accent }]}>{d.total}</Text>}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              )}
             </View>
           )}
           {rightRailCollapsed && (
             <TouchableOpacity style={s.skillsRailCollapsed} onPress={() => setRightRailCollapsed(false)} activeOpacity={0.7}>
               <MaterialCommunityIcons name="chevron-left" size={16} color={colors.outline} />
-              <Text style={s.skillsRailCollapsedLabel}>Skills</Text>
+              <Text style={s.skillsRailCollapsedLabel}>Log</Text>
             </TouchableOpacity>
           )}
 
         </View>
+        </DndProvider>
 
       ) : (
         /* ════════════════════════════════════════════════════════════════
@@ -1042,6 +1391,10 @@ export default function CharacterSheetScreen() {
                 size={18}
                 color={resources.inspiration ? colors.gm : colors.outline}
               />
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setLogModal(true)} hitSlop={8} style={s.settingsIconBtn}>
+              <MaterialCommunityIcons name="notebook-outline" size={20} color={colors.outline} />
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => setSettingsModal(true)} hitSlop={8} style={s.settingsIconBtn}>
@@ -1092,7 +1445,7 @@ export default function CharacterSheetScreen() {
           </View>
 
           {/* Tab content */}
-          <View style={{ flex: 1 }}>{tabContent}</View>
+          <View style={{ flex: 1 }}>{renderTab(activeTab)}</View>
 
           {/* Bottom tab bar */}
           <View style={s.tabBar}>
@@ -1126,6 +1479,39 @@ export default function CharacterSheetScreen() {
         onClose={() => setHpModalVisible(false)}
         onApply={persistResources}
       />
+
+      {/* Activity log modal */}
+      <Modal visible={logModal} transparent animationType="fade">
+        <Pressable style={s.modalBackdrop} onPress={() => setLogModal(false)}>
+          <Pressable style={s.modalCard} onPress={() => {}}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Activity Log</Text>
+              <TouchableOpacity onPress={() => setLogModal(false)}>
+                <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            {activityLog.length === 0 ? (
+              <Text style={s.logEmpty}>No activity yet — your rolls and changes will appear here.</Text>
+            ) : (
+              <ScrollView style={s.logList} showsVerticalScrollIndicator={false}>
+                {activityLog.map((entry) => {
+                  const d = describeEntry(entry);
+                  return (
+                    <View key={entry.id} style={s.logRow}>
+                      <MaterialCommunityIcons name={d.icon as any} size={18} color={d.accent} style={{ marginRight: 4 }} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={s.logLabel} numberOfLines={1}>{d.label}</Text>
+                        {!!d.detail && <Text style={s.logDice}>{d.detail}</Text>}
+                      </View>
+                      {!!d.total && <Text style={[s.logTotal, { color: d.accent }]}>{d.total}</Text>}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Settings modal */}
       <Modal visible={settingsModal} transparent animationType="fade">
@@ -1792,6 +2178,19 @@ const s = StyleSheet.create({
   },
   deskHpRow: { gap: 6 },
   deskHpNums: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
+  deskHpCenterRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  deskHpNumsCenter: {
+    flexDirection: 'row', alignItems: 'baseline', gap: 2, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  deskHpActionBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
   deskHpCurrent: {
     fontSize: 28, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 30,
   },
@@ -1838,6 +2237,7 @@ const s = StyleSheet.create({
   deskDeathPipFailure: { backgroundColor: colors.hpDanger, borderColor: colors.hpDanger },
 
   deskStatGrid: { gap: 6 },
+  deskConditions: { gap: 6, marginBottom: 10 },
   deskStatRow: { flexDirection: 'row', gap: 6 },
 
   // Horizontal tab bar (top of right pane)
@@ -1865,6 +2265,11 @@ const s = StyleSheet.create({
   deskContent: {
     flex: 1,
     backgroundColor: colors.surfaceCanvas,
+  },
+  deskPanes: { flex: 1, flexDirection: 'row' },
+  deskPaneDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: colors.outlineVariant,
   },
   topBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -2391,6 +2796,24 @@ const s = StyleSheet.create({
     marginBottom: spacing.md,
   },
 
+  // Activity log
+  logList: { maxHeight: 360 },
+  logRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  logLabel: {
+    fontSize: 13, fontWeight: '600', color: colors.textPrimary,
+    textTransform: 'uppercase', letterSpacing: 0.5,
+  },
+  logDice: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+  logTotal: { fontSize: 20, fontWeight: '800' },
+  logEmpty: {
+    fontSize: 13, color: colors.textSecondary, fontStyle: 'italic',
+    paddingVertical: spacing.md,
+  },
+
   // Settings
   settingRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
@@ -2538,6 +2961,24 @@ const s = StyleSheet.create({
     color: colors.onSurfaceVariant, minWidth: 24, textAlign: 'right',
   },
   skillsRailValProf: { color: colors.primary },
+  logRailRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 8, paddingVertical: 6,
+    borderBottomWidth: 1, borderBottomColor: '#ffffff06',
+  },
+  logRailLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.5, textTransform: 'uppercase', color: colors.onSurface,
+  },
+  logRailDice: { fontSize: 8, color: colors.outline, marginTop: 1 },
+  logRailTotal: {
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '800',
+    minWidth: 24, textAlign: 'right',
+  },
+  logRailEmpty: {
+    fontSize: 10, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic',
+    padding: 10,
+  },
   skillsRailCollapsed: {
     width: 28, flexShrink: 0,
     backgroundColor: colors.surfaceContainerLowest,

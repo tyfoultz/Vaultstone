@@ -57,115 +57,105 @@ export function GearTab({
     : 'Heavily Encumbered';
 
   return (
-    <View style={s.root}>
-      {/* ── LEFT COLUMN ─────────────────────────────────────────────── */}
-      <ScrollView style={s.col} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
 
-        {/* Attunement Slots */}
-        <SectionLabel>Attunement Slots</SectionLabel>
-        <View style={s.attunementSlots}>
-          {Array.from({ length: attunementMax }).map((_, i) => {
-            const item = attuned[i];
-            return (
-              <View key={i} style={[s.attuneSlot, item ? s.attuneSlotActive : s.attuneSlotEmpty]}>
-                <Text style={s.attuneLbl}>Slot {i + 1}</Text>
-                {item
-                  ? <Text style={s.attuneName} numberOfLines={1}>{item.name}</Text>
-                  : <Text style={s.attuneEmpty}>— empty —</Text>}
-              </View>
-            );
-          })}
-        </View>
+      {/* Attunement Slots */}
+      <SectionLabel>Attunement Slots</SectionLabel>
+      <View style={s.attunementSlots}>
+        {Array.from({ length: attunementMax }).map((_, i) => {
+          const item = attuned[i];
+          return (
+            <View key={i} style={[s.attuneSlot, item ? s.attuneSlotActive : s.attuneSlotEmpty]}>
+              <Text style={s.attuneLbl}>Slot {i + 1}</Text>
+              {item
+                ? <Text style={s.attuneName} numberOfLines={1}>{item.name}</Text>
+                : <Text style={s.attuneEmpty}>— empty —</Text>}
+            </View>
+          );
+        })}
+      </View>
 
-        {/* Equipped */}
-        <CardBlock title="Equipped" action={isOwner ? '+ Add' : undefined}>
-          {equippedItems.length === 0
-            ? <Text style={s.emptyHint}>Nothing equipped.</Text>
-            : equippedItems.map((item, i) => (
-              <EquipRow
-                key={item.id}
-                item={item}
-                canToggle={isOwner}
-                onToggle={() => onToggleEquipped?.(item.id)}
-                isLast={i === equippedItems.length - 1}
-              />
-            ))
-          }
-        </CardBlock>
-
-        {/* Carrying */}
-        <CardBlock title="Carrying" action={isOwner ? '+ Add' : undefined}>
-          {carriedItems.length === 0
-            ? <Text style={s.emptyHint}>Nothing else carried.</Text>
-            : carriedItems.map((item, i) => (
-              <EquipRow
-                key={item.id}
-                item={item}
-                canToggle={isOwner}
-                onToggle={() => onToggleEquipped?.(item.id)}
-                isLast={i === carriedItems.length - 1}
-              />
-            ))
-          }
-        </CardBlock>
-
-      </ScrollView>
-
-      <View style={s.colDivider} />
-
-      {/* ── RIGHT COLUMN ────────────────────────────────────────────── */}
-      <ScrollView style={s.col} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
-
-        {/* Currency */}
-        <SectionLabel>Currency</SectionLabel>
-        <View style={s.coinRow}>
-          {COIN_LABELS.map(({ key, label, color }) => (
-            <CoinCell
-              key={key}
-              label={label}
-              value={coins[key]}
-              color={color}
-              editable={isOwner}
-              onChange={(v) => onUpdateCoins?.({ ...coins, [key]: v })}
+      {/* Equipped */}
+      <CardBlock title="Equipped" action={isOwner ? '+ Add' : undefined}>
+        {equippedItems.length === 0
+          ? <Text style={s.emptyHint}>Nothing equipped.</Text>
+          : equippedItems.map((item, i) => (
+            <EquipRow
+              key={item.id}
+              item={item}
+              canToggle={isOwner}
+              onToggle={() => onToggleEquipped?.(item.id)}
+              isLast={i === equippedItems.length - 1}
             />
-          ))}
+          ))
+        }
+      </CardBlock>
+
+      {/* Carrying */}
+      <CardBlock title="Carrying" action={isOwner ? '+ Add' : undefined}>
+        {carriedItems.length === 0
+          ? <Text style={s.emptyHint}>Nothing else carried.</Text>
+          : carriedItems.map((item, i) => (
+            <EquipRow
+              key={item.id}
+              item={item}
+              canToggle={isOwner}
+              onToggle={() => onToggleEquipped?.(item.id)}
+              isLast={i === carriedItems.length - 1}
+            />
+          ))
+        }
+      </CardBlock>
+
+      {/* Currency */}
+      <SectionLabel>Currency</SectionLabel>
+      <View style={s.coinRow}>
+        {COIN_LABELS.map(({ key, label, color }) => (
+          <CoinCell
+            key={key}
+            label={label}
+            value={coins[key]}
+            color={color}
+            editable={isOwner}
+            onChange={(v) => onUpdateCoins?.({ ...coins, [key]: v })}
+          />
+        ))}
+      </View>
+
+      {/* Carry Capacity */}
+      <CardBlock title="Carry Capacity">
+        <View style={s.carryNums}>
+          <Text style={s.carryWeight}>{carryWeight}</Text>
+          <Text style={s.carryMax}>/ {carryMax} lbs</Text>
         </View>
+        <View style={s.carryTrack}>
+          <View style={[s.carryFill, { width: `${carryRatio * 100}%` as any }]} />
+        </View>
+        <Text style={s.carryLoad}>{carryLoad} · STR {strengthScore} × 15</Text>
+      </CardBlock>
 
-        {/* Carry Capacity */}
-        <CardBlock title="Carry Capacity">
-          <View style={s.carryNums}>
-            <Text style={s.carryWeight}>{carryWeight}</Text>
-            <Text style={s.carryMax}>/ {carryMax} lbs</Text>
-          </View>
-          <View style={s.carryTrack}>
-            <View style={[s.carryFill, { width: `${carryRatio * 100}%` as any }]} />
-          </View>
-          <Text style={s.carryLoad}>{carryLoad} · STR {strengthScore} × 15</Text>
-        </CardBlock>
+      {/* Treasure & Valuables */}
+      <CardBlock title="Treasure & Valuables">
+        <EditableText
+          value={resources.treasure ?? ''}
+          placeholder="Notable loot, gems, art objects…"
+          editable={isOwner}
+          onCommit={(v) => onUpdateTreasure?.(v)}
+        />
+      </CardBlock>
 
-        {/* Treasure & Valuables */}
-        <CardBlock title="Treasure & Valuables">
-          <EditableText
-            value={resources.treasure ?? ''}
-            placeholder="Notable loot, gems, art objects…"
-            editable={isOwner}
-            onCommit={(v) => onUpdateTreasure?.(v)}
-          />
-        </CardBlock>
+      {/* Notes */}
+      <CardBlock title="Notes">
+        <EditableText
+          value={resources.notes ?? ''}
+          placeholder="Session notes, reminders, loot to identify…"
+          editable={isOwner}
+          onCommit={(v) => onUpdateNotes?.(v)}
+          multiline
+        />
+      </CardBlock>
 
-        {/* Notes */}
-        <CardBlock title="Notes" style={{ flex: 1 }}>
-          <EditableText
-            value={resources.notes ?? ''}
-            placeholder="Session notes, reminders, loot to identify…"
-            editable={isOwner}
-            onCommit={(v) => onUpdateNotes?.(v)}
-            multiline
-          />
-        </CardBlock>
-
-      </ScrollView>
-    </View>
+    </ScrollView>
   );
 }
 

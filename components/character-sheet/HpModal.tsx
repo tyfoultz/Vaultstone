@@ -11,9 +11,6 @@ import {
 import { colors } from '@vaultstone/ui';
 import type { Dnd5eResources } from '@vaultstone/types';
 
-type Mode = 'damage' | 'heal' | 'set';
-type HealTarget = 'hp' | 'temp';
-
 interface Props {
   visible: boolean;
   resources: Dnd5eResources;
@@ -23,61 +20,25 @@ interface Props {
 }
 
 export function HpModal({ visible, resources, hpMax, onClose, onApply }: Props) {
-  const [mode, setMode] = useState<Mode>('damage');
-  const [healTarget, setHealTarget] = useState<HealTarget>('hp');
   const [amount, setAmount] = useState('');
 
   useEffect(() => {
-    if (visible) {
-      setAmount('');
-      setHealTarget('hp');
-    }
-  }, [visible]);
+    if (visible) setAmount(String(resources.hpCurrent));
+  }, [visible, resources.hpCurrent]);
 
   function handleApply() {
     const n = parseInt(amount, 10);
     if (isNaN(n) || n < 0) return;
-
-    let newCurrent = resources.hpCurrent;
-    let newTemp = resources.hpTemp;
-
-    if (mode === 'damage') {
-      const tempAbsorb = Math.min(resources.hpTemp, n);
-      const remaining = n - tempAbsorb;
-      newTemp = resources.hpTemp - tempAbsorb;
-      newCurrent = Math.max(0, resources.hpCurrent - remaining);
-    } else if (mode === 'heal') {
-      if (healTarget === 'temp') {
-        newTemp = resources.hpTemp + n;
-      } else {
-        newCurrent = Math.min(hpMax, resources.hpCurrent + n);
-      }
-    } else {
-      newCurrent = Math.max(0, Math.min(hpMax, n));
-    }
-
-    onApply({ ...resources, hpCurrent: newCurrent, hpTemp: newTemp });
+    const newCurrent = Math.max(0, Math.min(hpMax, n));
+    onApply({ ...resources, hpCurrent: newCurrent });
     onClose();
   }
-
-  const modeColor: Record<Mode, string> = {
-    damage: colors.hpDanger,
-    heal: colors.hpHealthy,
-    set: colors.brand,
-  };
-
-  const placeholder =
-    mode === 'set'
-      ? 'Set current HP to…'
-      : mode === 'heal' && healTarget === 'temp'
-        ? 'Temp HP amount…'
-        : 'Amount…';
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet}>
-          <Text style={styles.title}>Hit Points</Text>
+          <Text style={styles.title}>Set Hit Points</Text>
 
           <View style={styles.hpDisplay}>
             <Text style={styles.hpCurrent}>{resources.hpCurrent}</Text>
@@ -88,64 +49,19 @@ export function HpModal({ visible, resources, hpMax, onClose, onApply }: Props) 
             )}
           </View>
 
-          <View style={styles.modeTabs}>
-            {(['damage', 'heal', 'set'] as Mode[]).map((m) => (
-              <TouchableOpacity
-                key={m}
-                style={[
-                  styles.modeTab,
-                  mode === m && { borderColor: modeColor[m], backgroundColor: modeColor[m] + '22' },
-                ]}
-                onPress={() => setMode(m)}
-              >
-                <Text
-                  style={[
-                    styles.modeTabText,
-                    mode === m && { color: modeColor[m] },
-                  ]}
-                >
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {mode === 'heal' && (
-            <View style={styles.healTargetRow}>
-              {(['hp', 'temp'] as HealTarget[]).map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  style={[
-                    styles.healTargetBtn,
-                    healTarget === t && styles.healTargetBtnActive,
-                  ]}
-                  onPress={() => setHealTarget(t)}
-                >
-                  <Text
-                    style={[
-                      styles.healTargetText,
-                      healTarget === t && styles.healTargetTextActive,
-                    ]}
-                  >
-                    {t === 'hp' ? 'Healing' : 'Temp HP'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
           <TextInput
             style={styles.amountInput}
             keyboardType="number-pad"
-            placeholder={placeholder}
+            placeholder="Set current HP to…"
             placeholderTextColor={colors.textSecondary}
             value={amount}
             onChangeText={setAmount}
             autoFocus
+            selectTextOnFocus
           />
 
           <TouchableOpacity
-            style={[styles.applyBtn, !amount && styles.applyBtnDisabled, { backgroundColor: modeColor[mode] }]}
+            style={[styles.applyBtn, !amount && styles.applyBtnDisabled, { backgroundColor: colors.brand }]}
             onPress={handleApply}
             disabled={!amount}
           >

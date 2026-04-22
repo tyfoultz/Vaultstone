@@ -12,6 +12,13 @@ export interface CharacterSettings {
   manualMode: boolean;
   /** Saved card order for the character sheet grid. */
   cardOrder?: string[];
+  /** Persisted desktop two-column tab layout. */
+  tabLayout?: {
+    left: string[];
+    right: string[];
+    activeLeft: string;
+    activeRight: string | null;
+  };
 }
 
 export interface Dnd5eAbilityScores {

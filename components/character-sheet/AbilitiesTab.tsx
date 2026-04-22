@@ -103,12 +103,13 @@ export function AbilitiesTab({ stats, resources, isOwner, onToggleFeatureUse, on
         ))
       )}
 
-      {/* Armor / weapon proficiencies */}
+      {/* Armor / weapon proficiencies + languages */}
       <SectionRow label="PROFICIENCIES" style={{ marginTop: 16 }} />
       <View style={s.profCard}>
         {stats.armorProficiencies.length > 0 && <ProfLine label="Armor" items={stats.armorProficiencies} />}
         {stats.weaponProficiencies.length > 0 && <ProfLine label="Weapons" items={stats.weaponProficiencies} />}
         {stats.toolProficiencies.length > 0 && <ProfLine label="Tools" items={stats.toolProficiencies} />}
+        {stats.languages.length > 0 && <ProfLine label="Languages" items={stats.languages} />}
       </View>
 
       <View style={{ height: 16 }} />
