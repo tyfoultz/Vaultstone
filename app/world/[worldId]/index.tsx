@@ -5,7 +5,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   getActiveSession,
   getCampaignMembers,
-  getCampaignsForWorld,
   getCompletedSessionCount,
   getPage,
   startSession,
@@ -84,7 +83,7 @@ export default function WorldLandingScreen() {
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
   const pagesByWorld = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
   const { setActiveSectionId } = useActiveSection();
-  const [linkedCampaigns, setLinkedCampaigns] = useState<Campaign[]>([]);
+  const linkedCampaigns = useCurrentWorldStore((s) => s.linkedCampaigns);
   const [createSectionOpen, setCreateSectionOpen] = useState(false);
   const [createPageSectionId, setCreatePageSectionId] = useState<string | null>(null);
   const [totalSessions, setTotalSessions] = useState(0);
@@ -101,63 +100,56 @@ export default function WorldLandingScreen() {
   const isOwner = !!(user && world && user.id === world.owner_user_id);
 
   useEffect(() => {
-    if (!worldId) return;
-    getCampaignsForWorld(worldId).then(({ data }) => {
-      const rows = (data ?? []) as unknown as Array<{ campaigns: Campaign | null }>;
-      const campaigns = rows.map((r) => r.campaigns).filter((c): c is Campaign => !!c);
-      setLinkedCampaigns(campaigns);
-      if (campaigns.length > 0) {
-        Promise.all(campaigns.map((c) => getCompletedSessionCount(c.id))).then(
-          (results) => setTotalSessions(results.reduce((sum, r) => sum + r.count, 0)),
-        );
-        Promise.all(campaigns.map((c) => getActiveSession(c.id))).then((results) => {
-          const active = results.find((r) => r.data);
-          if (active?.data) {
-            const session = active.data as { id: string; campaign_id: string };
-            setActiveSessionCampaignId(session.campaign_id);
-          }
-        });
-        Promise.all(campaigns.map((c) => getCampaignMembers(c.id))).then((results) => {
-          const members: PartyMember[] = [];
-          const seen = new Set<string>();
-          for (const { data } of results) {
-            if (!data) continue;
-            for (const raw of data as unknown as Array<{
-              user_id: string;
-              role: string;
-              profiles: { display_name: string | null } | null;
-              characters: { id: string; name: string; system: string; base_stats: unknown; resources: unknown } | null;
-            }>) {
-              if (raw.role !== 'player' || !raw.characters || seen.has(raw.user_id)) continue;
-              seen.add(raw.user_id);
-              const stats = raw.characters.base_stats as Record<string, unknown> | null;
-              const res = raw.characters.resources as Record<string, unknown> | null;
-              const name = raw.characters.name;
-              const initials = name.split(/\s+/).map((w) => w[0]?.toUpperCase()).join('').slice(0, 2);
-              const level = (stats?.level as number) ?? 1;
-              const hpMax = (stats?.hpMax as number) ?? 0;
-              const hpCurrent = (res?.hpCurrent as number) ?? hpMax;
-              const speciesKey = stats?.speciesKey as string | undefined;
-              const classKey = stats?.classKey as string | undefined;
-              members.push({
-                userId: raw.user_id,
-                displayName: raw.profiles?.display_name ?? 'Anonymous',
-                characterName: name,
-                species: speciesKey ? formatKey(speciesKey) : null,
-                className: classKey ? formatKey(classKey) : null,
-                level,
-                hpCurrent,
-                hpMax,
-                ac: computeAC(stats ?? {}, res),
-                initials,
-              });
-            }
-          }
-          setPartyMembers(members);
-        });
+    if (linkedCampaigns.length === 0) return;
+    Promise.all(linkedCampaigns.map((c) => getCompletedSessionCount(c.id))).then(
+      (results) => setTotalSessions(results.reduce((sum, r) => sum + r.count, 0)),
+    );
+    Promise.all(linkedCampaigns.map((c) => getActiveSession(c.id))).then((results) => {
+      const active = results.find((r) => r.data);
+      if (active?.data) {
+        const session = active.data as { id: string; campaign_id: string };
+        setActiveSessionCampaignId(session.campaign_id);
       }
     });
-  }, [worldId]);
+    Promise.all(linkedCampaigns.map((c) => getCampaignMembers(c.id))).then((results) => {
+      const members: PartyMember[] = [];
+      const seen = new Set<string>();
+      for (const { data } of results) {
+        if (!data) continue;
+        for (const raw of data as unknown as Array<{
+          user_id: string;
+          role: string;
+          profiles: { display_name: string | null } | null;
+          characters: { id: string; name: string; system: string; base_stats: unknown; resources: unknown } | null;
+        }>) {
+          if (raw.role !== 'player' || !raw.characters || seen.has(raw.user_id)) continue;
+          seen.add(raw.user_id);
+          const stats = raw.characters.base_stats as Record<string, unknown> | null;
+          const res = raw.characters.resources as Record<string, unknown> | null;
+          const name = raw.characters.name;
+          const initials = name.split(/\s+/).map((w) => w[0]?.toUpperCase()).join('').slice(0, 2);
+          const level = (stats?.level as number) ?? 1;
+          const hpMax = (stats?.hpMax as number) ?? 0;
+          const hpCurrent = (res?.hpCurrent as number) ?? hpMax;
+          const speciesKey = stats?.speciesKey as string | undefined;
+          const classKey = stats?.classKey as string | undefined;
+          members.push({
+            userId: raw.user_id,
+            displayName: raw.profiles?.display_name ?? 'Anonymous',
+            characterName: name,
+            species: speciesKey ? formatKey(speciesKey) : null,
+            className: classKey ? formatKey(classKey) : null,
+            level,
+            hpCurrent,
+            hpMax,
+            ac: computeAC(stats ?? {}, res),
+            initials,
+          });
+        }
+      }
+      setPartyMembers(members);
+    });
+  }, [linkedCampaigns]);
 
   useEffect(() => {
     if (!world?.primary_timeline_page_id) return;

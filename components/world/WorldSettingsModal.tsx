@@ -46,7 +46,9 @@ export function WorldSettingsModal({ world, onClose }: Props) {
   const user = useAuthStore((s) => s.user);
   const storeUpdateWorld = useWorldsStore((s) => s.updateWorld);
   const storeRemoveWorld = useWorldsStore((s) => s.removeWorld);
-  const setActiveWorld = useCurrentWorldStore((s) => s.setActiveWorld);
+  const patchWorld = useCurrentWorldStore((s) => s.patchWorld);
+  const storeLinkedCampaigns = useCurrentWorldStore((s) => s.linkedCampaigns);
+  const setStoreLinkedCampaigns = useCurrentWorldStore((s) => s.setLinkedCampaigns);
 
   const isOwner = user?.id === world.owner_user_id;
 
@@ -122,16 +124,22 @@ export function WorldSettingsModal({ world, onClose }: Props) {
     if (worldErr) { setError(worldErr.message); setSaving(false); return; }
 
     storeUpdateWorld(world.id, worldPatch);
-    setActiveWorld({ ...world, ...worldPatch } as World);
+    patchWorld(worldPatch as Partial<World>);
 
     const linkedCampaign = myCampaigns.find((c) => linkedIds.includes(c.id));
     if (linkedCampaign) {
       const val = nextSessionAt ? new Date(nextSessionAt).toISOString() : null;
-      const { error: campErr } = await updateCampaign(linkedCampaign.id, {
+      const campPatch = {
         next_session_at: val,
         next_session_prep_page_id: prepPageId,
-      });
+      };
+      const { error: campErr } = await updateCampaign(linkedCampaign.id, campPatch);
       if (campErr) { setError(campErr.message); setSaving(false); return; }
+      setStoreLinkedCampaigns(
+        storeLinkedCampaigns.map((c) =>
+          c.id === linkedCampaign.id ? { ...c, ...campPatch } : c,
+        ),
+      );
     }
 
     setSaving(false);
@@ -170,7 +178,7 @@ export function WorldSettingsModal({ world, onClose }: Props) {
       setUploadingCover(false);
       if (url) {
         storeUpdateWorld(world.id, { cover_image_url: url });
-        setActiveWorld({ ...world, cover_image_url: url });
+        patchWorld({ cover_image_url: url });
       }
     } else {
       setUploadingThumb(true);
@@ -178,7 +186,7 @@ export function WorldSettingsModal({ world, onClose }: Props) {
       setUploadingThumb(false);
       if (url) {
         storeUpdateWorld(world.id, { thumbnail_url: url });
-        setActiveWorld({ ...world, thumbnail_url: url });
+        patchWorld({ thumbnail_url: url });
       }
     }
   }
@@ -218,7 +226,7 @@ export function WorldSettingsModal({ world, onClose }: Props) {
     }
     const patch = { is_archived: !world.is_archived };
     storeUpdateWorld(world.id, patch);
-    setActiveWorld({ ...world, ...patch });
+    patchWorld(patch);
   }
 
   async function handleDelete() {
@@ -395,35 +403,36 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                       <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
                         Scheduled date & time
                       </Text>
-                      <Pressable
-                        onPress={() => (dateInputRef.current as any)?.showPicker?.()}
-                        style={styles.datePickerBtn}
-                      >
-                        <Icon name="event" size={18} color={nextSessionAt ? colors.primary : colors.onSurfaceVariant} />
-                        <Text
-                          variant="body-md"
-                          style={{ color: nextSessionAt ? colors.onSurface : colors.onSurfaceVariant, flex: 1 }}
-                        >
-                          {nextSessionAt
-                            ? new Date(nextSessionAt).toLocaleString(undefined, {
-                                weekday: 'short', month: 'short', day: 'numeric',
-                                hour: 'numeric', minute: '2-digit',
-                              })
-                            : 'Pick a date…'}
-                        </Text>
+                      <View style={styles.datePickerWrapper}>
+                        <View style={styles.datePickerBtn} pointerEvents="none">
+                          <Icon name="event" size={18} color={nextSessionAt ? colors.primary : colors.onSurfaceVariant} />
+                          <Text
+                            variant="body-md"
+                            style={{ color: nextSessionAt ? colors.onSurface : colors.onSurfaceVariant, flex: 1 }}
+                          >
+                            {nextSessionAt
+                              ? new Date(nextSessionAt).toLocaleString(undefined, {
+                                  weekday: 'short', month: 'short', day: 'numeric',
+                                  hour: 'numeric', minute: '2-digit',
+                                })
+                              : 'Pick a date…'}
+                          </Text>
+                        </View>
+                        {Platform.OS === 'web' ? (
+                          <TextInput
+                            ref={dateInputRef}
+                            value={nextSessionAt}
+                            onChangeText={setNextSessionAt}
+                            style={styles.dateInputOverlay}
+                            {...{ type: 'datetime-local' } as any}
+                          />
+                        ) : null}
                         {nextSessionAt ? (
-                          <Pressable onPress={() => setNextSessionAt('')} hitSlop={8}>
+                          <Pressable onPress={() => setNextSessionAt('')} hitSlop={8} style={styles.dateClearBtn}>
                             <Icon name="close" size={16} color={colors.onSurfaceVariant} />
                           </Pressable>
                         ) : null}
-                      </Pressable>
-                      <TextInput
-                        ref={dateInputRef}
-                        value={nextSessionAt}
-                        onChangeText={setNextSessionAt}
-                        style={styles.hiddenDateInput}
-                        {...(Platform.OS === 'web' ? { type: 'datetime-local' } as any : {})}
-                      />
+                      </View>
                     </View>
                     <View style={{ gap: spacing.xs }}>
                       <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
@@ -676,12 +685,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.outlineVariant + '55',
   },
-  hiddenDateInput: {
+  datePickerWrapper: {
+    position: 'relative',
+  },
+  dateInputOverlay: {
     position: 'absolute',
-    width: 1,
-    height: 1,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     opacity: 0,
-    overflow: 'hidden',
+  },
+  dateClearBtn: {
+    position: 'absolute',
+    right: spacing.md,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    zIndex: 2,
   },
   prepPageSelector: {
     flexDirection: 'row',
