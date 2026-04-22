@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getCampaignsForWorld } from '@vaultstone/api';
+import * as ImagePicker from 'expo-image-picker';
+import { getCampaignsForWorld, uploadWorldCover } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
   selectSectionsForWorld,
+  useAuthStore,
   useCurrentWorldStore,
   usePagesStore,
   useSectionsStore,
+  useWorldsStore,
 } from '@vaultstone/store';
-import { Chip, GhostButton, GradientButton, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { Chip, GhostButton, GradientButton, Icon, ImageCropModal, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
 import type { Database, WorldSection } from '@vaultstone/types';
 
 import { useActiveSection } from '../../../components/world/ActiveSectionContext';
@@ -35,13 +38,54 @@ const ATLAS_GRID_STYLE = {
 export default function WorldLandingScreen() {
   const { worldId } = useLocalSearchParams<{ worldId: string }>();
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
   const world = useCurrentWorldStore((s) => s.world);
+  const setActiveWorld = useCurrentWorldStore((s) => s.setActiveWorld);
+  const storeUpdateWorld = useWorldsStore((s) => s.updateWorld);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
   const pagesByWorld = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
   const { setActiveSectionId } = useActiveSection();
   const [linkedCampaigns, setLinkedCampaigns] = useState<Campaign[]>([]);
   const [createSectionOpen, setCreateSectionOpen] = useState(false);
   const [createPageSectionId, setCreatePageSectionId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [cropUri, setCropUri] = useState<string | null>(null);
+
+  const isOwner = !!(user && world && user.id === world.owner_user_id);
+
+  async function uploadCover(uri: string, mime: string) {
+    if (!world) return;
+    setUploading(true);
+    const { url } = await uploadWorldCover(world.id, uri, mime);
+    setUploading(false);
+    if (url) {
+      storeUpdateWorld(world.id, { cover_image_url: url });
+      setActiveWorld({ ...world, cover_image_url: url });
+    }
+  }
+
+  async function handlePickCover() {
+    if (!world) return;
+    const isWeb = Platform.OS === 'web';
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: !isWeb,
+      aspect: [21, 7],
+      quality: 0.5,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (isWeb) {
+      setCropUri(asset.uri);
+    } else {
+      await uploadCover(asset.uri, asset.mimeType ?? 'image/jpeg');
+    }
+  }
+
+  async function handleCropConfirm(croppedUri: string) {
+    setCropUri(null);
+    await uploadCover(croppedUri, 'image/jpeg');
+  }
 
   useEffect(() => {
     if (!worldId) return;
@@ -84,7 +128,11 @@ export default function WorldLandingScreen() {
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* Hero banner */}
-        <View style={styles.heroBanner}>
+        <Pressable
+          onPress={isOwner ? handlePickCover : undefined}
+          disabled={!isOwner || uploading}
+          style={styles.heroBanner}
+        >
           {world.cover_image_url ? (
             <Image source={{ uri: world.cover_image_url }} style={styles.heroImage} resizeMode="cover" />
           ) : (
@@ -122,7 +170,35 @@ export default function WorldLandingScreen() {
               </Text>
             ) : null}
           </View>
-        </View>
+          {isOwner && !world.cover_image_url && !uploading ? (
+            <View style={styles.coverHint}>
+              <Icon name="add-a-photo" size={20} color={colors.onSurfaceVariant} />
+              <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
+                Add cover image
+              </Text>
+            </View>
+          ) : null}
+          {isOwner && world.cover_image_url && !uploading ? (
+            <View style={styles.coverEditBtn}>
+              <Icon name="photo-camera" size={16} color="#fff" />
+            </View>
+          ) : null}
+          {uploading ? (
+            <View style={styles.coverHint}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : null}
+        </Pressable>
+
+        {cropUri ? (
+          <ImageCropModal
+            visible
+            imageUri={cropUri}
+            aspect={[21, 7]}
+            onConfirm={handleCropConfirm}
+            onCancel={() => setCropUri(null)}
+          />
+        ) : null}
 
         {linkedCampaigns.length > 0 ? (
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
@@ -253,5 +329,28 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     fontStyle: 'italic',
     marginTop: spacing.sm,
+  },
+  coverHint: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceContainerHigh + 'CC',
+  },
+  coverEditBtn: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

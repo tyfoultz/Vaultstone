@@ -9,7 +9,7 @@ import { Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 import { useActiveSection } from './ActiveSectionContext';
 import { WorldSettingsModal } from './WorldSettingsModal';
-import { worldHref, worldMapIndexHref, worldSectionHref } from './worldHref';
+import { worldHref, worldMapIndexHref, worldPageHref, worldSectionHref } from './worldHref';
 import type { Database } from '@vaultstone/types';
 
 type World = Database['public']['Tables']['worlds']['Row'];
@@ -148,9 +148,22 @@ export function WorldRail({ world }: Props) {
         >
           <Icon name="map" size={20} color={colors.onSurfaceVariant} />
         </Pressable>
-        <View style={[styles.item, styles.itemDisabled]} accessibilityLabel="Timeline (Phase 6)">
-          <Icon name="timeline" size={20} color={colors.outline} />
-        </View>
+        {world.primary_timeline_page_id ? (
+          <Pressable
+            onPress={() => {
+              setActiveSectionId(null);
+              router.push(worldPageHref(world.id, world.primary_timeline_page_id!));
+            }}
+            style={styles.item}
+            accessibilityLabel="Timeline"
+          >
+            <Icon name="timeline" size={20} color={colors.onSurfaceVariant} />
+          </Pressable>
+        ) : (
+          <View style={[styles.item, styles.itemDisabled]} accessibilityLabel="No timelines yet">
+            <Icon name="timeline" size={20} color={colors.outline} />
+          </View>
+        )}
       </View>
 
       <View style={{ flex: 1 }} />
