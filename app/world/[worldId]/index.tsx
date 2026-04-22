@@ -3,7 +3,15 @@ import { Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { getCampaignsForWorld, getCompletedSessionCount, getPage, uploadWorldCover } from '@vaultstone/api';
+import {
+  getActiveSession,
+  getCampaignMembers,
+  getCampaignsForWorld,
+  getCompletedSessionCount,
+  getPage,
+  startSession,
+  uploadWorldCover,
+} from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
   selectSectionsForWorld,
@@ -25,6 +33,7 @@ import {
 } from '../../../components/world/WorldSectionCard';
 import { WorldTopBar } from '../../../components/world/WorldTopBar';
 import { worldSectionHref } from '../../../components/world/worldHref';
+import { StartSessionModal, type StartSessionPlayer } from '../../../components/session/StartSessionModal';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
@@ -52,8 +61,17 @@ export default function WorldLandingScreen() {
   const [cropUri, setCropUri] = useState<string | null>(null);
   const [totalSessions, setTotalSessions] = useState(0);
   const [calendarSchema, setCalendarSchema] = useState<TimelineCalendarSchema | null>(null);
+  const [activeSessionCampaignId, setActiveSessionCampaignId] = useState<string | null>(null);
+  const [startModalCampaign, setStartModalCampaign] = useState<Campaign | null>(null);
+  const [sessionPlayers, setSessionPlayers] = useState<StartSessionPlayer[]>([]);
+  const [startingSession, setStartingSession] = useState(false);
+  const [campaignPickerOpen, setCampaignPickerOpen] = useState(false);
 
   const isOwner = !!(user && world && user.id === world.owner_user_id);
+  const dmCampaigns = useMemo(
+    () => linkedCampaigns.filter((c) => c.dm_user_id === user?.id),
+    [linkedCampaigns, user?.id],
+  );
 
   async function uploadCover(uri: string, mime: string) {
     if (!world) return;
@@ -99,6 +117,13 @@ export default function WorldLandingScreen() {
         Promise.all(campaigns.map((c) => getCompletedSessionCount(c.id))).then(
           (results) => setTotalSessions(results.reduce((sum, r) => sum + r.count, 0)),
         );
+        Promise.all(campaigns.map((c) => getActiveSession(c.id))).then((results) => {
+          const active = results.find((r) => r.data);
+          if (active?.data) {
+            const session = active.data as { id: string; campaign_id: string };
+            setActiveSessionCampaignId(session.campaign_id);
+          }
+        });
       }
     });
   }, [worldId]);
@@ -153,6 +178,46 @@ export default function WorldLandingScreen() {
     else when = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     return `Session ${sessionNum} ${when}`;
   }, [linkedCampaigns, totalSessions]);
+
+  async function handleStartSessionFor(campaign: Campaign) {
+    setCampaignPickerOpen(false);
+    const { data } = await getCampaignMembers(campaign.id);
+    const members = (data ?? []) as unknown as Array<{
+      user_id: string;
+      role: string;
+      profiles: { display_name: string | null } | null;
+      characters: { name: string } | null;
+    }>;
+    setSessionPlayers(
+      members
+        .filter((m) => m.role === 'player')
+        .map((m) => ({
+          userId: m.user_id,
+          displayName: m.profiles?.display_name ?? 'Anonymous',
+          characterName: m.characters?.name ?? null,
+        })),
+    );
+    setStartModalCampaign(campaign);
+  }
+
+  async function handleConfirmStart(pickedUserIds: string[]) {
+    if (!startModalCampaign || startingSession) return;
+    setStartingSession(true);
+    const { data } = await startSession(startModalCampaign.id, pickedUserIds);
+    setStartingSession(false);
+    if (data) {
+      setActiveSessionCampaignId(startModalCampaign.id);
+      setStartModalCampaign(null);
+    }
+  }
+
+  function handleStartSessionClick() {
+    if (dmCampaigns.length === 1) {
+      handleStartSessionFor(dmCampaigns[0]);
+    } else if (dmCampaigns.length > 1) {
+      setCampaignPickerOpen(!campaignPickerOpen);
+    }
+  }
 
   if (!world || !worldId) return null;
 
@@ -216,15 +281,50 @@ export default function WorldLandingScreen() {
             ) : (
               <View />
             )}
-            {isOwner && world.cover_image_url ? (
-              <GhostButton
-                label="Change cover"
-                icon="edit"
-                onPress={handlePickCover}
-                loading={uploading}
-                style={styles.heroBtnCompact}
-              />
-            ) : null}
+            <View style={styles.heroActions}>
+              {isOwner && world.cover_image_url ? (
+                <GhostButton
+                  label="Change cover"
+                  icon="edit"
+                  onPress={handlePickCover}
+                  loading={uploading}
+                  style={styles.heroBtnCompact}
+                />
+              ) : null}
+              {dmCampaigns.length > 0 && !activeSessionCampaignId ? (
+                <View>
+                  <GradientButton
+                    label="Start Session"
+                    icon="play-arrow"
+                    onPress={handleStartSessionClick}
+                    style={styles.heroBtnCompact}
+                  />
+                  {campaignPickerOpen && dmCampaigns.length > 1 ? (
+                    <View style={styles.campaignPicker}>
+                      {dmCampaigns.map((c) => (
+                        <Pressable
+                          key={c.id}
+                          onPress={() => handleStartSessionFor(c)}
+                          style={styles.campaignPickerItem}
+                        >
+                          <Text variant="body-sm" style={{ color: colors.onSurface }}>
+                            {c.name}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+              {activeSessionCampaignId ? (
+                <View style={styles.liveSessionBadge}>
+                  <View style={styles.liveDot} />
+                  <Text variant="label-sm" weight="bold" style={{ color: colors.hpHealthy }}>
+                    Session Live
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
 
           {/* Bottom overlay */}
@@ -364,6 +464,16 @@ export default function WorldLandingScreen() {
           onClose={() => setCreatePageSectionId(null)}
         />
       ) : null}
+
+      {startModalCampaign ? (
+        <StartSessionModal
+          visible
+          players={sessionPlayers}
+          starting={startingSession}
+          onClose={() => setStartModalCampaign(null)}
+          onConfirm={handleConfirmStart}
+        />
+      ) : null}
     </View>
   );
 }
@@ -442,10 +552,46 @@ const styles = StyleSheet.create({
     borderColor: colors.outlineVariant + '66',
     backgroundColor: colors.surfaceContainerHigh + '99',
   },
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   heroBtnCompact: {
     height: 36,
     paddingHorizontal: spacing.md,
     backgroundColor: colors.surfaceContainerHigh + '99',
+  },
+  campaignPicker: {
+    position: 'absolute',
+    top: 40,
+    right: 0,
+    minWidth: 180,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    overflow: 'hidden',
+    zIndex: 20,
+  },
+  campaignPickerItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  liveSessionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceContainerHigh + '99',
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.hpHealthy,
   },
   heroOverlay: {
     position: 'absolute',
