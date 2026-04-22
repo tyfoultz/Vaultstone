@@ -28,7 +28,7 @@ import {
   WorldSectionCard,
 } from '../../../components/world/WorldSectionCard';
 import { WorldTopBar } from '../../../components/world/WorldTopBar';
-import { worldSectionHref } from '../../../components/world/worldHref';
+import { worldPageHref, worldSectionHref } from '../../../components/world/worldHref';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
@@ -89,6 +89,7 @@ export default function WorldLandingScreen() {
   const [calendarSchema, setCalendarSchema] = useState<TimelineCalendarSchema | null>(null);
   const [activeSessionCampaignId, setActiveSessionCampaignId] = useState<string | null>(null);
   const [partyMembers, setPartyMembers] = useState<PartyMember[]>([]);
+  const [prepPage, setPrepPage] = useState<{ id: string; title: string } | null>(null);
 
   const isOwner = !!(user && world && user.id === world.owner_user_id);
 
@@ -206,6 +207,26 @@ export default function WorldLandingScreen() {
   const nextSessionLine = nextSessionInfo
     ? `Session ${nextSessionInfo.sessionNum} ${nextSessionInfo.countdown.toLowerCase()}`
     : null;
+
+  useEffect(() => {
+    if (!nextSessionInfo || !worldId) { setPrepPage(null); return; }
+    const campaign = linkedCampaigns.find((c) => c.id === nextSessionInfo.campaignId);
+    if (campaign?.next_session_prep_page_id) {
+      getPage(campaign.next_session_prep_page_id).then(({ data }) => {
+        if (data) setPrepPage({ id: data.id, title: data.title });
+      });
+      return;
+    }
+    const pages = pagesByWorld ?? [];
+    const num = nextSessionInfo.sessionNum;
+    const pattern = new RegExp(`session\\s*${num}\\b`, 'i');
+    const match = pages.find((p) => pattern.test(p.title));
+    if (match) {
+      setPrepPage({ id: match.id, title: match.title });
+    } else {
+      setPrepPage(null);
+    }
+  }, [nextSessionInfo, linkedCampaigns, pagesByWorld, worldId]);
 
   const partyGridStyle = useMemo(() => {
     const count = partyMembers.length;
@@ -401,21 +422,38 @@ export default function WorldLandingScreen() {
               Session {nextSessionInfo.sessionNum}
             </Text>
 
-            <Text
-              variant="body-sm"
-              style={{ color: colors.onSurfaceVariant, marginTop: spacing.xs, fontStyle: 'italic' }}
-            >
-              Session title and prep notes will appear here once session planning is set up.
-            </Text>
-
-            <View style={{ flexDirection: 'row', marginTop: spacing.md }}>
+            {prepPage ? (
               <Pressable
-                onPress={() => router.push(`/campaign/${nextSessionInfo.campaignId}`)}
+                onPress={() => router.push(worldPageHref(worldId, prepPage.id))}
+                style={{ marginTop: spacing.sm }}
+              >
+                <Text variant="body-md" style={{ color: colors.primary, textDecorationLine: 'underline' }}>
+                  {prepPage.title}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text
+                variant="body-sm"
+                style={{ color: colors.onSurfaceVariant, marginTop: spacing.xs, fontStyle: 'italic' }}
+              >
+                Create a page titled "Session {nextSessionInfo.sessionNum}" in any section to link prep notes here automatically.
+              </Text>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+              <Pressable
+                onPress={() => {
+                  if (prepPage) {
+                    router.push(worldPageHref(worldId, prepPage.id));
+                  } else {
+                    router.push(`/campaign/${nextSessionInfo.campaignId}`);
+                  }
+                }}
                 style={styles.sessionNotesBtn}
               >
                 <Icon name="description" size={16} color={colors.onSurfaceVariant} />
                 <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
-                  Session Notes
+                  {prepPage ? 'Open Prep Notes' : 'Session Notes'}
                 </Text>
               </Pressable>
             </View>

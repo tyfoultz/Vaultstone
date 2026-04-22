@@ -71,6 +71,7 @@ export interface Database {
           content_sources: Json | null;
           party_view_settings: Json | null;
           next_session_at: string | null;
+          next_session_prep_page_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -85,6 +86,7 @@ export interface Database {
           content_sources?: Json | null;
           party_view_settings?: Json | null;
           next_session_at?: string | null;
+          next_session_prep_page_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -99,6 +101,7 @@ export interface Database {
           content_sources?: Json | null;
           party_view_settings?: Json | null;
           next_session_at?: string | null;
+          next_session_prep_page_id?: string | null;
         };
         Relationships: [];
       };

@@ -157,7 +157,7 @@ export async function updateCampaignContentSource(
 
 export async function updateCampaign(
   campaignId: string,
-  patch: Partial<{ next_session_at: string | null }>,
+  patch: Partial<{ next_session_at: string | null; next_session_prep_page_id: string | null }>,
 ) {
   return supabase.from('campaigns').update(patch).eq('id', campaignId);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,7 +16,7 @@ import {
   uploadWorldCover,
   uploadWorldThumbnail,
 } from '@vaultstone/api';
-import { useAuthStore, useCurrentWorldStore, useWorldsStore } from '@vaultstone/store';
+import { useAuthStore, useCurrentWorldStore, usePagesStore, useWorldsStore } from '@vaultstone/store';
 import {
   Card,
   GhostButton,
@@ -69,6 +69,14 @@ export function WorldSettingsModal({ world, onClose }: Props) {
   const [savingDate, setSavingDate] = useState(false);
   const [nextSessionAt, setNextSessionAt] = useState('');
   const [savingNextSession, setSavingNextSession] = useState(false);
+  const [prepPageId, setPrepPageId] = useState<string | null>(null);
+  const [prepPickerOpen, setPrepPickerOpen] = useState(false);
+  const allPages = usePagesStore((s) => s.byWorldId[world.id]);
+
+  const availablePages = useMemo(
+    () => (allPages ?? []).filter((p) => !p.deleted_at),
+    [allPages],
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -81,6 +89,9 @@ export function WorldSettingsModal({ world, onClose }: Props) {
         const linkedCampaign = dmOnly.find((c) => linkedRows.some((r) => r.campaign_id === c.id));
         if (linkedCampaign?.next_session_at) {
           setNextSessionAt(linkedCampaign.next_session_at.slice(0, 16));
+        }
+        if (linkedCampaign?.next_session_prep_page_id) {
+          setPrepPageId(linkedCampaign.next_session_prep_page_id);
         }
       },
     );
@@ -192,7 +203,10 @@ export function WorldSettingsModal({ world, onClose }: Props) {
     setSavingNextSession(true);
     setError('');
     const val = nextSessionAt ? new Date(nextSessionAt).toISOString() : null;
-    const { error: err } = await updateCampaign(linkedCampaign.id, { next_session_at: val });
+    const { error: err } = await updateCampaign(linkedCampaign.id, {
+      next_session_at: val,
+      next_session_prep_page_id: prepPageId,
+    });
     setSavingNextSession(false);
     if (err) { setError(err.message); return; }
   }
@@ -420,8 +434,53 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                     <Text variant="body-sm" style={{ color: colors.onSurfaceVariant }}>
                       Format: YYYY-MM-DDTHH:MM (e.g. 2026-05-10T18:00)
                     </Text>
+                    <View style={{ gap: spacing.xs }}>
+                      <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                        Prep notes page
+                      </Text>
+                      <Pressable onPress={() => setPrepPickerOpen(!prepPickerOpen)} style={styles.prepPageSelector}>
+                        <Icon name="description" size={16} color={prepPageId ? colors.primary : colors.onSurfaceVariant} />
+                        <Text
+                          variant="body-sm"
+                          style={{ color: prepPageId ? colors.primary : colors.onSurfaceVariant, flex: 1 }}
+                          numberOfLines={1}
+                        >
+                          {prepPageId
+                            ? availablePages.find((p) => p.id === prepPageId)?.title ?? 'Selected page'
+                            : 'Auto-detect or choose a page…'}
+                        </Text>
+                        <Icon name={prepPickerOpen ? 'expand-less' : 'expand-more'} size={18} color={colors.onSurfaceVariant} />
+                      </Pressable>
+                      {prepPickerOpen ? (
+                        <View style={styles.prepPageList}>
+                          <Pressable
+                            onPress={() => { setPrepPageId(null); setPrepPickerOpen(false); }}
+                            style={[styles.prepPageItem, !prepPageId && styles.prepPageItemActive]}
+                          >
+                            <Text variant="body-sm" style={{ color: !prepPageId ? colors.primary : colors.onSurface }}>
+                              Auto-detect from title
+                            </Text>
+                          </Pressable>
+                          {availablePages.map((p) => (
+                            <Pressable
+                              key={p.id}
+                              onPress={() => { setPrepPageId(p.id); setPrepPickerOpen(false); }}
+                              style={[styles.prepPageItem, prepPageId === p.id && styles.prepPageItemActive]}
+                            >
+                              <Text
+                                variant="body-sm"
+                                numberOfLines={1}
+                                style={{ color: prepPageId === p.id ? colors.primary : colors.onSurface }}
+                              >
+                                {p.title}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
                     <GhostButton
-                      label={nextSessionAt ? 'Save' : 'Clear'}
+                      label="Save"
                       onPress={handleSaveNextSession}
                       loading={savingNextSession}
                     />
@@ -603,6 +662,31 @@ const styles = StyleSheet.create({
     width: 120,
     height: 40,
     borderRadius: radius.lg,
+  },
+  prepPageSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+  },
+  prepPageList: {
+    maxHeight: 200,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: colors.surfaceContainerHigh,
+    overflow: 'hidden',
+  },
+  prepPageItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  prepPageItemActive: {
+    backgroundColor: colors.primaryContainer + '33',
   },
   confirmRow: {
     flexDirection: 'row',
