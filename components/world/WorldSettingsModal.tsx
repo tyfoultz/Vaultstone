@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -52,12 +52,12 @@ export function WorldSettingsModal({ world, onClose }: Props) {
 
   const [name, setName] = useState(world.name);
   const [description, setDescription] = useState(world.description ?? '');
-  const [savingRename, setSavingRename] = useState(false);
 
   const [myCampaigns, setMyCampaigns] = useState<Campaign[]>([]);
   const [linkedIds, setLinkedIds] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [working, setWorking] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingThumb, setUploadingThumb] = useState(false);
@@ -66,12 +66,11 @@ export function WorldSettingsModal({ world, onClose }: Props) {
   const [calendarSchema, setCalendarSchema] = useState<TimelineCalendarSchema | null>(null);
   const initDate = (world.current_date_values ?? {}) as Record<string, string>;
   const [dateValues, setDateValues] = useState<Record<string, string>>(initDate);
-  const [savingDate, setSavingDate] = useState(false);
   const [nextSessionAt, setNextSessionAt] = useState('');
-  const [savingNextSession, setSavingNextSession] = useState(false);
   const [prepPageId, setPrepPageId] = useState<string | null>(null);
   const [prepPickerOpen, setPrepPickerOpen] = useState(false);
   const allPages = usePagesStore((s) => s.byWorldId[world.id]);
+  const dateInputRef = useRef<TextInput>(null);
 
   const availablePages = useMemo(
     () => (allPages ?? []).filter((p) => !p.deleted_at),
@@ -107,22 +106,36 @@ export function WorldSettingsModal({ world, onClose }: Props) {
     });
   }, [world.primary_timeline_page_id]);
 
-  async function handleRename() {
-    if (!name.trim() || !isOwner) return;
-    setSavingRename(true);
+  async function handleSaveAll() {
+    if (!isOwner) return;
+    setSaving(true);
     setError('');
-    const patch = {
+
+    const worldPatch: Record<string, unknown> = {
       name: name.trim(),
       description: description.trim() || null,
     };
-    const { error: err } = await updateWorld(world.id, patch);
-    setSavingRename(false);
-    if (err) {
-      setError(err.message);
-      return;
+    const hasDateValues = Object.values(dateValues).some((v) => v);
+    worldPatch.current_date_values = hasDateValues ? dateValues : null;
+
+    const { error: worldErr } = await updateWorld(world.id, worldPatch as Parameters<typeof updateWorld>[1]);
+    if (worldErr) { setError(worldErr.message); setSaving(false); return; }
+
+    storeUpdateWorld(world.id, worldPatch);
+    setActiveWorld({ ...world, ...worldPatch } as World);
+
+    const linkedCampaign = myCampaigns.find((c) => linkedIds.includes(c.id));
+    if (linkedCampaign) {
+      const val = nextSessionAt ? new Date(nextSessionAt).toISOString() : null;
+      const { error: campErr } = await updateCampaign(linkedCampaign.id, {
+        next_session_at: val,
+        next_session_prep_page_id: prepPageId,
+      });
+      if (campErr) { setError(campErr.message); setSaving(false); return; }
     }
-    storeUpdateWorld(world.id, patch);
-    setActiveWorld({ ...world, ...patch });
+
+    setSaving(false);
+    onClose();
   }
 
   async function pickImage(target: 'cover' | 'thumbnail') {
@@ -172,44 +185,6 @@ export function WorldSettingsModal({ world, onClose }: Props) {
 
   const selectedEra: EraDefinition | null =
     calendarSchema?.eras.find((e) => e.key === dateValues.era) ?? null;
-
-  async function handleSaveDate() {
-    if (!isOwner) return;
-    setSavingDate(true);
-    setError('');
-    const hasValues = Object.values(dateValues).some((v) => v);
-    const patch = { current_date_values: hasValues ? dateValues : null };
-    const { error: err } = await updateWorld(world.id, patch);
-    setSavingDate(false);
-    if (err) { setError(err.message); return; }
-    storeUpdateWorld(world.id, patch as Record<string, unknown>);
-    setActiveWorld({ ...world, current_date_values: patch.current_date_values });
-  }
-
-  async function handleClearDate() {
-    if (!isOwner) return;
-    setSavingDate(true);
-    const { error: err } = await updateWorld(world.id, { current_date_values: null });
-    setSavingDate(false);
-    if (err) { setError(err.message); return; }
-    setDateValues({});
-    storeUpdateWorld(world.id, { current_date_values: null });
-    setActiveWorld({ ...world, current_date_values: null });
-  }
-
-  async function handleSaveNextSession() {
-    const linkedCampaign = myCampaigns.find((c) => linkedIds.includes(c.id));
-    if (!linkedCampaign) return;
-    setSavingNextSession(true);
-    setError('');
-    const val = nextSessionAt ? new Date(nextSessionAt).toISOString() : null;
-    const { error: err } = await updateCampaign(linkedCampaign.id, {
-      next_session_at: val,
-      next_session_prep_page_id: prepPageId,
-    });
-    setSavingNextSession(false);
-    if (err) { setError(err.message); return; }
-  }
 
   async function toggleCampaignLink(campaignId: string) {
     if (!isOwner) return;
@@ -297,6 +272,7 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                 </Text>
               ) : null}
 
+              {/* Identity */}
               <View style={{ marginTop: spacing.lg }}>
                 <SectionHeader title="Identity" />
                 <View style={{ gap: spacing.md }}>
@@ -315,16 +291,10 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                     numberOfLines={3}
                     style={{ minHeight: 72, textAlignVertical: 'top' }}
                   />
-                  {isOwner ? (
-                    <GhostButton
-                      label="Save changes"
-                      onPress={handleRename}
-                      loading={savingRename}
-                    />
-                  ) : null}
                 </View>
               </View>
 
+              {/* Images */}
               {isOwner ? (
                 <View style={{ marginTop: spacing.xl }}>
                   <SectionHeader title="Images" />
@@ -359,6 +329,7 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                 </View>
               ) : null}
 
+              {/* Current in-world date */}
               {isOwner && calendarSchema ? (
                 <View style={{ marginTop: spacing.xl }}>
                   <SectionHeader title="Current in-world date" />
@@ -403,37 +374,57 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                         />
                       ))
                     ) : null}
-                    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    {world.current_date_values ? (
                       <GhostButton
-                        label="Save date"
-                        onPress={handleSaveDate}
-                        loading={savingDate}
+                        label="Clear date"
+                        icon="clear"
+                        tone="neutral"
+                        onPress={() => setDateValues({})}
                       />
-                      {world.current_date_values ? (
-                        <GhostButton
-                          label="Clear"
-                          onPress={handleClearDate}
-                          tone="neutral"
-                        />
-                      ) : null}
-                    </View>
+                    ) : null}
                   </View>
                 </View>
               ) : null}
 
+              {/* Next session */}
               {isOwner && linkedIds.length > 0 ? (
                 <View style={{ marginTop: spacing.xl }}>
                   <SectionHeader title="Next session" />
                   <View style={{ gap: spacing.md }}>
-                    <Input
-                      label="Scheduled date & time"
-                      value={nextSessionAt}
-                      onChangeText={setNextSessionAt}
-                      placeholder="2026-05-10T18:00"
-                    />
-                    <Text variant="body-sm" style={{ color: colors.onSurfaceVariant }}>
-                      Format: YYYY-MM-DDTHH:MM (e.g. 2026-05-10T18:00)
-                    </Text>
+                    <View style={{ gap: spacing.xs }}>
+                      <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                        Scheduled date & time
+                      </Text>
+                      <Pressable
+                        onPress={() => (dateInputRef.current as any)?.showPicker?.()}
+                        style={styles.datePickerBtn}
+                      >
+                        <Icon name="event" size={18} color={nextSessionAt ? colors.primary : colors.onSurfaceVariant} />
+                        <Text
+                          variant="body-md"
+                          style={{ color: nextSessionAt ? colors.onSurface : colors.onSurfaceVariant, flex: 1 }}
+                        >
+                          {nextSessionAt
+                            ? new Date(nextSessionAt).toLocaleString(undefined, {
+                                weekday: 'short', month: 'short', day: 'numeric',
+                                hour: 'numeric', minute: '2-digit',
+                              })
+                            : 'Pick a date…'}
+                        </Text>
+                        {nextSessionAt ? (
+                          <Pressable onPress={() => setNextSessionAt('')} hitSlop={8}>
+                            <Icon name="close" size={16} color={colors.onSurfaceVariant} />
+                          </Pressable>
+                        ) : null}
+                      </Pressable>
+                      <TextInput
+                        ref={dateInputRef}
+                        value={nextSessionAt}
+                        onChangeText={setNextSessionAt}
+                        style={styles.hiddenDateInput}
+                        {...(Platform.OS === 'web' ? { type: 'datetime-local' } as any : {})}
+                      />
+                    </View>
                     <View style={{ gap: spacing.xs }}>
                       <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
                         Prep notes page
@@ -452,7 +443,7 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                         <Icon name={prepPickerOpen ? 'expand-less' : 'expand-more'} size={18} color={colors.onSurfaceVariant} />
                       </Pressable>
                       {prepPickerOpen ? (
-                        <View style={styles.prepPageList}>
+                        <ScrollView style={styles.prepPageList} nestedScrollEnabled>
                           <Pressable
                             onPress={() => { setPrepPageId(null); setPrepPickerOpen(false); }}
                             style={[styles.prepPageItem, !prepPageId && styles.prepPageItemActive]}
@@ -476,18 +467,14 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                               </Text>
                             </Pressable>
                           ))}
-                        </View>
+                        </ScrollView>
                       ) : null}
                     </View>
-                    <GhostButton
-                      label="Save"
-                      onPress={handleSaveNextSession}
-                      loading={savingNextSession}
-                    />
                   </View>
                 </View>
               ) : null}
 
+              {/* Linked campaigns */}
               {isOwner ? (
                 <View style={{ marginTop: spacing.xl }}>
                   <SectionHeader title="Linked campaigns" />
@@ -537,6 +524,7 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                 </View>
               ) : null}
 
+              {/* Lifecycle */}
               {isOwner ? (
                 <View style={{ marginTop: spacing.xl }}>
                   <SectionHeader title="Lifecycle" />
@@ -585,6 +573,19 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                 >
                   {error}
                 </Text>
+              ) : null}
+
+              {/* Save all */}
+              {isOwner ? (
+                <View style={{ marginTop: spacing.xl, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.outlineVariant + '22' }}>
+                  <GradientButton
+                    label="Save changes"
+                    icon="check"
+                    onPress={handleSaveAll}
+                    loading={saving}
+                    fullWidth
+                  />
+                </View>
               ) : null}
             </ScrollView>
           </Card>
@@ -664,6 +665,23 @@ const styles = StyleSheet.create({
     width: 120,
     height: 40,
     borderRadius: radius.lg,
+  },
+  datePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+  },
+  hiddenDateInput: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
+    overflow: 'hidden',
   },
   prepPageSelector: {
     flexDirection: 'row',
