@@ -8,7 +8,6 @@ import {
   getCampaignsForWorld,
   getCompletedSessionCount,
   getPage,
-  startSession,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
@@ -30,7 +29,6 @@ import {
 } from '../../../components/world/WorldSectionCard';
 import { WorldTopBar } from '../../../components/world/WorldTopBar';
 import { worldSectionHref } from '../../../components/world/worldHref';
-import { StartSessionModal, type StartSessionPlayer } from '../../../components/session/StartSessionModal';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
@@ -90,17 +88,9 @@ export default function WorldLandingScreen() {
   const [totalSessions, setTotalSessions] = useState(0);
   const [calendarSchema, setCalendarSchema] = useState<TimelineCalendarSchema | null>(null);
   const [activeSessionCampaignId, setActiveSessionCampaignId] = useState<string | null>(null);
-  const [startModalCampaign, setStartModalCampaign] = useState<Campaign | null>(null);
-  const [sessionPlayers, setSessionPlayers] = useState<StartSessionPlayer[]>([]);
-  const [startingSession, setStartingSession] = useState(false);
-  const [campaignPickerOpen, setCampaignPickerOpen] = useState(false);
   const [partyMembers, setPartyMembers] = useState<PartyMember[]>([]);
 
   const isOwner = !!(user && world && user.id === world.owner_user_id);
-  const dmCampaigns = useMemo(
-    () => linkedCampaigns.filter((c) => c.dm_user_id === user?.id),
-    [linkedCampaigns, user?.id],
-  );
 
   useEffect(() => {
     if (!worldId) return;
@@ -196,61 +186,26 @@ export default function WorldLandingScreen() {
     return parts.length > 0 ? parts.join(', ') : null;
   }, [dateValues, currentEra]);
 
-  const nextSessionLine = useMemo(() => {
+  const nextSessionInfo = useMemo(() => {
     const nextCampaign = linkedCampaigns.find((c) => c.next_session_at);
     if (!nextCampaign?.next_session_at) return null;
     const sessionNum = totalSessions + 1;
     const date = new Date(nextCampaign.next_session_at);
     const now = new Date();
     const diffDays = Math.round((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    let when: string;
-    if (diffDays < 0) when = 'past due';
-    else if (diffDays === 0) when = 'today';
-    else if (diffDays === 1) when = 'tomorrow';
-    else if (diffDays < 7) when = date.toLocaleDateString(undefined, { weekday: 'long' });
-    else when = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    return `Session ${sessionNum} ${when}`;
+    let countdown: string;
+    if (diffDays < 0) countdown = 'Past due';
+    else if (diffDays === 0) countdown = 'Today';
+    else if (diffDays === 1) countdown = 'Tomorrow';
+    else countdown = `In ${diffDays} days`;
+    const dayTime = date.toLocaleDateString(undefined, { weekday: 'long' })
+      + ' ' + date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return { sessionNum, dayTime, countdown, campaignId: nextCampaign.id };
   }, [linkedCampaigns, totalSessions]);
 
-  async function handleStartSessionFor(campaign: Campaign) {
-    setCampaignPickerOpen(false);
-    const { data } = await getCampaignMembers(campaign.id);
-    const members = (data ?? []) as unknown as Array<{
-      user_id: string;
-      role: string;
-      profiles: { display_name: string | null } | null;
-      characters: { name: string } | null;
-    }>;
-    setSessionPlayers(
-      members
-        .filter((m) => m.role === 'player')
-        .map((m) => ({
-          userId: m.user_id,
-          displayName: m.profiles?.display_name ?? 'Anonymous',
-          characterName: m.characters?.name ?? null,
-        })),
-    );
-    setStartModalCampaign(campaign);
-  }
-
-  async function handleConfirmStart(pickedUserIds: string[]) {
-    if (!startModalCampaign || startingSession) return;
-    setStartingSession(true);
-    const { data } = await startSession(startModalCampaign.id, pickedUserIds);
-    setStartingSession(false);
-    if (data) {
-      setActiveSessionCampaignId(startModalCampaign.id);
-      setStartModalCampaign(null);
-    }
-  }
-
-  function handleStartSessionClick() {
-    if (dmCampaigns.length === 1) {
-      handleStartSessionFor(dmCampaigns[0]);
-    } else if (dmCampaigns.length > 1) {
-      setCampaignPickerOpen(!campaignPickerOpen);
-    }
-  }
+  const nextSessionLine = nextSessionInfo
+    ? `Session ${nextSessionInfo.sessionNum} ${nextSessionInfo.countdown.toLowerCase()}`
+    : null;
 
   const partyGridStyle = useMemo(() => {
     const count = partyMembers.length;
@@ -320,44 +275,19 @@ export default function WorldLandingScreen() {
             ) : (
               <View />
             )}
-            <View style={styles.heroActions}>
-              {dmCampaigns.length > 0 && !activeSessionCampaignId ? (
-                <View>
-                  <GradientButton
-                    label="Start Session"
-                    icon="play-arrow"
-                    onPress={handleStartSessionClick}
-                    style={styles.heroBtnCompact}
-                  />
-                  {campaignPickerOpen && dmCampaigns.length > 1 ? (
-                    <View style={styles.campaignPicker}>
-                      {dmCampaigns.map((c) => (
-                        <Pressable
-                          key={c.id}
-                          onPress={() => handleStartSessionFor(c)}
-                          style={styles.campaignPickerItem}
-                        >
-                          <Text variant="body-sm" style={{ color: colors.onSurface }}>
-                            {c.name}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-              {activeSessionCampaignId ? (
-                <Pressable
-                  onPress={() => router.push(`/campaign/${activeSessionCampaignId}`)}
-                  style={styles.liveSessionBadge}
-                >
-                  <View style={styles.liveDot} />
-                  <Text variant="label-sm" weight="bold" style={{ color: colors.hpHealthy }}>
-                    Session Live
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
+            {activeSessionCampaignId ? (
+              <Pressable
+                onPress={() => router.push(`/campaign/${activeSessionCampaignId}`)}
+                style={styles.liveSessionBadge}
+              >
+                <View style={styles.liveDot} />
+                <Text variant="label-sm" weight="bold" style={{ color: colors.hpHealthy }}>
+                  Session Live
+                </Text>
+              </Pressable>
+            ) : (
+              <View />
+            )}
           </View>
 
           {/* Bottom overlay */}
@@ -432,6 +362,65 @@ export default function WorldLandingScreen() {
             ) : null}
           </View>
         </View>
+
+        {nextSessionInfo ? (
+          <View style={styles.nextSessionCard}>
+            <View style={styles.nextSessionHeader}>
+              <View style={styles.nextSessionMeta}>
+                <Icon name="event" size={14} color={colors.primary} />
+                <Text
+                  variant="label-sm"
+                  weight="semibold"
+                  uppercase
+                  style={{ color: colors.primary, letterSpacing: 1.2 }}
+                >
+                  Next Session
+                </Text>
+                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                  ·  {nextSessionInfo.dayTime}
+                </Text>
+              </View>
+              <View style={styles.countdownBadge}>
+                <Text
+                  variant="label-sm"
+                  weight="semibold"
+                  uppercase
+                  style={{ color: colors.primary, letterSpacing: 0.8 }}
+                >
+                  {nextSessionInfo.countdown}
+                </Text>
+              </View>
+            </View>
+
+            <Text
+              variant="title-lg"
+              family="serif-display"
+              weight="bold"
+              style={{ color: colors.onSurface, marginTop: spacing.sm }}
+            >
+              Session {nextSessionInfo.sessionNum}
+            </Text>
+
+            <Text
+              variant="body-sm"
+              style={{ color: colors.onSurfaceVariant, marginTop: spacing.xs, fontStyle: 'italic' }}
+            >
+              Session title and prep notes will appear here once session planning is set up.
+            </Text>
+
+            <View style={{ flexDirection: 'row', marginTop: spacing.md }}>
+              <Pressable
+                onPress={() => router.push(`/campaign/${nextSessionInfo.campaignId}`)}
+                style={styles.sessionNotesBtn}
+              >
+                <Icon name="description" size={16} color={colors.onSurfaceVariant} />
+                <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                  Session Notes
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         {linkedCampaigns.length > 0 ? (
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
@@ -555,15 +544,6 @@ export default function WorldLandingScreen() {
         />
       ) : null}
 
-      {startModalCampaign ? (
-        <StartSessionModal
-          visible
-          players={sessionPlayers}
-          starting={startingSession}
-          onClose={() => setStartModalCampaign(null)}
-          onConfirm={handleConfirmStart}
-        />
-      ) : null}
     </View>
   );
 }
@@ -642,31 +622,6 @@ const styles = StyleSheet.create({
     borderColor: colors.outlineVariant + '66',
     backgroundColor: colors.surfaceContainerHigh + '99',
   },
-  heroActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  heroBtnCompact: {
-    height: 36,
-    paddingHorizontal: spacing.md,
-  },
-  campaignPicker: {
-    position: 'absolute',
-    top: 40,
-    right: 0,
-    minWidth: 180,
-    backgroundColor: colors.surfaceContainerHigh,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '55',
-    overflow: 'hidden',
-    zIndex: 20,
-  },
-  campaignPickerItem: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-  },
   liveSessionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -720,6 +675,42 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     fontStyle: 'italic',
     marginTop: spacing.sm,
+  },
+  nextSessionCard: {
+    marginTop: spacing.xl,
+    maxWidth: 540,
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '22',
+  },
+  nextSessionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  nextSessionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  countdownBadge: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primary + '66',
+  },
+  sessionNotesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
   },
   partyContainer: {
     marginTop: spacing.xl + spacing.sm,
