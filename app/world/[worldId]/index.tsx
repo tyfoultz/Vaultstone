@@ -453,105 +453,6 @@ export default function WorldLandingScreen() {
           </View>
         </View>
 
-        {nextSessionInfo ? (
-          <View style={styles.nextSessionCard}>
-            <View style={styles.nextSessionHeader}>
-              <View style={styles.nextSessionMeta}>
-                <Icon name="event" size={14} color={colors.primary} />
-                <Text
-                  variant="label-sm"
-                  weight="semibold"
-                  uppercase
-                  style={{ color: colors.primary, letterSpacing: 1.2 }}
-                >
-                  Next Session
-                </Text>
-                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                  ·  {nextSessionInfo.dayTime}
-                </Text>
-              </View>
-              <View style={styles.countdownBadge}>
-                <Text
-                  variant="label-sm"
-                  weight="semibold"
-                  uppercase
-                  style={{ color: colors.primary, letterSpacing: 0.8 }}
-                >
-                  {nextSessionInfo.countdown}
-                </Text>
-              </View>
-            </View>
-
-            <Text
-              variant="title-lg"
-              family="serif-display"
-              weight="bold"
-              style={{ color: colors.onSurface, marginTop: spacing.sm }}
-            >
-              Session {nextSessionInfo.sessionNum}
-              {sessionSubtitle ? ` — ${sessionSubtitle}` : ''}
-            </Text>
-
-            {prepPreview ? (
-              <Text
-                variant="body-sm"
-                style={{ color: colors.onSurfaceVariant, marginTop: spacing.xs }}
-                numberOfLines={3}
-              >
-                {prepPreview}
-              </Text>
-            ) : !prepPage ? (
-              <Text
-                variant="body-sm"
-                style={{ color: colors.onSurfaceVariant, marginTop: spacing.xs, fontStyle: 'italic' }}
-              >
-                Create a page titled "Session {nextSessionInfo.sessionNum}" to link prep notes here.
-              </Text>
-            ) : null}
-
-            {mentionChips.length > 0 ? (
-              <View style={styles.mentionChipRow}>
-                {mentionChips.map((chip) => (
-                  <Pressable
-                    key={chip.id}
-                    onPress={() => router.push(worldPageHref(worldId, chip.id))}
-                    style={styles.mentionChip}
-                  >
-                    <Icon name="circle" size={6} color={colors.primary} />
-                    <Text variant="label-sm" style={{ color: colors.onSurface }}>
-                      {chip.title}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-
-            <View style={styles.nextSessionActions}>
-              {isOwner && !activeSessionCampaignId ? (
-                <GradientButton
-                  label="Start Session"
-                  icon="play-arrow"
-                  onPress={() => {
-                    const campaign = linkedCampaigns.find((c) => c.id === nextSessionInfo.campaignId);
-                    if (campaign) handleStartSession(campaign);
-                  }}
-                />
-              ) : null}
-              {prepPage ? (
-                <Pressable
-                  onPress={() => router.push(worldPageHref(worldId, prepPage.id))}
-                  style={styles.sessionNotesBtn}
-                >
-                  <Icon name="description" size={16} color={colors.onSurfaceVariant} />
-                  <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
-                    Session Notes
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-        ) : null}
-
         {linkedCampaigns.length > 0 ? (
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
             <MetaLabel size="sm" tone="muted">
@@ -565,70 +466,211 @@ export default function WorldLandingScreen() {
           </View>
         ) : null}
 
-        {partyMembers.length > 0 ? (
-          <View style={styles.partyContainer}>
-            <View style={styles.partySectionHeader}>
-              <View style={styles.partyTitleRow}>
-                <Icon name="groups" size={18} color={colors.primary} />
-                <Text
-                  variant="label-sm"
-                  weight="semibold"
-                  uppercase
-                  style={{ color: colors.primary, letterSpacing: 1.2 }}
-                >
-                  The Party
-                </Text>
-                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                  ·  Level {Math.round(partyMembers.reduce((s, m) => s + m.level, 0) / partyMembers.length)}
-                </Text>
-              </View>
-              {isOwner && linkedCampaigns.length > 0 ? (
-                <Pressable onPress={() => router.push(`/campaign/${linkedCampaigns[0].id}`)}>
-                  <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
-                    Manage Players →
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-            <View style={partyGridStyle as object}>
-              {partyMembers.map((member) => {
-                const hpPct = member.hpMax > 0 ? member.hpCurrent / member.hpMax : 1;
-                const hpColor = hpPct > 0.5 ? colors.hpHealthy : hpPct > 0.25 ? colors.hpWarning : colors.hpDanger;
-                return (
-                  <View key={member.userId} style={styles.partyCard}>
-                    <View style={styles.partyCardRow}>
-                      <View style={[styles.partyAvatar, { backgroundColor: hpColor + '33' }]}>
-                        <Text variant="label-sm" weight="bold" style={{ color: hpColor }}>
-                          {member.initials}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text variant="body-md" weight="semibold" numberOfLines={1}>
-                          {member.characterName}
-                        </Text>
-                        <Text variant="body-sm" style={{ color: colors.onSurfaceVariant }} numberOfLines={1}>
-                          {[member.species, member.className].filter(Boolean).join(' · ')}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.partyStats}>
-                      <Text variant="label-sm" weight="bold" style={{ color: hpColor }}>
-                        {member.hpCurrent}
-                      </Text>
-                      <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                        /{member.hpMax} HP
-                      </Text>
-                      <Text variant="label-sm" weight="semibold" style={styles.acBadge}>
-                        AC {member.ac}
-                      </Text>
-                    </View>
-                    <View style={styles.hpBarTrack}>
-                      <View style={[styles.hpBarFill, { width: `${Math.max(hpPct * 100, 2)}%`, backgroundColor: hpColor }]} />
-                    </View>
+        {(partyMembers.length > 0 || linkedCampaigns.length > 0) ? (
+          <View style={styles.dashboardRow}>
+            {/* Party section — left half */}
+            {partyMembers.length > 0 ? (
+              <View style={styles.partyContainer}>
+                <View style={styles.partySectionHeader}>
+                  <View style={styles.partyTitleRow}>
+                    <Icon name="groups" size={18} color={colors.primary} />
+                    <Text
+                      variant="label-sm"
+                      weight="semibold"
+                      uppercase
+                      style={{ color: colors.primary, letterSpacing: 1.2 }}
+                    >
+                      The Party
+                    </Text>
+                    <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                      ·  Level {Math.round(partyMembers.reduce((s, m) => s + m.level, 0) / partyMembers.length)}
+                    </Text>
                   </View>
-                );
-              })}
-            </View>
+                  {isOwner && linkedCampaigns.length > 0 ? (
+                    <Pressable onPress={() => router.push(`/campaign/${linkedCampaigns[0].id}`)}>
+                      <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
+                        Manage Players →
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <View style={partyGridStyle as object}>
+                  {partyMembers.map((member) => {
+                    const hpPct = member.hpMax > 0 ? member.hpCurrent / member.hpMax : 1;
+                    const hpColor = hpPct > 0.5 ? colors.hpHealthy : hpPct > 0.25 ? colors.hpWarning : colors.hpDanger;
+                    return (
+                      <View key={member.userId} style={styles.partyCard}>
+                        <View style={styles.partyCardRow}>
+                          <View style={[styles.partyAvatar, { backgroundColor: hpColor + '33' }]}>
+                            <Text variant="label-sm" weight="bold" style={{ color: hpColor }}>
+                              {member.initials}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text variant="body-md" weight="semibold" numberOfLines={1}>
+                              {member.characterName}
+                            </Text>
+                            <Text variant="body-sm" style={{ color: colors.onSurfaceVariant }} numberOfLines={1}>
+                              {[member.species, member.className].filter(Boolean).join(' · ')}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.partyStats}>
+                          <Text variant="label-sm" weight="bold" style={{ color: hpColor }}>
+                            {member.hpCurrent}
+                          </Text>
+                          <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                            /{member.hpMax} HP
+                          </Text>
+                          <Text variant="label-sm" weight="semibold" style={styles.acBadge}>
+                            AC {member.ac}
+                          </Text>
+                        </View>
+                        <View style={styles.hpBarTrack}>
+                          <View style={[styles.hpBarFill, { width: `${Math.max(hpPct * 100, 2)}%`, backgroundColor: hpColor }]} />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+
+            {/* Next Session card — right half */}
+            {linkedCampaigns.length > 0 ? (
+              <View style={styles.nextSessionCard}>
+                {nextSessionInfo ? (
+                  <>
+                    <View style={styles.nextSessionHeader}>
+                      <View style={styles.nextSessionMeta}>
+                        <Icon name="event" size={14} color={colors.primary} />
+                        <Text
+                          variant="label-sm"
+                          weight="semibold"
+                          uppercase
+                          style={{ color: colors.primary, letterSpacing: 1.2 }}
+                        >
+                          Next Session
+                        </Text>
+                        <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                          ·  {nextSessionInfo.dayTime}
+                        </Text>
+                      </View>
+                      <View style={styles.countdownBadge}>
+                        <Text
+                          variant="label-sm"
+                          weight="semibold"
+                          uppercase
+                          style={{ color: colors.primary, letterSpacing: 0.8 }}
+                        >
+                          {nextSessionInfo.countdown}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text
+                      variant="title-lg"
+                      family="serif-display"
+                      weight="bold"
+                      style={{ color: colors.onSurface, marginTop: spacing.sm }}
+                    >
+                      Session {nextSessionInfo.sessionNum}
+                      {sessionSubtitle ? ` — ${sessionSubtitle}` : ''}
+                    </Text>
+
+                    {prepPreview ? (
+                      <Text
+                        variant="body-sm"
+                        style={{ color: colors.onSurfaceVariant, marginTop: spacing.xs }}
+                        numberOfLines={3}
+                      >
+                        {prepPreview}
+                      </Text>
+                    ) : !prepPage ? (
+                      <Text
+                        variant="body-sm"
+                        style={{ color: colors.onSurfaceVariant, marginTop: spacing.xs, fontStyle: 'italic' }}
+                      >
+                        Create a page titled "Session {nextSessionInfo.sessionNum}" to link prep notes here.
+                      </Text>
+                    ) : null}
+
+                    {mentionChips.length > 0 ? (
+                      <View style={styles.mentionChipRow}>
+                        {mentionChips.map((chip) => (
+                          <Pressable
+                            key={chip.id}
+                            onPress={() => router.push(worldPageHref(worldId, chip.id))}
+                            style={styles.mentionChip}
+                          >
+                            <Icon name="circle" size={6} color={colors.primary} />
+                            <Text variant="label-sm" style={{ color: colors.onSurface }}>
+                              {chip.title}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : null}
+
+                    <View style={styles.nextSessionActions}>
+                      {isOwner && !activeSessionCampaignId ? (
+                        <GradientButton
+                          label="Start Session"
+                          icon="play-arrow"
+                          onPress={() => {
+                            const campaign = linkedCampaigns.find((c) => c.id === nextSessionInfo.campaignId);
+                            if (campaign) handleStartSession(campaign);
+                          }}
+                        />
+                      ) : null}
+                      {prepPage ? (
+                        <Pressable
+                          onPress={() => router.push(worldPageHref(worldId, prepPage.id))}
+                          style={styles.sessionNotesBtn}
+                        >
+                          <Icon name="description" size={16} color={colors.onSurfaceVariant} />
+                          <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                            Session Notes
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.nextSessionMeta}>
+                      <Icon name="event" size={14} color={colors.outline} />
+                      <Text
+                        variant="label-sm"
+                        weight="semibold"
+                        uppercase
+                        style={{ color: colors.outline, letterSpacing: 1.2 }}
+                      >
+                        Next Session
+                      </Text>
+                    </View>
+                    <Text
+                      variant="body-sm"
+                      style={{ color: colors.onSurfaceVariant, marginTop: spacing.sm, fontStyle: 'italic' }}
+                    >
+                      Set a date in World Settings to schedule your next session.
+                    </Text>
+                    {isOwner && !activeSessionCampaignId ? (
+                      <View style={{ marginTop: spacing.lg }}>
+                        <GradientButton
+                          label="Start Session"
+                          icon="play-arrow"
+                          onPress={() => {
+                            const campaign = linkedCampaigns.find((c) => c.dm_user_id === user?.id);
+                            if (campaign) handleStartSession(campaign);
+                          }}
+                        />
+                      </View>
+                    ) : null}
+                  </>
+                )}
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -815,9 +857,14 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: spacing.sm,
   },
+  dashboardRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.xl + spacing.sm,
+    alignItems: 'flex-start',
+  },
   nextSessionCard: {
-    marginTop: spacing.xl,
-    maxWidth: 540,
+    flex: 1,
     backgroundColor: colors.surfaceContainer,
     borderRadius: radius.xl,
     padding: spacing.lg,
@@ -875,7 +922,7 @@ const styles = StyleSheet.create({
     borderColor: colors.outlineVariant + '55',
   },
   partyContainer: {
-    marginTop: spacing.xl + spacing.sm,
+    flex: 1,
     backgroundColor: colors.surfaceContainer,
     borderRadius: radius.xl,
     padding: spacing.lg,
