@@ -15,10 +15,11 @@ const ABILITY_SHORT: Record<keyof Dnd5eAbilityScores, string> = {
 const SLOT_ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 
 const ALL_CONDITIONS = [
-  'Blinded', 'Charmed', 'Deafened', 'Exhausted', 'Frightened', 'Grappled',
+  'Blinded', 'Charmed', 'Deafened', 'Frightened', 'Grappled',
   'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned',
   'Prone', 'Restrained', 'Stunned', 'Unconscious',
 ];
+const EXHAUSTION_MAX = 6;
 
 // SRD full-caster level-1 default (fallback for pre-slot-init characters)
 const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
@@ -60,6 +61,7 @@ interface Props {
   onOpenHpModal?: () => void;
   onRoll: (result: RollResult) => void;
   onToggleCondition: (c: string) => void;
+  onSetExhaustion: (level: number) => void;
   getAttackBonus: (item: Dnd5eEquipmentItem) => number;
 }
 
@@ -80,7 +82,7 @@ function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void
 
 export function CombatTab({
   stats, resources, scores, prof,
-  activeConditions, canEditAny, equipment, isDesktop, onRoll, onToggleCondition, getAttackBonus,
+  activeConditions, canEditAny, equipment, isDesktop, onRoll, onToggleCondition, onSetExhaustion, getAttackBonus,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
 
@@ -110,13 +112,33 @@ export function CombatTab({
   const reactions = [...SRD_REACTIONS, ...featureReactions];
   const freeActions = featureFree;
 
-  // ── Desktop: 2-column grid layout ──────────────────────────────────────────
+  // ── Desktop: single-column flat layout ────────────────────────────────────
   if (isDesktop) {
     return (
-      <View style={s.desktopRoot}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
 
-        {/* LEFT COLUMN — Attacks · Spell Slots · Class Resources */}
-        <ScrollView style={s.col} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
+          {/* Ability Scores */}
+          <CardBlock title="Ability Scores">
+            <View style={s.hexRow}>
+              {ABILITY_KEYS.map((key) => {
+                const score = scores[key];
+                const mod = abilityMod(score);
+                const isSpellMod = stats.spellcastingAbility === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[s.hex, isSpellMod && s.hexSpell]}
+                    onPress={() => rollD20(`${ABILITY_SHORT[key]} check`, mod, onRoll)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.hexName, isSpellMod && { color: colors.primary }]}>{ABILITY_SHORT[key]}</Text>
+                    <Text style={[s.hexMod, isSpellMod && { color: colors.primary }]}>{fmtMod(mod)}</Text>
+                    <Text style={s.hexRaw}>{score}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </CardBlock>
 
           {/* Attacks */}
           <CardBlock title="Attacks">
@@ -218,44 +240,7 @@ export function CombatTab({
             {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} />}
           </CardBlock>
 
-        </ScrollView>
-
-        {/* DIVIDER */}
-        <View style={s.colDivider} />
-
-        {/* RIGHT COLUMN — Conditions · Exhaustion */}
-        <ScrollView style={s.col} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
-
-          {/* Conditions */}
-          <CardBlock title="Conditions">
-            <ConditionsSection
-              activeConditions={activeConditions}
-              canEditAny={canEditAny}
-              onToggle={onToggleCondition}
-            />
-          </CardBlock>
-
-          {/* Exhaustion */}
-          <CardBlock title="Exhaustion Level" hint="tap to set">
-            <View style={s.exhaustionBadges}>
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <TouchableOpacity
-                  key={n}
-                  style={[s.exBadge, exhaustionLevel >= n && s.exBadgeActive]}
-                  onPress={canEditAny ? () => {
-                    // tap active level to clear, tap other to set
-                  } : undefined}
-                  activeOpacity={canEditAny ? 0.7 : 1}
-                >
-                  <Text style={[s.exBadgeText, exhaustionLevel >= n && s.exBadgeTextActive]}>{n}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </CardBlock>
-
-
-        </ScrollView>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -364,8 +349,10 @@ export function CombatTab({
       <SectionLabel style={{ marginTop: 14 }}>CONDITIONS</SectionLabel>
       <ConditionsSection
         activeConditions={activeConditions}
+        exhaustionLevel={exhaustionLevel}
         canEditAny={canEditAny}
         onToggle={onToggleCondition}
+        onSetExhaustion={onSetExhaustion}
       />
 
       {/* Passives */}
@@ -383,24 +370,66 @@ export function CombatTab({
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
-function ConditionsSection({
-  activeConditions, canEditAny, onToggle,
-}: { activeConditions: string[]; canEditAny: boolean; onToggle: (c: string) => void }) {
+export function ConditionsSection({
+  activeConditions, exhaustionLevel, canEditAny, onToggle, onSetExhaustion,
+}: {
+  activeConditions: string[];
+  exhaustionLevel: number;
+  canEditAny: boolean;
+  onToggle: (c: string) => void;
+  onSetExhaustion: (level: number) => void;
+}) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const normalizedActive = activeConditions.map((x) => x.toLowerCase());
-  const available = ALL_CONDITIONS.filter((c) => !normalizedActive.includes(c.toLowerCase()));
+  const pickable = exhaustionLevel === 0 ? ['Exhaustion', ...ALL_CONDITIONS] : ALL_CONDITIONS;
+  const available = pickable.filter((c) => !normalizedActive.includes(c.toLowerCase()));
   const filtered = search.trim()
     ? available.filter((c) => c.toLowerCase().includes(search.toLowerCase()))
     : available;
 
+  const hasActive = activeConditions.length > 0 || exhaustionLevel > 0;
+
   function closePicker() { setPickerOpen(false); setSearch(''); }
+  function handlePick(name: string) {
+    if (name === 'Exhaustion') onSetExhaustion(1);
+    else onToggle(name);
+    if (available.length === 1) closePicker();
+  }
 
   return (
     <View style={{ gap: 6 }}>
       {/* Active condition chips */}
-      {activeConditions.length > 0 && (
+      {hasActive && (
         <View style={s.conditionsWrap}>
+          {exhaustionLevel > 0 && (
+            <View style={s.exhaustionChip}>
+              {canEditAny && (
+                <TouchableOpacity
+                  style={s.exhaustionStep}
+                  onPress={() => onSetExhaustion(Math.max(0, exhaustionLevel - 1))}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="minus" size={11} color={colors.hpDanger} />
+                </TouchableOpacity>
+              )}
+              <Text style={s.condTextActive}>Exhaustion {exhaustionLevel}</Text>
+              {canEditAny && (
+                <TouchableOpacity
+                  style={s.exhaustionStep}
+                  onPress={() => onSetExhaustion(Math.min(EXHAUSTION_MAX, exhaustionLevel + 1))}
+                  activeOpacity={0.7}
+                  disabled={exhaustionLevel >= EXHAUSTION_MAX}
+                >
+                  <MaterialCommunityIcons
+                    name="plus"
+                    size={11}
+                    color={exhaustionLevel >= EXHAUSTION_MAX ? colors.outline : colors.hpDanger}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
           {activeConditions.map((c) => (
             <TouchableOpacity
               key={c}
@@ -424,7 +453,7 @@ function ConditionsSection({
           <Text style={s.addCondText}>Add condition</Text>
         </TouchableOpacity>
       )}
-      {!canEditAny && activeConditions.length === 0 && (
+      {!canEditAny && !hasActive && (
         <Text style={s.condNone}>No active conditions</Text>
       )}
 
@@ -465,7 +494,7 @@ function ConditionsSection({
                 <TouchableOpacity
                   key={c}
                   style={[s.condRow, i < filtered.length - 1 && s.condRowBorder]}
-                  onPress={() => { onToggle(c); if (available.length === 1) closePicker(); }}
+                  onPress={() => handlePick(c)}
                   activeOpacity={0.7}
                 >
                   <Text style={s.condRowText}>{c}</Text>
@@ -693,16 +722,33 @@ const s = StyleSheet.create({
   condRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
   condRowText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '500', color: colors.onSurface },
 
-  // Exhaustion
-  exhaustionBadges: { flexDirection: 'row', gap: 4 },
-  exBadge: {
-    width: 26, height: 26, borderRadius: 5,
-    borderWidth: 1.5, borderColor: colors.outlineVariant,
-    alignItems: 'center', justifyContent: 'center',
+  // Abilities (desktop right-column horizontal strip)
+  hexRow: { flexDirection: 'row', gap: 6 },
+  hex: {
+    flex: 1,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 2, borderColor: colors.outlineVariant,
+    borderRadius: 10,
+    alignItems: 'center', paddingVertical: 8, paddingHorizontal: 2,
   },
-  exBadgeActive: { backgroundColor: `${colors.hpDanger}18`, borderColor: colors.hpDanger },
-  exBadgeText: { fontSize: 9, fontFamily: fonts.headline, fontWeight: '800', color: colors.outline },
-  exBadgeTextActive: { color: colors.hpDanger },
+  hexSpell: { borderColor: colors.primaryContainer },
+  hexName: { fontSize: 9, fontFamily: fonts.label, fontWeight: '800', letterSpacing: 1, color: colors.outline },
+  hexMod: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 26, marginTop: 2 },
+  hexRaw: { fontSize: 9, color: colors.outline },
+
+  // Exhaustion (inline chip inside conditions list)
+  exhaustionChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 4, paddingVertical: 2,
+    backgroundColor: `${colors.hpDanger}18`,
+    borderWidth: 1, borderColor: colors.hpDanger,
+    borderRadius: 4,
+  },
+  exhaustionStep: {
+    width: 18, height: 18, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: `${colors.hpDanger}22`,
+  },
 
 
   // ── Mobile section-based layout
