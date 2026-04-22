@@ -266,7 +266,7 @@ export function WorldSettingsModal({ world, onClose }: Props) {
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable onPress={(e) => e.stopPropagation()} style={styles.panelWrapper}>
           <Card tier="container" padding="lg" style={styles.panel}>
-            <ScrollView>
+            <ScrollView showsVerticalScrollIndicator>
               <View style={styles.header}>
                 <View style={{ flex: 1 }}>
                   <MetaLabel size="sm" tone="accent">World settings</MetaLabel>
@@ -615,10 +615,12 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 560,
     maxHeight: '90%',
+    overflow: 'hidden',
   },
   panel: {
     borderWidth: 1,
     borderColor: colors.outlineVariant + '33',
+    maxHeight: '100%',
   },
   header: {
     flexDirection: 'row',
