@@ -8,6 +8,7 @@ import {
   getCampaignsForWorld,
   getCompletedSessionCount,
   getPage,
+  startSession,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
@@ -29,6 +30,7 @@ import {
 } from '../../../components/world/WorldSectionCard';
 import { WorldTopBar } from '../../../components/world/WorldTopBar';
 import { worldPageHref, worldSectionHref } from '../../../components/world/worldHref';
+import { StartSessionModal, type StartSessionPlayer } from '../../../components/session/StartSessionModal';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
@@ -88,8 +90,13 @@ export default function WorldLandingScreen() {
   const [totalSessions, setTotalSessions] = useState(0);
   const [calendarSchema, setCalendarSchema] = useState<TimelineCalendarSchema | null>(null);
   const [activeSessionCampaignId, setActiveSessionCampaignId] = useState<string | null>(null);
+  const [startModalCampaign, setStartModalCampaign] = useState<Campaign | null>(null);
+  const [sessionPlayers, setSessionPlayers] = useState<StartSessionPlayer[]>([]);
+  const [startingSession, setStartingSession] = useState(false);
   const [partyMembers, setPartyMembers] = useState<PartyMember[]>([]);
-  const [prepPage, setPrepPage] = useState<{ id: string; title: string } | null>(null);
+  const [prepPage, setPrepPage] = useState<{
+    id: string; title: string; bodyText: string | null; bodyRefs: string[];
+  } | null>(null);
 
   const isOwner = !!(user && world && user.id === world.owner_user_id);
 
@@ -211,10 +218,20 @@ export default function WorldLandingScreen() {
   useEffect(() => {
     if (!nextSessionInfo || !worldId) { setPrepPage(null); return; }
     const campaign = linkedCampaigns.find((c) => c.id === nextSessionInfo.campaignId);
-    if (campaign?.next_session_prep_page_id) {
-      getPage(campaign.next_session_prep_page_id).then(({ data }) => {
-        if (data) setPrepPage({ id: data.id, title: data.title });
+
+    function resolve(pageId: string) {
+      getPage(pageId).then(({ data }) => {
+        if (data) setPrepPage({
+          id: data.id,
+          title: data.title,
+          bodyText: data.body_text ?? null,
+          bodyRefs: data.body_refs ?? [],
+        });
       });
+    }
+
+    if (campaign?.next_session_prep_page_id) {
+      resolve(campaign.next_session_prep_page_id);
       return;
     }
     const pages = pagesByWorld ?? [];
@@ -222,11 +239,35 @@ export default function WorldLandingScreen() {
     const pattern = new RegExp(`session\\s*${num}\\b`, 'i');
     const match = pages.find((p) => pattern.test(p.title));
     if (match) {
-      setPrepPage({ id: match.id, title: match.title });
+      resolve(match.id);
     } else {
       setPrepPage(null);
     }
   }, [nextSessionInfo, linkedCampaigns, pagesByWorld, worldId]);
+
+  const sessionSubtitle = useMemo(() => {
+    if (!prepPage || !nextSessionInfo) return null;
+    const stripped = prepPage.title
+      .replace(new RegExp(`^session\\s*${nextSessionInfo.sessionNum}\\s*[-—:]?\\s*`, 'i'), '')
+      .trim();
+    return stripped.length > 0 ? stripped : null;
+  }, [prepPage, nextSessionInfo]);
+
+  const prepPreview = useMemo(() => {
+    if (!prepPage?.bodyText) return null;
+    const lines = prepPage.bodyText.split('\n').filter((l) => l.trim().length > 0);
+    const preview = lines.slice(0, 3).join(' ');
+    return preview.length > 200 ? preview.slice(0, 197) + '…' : preview;
+  }, [prepPage]);
+
+  const mentionChips = useMemo(() => {
+    if (!prepPage?.bodyRefs.length || !pagesByWorld) return [];
+    const pageMap = new Map(pagesByWorld.map((p) => [p.id, p]));
+    return prepPage.bodyRefs
+      .map((id) => pageMap.get(id))
+      .filter((p): p is NonNullable<typeof p> => !!p)
+      .map((p) => ({ id: p.id, title: p.title }));
+  }, [prepPage, pagesByWorld]);
 
   const partyGridStyle = useMemo(() => {
     const count = partyMembers.length;
@@ -237,6 +278,34 @@ export default function WorldLandingScreen() {
       gap: spacing.md,
     };
   }, [partyMembers.length]);
+
+  async function handleStartSession(campaign: Campaign) {
+    const { data } = await getCampaignMembers(campaign.id);
+    const members = (data ?? []) as unknown as Array<{
+      user_id: string; role: string;
+      profiles: { display_name: string | null } | null;
+      characters: { name: string } | null;
+    }>;
+    setSessionPlayers(
+      members.filter((m) => m.role === 'player').map((m) => ({
+        userId: m.user_id,
+        displayName: m.profiles?.display_name ?? 'Anonymous',
+        characterName: m.characters?.name ?? null,
+      })),
+    );
+    setStartModalCampaign(campaign);
+  }
+
+  async function handleConfirmStart(pickedUserIds: string[]) {
+    if (!startModalCampaign || startingSession) return;
+    setStartingSession(true);
+    const { data } = await startSession(startModalCampaign.id, pickedUserIds);
+    setStartingSession(false);
+    if (data) {
+      setActiveSessionCampaignId(startModalCampaign.id);
+      setStartModalCampaign(null);
+    }
+  }
 
   if (!world || !worldId) return null;
 
@@ -420,42 +489,65 @@ export default function WorldLandingScreen() {
               style={{ color: colors.onSurface, marginTop: spacing.sm }}
             >
               Session {nextSessionInfo.sessionNum}
+              {sessionSubtitle ? ` — ${sessionSubtitle}` : ''}
             </Text>
 
-            {prepPage ? (
-              <Pressable
-                onPress={() => router.push(worldPageHref(worldId, prepPage.id))}
-                style={{ marginTop: spacing.sm }}
+            {prepPreview ? (
+              <Text
+                variant="body-sm"
+                style={{ color: colors.onSurfaceVariant, marginTop: spacing.xs }}
+                numberOfLines={3}
               >
-                <Text variant="body-md" style={{ color: colors.primary, textDecorationLine: 'underline' }}>
-                  {prepPage.title}
-                </Text>
-              </Pressable>
-            ) : (
+                {prepPreview}
+              </Text>
+            ) : !prepPage ? (
               <Text
                 variant="body-sm"
                 style={{ color: colors.onSurfaceVariant, marginTop: spacing.xs, fontStyle: 'italic' }}
               >
-                Create a page titled "Session {nextSessionInfo.sessionNum}" in any section to link prep notes here automatically.
+                Create a page titled "Session {nextSessionInfo.sessionNum}" to link prep notes here.
               </Text>
-            )}
+            ) : null}
 
-            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
-              <Pressable
-                onPress={() => {
-                  if (prepPage) {
-                    router.push(worldPageHref(worldId, prepPage.id));
-                  } else {
-                    router.push(`/campaign/${nextSessionInfo.campaignId}`);
-                  }
-                }}
-                style={styles.sessionNotesBtn}
-              >
-                <Icon name="description" size={16} color={colors.onSurfaceVariant} />
-                <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
-                  {prepPage ? 'Open Prep Notes' : 'Session Notes'}
-                </Text>
-              </Pressable>
+            {mentionChips.length > 0 ? (
+              <View style={styles.mentionChipRow}>
+                {mentionChips.map((chip) => (
+                  <Pressable
+                    key={chip.id}
+                    onPress={() => router.push(worldPageHref(worldId, chip.id))}
+                    style={styles.mentionChip}
+                  >
+                    <Icon name="circle" size={6} color={colors.primary} />
+                    <Text variant="label-sm" style={{ color: colors.onSurface }}>
+                      {chip.title}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            <View style={styles.nextSessionActions}>
+              {isOwner && !activeSessionCampaignId ? (
+                <GradientButton
+                  label="Start Session"
+                  icon="play-arrow"
+                  onPress={() => {
+                    const campaign = linkedCampaigns.find((c) => c.id === nextSessionInfo.campaignId);
+                    if (campaign) handleStartSession(campaign);
+                  }}
+                />
+              ) : null}
+              {prepPage ? (
+                <Pressable
+                  onPress={() => router.push(worldPageHref(worldId, prepPage.id))}
+                  style={styles.sessionNotesBtn}
+                >
+                  <Icon name="description" size={16} color={colors.onSurfaceVariant} />
+                  <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                    Session Notes
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         ) : null}
@@ -582,6 +674,15 @@ export default function WorldLandingScreen() {
         />
       ) : null}
 
+      {startModalCampaign ? (
+        <StartSessionModal
+          visible
+          players={sessionPlayers}
+          starting={startingSession}
+          onClose={() => setStartModalCampaign(null)}
+          onConfirm={handleConfirmStart}
+        />
+      ) : null}
     </View>
   );
 }
@@ -739,6 +840,29 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.primary + '66',
+  },
+  mentionChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+    marginTop: spacing.md,
+  },
+  mentionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+    backgroundColor: colors.surfaceContainerHigh + '88',
+  },
+  nextSessionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
   },
   sessionNotesBtn: {
     flexDirection: 'row',
