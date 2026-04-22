@@ -3,7 +3,7 @@ import { Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { getCampaignsForWorld, uploadWorldCover } from '@vaultstone/api';
+import { getCampaignsForWorld, getCompletedSessionCount, getPage, uploadWorldCover } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
   selectSectionsForWorld,
@@ -14,7 +14,7 @@ import {
   useWorldsStore,
 } from '@vaultstone/store';
 import { Chip, GhostButton, GradientButton, Icon, ImageCropModal, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
-import type { Database, WorldSection } from '@vaultstone/types';
+import type { Database, TimelineCalendarSchema, WorldSection } from '@vaultstone/types';
 
 import { useActiveSection } from '../../../components/world/ActiveSectionContext';
 import { CreatePageModal } from '../../../components/world/CreatePageModal';
@@ -50,6 +50,8 @@ export default function WorldLandingScreen() {
   const [createPageSectionId, setCreatePageSectionId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [cropUri, setCropUri] = useState<string | null>(null);
+  const [totalSessions, setTotalSessions] = useState(0);
+  const [calendarSchema, setCalendarSchema] = useState<TimelineCalendarSchema | null>(null);
 
   const isOwner = !!(user && world && user.id === world.owner_user_id);
 
@@ -91,9 +93,25 @@ export default function WorldLandingScreen() {
     if (!worldId) return;
     getCampaignsForWorld(worldId).then(({ data }) => {
       const rows = (data ?? []) as unknown as Array<{ campaigns: Campaign | null }>;
-      setLinkedCampaigns(rows.map((r) => r.campaigns).filter((c): c is Campaign => !!c));
+      const campaigns = rows.map((r) => r.campaigns).filter((c): c is Campaign => !!c);
+      setLinkedCampaigns(campaigns);
+      if (campaigns.length > 0) {
+        Promise.all(campaigns.map((c) => getCompletedSessionCount(c.id))).then(
+          (results) => setTotalSessions(results.reduce((sum, r) => sum + r.count, 0)),
+        );
+      }
     });
   }, [worldId]);
+
+  useEffect(() => {
+    if (!world?.primary_timeline_page_id) return;
+    getPage(world.primary_timeline_page_id).then(({ data }) => {
+      if (!data) return;
+      const sf = data.structured_fields as Record<string, unknown> | null;
+      const schema = sf?.__calendar_schema as TimelineCalendarSchema | undefined;
+      if (schema?.eras) setCalendarSchema(schema);
+    });
+  }, [world?.primary_timeline_page_id]);
 
   const { pageCounts, totalPages } = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -103,6 +121,38 @@ export default function WorldLandingScreen() {
     }
     return { pageCounts: counts, totalPages: pages.length };
   }, [pagesByWorld]);
+
+  const dateValues = world?.current_date_values as Record<string, string> | null;
+  const currentEra = useMemo(() => {
+    if (!dateValues?.era || !calendarSchema) return null;
+    return calendarSchema.eras.find((e) => e.key === dateValues.era) ?? null;
+  }, [dateValues, calendarSchema]);
+
+  const formattedDate = useMemo(() => {
+    if (!dateValues || !currentEra) return null;
+    const parts: string[] = [];
+    for (const level of currentEra.dateLevels) {
+      const val = dateValues[level.key];
+      if (val) parts.push(`${val} ${level.label}`);
+    }
+    return parts.length > 0 ? parts.join(', ') : null;
+  }, [dateValues, currentEra]);
+
+  const nextSessionLine = useMemo(() => {
+    const nextCampaign = linkedCampaigns.find((c) => c.next_session_at);
+    if (!nextCampaign?.next_session_at) return null;
+    const sessionNum = totalSessions + 1;
+    const date = new Date(nextCampaign.next_session_at);
+    const now = new Date();
+    const diffDays = Math.round((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    let when: string;
+    if (diffDays < 0) when = 'past due';
+    else if (diffDays === 0) when = 'today';
+    else if (diffDays === 1) when = 'tomorrow';
+    else if (diffDays < 7) when = date.toLocaleDateString(undefined, { weekday: 'long' });
+    else when = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return `Session ${sessionNum} ${when}`;
+  }, [linkedCampaigns, totalSessions]);
 
   if (!world || !worldId) return null;
 
@@ -188,7 +238,7 @@ export default function WorldLandingScreen() {
               {[
                 'Chronicle',
                 `${sections.length} section${sections.length !== 1 ? 's' : ''}`,
-                `${totalPages} page${totalPages !== 1 ? 's' : ''}`,
+                ...(totalSessions > 0 ? [`${totalSessions} session${totalSessions !== 1 ? 's' : ''}`] : []),
                 ...(linkedCampaigns.length > 0
                   ? [`${linkedCampaigns.length} campaign${linkedCampaigns.length !== 1 ? 's' : ''}`]
                   : []),
@@ -203,7 +253,40 @@ export default function WorldLandingScreen() {
             >
               {world.name}
             </Text>
-            {world.description ? (
+            {currentEra || formattedDate || nextSessionLine ? (
+              <View style={styles.heroSubline}>
+                {currentEra ? (
+                  <View style={styles.eraChip}>
+                    <Text
+                      variant="label-sm"
+                      weight="bold"
+                      uppercase
+                      style={{ color: colors.primary, letterSpacing: 0.8 }}
+                    >
+                      {currentEra.label}
+                    </Text>
+                  </View>
+                ) : null}
+                {formattedDate ? (
+                  <Text
+                    variant="body-md"
+                    family="serif-body"
+                    style={{ color: colors.onSurfaceVariant, fontStyle: 'italic' }}
+                  >
+                    {formattedDate}
+                  </Text>
+                ) : null}
+                {nextSessionLine ? (
+                  <Text
+                    variant="body-md"
+                    family="serif-body"
+                    style={{ color: colors.onSurfaceVariant, fontStyle: 'italic' }}
+                  >
+                    {(currentEra || formattedDate) ? '· ' : ''}{nextSessionLine}
+                  </Text>
+                ) : null}
+              </View>
+            ) : world.description ? (
               <Text
                 variant="body-lg"
                 family="serif-body"
@@ -382,6 +465,20 @@ const styles = StyleSheet.create({
     fontSize: 48,
     lineHeight: 52,
     letterSpacing: -1,
+  },
+  heroSubline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  eraChip: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primary + '66',
   },
   heroDescription: {
     color: colors.onSurfaceVariant,

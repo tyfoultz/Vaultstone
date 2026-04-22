@@ -70,6 +70,7 @@ export interface Database {
           is_archived: boolean;
           content_sources: Json | null;
           party_view_settings: Json | null;
+          next_session_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -83,6 +84,7 @@ export interface Database {
           is_archived?: boolean;
           content_sources?: Json | null;
           party_view_settings?: Json | null;
+          next_session_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -96,6 +98,7 @@ export interface Database {
           is_archived?: boolean;
           content_sources?: Json | null;
           party_view_settings?: Json | null;
+          next_session_at?: string | null;
         };
         Relationships: [];
       };
@@ -321,6 +324,7 @@ export interface Database {
           description: string | null;
           cover_image_url: string | null;
           thumbnail_url: string | null;
+          current_date_values: Json | null;
           primary_map_id: string | null;
           primary_timeline_page_id: string | null;
           is_archived: boolean;
@@ -335,6 +339,7 @@ export interface Database {
           description?: string | null;
           cover_image_url?: string | null;
           thumbnail_url?: string | null;
+          current_date_values?: Json | null;
           primary_map_id?: string | null;
           primary_timeline_page_id?: string | null;
           is_archived?: boolean;
@@ -347,6 +352,7 @@ export interface Database {
           description?: string | null;
           cover_image_url?: string | null;
           thumbnail_url?: string | null;
+          current_date_values?: Json | null;
           primary_map_id?: string | null;
           primary_timeline_page_id?: string | null;
           is_archived?: boolean;

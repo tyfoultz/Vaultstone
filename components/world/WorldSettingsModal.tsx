@@ -6,10 +6,12 @@ import {
   archiveWorld,
   getCampaigns,
   getCampaignsForWorld,
+  getPage,
   linkWorldToCampaign,
   softDeleteWorld,
   unarchiveWorld,
   unlinkWorldFromCampaign,
+  updateCampaign,
   updateWorld,
   uploadWorldCover,
   uploadWorldThumbnail,
@@ -29,7 +31,7 @@ import {
   radius,
   spacing,
 } from '@vaultstone/ui';
-import type { Database } from '@vaultstone/types';
+import type { Database, EraDefinition, TimelineCalendarSchema } from '@vaultstone/types';
 
 type World = Database['public']['Tables']['worlds']['Row'];
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
@@ -61,6 +63,12 @@ export function WorldSettingsModal({ world, onClose }: Props) {
   const [uploadingThumb, setUploadingThumb] = useState(false);
   const [cropUri, setCropUri] = useState<string | null>(null);
   const [cropTarget, setCropTarget] = useState<'cover' | 'thumbnail'>('cover');
+  const [calendarSchema, setCalendarSchema] = useState<TimelineCalendarSchema | null>(null);
+  const initDate = (world.current_date_values ?? {}) as Record<string, string>;
+  const [dateValues, setDateValues] = useState<Record<string, string>>(initDate);
+  const [savingDate, setSavingDate] = useState(false);
+  const [nextSessionAt, setNextSessionAt] = useState('');
+  const [savingNextSession, setSavingNextSession] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -70,9 +78,23 @@ export function WorldSettingsModal({ world, onClose }: Props) {
         setMyCampaigns(dmOnly);
         const linkedRows = (linked.data ?? []) as Array<{ campaign_id: string }>;
         setLinkedIds(linkedRows.map((r) => r.campaign_id));
+        const linkedCampaign = dmOnly.find((c) => linkedRows.some((r) => r.campaign_id === c.id));
+        if (linkedCampaign?.next_session_at) {
+          setNextSessionAt(linkedCampaign.next_session_at.slice(0, 16));
+        }
       },
     );
   }, [user, world.id]);
+
+  useEffect(() => {
+    if (!world.primary_timeline_page_id) return;
+    getPage(world.primary_timeline_page_id).then(({ data }) => {
+      if (!data) return;
+      const sf = data.structured_fields as Record<string, unknown> | null;
+      const schema = sf?.__calendar_schema as TimelineCalendarSchema | undefined;
+      if (schema?.eras) setCalendarSchema(schema);
+    });
+  }, [world.primary_timeline_page_id]);
 
   async function handleRename() {
     if (!name.trim() || !isOwner) return;
@@ -135,6 +157,44 @@ export function WorldSettingsModal({ world, onClose }: Props) {
         setActiveWorld({ ...world, thumbnail_url: url });
       }
     }
+  }
+
+  const selectedEra: EraDefinition | null =
+    calendarSchema?.eras.find((e) => e.key === dateValues.era) ?? null;
+
+  async function handleSaveDate() {
+    if (!isOwner) return;
+    setSavingDate(true);
+    setError('');
+    const hasValues = Object.values(dateValues).some((v) => v);
+    const patch = { current_date_values: hasValues ? dateValues : null };
+    const { error: err } = await updateWorld(world.id, patch);
+    setSavingDate(false);
+    if (err) { setError(err.message); return; }
+    storeUpdateWorld(world.id, patch as Record<string, unknown>);
+    setActiveWorld({ ...world, current_date_values: patch.current_date_values });
+  }
+
+  async function handleClearDate() {
+    if (!isOwner) return;
+    setSavingDate(true);
+    const { error: err } = await updateWorld(world.id, { current_date_values: null });
+    setSavingDate(false);
+    if (err) { setError(err.message); return; }
+    setDateValues({});
+    storeUpdateWorld(world.id, { current_date_values: null });
+    setActiveWorld({ ...world, current_date_values: null });
+  }
+
+  async function handleSaveNextSession() {
+    const linkedCampaign = myCampaigns.find((c) => linkedIds.includes(c.id));
+    if (!linkedCampaign) return;
+    setSavingNextSession(true);
+    setError('');
+    const val = nextSessionAt ? new Date(nextSessionAt).toISOString() : null;
+    const { error: err } = await updateCampaign(linkedCampaign.id, { next_session_at: val });
+    setSavingNextSession(false);
+    if (err) { setError(err.message); return; }
   }
 
   async function toggleCampaignLink(campaignId: string) {
@@ -281,6 +341,90 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                         <GhostButton label="Upload sidebar image" icon="add-a-photo" onPress={() => pickImage('thumbnail')} loading={uploadingThumb} />
                       )}
                     </View>
+                  </View>
+                </View>
+              ) : null}
+
+              {isOwner && calendarSchema ? (
+                <View style={{ marginTop: spacing.xl }}>
+                  <SectionHeader title="Current in-world date" />
+                  <View style={{ gap: spacing.md }}>
+                    <View style={{ gap: spacing.xs }}>
+                      <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                        Era
+                      </Text>
+                      <View style={styles.chipRow}>
+                        {calendarSchema.eras.map((era) => (
+                          <Pressable
+                            key={era.key}
+                            onPress={() => setDateValues((prev) => ({ ...prev, era: era.key }))}
+                            style={[
+                              styles.selectChip,
+                              dateValues.era === era.key && styles.selectChipActive,
+                            ]}
+                          >
+                            <Text
+                              variant="label-md"
+                              weight="semibold"
+                              uppercase
+                              style={{
+                                color: dateValues.era === era.key ? colors.primary : colors.onSurfaceVariant,
+                                letterSpacing: 1,
+                              }}
+                            >
+                              {era.label}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                    {selectedEra ? (
+                      selectedEra.dateLevels.map((level) => (
+                        <Input
+                          key={level.key}
+                          label={level.label}
+                          value={dateValues[level.key] ?? ''}
+                          onChangeText={(v) => setDateValues((prev) => ({ ...prev, [level.key]: v }))}
+                          placeholder={level.type === 'number' ? '0' : level.options?.[0] ?? ''}
+                        />
+                      ))
+                    ) : null}
+                    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                      <GhostButton
+                        label="Save date"
+                        onPress={handleSaveDate}
+                        loading={savingDate}
+                      />
+                      {world.current_date_values ? (
+                        <GhostButton
+                          label="Clear"
+                          onPress={handleClearDate}
+                          tone="neutral"
+                        />
+                      ) : null}
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+
+              {isOwner && linkedIds.length > 0 ? (
+                <View style={{ marginTop: spacing.xl }}>
+                  <SectionHeader title="Next session" />
+                  <View style={{ gap: spacing.md }}>
+                    <Input
+                      label="Scheduled date & time"
+                      value={nextSessionAt}
+                      onChangeText={setNextSessionAt}
+                      placeholder="2026-05-10T18:00"
+                    />
+                    <Text variant="body-sm" style={{ color: colors.onSurfaceVariant }}>
+                      Format: YYYY-MM-DDTHH:MM (e.g. 2026-05-10T18:00)
+                    </Text>
+                    <GhostButton
+                      label={nextSessionAt ? 'Save' : 'Clear'}
+                      onPress={handleSaveNextSession}
+                      loading={savingNextSession}
+                    />
                   </View>
                 </View>
               ) : null}

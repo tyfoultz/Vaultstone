@@ -41,6 +41,7 @@ export async function updateWorld(
     description: string | null;
     cover_image_url: string | null;
     thumbnail_url: string | null;
+    current_date_values: Record<string, string> | null;
     is_archived: boolean;
   }>,
 ) {
