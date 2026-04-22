@@ -34,7 +34,29 @@ import { StartSessionModal, type StartSessionPlayer } from '../../../components/
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
+type PartyMember = {
+  userId: string;
+  displayName: string;
+  characterName: string | null;
+  species: string | null;
+  className: string | null;
+  level: number;
+  hpCurrent: number;
+  hpMax: number;
+  initials: string;
+};
+
+function formatKey(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).replace(/^Srd /, '');
+}
+
 // CSS grid lives inline; see note in SectionPageGrid.tsx.
+const PARTY_GRID_STYLE = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+  gap: spacing.md,
+} as const;
+
 const ATLAS_GRID_STYLE = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
@@ -59,6 +81,7 @@ export default function WorldLandingScreen() {
   const [sessionPlayers, setSessionPlayers] = useState<StartSessionPlayer[]>([]);
   const [startingSession, setStartingSession] = useState(false);
   const [campaignPickerOpen, setCampaignPickerOpen] = useState(false);
+  const [partyMembers, setPartyMembers] = useState<PartyMember[]>([]);
 
   const isOwner = !!(user && world && user.id === world.owner_user_id);
   const dmCampaigns = useMemo(
@@ -82,6 +105,38 @@ export default function WorldLandingScreen() {
             const session = active.data as { id: string; campaign_id: string };
             setActiveSessionCampaignId(session.campaign_id);
           }
+        });
+        Promise.all(campaigns.map((c) => getCampaignMembers(c.id))).then((results) => {
+          const members: PartyMember[] = [];
+          const seen = new Set<string>();
+          for (const { data } of results) {
+            if (!data) continue;
+            for (const raw of data as unknown as Array<{
+              user_id: string;
+              role: string;
+              profiles: { display_name: string | null } | null;
+              characters: { id: string; name: string; system: string; base_stats: unknown; resources: unknown } | null;
+            }>) {
+              if (raw.role !== 'player' || !raw.characters || seen.has(raw.user_id)) continue;
+              seen.add(raw.user_id);
+              const stats = raw.characters.base_stats as { level?: number; hpMax?: number; speciesKey?: string; classKey?: string } | null;
+              const res = raw.characters.resources as { hpCurrent?: number } | null;
+              const name = raw.characters.name;
+              const initials = name.split(/\s+/).map((w) => w[0]?.toUpperCase()).join('').slice(0, 2);
+              members.push({
+                userId: raw.user_id,
+                displayName: raw.profiles?.display_name ?? 'Anonymous',
+                characterName: name,
+                species: stats?.speciesKey ? formatKey(stats.speciesKey) : null,
+                className: stats?.classKey ? formatKey(stats.classKey) : null,
+                level: stats?.level ?? 1,
+                hpCurrent: res?.hpCurrent ?? stats?.hpMax ?? 0,
+                hpMax: stats?.hpMax ?? 0,
+                initials,
+              });
+            }
+          }
+          setPartyMembers(members);
         });
       }
     });
@@ -362,6 +417,70 @@ export default function WorldLandingScreen() {
           </View>
         ) : null}
 
+        {partyMembers.length > 0 ? (
+          <View style={{ marginTop: spacing.xl + spacing.sm }}>
+            <View style={styles.partySectionHeader}>
+              <View style={styles.partyTitleRow}>
+                <Icon name="groups" size={18} color={colors.primary} />
+                <Text
+                  variant="label-sm"
+                  weight="semibold"
+                  uppercase
+                  style={{ color: colors.primary, letterSpacing: 1.2 }}
+                >
+                  The Party
+                </Text>
+                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                  ·  Level {Math.round(partyMembers.reduce((s, m) => s + m.level, 0) / partyMembers.length)}
+                </Text>
+              </View>
+              {isOwner && linkedCampaigns.length > 0 ? (
+                <Pressable onPress={() => router.push(`/campaign/${linkedCampaigns[0].id}`)}>
+                  <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
+                    Manage Players →
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+            <View style={PARTY_GRID_STYLE as object}>
+              {partyMembers.map((member) => {
+                const hpPct = member.hpMax > 0 ? member.hpCurrent / member.hpMax : 1;
+                const hpColor = hpPct > 0.5 ? colors.hpHealthy : hpPct > 0.25 ? colors.hpWarning : colors.hpDanger;
+                return (
+                  <View key={member.userId} style={styles.partyCard}>
+                    <View style={styles.partyCardRow}>
+                      <View style={[styles.partyAvatar, { backgroundColor: hpColor + '33' }]}>
+                        <Text variant="label-sm" weight="bold" style={{ color: hpColor }}>
+                          {member.initials}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text variant="body-md" weight="semibold" numberOfLines={1}>
+                          {member.characterName}
+                        </Text>
+                        <Text variant="body-sm" style={{ color: colors.onSurfaceVariant }} numberOfLines={1}>
+                          {[member.species, member.className].filter(Boolean).join(' · ')}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.partyStats}>
+                      <Text variant="label-sm" weight="bold" style={{ color: hpColor }}>
+                        {member.hpCurrent}
+                      </Text>
+                      <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                        /{member.hpMax} HP
+                      </Text>
+                    </View>
+                    <View style={styles.hpBarTrack}>
+                      <View style={[styles.hpBarFill, { width: `${Math.max(hpPct * 100, 2)}%`, backgroundColor: hpColor }]} />
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         <View style={{ marginTop: spacing.xl + spacing.sm, gap: spacing.md }}>
           <MetaLabel size="sm" tone="accent">
             The Atlas
@@ -499,7 +618,6 @@ const styles = StyleSheet.create({
   heroBtnCompact: {
     height: 36,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.surfaceContainerHigh + '99',
   },
   campaignPicker: {
     position: 'absolute',
@@ -570,5 +688,49 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     fontStyle: 'italic',
     marginTop: spacing.sm,
+  },
+  partySectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  partyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  partyCard: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.xs + 2,
+  },
+  partyCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  partyAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partyStats: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+    marginTop: 2,
+  },
+  hpBarTrack: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.outlineVariant + '33',
+  },
+  hpBarFill: {
+    height: 3,
+    borderRadius: 2,
   },
 });
