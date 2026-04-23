@@ -17,6 +17,7 @@ type Props = {
   initialContent: object | null;
   onChange: (body: object, bodyText: string, bodyRefs: string[]) => void;
   editable?: boolean;
+  hideChrome?: boolean;
   placeholder?: string;
   worldId?: string;
   pageId?: string;
@@ -35,6 +36,7 @@ export function BodyEditor({
   initialContent,
   onChange,
   editable = true,
+  hideChrome = false,
   placeholder,
   worldId,
   pageId,
@@ -156,12 +158,14 @@ export function BodyEditor({
   if (!editor) return null;
 
   return (
-    <View style={styles.root}>
-      <BodyEditorToolbar
-        editor={editor}
-        onImagePress={canInsertImage ? () => setImageModalOpen(true) : undefined}
-      />
-      <View style={styles.editorFrame}>
+    <View style={hideChrome ? styles.rootBare : styles.root}>
+      {!hideChrome ? (
+        <BodyEditorToolbar
+          editor={editor}
+          onImagePress={canInsertImage ? () => setImageModalOpen(true) : undefined}
+        />
+      ) : null}
+      <View style={hideChrome ? styles.editorFrameBare : styles.editorFrame}>
         <EditorContent editor={editor} />
       </View>
       <EditorStyles />
@@ -367,8 +371,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLowest,
     overflow: 'hidden',
   },
+  rootBare: {
+    flex: 1,
+  },
   editorFrame: {
     flex: 1,
     minHeight: 240,
+  },
+  editorFrameBare: {
+    flex: 1,
   },
 });

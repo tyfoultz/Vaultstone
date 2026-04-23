@@ -11,6 +11,9 @@ import { worldPageHref } from './worldHref';
 
 type World = Database['public']['Tables']['worlds']['Row'];
 
+const DEFAULT_TITLE = 'World Description';
+const COLLAPSED_MAX_HEIGHT = 130;
+
 type Props = {
   world: World;
   worldId: string;
@@ -37,7 +40,8 @@ export function WorldOpeningBlock({ world, worldId, isOwner, systemLabel, partyL
   const pagesByWorld = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
 
   const [editing, setEditing] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(world.opening_title ?? 'Opening · Read Aloud');
+  const [expanded, setExpanded] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(world.opening_title ?? DEFAULT_TITLE);
   const [bodyDraft, setBodyDraft] = useState<{ body: object; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -66,7 +70,7 @@ export function WorldOpeningBlock({ world, worldId, isOwner, systemLabel, partyL
     if (saving) return;
     setSaving(true);
     const patch: Record<string, unknown> = {
-      opening_title: titleDraft.trim() || 'Opening · Read Aloud',
+      opening_title: titleDraft.trim() || DEFAULT_TITLE,
       opening_updated_at: new Date().toISOString(),
       opening_updated_by: user?.id ?? null,
     };
@@ -81,7 +85,7 @@ export function WorldOpeningBlock({ world, worldId, isOwner, systemLabel, partyL
   }
 
   function handleCancel() {
-    setTitleDraft(world.opening_title ?? 'Opening · Read Aloud');
+    setTitleDraft(world.opening_title ?? DEFAULT_TITLE);
     setBodyDraft(null);
     setEditing(false);
   }
@@ -108,7 +112,7 @@ export function WorldOpeningBlock({ world, worldId, isOwner, systemLabel, partyL
           uppercase
           style={styles.titleLabel}
         >
-          {world.opening_title ?? 'Opening · Read Aloud'}
+          {world.opening_title ?? DEFAULT_TITLE}
         </Text>
       )}
 
@@ -125,21 +129,42 @@ export function WorldOpeningBlock({ world, worldId, isOwner, systemLabel, partyL
           />
         </View>
       ) : hasContent ? (
-        <View style={styles.prose}>
-          <BodyEditor
-            initialContent={world.opening_body as object | null}
-            onChange={() => {}}
-            editable={false}
-            worldId={worldId}
-            mentionablePages={mentionablePages}
-            onMentionClick={handleMentionClick}
-          />
+        <View>
+          <View style={[
+            styles.prose,
+            !expanded && styles.proseCollapsed,
+          ]}>
+            <BodyEditor
+              initialContent={world.opening_body as object | null}
+              onChange={() => {}}
+              editable={false}
+              hideChrome
+              worldId={worldId}
+              mentionablePages={mentionablePages}
+              onMentionClick={handleMentionClick}
+            />
+          </View>
+          {!expanded ? (
+            <Pressable onPress={() => setExpanded(true)} style={styles.readMoreBtn}>
+              <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
+                Read More
+              </Text>
+              <Icon name="expand-more" size={16} color={colors.primary} />
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => setExpanded(false)} style={styles.readMoreBtn}>
+              <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
+                Show Less
+              </Text>
+              <Icon name="expand-less" size={16} color={colors.primary} />
+            </Pressable>
+          )}
         </View>
       ) : isOwner ? (
         <Pressable onPress={() => setEditing(true)} style={styles.emptyState}>
           <Icon name="edit-note" size={20} color={colors.outline} />
           <Text variant="body-md" style={{ color: colors.outline, fontStyle: 'italic' }}>
-            Add an opening passage for your world…
+            Add a description for your world…
           </Text>
         </Pressable>
       ) : null}
@@ -205,8 +230,17 @@ const styles = StyleSheet.create({
   editorWrap: {
     minHeight: 120,
   },
-  prose: {
-    minHeight: 40,
+  prose: {},
+  proseCollapsed: {
+    maxHeight: COLLAPSED_MAX_HEIGHT,
+    overflow: 'hidden',
+  },
+  readMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: spacing.xs,
+    alignSelf: 'flex-start',
   },
   emptyState: {
     flexDirection: 'row',

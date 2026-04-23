@@ -1,0 +1,37 @@
+{
+  "key": "factions",
+  "version": 2,
+  "label": "Factions",
+  "description": "Organizations, guilds, cults, nations, and rival groups.",
+  "defaultPageKind": "faction",
+  "allowedPageKinds": ["faction", "organization", "religion", "custom"],
+  "defaultSectionView": "list",
+  "icon": "shield",
+  "railIcon": "shield",
+  "accentToken": "primary",
+  "fields": [
+    {
+      "key": "size",
+      "label": "Size",
+      "type": "select",
+      "options": ["cell", "chapter", "order", "legion", "empire"]
+    },
+    {
+      "key": "headquarters",
+      "label": "Headquarters",
+      "type": "page_ref",
+      "pageKindFilter": ["location"]
+    },
+    {
+      "key": "stance",
+      "label": "Stance toward the party",
+      "type": "select",
+      "options": ["hostile", "wary", "neutral", "friendly", "allied"]
+    },
+    {
+      "key": "tags",
+      "label": "Tags",
+      "type": "tags"
+    }
+  ]
+}

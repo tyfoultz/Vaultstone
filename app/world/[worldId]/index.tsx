@@ -692,9 +692,6 @@ export default function WorldLandingScreen() {
               >
                 The World
               </Text>
-              <Text variant="body-md" style={{ color: colors.onSurfaceVariant, marginTop: 2 }}>
-                Overarching lore — shared context for every session
-              </Text>
             </View>
             {isOwner ? (
               <GhostButton label="+ Add Section" onPress={() => setCreateSectionOpen(true)} />

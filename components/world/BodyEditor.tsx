@@ -9,6 +9,7 @@ type Props = {
   onChange: (body: object, bodyText: string, bodyRefs: string[]) => void;
   editable?: boolean;
   placeholder?: string;
+  hideChrome?: boolean;
   // Web-only — accepted here so callers can stay platform-agnostic.
   worldId?: string;
   pageId?: string;

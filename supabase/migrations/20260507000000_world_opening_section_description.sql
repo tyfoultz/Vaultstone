@@ -1,6 +1,6 @@
 -- Opening prose block on the world dashboard (editable title + rich text body)
 alter table worlds
-  add column if not exists opening_title text default 'Opening · Read Aloud',
+  add column if not exists opening_title text default 'World Description',
   add column if not exists opening_body jsonb,
   add column if not exists opening_body_text text,
   add column if not exists opening_updated_at timestamptz,
