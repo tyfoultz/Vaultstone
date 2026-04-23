@@ -23,6 +23,7 @@ import type { Database, TimelineCalendarSchema, WorldSection } from '@vaultstone
 import { useActiveSection } from '../../../components/world/ActiveSectionContext';
 import { CreatePageModal } from '../../../components/world/CreatePageModal';
 import { CreateSectionModal } from '../../../components/world/CreateSectionModal';
+import { WorldOpeningBlock } from '../../../components/world/WorldOpeningBlock';
 import {
   WorldSectionAddCard,
   WorldSectionCard,
@@ -666,18 +667,39 @@ export default function WorldLandingScreen() {
           </View>
         ) : null}
 
+        {/* Opening prose block */}
+        <View style={{ marginTop: spacing.xl + spacing.sm }}>
+          <WorldOpeningBlock
+            world={world}
+            worldId={worldId}
+            isOwner={isOwner}
+            systemLabel={linkedCampaigns.length > 0 ? 'D&D 5E' : null}
+            partyLevel={partyMembers.length > 0
+              ? Math.round(partyMembers.reduce((s, m) => s + m.level, 0) / partyMembers.length)
+              : null}
+          />
+        </View>
+
+        {/* The World — section cards */}
         <View style={{ marginTop: spacing.xl + spacing.sm, gap: spacing.md }}>
-          <MetaLabel size="sm" tone="accent">
-            The Atlas
-          </MetaLabel>
-          <Text
-            variant="headline-sm"
-            family="serif-display"
-            weight="bold"
-            style={{ color: colors.onSurface }}
-          >
-            Sections in this world
-          </Text>
+          <View style={styles.sectionHeadingRow}>
+            <View style={{ flex: 1 }}>
+              <Text
+                variant="headline-sm"
+                family="serif-display"
+                weight="bold"
+                style={{ color: colors.onSurface }}
+              >
+                The World
+              </Text>
+              <Text variant="body-md" style={{ color: colors.onSurfaceVariant, marginTop: 2 }}>
+                Overarching lore — shared context for every session
+              </Text>
+            </View>
+            {isOwner ? (
+              <GhostButton label="+ Add Section" onPress={() => setCreateSectionOpen(true)} />
+            ) : null}
+          </View>
           <View style={ATLAS_GRID_STYLE as object}>
             {sections.map((section) => {
               const template = getTemplate(section.template_key);
@@ -691,7 +713,12 @@ export default function WorldLandingScreen() {
                 />
               );
             })}
-            <WorldSectionAddCard onPress={() => setCreateSectionOpen(true)} />
+            {isOwner ? (
+              <WorldSectionAddCard
+                onPress={() => setCreateSectionOpen(true)}
+                subtitle="Pantheon, calendar, languages…"
+              />
+            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -968,5 +995,10 @@ const styles = StyleSheet.create({
   hpBarFill: {
     height: 3,
     borderRadius: 2,
+  },
+  sectionHeadingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
 });

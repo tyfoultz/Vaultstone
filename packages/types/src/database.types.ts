@@ -330,6 +330,11 @@ export interface Database {
           current_date_values: Json | null;
           primary_map_id: string | null;
           primary_timeline_page_id: string | null;
+          opening_title: string | null;
+          opening_body: Json | null;
+          opening_body_text: string | null;
+          opening_updated_at: string | null;
+          opening_updated_by: string | null;
           is_archived: boolean;
           deleted_at: string | null;
           created_at: string;
@@ -345,6 +350,11 @@ export interface Database {
           current_date_values?: Json | null;
           primary_map_id?: string | null;
           primary_timeline_page_id?: string | null;
+          opening_title?: string | null;
+          opening_body?: Json | null;
+          opening_body_text?: string | null;
+          opening_updated_at?: string | null;
+          opening_updated_by?: string | null;
           is_archived?: boolean;
           deleted_at?: string | null;
           created_at?: string;
@@ -358,6 +368,11 @@ export interface Database {
           current_date_values?: Json | null;
           primary_map_id?: string | null;
           primary_timeline_page_id?: string | null;
+          opening_title?: string | null;
+          opening_body?: Json | null;
+          opening_body_text?: string | null;
+          opening_updated_at?: string | null;
+          opening_updated_by?: string | null;
           is_archived?: boolean;
           deleted_at?: string | null;
           updated_at?: string;
@@ -383,6 +398,7 @@ export interface Database {
           id: string;
           world_id: string;
           name: string;
+          description: string | null;
           template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline';
           section_view: 'grid' | 'list';
           sort_order: number;
@@ -397,6 +413,7 @@ export interface Database {
           id?: string;
           world_id: string;
           name: string;
+          description?: string | null;
           template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline';
           section_view?: 'grid' | 'list';
           sort_order?: number;
@@ -409,6 +426,7 @@ export interface Database {
         };
         Update: {
           name?: string;
+          description?: string | null;
           template_key?: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank';
           section_view?: 'grid' | 'list';
           sort_order?: number;
