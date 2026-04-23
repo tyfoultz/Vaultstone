@@ -39,6 +39,7 @@ import { EditLockBanner } from '../../../../components/world/EditLockBanner';
 import { PageHead } from '../../../../components/world/PageHead';
 import { OrphanBanner } from '../../../../components/world/OrphanBanner';
 import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle';
+import { FactsModal } from '../../../../components/world/FactsModal';
 import { ShareModal } from '../../../../components/world/ShareModal';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
 import { NPCPageView } from '../../../../components/world/NPCPageView';
@@ -94,6 +95,7 @@ export default function PageDetailScreen() {
   const toggleVisibility = usePageVisibilityToggle(page ?? null);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
+  const [factsOpen, setFactsOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const removePage = usePagesStore((s) => s.removePage);
 
@@ -444,16 +446,23 @@ export default function PageDetailScreen() {
               style={heldByOther ? styles.disabledEditor : undefined}
               pointerEvents={heldByOther ? 'none' : 'auto'}
             >
-              <StructuredFieldsForm
-                page={page}
-                template={template}
-                onSaveStateChange={setSaveState}
-              />
+              {page.page_kind === 'lore' && template.fields.length > 0 ? (
+                <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
+                  <Icon name="info-outline" size={14} color={colors.primary} />
+                  <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
+                    Facts
+                  </Text>
+                  <Icon name="chevron-right" size={14} color={colors.primary} />
+                </Pressable>
+              ) : (
+                <StructuredFieldsForm
+                  page={page}
+                  template={template}
+                  onSaveStateChange={setSaveState}
+                />
+              )}
 
               <View style={[styles.bodySection, { marginTop: spacing.lg, flex: 1 }]}>
-                <MetaLabel size="sm" tone="muted" style={{ marginBottom: spacing.xs }}>
-                  Body
-                </MetaLabel>
                 <BodyEditor
                   initialContent={(page.body as object) ?? null}
                   onChange={handleBodyChange}
@@ -482,6 +491,16 @@ export default function PageDetailScreen() {
 
       {shareOpen ? (
         <ShareModal page={page} onClose={() => setShareOpen(false)} />
+      ) : null}
+
+      {template.fields.length > 0 ? (
+        <FactsModal
+          visible={factsOpen}
+          page={page}
+          template={template}
+          onClose={() => setFactsOpen(false)}
+          onSaveStateChange={setSaveState}
+        />
       ) : null}
     </View>
   );
@@ -518,6 +537,18 @@ const styles = StyleSheet.create({
   },
   disabledEditor: {
     opacity: 0.55,
+  },
+  factsChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primary + '44',
+    backgroundColor: colors.primaryContainer + '22',
   },
   shareBtn: {
     flexDirection: 'row',
