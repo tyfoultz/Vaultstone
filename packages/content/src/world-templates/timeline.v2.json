@@ -1,0 +1,13 @@
+{
+  "key": "timeline",
+  "version": 2,
+  "label": "Timeline",
+  "description": "Chronological events — world history, campaign sessions, and key moments.",
+  "defaultPageKind": "timeline",
+  "allowedPageKinds": ["timeline"],
+  "defaultSectionView": "list",
+  "icon": "timeline",
+  "railIcon": "timeline",
+  "accentToken": "cosmic",
+  "fields": []
+}

@@ -8,6 +8,7 @@ import {
   getCompletedSessionCount,
   getPage,
   startSession,
+  updateSection,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
@@ -703,6 +704,11 @@ export default function WorldLandingScreen() {
                   template={template}
                   pageCount={pageCounts[section.id] ?? 0}
                   onPress={() => handleSectionPress(section)}
+                  isOwner={isOwner}
+                  onDescriptionSave={async (desc) => {
+                    const { data } = await updateSection(section.id, { description: desc || null });
+                    if (data) useSectionsStore.getState().updateSection(section.id, { description: desc || null });
+                  }}
                 />
               );
             })}
