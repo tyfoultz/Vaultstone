@@ -673,10 +673,6 @@ export default function WorldLandingScreen() {
             world={world}
             worldId={worldId}
             isOwner={isOwner}
-            systemLabel={linkedCampaigns.length > 0 ? 'D&D 5E' : null}
-            partyLevel={partyMembers.length > 0
-              ? Math.round(partyMembers.reduce((s, m) => s + m.level, 0) / partyMembers.length)
-              : null}
           />
         </View>
 

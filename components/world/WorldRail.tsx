@@ -99,7 +99,7 @@ export function WorldRail({ world }: Props) {
         {railSections.map((section) => {
           const template = templateByKey[section.template_key];
           if (!template) return null;
-          const materialName = MATERIAL_ICON[template.icon] ?? 'circle';
+          const materialName = section.custom_icon ?? MATERIAL_ICON[template.icon] ?? template.icon;
           const tint = ACCENT_TINT[template.accentToken];
           const active = activeSectionId === section.id;
           const hovered = hoveredId === section.id;

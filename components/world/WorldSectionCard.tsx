@@ -15,7 +15,7 @@ type Props = {
 
 export function WorldSectionCard({ section, template, pageCount, onPress, onMenuPress }: Props) {
   const swatch = ACCENT_SWATCH[template.accentToken];
-  const iconName = toMaterialIcon(template.icon);
+  const iconName = toMaterialIcon(section.custom_icon ?? template.icon);
   const isHidden = section.force_hidden_from_players;
 
   return (

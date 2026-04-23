@@ -399,6 +399,7 @@ export interface Database {
           world_id: string;
           name: string;
           description: string | null;
+          custom_icon: string | null;
           template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline';
           section_view: 'grid' | 'list';
           sort_order: number;
@@ -414,6 +415,7 @@ export interface Database {
           world_id: string;
           name: string;
           description?: string | null;
+          custom_icon?: string | null;
           template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline';
           section_view?: 'grid' | 'list';
           sort_order?: number;
@@ -427,6 +429,7 @@ export interface Database {
         Update: {
           name?: string;
           description?: string | null;
+          custom_icon?: string | null;
           template_key?: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank';
           section_view?: 'grid' | 'list';
           sort_order?: number;

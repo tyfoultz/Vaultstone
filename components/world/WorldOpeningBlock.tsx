@@ -18,22 +18,9 @@ type Props = {
   world: World;
   worldId: string;
   isOwner: boolean;
-  systemLabel?: string | null;
-  partyLevel?: number | null;
 };
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
-
-export function WorldOpeningBlock({ world, worldId, isOwner, systemLabel, partyLevel }: Props) {
+export function WorldOpeningBlock({ world, worldId, isOwner }: Props) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const patchWorld = useCurrentWorldStore((s) => s.patchWorld);
@@ -46,16 +33,6 @@ export function WorldOpeningBlock({ world, worldId, isOwner, systemLabel, partyL
   const [saving, setSaving] = useState(false);
 
   const mentionablePages = useMemo(() => pagesByWorld ?? [], [pagesByWorld]) as WorldPage[];
-
-  const metaParts = useMemo(() => {
-    const parts: string[] = [];
-    if (systemLabel) parts.push(systemLabel);
-    if (partyLevel != null) parts.push(`Level ${partyLevel} Party`);
-    if (world.opening_updated_at) {
-      parts.push(`Edited ${timeAgo(world.opening_updated_at)} by you`);
-    }
-    return parts;
-  }, [systemLabel, partyLevel, world.opening_updated_at]);
 
   const handleBodyChange = useCallback((body: object, bodyText: string) => {
     setBodyDraft({ body, text: bodyText });
@@ -169,22 +146,9 @@ export function WorldOpeningBlock({ world, worldId, isOwner, systemLabel, partyL
         </Pressable>
       ) : null}
 
-      <View style={styles.footer}>
-        <View style={styles.metaRow}>
-          {metaParts.map((part, i) => (
-            <View key={i} style={styles.metaItem}>
-              {i === 0 && <Icon name="settings" size={12} color={colors.onSurfaceVariant} />}
-              {i === 1 && <Icon name="groups" size={12} color={colors.onSurfaceVariant} />}
-              {i === 2 && <Icon name="schedule" size={12} color={colors.onSurfaceVariant} />}
-              <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                {part}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {isOwner ? (
-          editing ? (
+      {isOwner ? (
+        <View style={styles.footer}>
+          {editing ? (
             <View style={styles.editActions}>
               <GhostButton label="Cancel" onPress={handleCancel} />
               <GhostButton label={saving ? 'Saving…' : 'Save'} onPress={handleSave} />
@@ -196,9 +160,9 @@ export function WorldOpeningBlock({ world, worldId, isOwner, systemLabel, partyL
                 Edit
               </Text>
             </Pressable>
-          )
-        ) : null}
-      </View>
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -250,23 +214,12 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: colors.outlineVariant + '22',
     borderStyle: 'dotted',
     paddingTop: spacing.sm,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    flexWrap: 'wrap',
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
   editActions: {
     flexDirection: 'row',

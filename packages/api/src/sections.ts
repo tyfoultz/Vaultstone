@@ -33,7 +33,7 @@ export async function createSection(input: {
 
 export async function updateSection(
   sectionId: string,
-  patch: Partial<Pick<WorldSection, 'name' | 'description' | 'section_view' | 'force_hidden_from_players' | 'default_pages_visible' | 'sort_order'>>,
+  patch: Partial<Pick<WorldSection, 'name' | 'description' | 'custom_icon' | 'section_view' | 'force_hidden_from_players' | 'default_pages_visible' | 'sort_order'>>,
 ) {
   return supabase
     .from('world_sections')

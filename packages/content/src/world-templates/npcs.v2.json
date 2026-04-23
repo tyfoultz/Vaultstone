@@ -6,8 +6,8 @@
   "defaultPageKind": "npc",
   "allowedPageKinds": ["npc", "custom"],
   "defaultSectionView": "list",
-  "icon": "skull",
-  "railIcon": "skull",
+  "icon": "groups",
+  "railIcon": "groups",
   "accentToken": "cosmic",
   "fields": [
     {

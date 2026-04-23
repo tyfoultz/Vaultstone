@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { AccentToken } from '@vaultstone/types';
 import { Icon, MetaLabel, Text, colors, spacing } from '@vaultstone/ui';
@@ -29,6 +29,7 @@ type Props = {
    */
   metaPills?: MetaPill[];
   actions?: ReactNode;
+  onIconPress?: () => void;
 };
 
 // Matches handoff `.wiki-head`: a 76×76 gradient tile tinted by the template
@@ -36,24 +37,32 @@ type Props = {
 // icon+label pills (one per pill — kind / scope / visibility / sub-page
 // count). The old `meta` string prop was a single accent kicker; it's
 // replaced by `metaPills` so the row can mirror the handoff exactly.
-export function PageHead({ icon, title, accentToken, meta, metaPills, actions }: Props) {
+export function PageHead({ icon, title, accentToken, meta, metaPills, actions, onIconPress }: Props) {
   const swatch = ACCENT_SWATCH[accentToken];
   const materialName = toMaterialIcon(icon);
 
+  const tileContent = (
+    <LinearGradient
+      colors={[swatch.container, swatch.glow]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.tile, { borderColor: swatch.border }]}
+    >
+      <Icon
+        name={materialName as React.ComponentProps<typeof Icon>['name']}
+        size={36}
+        color={swatch.fg}
+      />
+    </LinearGradient>
+  );
+
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={[swatch.container, swatch.glow]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.tile, { borderColor: swatch.border }]}
-      >
-        <Icon
-          name={materialName as React.ComponentProps<typeof Icon>['name']}
-          size={36}
-          color={swatch.fg}
-        />
-      </LinearGradient>
+      {onIconPress ? (
+        <Pressable onPress={onIconPress} accessibilityLabel="Change section icon">
+          {tileContent}
+        </Pressable>
+      ) : tileContent}
 
       <View style={styles.text}>
         <Text
