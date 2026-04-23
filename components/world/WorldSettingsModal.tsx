@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { createElement, useEffect, useMemo, useState } from 'react';
+import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -72,7 +72,6 @@ export function WorldSettingsModal({ world, onClose }: Props) {
   const [prepPageId, setPrepPageId] = useState<string | null>(null);
   const [prepPickerOpen, setPrepPickerOpen] = useState(false);
   const allPages = usePagesStore((s) => s.byWorldId[world.id]);
-  const dateInputRef = useRef<TextInput>(null);
 
   const availablePages = useMemo(
     () => (allPages ?? []).filter((p) => !p.deleted_at),
@@ -418,15 +417,21 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                               : 'Pick a date…'}
                           </Text>
                         </View>
-                        {Platform.OS === 'web' ? (
-                          <TextInput
-                            ref={dateInputRef}
-                            value={nextSessionAt}
-                            onChangeText={setNextSessionAt}
-                            style={styles.dateInputOverlay}
-                            {...{ type: 'datetime-local' } as any}
-                          />
-                        ) : null}
+                        {Platform.OS === 'web' ? createElement('input', {
+                          type: 'datetime-local',
+                          value: nextSessionAt,
+                          onChange: (e: any) => setNextSessionAt(e.target.value),
+                          style: {
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            opacity: 0,
+                            cursor: 'pointer',
+                            border: 'none',
+                          },
+                        }) : null}
                         {nextSessionAt ? (
                           <Pressable onPress={() => setNextSessionAt('')} hitSlop={8} style={styles.dateClearBtn}>
                             <Icon name="close" size={16} color={colors.onSurfaceVariant} />
@@ -687,14 +692,6 @@ const styles = StyleSheet.create({
   },
   datePickerWrapper: {
     position: 'relative',
-  },
-  dateInputOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    opacity: 0,
   },
   dateClearBtn: {
     position: 'absolute',
