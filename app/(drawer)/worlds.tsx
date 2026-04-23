@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Image,
   View,
   ScrollView,
   Pressable,
@@ -209,14 +210,18 @@ function WorldCard({
     >
       <Card tier="high" padding="md" style={{ overflow: 'hidden' }}>
         <View style={{ position: 'relative' }}>
-          <LinearGradient
-            colors={[colors.primaryContainer, colors.secondaryContainer]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.cover}
-          >
-            <Icon name="public" size={48} color={colors.onPrimary} />
-          </LinearGradient>
+          {world.cover_image_url ? (
+            <Image source={{ uri: world.cover_image_url }} style={styles.cover} resizeMode="cover" />
+          ) : (
+            <LinearGradient
+              colors={[colors.primaryContainer, colors.secondaryContainer]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.cover}
+            >
+              <Icon name="public" size={48} color={colors.onPrimary} />
+            </LinearGradient>
+          )}
           <Pressable
             onPress={(e) => {
               e.stopPropagation();
@@ -334,6 +339,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   emptyState: {
     alignItems: 'center',

@@ -41,7 +41,9 @@ import { OrphanBanner } from '../../../../components/world/OrphanBanner';
 import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle';
 import { ShareModal } from '../../../../components/world/ShareModal';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
+import { NPCPageView } from '../../../../components/world/NPCPageView';
 import { TimelinePageView } from '../../../../components/world/TimelinePageView';
+import { PCStubPageView } from '../../../../components/world/players/PCStubPageView';
 import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { PAGE_KIND_LABEL } from '../../../../components/world/helpers';
@@ -328,6 +330,16 @@ export default function PageDetailScreen() {
     return <TimelinePageView page={page} worldId={worldId} />;
   }
 
+  // PC stub / player character pages get the enrichment view
+  if (page.page_kind === 'pc_stub' || page.page_kind === 'player_character') {
+    return <PCStubPageView page={page} worldId={worldId} />;
+  }
+
+  // NPC pages get the profile layout
+  if (page.page_kind === 'npc') {
+    return <NPCPageView page={page} worldId={worldId} />;
+  }
+
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);
   const kindLabel = PAGE_KIND_LABEL[page.page_kind] ?? 'Page';
 
@@ -438,7 +450,7 @@ export default function PageDetailScreen() {
                 onSaveStateChange={setSaveState}
               />
 
-              <View style={[styles.bodySection, { marginTop: spacing.lg }]}>
+              <View style={[styles.bodySection, { marginTop: spacing.lg, flex: 1 }]}>
                 <MetaLabel size="sm" tone="muted" style={{ marginBottom: spacing.xs }}>
                   Body
                 </MetaLabel>
@@ -447,6 +459,8 @@ export default function PageDetailScreen() {
                   onChange={handleBodyChange}
                   editable={!heldByOther}
                   placeholder={`Begin the chronicle of ${page.title}…`}
+                  worldId={worldId}
+                  pageId={pageId}
                   mentionablePages={mentionablePages}
                   mentionablePins={mentionablePins}
                   mentionableEvents={mentionableEvents}
@@ -490,7 +504,7 @@ const styles = StyleSheet.create({
   wikiDocInner: {
     maxWidth: 780,
     paddingTop: 28,
-    paddingHorizontal: 48,
+    paddingHorizontal: 36,
     paddingBottom: 64,
   },
   missing: {

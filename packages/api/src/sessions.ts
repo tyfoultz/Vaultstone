@@ -120,6 +120,15 @@ export async function getCampaignSessionHistory(campaignId: string) {
     .order('ended_at', { ascending: false });
 }
 
+export async function getCompletedSessionCount(campaignId: string) {
+  const { count, error } = await supabase
+    .from('sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('campaign_id', campaignId)
+    .not('ended_at', 'is', null);
+  return { count: count ?? 0, error };
+}
+
 // Post-end recap update from the Campaign Notes Hub. `summary` is stored as
 // Markdown text. Empty strings get normalized to null so the "No recap" label
 // in SessionHistoryCard keeps working for un-recapped sessions.

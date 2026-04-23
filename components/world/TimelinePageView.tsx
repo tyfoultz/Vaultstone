@@ -359,9 +359,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    maxWidth: 900,
+    maxWidth: 1100,
     paddingTop: 28,
-    paddingHorizontal: 48,
+    paddingHorizontal: 36,
     paddingBottom: 64,
     alignSelf: 'center',
     width: '100%',

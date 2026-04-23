@@ -61,6 +61,7 @@ export async function updatePage(
       | 'body'
       | 'body_text'
       | 'body_refs'
+      | 'title_overridden'
     >
   >,
 ) {

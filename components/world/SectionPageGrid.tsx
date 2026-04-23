@@ -27,13 +27,19 @@ type Props = {
 // renderer honors them for the hero-spanning Locations layout.
 const GRID_STYLE = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-  gap: spacing.md,
+  gridTemplateColumns: '2fr 1fr 1fr 1fr',
+  gridAutoRows: 'minmax(200px, auto)',
+  gap: 14,
 } as const;
 
 const CARD_SLOT_STYLE = {
   gridColumn: 'span 1 / span 1',
   gridRow: 'span 1 / span 1',
+} as const;
+
+const HERO_SLOT_STYLE = {
+  gridColumn: 'span 2 / span 2',
+  gridRow: 'span 2 / span 2',
 } as const;
 
 export function SectionPageGrid({ pages, template, onPagePress }: Props) {
@@ -67,7 +73,7 @@ function PageGridCard({ page, template, hero, onPress }: CardProps) {
   const toggleVisibility = usePageVisibilityToggle(page);
 
   return (
-    <Pressable onPress={onPress} style={hero ? undefined : (CARD_SLOT_STYLE as object)}>
+    <Pressable onPress={onPress} style={(hero ? HERO_SLOT_STYLE : CARD_SLOT_STYLE) as object}>
       <Card tier={hero ? 'hero' : 'container'} padding="lg" style={styles.card}>
         <LinearGradient
           colors={[swatch.container, colors.surfaceContainerLowest]}

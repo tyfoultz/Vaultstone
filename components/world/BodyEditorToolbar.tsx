@@ -4,6 +4,7 @@ import { Icon, colors, radius, spacing } from '@vaultstone/ui';
 
 type Props = {
   editor: Editor;
+  onImagePress?: () => void;
 };
 
 type IconName = React.ComponentProps<typeof Icon>['name'];
@@ -86,7 +87,7 @@ const BUTTONS: BtnSpec[] = [
   },
 ];
 
-export function BodyEditorToolbar({ editor }: Props) {
+export function BodyEditorToolbar({ editor, onImagePress }: Props) {
   return (
     <View style={styles.root}>
       {BUTTONS.map((btn) => {
@@ -112,6 +113,15 @@ export function BodyEditorToolbar({ editor }: Props) {
           </Pressable>
         );
       })}
+      {onImagePress ? (
+        <Pressable
+          onPress={onImagePress}
+          style={styles.btn}
+          accessibilityLabel="Insert image"
+        >
+          <Icon name="image" size={18} color={colors.onSurfaceVariant} />
+        </Pressable>
+      ) : null}
       <View style={styles.spacer} />
       <Pressable
         onPress={() => editor.chain().focus().undo().run()}

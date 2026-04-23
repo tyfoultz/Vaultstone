@@ -155,6 +155,13 @@ export async function updateCampaignContentSource(
     .eq('id', campaignId);
 }
 
+export async function updateCampaign(
+  campaignId: string,
+  patch: Partial<{ next_session_at: string | null; next_session_prep_page_id: string | null }>,
+) {
+  return supabase.from('campaigns').update(patch).eq('id', campaignId);
+}
+
 const ALLOWED_COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export async function uploadCampaignCover(campaignId: string, fileUri: string, mimeType: string) {

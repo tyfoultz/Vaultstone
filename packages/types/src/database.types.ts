@@ -70,6 +70,8 @@ export interface Database {
           is_archived: boolean;
           content_sources: Json | null;
           party_view_settings: Json | null;
+          next_session_at: string | null;
+          next_session_prep_page_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -83,6 +85,8 @@ export interface Database {
           is_archived?: boolean;
           content_sources?: Json | null;
           party_view_settings?: Json | null;
+          next_session_at?: string | null;
+          next_session_prep_page_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -96,6 +100,8 @@ export interface Database {
           is_archived?: boolean;
           content_sources?: Json | null;
           party_view_settings?: Json | null;
+          next_session_at?: string | null;
+          next_session_prep_page_id?: string | null;
         };
         Relationships: [];
       };
@@ -320,6 +326,8 @@ export interface Database {
           name: string;
           description: string | null;
           cover_image_url: string | null;
+          thumbnail_url: string | null;
+          current_date_values: Json | null;
           primary_map_id: string | null;
           primary_timeline_page_id: string | null;
           is_archived: boolean;
@@ -333,6 +341,8 @@ export interface Database {
           name: string;
           description?: string | null;
           cover_image_url?: string | null;
+          thumbnail_url?: string | null;
+          current_date_values?: Json | null;
           primary_map_id?: string | null;
           primary_timeline_page_id?: string | null;
           is_archived?: boolean;
@@ -344,6 +354,8 @@ export interface Database {
           name?: string;
           description?: string | null;
           cover_image_url?: string | null;
+          thumbnail_url?: string | null;
+          current_date_values?: Json | null;
           primary_map_id?: string | null;
           primary_timeline_page_id?: string | null;
           is_archived?: boolean;
@@ -648,6 +660,45 @@ export interface Database {
         };
         Relationships: [];
       };
+      world_images: {
+        Row: {
+          id: string;
+          world_id: string;
+          page_id: string | null;
+          image_key: string;
+          width: number;
+          height: number;
+          alt: string;
+          byte_size: number;
+          content_type: string;
+          deleted_at: string | null;
+          hard_delete_after: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          world_id: string;
+          page_id?: string | null;
+          image_key: string;
+          width: number;
+          height: number;
+          alt?: string;
+          byte_size: number;
+          content_type?: string;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          page_id?: string | null;
+          alt?: string;
+          deleted_at?: string | null;
+          hard_delete_after?: string | null;
+        };
+        Relationships: [];
+      };
       pin_types: {
         Row: {
           key: string;
@@ -786,6 +837,37 @@ export interface Database {
       trash_timeline_event: {
         Args: { p_event_id: string };
         Returns: undefined;
+      };
+      search_world: {
+        Args: { p_world_id: string; p_query: string; p_limit: number; p_offset: number };
+        Returns: {
+          result_type: string;
+          id: string;
+          world_id: string;
+          title: string;
+          preview: string;
+          section_name: string;
+          page_kind: string;
+          is_orphaned: boolean;
+          visible_to_players: boolean;
+          updated_at: string;
+        }[];
+      };
+      search_campaign_worlds: {
+        Args: { p_campaign_id: string; p_query: string; p_limit: number; p_offset: number };
+        Returns: {
+          result_type: string;
+          id: string;
+          world_id: string;
+          world_name: string;
+          title: string;
+          preview: string;
+          section_name: string;
+          page_kind: string;
+          is_orphaned: boolean;
+          visible_to_players: boolean;
+          updated_at: string;
+        }[];
       };
     };
     Enums: {

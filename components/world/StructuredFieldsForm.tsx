@@ -56,19 +56,22 @@ export function StructuredFieldsForm({ page, template, onSaveStateChange }: Prop
     return null;
   }
 
+  const useGrid = template.fields.length >= 3;
+  const gridStyle = useGrid
+    ? ({
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+        gap: spacing.md,
+        marginTop: spacing.md,
+      } as object)
+    : styles.fields;
+
   return (
-    <Card tier="container" padding="lg" style={styles.root}>
+    <View style={styles.root}>
       <MetaLabel size="sm" tone="accent">
         Facts
       </MetaLabel>
-      <Text
-        variant="body-sm"
-        tone="secondary"
-        style={{ color: colors.onSurfaceVariant, marginTop: 2 }}
-      >
-        Structured fields derived from the <Text weight="semibold">{template.label}</Text> template.
-      </Text>
-      <View style={styles.fields}>
+      <View style={gridStyle}>
         {template.fields.map((field) => (
           <FieldRenderer
             key={field.key}
@@ -82,13 +85,19 @@ export function StructuredFieldsForm({ page, template, onSaveStateChange }: Prop
           />
         ))}
       </View>
-    </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    gap: spacing.sm,
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    borderRadius: 8,
+    backgroundColor: colors.surfaceContainer,
   },
   fields: {
     marginTop: spacing.md,

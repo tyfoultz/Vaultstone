@@ -57,6 +57,14 @@ export async function getCharacterById(id: string) {
     .single();
 }
 
+export async function getCharactersByIds(ids: string[]) {
+  if (ids.length === 0) return { data: [], error: null };
+  return supabase
+    .from('characters')
+    .select('*')
+    .in('id', ids);
+}
+
 export async function updateCharacter(id: string, updates: CharacterUpdate) {
   return supabase
     .from('characters')

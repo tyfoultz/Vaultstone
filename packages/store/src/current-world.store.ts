@@ -13,6 +13,7 @@ interface CurrentWorldState {
   playerViewPreview: boolean;
   setActiveWorld: (world: World | null) => void;
   clearActiveWorld: () => void;
+  patchWorld: (patch: Partial<World>) => void;
   setLens: (campaignId: string | null) => void;
   setLinkedCampaigns: (campaigns: Campaign[]) => void;
   setPlayerViewPreview: (on: boolean) => void;
@@ -37,6 +38,8 @@ export const useCurrentWorldStore = create<CurrentWorldState>((set) => ({
       linkedCampaigns: [],
       playerViewPreview: false,
     }),
+  patchWorld: (patch) =>
+    set((s) => ({ world: s.world ? { ...s.world, ...patch } : null })),
   setLens: (lensCampaignId) => set({ lensCampaignId }),
   setLinkedCampaigns: (linkedCampaigns) => set({ linkedCampaigns }),
   setPlayerViewPreview: (playerViewPreview) => set({ playerViewPreview }),
