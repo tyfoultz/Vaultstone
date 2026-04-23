@@ -7,6 +7,7 @@ import type { WorldPage } from '@vaultstone/types';
 import { colors, radius, spacing } from '@vaultstone/ui';
 
 import { BodyEditorToolbar } from './BodyEditorToolbar';
+import { DragHandle } from './DragHandleExtension';
 import { ImageUploadModal } from './ImageUploadModal.web';
 import { VaultstoneMention } from './MentionExtension';
 import { WorldImageNode } from './WorldImageNode';
@@ -95,7 +96,7 @@ export function BodyEditor({
   ).current;
 
   const editor = useEditor({
-    extensions: [StarterKit, mentionExtension, WorldImageNode],
+    extensions: [StarterKit, mentionExtension, WorldImageNode, ...(editable ? [DragHandle] : [])],
     content: initialRef.current,
     editable,
     immediatelyRender: true,
@@ -166,7 +167,9 @@ export function BodyEditor({
         />
       ) : null}
       <View style={hideChrome ? styles.editorFrameBare : styles.editorFrame}>
-        <EditorContent editor={editor} />
+        <div className={editable ? 'vaultstone-body-editor-wrap' : undefined}>
+          <EditorContent editor={editor} />
+        </div>
       </View>
       <EditorStyles />
       {imageModalOpen && worldId && pageId ? (
@@ -356,6 +359,50 @@ function EditorStyles() {
             letter-spacing: 0.4px;
           }
           ${worldImageStyles()}
+
+          /* Drag handle — floating element positioned by the plugin */
+          .vaultstone-body-editor-wrap {
+            position: relative;
+            padding-left: 28px;
+          }
+          .vaultstone-drag-handle {
+            width: 20px;
+            height: 20px;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            line-height: 1;
+            color: ${colors.outlineVariant};
+            cursor: grab;
+            border-radius: 4px;
+            transition: background 0.15s ease, color 0.15s ease;
+            user-select: none;
+            z-index: 5;
+          }
+          .vaultstone-drag-handle:hover {
+            background: ${colors.surfaceContainerHigh};
+            color: ${colors.onSurfaceVariant};
+          }
+          .vaultstone-drag-handle:active {
+            cursor: grabbing;
+          }
+          .vaultstone-drag-ghost {
+            position: fixed;
+            top: -100px;
+            left: -100px;
+            background: ${colors.surfaceContainerHigh};
+            color: ${colors.onSurface};
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            pointer-events: none;
+          }
         `,
       }}
     />
