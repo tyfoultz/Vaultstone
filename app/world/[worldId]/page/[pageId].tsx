@@ -366,6 +366,7 @@ export default function PageDetailScreen() {
 
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);
   const kindLabel = PAGE_KIND_LABEL[page.page_kind] ?? 'Page';
+  const isLore = page.page_kind === 'lore';
 
   return (
     <View style={styles.root}>
@@ -438,22 +439,35 @@ export default function PageDetailScreen() {
       ) : null}
 
       <View style={styles.wikiWrap}>
-        <ScrollView style={styles.wikiDoc} contentContainerStyle={styles.wikiDocInner}>
+        <ScrollView
+          style={styles.wikiDoc}
+          contentContainerStyle={isLore ? styles.wikiDocInnerWide : styles.wikiDocInner}
+        >
           <PageHead
             icon={template.icon}
             title={page.title}
             meta={`${kindLabel} · ${section.name}`}
             accentToken={template.accentToken}
             actions={
-              <VisibilityBadge
-              visibility={page.visible_to_players ? 'player' : 'gm'}
-              interactive={!!toggleVisibility}
-              onPress={toggleVisibility ?? undefined}
-            />
+              <>
+                {isLore && template.fields.length > 0 ? (
+                  <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
+                    <Icon name="info-outline" size={14} color={colors.primary} />
+                    <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
+                      Facts
+                    </Text>
+                  </Pressable>
+                ) : null}
+                <VisibilityBadge
+                  visibility={page.visible_to_players ? 'player' : 'gm'}
+                  interactive={!!toggleVisibility}
+                  onPress={toggleVisibility ?? undefined}
+                />
+              </>
             }
           />
 
-          <View style={{ marginTop: spacing.xl, gap: spacing.lg }}>
+          <View style={{ marginTop: isLore ? spacing.md : spacing.xl, gap: spacing.lg }}>
             {isOrphan ? <OrphanBanner page={page} /> : null}
 
             {bannerLock ? (
@@ -468,21 +482,13 @@ export default function PageDetailScreen() {
               style={heldByOther ? styles.disabledEditor : undefined}
               pointerEvents={heldByOther ? 'none' : 'auto'}
             >
-              {page.page_kind === 'lore' && template.fields.length > 0 ? (
-                <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
-                  <Icon name="info-outline" size={14} color={colors.primary} />
-                  <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
-                    Facts
-                  </Text>
-                  <Icon name="chevron-right" size={14} color={colors.primary} />
-                </Pressable>
-              ) : (
+              {!isLore ? (
                 <StructuredFieldsForm
                   page={page}
                   template={template}
                   onSaveStateChange={setSaveState}
                 />
-              )}
+              ) : null}
 
               <View style={[styles.bodySection, { marginTop: spacing.md, flex: 1 }]}>
                 {page.page_kind === 'lore' ? (
@@ -556,6 +562,11 @@ const styles = StyleSheet.create({
   },
   wikiDocInner: {
     maxWidth: 780,
+    paddingTop: 28,
+    paddingHorizontal: 36,
+    paddingBottom: 64,
+  },
+  wikiDocInnerWide: {
     paddingTop: 28,
     paddingHorizontal: 36,
     paddingBottom: 64,

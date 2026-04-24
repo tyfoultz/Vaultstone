@@ -193,6 +193,12 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
               dangerouslySetInnerHTML={{ __html: block.html }}
               onInput={(e) => handleBlockInput(block.id, (e.target as HTMLElement).innerHTML)}
               onFocus={() => setFocusedId(block.id)}
+              onBlur={(e) => {
+                const content = (e.target as HTMLElement).innerHTML.replace(/<br\s*\/?>/gi, '').trim();
+                if (!content || content === '<p></p>' || content === '<div></div>') {
+                  handleDeleteBlock(block.id);
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Backspace' && block.html === '' && blocks.length > 1) {
                   e.preventDefault();
