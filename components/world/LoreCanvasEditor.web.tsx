@@ -105,8 +105,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
   }
 
   function handleBlockBlur(id: string, el: HTMLElement) {
-    const content = el.innerHTML.replace(/<br\s*\/?>/gi, '').replace(/<\/?div>/gi, '').trim();
-    if (!content || content === '<p></p>') {
+    const text = (el.textContent ?? '').trim();
+    if (text.length === 0) {
       delete htmlRef.current[id];
       setBlocks((prev) => {
         const next = prev.filter((b) => b.id !== id);
