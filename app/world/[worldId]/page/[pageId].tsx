@@ -40,6 +40,7 @@ import { PageHead } from '../../../../components/world/PageHead';
 import { OrphanBanner } from '../../../../components/world/OrphanBanner';
 import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle';
 import { FactsModal } from '../../../../components/world/FactsModal';
+import { LoreCanvasEditor } from '../../../../components/world/LoreCanvasEditor.web';
 import { ShareModal } from '../../../../components/world/ShareModal';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
 import { NPCPageView } from '../../../../components/world/NPCPageView';
@@ -266,6 +267,27 @@ export default function PageDetailScreen() {
     };
   }, [pageId, tryClaim]);
 
+  function handleCanvasChange(blocks: Array<{ id: string; x: number; y: number; width: number; html: string }>, plainText: string) {
+    if (!pageId || heldByOther) return;
+    const body = { __canvas_blocks: blocks };
+    pendingBodyRef.current = { body, bodyText: plainText, bodyRefs: [] };
+    setSaveState('saving');
+    if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
+    bodyTimerRef.current = setTimeout(async () => {
+      const pending = pendingBodyRef.current;
+      if (!pending) return;
+      pendingBodyRef.current = null;
+      const { data, error } = await updatePage(pageId, {
+        body: pending.body as Json,
+        body_text: pending.bodyText,
+        body_refs: pending.bodyRefs,
+      });
+      if (error || !data) { setSaveState('error'); return; }
+      updatePageInStore(pageId, { body: data.body, body_text: data.body_text, body_refs: data.body_refs });
+      setSaveState('saved');
+    }, 800);
+  }
+
   function handleBodyChange(body: object, bodyText: string, bodyRefs: string[]) {
     if (!pageId) return;
     // Belt-and-suspenders: even with the editor disabled when locked, a
@@ -463,26 +485,36 @@ export default function PageDetailScreen() {
               )}
 
               <View style={[styles.bodySection, { marginTop: spacing.md, flex: 1 }]}>
-                <BodyEditor
-                  initialContent={(page.body as object) ?? null}
-                  onChange={handleBodyChange}
-                  editable={!heldByOther}
-                  stickyToolbar={page.page_kind === 'lore'}
-                  hideChrome={page.page_kind === 'lore'}
-                  placeholder={`Begin the chronicle of ${page.title}…`}
-                  worldId={worldId}
-                  pageId={pageId}
-                  mentionablePages={mentionablePages}
-                  mentionablePins={mentionablePins}
-                  mentionableEvents={mentionableEvents}
-                  getSectionLabel={sectionLabelById}
-                  onMentionClick={(targetPageId) =>
-                    router.push(worldPageHref(worldId, targetPageId))
-                  }
-                  onPinMentionClick={(_pinId, mapId) =>
-                    router.push(worldMapHref(worldId, mapId))
-                  }
-                />
+                {page.page_kind === 'lore' ? (
+                  <LoreCanvasEditor
+                    initialBlocks={
+                      (page.body as Record<string, unknown>)?.__canvas_blocks as
+                        Array<{ id: string; x: number; y: number; width: number; html: string }> | null
+                        ?? null
+                    }
+                    onChange={handleCanvasChange}
+                    editable={!heldByOther}
+                  />
+                ) : (
+                  <BodyEditor
+                    initialContent={(page.body as object) ?? null}
+                    onChange={handleBodyChange}
+                    editable={!heldByOther}
+                    placeholder={`Begin the chronicle of ${page.title}…`}
+                    worldId={worldId}
+                    pageId={pageId}
+                    mentionablePages={mentionablePages}
+                    mentionablePins={mentionablePins}
+                    mentionableEvents={mentionableEvents}
+                    getSectionLabel={sectionLabelById}
+                    onMentionClick={(targetPageId) =>
+                      router.push(worldPageHref(worldId, targetPageId))
+                    }
+                    onPinMentionClick={(_pinId, mapId) =>
+                      router.push(worldMapHref(worldId, mapId))
+                    }
+                  />
+                )}
               </View>
             </View>
           </View>
