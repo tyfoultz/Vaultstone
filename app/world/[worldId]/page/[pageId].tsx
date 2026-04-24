@@ -462,11 +462,13 @@ export default function PageDetailScreen() {
                 />
               )}
 
-              <View style={[styles.bodySection, { marginTop: spacing.lg, flex: 1 }]}>
+              <View style={[styles.bodySection, { marginTop: spacing.md, flex: 1 }]}>
                 <BodyEditor
                   initialContent={(page.body as object) ?? null}
                   onChange={handleBodyChange}
                   editable={!heldByOther}
+                  stickyToolbar={page.page_kind === 'lore'}
+                  hideChrome={page.page_kind === 'lore'}
                   placeholder={`Begin the chronicle of ${page.title}…`}
                   worldId={worldId}
                   pageId={pageId}
