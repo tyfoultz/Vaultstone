@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Icon, colors, radius, spacing } from '@vaultstone/ui';
 
@@ -56,11 +56,21 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const changeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const htmlRef = useRef<Record<string, string>>({});
 
-  function emitChange(next: CanvasBlock[]) {
+  for (const b of blocks) {
+    if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
+  }
+
+  function snapshot(): CanvasBlock[] {
+    return blocks.map((b) => ({ ...b, html: htmlRef.current[b.id] ?? b.html }));
+  }
+
+  function emitChange(next?: CanvasBlock[]) {
     if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
     changeTimerRef.current = setTimeout(() => {
-      onChangeRef.current(next, blocksToPlainText(next));
+      const final = next ?? snapshot();
+      onChangeRef.current(final, blocksToPlainText(final));
     }, 800);
   }
 
@@ -70,32 +80,58 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
     if (target !== canvasRef.current) return;
 
     const rect = canvasRef.current!.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = Math.max(0, e.clientX - rect.left - 32);
+    const y = Math.max(0, e.clientY - rect.top - 12);
 
-    const newBlock: CanvasBlock = { id: uid(), x, y, width: 320, html: '' };
-    const next = [...blocks, newBlock];
-    setBlocks(next);
-    setFocusedId(newBlock.id);
-    emitChange(next);
+    const id = uid();
+    const newBlock: CanvasBlock = { id, x, y, width: 320, html: '' };
+    htmlRef.current[id] = '';
+    setBlocks((prev) => {
+      const next = [...prev, newBlock];
+      emitChange(next);
+      return next;
+    });
+    setFocusedId(id);
 
     requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-block-id="${newBlock.id}"] .lore-block-content`) as HTMLElement;
+      const el = document.querySelector(`[data-block-id="${id}"] .lore-block-content`) as HTMLElement;
       el?.focus();
     });
-  }, [blocks, editable]);
+  }, [editable]);
 
-  function handleBlockInput(id: string, html: string) {
-    const next = blocks.map((b) => b.id === id ? { ...b, html } : b);
-    setBlocks(next);
-    emitChange(next);
+  function handleBlockInput(id: string, el: HTMLElement) {
+    htmlRef.current[id] = el.innerHTML;
+    emitChange();
+  }
+
+  function handleBlockBlur(id: string, el: HTMLElement) {
+    const content = el.innerHTML.replace(/<br\s*\/?>/gi, '').replace(/<\/?div>/gi, '').trim();
+    if (!content || content === '<p></p>') {
+      delete htmlRef.current[id];
+      setBlocks((prev) => {
+        const next = prev.filter((b) => b.id !== id);
+        emitChange(next);
+        return next;
+      });
+      setFocusedId(null);
+      return;
+    }
+    htmlRef.current[id] = el.innerHTML;
+    setBlocks((prev) => {
+      const next = prev.map((b) => b.id === id ? { ...b, html: el.innerHTML } : b);
+      emitChange(next);
+      return next;
+    });
   }
 
   function handleDeleteBlock(id: string) {
-    const next = blocks.filter((b) => b.id !== id);
-    setBlocks(next);
+    delete htmlRef.current[id];
+    setBlocks((prev) => {
+      const next = prev.filter((b) => b.id !== id);
+      emitChange(next);
+      return next;
+    });
     setFocusedId(null);
-    emitChange(next);
   }
 
   function handleDragStart(id: string, e: React.MouseEvent) {
@@ -191,25 +227,14 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
               contentEditable={editable}
               suppressContentEditableWarning
               dangerouslySetInnerHTML={{ __html: block.html }}
-              onInput={(e) => handleBlockInput(block.id, (e.target as HTMLElement).innerHTML)}
+              onInput={(e) => handleBlockInput(block.id, e.target as HTMLElement)}
               onFocus={() => setFocusedId(block.id)}
-              onBlur={(e) => {
-                const content = (e.target as HTMLElement).innerHTML.replace(/<br\s*\/?>/gi, '').trim();
-                if (!content || content === '<p></p>' || content === '<div></div>') {
-                  handleDeleteBlock(block.id);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Backspace' && block.html === '' && blocks.length > 1) {
-                  e.preventDefault();
-                  handleDeleteBlock(block.id);
-                }
-              }}
+              onBlur={(e) => handleBlockBlur(block.id, e.target as HTMLElement)}
             />
             {editable && focusedId === block.id ? (
               <button
                 className="lore-block-delete"
-                onClick={() => handleDeleteBlock(block.id)}
+                onMouseDown={(e) => { e.preventDefault(); handleDeleteBlock(block.id); }}
                 title="Delete block"
                 type="button"
               >
@@ -325,9 +350,8 @@ function CanvasStyles() {
             font-size: 15px;
             line-height: 1.7;
             min-height: 1.7em;
-          }
-          .lore-block-content:empty::before {
-            content: '';
+            white-space: pre-wrap;
+            word-wrap: break-word;
           }
           .lore-block-content p {
             margin: 0 0 4px 0;
