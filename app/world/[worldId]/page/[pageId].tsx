@@ -267,7 +267,7 @@ export default function PageDetailScreen() {
     };
   }, [pageId, tryClaim]);
 
-  function handleCanvasChange(blocks: Array<{ id: string; x: number; y: number; width: number; html: string }>, plainText: string) {
+  function handleCanvasChange(blocks: Array<{ id: string; x: number; y: number; width: number; height?: number; html: string }>, plainText: string) {
     if (!pageId || heldByOther) return;
     const body = { __canvas_blocks: blocks };
     pendingBodyRef.current = { body, bodyText: plainText, bodyRefs: [] };
@@ -495,7 +495,7 @@ export default function PageDetailScreen() {
                   <LoreCanvasEditor
                     initialBlocks={
                       (page.body as Record<string, unknown>)?.__canvas_blocks as
-                        Array<{ id: string; x: number; y: number; width: number; html: string }> | null
+                        Array<{ id: string; x: number; y: number; width: number; height?: number; html: string }> | null
                         ?? null
                     }
                     onChange={handleCanvasChange}

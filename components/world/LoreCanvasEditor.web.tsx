@@ -7,6 +7,7 @@ type CanvasBlock = {
   x: number;
   y: number;
   width: number;
+  height?: number;
   html: string;
 };
 
@@ -201,6 +202,39 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
     window.addEventListener('mouseup', onUp);
   }
 
+  function handleResizeStart(id: string, edge: 'right' | 'bottom' | 'corner', e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const block = blocksRef.current.find((b) => b.id === id);
+    if (!block) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = block.width;
+    const startH = block.height ?? 0;
+
+    function onMove(ev: MouseEvent) {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      setBlocks((prev) => prev.map((b) => {
+        if (b.id !== id) return b;
+        const patch: Partial<CanvasBlock> = {};
+        if (edge === 'right' || edge === 'corner') patch.width = Math.max(120, startW + dx);
+        if (edge === 'bottom' || edge === 'corner') patch.height = Math.max(40, (startH || 40) + dy);
+        return { ...b, ...patch };
+      }));
+    }
+
+    function onUp() {
+      emitChange();
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
   function handleToolbarAction(command: string, arg?: string) {
     document.execCommand(command, false, arg);
   }
@@ -231,7 +265,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
         ref={canvasRef}
         className="lore-canvas"
         onClick={handleCanvasClick}
-        style={{ minHeight, position: 'relative', cursor: editable ? 'text' : 'default' }}
+        style={{ minHeight: 'calc(100vh - 160px)', position: 'relative', cursor: editable ? 'text' : 'default' }}
       >
         {blocks.map((block) => (
           <div
@@ -243,6 +277,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
               left: block.x,
               top: block.y,
               width: block.width,
+              ...(block.height ? { height: block.height, overflow: 'auto' } : {}),
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -264,14 +299,19 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
               onBlur={handleBlockBlur}
             />
             {editable && focusedId === block.id ? (
-              <button
-                className="lore-block-delete"
-                onMouseDown={(e) => { e.preventDefault(); handleDeleteBlock(block.id); }}
-                title="Delete block"
-                type="button"
-              >
-                ×
-              </button>
+              <>
+                <button
+                  className="lore-block-delete"
+                  onMouseDown={(e) => { e.preventDefault(); handleDeleteBlock(block.id); }}
+                  title="Delete block"
+                  type="button"
+                >
+                  ×
+                </button>
+                <div className="lore-resize-right" onMouseDown={(e) => handleResizeStart(block.id, 'right', e)} />
+                <div className="lore-resize-bottom" onMouseDown={(e) => handleResizeStart(block.id, 'bottom', e)} />
+                <div className="lore-resize-corner" onMouseDown={(e) => handleResizeStart(block.id, 'corner', e)} />
+              </>
             ) : null}
           </div>
         ))}
@@ -422,6 +462,45 @@ function CanvasStyles() {
           .lore-block-delete:hover {
             opacity: 1;
             color: ${colors.hpDanger};
+          }
+          .lore-resize-right {
+            position: absolute;
+            top: 8px;
+            right: -3px;
+            bottom: 8px;
+            width: 6px;
+            cursor: ew-resize;
+            border-radius: 3px;
+            transition: background 0.15s;
+          }
+          .lore-resize-right:hover {
+            background: ${colors.primary}44;
+          }
+          .lore-resize-bottom {
+            position: absolute;
+            left: 8px;
+            right: 8px;
+            bottom: -3px;
+            height: 6px;
+            cursor: ns-resize;
+            border-radius: 3px;
+            transition: background 0.15s;
+          }
+          .lore-resize-bottom:hover {
+            background: ${colors.primary}44;
+          }
+          .lore-resize-corner {
+            position: absolute;
+            right: -4px;
+            bottom: -4px;
+            width: 12px;
+            height: 12px;
+            cursor: nwse-resize;
+            border-radius: 3px;
+            transition: background 0.15s;
+          }
+          .lore-resize-corner:hover {
+            background: ${colors.primary}44;
           }
         `,
       }}
