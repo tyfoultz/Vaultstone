@@ -84,40 +84,64 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
     if (!elRef.current || !editable) return;
     const el = elRef.current;
 
+    function clearSelection() {
+      el.querySelectorAll('.lore-img-selected').forEach((s) => s.classList.remove('lore-img-selected'));
+      el.querySelectorAll('.lore-img-resize-wrap').forEach((w) => {
+        const inner = w.querySelector('img');
+        if (inner) w.parentElement?.replaceChild(inner, w);
+      });
+    }
+
     function handleImgClick(e: MouseEvent) {
       const img = (e.target as HTMLElement).closest('img') as HTMLImageElement | null;
       if (!img) return;
       e.preventDefault();
       e.stopPropagation();
 
-      img.classList.toggle('lore-img-selected');
-      const existing = el.querySelector('.lore-img-resize-handle');
-      if (existing) existing.remove();
+      const wasSelected = img.classList.contains('lore-img-selected');
+      clearSelection();
+      if (wasSelected) {
+        onInput(id, el.innerHTML);
+        return;
+      }
 
-      if (!img.classList.contains('lore-img-selected')) return;
+      img.classList.add('lore-img-selected');
+
+      const wrapper = document.createElement('span');
+      wrapper.className = 'lore-img-resize-wrap';
+      wrapper.contentEditable = 'false';
+      wrapper.style.display = 'inline-block';
+      wrapper.style.position = 'relative';
+      img.parentElement?.replaceChild(wrapper, img);
+      wrapper.appendChild(img);
 
       const handle = document.createElement('div');
       handle.className = 'lore-img-resize-handle';
-      img.parentElement?.style.setProperty('position', 'relative');
-      img.parentElement?.appendChild(handle);
+      wrapper.appendChild(handle);
 
       const resizeTarget = img;
       handle.addEventListener('mousedown', (me) => {
         me.preventDefault();
         me.stopPropagation();
         const startX = me.clientX;
+        const startY = me.clientY;
         const startW = resizeTarget.offsetWidth;
         const ratio = resizeTarget.naturalHeight / resizeTarget.naturalWidth;
 
+        resizeTarget.style.maxWidth = 'none';
+
         function onMove(mv: MouseEvent) {
           const dx = mv.clientX - startX;
-          const newW = Math.max(60, startW + dx);
-          resizeTarget.style.width = `${newW}px`;
+          const dy = mv.clientY - startY;
+          const delta = (Math.abs(dx) > Math.abs(dy)) ? dx : dy / ratio;
+          const newW = Math.max(30, startW + delta);
+          resizeTarget.style.width = `${Math.round(newW)}px`;
           resizeTarget.style.height = `${Math.round(newW * ratio)}px`;
         }
         function onUp() {
           window.removeEventListener('mousemove', onMove);
           window.removeEventListener('mouseup', onUp);
+          clearSelection();
           onInput(id, el.innerHTML);
         }
         window.addEventListener('mousemove', onMove);
@@ -550,7 +574,6 @@ function CanvasStyles() {
 
           /* Images inside blocks */
           .lore-block-content img {
-            max-width: 100%;
             border-radius: 6px;
             display: block;
             margin: 4px 0;
@@ -560,16 +583,25 @@ function CanvasStyles() {
             outline: 2px solid ${colors.primary};
             outline-offset: 2px;
           }
+          .lore-img-resize-wrap {
+            display: inline-block;
+            position: relative;
+          }
           .lore-img-resize-handle {
             position: absolute;
-            right: -4px;
-            bottom: -4px;
-            width: 12px;
-            height: 12px;
+            right: -5px;
+            bottom: -5px;
+            width: 14px;
+            height: 14px;
             background: ${colors.primary};
-            border-radius: 2px;
+            border: 2px solid ${colors.surfaceCanvas};
+            border-radius: 3px;
             cursor: nwse-resize;
             z-index: 5;
+          }
+          .lore-img-resize-handle:hover {
+            background: ${colors.primaryContainer};
+            transform: scale(1.2);
           }
 
           /* Tables */
