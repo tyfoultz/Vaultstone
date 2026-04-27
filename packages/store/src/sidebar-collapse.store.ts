@@ -4,14 +4,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface SidebarCollapseState {
   collapsed: Record<string, boolean>;
+  sidebarOpen: boolean;
   toggle: (key: string) => void;
   setCollapsed: (key: string, value: boolean) => void;
+  toggleSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
 }
 
 export const useSidebarCollapseStore = create<SidebarCollapseState>()(
   persist(
     (set) => ({
       collapsed: {},
+      sidebarOpen: true,
 
       toggle: (key) =>
         set((state) => ({
@@ -28,6 +32,11 @@ export const useSidebarCollapseStore = create<SidebarCollapseState>()(
             [key]: value,
           },
         })),
+
+      toggleSidebar: () =>
+        set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
     }),
     {
       name: 'sidebar-collapse',

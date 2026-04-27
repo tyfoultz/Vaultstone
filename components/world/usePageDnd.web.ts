@@ -20,14 +20,19 @@ type UsePageDndResult = {
 function getDropPosition(
   monitor: { getClientOffset: () => { x: number; y: number } | null },
   element: HTMLDivElement,
+  isSameParent: boolean,
 ): DropPosition {
   const offset = monitor.getClientOffset();
   if (!offset) return 'child';
   const rect = element.getBoundingClientRect();
   const y = offset.y - rect.top;
   const height = rect.height;
-  if (y < height * 0.25) return 'before';
-  if (y > height * 0.75) return 'after';
+  // When dragging among siblings (same parent), use larger before/after
+  // zones to make reordering easier and nesting harder to trigger
+  // accidentally.
+  const edgeThreshold = isSameParent ? 0.35 : 0.25;
+  if (y < height * edgeThreshold) return 'before';
+  if (y > height * (1 - edgeThreshold)) return 'after';
   return 'child';
 }
 
@@ -66,7 +71,15 @@ export function usePageDnd(
       }
       const el = ref.current;
       if (!el) return { isOver: true, dropPosition: 'child' };
-      const pos = getDropPosition(monitor as unknown as Parameters<typeof getDropPosition>[0], el);
+      const item = monitor.getItem() as PageDragItem | null;
+      const sameParent = !!item &&
+        (item.page.parent_page_id ?? null) === (page.parent_page_id ?? null) &&
+        item.page.section_id === page.section_id;
+      const pos = getDropPosition(
+        monitor as unknown as Parameters<typeof getDropPosition>[0],
+        el,
+        sameParent,
+      );
       if (pos === 'child' && depth >= maxDepth) {
         return { isOver: true, dropPosition: 'after' };
       }
@@ -76,7 +89,14 @@ export function usePageDnd(
       if (!monitor.isOver({ shallow: true })) return;
       const el = ref.current;
       if (!el) return;
-      let pos = getDropPosition(monitor as unknown as Parameters<typeof getDropPosition>[0], el);
+      const sameParent =
+        (item.page.parent_page_id ?? null) === (page.parent_page_id ?? null) &&
+        item.page.section_id === page.section_id;
+      let pos = getDropPosition(
+        monitor as unknown as Parameters<typeof getDropPosition>[0],
+        el,
+        sameParent,
+      );
       if (pos === 'child' && depth >= maxDepth) pos = 'after';
       onDrop(item.page, page, pos);
     },

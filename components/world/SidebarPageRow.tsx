@@ -63,6 +63,13 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
       const move = computeDropMove(draggedPage, targetPage, position, pages);
       if (!move) return;
 
+      // No-op if nothing changed
+      if (
+        move.newSectionId === draggedPage.section_id &&
+        move.newParentId === (draggedPage.parent_page_id ?? null) &&
+        move.newSortOrder === draggedPage.sort_order
+      ) return;
+
       storeUpdate(move.pageId, {
         section_id: move.newSectionId,
         parent_page_id: move.newParentId,
@@ -109,8 +116,6 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
     <Pressable
       onPress={() => router.push(worldPageHref(worldId, node.page.id))}
       onLongPress={Platform.OS !== 'web' ? () => setMenuAnchor({ x: 0, y: 0 }) : undefined}
-      onHoverIn={Platform.OS === 'web' ? () => setHovered(true) : undefined}
-      onHoverOut={Platform.OS === 'web' ? () => setHovered(false) : undefined}
       style={({ pressed }) => [
         styles.row,
         { paddingLeft: spacing.xs + indent },
@@ -184,6 +189,8 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
           ref={dndRef as React.RefObject<View>}
           // @ts-expect-error -- RN Web supports onContextMenu on View
           onContextMenu={handleContextMenu}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
           style={{ position: 'relative' }}
         >
           {dropPosition === 'before' && dropIndicator}

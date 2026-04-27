@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   buildPageTree,
@@ -11,6 +11,8 @@ import type { WorldPage, WorldSection } from '@vaultstone/types';
 import { Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 import { isPageVisibleToPlayersPreview } from './playerViewFilters';
+import { SectionContextMenu } from './SectionContextMenu';
+import { SectionSettingsModal } from './SectionSettingsModal';
 import { SidebarPageRow } from './SidebarPageRow';
 import { worldSectionHref } from './worldHref';
 
@@ -55,40 +57,82 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
   }, [activePageId, rawPages]);
 
   const router = useRouter();
+  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const handleContextMenu = useCallback(
+    (e: { nativeEvent: { pageX: number; pageY: number }; preventDefault?: () => void }) => {
+      if (e.preventDefault) e.preventDefault();
+      setMenuAnchor({ x: e.nativeEvent.pageX, y: e.nativeEvent.pageY });
+    },
+    [],
+  );
+
+  const headerContent = (
+    <View style={styles.header}>
+      <Pressable
+        onPress={() => toggle(collapseKey)}
+        style={styles.chevronBtn}
+        accessibilityLabel={collapsed ? 'Expand section' : 'Collapse section'}
+      >
+        <Icon
+          name={collapsed ? 'chevron-right' : 'expand-more'}
+          size={16}
+          color={colors.outline}
+        />
+      </Pressable>
+      <Pressable
+        onPress={() => router.push(worldSectionHref(worldId, section.id))}
+        onLongPress={Platform.OS !== 'web' ? () => setMenuAnchor({ x: 0, y: 0 }) : undefined}
+        style={styles.headerLabel}
+        accessibilityLabel={`Open ${section.name}`}
+      >
+        <MetaLabel size="sm" tone="muted">
+          {section.name}
+        </MetaLabel>
+      </Pressable>
+      {onAddPage ? (
+        <Pressable
+          onPress={onAddPage}
+          style={styles.addBtn}
+          accessibilityLabel="Add page"
+        >
+          <Icon name="add" size={16} color={colors.outline} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => toggle(collapseKey)}
-          style={styles.chevronBtn}
-          accessibilityLabel={collapsed ? 'Expand section' : 'Collapse section'}
+      {Platform.OS === 'web' ? (
+        <View
+          // @ts-expect-error -- RN Web supports onContextMenu on View
+          onContextMenu={handleContextMenu}
         >
-          <Icon
-            name={collapsed ? 'chevron-right' : 'expand-more'}
-            size={16}
-            color={colors.outline}
-          />
-        </Pressable>
-        <Pressable
-          onPress={() => router.push(worldSectionHref(worldId, section.id))}
-          style={styles.headerLabel}
-          accessibilityLabel={`Open ${section.name}`}
-        >
-          <MetaLabel size="sm" tone="muted">
-            {section.name}
-          </MetaLabel>
-        </Pressable>
-        {onAddPage ? (
-          <Pressable
-            onPress={onAddPage}
-            style={styles.addBtn}
-            accessibilityLabel="Add page"
-          >
-            <Icon name="add" size={16} color={colors.outline} />
-          </Pressable>
-        ) : null}
-      </View>
+          {headerContent}
+        </View>
+      ) : (
+        headerContent
+      )}
+
+      {menuAnchor ? (
+        <SectionContextMenu
+          visible
+          anchor={menuAnchor}
+          section={section}
+          onClose={() => setMenuAnchor(null)}
+          onAddPage={() => onAddPage?.()}
+          onSettings={() => setSettingsOpen(true)}
+        />
+      ) : null}
+
+      {settingsOpen ? (
+        <SectionSettingsModal
+          section={section}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
 
       {!collapsed ? (
         tree.length === 0 ? (
