@@ -22,6 +22,13 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+function blockHasContent(el: HTMLElement): boolean {
+  if ((el.textContent ?? '').trim().length > 0) return true;
+  if (el.querySelector('img')) return true;
+  if (el.querySelector('table')) return true;
+  return false;
+}
+
 function blocksToPlainText(blocks: CanvasBlock[]): string {
   const el = document.createElement('div');
   return blocks.map((b) => {
@@ -36,6 +43,7 @@ type ToolbarAction = {
   command: string;
   arg?: string;
   label: string;
+  custom?: boolean;
 };
 
 const TOOLBAR: ToolbarAction[] = [
@@ -46,15 +54,22 @@ const TOOLBAR: ToolbarAction[] = [
   { key: 'h1', icon: 'title', command: 'formatBlock', arg: 'h2', label: 'Heading' },
   { key: 'ul', icon: 'format-list-bulleted', command: 'insertUnorderedList', label: 'Bullet list' },
   { key: 'ol', icon: 'format-list-numbered', command: 'insertOrderedList', label: 'Numbered list' },
+  { key: 'table', icon: 'table-chart', command: 'insertTable', label: 'Insert table', custom: true },
 ];
 
-function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur }: {
+function insertTable() {
+  const html = `<table><thead><tr><th>Column 1</th><th>Column 2</th><th>Column 3</th></tr></thead><tbody><tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>`;
+  document.execCommand('insertHTML', false, html);
+}
+
+function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onPaste }: {
   id: string;
   initialHtml: string;
   editable: boolean;
   onInput: (id: string, html: string) => void;
   onFocus: (id: string) => void;
-  onBlur: (id: string, text: string, html: string) => void;
+  onBlur: (id: string, el: HTMLElement, html: string) => void;
+  onPaste: (id: string, e: React.ClipboardEvent) => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const initialRef = useRef(initialHtml);
@@ -64,6 +79,55 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur }: {
       elRef.current.innerHTML = initialRef.current;
     }
   }, []);
+
+  useEffect(() => {
+    if (!elRef.current || !editable) return;
+    const el = elRef.current;
+
+    function handleImgClick(e: MouseEvent) {
+      const img = (e.target as HTMLElement).closest('img') as HTMLImageElement | null;
+      if (!img) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      img.classList.toggle('lore-img-selected');
+      const existing = el.querySelector('.lore-img-resize-handle');
+      if (existing) existing.remove();
+
+      if (!img.classList.contains('lore-img-selected')) return;
+
+      const handle = document.createElement('div');
+      handle.className = 'lore-img-resize-handle';
+      img.parentElement?.style.setProperty('position', 'relative');
+      img.parentElement?.appendChild(handle);
+
+      const resizeTarget = img;
+      handle.addEventListener('mousedown', (me) => {
+        me.preventDefault();
+        me.stopPropagation();
+        const startX = me.clientX;
+        const startW = resizeTarget.offsetWidth;
+        const ratio = resizeTarget.naturalHeight / resizeTarget.naturalWidth;
+
+        function onMove(mv: MouseEvent) {
+          const dx = mv.clientX - startX;
+          const newW = Math.max(60, startW + dx);
+          resizeTarget.style.width = `${newW}px`;
+          resizeTarget.style.height = `${Math.round(newW * ratio)}px`;
+        }
+        function onUp() {
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          onInput(id, el.innerHTML);
+        }
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      });
+    }
+
+    el.addEventListener('click', handleImgClick);
+    return () => el.removeEventListener('click', handleImgClick);
+  }, [editable, id, onInput]);
 
   return (
     <div
@@ -77,9 +141,10 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur }: {
       onFocus={() => onFocus(id)}
       onBlur={() => {
         if (elRef.current) {
-          onBlur(id, (elRef.current.textContent ?? '').trim(), elRef.current.innerHTML);
+          onBlur(id, elRef.current, elRef.current.innerHTML);
         }
       }}
+      onPaste={(e) => onPaste(id, e)}
     />
   );
 }
@@ -142,8 +207,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
     emitChange();
   }
 
-  function handleBlockBlur(id: string, text: string, html: string) {
-    if (text.length === 0) {
+  function handleBlockBlur(id: string, el: HTMLElement, html: string) {
+    if (!blockHasContent(el)) {
       delete htmlRef.current[id];
       setBlocks((prev) => {
         const next = prev.filter((b) => b.id !== id);
@@ -159,6 +224,43 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
       emitChange(next);
       return next;
     });
+  }
+
+  function handleBlockPaste(id: string, e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          const img = new Image();
+          img.onload = () => {
+            const maxW = 480;
+            const w = Math.min(img.naturalWidth, maxW);
+            const h = Math.round(w * (img.naturalHeight / img.naturalWidth));
+            document.execCommand(
+              'insertHTML',
+              false,
+              `<img src="${dataUrl}" style="width:${w}px;height:${h}px;max-width:100%;border-radius:6px;display:block;margin:4px 0;" />`,
+            );
+            const el = document.querySelector(`[data-block-id="${id}"] .lore-block-content`) as HTMLElement;
+            if (el) {
+              htmlRef.current[id] = el.innerHTML;
+              emitChange();
+            }
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
   }
 
   function handleDeleteBlock(id: string) {
@@ -235,8 +337,12 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
     window.addEventListener('mouseup', onUp);
   }
 
-  function handleToolbarAction(command: string, arg?: string) {
-    document.execCommand(command, false, arg);
+  function handleToolbarAction(action: ToolbarAction) {
+    if (action.custom && action.command === 'insertTable') {
+      insertTable();
+      return;
+    }
+    document.execCommand(action.command, false, action.arg);
   }
 
   return (
@@ -248,7 +354,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
             <button
               key={btn.key}
               className="lore-toolbar-btn"
-              onClick={() => handleToolbarAction(btn.command, btn.arg)}
+              onClick={() => handleToolbarAction(btn)}
               title={btn.label}
               type="button"
             >
@@ -297,6 +403,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
               onInput={handleBlockInput}
               onFocus={setFocusedId}
               onBlur={handleBlockBlur}
+              onPaste={handleBlockPaste}
             />
             {editable && focusedId === block.id ? (
               <>
@@ -440,6 +547,63 @@ function CanvasStyles() {
             margin: 0 0 4px 0;
             padding-left: 20px;
           }
+
+          /* Images inside blocks */
+          .lore-block-content img {
+            max-width: 100%;
+            border-radius: 6px;
+            display: block;
+            margin: 4px 0;
+            cursor: pointer;
+          }
+          .lore-block-content img.lore-img-selected {
+            outline: 2px solid ${colors.primary};
+            outline-offset: 2px;
+          }
+          .lore-img-resize-handle {
+            position: absolute;
+            right: -4px;
+            bottom: -4px;
+            width: 12px;
+            height: 12px;
+            background: ${colors.primary};
+            border-radius: 2px;
+            cursor: nwse-resize;
+            z-index: 5;
+          }
+
+          /* Tables */
+          .lore-block-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+          }
+          .lore-block-content th,
+          .lore-block-content td {
+            border: 1px solid ${colors.outlineVariant}55;
+            padding: 6px 10px;
+            text-align: left;
+            vertical-align: top;
+            min-width: 60px;
+          }
+          .lore-block-content th {
+            background: ${colors.surfaceContainerHigh};
+            color: ${colors.onSurface};
+            font-weight: 600;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+          .lore-block-content td {
+            color: ${colors.onSurfaceVariant};
+          }
+          .lore-block-content tr:hover td {
+            background: ${colors.surfaceContainerHigh}44;
+          }
+
           .lore-block-delete {
             position: absolute;
             top: 4px;
