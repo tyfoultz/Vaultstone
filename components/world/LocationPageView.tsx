@@ -92,10 +92,8 @@ export function LocationPageView({ page, worldId }: Props) {
     () => sections.find((s) => s.id === page.section_id) ?? null,
     [sections, page],
   );
-  const template = getTemplate(page.template_key as TemplateKey, page.template_version);
   const fields = (page.structured_fields as Record<string, unknown>) ?? {};
 
-  // Extract structured field values
   const locationType = typeof fields.type === 'string' ? fields.type : '';
   const region = typeof fields.region === 'string' ? fields.region : '';
   const population = typeof fields.population === 'string' ? fields.population : '';
@@ -104,7 +102,6 @@ export function LocationPageView({ page, worldId }: Props) {
   const terrain = typeof fields.terrain === 'string' ? fields.terrain : '';
   const tags = Array.isArray(fields.tags) ? (fields.tags as string[]) : [];
 
-  // Parent location
   const parentLocationId = typeof fields.parent_location === 'string' ? fields.parent_location : null;
   const parentPage = parentLocationId
     ? (allPages ?? []).find((p) => p.id === parentLocationId) ?? null
@@ -217,12 +214,9 @@ export function LocationPageView({ page, worldId }: Props) {
         setBacklinksLoaded(true);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [page.id, worldId]);
 
-  // Mentioned pages — pages referenced in body_refs
   const mentionedPages = useMemo(() => {
     const refs = page.body_refs ?? [];
     if (refs.length === 0) return [];
@@ -232,59 +226,107 @@ export function LocationPageView({ page, worldId }: Props) {
       .filter((p): p is WorldPage => !!p);
   }, [page.body_refs, allPages]);
 
-  // Build property pills from structured fields
-  const propertyPills: Array<{ label: string; value: string; color?: string }> = [];
-  if (locationType) propertyPills.push({ label: 'TYPE', value: locationType });
-  if (region) propertyPills.push({ label: 'REGION', value: region });
-  if (population) propertyPills.push({ label: 'POP', value: population });
-  if (governance) propertyPills.push({ label: 'RULER', value: governance });
-  if (terrain) propertyPills.push({ label: 'TERRAIN', value: terrain });
+  const sectionLabelById = useCallback(
+    (id: string) => sections.find((s) => s.id === id)?.name ?? '',
+    [sections],
+  );
+
+  // Property pills
+  const propertyPills: Array<{ label: string; value: string; color?: string; icon?: string }> = [];
+  if (locationType) propertyPills.push({ label: 'TYPE', value: locationType, icon: 'location-city' });
+  if (region) propertyPills.push({ label: 'REGION', value: region, icon: 'public' });
+  if (population) propertyPills.push({ label: 'POP', value: population, icon: 'groups' });
+  if (governance) propertyPills.push({ label: 'RULER', value: governance, icon: 'person' });
+  if (terrain) propertyPills.push({ label: 'TERRAIN', value: terrain, icon: 'terrain' });
   if (dangerLevel) {
     propertyPills.push({
       label: 'DANGER',
       value: dangerLevel.charAt(0).toUpperCase() + dangerLevel.slice(1),
       color: DANGER_COLOR[dangerLevel],
+      icon: 'warning',
     });
   }
 
+  const saveLabel = saveState === 'saving' ? 'Saving…' :
+    saveState === 'saved' ? 'Saved · just now' :
+    saveState === 'error' ? 'Save failed' : '';
+
   return (
     <View style={styles.root}>
-      <WorldTopBar
-        crumbs={[
-          { key: 'section', label: section?.name ?? 'Locations' },
-          ...(parentPage ? [{ key: 'parent', label: parentPage.title }] : []),
-          { key: 'page', label: page.title },
-        ]}
-        saveState={saveState}
-        actions={
-          <>
-            <PlayerViewToggle />
-            {isWorldOwner ? (
-              <>
-                <Pressable onPress={() => setShareOpen(true)} style={styles.shareBtn}>
-                  <Icon name="share" size={14} color={colors.onSurfaceVariant} />
-                  <Text
-                    variant="label-md"
-                    uppercase
-                    weight="semibold"
-                    style={{ color: colors.onSurfaceVariant, letterSpacing: 1, fontSize: 11 }}
-                  >
-                    Share
-                  </Text>
-                </Pressable>
-                <Pressable onPress={handleDeletePage} hitSlop={8}>
-                  <Icon
-                    name="delete-outline"
-                    size={18}
-                    color={confirmDelete ? colors.hpDanger : colors.outlineVariant}
-                  />
-                </Pressable>
-              </>
+      {/* ── Compact top bar: breadcrumbs + title + actions ── */}
+      <View style={styles.topBar}>
+        <View style={styles.topBarLeft}>
+          <View style={{ marginRight: 6 }}>
+            <Icon name="place" size={18} color={colors.primary} />
+          </View>
+          <Pressable onPress={() => router.push(worldSectionHref(worldId, page.section_id))}>
+            <Text style={styles.crumb}>{section?.name?.toUpperCase() ?? 'LOCATIONS'}</Text>
+          </Pressable>
+          {parentPage ? (
+            <>
+              <Text style={styles.crumbSep}>/</Text>
+              <Pressable onPress={() => router.push(worldPageHref(worldId, parentPage.id))}>
+                <Text style={styles.crumb}>{parentPage.title.toUpperCase()}</Text>
+              </Pressable>
+            </>
+          ) : null}
+          <Text style={styles.crumbSep}>/</Text>
+          <Text style={styles.crumbActive}>{page.title.toUpperCase()}</Text>
+        </View>
+        <View style={styles.topBarRight}>
+          <PlayerViewToggle />
+          {isWorldOwner ? (
+            <Pressable onPress={() => setShareOpen(true)} style={styles.shareBtn}>
+              <Icon name="share" size={14} color={colors.onSurfaceVariant} />
+              <Text variant="label-md" uppercase weight="semibold" style={{ color: colors.onSurfaceVariant, letterSpacing: 1, fontSize: 11 }}>Share</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      {/* ── Title row ── */}
+      <View style={styles.titleBar}>
+        <Icon name="place" size={20} color={colors.primary} />
+        <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>
+          {page.title}
+        </Text>
+      </View>
+
+      {/* ── Property pills ── */}
+      <View style={styles.pillBar}>
+        {propertyPills.map((pill) => (
+          <View
+            key={pill.label}
+            style={[
+              styles.pill,
+              pill.color ? { borderColor: pill.color + '44' } : undefined,
+            ]}
+          >
+            {pill.icon ? (
+              <Icon
+                name={pill.icon as React.ComponentProps<typeof Icon>['name']}
+                size={12}
+                color={pill.color ?? colors.outline}
+              />
             ) : null}
-            <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
-          </>
-        }
-      />
+            <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>
+              {pill.label}
+            </Text>
+            <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>
+              {pill.value}
+            </Text>
+          </View>
+        ))}
+        {tags.map((tag) => (
+          <View key={tag} style={styles.tagPill}>
+            <Text style={styles.tagDot}>·</Text>
+            <Text style={styles.tagText}>{tag}</Text>
+          </View>
+        ))}
+        <Pressable style={styles.tagPill}>
+          <Text style={styles.tagText}>+ Tag</Text>
+        </Pressable>
+      </View>
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
@@ -292,105 +334,56 @@ export function LocationPageView({ page, worldId }: Props) {
             Delete this page and all sub-pages? Recoverable for 30 days.
           </Text>
           <Pressable onPress={() => setConfirmDelete(false)} style={styles.deleteBannerBtn}>
-            <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
-              Cancel
-            </Text>
+            <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>Cancel</Text>
           </Pressable>
-          <Pressable
-            onPress={handleDeletePage}
-            style={[styles.deleteBannerBtn, { borderWidth: 1, borderColor: colors.hpDanger + '55' }]}
-          >
+          <Pressable onPress={handleDeletePage} style={[styles.deleteBannerBtn, { borderWidth: 1, borderColor: colors.hpDanger + '55' }]}>
             <Icon name="delete" size={14} color={colors.hpDanger} />
-            <Text variant="label-md" weight="semibold" style={{ color: colors.hpDanger }}>
-              Confirm
-            </Text>
+            <Text variant="label-md" weight="semibold" style={{ color: colors.hpDanger }}>Confirm</Text>
           </Pressable>
         </View>
       ) : null}
 
-      <View style={styles.wikiWrap}>
-        {/* ── Main content column ─────────────────────────── */}
-        <ScrollView style={styles.mainCol} contentContainerStyle={styles.mainColInner}>
-          {/* Header: icon + title */}
-          <View style={styles.headerRow}>
-            <Icon name="place" size={22} color={colors.primary} />
-            <Text
-              variant="headline-md"
-              family="serif-display"
-              weight="bold"
-              style={styles.title}
-            >
-              {page.title}
-            </Text>
-          </View>
-
-          {/* Property pills strip */}
-          {propertyPills.length > 0 || tags.length > 0 ? (
-            <View style={styles.pillStrip}>
-              {propertyPills.map((pill) => (
-                <View
-                  key={pill.label}
-                  style={[
-                    styles.pill,
-                    pill.color ? { borderColor: pill.color + '55' } : undefined,
-                  ]}
-                >
-                  <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>
-                    {pill.label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.pillValue,
-                      pill.color ? { color: pill.color } : undefined,
-                    ]}
-                  >
-                    {pill.value}
-                  </Text>
-                </View>
-              ))}
-              {tags.map((tag) => (
-                <View key={tag} style={styles.tagPill}>
-                  <Text style={styles.tagText}>{tag}</Text>
-                </View>
-              ))}
+      {/* ── Main area: editor + right sidebar ── */}
+      <View style={styles.mainWrap}>
+        {/* Editor column — full width, sticky toolbar, no card border */}
+        <View style={styles.editorCol}>
+          {bannerLock ? (
+            <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+              <EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} />
             </View>
           ) : null}
 
-          {/* Editor section */}
-          <View style={{ marginTop: spacing.sm, gap: spacing.lg }}>
-            {bannerLock ? (
-              <EditLockBanner
-                ownerUserId={bannerLock.ownerId}
-                lockedSinceIso={bannerLock.since}
-                onRetry={tryClaim}
-              />
-            ) : null}
-
-            <View
-              style={heldByOther ? styles.disabledEditor : undefined}
-              pointerEvents={heldByOther ? 'none' : 'auto'}
-            >
-              <View style={styles.editorSection}>
-                <BodyEditor
-                  initialContent={(page.body as object) ?? null}
-                  onChange={handleBodyChange}
-                  editable={!heldByOther}
-                  placeholder={`Begin the chronicle of ${page.title}…`}
-                  worldId={worldId}
-                  pageId={page.id}
-                  mentionablePages={mentionablePages}
-                  onMentionClick={(targetPageId) =>
-                    router.push(worldPageHref(worldId, targetPageId))
-                  }
-                />
-              </View>
-            </View>
+          <View
+            style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]}
+            pointerEvents={heldByOther ? 'none' : 'auto'}
+          >
+            <BodyEditor
+              initialContent={(page.body as object) ?? null}
+              onChange={handleBodyChange}
+              editable={!heldByOther}
+              stickyToolbar
+              placeholder={`Begin the chronicle of ${page.title}…`}
+              worldId={worldId}
+              pageId={page.id}
+              mentionablePages={mentionablePages}
+              getSectionLabel={sectionLabelById}
+              onMentionClick={(targetPageId) =>
+                router.push(worldPageHref(worldId, targetPageId))
+              }
+            />
           </View>
-        </ScrollView>
 
-        {/* ── Right sidebar ───────────────────────────────── */}
+          {/* Save state indicator */}
+          {saveLabel ? (
+            <View style={styles.saveIndicator}>
+              <View style={[styles.saveDot, saveState === 'error' ? { backgroundColor: colors.hpDanger } : { backgroundColor: colors.hpHealthy }]} />
+              <Text style={styles.saveText}>{saveLabel}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* ── Right sidebar ── */}
         <View style={styles.rightPanel}>
-          {/* Tabs */}
           <View style={styles.rightTabs}>
             <RightTabBtn label="On This Page" active={rightTab === 'on_this_page'} onPress={() => setRightTab('on_this_page')} />
             <RightTabBtn label="Sub-locations" active={rightTab === 'sub_locations'} onPress={() => setRightTab('sub_locations')} />
@@ -400,52 +393,27 @@ export function LocationPageView({ page, worldId }: Props) {
           <ScrollView contentContainerStyle={styles.rightBody}>
             {rightTab === 'on_this_page' ? (
               <>
-                {/* Map Pin placeholder */}
                 <View style={styles.sideSection}>
-                  <View style={styles.sideSectionHeader}>
-                    <Icon name="place" size={13} color={colors.outline} />
-                    <Text style={styles.sideSectionTitle}>MAP PIN</Text>
-                  </View>
+                  <SideSectionHeader icon="place" title="MAP PIN" />
                   <View style={styles.mapPlaceholder}>
                     <Icon name="map" size={24} color={colors.outline} />
-                    <Text variant="body-sm" style={{ color: colors.outline, marginTop: 4 }}>
-                      No map pin set
-                    </Text>
+                    <Text variant="body-sm" style={{ color: colors.outline, marginTop: 4 }}>No map pin set</Text>
                   </View>
                 </View>
 
-                {/* Mentioned On This Page */}
                 <View style={styles.sideSection}>
-                  <View style={styles.sideSectionHeader}>
-                    <Icon name="alternate-email" size={13} color={colors.outline} />
-                    <Text style={styles.sideSectionTitle}>
-                      MENTIONED ON THIS PAGE
-                    </Text>
-                    {mentionedPages.length > 0 ? (
-                      <Text style={styles.sideSectionCount}>{mentionedPages.length}</Text>
-                    ) : null}
-                  </View>
+                  <SideSectionHeader icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined} />
                   {mentionedPages.length === 0 ? (
-                    <Text variant="body-sm" style={styles.emptyText}>
-                      No mentions yet. Use @ in the editor to link pages.
-                    </Text>
+                    <Text variant="body-sm" style={styles.emptyText}>No mentions yet.</Text>
                   ) : (
                     mentionedPages.map((mp) => {
                       const mi = MENTION_ICON[mp.page_kind] ?? MENTION_ICON.custom;
                       return (
-                        <Pressable
-                          key={mp.id}
-                          onPress={() => router.push(worldPageHref(worldId, mp.id))}
-                          style={styles.mentionRow}
-                        >
+                        <Pressable key={mp.id} onPress={() => router.push(worldPageHref(worldId, mp.id))} style={styles.mentionRow}>
                           <View style={[styles.mentionDot, { backgroundColor: mi.color }]} />
                           <View style={{ flex: 1 }}>
-                            <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>
-                              {mp.title}
-                            </Text>
-                            <Text style={styles.mentionMeta}>
-                              {(PAGE_KIND_LABEL[mp.page_kind] ?? 'Page').toUpperCase()}
-                            </Text>
+                            <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{mp.title}</Text>
+                            <Text style={styles.mentionMeta}>{(PAGE_KIND_LABEL[mp.page_kind] ?? 'Page').toUpperCase()}</Text>
                           </View>
                           <Icon name="chevron-right" size={12} color={colors.outline} />
                         </Pressable>
@@ -454,44 +422,21 @@ export function LocationPageView({ page, worldId }: Props) {
                   )}
                 </View>
 
-                {/* Seen in Play placeholder */}
                 <View style={styles.sideSection}>
-                  <View style={styles.sideSectionHeader}>
-                    <Icon name="history" size={13} color={colors.outline} />
-                    <Text style={styles.sideSectionTitle}>SEEN IN PLAY</Text>
-                  </View>
-                  <Text variant="body-sm" style={styles.emptyText}>
-                    No session references yet.
-                  </Text>
+                  <SideSectionHeader icon="history" title="SEEN IN PLAY" />
+                  <Text variant="body-sm" style={styles.emptyText}>No session references yet.</Text>
                 </View>
 
-                {/* Linked From */}
                 <View style={styles.sideSection}>
-                  <View style={styles.sideSectionHeader}>
-                    <Icon name="link" size={13} color={colors.outline} />
-                    <Text style={styles.sideSectionTitle}>LINKED FROM</Text>
-                    {backlinksLoaded && backlinks.length > 0 ? (
-                      <Text style={styles.sideSectionCount}>{backlinks.length}</Text>
-                    ) : null}
-                  </View>
+                  <SideSectionHeader icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined} />
                   {backlinksLoaded && backlinks.length === 0 ? (
-                    <Text variant="body-sm" style={styles.emptyText}>
-                      No backlinks yet.
-                    </Text>
+                    <Text variant="body-sm" style={styles.emptyText}>No backlinks yet.</Text>
                   ) : (
                     backlinks.map((bl) => (
-                      <Pressable
-                        key={bl.id}
-                        onPress={() => router.push(worldPageHref(worldId, bl.id))}
-                        style={styles.mentionRow}
-                      >
+                      <Pressable key={bl.id} onPress={() => router.push(worldPageHref(worldId, bl.id))} style={styles.mentionRow}>
                         <View style={{ flex: 1 }}>
-                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>
-                            {bl.title}
-                          </Text>
-                          <Text style={styles.mentionMeta}>
-                            {(PAGE_KIND_LABEL[bl.page_kind] ?? 'Page').toUpperCase()}
-                          </Text>
+                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{bl.title}</Text>
+                          <Text style={styles.mentionMeta}>{(PAGE_KIND_LABEL[bl.page_kind] ?? 'Page').toUpperCase()}</Text>
                         </View>
                         <Icon name="chevron-right" size={12} color={colors.outline} />
                       </Pressable>
@@ -502,44 +447,28 @@ export function LocationPageView({ page, worldId }: Props) {
             ) : null}
 
             {rightTab === 'sub_locations' ? (
-              <>
-                {subpages.length === 0 ? (
-                  <Text variant="body-sm" style={styles.emptyText}>
-                    No sub-locations yet.
-                  </Text>
-                ) : (
-                  subpages.map((p) => {
-                    let iconName = 'place';
-                    try {
-                      const tpl = getTemplate(p.template_key as TemplateKey, p.template_version);
-                      iconName = toMaterialIcon(tpl.icon);
-                    } catch { /* default */ }
-                    return (
-                      <Pressable
-                        key={p.id}
-                        onPress={() => router.push(worldPageHref(worldId, p.id))}
-                        style={styles.mentionRow}
-                      >
-                        <Icon
-                          name={iconName as React.ComponentProps<typeof Icon>['name']}
-                          size={14}
-                          color={colors.primary}
-                        />
-                        <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>
-                          {p.title}
-                        </Text>
-                        <Icon name="chevron-right" size={12} color={colors.outline} />
-                      </Pressable>
-                    );
-                  })
-                )}
-              </>
+              subpages.length === 0 ? (
+                <Text variant="body-sm" style={styles.emptyText}>No sub-locations yet.</Text>
+              ) : (
+                subpages.map((p) => {
+                  let iconName = 'place';
+                  try {
+                    const tpl = getTemplate(p.template_key as TemplateKey, p.template_version);
+                    iconName = toMaterialIcon(tpl.icon);
+                  } catch { /* default */ }
+                  return (
+                    <Pressable key={p.id} onPress={() => router.push(worldPageHref(worldId, p.id))} style={styles.mentionRow}>
+                      <Icon name={iconName as React.ComponentProps<typeof Icon>['name']} size={14} color={colors.primary} />
+                      <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>{p.title}</Text>
+                      <Icon name="chevron-right" size={12} color={colors.outline} />
+                    </Pressable>
+                  );
+                })
+              )
             ) : null}
 
             {rightTab === 'history' ? (
-              <Text variant="body-sm" style={styles.emptyText}>
-                Revision history coming soon.
-              </Text>
+              <Text variant="body-sm" style={styles.emptyText}>Revision history coming soon.</Text>
             ) : null}
           </ScrollView>
         </View>
@@ -553,63 +482,96 @@ export function LocationPageView({ page, worldId }: Props) {
 function RightTabBtn({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={[styles.rightTab, active && styles.rightTabActive]}>
-      <Text
-        variant="label-sm"
-        uppercase
-        weight="semibold"
-        style={[styles.rightTabLabel, active && styles.rightTabLabelActive]}
-      >
+      <Text variant="label-sm" uppercase weight="semibold" style={[styles.rightTabLabel, active && styles.rightTabLabelActive]}>
         {label}
       </Text>
     </Pressable>
   );
 }
 
+function SideSectionHeader({ icon, title, count }: { icon: string; title: string; count?: number }) {
+  return (
+    <View style={styles.sideSectionHeader}>
+      <Icon name={icon as React.ComponentProps<typeof Icon>['name']} size={13} color={colors.outline} />
+      <Text style={styles.sideSectionTitle}>{title}</Text>
+      {count != null ? <Text style={styles.sideSectionCount}>{count}</Text> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
-  wikiWrap: { flex: 1, flexDirection: 'row', minHeight: 0 },
 
-  // Main column
-  mainCol: { flex: 1, backgroundColor: colors.surfaceCanvas },
-  mainColInner: {
-    maxWidth: 780,
-    paddingTop: 24,
-    paddingHorizontal: 36,
-    paddingBottom: 64,
-    alignSelf: 'center',
-    width: '100%',
+  // Top bar — compact breadcrumbs
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '22',
   },
-
-  // Header
-  headerRow: {
+  topBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  topBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
+  crumb: {
+    fontFamily: fonts.label,
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.outline,
+  },
+  crumbSep: {
+    fontFamily: fonts.label,
+    fontSize: 11,
+    color: colors.outlineVariant,
+    marginHorizontal: 6,
+  },
+  crumbActive: {
+    fontFamily: fonts.label,
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.onSurfaceVariant,
+    fontWeight: '600',
+  },
+
+  // Title bar
+  titleBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
   title: {
     color: colors.onSurface,
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 26,
+    lineHeight: 32,
     letterSpacing: -0.4,
   },
 
-  // Property pills
-  pillStrip: {
+  // Property pills — full width strip
+  pillBar: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: 6,
-    marginTop: spacing.sm,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant + '22',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xs,
   },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '44',
@@ -617,9 +579,8 @@ const styles = StyleSheet.create({
   pillLabel: {
     fontFamily: fonts.label,
     fontSize: 10,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
     color: colors.outline,
-    textTransform: 'uppercase',
   },
   pillValue: {
     fontFamily: fonts.body,
@@ -629,12 +590,19 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   tagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.outlineVariant + '44',
-    backgroundColor: colors.surfaceContainerHigh,
+    borderColor: colors.outlineVariant + '33',
+  },
+  tagDot: {
+    fontFamily: fonts.label,
+    fontSize: 12,
+    color: colors.outline,
   },
   tagText: {
     fontFamily: fonts.label,
@@ -642,9 +610,37 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
 
-  // Editor
-  editorSection: { flex: 1, minHeight: 400 },
+  // Main area
+  mainWrap: { flex: 1, flexDirection: 'row', minHeight: 0 },
+
+  // Editor column — no max-width, stretches to fill
+  editorCol: {
+    flex: 1,
+    backgroundColor: colors.surfaceCanvas,
+    position: 'relative',
+  },
   disabledEditor: { opacity: 0.55 },
+
+  // Save indicator — overlays bottom-right of editor toolbar area
+  saveIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 11,
+  },
+  saveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  saveText: {
+    fontFamily: fonts.label,
+    fontSize: 11,
+    color: colors.outline,
+  },
 
   // Right panel
   rightPanel: {
@@ -684,9 +680,7 @@ const styles = StyleSheet.create({
   },
 
   // Side sections
-  sideSection: {
-    gap: spacing.xs,
-  },
+  sideSection: { gap: spacing.xs },
   sideSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -708,7 +702,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Map placeholder
   mapPlaceholder: {
     height: 100,
     borderRadius: radius.lg,
@@ -719,7 +712,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Mention rows
   mentionRow: {
     flexDirection: 'row',
     alignItems: 'center',
