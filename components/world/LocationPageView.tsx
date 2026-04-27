@@ -23,20 +23,19 @@ import {
   Text,
   VisibilityBadge,
   colors,
+  fonts,
   radius,
   spacing,
 } from '@vaultstone/ui';
 
 import { BodyEditor } from './BodyEditor';
 import { EditLockBanner } from './EditLockBanner';
-import { PageHead } from './PageHead';
 import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
-import { StructuredFieldsForm } from './StructuredFieldsForm';
 import { WorldTopBar } from './WorldTopBar';
 import { PAGE_KIND_LABEL, toMaterialIcon } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
-import { worldHref, worldPageHref, worldSectionHref } from './worldHref';
+import { worldPageHref, worldSectionHref } from './worldHref';
 
 const LOCK_HEARTBEAT_MS = 30_000;
 
@@ -46,6 +45,26 @@ type Props = {
   page: WorldPage;
   worldId: string;
 };
+
+const DANGER_COLOR: Record<string, string> = {
+  safe: colors.hpHealthy,
+  low: colors.player,
+  moderate: colors.hpWarning,
+  high: colors.hpDanger,
+  deadly: colors.hpDanger,
+};
+
+const MENTION_ICON: Record<string, { icon: string; color: string }> = {
+  npc: { icon: 'person', color: colors.hpDanger },
+  location: { icon: 'place', color: colors.primary },
+  faction: { icon: 'shield', color: colors.hpWarning },
+  lore: { icon: 'auto-stories', color: colors.cosmic },
+  timeline: { icon: 'timeline', color: colors.secondary },
+  custom: { icon: 'article', color: colors.onSurfaceVariant },
+  item: { icon: 'diamond', color: colors.hpWarning },
+};
+
+type RightTab = 'on_this_page' | 'sub_locations' | 'history';
 
 export function LocationPageView({ page, worldId }: Props) {
   const router = useRouter();
@@ -60,19 +79,36 @@ export function LocationPageView({ page, worldId }: Props) {
   const updatePageInStore = usePagesStore((s) => s.updatePage);
   const removePage = usePagesStore((s) => s.removePage);
   const bodyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingBodyRef = useRef<{ body: object; bodyText: string; bodyRefs: string[] } | null>(null);
 
   const myUserId = useAuthStore((s) => s.user?.id ?? null);
   const toggleVisibility = usePageVisibilityToggle(page);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
 
   const section = useMemo(
     () => sections.find((s) => s.id === page.section_id) ?? null,
     [sections, page],
   );
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);
-  const kindLabel = PAGE_KIND_LABEL[page.page_kind] ?? 'Location';
+  const fields = (page.structured_fields as Record<string, unknown>) ?? {};
+
+  // Extract structured field values
+  const locationType = typeof fields.type === 'string' ? fields.type : '';
+  const region = typeof fields.region === 'string' ? fields.region : '';
+  const population = typeof fields.population === 'string' ? fields.population : '';
+  const governance = typeof fields.governance === 'string' ? fields.governance : '';
+  const dangerLevel = typeof fields.danger_level === 'string' ? fields.danger_level : '';
+  const terrain = typeof fields.terrain === 'string' ? fields.terrain : '';
+  const tags = Array.isArray(fields.tags) ? (fields.tags as string[]) : [];
+
+  // Parent location
+  const parentLocationId = typeof fields.parent_location === 'string' ? fields.parent_location : null;
+  const parentPage = parentLocationId
+    ? (allPages ?? []).find((p) => p.id === parentLocationId) ?? null
+    : null;
 
   // Lock
   const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(null);
@@ -124,13 +160,17 @@ export function LocationPageView({ page, worldId }: Props) {
 
   function handleBodyChange(body: object, bodyText: string, bodyRefs: string[]) {
     if (heldByOther) return;
+    pendingBodyRef.current = { body, bodyText, bodyRefs };
     setSaveState('saving');
     if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
     bodyTimerRef.current = setTimeout(async () => {
+      const pending = pendingBodyRef.current;
+      if (!pending) return;
+      pendingBodyRef.current = null;
       const { data, error } = await updatePage(page.id, {
-        body: body as Json,
-        body_text: bodyText,
-        body_refs: bodyRefs,
+        body: pending.body as Json,
+        body_text: pending.bodyText,
+        body_refs: pending.bodyRefs,
       });
       if (error || !data) {
         setSaveState('error');
@@ -166,26 +206,53 @@ export function LocationPageView({ page, worldId }: Props) {
   );
 
   const [backlinks, setBacklinks] = useState<WorldPage[]>([]);
+  const [backlinksLoaded, setBacklinksLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    setBacklinksLoaded(false);
     void (async () => {
       const { data } = await getPagesLinkingTo(worldId, page.id);
-      if (!cancelled) setBacklinks(data ?? []);
+      if (!cancelled) {
+        setBacklinks(data ?? []);
+        setBacklinksLoaded(true);
+      }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [page.id, worldId]);
 
-  const sectionNameById = useCallback(
-    (id: string) => sections.find((s) => s.id === id)?.name ?? '',
-    [sections],
-  );
+  // Mentioned pages — pages referenced in body_refs
+  const mentionedPages = useMemo(() => {
+    const refs = page.body_refs ?? [];
+    if (refs.length === 0) return [];
+    const pages = allPages ?? [];
+    return refs
+      .map((id) => pages.find((p) => p.id === id))
+      .filter((p): p is WorldPage => !!p);
+  }, [page.body_refs, allPages]);
+
+  // Build property pills from structured fields
+  const propertyPills: Array<{ label: string; value: string; color?: string }> = [];
+  if (locationType) propertyPills.push({ label: 'TYPE', value: locationType });
+  if (region) propertyPills.push({ label: 'REGION', value: region });
+  if (population) propertyPills.push({ label: 'POP', value: population });
+  if (governance) propertyPills.push({ label: 'RULER', value: governance });
+  if (terrain) propertyPills.push({ label: 'TERRAIN', value: terrain });
+  if (dangerLevel) {
+    propertyPills.push({
+      label: 'DANGER',
+      value: dangerLevel.charAt(0).toUpperCase() + dangerLevel.slice(1),
+      color: DANGER_COLOR[dangerLevel],
+    });
+  }
 
   return (
     <View style={styles.root}>
       <WorldTopBar
         crumbs={[
-          { key: 'world', label: world?.name ?? '' },
           { key: 'section', label: section?.name ?? 'Locations' },
+          ...(parentPage ? [{ key: 'parent', label: parentPage.title }] : []),
           { key: 'page', label: page.title },
         ]}
         saveState={saveState}
@@ -242,23 +309,55 @@ export function LocationPageView({ page, worldId }: Props) {
       ) : null}
 
       <View style={styles.wikiWrap}>
-        {/* Main content: PageHead + editor (full width) */}
+        {/* ── Main content column ─────────────────────────── */}
         <ScrollView style={styles.mainCol} contentContainerStyle={styles.mainColInner}>
-          <PageHead
-            icon={template.icon}
-            title={page.title}
-            meta={`${kindLabel} · ${section?.name ?? ''}`}
-            accentToken={template.accentToken}
-            actions={
-              <VisibilityBadge
-                visibility={page.visible_to_players ? 'player' : 'gm'}
-                interactive={!!toggleVisibility}
-                onPress={toggleVisibility ?? undefined}
-              />
-            }
-          />
+          {/* Header: icon + title */}
+          <View style={styles.headerRow}>
+            <Icon name="place" size={22} color={colors.primary} />
+            <Text
+              variant="headline-md"
+              family="serif-display"
+              weight="bold"
+              style={styles.title}
+            >
+              {page.title}
+            </Text>
+          </View>
 
-          <View style={{ marginTop: spacing.lg, gap: spacing.lg }}>
+          {/* Property pills strip */}
+          {propertyPills.length > 0 || tags.length > 0 ? (
+            <View style={styles.pillStrip}>
+              {propertyPills.map((pill) => (
+                <View
+                  key={pill.label}
+                  style={[
+                    styles.pill,
+                    pill.color ? { borderColor: pill.color + '55' } : undefined,
+                  ]}
+                >
+                  <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>
+                    {pill.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.pillValue,
+                      pill.color ? { color: pill.color } : undefined,
+                    ]}
+                  >
+                    {pill.value}
+                  </Text>
+                </View>
+              ))}
+              {tags.map((tag) => (
+                <View key={tag} style={styles.tagPill}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {/* Editor section */}
+          <View style={{ marginTop: spacing.sm, gap: spacing.lg }}>
             {bannerLock ? (
               <EditLockBanner
                 ownerUserId={bannerLock.ownerId}
@@ -276,7 +375,7 @@ export function LocationPageView({ page, worldId }: Props) {
                   initialContent={(page.body as object) ?? null}
                   onChange={handleBodyChange}
                   editable={!heldByOther}
-                  placeholder={`Describe ${page.title} — its history, inhabitants, secrets…`}
+                  placeholder={`Begin the chronicle of ${page.title}…`}
                   worldId={worldId}
                   pageId={page.id}
                   mentionablePages={mentionablePages}
@@ -289,77 +388,161 @@ export function LocationPageView({ page, worldId }: Props) {
           </View>
         </ScrollView>
 
-        {/* Right panel: Properties + Sub-pages + Backlinks */}
-        <ScrollView style={styles.rightPanel} contentContainerStyle={styles.rightPanelInner}>
-          {/* Properties section */}
-          <View
-            style={heldByOther ? styles.disabledEditor : undefined}
-            pointerEvents={heldByOther ? 'none' : 'auto'}
-          >
-            <StructuredFieldsForm
-              page={page}
-              template={template}
-              onSaveStateChange={setSaveState}
-              compact
-            />
+        {/* ── Right sidebar ───────────────────────────────── */}
+        <View style={styles.rightPanel}>
+          {/* Tabs */}
+          <View style={styles.rightTabs}>
+            <RightTabBtn label="On This Page" active={rightTab === 'on_this_page'} onPress={() => setRightTab('on_this_page')} />
+            <RightTabBtn label="Sub-locations" active={rightTab === 'sub_locations'} onPress={() => setRightTab('sub_locations')} />
+            <RightTabBtn label="History" active={rightTab === 'history'} onPress={() => setRightTab('history')} />
           </View>
 
-          {/* Sub-pages */}
-          {subpages.length > 0 ? (
-            <View style={styles.panelSection}>
-              <MetaLabel size="sm" tone="muted" style={styles.panelSectionLabel}>
-                Sub-pages
-              </MetaLabel>
-              {subpages.map((p) => {
-                let iconName = 'article';
-                try {
-                  const tpl = getTemplate(p.template_key as TemplateKey, p.template_version);
-                  iconName = toMaterialIcon(tpl.icon);
-                } catch { /* default */ }
-                return (
-                  <Pressable
-                    key={p.id}
-                    onPress={() => router.push(worldPageHref(worldId, p.id))}
-                    style={styles.panelRow}
-                  >
-                    <Icon
-                      name={iconName as React.ComponentProps<typeof Icon>['name']}
-                      size={13}
-                      color={colors.onSurfaceVariant}
-                    />
-                    <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>
-                      {p.title}
+          <ScrollView contentContainerStyle={styles.rightBody}>
+            {rightTab === 'on_this_page' ? (
+              <>
+                {/* Map Pin placeholder */}
+                <View style={styles.sideSection}>
+                  <View style={styles.sideSectionHeader}>
+                    <Icon name="place" size={13} color={colors.outline} />
+                    <Text style={styles.sideSectionTitle}>MAP PIN</Text>
+                  </View>
+                  <View style={styles.mapPlaceholder}>
+                    <Icon name="map" size={24} color={colors.outline} />
+                    <Text variant="body-sm" style={{ color: colors.outline, marginTop: 4 }}>
+                      No map pin set
                     </Text>
-                    <Icon name="chevron-right" size={12} color={colors.outline} />
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
+                  </View>
+                </View>
 
-          {/* Backlinks */}
-          {backlinks.length > 0 ? (
-            <View style={styles.panelSection}>
-              <MetaLabel size="sm" tone="muted" style={styles.panelSectionLabel}>
-                Linked from
-              </MetaLabel>
-              {backlinks.map((p) => (
-                <Pressable
-                  key={p.id}
-                  onPress={() => router.push(worldPageHref(worldId, p.id))}
-                  style={styles.backlinkRow}
-                >
-                  <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>
-                    {p.title}
+                {/* Mentioned On This Page */}
+                <View style={styles.sideSection}>
+                  <View style={styles.sideSectionHeader}>
+                    <Icon name="alternate-email" size={13} color={colors.outline} />
+                    <Text style={styles.sideSectionTitle}>
+                      MENTIONED ON THIS PAGE
+                    </Text>
+                    {mentionedPages.length > 0 ? (
+                      <Text style={styles.sideSectionCount}>{mentionedPages.length}</Text>
+                    ) : null}
+                  </View>
+                  {mentionedPages.length === 0 ? (
+                    <Text variant="body-sm" style={styles.emptyText}>
+                      No mentions yet. Use @ in the editor to link pages.
+                    </Text>
+                  ) : (
+                    mentionedPages.map((mp) => {
+                      const mi = MENTION_ICON[mp.page_kind] ?? MENTION_ICON.custom;
+                      return (
+                        <Pressable
+                          key={mp.id}
+                          onPress={() => router.push(worldPageHref(worldId, mp.id))}
+                          style={styles.mentionRow}
+                        >
+                          <View style={[styles.mentionDot, { backgroundColor: mi.color }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>
+                              {mp.title}
+                            </Text>
+                            <Text style={styles.mentionMeta}>
+                              {(PAGE_KIND_LABEL[mp.page_kind] ?? 'Page').toUpperCase()}
+                            </Text>
+                          </View>
+                          <Icon name="chevron-right" size={12} color={colors.outline} />
+                        </Pressable>
+                      );
+                    })
+                  )}
+                </View>
+
+                {/* Seen in Play placeholder */}
+                <View style={styles.sideSection}>
+                  <View style={styles.sideSectionHeader}>
+                    <Icon name="history" size={13} color={colors.outline} />
+                    <Text style={styles.sideSectionTitle}>SEEN IN PLAY</Text>
+                  </View>
+                  <Text variant="body-sm" style={styles.emptyText}>
+                    No session references yet.
                   </Text>
-                  <Text variant="label-sm" uppercase style={{ color: colors.outline, fontSize: 10, letterSpacing: 0.8 }}>
-                    {PAGE_KIND_LABEL[p.page_kind] ?? 'Page'}
+                </View>
+
+                {/* Linked From */}
+                <View style={styles.sideSection}>
+                  <View style={styles.sideSectionHeader}>
+                    <Icon name="link" size={13} color={colors.outline} />
+                    <Text style={styles.sideSectionTitle}>LINKED FROM</Text>
+                    {backlinksLoaded && backlinks.length > 0 ? (
+                      <Text style={styles.sideSectionCount}>{backlinks.length}</Text>
+                    ) : null}
+                  </View>
+                  {backlinksLoaded && backlinks.length === 0 ? (
+                    <Text variant="body-sm" style={styles.emptyText}>
+                      No backlinks yet.
+                    </Text>
+                  ) : (
+                    backlinks.map((bl) => (
+                      <Pressable
+                        key={bl.id}
+                        onPress={() => router.push(worldPageHref(worldId, bl.id))}
+                        style={styles.mentionRow}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>
+                            {bl.title}
+                          </Text>
+                          <Text style={styles.mentionMeta}>
+                            {(PAGE_KIND_LABEL[bl.page_kind] ?? 'Page').toUpperCase()}
+                          </Text>
+                        </View>
+                        <Icon name="chevron-right" size={12} color={colors.outline} />
+                      </Pressable>
+                    ))
+                  )}
+                </View>
+              </>
+            ) : null}
+
+            {rightTab === 'sub_locations' ? (
+              <>
+                {subpages.length === 0 ? (
+                  <Text variant="body-sm" style={styles.emptyText}>
+                    No sub-locations yet.
                   </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-        </ScrollView>
+                ) : (
+                  subpages.map((p) => {
+                    let iconName = 'place';
+                    try {
+                      const tpl = getTemplate(p.template_key as TemplateKey, p.template_version);
+                      iconName = toMaterialIcon(tpl.icon);
+                    } catch { /* default */ }
+                    return (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => router.push(worldPageHref(worldId, p.id))}
+                        style={styles.mentionRow}
+                      >
+                        <Icon
+                          name={iconName as React.ComponentProps<typeof Icon>['name']}
+                          size={14}
+                          color={colors.primary}
+                        />
+                        <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>
+                          {p.title}
+                        </Text>
+                        <Icon name="chevron-right" size={12} color={colors.outline} />
+                      </Pressable>
+                    );
+                  })
+                )}
+              </>
+            ) : null}
+
+            {rightTab === 'history' ? (
+              <Text variant="body-sm" style={styles.emptyText}>
+                Revision history coming soon.
+              </Text>
+            ) : null}
+          </ScrollView>
+        </View>
       </View>
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
@@ -367,55 +550,205 @@ export function LocationPageView({ page, worldId }: Props) {
   );
 }
 
+function RightTabBtn({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.rightTab, active && styles.rightTabActive]}>
+      <Text
+        variant="label-sm"
+        uppercase
+        weight="semibold"
+        style={[styles.rightTabLabel, active && styles.rightTabLabelActive]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   wikiWrap: { flex: 1, flexDirection: 'row', minHeight: 0 },
+
+  // Main column
   mainCol: { flex: 1, backgroundColor: colors.surfaceCanvas },
   mainColInner: {
-    maxWidth: 900,
-    paddingTop: 28,
+    maxWidth: 780,
+    paddingTop: 24,
     paddingHorizontal: 36,
     paddingBottom: 64,
     alignSelf: 'center',
     width: '100%',
   },
+
+  // Header
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  title: {
+    color: colors.onSurface,
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.4,
+  },
+
+  // Property pills
+  pillStrip: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '22',
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
+  pillLabel: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 1,
+    color: colors.outline,
+    textTransform: 'uppercase',
+  },
+  pillValue: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.onSurface,
+    textTransform: 'capitalize',
+  },
+  tagPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  tagText: {
+    fontFamily: fonts.label,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+  },
+
+  // Editor
   editorSection: { flex: 1, minHeight: 400 },
+  disabledEditor: { opacity: 0.55 },
+
+  // Right panel
   rightPanel: {
-    width: 280,
+    width: 300,
     backgroundColor: colors.surfaceContainer,
     borderLeftWidth: 1,
-    borderLeftColor: colors.outlineVariant + '55',
+    borderLeftColor: colors.outlineVariant + '33',
+    flexDirection: 'column',
   },
-  rightPanelInner: {
+  rightTabs: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '33',
+    paddingHorizontal: spacing.xs,
+  },
+  rightTab: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  rightTabActive: {
+    borderBottomColor: colors.primary,
+  },
+  rightTabLabel: {
+    color: colors.outline,
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  rightTabLabelActive: {
+    color: colors.onSurface,
+  },
+  rightBody: {
     padding: spacing.md,
     gap: spacing.lg,
   },
-  panelSection: {
-    gap: 4,
+
+  // Side sections
+  sideSection: {
+    gap: spacing.xs,
   },
-  panelSectionLabel: {
-    marginBottom: spacing.xs,
+  sideSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
   },
-  panelRow: {
+  sideSectionTitle: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    color: colors.outline,
+    flex: 1,
+  },
+  sideSectionCount: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 0.5,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+
+  // Map placeholder
+  mapPlaceholder: {
+    height: 100,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    backgroundColor: colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Mention rows
+  mentionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingVertical: 8,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: 6,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '55',
-    marginBottom: 4,
   },
-  backlinkRow: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: radius.lg,
-    borderLeftWidth: 2,
-    borderLeftColor: colors.primary,
-    backgroundColor: colors.surfaceContainerHigh,
-    marginBottom: 4,
+  mentionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
+  mentionMeta: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    color: colors.outline,
+    marginTop: 1,
+  },
+
+  emptyText: {
+    color: colors.onSurfaceVariant,
+    fontStyle: 'italic',
+    fontSize: 12,
+    paddingVertical: spacing.xs,
+  },
+
+  // Actions
   shareBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -444,5 +777,4 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: radius.lg,
   },
-  disabledEditor: { opacity: 0.55 },
 });
