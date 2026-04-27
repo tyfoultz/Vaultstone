@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   buildPageTree,
   useCurrentWorldStore,
   usePagesStore,
+  useSidebarCollapseStore,
 } from '@vaultstone/store';
 import type { WorldPage, WorldSection } from '@vaultstone/types';
 import { Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
@@ -18,13 +19,16 @@ type Props = {
   worldId: string;
   activePageId?: string | null;
   onAddPage?: () => void;
+  onAddSubPage?: (sectionId: string, parentPageId: string) => void;
 };
 
-export function SidebarSection({ section, worldId, activePageId, onAddPage }: Props) {
-  const [collapsed, setCollapsed] = useState(false);
-  // Subscribe to the stable raw pages array; build the tree locally via
-  // useMemo. Doing the tree build inside the Zustand selector returned a
-  // fresh nested object on every call → React #185 infinite re-render.
+const EMPTY_SET = new Set<string>();
+
+export function SidebarSection({ section, worldId, activePageId, onAddPage, onAddSubPage }: Props) {
+  const collapseKey = `${worldId}:${section.id}`;
+  const collapsed = useSidebarCollapseStore((s) => !!s.collapsed[collapseKey]);
+  const toggle = useSidebarCollapseStore((s) => s.toggle);
+
   const rawPages = usePagesStore((s) => s.byWorldId[worldId]);
   const playerView = useCurrentWorldStore((s) => s.playerViewPreview);
   const tree = useMemo(() => {
@@ -35,13 +39,28 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage }: Pr
       : rawPages;
     return buildPageTree(filtered, section.id);
   }, [rawPages, section, playerView]);
+
+  const forcedOpenIds = useMemo(() => {
+    if (!activePageId) return EMPTY_SET;
+    const pages = rawPages ?? [];
+    const pageMap = new Map(pages.map((p) => [p.id, p]));
+    if (!pageMap.has(activePageId)) return EMPTY_SET;
+    const ids = new Set<string>();
+    let current = pageMap.get(activePageId);
+    while (current?.parent_page_id) {
+      ids.add(current.parent_page_id);
+      current = pageMap.get(current.parent_page_id);
+    }
+    return ids.size > 0 ? ids : EMPTY_SET;
+  }, [activePageId, rawPages]);
+
   const router = useRouter();
 
   return (
     <View style={styles.root}>
       <View style={styles.header}>
         <Pressable
-          onPress={() => setCollapsed((c) => !c)}
+          onPress={() => toggle(collapseKey)}
           style={styles.chevronBtn}
           accessibilityLabel={collapsed ? 'Expand section' : 'Collapse section'}
         >
@@ -88,6 +107,8 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage }: Pr
                 node={node}
                 worldId={worldId}
                 activePageId={activePageId}
+                forcedOpenIds={forcedOpenIds}
+                onAddSubPage={onAddSubPage}
               />
             ))}
           </View>

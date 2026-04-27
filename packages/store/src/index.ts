@@ -11,6 +11,7 @@ export type { RecapLayoutState, RecapMosaicNode, RecapPanelKind } from './recap-
 export { useSessionStore } from './session.store';
 export { useContentStore } from './content.store';
 export { useUiStore } from './ui.store';
+export { useSidebarCollapseStore } from './sidebar-collapse.store';
 export { useWorldsStore } from './worlds.store';
 export { useCurrentWorldStore } from './current-world.store';
 export { useSectionsStore, selectSectionsForWorld } from './sections.store';

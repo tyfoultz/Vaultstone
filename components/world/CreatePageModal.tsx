@@ -47,6 +47,10 @@ export function CreatePageModal({
     [sections, sectionId],
   );
   const rawPages = usePagesStore((s) => s.byWorldId[worldId]);
+  const parentTitle = useMemo(() => {
+    if (!parentPageId) return null;
+    return (rawPages ?? []).find((p) => p.id === parentPageId)?.title ?? null;
+  }, [rawPages, parentPageId]);
   const nextSortOrder = useMemo(() => {
     const sectionPages = filterPagesBySection(rawPages, sectionId);
     const siblings = sectionPages.filter(
@@ -115,7 +119,7 @@ export function CreatePageModal({
               <View style={styles.header}>
                 <View style={{ flex: 1 }}>
                   <MetaLabel size="sm" tone="accent">
-                    New page · {section.name}
+                    {parentTitle ? `Sub-page of ${parentTitle}` : `New page · ${section?.name ?? ''}`}
                   </MetaLabel>
                   <Text
                     variant="headline-sm"

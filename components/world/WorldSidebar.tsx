@@ -22,11 +22,11 @@ import {
   spacing,
 } from '@vaultstone/ui';
 
-import { useActiveSection } from './ActiveSectionContext';
 import { CreatePageModal } from './CreatePageModal';
 import { CreateSectionModal } from './CreateSectionModal';
 import { LensDropdown } from './LensDropdown';
 import { isSectionVisibleToPlayersPreview } from './playerViewFilters';
+import { SidebarDndProvider } from './SidebarDndContext';
 import { SidebarSection } from './SidebarSection';
 import { WorldSearchDrawer } from './WorldSearchDrawer';
 import { WorldSettingsModal } from './WorldSettingsModal';
@@ -43,7 +43,6 @@ type Props = {
 // when no section is active on the rail, the sidebar lists every section
 // as a compact header with its tree inline.
 export function WorldSidebar({ world, activePageId }: Props) {
-  const { activeSectionId } = useActiveSection();
   const user = useAuthStore((s) => s.user);
   const allSections = useSectionsStore((s) => selectSectionsForWorld(s, world.id));
   const playerView = useCurrentWorldStore((s) => s.playerViewPreview);
@@ -51,7 +50,10 @@ export function WorldSidebar({ world, activePageId }: Props) {
   const storeUpdateWorld = useWorldsStore((s) => s.updateWorld);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [createSectionOpen, setCreateSectionOpen] = useState(false);
-  const [createPageSectionId, setCreatePageSectionId] = useState<string | null>(null);
+  const [createPageTarget, setCreatePageTarget] = useState<{
+    sectionId: string;
+    parentPageId?: string | null;
+  } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [cropUri, setCropUri] = useState<string | null>(null);
 
@@ -90,13 +92,10 @@ export function WorldSidebar({ world, activePageId }: Props) {
   }
 
   const visibleSections = useMemo(() => {
-    const filtered = playerView
+    return playerView
       ? allSections.filter(isSectionVisibleToPlayersPreview)
       : allSections;
-    if (!activeSectionId) return filtered;
-    const match = filtered.find((s) => s.id === activeSectionId);
-    return match ? [match] : filtered;
-  }, [activeSectionId, allSections, playerView]);
+  }, [allSections, playerView]);
 
   return (
     <View style={styles.root}>
@@ -163,6 +162,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
 
       <WorldSearchDrawer worldId={world.id} />
 
+      <SidebarDndProvider>
       <ScrollView style={styles.tree} contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}>
         {visibleSections.length === 0 ? (
           <Text
@@ -179,11 +179,15 @@ export function WorldSidebar({ world, activePageId }: Props) {
               section={section}
               worldId={world.id}
               activePageId={activePageId}
-              onAddPage={() => setCreatePageSectionId(section.id)}
+              onAddPage={() => setCreatePageTarget({ sectionId: section.id })}
+              onAddSubPage={(sectionId, parentPageId) =>
+                setCreatePageTarget({ sectionId, parentPageId })
+              }
             />
           ))
         )}
       </ScrollView>
+      </SidebarDndProvider>
 
       <View style={styles.footer}>
         <GhostButton
@@ -201,11 +205,12 @@ export function WorldSidebar({ world, activePageId }: Props) {
           onClose={() => setCreateSectionOpen(false)}
         />
       ) : null}
-      {createPageSectionId ? (
+      {createPageTarget ? (
         <CreatePageModal
           worldId={world.id}
-          sectionId={createPageSectionId}
-          onClose={() => setCreatePageSectionId(null)}
+          sectionId={createPageTarget.sectionId}
+          parentPageId={createPageTarget.parentPageId ?? null}
+          onClose={() => setCreatePageTarget(null)}
         />
       ) : null}
       {cropUri ? (
