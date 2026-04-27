@@ -28,11 +28,10 @@ import {
   spacing,
 } from '@vaultstone/ui';
 
-import { BodyEditor } from './BodyEditor';
 import { EditLockBanner } from './EditLockBanner';
+import { LoreCanvasEditor } from './LoreCanvasEditor.web';
 import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
-import { WorldTopBar } from './WorldTopBar';
 import { PAGE_KIND_LABEL, toMaterialIcon } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
 import { worldPageHref, worldSectionHref } from './worldHref';
@@ -71,10 +70,6 @@ export function LocationPageView({ page, worldId }: Props) {
   const world = useCurrentWorldStore((s) => s.world);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
   const allPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
-  const mentionablePages = useMemo(
-    () => (allPages ?? []).filter((p) => p.id !== page.id),
-    [allPages, page.id],
-  );
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const updatePageInStore = usePagesStore((s) => s.updatePage);
   const removePage = usePagesStore((s) => s.removePage);
@@ -155,9 +150,12 @@ export function LocationPageView({ page, worldId }: Props) {
     };
   }, [page.id, tryClaim]);
 
-  function handleBodyChange(body: object, bodyText: string, bodyRefs: string[]) {
+  type CanvasBlock = { id: string; x: number; y: number; width: number; height?: number; html: string };
+
+  function handleCanvasChange(blocks: CanvasBlock[], plainText: string) {
     if (heldByOther) return;
-    pendingBodyRef.current = { body, bodyText, bodyRefs };
+    const body = { __canvas_blocks: blocks };
+    pendingBodyRef.current = { body, bodyText: plainText, bodyRefs: [] };
     setSaveState('saving');
     if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
     bodyTimerRef.current = setTimeout(async () => {
@@ -225,11 +223,6 @@ export function LocationPageView({ page, worldId }: Props) {
       .map((id) => pages.find((p) => p.id === id))
       .filter((p): p is WorldPage => !!p);
   }, [page.body_refs, allPages]);
-
-  const sectionLabelById = useCallback(
-    (id: string) => sections.find((s) => s.id === id)?.name ?? '',
-    [sections],
-  );
 
   // Property pills
   const propertyPills: Array<{ label: string; value: string; color?: string; icon?: string }> = [];
@@ -357,19 +350,12 @@ export function LocationPageView({ page, worldId }: Props) {
             style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]}
             pointerEvents={heldByOther ? 'none' : 'auto'}
           >
-            <BodyEditor
-              initialContent={(page.body as object) ?? null}
-              onChange={handleBodyChange}
-              editable={!heldByOther}
-              stickyToolbar
-              placeholder={`Begin the chronicle of ${page.title}…`}
-              worldId={worldId}
-              pageId={page.id}
-              mentionablePages={mentionablePages}
-              getSectionLabel={sectionLabelById}
-              onMentionClick={(targetPageId) =>
-                router.push(worldPageHref(worldId, targetPageId))
+            <LoreCanvasEditor
+              initialBlocks={
+                (page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null
               }
+              onChange={handleCanvasChange}
+              editable={!heldByOther}
             />
           </View>
 
