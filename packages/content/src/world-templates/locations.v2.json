@@ -1,0 +1,87 @@
+{
+  "key": "locations",
+  "version": 2,
+  "label": "Locations",
+  "description": "Cities, landmarks, regions, and other places in the world.",
+  "defaultPageKind": "location",
+  "allowedPageKinds": ["location", "custom"],
+  "defaultSectionView": "grid",
+  "icon": "map-pin",
+  "railIcon": "map-pin",
+  "accentToken": "primary",
+  "fields": [
+    {
+      "key": "type",
+      "label": "Type",
+      "type": "select",
+      "options": [
+        "city",
+        "town",
+        "village",
+        "hamlet",
+        "district",
+        "dungeon",
+        "wilderness",
+        "ruin",
+        "temple",
+        "tavern",
+        "fortress",
+        "landmark"
+      ]
+    },
+    {
+      "key": "region",
+      "label": "Region",
+      "type": "text",
+      "placeholder": "Northmarch, The Drowned Coast…"
+    },
+    {
+      "key": "population",
+      "label": "Population",
+      "type": "text",
+      "placeholder": "~5,000"
+    },
+    {
+      "key": "governance",
+      "label": "Governance",
+      "type": "text",
+      "placeholder": "Who rules here?"
+    },
+    {
+      "key": "danger_level",
+      "label": "Danger Level",
+      "type": "select",
+      "options": ["safe", "low", "moderate", "high", "deadly"]
+    },
+    {
+      "key": "terrain",
+      "label": "Terrain",
+      "type": "select",
+      "options": [
+        "coastal",
+        "forest",
+        "mountain",
+        "desert",
+        "arctic",
+        "swamp",
+        "plains",
+        "underground",
+        "urban",
+        "volcanic",
+        "island"
+      ]
+    },
+    {
+      "key": "parent_location",
+      "label": "Parent location",
+      "type": "page_ref",
+      "pageKindFilter": ["location"],
+      "helpText": "Link to the containing place (e.g., city → region)."
+    },
+    {
+      "key": "tags",
+      "label": "Tags",
+      "type": "tags"
+    }
+  ]
+}

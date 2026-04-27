@@ -4,6 +4,7 @@ import blankV1 from './blank.v1.json';
 import factionsV1 from './factions.v1.json';
 import factionsV2 from './factions.v2.json';
 import locationsV1 from './locations.v1.json';
+import locationsV2 from './locations.v2.json';
 import loreV1 from './lore.v1.json';
 import loreV2 from './lore.v2.json';
 import npcsV1 from './npcs.v1.json';
@@ -13,7 +14,7 @@ import timelineV1 from './timeline.v1.json';
 import timelineV2 from './timeline.v2.json';
 
 const REGISTRY: Record<TemplateKey, SectionTemplate[]> = {
-  locations: [locationsV1 as SectionTemplate],
+  locations: [locationsV1 as SectionTemplate, locationsV2 as SectionTemplate],
   npcs: [npcsV1 as SectionTemplate, npcsV2 as SectionTemplate],
   players: [playersV1 as SectionTemplate],
   factions: [factionsV1 as SectionTemplate, factionsV2 as SectionTemplate],

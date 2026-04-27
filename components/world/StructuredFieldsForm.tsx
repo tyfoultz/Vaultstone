@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { updatePage } from '@vaultstone/api';
 import { usePagesStore } from '@vaultstone/store';
 import type { Json, SectionTemplate, WorldPage } from '@vaultstone/types';
-import { Card, MetaLabel, Text, colors, spacing } from '@vaultstone/ui';
+import { MetaLabel, colors, spacing } from '@vaultstone/ui';
 
 import { FieldRenderer } from './fields';
 
@@ -13,12 +13,10 @@ type Props = {
   page: WorldPage;
   template: SectionTemplate;
   onSaveStateChange?: (state: SaveState) => void;
+  compact?: boolean;
 };
 
-// Facts card above the body. Renders one field row per `template.fields`
-// entry; writes are debounced 500ms and merged into
-// `world_pages.structured_fields`.
-export function StructuredFieldsForm({ page, template, onSaveStateChange }: Props) {
+export function StructuredFieldsForm({ page, template, onSaveStateChange, compact }: Props) {
   const [draft, setDraft] = useState<Record<string, unknown>>(
     (page.structured_fields as Record<string, unknown>) ?? {},
   );
@@ -26,7 +24,6 @@ export function StructuredFieldsForm({ page, template, onSaveStateChange }: Prop
   const dirtyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync when the page row changes underneath us (e.g., another tab edits).
   useEffect(() => {
     setDraft((page.structured_fields as Record<string, unknown>) ?? {});
   }, [page.id, page.structured_fields]);
@@ -54,6 +51,31 @@ export function StructuredFieldsForm({ page, template, onSaveStateChange }: Prop
 
   if (template.fields.length === 0) {
     return null;
+  }
+
+  if (compact) {
+    return (
+      <View style={styles.compactRoot}>
+        <MetaLabel size="sm" tone="accent">
+          Properties
+        </MetaLabel>
+        <View style={styles.compactFields}>
+          {template.fields.map((field) => (
+            <FieldRenderer
+              key={field.key}
+              field={field}
+              value={draft[field.key]}
+              worldId={page.world_id}
+              onChange={(value) => {
+                dirtyRef.current = true;
+                setDraft((prev) => ({ ...prev, [field.key]: value }));
+              }}
+              compact
+            />
+          ))}
+        </View>
+      </View>
+    );
   }
 
   const useGrid = template.fields.length >= 3;
@@ -102,5 +124,11 @@ const styles = StyleSheet.create({
   fields: {
     marginTop: spacing.md,
     gap: spacing.md,
+  },
+  compactRoot: {
+    gap: spacing.sm,
+  },
+  compactFields: {
+    gap: spacing.xs,
   },
 });

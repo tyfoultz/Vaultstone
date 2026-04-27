@@ -15,6 +15,7 @@ type Props = {
   field: StructuredField;
   value: unknown;
   onChange: (value: string[]) => void;
+  compact?: boolean;
 };
 
 export function TagsField({ field, value, onChange }: Props) {

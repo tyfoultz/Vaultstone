@@ -43,6 +43,7 @@ import { FactsModal } from '../../../../components/world/FactsModal';
 import { LoreCanvasEditor } from '../../../../components/world/LoreCanvasEditor.web';
 import { ShareModal } from '../../../../components/world/ShareModal';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
+import { LocationPageView } from '../../../../components/world/LocationPageView';
 import { NPCPageView } from '../../../../components/world/NPCPageView';
 import { TimelinePageView } from '../../../../components/world/TimelinePageView';
 import { PCStubPageView } from '../../../../components/world/players/PCStubPageView';
@@ -362,6 +363,11 @@ export default function PageDetailScreen() {
   // NPC pages get the profile layout
   if (page.page_kind === 'npc') {
     return <NPCPageView page={page} worldId={worldId} />;
+  }
+
+  // Location pages get the notes-heavy layout with sidebar properties
+  if (page.page_kind === 'location') {
+    return <LocationPageView page={page} worldId={worldId} />;
   }
 
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);
