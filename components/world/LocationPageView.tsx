@@ -455,12 +455,13 @@ export function LocationPageView({ page, worldId }: Props) {
                           src={mapData.signedUrl}
                           alt={mapData.map.label}
                           style={{
-                            position: 'absolute',
-                            width: '300%',
-                            height: '300%',
+                            width: '100%',
+                            height: '100%',
                             objectFit: 'cover',
-                            left: `${50 - mapPin.x_pct * 3}%`,
-                            top: `${50 - mapPin.y_pct * 3}%`,
+                            objectPosition: `${mapPin.x_pct}% ${mapPin.y_pct}%`,
+                            transform: 'scale(2.5)',
+                            transformOrigin: `${mapPin.x_pct}% ${mapPin.y_pct}%`,
+                            display: 'block',
                           }}
                         />
                         <div style={{
