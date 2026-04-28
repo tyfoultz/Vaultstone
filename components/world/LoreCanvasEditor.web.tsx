@@ -62,7 +62,7 @@ function insertTable() {
   document.execCommand('insertHTML', false, html);
 }
 
-function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onPaste }: {
+function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onPaste, onImageResize }: {
   id: string;
   initialHtml: string;
   editable: boolean;
@@ -70,6 +70,7 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
   onFocus: (id: string) => void;
   onBlur: (id: string, el: HTMLElement, html: string) => void;
   onPaste: (id: string, e: React.ClipboardEvent) => void;
+  onImageResize: (id: string, imgWidth: number) => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const initialRef = useRef(initialHtml);
@@ -137,6 +138,7 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
           const newW = Math.max(30, startW + delta);
           resizeTarget.style.width = `${Math.round(newW)}px`;
           resizeTarget.style.height = `${Math.round(newW * ratio)}px`;
+          onImageResize(id, Math.round(newW));
         }
         function onUp() {
           window.removeEventListener('mousemove', onMove);
@@ -226,8 +228,32 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
     });
   }, [editable]);
 
+  const BLOCK_PADDING = 28 + 12 + 2 + 12;
+
+  function fitBlockToContent(id: string) {
+    const blockEl = document.querySelector(`[data-block-id="${id}"]`) as HTMLElement | null;
+    if (!blockEl) return;
+    const content = blockEl.querySelector('.lore-block-content') as HTMLElement | null;
+    if (!content) return;
+    const imgs = content.querySelectorAll('img');
+    if (imgs.length === 0) return;
+    let maxImgW = 0;
+    imgs.forEach((img) => { maxImgW = Math.max(maxImgW, img.offsetWidth); });
+    const needed = maxImgW + BLOCK_PADDING;
+    setBlocks((prev) => prev.map((b) => b.id === id ? { ...b, width: Math.max(b.width, needed) } : b));
+  }
+
+  function handleImageResize(id: string, imgWidth: number) {
+    const needed = imgWidth + BLOCK_PADDING;
+    setBlocks((prev) => prev.map((b) => {
+      if (b.id !== id) return b;
+      return { ...b, width: Math.max(120, needed) };
+    }));
+  }
+
   function handleBlockInput(id: string, html: string) {
     htmlRef.current[id] = html;
+    requestAnimationFrame(() => fitBlockToContent(id));
     emitChange();
   }
 
@@ -271,11 +297,12 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
             document.execCommand(
               'insertHTML',
               false,
-              `<img src="${dataUrl}" style="width:${w}px;height:${h}px;max-width:100%;border-radius:6px;display:block;margin:4px 0;" />`,
+              `<img src="${dataUrl}" style="width:${w}px;height:${h}px;border-radius:6px;display:block;margin:4px 0;" />`,
             );
             const el = document.querySelector(`[data-block-id="${id}"] .lore-block-content`) as HTMLElement;
             if (el) {
               htmlRef.current[id] = el.innerHTML;
+              requestAnimationFrame(() => fitBlockToContent(id));
               emitChange();
             }
           };
@@ -428,6 +455,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
               onFocus={setFocusedId}
               onBlur={handleBlockBlur}
               onPaste={handleBlockPaste}
+              onImageResize={handleImageResize}
             />
             {editable && focusedId === block.id ? (
               <>
