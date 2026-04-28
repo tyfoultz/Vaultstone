@@ -22,6 +22,11 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+const GRID = 12;
+function snap(v: number) {
+  return Math.round(v / GRID) * GRID;
+}
+
 function blockHasContent(el: HTMLElement): boolean {
   if ((el.textContent ?? '').trim().length > 0) return true;
   if (el.querySelector('img')) return true;
@@ -37,27 +42,14 @@ function blocksToPlainText(blocks: CanvasBlock[]): string {
   }).filter(Boolean).join('\n\n');
 }
 
-type ToolbarAction = {
-  key: string;
-  icon: string;
-  command: string;
-  arg?: string;
-  label: string;
-  custom?: boolean;
-};
+function buildTableHtml(cols: number, rows: number): string {
+  const ths = Array.from({ length: cols }, (_, i) => `<th>Col ${i + 1}</th>`).join('');
+  const tds = Array.from({ length: cols }, () => '<td>&nbsp;</td>').join('');
+  const trs = Array.from({ length: rows - 1 }, () => `<tr>${tds}</tr>`).join('');
+  return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+}
 
-const TOOLBAR: ToolbarAction[] = [
-  { key: 'bold', icon: 'format-bold', command: 'bold', label: 'Bold' },
-  { key: 'italic', icon: 'format-italic', command: 'italic', label: 'Italic' },
-  { key: 'underline', icon: 'format-underlined', command: 'underline', label: 'Underline' },
-  { key: 'strike', icon: 'strikethrough-s', command: 'strikeThrough', label: 'Strikethrough' },
-  { key: 'h1', icon: 'title', command: 'formatBlock', arg: 'h2', label: 'Heading' },
-  { key: 'ul', icon: 'format-list-bulleted', command: 'insertUnorderedList', label: 'Bullet list' },
-  { key: 'ol', icon: 'format-list-numbered', command: 'insertOrderedList', label: 'Numbered list' },
-  { key: 'table', icon: 'table-chart', command: 'insertTable', label: 'Insert table', custom: true },
-];
-
-function insertTableAtBlock(blockId: string) {
+function insertTableHtmlAtBlock(blockId: string, cols: number, rows: number) {
   const el = document.querySelector(`[data-block-id="${blockId}"] .lore-block-content`) as HTMLElement | null;
   if (!el) return;
   el.focus();
@@ -69,11 +61,16 @@ function insertTableAtBlock(blockId: string) {
     sel.removeAllRanges();
     sel.addRange(range);
   }
-  const html = `<table><thead><tr><th>Column 1</th><th>Column 2</th><th>Column 3</th></tr></thead><tbody><tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>`;
-  document.execCommand('insertHTML', false, html);
+  document.execCommand('insertHTML', false, buildTableHtml(cols, rows));
 }
 
-function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onPaste, onImageResize }: {
+const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48];
+const TEXT_COLORS = ['#e2e2e5', '#d3bbff', '#adc6ff', '#1D9E75', '#EF9F27', '#E24B4A', '#f472b6', '#ffffff'];
+const HIGHLIGHT_COLORS = ['transparent', '#6d28d9', '#0566d9', '#1D9E75', '#EF9F27', '#E24B4A', '#713f12', '#334155'];
+
+// ── BlockContent ────────────────────────────────────────────────────────
+
+function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onPaste, onImageResize, onImageDrag }: {
   id: string;
   initialHtml: string;
   editable: boolean;
@@ -82,6 +79,7 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
   onBlur: (id: string, el: HTMLElement, html: string) => void;
   onPaste: (id: string, e: React.ClipboardEvent) => void;
   onImageResize: (id: string, imgWidth: number) => void;
+  onImageDrag: (id: string, img: HTMLImageElement, startX: number, startY: number) => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const initialRef = useRef(initialHtml);
@@ -96,11 +94,61 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
     if (!elRef.current || !editable) return;
     const el = elRef.current;
 
-    function clearSelection() {
+    function clearImgUI() {
       el.querySelectorAll('.lore-img-selected').forEach((s) => s.classList.remove('lore-img-selected'));
       el.querySelectorAll('.lore-img-resize-wrap').forEach((w) => {
         const inner = w.querySelector('img');
         if (inner) w.parentElement?.replaceChild(inner, w);
+      });
+    }
+
+    function addResizeHandle(wrapper: HTMLElement, img: HTMLImageElement, edge: string) {
+      const h = document.createElement('div');
+      h.className = `lore-img-handle lore-img-handle-${edge}`;
+      wrapper.appendChild(h);
+
+      h.addEventListener('mousedown', (me) => {
+        me.preventDefault();
+        me.stopPropagation();
+        const startX = me.clientX;
+        const startY = me.clientY;
+        const startW = img.offsetWidth;
+        const startH = img.offsetHeight;
+        const ratio = img.naturalHeight / img.naturalWidth;
+        img.style.maxWidth = 'none';
+
+        function onMove(mv: MouseEvent) {
+          const dx = mv.clientX - startX;
+          const dy = mv.clientY - startY;
+          let newW = startW;
+          let newH = startH;
+
+          if (edge === 'corner') {
+            const delta = (Math.abs(dx) > Math.abs(dy)) ? dx : dy / ratio;
+            newW = Math.max(30, startW + delta);
+            newH = Math.round(newW * ratio);
+          } else if (edge === 'right' || edge === 'left') {
+            const sign = edge === 'left' ? -1 : 1;
+            newW = Math.max(30, startW + dx * sign);
+            newH = startH;
+          } else if (edge === 'top' || edge === 'bottom') {
+            const sign = edge === 'top' ? -1 : 1;
+            newH = Math.max(30, startH + dy * sign);
+            newW = startW;
+          }
+
+          img.style.width = `${Math.round(newW)}px`;
+          img.style.height = `${Math.round(newH)}px`;
+          onImageResize(id, Math.round(newW));
+        }
+        function onUp() {
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          clearImgUI();
+          onInput(id, el.innerHTML);
+        }
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
       });
     }
 
@@ -111,7 +159,7 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
       e.stopPropagation();
 
       const wasSelected = img.classList.contains('lore-img-selected');
-      clearSelection();
+      clearImgUI();
       if (wasSelected) {
         onInput(id, el.innerHTML);
         return;
@@ -127,44 +175,22 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
       img.parentElement?.replaceChild(wrapper, img);
       wrapper.appendChild(img);
 
-      const handle = document.createElement('div');
-      handle.className = 'lore-img-resize-handle';
-      wrapper.appendChild(handle);
+      for (const edge of ['corner', 'right', 'left', 'top', 'bottom']) {
+        addResizeHandle(wrapper, img, edge);
+      }
 
-      const resizeTarget = img;
-      handle.addEventListener('mousedown', (me) => {
+      // Drag image via the image itself
+      img.addEventListener('mousedown', (me) => {
+        if ((me.target as HTMLElement).closest('.lore-img-handle')) return;
         me.preventDefault();
         me.stopPropagation();
-        const startX = me.clientX;
-        const startY = me.clientY;
-        const startW = resizeTarget.offsetWidth;
-        const ratio = resizeTarget.naturalHeight / resizeTarget.naturalWidth;
-
-        resizeTarget.style.maxWidth = 'none';
-
-        function onMove(mv: MouseEvent) {
-          const dx = mv.clientX - startX;
-          const dy = mv.clientY - startY;
-          const delta = (Math.abs(dx) > Math.abs(dy)) ? dx : dy / ratio;
-          const newW = Math.max(30, startW + delta);
-          resizeTarget.style.width = `${Math.round(newW)}px`;
-          resizeTarget.style.height = `${Math.round(newW * ratio)}px`;
-          onImageResize(id, Math.round(newW));
-        }
-        function onUp() {
-          window.removeEventListener('mousemove', onMove);
-          window.removeEventListener('mouseup', onUp);
-          clearSelection();
-          onInput(id, el.innerHTML);
-        }
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-      });
+        onImageDrag(id, img, me.clientX, me.clientY);
+      }, { once: true });
     }
 
     el.addEventListener('click', handleImgClick);
     return () => el.removeEventListener('click', handleImgClick);
-  }, [editable, id, onInput]);
+  }, [editable, id, onInput, onImageResize, onImageDrag]);
 
   return (
     <div
@@ -186,7 +212,44 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
   );
 }
 
-export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, minHeight = 600 }: Props) {
+// ── Table Size Picker ───────────────────────────────────────────────────
+
+function TablePicker({ onSelect, onClose }: { onSelect: (cols: number, rows: number) => void; onClose: () => void }) {
+  const MAX_COLS = 7;
+  const MAX_ROWS = 6;
+  const [hover, setHover] = useState<{ c: number; r: number } | null>(null);
+
+  return (
+    <div className="lore-table-picker-backdrop" onClick={onClose}>
+      <div className="lore-table-picker" onClick={(e) => e.stopPropagation()}>
+        <div className="lore-table-picker-label">
+          {hover ? `${hover.c} × ${hover.r}` : 'Select size'}
+        </div>
+        <div className="lore-table-picker-grid">
+          {Array.from({ length: MAX_ROWS }, (_, r) => (
+            <div key={r} style={{ display: 'flex', gap: 2 }}>
+              {Array.from({ length: MAX_COLS }, (_, c) => {
+                const active = hover && c < hover.c && r < hover.r;
+                return (
+                  <div
+                    key={c}
+                    className={`lore-table-picker-cell ${active ? 'active' : ''}`}
+                    onMouseEnter={() => setHover({ c: c + 1, r: r + 1 })}
+                    onClick={() => onSelect(c + 1, r + 1)}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Editor ─────────────────────────────────────────────────────────
+
+export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: Props) {
   const [blocks, setBlocks] = useState<CanvasBlock[]>(initialBlocks ?? []);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
@@ -198,6 +261,10 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
   onChangeRef.current = onChange;
   const changeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const htmlRef = useRef<Record<string, string>>({});
+  const [tablePicker, setTablePicker] = useState(false);
+  const [fontSizeOpen, setFontSizeOpen] = useState(false);
+  const [textColorOpen, setTextColorOpen] = useState(false);
+  const [highlightOpen, setHighlightOpen] = useState(false);
 
   for (const b of blocks) {
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
@@ -224,8 +291,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
     if (target !== canvasRef.current) return;
 
     const rect = canvasRef.current!.getBoundingClientRect();
-    const x = Math.max(0, e.clientX - rect.left - 32);
-    const y = Math.max(0, e.clientY - rect.top - 12);
+    const x = snap(Math.max(0, e.clientX - rect.left - 32));
+    const y = snap(Math.max(0, e.clientY - rect.top - 12));
 
     const id = uid();
     const newBlock: CanvasBlock = { id, x, y, width: 320, html: '' };
@@ -261,6 +328,66 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
       return { ...b, width: Math.max(120, needed) };
     }));
   }
+
+  const handleImageDrag = useCallback((blockId: string, img: HTMLImageElement, startClientX: number, startClientY: number) => {
+    if (!canvasRef.current) return;
+    const imgW = img.offsetWidth;
+    const imgH = img.offsetHeight;
+    const imgSrc = img.src;
+    const imgStyle = img.getAttribute('style') ?? '';
+
+    const cr = canvasRef.current.getBoundingClientRect();
+    const startX = startClientX - cr.left;
+    const startY = startClientY - cr.top;
+
+    const ghost = document.createElement('img');
+    ghost.src = imgSrc;
+    ghost.className = 'lore-img-drag-ghost';
+    ghost.style.width = `${imgW}px`;
+    ghost.style.height = `${imgH}px`;
+    ghost.style.left = `${startX - imgW / 2}px`;
+    ghost.style.top = `${startY - imgH / 2}px`;
+    canvasRef.current.appendChild(ghost);
+
+    function onMove(mv: MouseEvent) {
+      if (!canvasRef.current) return;
+      const r = canvasRef.current.getBoundingClientRect();
+      ghost.style.left = `${mv.clientX - r.left - imgW / 2}px`;
+      ghost.style.top = `${mv.clientY - r.top - imgH / 2}px`;
+    }
+
+    function onUp(ev: MouseEvent) {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      ghost.remove();
+
+      if (!canvasRef.current) return;
+      const r = canvasRef.current.getBoundingClientRect();
+      const dropX = snap(Math.max(0, ev.clientX - r.left - imgW / 2));
+      const dropY = snap(Math.max(0, ev.clientY - r.top - imgH / 2));
+
+      // Remove image from source block
+      const srcEl = document.querySelector(`[data-block-id="${blockId}"] .lore-block-content`) as HTMLElement | null;
+      if (srcEl) {
+        img.remove();
+        htmlRef.current[blockId] = srcEl.innerHTML;
+        if (!blockHasContent(srcEl)) {
+          delete htmlRef.current[blockId];
+          setBlocks((prev) => prev.filter((b) => b.id !== blockId));
+        }
+      }
+
+      // Create new block with the image
+      const newId = uid();
+      const imgTag = `<img src="${imgSrc}" style="${imgStyle}" />`;
+      htmlRef.current[newId] = imgTag;
+      setBlocks((prev) => [...prev, { id: newId, x: dropX, y: dropY, width: imgW + BLOCK_PADDING, html: imgTag }]);
+      emitChange();
+    }
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [BLOCK_PADDING]);
 
   function handleBlockInput(id: string, html: string) {
     htmlRef.current[id] = html;
@@ -350,8 +477,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
     function onMove(ev: MouseEvent) {
       if (!canvasRef.current) return;
       const cr = canvasRef.current.getBoundingClientRect();
-      const nx = Math.max(0, ev.clientX - cr.left - dragOffset.current.x);
-      const ny = Math.max(0, ev.clientY - cr.top - dragOffset.current.y);
+      const nx = snap(Math.max(0, ev.clientX - cr.left - dragOffset.current.x));
+      const ny = snap(Math.max(0, ev.clientY - cr.top - dragOffset.current.y));
       setBlocks((prev) => prev.map((b) => b.id === id ? { ...b, x: nx, y: ny } : b));
     }
 
@@ -379,7 +506,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
       const dx = ev.clientX - startX;
       setBlocks((prev) => prev.map((b) => {
         if (b.id !== id) return b;
-        return { ...b, width: Math.max(120, startW + dx) };
+        return { ...b, width: snap(Math.max(120, startW + dx)) };
       }));
     }
 
@@ -393,44 +520,166 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
     window.addEventListener('mouseup', onUp);
   }
 
-  function handleToolbarAction(action: ToolbarAction) {
-    if (action.custom && action.command === 'insertTable') {
-      if (focusedId) {
-        insertTableAtBlock(focusedId);
-        const el = document.querySelector(`[data-block-id="${focusedId}"] .lore-block-content`) as HTMLElement | null;
-        if (el) {
-          htmlRef.current[focusedId] = el.innerHTML;
-          emitChange();
-        }
-      }
-      return;
-    }
-    document.execCommand(action.command, false, action.arg);
+  function execCmd(cmd: string, arg?: string) {
+    document.execCommand(cmd, false, arg);
   }
+
+  function handleTableInsert(cols: number, rows: number) {
+    setTablePicker(false);
+    if (focusedId) {
+      insertTableHtmlAtBlock(focusedId, cols, rows);
+      const el = document.querySelector(`[data-block-id="${focusedId}"] .lore-block-content`) as HTMLElement | null;
+      if (el) {
+        htmlRef.current[focusedId] = el.innerHTML;
+        emitChange();
+      }
+    } else if (canvasRef.current) {
+      const id = uid();
+      const html = buildTableHtml(cols, rows);
+      htmlRef.current[id] = html;
+      setBlocks((prev) => [...prev, { id, x: snap(40), y: snap(40), width: Math.max(320, cols * 100 + BLOCK_PADDING), html }]);
+      setFocusedId(id);
+      emitChange();
+    }
+  }
+
+  const pd = (e: React.MouseEvent) => e.preventDefault();
 
   return (
     <View style={styles.root}>
       <CanvasStyles />
       {editable ? (
         <div className="lore-toolbar">
-          {TOOLBAR.map((btn) => (
-            <button
-              key={btn.key}
-              className="lore-toolbar-btn"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => handleToolbarAction(btn)}
-              title={btn.label}
-              type="button"
-            >
-              <Icon
-                name={btn.icon as React.ComponentProps<typeof Icon>['name']}
-                size={18}
-                color={colors.onSurfaceVariant}
-              />
+          {/* Font size */}
+          <div style={{ position: 'relative' }}>
+            <button className="lore-toolbar-btn lore-toolbar-btn-wide" onMouseDown={pd}
+              onClick={() => { setFontSizeOpen(!fontSizeOpen); setTextColorOpen(false); setHighlightOpen(false); }}
+              title="Font size" type="button">
+              <span className="lore-toolbar-label">Size</span>
+              <Icon name="expand-more" size={12} color={colors.outline} />
             </button>
-          ))}
+            {fontSizeOpen ? (
+              <div className="lore-toolbar-dropdown">
+                {FONT_SIZES.map((s) => (
+                  <button key={s} className="lore-toolbar-dropdown-item" type="button"
+                    onMouseDown={pd}
+                    onClick={() => { execCmd('fontSize', '7'); document.querySelectorAll('font[size="7"]').forEach((el) => { (el as HTMLElement).removeAttribute('size'); (el as HTMLElement).style.fontSize = `${s}px`; }); setFontSizeOpen(false); }}>
+                    {s}px
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="lore-toolbar-sep" />
+
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('bold')} title="Bold (Ctrl+B)" type="button">
+            <Icon name="format-bold" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('italic')} title="Italic (Ctrl+I)" type="button">
+            <Icon name="format-italic" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('underline')} title="Underline (Ctrl+U)" type="button">
+            <Icon name="format-underlined" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('strikeThrough')} title="Strikethrough" type="button">
+            <Icon name="strikethrough-s" size={18} color={colors.onSurfaceVariant} />
+          </button>
+
+          {/* Text color */}
+          <div style={{ position: 'relative' }}>
+            <button className="lore-toolbar-btn" onMouseDown={pd}
+              onClick={() => { setTextColorOpen(!textColorOpen); setFontSizeOpen(false); setHighlightOpen(false); }}
+              title="Text color" type="button">
+              <Icon name="format-color-text" size={18} color={colors.onSurfaceVariant} />
+            </button>
+            {textColorOpen ? (
+              <div className="lore-toolbar-dropdown lore-toolbar-color-grid">
+                {TEXT_COLORS.map((c) => (
+                  <button key={c} className="lore-toolbar-color-swatch" type="button" style={{ background: c }}
+                    onMouseDown={pd}
+                    onClick={() => { execCmd('foreColor', c); setTextColorOpen(false); }} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {/* Highlight */}
+          <div style={{ position: 'relative' }}>
+            <button className="lore-toolbar-btn" onMouseDown={pd}
+              onClick={() => { setHighlightOpen(!highlightOpen); setFontSizeOpen(false); setTextColorOpen(false); }}
+              title="Highlight" type="button">
+              <Icon name="format-color-fill" size={18} color={colors.onSurfaceVariant} />
+            </button>
+            {highlightOpen ? (
+              <div className="lore-toolbar-dropdown lore-toolbar-color-grid">
+                {HIGHLIGHT_COLORS.map((c) => (
+                  <button key={c} className="lore-toolbar-color-swatch" type="button"
+                    style={{ background: c === 'transparent' ? colors.surfaceContainerHigh : c, border: c === 'transparent' ? `1px dashed ${colors.outline}` : 'none' }}
+                    onMouseDown={pd}
+                    onClick={() => { execCmd('hiliteColor', c); setHighlightOpen(false); }} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('superscript')} title="Superscript" type="button">
+            <span className="lore-toolbar-text-label">x<sup>2</sup></span>
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('subscript')} title="Subscript" type="button">
+            <span className="lore-toolbar-text-label">x<sub>2</sub></span>
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('removeFormat')} title="Clear formatting" type="button">
+            <Icon name="format-clear" size={18} color={colors.onSurfaceVariant} />
+          </button>
+
+          <div className="lore-toolbar-sep" />
+
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('formatBlock', 'h2')} title="Heading" type="button">
+            <Icon name="title" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('insertUnorderedList')} title="Bullet list" type="button">
+            <Icon name="format-list-bulleted" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('insertOrderedList')} title="Numbered list" type="button">
+            <Icon name="format-list-numbered" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('outdent')} title="Decrease indent" type="button">
+            <Icon name="format-indent-decrease" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('indent')} title="Increase indent" type="button">
+            <Icon name="format-indent-increase" size={18} color={colors.onSurfaceVariant} />
+          </button>
+
+          <div className="lore-toolbar-sep" />
+
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyLeft')} title="Align left" type="button">
+            <Icon name="format-align-left" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyCenter')} title="Align center" type="button">
+            <Icon name="format-align-center" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyRight')} title="Align right" type="button">
+            <Icon name="format-align-right" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyFull')} title="Justify" type="button">
+            <Icon name="format-align-justify" size={18} color={colors.onSurfaceVariant} />
+          </button>
+
+          <div className="lore-toolbar-sep" />
+
+          <button className="lore-toolbar-btn" onMouseDown={pd}
+            onClick={() => { setTablePicker(!tablePicker); setFontSizeOpen(false); setTextColorOpen(false); setHighlightOpen(false); }}
+            title="Insert table" type="button">
+            <Icon name="table-chart" size={18} color={colors.onSurfaceVariant} />
+          </button>
         </div>
       ) : null}
+
+      {tablePicker ? (
+        <TablePicker onSelect={handleTableInsert} onClose={() => setTablePicker(false)} />
+      ) : null}
+
       <div
         ref={canvasRef}
         className="lore-canvas"
@@ -468,6 +717,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, min
               onBlur={handleBlockBlur}
               onPaste={handleBlockPaste}
               onImageResize={handleImageResize}
+              onImageDrag={handleImageDrag}
             />
             {editable && focusedId === block.id ? (
               <>
@@ -502,29 +752,150 @@ function CanvasStyles() {
           .lore-toolbar {
             display: flex;
             align-items: center;
-            gap: 2px;
-            padding: 6px 8px;
+            gap: 1px;
+            padding: 4px 8px;
             background: ${colors.surfaceContainer};
             border-bottom: 1px solid ${colors.outlineVariant}22;
             position: sticky;
             top: 0;
             z-index: 10;
+            flex-wrap: wrap;
           }
           .lore-toolbar-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 32px;
-            height: 32px;
+            width: 30px;
+            height: 30px;
             border: none;
             background: transparent;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
             padding: 0;
+            flex-shrink: 0;
           }
           .lore-toolbar-btn:hover {
             background: ${colors.surfaceContainerHigh};
           }
+          .lore-toolbar-btn-wide {
+            width: auto;
+            padding: 0 6px;
+            gap: 2px;
+          }
+          .lore-toolbar-label {
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 11px;
+            color: ${colors.onSurfaceVariant};
+          }
+          .lore-toolbar-text-label {
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 13px;
+            color: ${colors.onSurfaceVariant};
+            line-height: 1;
+          }
+          .lore-toolbar-text-label sup, .lore-toolbar-text-label sub {
+            font-size: 9px;
+          }
+          .lore-toolbar-sep {
+            width: 1px;
+            height: 20px;
+            background: ${colors.outlineVariant}33;
+            margin: 0 4px;
+            flex-shrink: 0;
+          }
+          .lore-toolbar-dropdown {
+            position: absolute;
+            top: 32px;
+            left: 0;
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: 6px;
+            padding: 4px;
+            z-index: 20;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            min-width: 60px;
+          }
+          .lore-toolbar-dropdown-item {
+            display: block;
+            width: 100%;
+            border: none;
+            background: transparent;
+            padding: 4px 10px;
+            text-align: left;
+            cursor: pointer;
+            color: ${colors.onSurface};
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 12px;
+            border-radius: 4px;
+          }
+          .lore-toolbar-dropdown-item:hover {
+            background: ${colors.primaryContainer}33;
+          }
+          .lore-toolbar-color-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            padding: 6px;
+            min-width: 120px;
+          }
+          .lore-toolbar-color-swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 1px solid ${colors.outlineVariant}44;
+            cursor: pointer;
+            padding: 0;
+          }
+          .lore-toolbar-color-swatch:hover {
+            transform: scale(1.15);
+          }
+
+          /* Table picker */
+          .lore-table-picker-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+          }
+          .lore-table-picker {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+            z-index: 101;
+          }
+          .lore-table-picker-label {
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 12px;
+            color: ${colors.onSurfaceVariant};
+            text-align: center;
+            margin-bottom: 8px;
+          }
+          .lore-table-picker-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+          }
+          .lore-table-picker-cell {
+            width: 22px;
+            height: 22px;
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background 0.1s;
+          }
+          .lore-table-picker-cell:hover {
+            border-color: ${colors.primary}66;
+          }
+          .lore-table-picker-cell.active {
+            background: ${colors.primaryContainer}55;
+            border-color: ${colors.primary};
+          }
+
           .lore-canvas {
             background: ${colors.surfaceCanvas};
             border: 1px solid ${colors.outlineVariant}22;
@@ -581,9 +952,7 @@ function CanvasStyles() {
             color: ${colors.onSurfaceVariant};
             background: ${colors.surfaceContainerHigh};
           }
-          .lore-block-handle:active {
-            cursor: grabbing;
-          }
+          .lore-block-handle:active { cursor: grabbing; }
           .lore-block-content {
             outline: none;
             color: ${colors.onSurfaceVariant};
@@ -594,9 +963,7 @@ function CanvasStyles() {
             white-space: pre-wrap;
             word-wrap: break-word;
           }
-          .lore-block-content p {
-            margin: 0 0 4px 0;
-          }
+          .lore-block-content p { margin: 0 0 4px 0; }
           .lore-block-content h1, .lore-block-content h2, .lore-block-content h3 {
             font-family: 'Fraunces_700Bold', 'Fraunces', Georgia, serif;
             font-weight: 700;
@@ -610,7 +977,7 @@ function CanvasStyles() {
             padding-left: 20px;
           }
 
-          /* Images inside blocks */
+          /* Images */
           .lore-block-content img {
             border-radius: 6px;
             display: block;
@@ -625,21 +992,30 @@ function CanvasStyles() {
             display: inline-block;
             position: relative;
           }
-          .lore-img-resize-handle {
+          .lore-img-handle {
             position: absolute;
-            right: -5px;
-            bottom: -5px;
-            width: 14px;
-            height: 14px;
             background: ${colors.primary};
             border: 2px solid ${colors.surfaceCanvas};
             border-radius: 3px;
-            cursor: nwse-resize;
             z-index: 5;
           }
-          .lore-img-resize-handle:hover {
-            background: ${colors.primaryContainer};
-            transform: scale(1.2);
+          .lore-img-handle:hover { background: ${colors.primaryContainer}; transform: scale(1.15); }
+          .lore-img-handle-corner { width: 12px; height: 12px; right: -5px; bottom: -5px; cursor: nwse-resize; }
+          .lore-img-handle-right { width: 8px; height: 20px; right: -5px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+          .lore-img-handle-right:hover { transform: translateY(-50%) scale(1.15); }
+          .lore-img-handle-left { width: 8px; height: 20px; left: -5px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+          .lore-img-handle-left:hover { transform: translateY(-50%) scale(1.15); }
+          .lore-img-handle-top { width: 20px; height: 8px; top: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+          .lore-img-handle-top:hover { transform: translateX(-50%) scale(1.15); }
+          .lore-img-handle-bottom { width: 20px; height: 8px; bottom: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+          .lore-img-handle-bottom:hover { transform: translateX(-50%) scale(1.15); }
+          .lore-img-drag-ghost {
+            position: absolute;
+            opacity: 0.6;
+            pointer-events: none;
+            border-radius: 6px;
+            z-index: 50;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
           }
 
           /* Tables */
@@ -651,8 +1027,7 @@ function CanvasStyles() {
             font-size: 13px;
             line-height: 1.5;
           }
-          .lore-block-content th,
-          .lore-block-content td {
+          .lore-block-content th, .lore-block-content td {
             border: 1px solid ${colors.outlineVariant}55;
             padding: 6px 10px;
             text-align: left;
@@ -667,12 +1042,8 @@ function CanvasStyles() {
             letter-spacing: 0.5px;
             text-transform: uppercase;
           }
-          .lore-block-content td {
-            color: ${colors.onSurfaceVariant};
-          }
-          .lore-block-content tr:hover td {
-            background: ${colors.surfaceContainerHigh}44;
-          }
+          .lore-block-content td { color: ${colors.onSurfaceVariant}; }
+          .lore-block-content tr:hover td { background: ${colors.surfaceContainerHigh}44; }
 
           .lore-block-delete {
             position: absolute;
@@ -693,10 +1064,7 @@ function CanvasStyles() {
             opacity: 0.6;
             transition: opacity 0.15s;
           }
-          .lore-block-delete:hover {
-            opacity: 1;
-            color: ${colors.hpDanger};
-          }
+          .lore-block-delete:hover { opacity: 1; color: ${colors.hpDanger}; }
           .lore-resize-right {
             position: absolute;
             top: 8px;
@@ -707,9 +1075,7 @@ function CanvasStyles() {
             border-radius: 3px;
             transition: background 0.15s;
           }
-          .lore-resize-right:hover {
-            background: ${colors.primary}44;
-          }
+          .lore-resize-right:hover { background: ${colors.primary}44; }
         `,
       }}
     />
