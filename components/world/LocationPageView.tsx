@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   claimPageEdit,
+  getMap,
+  getMapImageSignedUrl,
   getPagesLinkingTo,
+  getPinsForPage,
+  getEventsReferencingPage,
   releasePageEdit,
   trashPage,
   updatePage,
+  type MapPin,
+  type WorldMap,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
+import type { TimelineEvent } from '@vaultstone/types';
 import {
   selectSectionsForWorld,
   useAuthStore,
@@ -34,9 +41,24 @@ import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
 import { PAGE_KIND_LABEL, toMaterialIcon } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
-import { worldPageHref, worldSectionHref } from './worldHref';
+import { worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
 
 const LOCK_HEARTBEAT_MS = 30_000;
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - Date.parse(iso);
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -215,6 +237,43 @@ export function LocationPageView({ page, worldId }: Props) {
     return () => { cancelled = true; };
   }, [page.id, worldId]);
 
+  // Map pin data
+  const [mapPin, setMapPin] = useState<MapPin | null>(null);
+  const [mapData, setMapData] = useState<{ map: WorldMap; signedUrl: string } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setMapPin(null);
+    setMapData(null);
+    void (async () => {
+      const { data: pins } = await getPinsForPage(page.id);
+      if (cancelled || !pins || pins.length === 0) return;
+      const pin = pins[0];
+      setMapPin(pin);
+      const { data: map } = await getMap(pin.map_id);
+      if (cancelled || !map) return;
+      const { data: signed } = await getMapImageSignedUrl(map.image_key);
+      if (cancelled || !signed) return;
+      setMapData({ map, signedUrl: signed.signedUrl });
+    })();
+    return () => { cancelled = true; };
+  }, [page.id]);
+
+  // Seen in play — timeline events that reference this page
+  const [seenInPlay, setSeenInPlay] = useState<TimelineEvent[]>([]);
+  const [seenLoaded, setSeenLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setSeenLoaded(false);
+    void (async () => {
+      const { data } = await getEventsReferencingPage(worldId, page.id);
+      if (!cancelled) {
+        setSeenInPlay((data ?? []) as TimelineEvent[]);
+        setSeenLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [page.id, worldId]);
+
   const mentionedPages = useMemo(() => {
     const refs = page.body_refs ?? [];
     if (refs.length === 0) return [];
@@ -381,10 +440,46 @@ export function LocationPageView({ page, worldId }: Props) {
               <>
                 <View style={styles.sideSection}>
                   <SideSectionHeader icon="place" title="MAP PIN" />
-                  <View style={styles.mapPlaceholder}>
-                    <Icon name="map" size={24} color={colors.outline} />
-                    <Text variant="body-sm" style={{ color: colors.outline, marginTop: 4 }}>No map pin set</Text>
-                  </View>
+                  {mapPin && mapData ? (
+                    <Pressable
+                      onPress={() => router.push(worldMapHref(worldId, mapPin.map_id))}
+                      style={styles.mapPreview}
+                    >
+                      <View style={styles.mapImageWrap}>
+                        <Image
+                          source={{ uri: mapData.signedUrl }}
+                          style={[
+                            styles.mapImage,
+                            {
+                              transform: [
+                                { scale: 3 },
+                                { translateX: -(mapPin.x_pct - 50) * 1.2 },
+                                { translateY: -(mapPin.y_pct - 50) * 1.2 },
+                              ],
+                            },
+                          ]}
+                          resizeMode="cover"
+                        />
+                        <View
+                          style={[
+                            styles.mapPinDot,
+                            { left: '50%', top: '50%' },
+                          ]}
+                        />
+                      </View>
+                      <View style={styles.mapMeta}>
+                        <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>
+                          {mapData.map.label}
+                        </Text>
+                        <Text style={styles.mapMetaLink}>OPEN MAP →</Text>
+                      </View>
+                    </Pressable>
+                  ) : (
+                    <View style={styles.mapPlaceholder}>
+                      <Icon name="map" size={24} color={colors.outline} />
+                      <Text variant="body-sm" style={{ color: colors.outline, marginTop: 4 }}>No map pin set</Text>
+                    </View>
+                  )}
                 </View>
 
                 <View style={styles.sideSection}>
@@ -409,8 +504,35 @@ export function LocationPageView({ page, worldId }: Props) {
                 </View>
 
                 <View style={styles.sideSection}>
-                  <SideSectionHeader icon="history" title="SEEN IN PLAY" />
-                  <Text variant="body-sm" style={styles.emptyText}>No session references yet.</Text>
+                  <SideSectionHeader icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined} />
+                  {seenLoaded && seenInPlay.length === 0 ? (
+                    <Text variant="body-sm" style={styles.emptyText}>No session references yet.</Text>
+                  ) : (
+                    seenInPlay.slice(0, 5).map((evt) => {
+                      const ago = formatRelativeTime(evt.created_at);
+                      const snippet = (evt.body_text ?? '').slice(0, 80);
+                      return (
+                        <View key={evt.id} style={styles.seenRow}>
+                          <View style={styles.seenHeader}>
+                            <View style={styles.seenBadge}>
+                              <Text style={styles.seenBadgeText}>
+                                {evt.source_session_id ? 'S' : 'E'}
+                              </Text>
+                            </View>
+                            <Text style={styles.seenAgo}>{ago}</Text>
+                          </View>
+                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>
+                            {evt.title}
+                          </Text>
+                          {snippet ? (
+                            <Text variant="body-sm" numberOfLines={2} style={{ color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 }}>
+                              "{snippet}{(evt.body_text ?? '').length > 80 ? '…' : ''}"
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })
+                  )}
                 </View>
 
                 <View style={styles.sideSection}>
@@ -696,6 +818,84 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerHigh,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mapPreview: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  mapImageWrap: {
+    height: 120,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  mapImage: {
+    width: '100%',
+    height: '100%',
+  },
+  mapPinDot: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.surfaceCanvas,
+    marginLeft: -5,
+    marginTop: -5,
+  },
+  mapMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant + '22',
+  },
+  mapMetaLink: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  seenRow: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: radius.lg,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.hpWarning,
+    backgroundColor: colors.surfaceContainerHigh + '44',
+    marginBottom: 6,
+  },
+  seenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 3,
+  },
+  seenBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.hpWarning + '33',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  seenBadgeText: {
+    fontFamily: fonts.label,
+    fontSize: 9,
+    fontWeight: '700',
+    color: colors.hpWarning,
+  },
+  seenAgo: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 0.5,
+    color: colors.outline,
   },
 
   mentionRow: {

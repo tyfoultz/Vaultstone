@@ -45,3 +45,10 @@ export async function updatePin(
 export async function deletePin(pinId: string) {
   return supabase.from('map_pins').delete().eq('id', pinId);
 }
+
+export async function getPinsForPage(pageId: string) {
+  return supabase
+    .from('map_pins')
+    .select('*')
+    .eq('linked_page_id', pageId);
+}
