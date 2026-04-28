@@ -110,45 +110,41 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
         }
       }
 
-      // Tab in tables
+      // Tab in tables — walk all cells in the table regardless of thead/tbody
       if (e.key === 'Tab') {
         const sel = window.getSelection();
-        const cell = sel?.anchorNode?.parentElement?.closest('td, th') as HTMLElement | null;
+        if (!sel || sel.rangeCount === 0) return;
+        let node: Node | null = sel.anchorNode;
+        let cell: HTMLElement | null = null;
+        while (node && node !== el) {
+          if (node instanceof HTMLElement && (node.tagName === 'TD' || node.tagName === 'TH')) {
+            cell = node;
+            break;
+          }
+          node = node.parentNode;
+        }
         if (!cell) return;
         e.preventDefault();
-        const row = cell.parentElement as HTMLTableRowElement | null;
-        if (!row) return;
-        const cells = Array.from(row.querySelectorAll('td, th'));
-        const idx = cells.indexOf(cell);
+        e.stopPropagation();
+
+        const table = cell.closest('table');
+        if (!table) return;
+        const allCells = Array.from(table.querySelectorAll('th, td')) as HTMLElement[];
+        const idx = allCells.indexOf(cell);
 
         let next: HTMLElement | null = null;
         if (e.shiftKey) {
-          if (idx > 0) {
-            next = cells[idx - 1] as HTMLElement;
-          } else {
-            const prevRow = row.previousElementSibling as HTMLTableRowElement | null;
-            if (prevRow) {
-              const prevCells = prevRow.querySelectorAll('td, th');
-              next = prevCells[prevCells.length - 1] as HTMLElement;
-            }
-          }
+          next = idx > 0 ? allCells[idx - 1] : null;
         } else {
-          if (idx < cells.length - 1) {
-            next = cells[idx + 1] as HTMLElement;
-          } else {
-            const nextRow = row.nextElementSibling as HTMLTableRowElement | null;
-            if (nextRow) {
-              next = nextRow.querySelector('td, th') as HTMLElement;
-            }
-          }
+          next = idx < allCells.length - 1 ? allCells[idx + 1] : null;
         }
 
         if (next) {
           const range = document.createRange();
           range.selectNodeContents(next);
           range.collapse(false);
-          sel?.removeAllRanges();
-          sel?.addRange(range);
+          sel.removeAllRanges();
+          sel.addRange(range);
         }
       }
     }
@@ -533,6 +529,46 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
       }
     }
   }
+
+  // Canvas-level paste: create a block from pasted images when no block is focused
+  useEffect(() => {
+    if (!editable) return;
+    function onPaste(e: ClipboardEvent) {
+      if (focusedId) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            const img = new Image();
+            img.onload = () => {
+              const maxW = 480;
+              const w = Math.min(img.naturalWidth, maxW);
+              const h = Math.round(w * (img.naturalHeight / img.naturalWidth));
+              const pos = pendingClick ?? { x: snap(40), y: snap(40) };
+              setPendingClick(null);
+              const newId = uid();
+              const imgTag = `<img src="${dataUrl}" style="width:${w}px;height:${h}px;border-radius:6px;display:block;margin:4px 0;" />`;
+              htmlRef.current[newId] = imgTag;
+              setBlocks((prev) => [...prev, { id: newId, x: pos.x, y: pos.y, width: w + BLOCK_PADDING, html: imgTag }]);
+              setFocusedId(newId);
+              emitChange();
+            };
+            img.src = dataUrl;
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+      }
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  });
 
   // Materialize pending block on keypress
   useEffect(() => {
