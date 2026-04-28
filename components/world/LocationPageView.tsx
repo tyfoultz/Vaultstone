@@ -445,28 +445,39 @@ export function LocationPageView({ page, worldId }: Props) {
                       onPress={() => router.push(worldMapHref(worldId, mapPin.map_id))}
                       style={styles.mapPreview}
                     >
-                      <View style={styles.mapImageWrap}>
-                        <Image
-                          source={{ uri: mapData.signedUrl }}
-                          style={[
-                            styles.mapImage,
-                            {
-                              transform: [
-                                { scale: 3 },
-                                { translateX: -(mapPin.x_pct - 50) * 1.2 },
-                                { translateY: -(mapPin.y_pct - 50) * 1.2 },
-                              ],
-                            },
-                          ]}
-                          resizeMode="cover"
+                      <div style={{
+                        height: 120,
+                        overflow: 'hidden',
+                        position: 'relative',
+                        borderRadius: 4,
+                      }}>
+                        <img
+                          src={mapData.signedUrl}
+                          alt={mapData.map.label}
+                          style={{
+                            position: 'absolute',
+                            width: '300%',
+                            height: '300%',
+                            objectFit: 'cover',
+                            left: `${50 - mapPin.x_pct * 3}%`,
+                            top: `${50 - mapPin.y_pct * 3}%`,
+                          }}
                         />
-                        <View
-                          style={[
-                            styles.mapPinDot,
-                            { left: '50%', top: '50%' },
-                          ]}
-                        />
-                      </View>
+                        <div style={{
+                          position: 'absolute',
+                          left: '50%',
+                          top: '50%',
+                          width: 12,
+                          height: 12,
+                          borderRadius: 6,
+                          backgroundColor: colors.primary,
+                          border: `2px solid ${colors.surfaceCanvas}`,
+                          marginLeft: -6,
+                          marginTop: -6,
+                          boxShadow: `0 0 0 3px ${colors.primary}44`,
+                          zIndex: 2,
+                        }} />
+                      </div>
                       <View style={styles.mapMeta}>
                         <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>
                           {mapData.map.label}
