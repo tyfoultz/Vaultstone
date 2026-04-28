@@ -236,10 +236,20 @@ export function LocationPageView({ page, worldId }: Props) {
 
   type CanvasBlock = { id: string; x: number; y: number; width: number; height?: number; html: string };
 
-  function handleCanvasChange(blocks: CanvasBlock[], plainText: string) {
+  const mentionablePages = useMemo(
+    () => (allPages ?? []).filter((p) => p.id !== page.id),
+    [allPages, page.id],
+  );
+
+  const sectionLabelById = useCallback(
+    (id: string) => sections.find((s) => s.id === id)?.name ?? '',
+    [sections],
+  );
+
+  function handleCanvasChange(blocks: CanvasBlock[], plainText: string, bodyRefs: string[]) {
     if (heldByOther) return;
     const body = { __canvas_blocks: blocks };
-    pendingBodyRef.current = { body, bodyText: plainText, bodyRefs: [] };
+    pendingBodyRef.current = { body, bodyText: plainText, bodyRefs };
     setSaveState('saving');
     if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
     bodyTimerRef.current = setTimeout(async () => {
@@ -477,6 +487,8 @@ export function LocationPageView({ page, worldId }: Props) {
               }
               onChange={handleCanvasChange}
               editable={!heldByOther}
+              mentionablePages={mentionablePages}
+              getSectionLabel={sectionLabelById}
             />
           </View>
 

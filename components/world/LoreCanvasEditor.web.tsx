@@ -11,11 +11,20 @@ type CanvasBlock = {
   html: string;
 };
 
+type MentionablePage = {
+  id: string;
+  title: string;
+  page_kind: string;
+  section_id: string;
+};
+
 type Props = {
   initialBlocks: CanvasBlock[] | null;
-  onChange: (blocks: CanvasBlock[], plainText: string) => void;
+  onChange: (blocks: CanvasBlock[], plainText: string, bodyRefs: string[]) => void;
   editable?: boolean;
   minHeight?: number;
+  mentionablePages?: MentionablePage[];
+  getSectionLabel?: (sectionId: string) => string;
 };
 
 function uid() {
@@ -41,6 +50,32 @@ function blocksToPlainText(blocks: CanvasBlock[]): string {
     return el.textContent ?? '';
   }).filter(Boolean).join('\n\n');
 }
+
+function extractRefsFromBlocks(blocks: CanvasBlock[]): string[] {
+  const el = document.createElement('div');
+  const ids = new Set<string>();
+  for (const b of blocks) {
+    el.innerHTML = b.html;
+    el.querySelectorAll('.vaultstone-mention[data-id]').forEach((m) => {
+      const id = m.getAttribute('data-id');
+      const kind = m.getAttribute('data-kind');
+      if (id && (!kind || kind === 'page')) ids.add(id);
+    });
+  }
+  return Array.from(ids);
+}
+
+const MENTION_KIND_ICON: Record<string, string> = {
+  npc: '👤',
+  location: '📍',
+  faction: '🛡',
+  lore: '📖',
+  timeline: '⏳',
+  custom: '📄',
+  item: '💎',
+  pc_stub: '👤',
+  player_character: '👤',
+};
 
 function buildTableHtml(cols: number, rows: number): string {
   const ths = Array.from({ length: cols }, (_, i) => `<th>Col ${i + 1}</th>`).join('');
@@ -318,9 +353,78 @@ function TablePicker({ onSelect, onClose, anchorRect }: {
   );
 }
 
+// ── Mention Typeahead ────────────────────────────────────────────────────
+
+function MentionTypeahead({ query, pages, position, onSelect, onClose, getSectionLabel }: {
+  query: string;
+  pages: MentionablePage[];
+  position: { x: number; y: number };
+  onSelect: (page: MentionablePage) => void;
+  onClose: () => void;
+  getSectionLabel?: (id: string) => string;
+}) {
+  const q = query.toLowerCase();
+  const filtered = pages.filter((p) => p.title.toLowerCase().includes(q)).slice(0, 8);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  useEffect(() => setActiveIdx(0), [query]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveIdx((i) => Math.max(i - 1, 0));
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        if (filtered[activeIdx]) onSelect(filtered[activeIdx]);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    }
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [filtered, activeIdx, onSelect, onClose]);
+
+  if (filtered.length === 0) {
+    return (
+      <div className="lore-mention-popup" style={{ left: position.x, top: position.y }}>
+        <div className="lore-mention-empty">No matches</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="lore-mention-popup" style={{ left: position.x, top: position.y }}>
+      <div className="lore-mention-list">
+        {filtered.map((p, i) => (
+          <button
+            key={p.id}
+            className={`lore-mention-item ${i === activeIdx ? 'active' : ''}`}
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); onSelect(p); }}
+            onMouseEnter={() => setActiveIdx(i)}
+          >
+            <span className="lore-mention-item-icon">{MENTION_KIND_ICON[p.page_kind] ?? '📄'}</span>
+            <span className="lore-mention-item-text">
+              <span className="lore-mention-item-title">{p.title}</span>
+              {getSectionLabel ? (
+                <span className="lore-mention-item-meta">{getSectionLabel(p.section_id)}</span>
+              ) : null}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Editor ─────────────────────────────────────────────────────────
 
-export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: Props) {
+export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, mentionablePages, getSectionLabel }: Props) {
   const [blocks, setBlocks] = useState<CanvasBlock[]>(initialBlocks ?? []);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
@@ -339,6 +443,13 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
   const tableButtonRef = useRef<HTMLButtonElement>(null);
   const [pendingClick, setPendingClick] = useState<{ x: number; y: number } | null>(null);
   const savedSelRef = useRef<Range | null>(null);
+  const [mentionState, setMentionState] = useState<{
+    blockId: string;
+    query: string;
+    position: { x: number; y: number };
+    startOffset: number;
+    node: Node;
+  } | null>(null);
 
   for (const b of blocks) {
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
@@ -355,7 +466,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
     if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
     changeTimerRef.current = setTimeout(() => {
       const final = buildSnapshot(next);
-      onChangeRef.current(final, blocksToPlainText(final));
+      onChangeRef.current(final, blocksToPlainText(final), extractRefsFromBlocks(final));
     }, 800);
   }
 
@@ -471,6 +582,76 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
     htmlRef.current[id] = html;
     requestAnimationFrame(() => fitBlockToContent(id));
     emitChange();
+
+    // Detect @ mention trigger
+    if (mentionablePages && mentionablePages.length > 0) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      if (node.nodeType !== Node.TEXT_NODE) { setMentionState(null); return; }
+      const text = node.textContent ?? '';
+      const cursor = range.startOffset;
+      const atIdx = text.lastIndexOf('@', cursor - 1);
+      if (atIdx < 0 || (atIdx > 0 && text[atIdx - 1] !== ' ' && text[atIdx - 1] !== '\n')) {
+        setMentionState(null);
+        return;
+      }
+      const query = text.slice(atIdx + 1, cursor);
+      if (query.includes(' ') && query.length > 20) { setMentionState(null); return; }
+
+      const r = document.createRange();
+      r.setStart(node, atIdx);
+      r.setEnd(node, atIdx);
+      const rect = r.getBoundingClientRect();
+      setMentionState({
+        blockId: id,
+        query,
+        position: { x: rect.left, y: rect.bottom + 4 },
+        startOffset: atIdx,
+        node,
+      });
+    }
+  }
+
+  function handleMentionSelect(page: MentionablePage) {
+    if (!mentionState) return;
+    const { blockId, startOffset, node } = mentionState;
+    setMentionState(null);
+
+    const sel = window.getSelection();
+    if (!sel) return;
+    const text = node.textContent ?? '';
+    const cursor = sel.getRangeAt(0).startOffset;
+    const before = text.slice(0, startOffset);
+    const after = text.slice(cursor);
+
+    const mentionHtml = `<span class="vaultstone-mention" data-id="${page.id}" data-kind="page" contenteditable="false">@ ${page.title}</span>`;
+
+    const el = document.querySelector(`[data-block-id="${blockId}"] .lore-block-content`) as HTMLElement | null;
+    if (!el) return;
+
+    // Replace the @query text with the mention chip
+    node.textContent = before;
+    const temp = document.createElement('span');
+    temp.innerHTML = mentionHtml + (after ? `<span>${after}</span>` : '');
+    const frag = document.createDocumentFragment();
+    while (temp.firstChild) frag.appendChild(temp.firstChild);
+    node.parentNode?.insertBefore(frag, node.nextSibling);
+
+    // Place cursor after the mention
+    requestAnimationFrame(() => {
+      const chip = el.querySelector(`.vaultstone-mention[data-id="${page.id}"]`);
+      if (chip && chip.nextSibling) {
+        const r = document.createRange();
+        r.setStartAfter(chip);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+      htmlRef.current[blockId] = el.innerHTML;
+      emitChange();
+    });
   }
 
   function handleBlockBlur(id: string, el: HTMLElement, html: string) {
@@ -863,6 +1044,17 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
           onSelect={handleTableInsert}
           onClose={() => setTablePicker(false)}
           anchorRect={tableButtonRef.current?.getBoundingClientRect() ?? null}
+        />
+      ) : null}
+
+      {mentionState && mentionablePages ? (
+        <MentionTypeahead
+          query={mentionState.query}
+          pages={mentionablePages}
+          position={mentionState.position}
+          onSelect={handleMentionSelect}
+          onClose={() => setMentionState(null)}
+          getSectionLabel={getSectionLabel}
         />
       ) : null}
 
@@ -1276,6 +1468,97 @@ function CanvasStyles() {
             transition: background 0.15s;
           }
           .lore-resize-right:hover { background: ${colors.primary}44; }
+
+          /* Mention chips */
+          .lore-block-content .vaultstone-mention {
+            display: inline;
+            padding: 1px 6px;
+            margin: 0 1px;
+            border-radius: 3px;
+            background: ${colors.primary}14;
+            color: ${colors.primary};
+            font-family: 'Manrope_500Medium', 'Manrope', system-ui, sans-serif;
+            font-style: normal;
+            font-size: 14px;
+            font-weight: 500;
+            border: 1px solid ${colors.primary}33;
+            cursor: pointer;
+            white-space: nowrap;
+          }
+          .lore-block-content .vaultstone-mention:hover {
+            background: ${colors.primary}26;
+            border-color: ${colors.primary}55;
+          }
+
+          /* Mention popup */
+          .lore-mention-popup {
+            position: fixed;
+            z-index: 1000;
+          }
+          .lore-mention-list {
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: 8px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+            min-width: 220px;
+            max-width: 320px;
+            padding: 4px;
+            overflow: hidden;
+          }
+          .lore-mention-empty {
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: 8px;
+            color: ${colors.onSurfaceVariant};
+            padding: 8px 12px;
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 13px;
+            font-style: italic;
+          }
+          .lore-mention-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 8px;
+            text-align: left;
+            cursor: pointer;
+            color: ${colors.onSurface};
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+          }
+          .lore-mention-item.active,
+          .lore-mention-item:hover {
+            background: ${colors.primaryContainer}33;
+          }
+          .lore-mention-item-icon {
+            font-size: 14px;
+            width: 22px;
+            text-align: center;
+            flex-shrink: 0;
+          }
+          .lore-mention-item-text {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            flex: 1;
+          }
+          .lore-mention-item-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: ${colors.onSurface};
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .lore-mention-item-meta {
+            font-size: 10px;
+            color: ${colors.onSurfaceVariant};
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+          }
         `,
       }}
     />

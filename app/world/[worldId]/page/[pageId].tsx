@@ -268,10 +268,10 @@ export default function PageDetailScreen() {
     };
   }, [pageId, tryClaim]);
 
-  function handleCanvasChange(blocks: Array<{ id: string; x: number; y: number; width: number; height?: number; html: string }>, plainText: string) {
+  function handleCanvasChange(blocks: Array<{ id: string; x: number; y: number; width: number; height?: number; html: string }>, plainText: string, bodyRefs?: string[]) {
     if (!pageId || heldByOther) return;
     const body = { __canvas_blocks: blocks };
-    pendingBodyRef.current = { body, bodyText: plainText, bodyRefs: [] };
+    pendingBodyRef.current = { body, bodyText: plainText, bodyRefs: bodyRefs ?? [] };
     setSaveState('saving');
     if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
     bodyTimerRef.current = setTimeout(async () => {
