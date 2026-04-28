@@ -70,7 +70,7 @@ const HIGHLIGHT_COLORS = ['transparent', '#6d28d9', '#0566d9', '#1D9E75', '#EF9F
 
 // ── BlockContent ────────────────────────────────────────────────────────
 
-function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onPaste, onImageResize, onImageDrag }: {
+function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onPaste, onImageResize, onImageDrag, onDeleteImage }: {
   id: string;
   initialHtml: string;
   editable: boolean;
@@ -80,6 +80,7 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
   onPaste: (id: string, e: React.ClipboardEvent) => void;
   onImageResize: (id: string, imgWidth: number) => void;
   onImageDrag: (id: string, img: HTMLImageElement, startX: number, startY: number) => void;
+  onDeleteImage: (id: string) => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const initialRef = useRef(initialHtml);
@@ -89,6 +90,72 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
       elRef.current.innerHTML = initialRef.current;
     }
   }, []);
+
+  // Tab navigation in tables + Delete/Backspace on selected images
+  useEffect(() => {
+    if (!elRef.current || !editable) return;
+    const el = elRef.current;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      // Delete/Backspace on selected image
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const selected = el.querySelector('img.lore-img-selected') as HTMLImageElement | null;
+        if (selected) {
+          e.preventDefault();
+          const wrap = selected.closest('.lore-img-resize-wrap');
+          if (wrap) wrap.remove(); else selected.remove();
+          onInput(id, el.innerHTML);
+          if (!blockHasContent(el)) onDeleteImage(id);
+          return;
+        }
+      }
+
+      // Tab in tables
+      if (e.key === 'Tab') {
+        const sel = window.getSelection();
+        const cell = sel?.anchorNode?.parentElement?.closest('td, th') as HTMLElement | null;
+        if (!cell) return;
+        e.preventDefault();
+        const row = cell.parentElement as HTMLTableRowElement | null;
+        if (!row) return;
+        const cells = Array.from(row.querySelectorAll('td, th'));
+        const idx = cells.indexOf(cell);
+
+        let next: HTMLElement | null = null;
+        if (e.shiftKey) {
+          if (idx > 0) {
+            next = cells[idx - 1] as HTMLElement;
+          } else {
+            const prevRow = row.previousElementSibling as HTMLTableRowElement | null;
+            if (prevRow) {
+              const prevCells = prevRow.querySelectorAll('td, th');
+              next = prevCells[prevCells.length - 1] as HTMLElement;
+            }
+          }
+        } else {
+          if (idx < cells.length - 1) {
+            next = cells[idx + 1] as HTMLElement;
+          } else {
+            const nextRow = row.nextElementSibling as HTMLTableRowElement | null;
+            if (nextRow) {
+              next = nextRow.querySelector('td, th') as HTMLElement;
+            }
+          }
+        }
+
+        if (next) {
+          const range = document.createRange();
+          range.selectNodeContents(next);
+          range.collapse(false);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      }
+    }
+
+    el.addEventListener('keydown', handleKeyDown);
+    return () => el.removeEventListener('keydown', handleKeyDown);
+  }, [editable, id, onInput, onDeleteImage]);
 
   useEffect(() => {
     if (!elRef.current || !editable) return;
@@ -214,14 +281,22 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
 
 // ── Table Size Picker ───────────────────────────────────────────────────
 
-function TablePicker({ onSelect, onClose }: { onSelect: (cols: number, rows: number) => void; onClose: () => void }) {
+function TablePicker({ onSelect, onClose, anchorRect }: {
+  onSelect: (cols: number, rows: number) => void;
+  onClose: () => void;
+  anchorRect: { left: number; bottom: number } | null;
+}) {
   const MAX_COLS = 7;
   const MAX_ROWS = 6;
   const [hover, setHover] = useState<{ c: number; r: number } | null>(null);
 
+  const posStyle = anchorRect
+    ? { position: 'fixed' as const, top: anchorRect.bottom + 4, left: anchorRect.left, transform: 'none' }
+    : { position: 'fixed' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+
   return (
     <div className="lore-table-picker-backdrop" onClick={onClose}>
-      <div className="lore-table-picker" onClick={(e) => e.stopPropagation()}>
+      <div className="lore-table-picker" style={posStyle} onClick={(e) => e.stopPropagation()}>
         <div className="lore-table-picker-label">
           {hover ? `${hover.c} × ${hover.r}` : 'Select size'}
         </div>
@@ -265,6 +340,9 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
   const [fontSizeOpen, setFontSizeOpen] = useState(false);
   const [textColorOpen, setTextColorOpen] = useState(false);
   const [highlightOpen, setHighlightOpen] = useState(false);
+  const tableButtonRef = useRef<HTMLButtonElement>(null);
+  const [pendingClick, setPendingClick] = useState<{ x: number; y: number } | null>(null);
+  const savedSelRef = useRef<Range | null>(null);
 
   for (const b of blocks) {
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
@@ -285,6 +363,18 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
     }, 800);
   }
 
+  function materializePending(): string | null {
+    if (!pendingClick) return null;
+    const { x, y } = pendingClick;
+    setPendingClick(null);
+    const id = uid();
+    const newBlock: CanvasBlock = { id, x, y, width: 320, html: '' };
+    htmlRef.current[id] = '';
+    setBlocks((prev) => [...prev, newBlock]);
+    setFocusedId(id);
+    return id;
+  }
+
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!editable) return;
     const target = e.target as HTMLElement;
@@ -294,16 +384,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
     const x = snap(Math.max(0, e.clientX - rect.left - 32));
     const y = snap(Math.max(0, e.clientY - rect.top - 12));
 
-    const id = uid();
-    const newBlock: CanvasBlock = { id, x, y, width: 320, html: '' };
-    htmlRef.current[id] = '';
-    setBlocks((prev) => [...prev, newBlock]);
-    setFocusedId(id);
-
-    requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-block-id="${id}"] .lore-block-content`) as HTMLElement;
-      el?.focus();
-    });
+    setPendingClick({ x, y });
+    setFocusedId(null);
   }, [editable]);
 
   const BLOCK_PADDING = 28 + 12 + 2 + 12;
@@ -452,6 +534,29 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
     }
   }
 
+  // Materialize pending block on keypress
+  useEffect(() => {
+    if (!pendingClick || !editable) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { setPendingClick(null); return; }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        const newId = materializePending();
+        if (newId) {
+          requestAnimationFrame(() => {
+            const el = document.querySelector(`[data-block-id="${newId}"] .lore-block-content`) as HTMLElement;
+            if (el) {
+              el.focus();
+              document.execCommand('insertText', false, e.key);
+            }
+          });
+        }
+        e.preventDefault();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   function handleDeleteBlock(id: string) {
     delete htmlRef.current[id];
     setBlocks((prev) => {
@@ -533,11 +638,13 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
         htmlRef.current[focusedId] = el.innerHTML;
         emitChange();
       }
-    } else if (canvasRef.current) {
+    } else {
+      const pos = pendingClick ?? { x: snap(40), y: snap(40) };
+      setPendingClick(null);
       const id = uid();
       const html = buildTableHtml(cols, rows);
       htmlRef.current[id] = html;
-      setBlocks((prev) => [...prev, { id, x: snap(40), y: snap(40), width: Math.max(320, cols * 100 + BLOCK_PADDING), html }]);
+      setBlocks((prev) => [...prev, { id, x: pos.x, y: pos.y, width: Math.max(320, cols * 100 + BLOCK_PADDING), html }]);
       setFocusedId(id);
       emitChange();
     }
@@ -559,11 +666,50 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
               <Icon name="expand-more" size={12} color={colors.outline} />
             </button>
             {fontSizeOpen ? (
-              <div className="lore-toolbar-dropdown">
+              <div className="lore-toolbar-dropdown"
+                onMouseLeave={() => {
+                  // Restore original on leave
+                  document.querySelectorAll('[data-font-preview]').forEach((el) => {
+                    const orig = (el as HTMLElement).getAttribute('data-font-preview');
+                    if (orig) (el as HTMLElement).style.fontSize = orig;
+                    (el as HTMLElement).removeAttribute('data-font-preview');
+                  });
+                }}
+              >
                 {FONT_SIZES.map((s) => (
                   <button key={s} className="lore-toolbar-dropdown-item" type="button"
                     onMouseDown={pd}
-                    onClick={() => { execCmd('fontSize', '7'); document.querySelectorAll('font[size="7"]').forEach((el) => { (el as HTMLElement).removeAttribute('size'); (el as HTMLElement).style.fontSize = `${s}px`; }); setFontSizeOpen(false); }}>
+                    onMouseEnter={() => {
+                      // Save selection and apply preview
+                      const sel = window.getSelection();
+                      if (sel && sel.rangeCount > 0) {
+                        savedSelRef.current = sel.getRangeAt(0).cloneRange();
+                      }
+                      if (savedSelRef.current) {
+                        const sel2 = window.getSelection();
+                        sel2?.removeAllRanges();
+                        sel2?.addRange(savedSelRef.current.cloneRange());
+                        execCmd('fontSize', '7');
+                        document.querySelectorAll('font[size="7"]').forEach((el) => {
+                          const prev = (el as HTMLElement).getAttribute('data-font-preview') ?? ((el as HTMLElement).style.fontSize || '15px');
+                          (el as HTMLElement).setAttribute('data-font-preview', prev);
+                          (el as HTMLElement).removeAttribute('size');
+                          (el as HTMLElement).style.fontSize = `${s}px`;
+                        });
+                      }
+                    }}
+                    onClick={() => {
+                      // Commit: remove preview attrs
+                      document.querySelectorAll('[data-font-preview]').forEach((el) => {
+                        (el as HTMLElement).removeAttribute('data-font-preview');
+                      });
+                      savedSelRef.current = null;
+                      setFontSizeOpen(false);
+                      if (focusedId) {
+                        const blockEl = document.querySelector(`[data-block-id="${focusedId}"] .lore-block-content`) as HTMLElement;
+                        if (blockEl) { htmlRef.current[focusedId] = blockEl.innerHTML; emitChange(); }
+                      }
+                    }}>
                     {s}px
                   </button>
                 ))}
@@ -668,7 +814,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
 
           <div className="lore-toolbar-sep" />
 
-          <button className="lore-toolbar-btn" onMouseDown={pd}
+          <button ref={tableButtonRef} className="lore-toolbar-btn" onMouseDown={pd}
             onClick={() => { setTablePicker(!tablePicker); setFontSizeOpen(false); setTextColorOpen(false); setHighlightOpen(false); }}
             title="Insert table" type="button">
             <Icon name="table-chart" size={18} color={colors.onSurfaceVariant} />
@@ -677,7 +823,11 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
       ) : null}
 
       {tablePicker ? (
-        <TablePicker onSelect={handleTableInsert} onClose={() => setTablePicker(false)} />
+        <TablePicker
+          onSelect={handleTableInsert}
+          onClose={() => setTablePicker(false)}
+          anchorRect={tableButtonRef.current?.getBoundingClientRect() ?? null}
+        />
       ) : null}
 
       <div
@@ -718,6 +868,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
               onPaste={handleBlockPaste}
               onImageResize={handleImageResize}
               onImageDrag={handleImageDrag}
+              onDeleteImage={handleDeleteBlock}
             />
             {editable && focusedId === block.id ? (
               <>
@@ -734,7 +885,10 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true }: P
             ) : null}
           </div>
         ))}
-        {blocks.length === 0 && editable ? (
+        {pendingClick ? (
+          <div className="lore-pending-cursor" style={{ left: pendingClick.x + 28, top: pendingClick.y + 8 }} />
+        ) : null}
+        {blocks.length === 0 && !pendingClick && editable ? (
           <div className="lore-canvas-empty">
             Click anywhere to start writing…
           </div>
@@ -850,6 +1004,20 @@ function CanvasStyles() {
             transform: scale(1.15);
           }
 
+          /* Pending cursor */
+          .lore-pending-cursor {
+            position: absolute;
+            width: 2px;
+            height: 20px;
+            background: ${colors.primary};
+            border-radius: 1px;
+            animation: lore-blink 1s step-end infinite;
+            pointer-events: none;
+          }
+          @keyframes lore-blink {
+            50% { opacity: 0; }
+          }
+
           /* Table picker */
           .lore-table-picker-backdrop {
             position: fixed;
@@ -857,10 +1025,6 @@ function CanvasStyles() {
             z-index: 100;
           }
           .lore-table-picker {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
             background: ${colors.surfaceContainerHigh};
             border: 1px solid ${colors.outlineVariant}55;
             border-radius: 8px;
