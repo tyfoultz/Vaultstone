@@ -165,6 +165,7 @@ export function LocationPageView({ page, worldId }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
 
   const section = useMemo(
     () => sections.find((s) => s.id === page.section_id) ?? null,
@@ -489,11 +490,29 @@ export function LocationPageView({ page, worldId }: Props) {
         </View>
 
         {/* ── Right sidebar ── */}
+        {!rightPanelOpen ? (
+          <View style={styles.rightPanelCollapsed}>
+            <Pressable
+              onPress={() => setRightPanelOpen(true)}
+              style={styles.rightPanelExpandBtn}
+              accessibilityLabel="Show sidebar"
+            >
+              <Icon name="chevron-left" size={14} color={colors.onSurfaceVariant} />
+            </Pressable>
+          </View>
+        ) : (
         <View style={styles.rightPanel}>
           <View style={styles.rightTabs}>
             <RightTabBtn label="On This Page" active={rightTab === 'on_this_page'} onPress={() => setRightTab('on_this_page')} />
             <RightTabBtn label="Sub-locations" active={rightTab === 'sub_locations'} onPress={() => setRightTab('sub_locations')} />
             <RightTabBtn label="History" active={rightTab === 'history'} onPress={() => setRightTab('history')} />
+            <Pressable
+              onPress={() => setRightPanelOpen(false)}
+              style={styles.rightPanelCollapseBtn}
+              accessibilityLabel="Collapse sidebar"
+            >
+              <Icon name="chevron-right" size={14} color={colors.outline} />
+            </Pressable>
           </View>
 
           <ScrollView contentContainerStyle={styles.rightBody}>
@@ -627,6 +646,7 @@ export function LocationPageView({ page, worldId }: Props) {
             ) : null}
           </ScrollView>
         </View>
+        )}
       </View>
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
@@ -804,6 +824,29 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: colors.outlineVariant + '33',
     flexDirection: 'column',
+  },
+  rightPanelCollapsed: {
+    width: 32,
+    backgroundColor: colors.surfaceContainer,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.outlineVariant + '33',
+    alignItems: 'center',
+    paddingTop: spacing.md,
+  },
+  rightPanelExpandBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
+  rightPanelCollapseBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rightTabs: {
     flexDirection: 'row',
