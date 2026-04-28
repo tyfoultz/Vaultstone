@@ -458,9 +458,9 @@ export function LocationPageView({ page, worldId }: Props) {
                             width: '100%',
                             height: '100%',
                             objectFit: 'cover',
-                            objectPosition: `${mapPin.x_pct}% ${mapPin.y_pct}%`,
+                            objectPosition: `${mapPin.x_pct * 100}% ${mapPin.y_pct * 100}%`,
                             transform: 'scale(2.5)',
-                            transformOrigin: `${mapPin.x_pct}% ${mapPin.y_pct}%`,
+                            transformOrigin: `${mapPin.x_pct * 100}% ${mapPin.y_pct * 100}%`,
                             display: 'block',
                           }}
                         />
