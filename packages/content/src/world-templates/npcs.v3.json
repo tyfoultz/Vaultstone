@@ -1,0 +1,57 @@
+{
+  "key": "npcs",
+  "version": 3,
+  "label": "NPCs",
+  "description": "Non-player characters: allies, rivals, villains, bystanders.",
+  "defaultPageKind": "npc",
+  "allowedPageKinds": ["npc", "custom"],
+  "defaultSectionView": "list",
+  "icon": "groups",
+  "railIcon": "groups",
+  "accentToken": "cosmic",
+  "fields": [
+    {
+      "key": "role",
+      "label": "Role",
+      "type": "text",
+      "placeholder": "Innkeeper, sellsword captain…"
+    },
+    {
+      "key": "species",
+      "label": "Species",
+      "type": "text",
+      "placeholder": "Human, elf, construct…"
+    },
+    {
+      "key": "gender",
+      "label": "Gender",
+      "type": "select",
+      "options": ["male", "female", "unknown", "other"]
+    },
+    {
+      "key": "threat",
+      "label": "Threat",
+      "type": "select",
+      "options": ["none", "low", "moderate", "high", "legendary"]
+    },
+    {
+      "key": "status",
+      "label": "Status",
+      "type": "select",
+      "options": ["alive", "dead", "missing", "unknown"]
+    },
+    {
+      "key": "disposition",
+      "label": "Disposition",
+      "type": "select",
+      "options": ["friendly", "neutral", "hostile", "unknown"]
+    },
+    {
+      "key": "faction",
+      "label": "Faction",
+      "type": "page_ref",
+      "pageKindFilter": ["faction"],
+      "helpText": "Link to a faction page."
+    }
+  ]
+}
