@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -452,87 +453,6 @@ export function NPCPageView({ page, worldId }: Props) {
             style={{ display: 'none' }}
           />
 
-          {/* Adjust portrait overlay — fixed modal so it renders above the canvas toolbar */}
-          {adjustingPortrait ? (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.4)' }} onClick={() => setAdjustingPortrait(false)} />
-              <div style={{
-                position: 'fixed',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                zIndex: 9001,
-                background: colors.surfaceContainerHigh,
-                border: `1px solid ${colors.outlineVariant}55`,
-                borderRadius: 12,
-                padding: 16,
-                minWidth: 260,
-                boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
-              }}>
-                <div style={{
-                  width: 180, height: 180, borderRadius: 90, overflow: 'hidden',
-                  margin: '0 auto 12px', position: 'relative',
-                  border: `2px solid ${colors.outlineVariant}44`,
-                }}>
-                  <img
-                    src={portraitUrl!}
-                    alt={page.title}
-                    draggable={false}
-                    style={{
-                      position: 'absolute',
-                      width: `${100 * localZoom}%`,
-                      height: `${100 * localZoom}%`,
-                      objectFit: 'cover',
-                      left: `${50 + localOffsetX}%`,
-                      top: `${50 + localOffsetY}%`,
-                      transform: 'translate(-50%, -50%)',
-                      cursor: 'grab',
-                    }}
-                    onMouseDown={(e: any) => {
-                      e.preventDefault();
-                      const startX = e.clientX;
-                      const startY = e.clientY;
-                      const startOx = localOffsetX;
-                      const startOy = localOffsetY;
-                      const onMove = (ev: MouseEvent) => {
-                        const dx = ((ev.clientX - startX) / 180) * 100;
-                        const dy = ((ev.clientY - startY) / 180) * 100;
-                        setLocalOffsetX(Math.max(-50, Math.min(50, startOx + dx)));
-                        setLocalOffsetY(Math.max(-50, Math.min(50, startOy + dy)));
-                      };
-                      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-                      document.addEventListener('mousemove', onMove);
-                      document.addEventListener('mouseup', onUp);
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline, minWidth: 36 }}>Zoom</Text>
-                  <input
-                    type="range"
-                    min="1"
-                    max="4"
-                    step="0.1"
-                    value={localZoom}
-                    onChange={(e: any) => setLocalZoom(parseFloat(e.target.value))}
-                    style={{ flex: 1 }}
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <Pressable onPress={() => portraitInputRef.current?.click()} style={styles.portraitActionBtn}>
-                    <Icon name="cloud-upload" size={14} color={colors.outline} />
-                    <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Replace</Text>
-                  </Pressable>
-                  <Pressable onPress={() => { setAdjustingPortrait(false); setLocalZoom(portraitZoom); setLocalOffsetX(portraitOffsetX); setLocalOffsetY(portraitOffsetY); }} style={styles.portraitActionBtn}>
-                    <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Cancel</Text>
-                  </Pressable>
-                  <Pressable onPress={savePortraitCrop} style={[styles.portraitActionBtn, { borderColor: colors.primary + '55', backgroundColor: colors.primaryContainer + '22' }]}>
-                    <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.primary, fontWeight: '600' }}>Save</Text>
-                  </Pressable>
-                </div>
-              </div>
-            </>
-          ) : null}
         </div>
 
         <View style={styles.npcTitleCol}>
@@ -829,6 +749,108 @@ export function NPCPageView({ page, worldId }: Props) {
       </View>
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
+
+      {adjustingPortrait && portraitUrl ? createPortal(
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.5)' }}
+            onClick={() => { setAdjustingPortrait(false); setLocalZoom(portraitZoom); setLocalOffsetX(portraitOffsetX); setLocalOffsetY(portraitOffsetY); }}
+          />
+          <div style={{
+            position: 'fixed',
+            top: 120,
+            left: 80,
+            zIndex: 9001,
+            background: colors.surfaceContainerHigh,
+            border: `1px solid ${colors.outlineVariant}55`,
+            borderRadius: 12,
+            padding: 20,
+            width: 280,
+            boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+          }}>
+            <div style={{
+              width: 200, height: 200, borderRadius: 100, overflow: 'hidden',
+              margin: '0 auto 16px', position: 'relative',
+              border: `2px solid ${colors.outlineVariant}44`,
+            }}>
+              <img
+                src={portraitUrl}
+                alt={page.title}
+                draggable={false}
+                style={{
+                  position: 'absolute',
+                  width: `${100 * localZoom}%`,
+                  height: `${100 * localZoom}%`,
+                  objectFit: 'cover',
+                  left: `${50 + localOffsetX}%`,
+                  top: `${50 + localOffsetY}%`,
+                  transform: 'translate(-50%, -50%)',
+                  cursor: 'grab',
+                }}
+                onMouseDown={(e: any) => {
+                  e.preventDefault();
+                  const startX = e.clientX;
+                  const startY = e.clientY;
+                  const startOx = localOffsetX;
+                  const startOy = localOffsetY;
+                  const onMove = (ev: MouseEvent) => {
+                    const dx = ((ev.clientX - startX) / 200) * 100;
+                    const dy = ((ev.clientY - startY) / 200) * 100;
+                    setLocalOffsetX(Math.max(-50, Math.min(50, startOx + dx)));
+                    setLocalOffsetY(Math.max(-50, Math.min(50, startOy + dy)));
+                  };
+                  const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+                  document.addEventListener('mousemove', onMove);
+                  document.addEventListener('mouseup', onUp);
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontFamily: 'Manrope, system-ui', fontSize: 11, color: colors.outline, minWidth: 36 }}>Zoom</span>
+              <input
+                type="range"
+                min="1"
+                max="4"
+                step="0.1"
+                value={localZoom}
+                onChange={(e: any) => setLocalZoom(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: colors.primary }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => portraitInputRef.current?.click()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '5px 10px', borderRadius: 8,
+                  border: `1px solid ${colors.outlineVariant}44`,
+                  background: 'transparent', color: colors.outline,
+                  fontFamily: 'Manrope, system-ui', fontSize: 11, cursor: 'pointer',
+                }}
+              >Replace</button>
+              <button
+                onClick={() => { setAdjustingPortrait(false); setLocalZoom(portraitZoom); setLocalOffsetX(portraitOffsetX); setLocalOffsetY(portraitOffsetY); }}
+                style={{
+                  padding: '5px 10px', borderRadius: 8,
+                  border: `1px solid ${colors.outlineVariant}44`,
+                  background: 'transparent', color: colors.outline,
+                  fontFamily: 'Manrope, system-ui', fontSize: 11, cursor: 'pointer',
+                }}
+              >Cancel</button>
+              <button
+                onClick={savePortraitCrop}
+                style={{
+                  padding: '5px 10px', borderRadius: 8,
+                  border: `1px solid ${colors.primary}55`,
+                  background: colors.primaryContainer + '22', color: colors.primary,
+                  fontFamily: 'Manrope, system-ui', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                }}
+              >Save</button>
+            </div>
+          </div>
+        </>,
+        document.body,
+      ) : null}
     </View>
   );
 }
@@ -893,16 +915,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerHigh,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '44',
-  },
-  portraitActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '44',
   },
