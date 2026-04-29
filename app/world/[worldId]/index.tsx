@@ -8,6 +8,7 @@ import {
   getCompletedSessionCount,
   getPage,
   startSession,
+  updateSection,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
@@ -23,6 +24,7 @@ import type { Database, TimelineCalendarSchema, WorldSection } from '@vaultstone
 import { useActiveSection } from '../../../components/world/ActiveSectionContext';
 import { CreatePageModal } from '../../../components/world/CreatePageModal';
 import { CreateSectionModal } from '../../../components/world/CreateSectionModal';
+import { WorldOpeningBlock } from '../../../components/world/WorldOpeningBlock';
 import {
   WorldSectionAddCard,
   WorldSectionCard,
@@ -666,18 +668,32 @@ export default function WorldLandingScreen() {
           </View>
         ) : null}
 
+        {/* Opening prose block */}
+        <View style={{ marginTop: spacing.xl + spacing.sm }}>
+          <WorldOpeningBlock
+            world={world}
+            worldId={worldId}
+            isOwner={isOwner}
+          />
+        </View>
+
+        {/* The World — section cards */}
         <View style={{ marginTop: spacing.xl + spacing.sm, gap: spacing.md }}>
-          <MetaLabel size="sm" tone="accent">
-            The Atlas
-          </MetaLabel>
-          <Text
-            variant="headline-sm"
-            family="serif-display"
-            weight="bold"
-            style={{ color: colors.onSurface }}
-          >
-            Sections in this world
-          </Text>
+          <View style={styles.sectionHeadingRow}>
+            <View style={{ flex: 1 }}>
+              <Text
+                variant="headline-sm"
+                family="serif-display"
+                weight="bold"
+                style={{ color: colors.onSurface }}
+              >
+                The World
+              </Text>
+            </View>
+            {isOwner ? (
+              <GhostButton label="+ Add Section" onPress={() => setCreateSectionOpen(true)} />
+            ) : null}
+          </View>
           <View style={ATLAS_GRID_STYLE as object}>
             {sections.map((section) => {
               const template = getTemplate(section.template_key);
@@ -688,10 +704,20 @@ export default function WorldLandingScreen() {
                   template={template}
                   pageCount={pageCounts[section.id] ?? 0}
                   onPress={() => handleSectionPress(section)}
+                  isOwner={isOwner}
+                  onDescriptionSave={async (desc) => {
+                    const { data } = await updateSection(section.id, { description: desc || null });
+                    if (data) useSectionsStore.getState().updateSection(section.id, { description: desc || null });
+                  }}
                 />
               );
             })}
-            <WorldSectionAddCard onPress={() => setCreateSectionOpen(true)} />
+            {isOwner ? (
+              <WorldSectionAddCard
+                onPress={() => setCreateSectionOpen(true)}
+                subtitle="Pantheon, calendar, languages…"
+              />
+            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -968,5 +994,10 @@ const styles = StyleSheet.create({
   hpBarFill: {
     height: 3,
     borderRadius: 2,
+  },
+  sectionHeadingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
 });

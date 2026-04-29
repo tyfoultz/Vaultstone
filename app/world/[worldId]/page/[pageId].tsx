@@ -39,8 +39,11 @@ import { EditLockBanner } from '../../../../components/world/EditLockBanner';
 import { PageHead } from '../../../../components/world/PageHead';
 import { OrphanBanner } from '../../../../components/world/OrphanBanner';
 import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle';
+import { FactsModal } from '../../../../components/world/FactsModal';
+import { LoreCanvasEditor } from '../../../../components/world/LoreCanvasEditor.web';
 import { ShareModal } from '../../../../components/world/ShareModal';
 import { StructuredFieldsForm } from '../../../../components/world/StructuredFieldsForm';
+import { LocationPageView } from '../../../../components/world/LocationPageView';
 import { NPCPageView } from '../../../../components/world/NPCPageView';
 import { TimelinePageView } from '../../../../components/world/TimelinePageView';
 import { PCStubPageView } from '../../../../components/world/players/PCStubPageView';
@@ -94,6 +97,7 @@ export default function PageDetailScreen() {
   const toggleVisibility = usePageVisibilityToggle(page ?? null);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
+  const [factsOpen, setFactsOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const removePage = usePagesStore((s) => s.removePage);
 
@@ -264,6 +268,27 @@ export default function PageDetailScreen() {
     };
   }, [pageId, tryClaim]);
 
+  function handleCanvasChange(blocks: Array<{ id: string; x: number; y: number; width: number; height?: number; html: string }>, plainText: string, bodyRefs?: string[]) {
+    if (!pageId || heldByOther) return;
+    const body = { __canvas_blocks: blocks };
+    pendingBodyRef.current = { body, bodyText: plainText, bodyRefs: bodyRefs ?? [] };
+    setSaveState('saving');
+    if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
+    bodyTimerRef.current = setTimeout(async () => {
+      const pending = pendingBodyRef.current;
+      if (!pending) return;
+      pendingBodyRef.current = null;
+      const { data, error } = await updatePage(pageId, {
+        body: pending.body as Json,
+        body_text: pending.bodyText,
+        body_refs: pending.bodyRefs,
+      });
+      if (error || !data) { setSaveState('error'); return; }
+      updatePageInStore(pageId, { body: data.body, body_text: data.body_text, body_refs: data.body_refs });
+      setSaveState('saved');
+    }, 800);
+  }
+
   function handleBodyChange(body: object, bodyText: string, bodyRefs: string[]) {
     if (!pageId) return;
     // Belt-and-suspenders: even with the editor disabled when locked, a
@@ -340,8 +365,14 @@ export default function PageDetailScreen() {
     return <NPCPageView page={page} worldId={worldId} />;
   }
 
+  // Location pages get the notes-heavy layout with sidebar properties
+  if (page.page_kind === 'location') {
+    return <LocationPageView page={page} worldId={worldId} />;
+  }
+
   const template = getTemplate(page.template_key as TemplateKey, page.template_version);
   const kindLabel = PAGE_KIND_LABEL[page.page_kind] ?? 'Page';
+  const isLore = page.page_kind === 'lore';
 
   return (
     <View style={styles.root}>
@@ -414,22 +445,35 @@ export default function PageDetailScreen() {
       ) : null}
 
       <View style={styles.wikiWrap}>
-        <ScrollView style={styles.wikiDoc} contentContainerStyle={styles.wikiDocInner}>
+        <ScrollView
+          style={styles.wikiDoc}
+          contentContainerStyle={isLore ? styles.wikiDocInnerWide : styles.wikiDocInner}
+        >
           <PageHead
             icon={template.icon}
             title={page.title}
             meta={`${kindLabel} · ${section.name}`}
             accentToken={template.accentToken}
             actions={
-              <VisibilityBadge
-              visibility={page.visible_to_players ? 'player' : 'gm'}
-              interactive={!!toggleVisibility}
-              onPress={toggleVisibility ?? undefined}
-            />
+              <>
+                {isLore && template.fields.length > 0 ? (
+                  <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
+                    <Icon name="info-outline" size={14} color={colors.primary} />
+                    <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
+                      Facts
+                    </Text>
+                  </Pressable>
+                ) : null}
+                <VisibilityBadge
+                  visibility={page.visible_to_players ? 'player' : 'gm'}
+                  interactive={!!toggleVisibility}
+                  onPress={toggleVisibility ?? undefined}
+                />
+              </>
             }
           />
 
-          <View style={{ marginTop: spacing.xl, gap: spacing.lg }}>
+          <View style={{ marginTop: isLore ? spacing.md : spacing.xl, gap: spacing.lg }}>
             {isOrphan ? <OrphanBanner page={page} /> : null}
 
             {bannerLock ? (
@@ -444,34 +488,45 @@ export default function PageDetailScreen() {
               style={heldByOther ? styles.disabledEditor : undefined}
               pointerEvents={heldByOther ? 'none' : 'auto'}
             >
-              <StructuredFieldsForm
-                page={page}
-                template={template}
-                onSaveStateChange={setSaveState}
-              />
-
-              <View style={[styles.bodySection, { marginTop: spacing.lg, flex: 1 }]}>
-                <MetaLabel size="sm" tone="muted" style={{ marginBottom: spacing.xs }}>
-                  Body
-                </MetaLabel>
-                <BodyEditor
-                  initialContent={(page.body as object) ?? null}
-                  onChange={handleBodyChange}
-                  editable={!heldByOther}
-                  placeholder={`Begin the chronicle of ${page.title}…`}
-                  worldId={worldId}
-                  pageId={pageId}
-                  mentionablePages={mentionablePages}
-                  mentionablePins={mentionablePins}
-                  mentionableEvents={mentionableEvents}
-                  getSectionLabel={sectionLabelById}
-                  onMentionClick={(targetPageId) =>
-                    router.push(worldPageHref(worldId, targetPageId))
-                  }
-                  onPinMentionClick={(_pinId, mapId) =>
-                    router.push(worldMapHref(worldId, mapId))
-                  }
+              {!isLore ? (
+                <StructuredFieldsForm
+                  page={page}
+                  template={template}
+                  onSaveStateChange={setSaveState}
                 />
+              ) : null}
+
+              <View style={[styles.bodySection, { marginTop: spacing.md, flex: 1 }]}>
+                {page.page_kind === 'lore' ? (
+                  <LoreCanvasEditor
+                    initialBlocks={
+                      (page.body as Record<string, unknown>)?.__canvas_blocks as
+                        Array<{ id: string; x: number; y: number; width: number; height?: number; html: string }> | null
+                        ?? null
+                    }
+                    onChange={handleCanvasChange}
+                    editable={!heldByOther}
+                  />
+                ) : (
+                  <BodyEditor
+                    initialContent={(page.body as object) ?? null}
+                    onChange={handleBodyChange}
+                    editable={!heldByOther}
+                    placeholder={`Begin the chronicle of ${page.title}…`}
+                    worldId={worldId}
+                    pageId={pageId}
+                    mentionablePages={mentionablePages}
+                    mentionablePins={mentionablePins}
+                    mentionableEvents={mentionableEvents}
+                    getSectionLabel={sectionLabelById}
+                    onMentionClick={(targetPageId) =>
+                      router.push(worldPageHref(worldId, targetPageId))
+                    }
+                    onPinMentionClick={(_pinId, mapId) =>
+                      router.push(worldMapHref(worldId, mapId))
+                    }
+                  />
+                )}
               </View>
             </View>
           </View>
@@ -482,6 +537,16 @@ export default function PageDetailScreen() {
 
       {shareOpen ? (
         <ShareModal page={page} onClose={() => setShareOpen(false)} />
+      ) : null}
+
+      {template.fields.length > 0 ? (
+        <FactsModal
+          visible={factsOpen}
+          page={page}
+          template={template}
+          onClose={() => setFactsOpen(false)}
+          onSaveStateChange={setSaveState}
+        />
       ) : null}
     </View>
   );
@@ -507,6 +572,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 36,
     paddingBottom: 64,
   },
+  wikiDocInnerWide: {
+    paddingTop: 28,
+    paddingHorizontal: 36,
+    paddingBottom: 64,
+  },
   missing: {
     flex: 1,
     alignItems: 'center',
@@ -518,6 +588,18 @@ const styles = StyleSheet.create({
   },
   disabledEditor: {
     opacity: 0.55,
+  },
+  factsChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primary + '44',
+    backgroundColor: colors.primaryContainer + '22',
   },
   shareBtn: {
     flexDirection: 'row',

@@ -1,0 +1,1577 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { Icon, colors, radius, spacing } from '@vaultstone/ui';
+
+type CanvasBlock = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height?: number;
+  html: string;
+};
+
+type MentionablePage = {
+  id: string;
+  title: string;
+  page_kind: string;
+  section_id: string;
+};
+
+type Props = {
+  initialBlocks: CanvasBlock[] | null;
+  onChange: (blocks: CanvasBlock[], plainText: string, bodyRefs: string[]) => void;
+  editable?: boolean;
+  minHeight?: number;
+  mentionablePages?: MentionablePage[];
+  getSectionLabel?: (sectionId: string) => string;
+};
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+const GRID = 12;
+function snap(v: number) {
+  return Math.round(v / GRID) * GRID;
+}
+
+function blockHasContent(el: HTMLElement): boolean {
+  if ((el.textContent ?? '').trim().length > 0) return true;
+  if (el.querySelector('img')) return true;
+  if (el.querySelector('table')) return true;
+  return false;
+}
+
+function blocksToPlainText(blocks: CanvasBlock[]): string {
+  const el = document.createElement('div');
+  return blocks.map((b) => {
+    el.innerHTML = b.html;
+    return el.textContent ?? '';
+  }).filter(Boolean).join('\n\n');
+}
+
+function extractRefsFromBlocks(blocks: CanvasBlock[]): string[] {
+  const el = document.createElement('div');
+  const ids = new Set<string>();
+  for (const b of blocks) {
+    el.innerHTML = b.html;
+    el.querySelectorAll('.vaultstone-mention[data-id]').forEach((m) => {
+      const id = m.getAttribute('data-id');
+      const kind = m.getAttribute('data-kind');
+      if (id && (!kind || kind === 'page')) ids.add(id);
+    });
+  }
+  return Array.from(ids);
+}
+
+const MENTION_KIND_ICON: Record<string, string> = {
+  npc: '👤',
+  location: '📍',
+  faction: '🛡',
+  lore: '📖',
+  timeline: '⏳',
+  custom: '📄',
+  item: '💎',
+  pc_stub: '👤',
+  player_character: '👤',
+};
+
+function buildTableHtml(cols: number, rows: number): string {
+  const ths = Array.from({ length: cols }, (_, i) => `<th>Col ${i + 1}</th>`).join('');
+  const tds = Array.from({ length: cols }, () => '<td>&nbsp;</td>').join('');
+  const trs = Array.from({ length: rows - 1 }, () => `<tr>${tds}</tr>`).join('');
+  return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+function insertTableHtmlAtBlock(blockId: string, cols: number, rows: number) {
+  const el = document.querySelector(`[data-block-id="${blockId}"] .lore-block-content`) as HTMLElement | null;
+  if (!el) return;
+  el.focus();
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount === 0) {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  document.execCommand('insertHTML', false, buildTableHtml(cols, rows));
+}
+
+const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48];
+const TEXT_COLORS = ['#e2e2e5', '#d3bbff', '#adc6ff', '#1D9E75', '#EF9F27', '#E24B4A', '#f472b6', '#ffffff'];
+const HIGHLIGHT_COLORS = ['transparent', '#6d28d9', '#0566d9', '#1D9E75', '#EF9F27', '#E24B4A', '#713f12', '#334155'];
+
+// ── BlockContent ────────────────────────────────────────────────────────
+
+function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onPaste, onImageResize, onImageDrag, onDeleteImage }: {
+  id: string;
+  initialHtml: string;
+  editable: boolean;
+  onInput: (id: string, html: string) => void;
+  onFocus: (id: string) => void;
+  onBlur: (id: string, el: HTMLElement, html: string) => void;
+  onPaste: (id: string, e: React.ClipboardEvent) => void;
+  onImageResize: (id: string, imgWidth: number) => void;
+  onImageDrag: (id: string, img: HTMLImageElement, startX: number, startY: number) => void;
+  onDeleteImage: (id: string) => void;
+}) {
+  const elRef = useRef<HTMLDivElement>(null);
+  const initialRef = useRef(initialHtml);
+
+  useEffect(() => {
+    if (elRef.current && initialRef.current) {
+      elRef.current.innerHTML = initialRef.current;
+    }
+  }, []);
+
+  // Tab navigation in tables + Delete/Backspace on selected images
+  useEffect(() => {
+    if (!elRef.current || !editable) return;
+    const el = elRef.current;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      // Delete/Backspace on selected image
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const selected = el.querySelector('img.lore-img-selected') as HTMLImageElement | null;
+        if (selected) {
+          e.preventDefault();
+          const wrap = selected.closest('.lore-img-resize-wrap');
+          if (wrap) wrap.remove(); else selected.remove();
+          onInput(id, el.innerHTML);
+          if (!blockHasContent(el)) onDeleteImage(id);
+          return;
+        }
+      }
+
+      // Tab in tables — walk all cells in the table regardless of thead/tbody
+      if (e.key === 'Tab') {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        let node: Node | null = sel.anchorNode;
+        let cell: HTMLElement | null = null;
+        while (node && node !== el) {
+          if (node instanceof HTMLElement && (node.tagName === 'TD' || node.tagName === 'TH')) {
+            cell = node;
+            break;
+          }
+          node = node.parentNode;
+        }
+        if (!cell) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const table = cell.closest('table');
+        if (!table) return;
+        const allCells = Array.from(table.querySelectorAll('th, td')) as HTMLElement[];
+        const idx = allCells.indexOf(cell);
+
+        let next: HTMLElement | null = null;
+        if (e.shiftKey) {
+          next = idx > 0 ? allCells[idx - 1] : null;
+        } else {
+          next = idx < allCells.length - 1 ? allCells[idx + 1] : null;
+        }
+
+        if (next) {
+          const range = document.createRange();
+          range.selectNodeContents(next);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      }
+    }
+
+    el.addEventListener('keydown', handleKeyDown);
+    return () => el.removeEventListener('keydown', handleKeyDown);
+  }, [editable, id, onInput, onDeleteImage]);
+
+  useEffect(() => {
+    if (!elRef.current || !editable) return;
+    const el = elRef.current;
+
+    function clearImgUI() {
+      el.querySelectorAll('.lore-img-selected').forEach((s) => s.classList.remove('lore-img-selected'));
+      el.querySelectorAll('.lore-img-resize-wrap').forEach((w) => {
+        const inner = w.querySelector('img');
+        if (inner) w.parentElement?.replaceChild(inner, w);
+      });
+    }
+
+    function addResizeHandle(wrapper: HTMLElement, img: HTMLImageElement, edge: string) {
+      const h = document.createElement('div');
+      h.className = `lore-img-handle lore-img-handle-${edge}`;
+      wrapper.appendChild(h);
+
+      h.addEventListener('mousedown', (me) => {
+        me.preventDefault();
+        me.stopPropagation();
+        const startX = me.clientX;
+        const startY = me.clientY;
+        const startW = img.offsetWidth;
+        const startH = img.offsetHeight;
+        const ratio = img.naturalHeight / img.naturalWidth;
+        img.style.maxWidth = 'none';
+
+        function onMove(mv: MouseEvent) {
+          const dx = mv.clientX - startX;
+          const dy = mv.clientY - startY;
+          let newW = startW;
+          let newH = startH;
+
+          if (edge === 'corner') {
+            const delta = (Math.abs(dx) > Math.abs(dy)) ? dx : dy / ratio;
+            newW = Math.max(30, startW + delta);
+            newH = Math.round(newW * ratio);
+          } else if (edge === 'right' || edge === 'left') {
+            const sign = edge === 'left' ? -1 : 1;
+            newW = Math.max(30, startW + dx * sign);
+            newH = startH;
+          } else if (edge === 'top' || edge === 'bottom') {
+            const sign = edge === 'top' ? -1 : 1;
+            newH = Math.max(30, startH + dy * sign);
+            newW = startW;
+          }
+
+          img.style.width = `${Math.round(newW)}px`;
+          img.style.height = `${Math.round(newH)}px`;
+          onImageResize(id, Math.round(newW));
+        }
+        function onUp() {
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          clearImgUI();
+          onInput(id, el.innerHTML);
+        }
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      });
+    }
+
+    function handleImgClick(e: MouseEvent) {
+      const img = (e.target as HTMLElement).closest('img') as HTMLImageElement | null;
+      if (!img) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const wasSelected = img.classList.contains('lore-img-selected');
+      clearImgUI();
+      if (wasSelected) {
+        onInput(id, el.innerHTML);
+        return;
+      }
+
+      img.classList.add('lore-img-selected');
+
+      const wrapper = document.createElement('span');
+      wrapper.className = 'lore-img-resize-wrap';
+      wrapper.contentEditable = 'false';
+      wrapper.style.display = 'inline-block';
+      wrapper.style.position = 'relative';
+      img.parentElement?.replaceChild(wrapper, img);
+      wrapper.appendChild(img);
+
+      for (const edge of ['corner', 'right', 'left', 'top', 'bottom']) {
+        addResizeHandle(wrapper, img, edge);
+      }
+
+      // Drag image via the image itself
+      img.addEventListener('mousedown', (me) => {
+        if ((me.target as HTMLElement).closest('.lore-img-handle')) return;
+        me.preventDefault();
+        me.stopPropagation();
+        onImageDrag(id, img, me.clientX, me.clientY);
+      }, { once: true });
+    }
+
+    el.addEventListener('click', handleImgClick);
+    return () => el.removeEventListener('click', handleImgClick);
+  }, [editable, id, onInput, onImageResize, onImageDrag]);
+
+  return (
+    <div
+      ref={elRef}
+      className="lore-block-content"
+      contentEditable={editable}
+      suppressContentEditableWarning
+      onInput={() => {
+        if (elRef.current) onInput(id, elRef.current.innerHTML);
+      }}
+      onFocus={() => onFocus(id)}
+      onBlur={() => {
+        if (elRef.current) {
+          onBlur(id, elRef.current, elRef.current.innerHTML);
+        }
+      }}
+      onPaste={(e) => onPaste(id, e)}
+    />
+  );
+}
+
+// ── Table Size Picker ───────────────────────────────────────────────────
+
+function TablePicker({ onSelect, onClose, anchorRect }: {
+  onSelect: (cols: number, rows: number) => void;
+  onClose: () => void;
+  anchorRect: { left: number; bottom: number } | null;
+}) {
+  const MAX_COLS = 7;
+  const MAX_ROWS = 6;
+  const [hover, setHover] = useState<{ c: number; r: number } | null>(null);
+
+  const posStyle = anchorRect
+    ? { position: 'fixed' as const, top: anchorRect.bottom + 4, left: anchorRect.left, transform: 'none' }
+    : { position: 'fixed' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+
+  return (
+    <div className="lore-table-picker-backdrop" onClick={onClose}>
+      <div className="lore-table-picker" style={posStyle} onClick={(e) => e.stopPropagation()}>
+        <div className="lore-table-picker-label">
+          {hover ? `${hover.c} × ${hover.r}` : 'Select size'}
+        </div>
+        <div className="lore-table-picker-grid">
+          {Array.from({ length: MAX_ROWS }, (_, r) => (
+            <div key={r} style={{ display: 'flex', gap: 2 }}>
+              {Array.from({ length: MAX_COLS }, (_, c) => {
+                const active = hover && c < hover.c && r < hover.r;
+                return (
+                  <div
+                    key={c}
+                    className={`lore-table-picker-cell ${active ? 'active' : ''}`}
+                    onMouseEnter={() => setHover({ c: c + 1, r: r + 1 })}
+                    onClick={() => onSelect(c + 1, r + 1)}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Mention Typeahead ────────────────────────────────────────────────────
+
+function MentionTypeahead({ query, pages, position, onSelect, onClose, getSectionLabel }: {
+  query: string;
+  pages: MentionablePage[];
+  position: { x: number; y: number };
+  onSelect: (page: MentionablePage) => void;
+  onClose: () => void;
+  getSectionLabel?: (id: string) => string;
+}) {
+  const q = query.toLowerCase();
+  const filtered = pages.filter((p) => p.title.toLowerCase().includes(q)).slice(0, 8);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  useEffect(() => setActiveIdx(0), [query]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveIdx((i) => Math.max(i - 1, 0));
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        if (filtered[activeIdx]) onSelect(filtered[activeIdx]);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    }
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [filtered, activeIdx, onSelect, onClose]);
+
+  if (filtered.length === 0) {
+    return (
+      <div className="lore-mention-popup" style={{ left: position.x, top: position.y }}>
+        <div className="lore-mention-empty">No matches</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="lore-mention-popup" style={{ left: position.x, top: position.y }}>
+      <div className="lore-mention-list">
+        {filtered.map((p, i) => (
+          <button
+            key={p.id}
+            className={`lore-mention-item ${i === activeIdx ? 'active' : ''}`}
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); onSelect(p); }}
+            onMouseEnter={() => setActiveIdx(i)}
+          >
+            <span className="lore-mention-item-icon">{MENTION_KIND_ICON[p.page_kind] ?? '📄'}</span>
+            <span className="lore-mention-item-text">
+              <span className="lore-mention-item-title">{p.title}</span>
+              {getSectionLabel ? (
+                <span className="lore-mention-item-meta">{getSectionLabel(p.section_id)}</span>
+              ) : null}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Editor ─────────────────────────────────────────────────────────
+
+export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, mentionablePages, getSectionLabel }: Props) {
+  const [blocks, setBlocks] = useState<CanvasBlock[]>(initialBlocks ?? []);
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const changeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const htmlRef = useRef<Record<string, string>>({});
+  const [tablePicker, setTablePicker] = useState(false);
+  const [fontSizeOpen, setFontSizeOpen] = useState(false);
+  const [textColorOpen, setTextColorOpen] = useState(false);
+  const [highlightOpen, setHighlightOpen] = useState(false);
+  const tableButtonRef = useRef<HTMLButtonElement>(null);
+  const [pendingClick, setPendingClick] = useState<{ x: number; y: number } | null>(null);
+  const savedSelRef = useRef<Range | null>(null);
+  const [mentionState, setMentionState] = useState<{
+    blockId: string;
+    query: string;
+    position: { x: number; y: number };
+    startOffset: number;
+    node: Node;
+  } | null>(null);
+
+  for (const b of blocks) {
+    if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
+  }
+
+  function buildSnapshot(base?: CanvasBlock[]): CanvasBlock[] {
+    return (base ?? blocksRef.current).map((b) => ({
+      ...b,
+      html: htmlRef.current[b.id] ?? b.html,
+    }));
+  }
+
+  function emitChange(next?: CanvasBlock[]) {
+    if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
+    changeTimerRef.current = setTimeout(() => {
+      const final = buildSnapshot(next);
+      onChangeRef.current(final, blocksToPlainText(final), extractRefsFromBlocks(final));
+    }, 800);
+  }
+
+  function materializePending(): string | null {
+    if (!pendingClick) return null;
+    const { x, y } = pendingClick;
+    setPendingClick(null);
+    const id = uid();
+    const newBlock: CanvasBlock = { id, x, y, width: 320, html: '' };
+    htmlRef.current[id] = '';
+    setBlocks((prev) => [...prev, newBlock]);
+    setFocusedId(id);
+    return id;
+  }
+
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!editable) return;
+    const target = e.target as HTMLElement;
+    if (target !== canvasRef.current) return;
+
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const x = snap(Math.max(0, e.clientX - rect.left - 32));
+    const y = snap(Math.max(0, e.clientY - rect.top - 12));
+
+    setPendingClick({ x, y });
+    setFocusedId(null);
+  }, [editable]);
+
+  const BLOCK_PADDING = 28 + 12 + 2 + 12;
+
+  function fitBlockToContent(id: string) {
+    const blockEl = document.querySelector(`[data-block-id="${id}"]`) as HTMLElement | null;
+    if (!blockEl) return;
+    const content = blockEl.querySelector('.lore-block-content') as HTMLElement | null;
+    if (!content) return;
+    const imgs = content.querySelectorAll('img');
+    if (imgs.length === 0) return;
+    let maxImgW = 0;
+    imgs.forEach((img) => { maxImgW = Math.max(maxImgW, img.offsetWidth); });
+    const needed = maxImgW + BLOCK_PADDING;
+    setBlocks((prev) => prev.map((b) => b.id === id ? { ...b, width: Math.max(b.width, needed) } : b));
+  }
+
+  function handleImageResize(id: string, imgWidth: number) {
+    const needed = imgWidth + BLOCK_PADDING;
+    setBlocks((prev) => prev.map((b) => {
+      if (b.id !== id) return b;
+      return { ...b, width: Math.max(120, needed) };
+    }));
+  }
+
+  const handleImageDrag = useCallback((blockId: string, img: HTMLImageElement, startClientX: number, startClientY: number) => {
+    if (!canvasRef.current) return;
+    const imgW = img.offsetWidth;
+    const imgH = img.offsetHeight;
+    const imgSrc = img.src;
+    const imgStyle = img.getAttribute('style') ?? '';
+
+    const cr = canvasRef.current.getBoundingClientRect();
+    const startX = startClientX - cr.left;
+    const startY = startClientY - cr.top;
+
+    const ghost = document.createElement('img');
+    ghost.src = imgSrc;
+    ghost.className = 'lore-img-drag-ghost';
+    ghost.style.width = `${imgW}px`;
+    ghost.style.height = `${imgH}px`;
+    ghost.style.left = `${startX - imgW / 2}px`;
+    ghost.style.top = `${startY - imgH / 2}px`;
+    canvasRef.current.appendChild(ghost);
+
+    function onMove(mv: MouseEvent) {
+      if (!canvasRef.current) return;
+      const r = canvasRef.current.getBoundingClientRect();
+      ghost.style.left = `${mv.clientX - r.left - imgW / 2}px`;
+      ghost.style.top = `${mv.clientY - r.top - imgH / 2}px`;
+    }
+
+    function onUp(ev: MouseEvent) {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      ghost.remove();
+
+      if (!canvasRef.current) return;
+      const r = canvasRef.current.getBoundingClientRect();
+      const dropX = snap(Math.max(0, ev.clientX - r.left - imgW / 2));
+      const dropY = snap(Math.max(0, ev.clientY - r.top - imgH / 2));
+
+      // Remove image from source block
+      const srcEl = document.querySelector(`[data-block-id="${blockId}"] .lore-block-content`) as HTMLElement | null;
+      if (srcEl) {
+        img.remove();
+        htmlRef.current[blockId] = srcEl.innerHTML;
+        if (!blockHasContent(srcEl)) {
+          delete htmlRef.current[blockId];
+          setBlocks((prev) => prev.filter((b) => b.id !== blockId));
+        }
+      }
+
+      // Create new block with the image
+      const newId = uid();
+      const imgTag = `<img src="${imgSrc}" style="${imgStyle}" />`;
+      htmlRef.current[newId] = imgTag;
+      setBlocks((prev) => [...prev, { id: newId, x: dropX, y: dropY, width: imgW + BLOCK_PADDING, html: imgTag }]);
+      emitChange();
+    }
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [BLOCK_PADDING]);
+
+  function handleBlockInput(id: string, html: string) {
+    htmlRef.current[id] = html;
+    requestAnimationFrame(() => fitBlockToContent(id));
+    emitChange();
+
+    // Detect @ mention trigger
+    if (mentionablePages && mentionablePages.length > 0) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      if (node.nodeType !== Node.TEXT_NODE) { setMentionState(null); return; }
+      const text = node.textContent ?? '';
+      const cursor = range.startOffset;
+      const atIdx = text.lastIndexOf('@', cursor - 1);
+      if (atIdx < 0 || (atIdx > 0 && text[atIdx - 1] !== ' ' && text[atIdx - 1] !== '\n')) {
+        setMentionState(null);
+        return;
+      }
+      const query = text.slice(atIdx + 1, cursor);
+      if (query.includes(' ') && query.length > 20) { setMentionState(null); return; }
+
+      const r = document.createRange();
+      r.setStart(node, atIdx);
+      r.setEnd(node, atIdx);
+      const rect = r.getBoundingClientRect();
+      setMentionState({
+        blockId: id,
+        query,
+        position: { x: rect.left, y: rect.bottom + 4 },
+        startOffset: atIdx,
+        node,
+      });
+    }
+  }
+
+  function handleMentionSelect(page: MentionablePage) {
+    if (!mentionState) return;
+    const { blockId, startOffset, node } = mentionState;
+    setMentionState(null);
+
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const text = node.textContent ?? '';
+    const cursor = sel.getRangeAt(0).startOffset;
+    const before = text.slice(0, startOffset);
+    const after = text.slice(cursor);
+
+    const el = document.querySelector(`[data-block-id="${blockId}"] .lore-block-content`) as HTMLElement | null;
+    if (!el) return;
+
+    // Build: beforeText + mentionChip + afterText (with trailing space)
+    node.textContent = before;
+
+    const chip = document.createElement('span');
+    chip.className = 'vaultstone-mention';
+    chip.setAttribute('data-id', page.id);
+    chip.setAttribute('data-kind', 'page');
+    chip.contentEditable = 'false';
+    chip.textContent = `@ ${page.title}`;
+
+    // Always insert a text node after the chip so the cursor has somewhere to go
+    const trailing = document.createTextNode(after ? after : ' ');
+    const parent = node.parentNode;
+    const nextSib = node.nextSibling;
+    parent?.insertBefore(chip, nextSib);
+    parent?.insertBefore(trailing, chip.nextSibling);
+
+    // Place cursor at the start of the trailing text node
+    requestAnimationFrame(() => {
+      const r = document.createRange();
+      r.setStart(trailing, after ? 0 : 1);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      el.focus();
+      htmlRef.current[blockId] = el.innerHTML;
+      emitChange();
+    });
+  }
+
+  function handleBlockBlur(id: string, el: HTMLElement, html: string) {
+    if (!blockHasContent(el)) {
+      delete htmlRef.current[id];
+      setBlocks((prev) => {
+        const next = prev.filter((b) => b.id !== id);
+        emitChange(next);
+        return next;
+      });
+      setFocusedId(null);
+      return;
+    }
+    htmlRef.current[id] = html;
+    setBlocks((prev) => {
+      const next = prev.map((b) => b.id === id ? { ...b, html } : b);
+      emitChange(next);
+      return next;
+    });
+  }
+
+  function handleBlockPaste(id: string, e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          const img = new Image();
+          img.onload = () => {
+            const maxW = 480;
+            const w = Math.min(img.naturalWidth, maxW);
+            const h = Math.round(w * (img.naturalHeight / img.naturalWidth));
+            document.execCommand(
+              'insertHTML',
+              false,
+              `<img src="${dataUrl}" style="width:${w}px;height:${h}px;border-radius:6px;display:block;margin:4px 0;" />`,
+            );
+            const el = document.querySelector(`[data-block-id="${id}"] .lore-block-content`) as HTMLElement;
+            if (el) {
+              htmlRef.current[id] = el.innerHTML;
+              requestAnimationFrame(() => fitBlockToContent(id));
+              emitChange();
+            }
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  }
+
+  // Canvas-level paste: create a block from pasted images when no block is focused
+  useEffect(() => {
+    if (!editable) return;
+    function onPaste(e: ClipboardEvent) {
+      if (focusedId) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            const img = new Image();
+            img.onload = () => {
+              const maxW = 480;
+              const w = Math.min(img.naturalWidth, maxW);
+              const h = Math.round(w * (img.naturalHeight / img.naturalWidth));
+              const pos = pendingClick ?? { x: snap(40), y: snap(40) };
+              setPendingClick(null);
+              const newId = uid();
+              const imgTag = `<img src="${dataUrl}" style="width:${w}px;height:${h}px;border-radius:6px;display:block;margin:4px 0;" />`;
+              htmlRef.current[newId] = imgTag;
+              setBlocks((prev) => [...prev, { id: newId, x: pos.x, y: pos.y, width: w + BLOCK_PADDING, html: imgTag }]);
+              setFocusedId(newId);
+              emitChange();
+            };
+            img.src = dataUrl;
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+      }
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  });
+
+  // Materialize pending block on keypress
+  useEffect(() => {
+    if (!pendingClick || !editable) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { setPendingClick(null); return; }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        const newId = materializePending();
+        if (newId) {
+          requestAnimationFrame(() => {
+            const el = document.querySelector(`[data-block-id="${newId}"] .lore-block-content`) as HTMLElement;
+            if (el) {
+              el.focus();
+              document.execCommand('insertText', false, e.key);
+            }
+          });
+        }
+        e.preventDefault();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  function handleDeleteBlock(id: string) {
+    delete htmlRef.current[id];
+    setBlocks((prev) => {
+      const next = prev.filter((b) => b.id !== id);
+      emitChange(next);
+      return next;
+    });
+    setFocusedId(null);
+  }
+
+  function handleDragStart(id: string, e: React.MouseEvent) {
+    e.preventDefault();
+    const block = blocksRef.current.find((b) => b.id === id);
+    if (!block || !canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    dragOffset.current = {
+      x: e.clientX - rect.left - block.x,
+      y: e.clientY - rect.top - block.y,
+    };
+    setDraggingId(id);
+
+    function onMove(ev: MouseEvent) {
+      if (!canvasRef.current) return;
+      const cr = canvasRef.current.getBoundingClientRect();
+      const nx = snap(Math.max(0, ev.clientX - cr.left - dragOffset.current.x));
+      const ny = snap(Math.max(0, ev.clientY - cr.top - dragOffset.current.y));
+      setBlocks((prev) => prev.map((b) => b.id === id ? { ...b, x: nx, y: ny } : b));
+    }
+
+    function onUp() {
+      setDraggingId(null);
+      emitChange();
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function handleResizeStart(id: string, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const block = blocksRef.current.find((b) => b.id === id);
+    if (!block) return;
+
+    const startX = e.clientX;
+    const startW = block.width;
+
+    function onMove(ev: MouseEvent) {
+      const dx = ev.clientX - startX;
+      setBlocks((prev) => prev.map((b) => {
+        if (b.id !== id) return b;
+        return { ...b, width: snap(Math.max(120, startW + dx)) };
+      }));
+    }
+
+    function onUp() {
+      emitChange();
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function execCmd(cmd: string, arg?: string) {
+    document.execCommand(cmd, false, arg);
+  }
+
+  function handleTableInsert(cols: number, rows: number) {
+    setTablePicker(false);
+    if (focusedId) {
+      insertTableHtmlAtBlock(focusedId, cols, rows);
+      const el = document.querySelector(`[data-block-id="${focusedId}"] .lore-block-content`) as HTMLElement | null;
+      if (el) {
+        htmlRef.current[focusedId] = el.innerHTML;
+        emitChange();
+      }
+    } else {
+      const pos = pendingClick ?? { x: snap(40), y: snap(40) };
+      setPendingClick(null);
+      const id = uid();
+      const html = buildTableHtml(cols, rows);
+      htmlRef.current[id] = html;
+      setBlocks((prev) => [...prev, { id, x: pos.x, y: pos.y, width: Math.max(320, cols * 100 + BLOCK_PADDING), html }]);
+      setFocusedId(id);
+      emitChange();
+    }
+  }
+
+  const pd = (e: React.MouseEvent) => e.preventDefault();
+
+  return (
+    <View style={styles.root}>
+      <CanvasStyles />
+      {editable ? (
+        <div className="lore-toolbar">
+          {/* Font size */}
+          <div style={{ position: 'relative' }}>
+            <button className="lore-toolbar-btn lore-toolbar-btn-wide" onMouseDown={pd}
+              onClick={() => { setFontSizeOpen(!fontSizeOpen); setTextColorOpen(false); setHighlightOpen(false); }}
+              title="Font size" type="button">
+              <span className="lore-toolbar-label">Size</span>
+              <Icon name="expand-more" size={12} color={colors.outline} />
+            </button>
+            {fontSizeOpen ? (
+              <div className="lore-toolbar-dropdown"
+                onMouseLeave={() => {
+                  // Restore original on leave
+                  document.querySelectorAll('[data-font-preview]').forEach((el) => {
+                    const orig = (el as HTMLElement).getAttribute('data-font-preview');
+                    if (orig) (el as HTMLElement).style.fontSize = orig;
+                    (el as HTMLElement).removeAttribute('data-font-preview');
+                  });
+                }}
+              >
+                {FONT_SIZES.map((s) => (
+                  <button key={s} className="lore-toolbar-dropdown-item" type="button"
+                    onMouseDown={pd}
+                    onMouseEnter={() => {
+                      // Save selection and apply preview
+                      const sel = window.getSelection();
+                      if (sel && sel.rangeCount > 0) {
+                        savedSelRef.current = sel.getRangeAt(0).cloneRange();
+                      }
+                      if (savedSelRef.current) {
+                        const sel2 = window.getSelection();
+                        sel2?.removeAllRanges();
+                        sel2?.addRange(savedSelRef.current.cloneRange());
+                        execCmd('fontSize', '7');
+                        document.querySelectorAll('font[size="7"]').forEach((el) => {
+                          const prev = (el as HTMLElement).getAttribute('data-font-preview') ?? ((el as HTMLElement).style.fontSize || '15px');
+                          (el as HTMLElement).setAttribute('data-font-preview', prev);
+                          (el as HTMLElement).removeAttribute('size');
+                          (el as HTMLElement).style.fontSize = `${s}px`;
+                        });
+                      }
+                    }}
+                    onClick={() => {
+                      // Commit: remove preview attrs
+                      document.querySelectorAll('[data-font-preview]').forEach((el) => {
+                        (el as HTMLElement).removeAttribute('data-font-preview');
+                      });
+                      savedSelRef.current = null;
+                      setFontSizeOpen(false);
+                      if (focusedId) {
+                        const blockEl = document.querySelector(`[data-block-id="${focusedId}"] .lore-block-content`) as HTMLElement;
+                        if (blockEl) { htmlRef.current[focusedId] = blockEl.innerHTML; emitChange(); }
+                      }
+                    }}>
+                    {s}px
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="lore-toolbar-sep" />
+
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('bold')} title="Bold (Ctrl+B)" type="button">
+            <Icon name="format-bold" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('italic')} title="Italic (Ctrl+I)" type="button">
+            <Icon name="format-italic" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('underline')} title="Underline (Ctrl+U)" type="button">
+            <Icon name="format-underlined" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('strikeThrough')} title="Strikethrough" type="button">
+            <Icon name="strikethrough-s" size={18} color={colors.onSurfaceVariant} />
+          </button>
+
+          {/* Text color */}
+          <div style={{ position: 'relative' }}>
+            <button className="lore-toolbar-btn" onMouseDown={pd}
+              onClick={() => { setTextColorOpen(!textColorOpen); setFontSizeOpen(false); setHighlightOpen(false); }}
+              title="Text color" type="button">
+              <Icon name="format-color-text" size={18} color={colors.onSurfaceVariant} />
+            </button>
+            {textColorOpen ? (
+              <div className="lore-toolbar-dropdown lore-toolbar-color-grid">
+                {TEXT_COLORS.map((c) => (
+                  <button key={c} className="lore-toolbar-color-swatch" type="button" style={{ background: c }}
+                    onMouseDown={pd}
+                    onClick={() => { execCmd('foreColor', c); setTextColorOpen(false); }} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {/* Highlight */}
+          <div style={{ position: 'relative' }}>
+            <button className="lore-toolbar-btn" onMouseDown={pd}
+              onClick={() => { setHighlightOpen(!highlightOpen); setFontSizeOpen(false); setTextColorOpen(false); }}
+              title="Highlight" type="button">
+              <Icon name="format-color-fill" size={18} color={colors.onSurfaceVariant} />
+            </button>
+            {highlightOpen ? (
+              <div className="lore-toolbar-dropdown lore-toolbar-color-grid">
+                {HIGHLIGHT_COLORS.map((c) => (
+                  <button key={c} className="lore-toolbar-color-swatch" type="button"
+                    style={{ background: c === 'transparent' ? colors.surfaceContainerHigh : c, border: c === 'transparent' ? `1px dashed ${colors.outline}` : 'none' }}
+                    onMouseDown={pd}
+                    onClick={() => { execCmd('hiliteColor', c); setHighlightOpen(false); }} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('superscript')} title="Superscript" type="button">
+            <span className="lore-toolbar-text-label">x<sup>2</sup></span>
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('subscript')} title="Subscript" type="button">
+            <span className="lore-toolbar-text-label">x<sub>2</sub></span>
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('removeFormat')} title="Clear formatting" type="button">
+            <Icon name="format-clear" size={18} color={colors.onSurfaceVariant} />
+          </button>
+
+          <div className="lore-toolbar-sep" />
+
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('formatBlock', 'h2')} title="Heading" type="button">
+            <Icon name="title" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('insertUnorderedList')} title="Bullet list" type="button">
+            <Icon name="format-list-bulleted" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('insertOrderedList')} title="Numbered list" type="button">
+            <Icon name="format-list-numbered" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('outdent')} title="Decrease indent" type="button">
+            <Icon name="format-indent-decrease" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('indent')} title="Increase indent" type="button">
+            <Icon name="format-indent-increase" size={18} color={colors.onSurfaceVariant} />
+          </button>
+
+          <div className="lore-toolbar-sep" />
+
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyLeft')} title="Align left" type="button">
+            <Icon name="format-align-left" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyCenter')} title="Align center" type="button">
+            <Icon name="format-align-center" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyRight')} title="Align right" type="button">
+            <Icon name="format-align-right" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyFull')} title="Justify" type="button">
+            <Icon name="format-align-justify" size={18} color={colors.onSurfaceVariant} />
+          </button>
+
+          <div className="lore-toolbar-sep" />
+
+          <button ref={tableButtonRef} className="lore-toolbar-btn" onMouseDown={pd}
+            onClick={() => { setTablePicker(!tablePicker); setFontSizeOpen(false); setTextColorOpen(false); setHighlightOpen(false); }}
+            title="Insert table" type="button">
+            <Icon name="table-chart" size={18} color={colors.onSurfaceVariant} />
+          </button>
+        </div>
+      ) : null}
+
+      {tablePicker ? (
+        <TablePicker
+          onSelect={handleTableInsert}
+          onClose={() => setTablePicker(false)}
+          anchorRect={tableButtonRef.current?.getBoundingClientRect() ?? null}
+        />
+      ) : null}
+
+      {mentionState && mentionablePages ? (
+        <MentionTypeahead
+          query={mentionState.query}
+          pages={mentionablePages}
+          position={mentionState.position}
+          onSelect={handleMentionSelect}
+          onClose={() => setMentionState(null)}
+          getSectionLabel={getSectionLabel}
+        />
+      ) : null}
+
+      <div
+        ref={canvasRef}
+        className="lore-canvas"
+        onClick={handleCanvasClick}
+        style={{ minHeight: 'calc(100vh - 160px)', position: 'relative', cursor: editable ? 'text' : 'default' }}
+      >
+        {blocks.map((block) => (
+          <div
+            key={block.id}
+            data-block-id={block.id}
+            className={`lore-block ${focusedId === block.id ? 'lore-block-focused' : ''} ${draggingId === block.id ? 'lore-block-dragging' : ''}`}
+            style={{
+              position: 'absolute',
+              left: block.x,
+              top: block.y,
+              width: block.width,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {editable ? (
+              <div
+                className="lore-block-handle"
+                onMouseDown={(e) => handleDragStart(block.id, e)}
+                title="Drag to move"
+              >
+                ⠿
+              </div>
+            ) : null}
+            <BlockContent
+              id={block.id}
+              initialHtml={block.html}
+              editable={editable}
+              onInput={handleBlockInput}
+              onFocus={setFocusedId}
+              onBlur={handleBlockBlur}
+              onPaste={handleBlockPaste}
+              onImageResize={handleImageResize}
+              onImageDrag={handleImageDrag}
+              onDeleteImage={handleDeleteBlock}
+            />
+            {editable && focusedId === block.id ? (
+              <>
+                <button
+                  className="lore-block-delete"
+                  onMouseDown={(e) => { e.preventDefault(); handleDeleteBlock(block.id); }}
+                  title="Delete block"
+                  type="button"
+                >
+                  ×
+                </button>
+                <div className="lore-resize-right" onMouseDown={(e) => handleResizeStart(block.id, e)} />
+              </>
+            ) : null}
+          </div>
+        ))}
+        {pendingClick ? (
+          <div className="lore-pending-cursor" style={{ left: pendingClick.x + 28, top: pendingClick.y + 8 }} />
+        ) : null}
+        {blocks.length === 0 && !pendingClick && editable ? (
+          <div className="lore-canvas-empty">
+            Click anywhere to start writing…
+          </div>
+        ) : null}
+      </div>
+    </View>
+  );
+}
+
+function CanvasStyles() {
+  return (
+    <style
+      dangerouslySetInnerHTML={{
+        __html: `
+          .lore-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 1px;
+            padding: 4px 8px;
+            background: ${colors.surfaceContainer};
+            border-bottom: 1px solid ${colors.outlineVariant}22;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            flex-wrap: wrap;
+          }
+          .lore-toolbar-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border: none;
+            background: transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 0;
+            flex-shrink: 0;
+          }
+          .lore-toolbar-btn:hover {
+            background: ${colors.surfaceContainerHigh};
+          }
+          .lore-toolbar-btn-wide {
+            width: auto;
+            padding: 0 6px;
+            gap: 2px;
+          }
+          .lore-toolbar-label {
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 11px;
+            color: ${colors.onSurfaceVariant};
+          }
+          .lore-toolbar-text-label {
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 13px;
+            color: ${colors.onSurfaceVariant};
+            line-height: 1;
+          }
+          .lore-toolbar-text-label sup, .lore-toolbar-text-label sub {
+            font-size: 9px;
+          }
+          .lore-toolbar-sep {
+            width: 1px;
+            height: 20px;
+            background: ${colors.outlineVariant}33;
+            margin: 0 4px;
+            flex-shrink: 0;
+          }
+          .lore-toolbar-dropdown {
+            position: absolute;
+            top: 32px;
+            left: 0;
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: 6px;
+            padding: 4px;
+            z-index: 20;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            min-width: 60px;
+          }
+          .lore-toolbar-dropdown-item {
+            display: block;
+            width: 100%;
+            border: none;
+            background: transparent;
+            padding: 4px 10px;
+            text-align: left;
+            cursor: pointer;
+            color: ${colors.onSurface};
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 12px;
+            border-radius: 4px;
+          }
+          .lore-toolbar-dropdown-item:hover {
+            background: ${colors.primaryContainer}33;
+          }
+          .lore-toolbar-color-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            padding: 6px;
+            min-width: 120px;
+          }
+          .lore-toolbar-color-swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 1px solid ${colors.outlineVariant}44;
+            cursor: pointer;
+            padding: 0;
+          }
+          .lore-toolbar-color-swatch:hover {
+            transform: scale(1.15);
+          }
+
+          /* Pending cursor */
+          .lore-pending-cursor {
+            position: absolute;
+            width: 2px;
+            height: 20px;
+            background: ${colors.primary};
+            border-radius: 1px;
+            animation: lore-blink 1s step-end infinite;
+            pointer-events: none;
+          }
+          @keyframes lore-blink {
+            50% { opacity: 0; }
+          }
+
+          /* Table picker */
+          .lore-table-picker-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+          }
+          .lore-table-picker {
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+            z-index: 101;
+          }
+          .lore-table-picker-label {
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 12px;
+            color: ${colors.onSurfaceVariant};
+            text-align: center;
+            margin-bottom: 8px;
+          }
+          .lore-table-picker-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+          }
+          .lore-table-picker-cell {
+            width: 22px;
+            height: 22px;
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background 0.1s;
+          }
+          .lore-table-picker-cell:hover {
+            border-color: ${colors.primary}66;
+          }
+          .lore-table-picker-cell.active {
+            background: ${colors.primaryContainer}55;
+            border-color: ${colors.primary};
+          }
+
+          .lore-canvas {
+            background: ${colors.surfaceCanvas};
+            border: 1px solid ${colors.outlineVariant}22;
+            border-radius: ${radius.lg}px;
+            overflow: hidden;
+          }
+          .lore-canvas-empty {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: ${colors.outline};
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 15px;
+            font-style: italic;
+            pointer-events: none;
+          }
+          .lore-block {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 8px 12px;
+            padding-left: 28px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            min-height: 24px;
+          }
+          .lore-block:hover {
+            border-color: ${colors.outlineVariant}33;
+          }
+          .lore-block-focused {
+            border-color: ${colors.primary}44 !important;
+            box-shadow: 0 0 0 1px ${colors.primary}22;
+          }
+          .lore-block-dragging {
+            opacity: 0.7;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+          }
+          .lore-block-handle {
+            position: absolute;
+            left: 4px;
+            top: 8px;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: ${colors.outlineVariant};
+            cursor: grab;
+            border-radius: 4px;
+            user-select: none;
+            transition: color 0.15s, background 0.15s;
+          }
+          .lore-block-handle:hover {
+            color: ${colors.onSurfaceVariant};
+            background: ${colors.surfaceContainerHigh};
+          }
+          .lore-block-handle:active { cursor: grabbing; }
+          .lore-block-content {
+            outline: none;
+            color: ${colors.onSurfaceVariant};
+            font-family: 'CormorantGaramond_400Regular', 'Cormorant Garamond', Georgia, serif;
+            font-size: 15px;
+            line-height: 1.7;
+            min-height: 1.7em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+          }
+          .lore-block-content p { margin: 0 0 4px 0; }
+          .lore-block-content h1, .lore-block-content h2, .lore-block-content h3 {
+            font-family: 'Fraunces_700Bold', 'Fraunces', Georgia, serif;
+            font-weight: 700;
+            color: ${colors.onSurface};
+            margin: 0 0 4px 0;
+          }
+          .lore-block-content h2 { font-size: 1.4em; }
+          .lore-block-content h3 { font-size: 1.15em; }
+          .lore-block-content ul, .lore-block-content ol {
+            margin: 0 0 4px 0;
+            padding-left: 20px;
+          }
+
+          /* Images */
+          .lore-block-content img {
+            border-radius: 6px;
+            display: block;
+            margin: 4px 0;
+            cursor: pointer;
+          }
+          .lore-block-content img.lore-img-selected {
+            outline: 2px solid ${colors.primary};
+            outline-offset: 2px;
+          }
+          .lore-img-resize-wrap {
+            display: inline-block;
+            position: relative;
+          }
+          .lore-img-handle {
+            position: absolute;
+            background: ${colors.primary};
+            border: 2px solid ${colors.surfaceCanvas};
+            border-radius: 3px;
+            z-index: 5;
+          }
+          .lore-img-handle:hover { background: ${colors.primaryContainer}; transform: scale(1.15); }
+          .lore-img-handle-corner { width: 12px; height: 12px; right: -5px; bottom: -5px; cursor: nwse-resize; }
+          .lore-img-handle-right { width: 8px; height: 20px; right: -5px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+          .lore-img-handle-right:hover { transform: translateY(-50%) scale(1.15); }
+          .lore-img-handle-left { width: 8px; height: 20px; left: -5px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+          .lore-img-handle-left:hover { transform: translateY(-50%) scale(1.15); }
+          .lore-img-handle-top { width: 20px; height: 8px; top: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+          .lore-img-handle-top:hover { transform: translateX(-50%) scale(1.15); }
+          .lore-img-handle-bottom { width: 20px; height: 8px; bottom: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+          .lore-img-handle-bottom:hover { transform: translateX(-50%) scale(1.15); }
+          .lore-img-drag-ghost {
+            position: absolute;
+            opacity: 0.6;
+            pointer-events: none;
+            border-radius: 6px;
+            z-index: 50;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+          }
+
+          /* Tables */
+          .lore-block-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+          }
+          .lore-block-content th, .lore-block-content td {
+            border: 1px solid ${colors.outlineVariant}55;
+            padding: 6px 10px;
+            text-align: left;
+            vertical-align: top;
+            min-width: 60px;
+          }
+          .lore-block-content th {
+            background: ${colors.surfaceContainerHigh};
+            color: ${colors.onSurface};
+            font-weight: 600;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+          .lore-block-content td { color: ${colors.onSurfaceVariant}; }
+          .lore-block-content tr:hover td { background: ${colors.surfaceContainerHigh}44; }
+
+          .lore-block-delete {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: ${colors.surfaceContainerHigh};
+            color: ${colors.outline};
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0.6;
+            transition: opacity 0.15s;
+          }
+          .lore-block-delete:hover { opacity: 1; color: ${colors.hpDanger}; }
+          .lore-resize-right {
+            position: absolute;
+            top: 8px;
+            right: -3px;
+            bottom: 8px;
+            width: 6px;
+            cursor: ew-resize;
+            border-radius: 3px;
+            transition: background 0.15s;
+          }
+          .lore-resize-right:hover { background: ${colors.primary}44; }
+
+          /* Mention chips */
+          .lore-block-content .vaultstone-mention {
+            display: inline;
+            padding: 1px 6px;
+            margin: 0 1px;
+            border-radius: 3px;
+            background: ${colors.primary}14;
+            color: ${colors.primary};
+            font-family: 'Manrope_500Medium', 'Manrope', system-ui, sans-serif;
+            font-style: normal;
+            font-size: 14px;
+            font-weight: 500;
+            border: 1px solid ${colors.primary}33;
+            cursor: pointer;
+            white-space: nowrap;
+          }
+          .lore-block-content .vaultstone-mention:hover {
+            background: ${colors.primary}26;
+            border-color: ${colors.primary}55;
+          }
+
+          /* Mention popup */
+          .lore-mention-popup {
+            position: fixed;
+            z-index: 1000;
+          }
+          .lore-mention-list {
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: 8px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+            min-width: 220px;
+            max-width: 320px;
+            padding: 4px;
+            overflow: hidden;
+          }
+          .lore-mention-empty {
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant}55;
+            border-radius: 8px;
+            color: ${colors.onSurfaceVariant};
+            padding: 8px 12px;
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 13px;
+            font-style: italic;
+          }
+          .lore-mention-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 8px;
+            text-align: left;
+            cursor: pointer;
+            color: ${colors.onSurface};
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+          }
+          .lore-mention-item.active,
+          .lore-mention-item:hover {
+            background: ${colors.primaryContainer}33;
+          }
+          .lore-mention-item-icon {
+            font-size: 14px;
+            width: 22px;
+            text-align: center;
+            flex-shrink: 0;
+          }
+          .lore-mention-item-text {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            flex: 1;
+          }
+          .lore-mention-item-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: ${colors.onSurface};
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .lore-mention-item-meta {
+            font-size: 10px;
+            color: ${colors.onSurfaceVariant};
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+          }
+        `,
+      }}
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

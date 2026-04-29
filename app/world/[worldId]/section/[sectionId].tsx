@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getTemplate } from '@vaultstone/content';
+import { updateSection } from '@vaultstone/api';
 import {
   filterPagesBySection,
   selectSectionsForWorld,
+  useAuthStore,
   useCurrentWorldStore,
   usePagesStore,
   useSectionsStore,
@@ -24,6 +26,7 @@ import { Pressable as RNPressable } from 'react-native';
 
 import { useActiveSection } from '../../../../components/world/ActiveSectionContext';
 import { CreatePageModal } from '../../../../components/world/CreatePageModal';
+import { IconPickerModal } from '../../../../components/world/IconPickerModal';
 import { PageHead } from '../../../../components/world/PageHead';
 import { PlayerViewToggle } from '../../../../components/world/PlayerViewToggle';
 import { SectionPageGrid } from '../../../../components/world/SectionPageGrid';
@@ -46,8 +49,10 @@ export default function SectionDetailScreen() {
     () => (sectionId ? filterPagesBySection(rawPages, sectionId) : []),
     [rawPages, sectionId],
   );
+  const user = useAuthStore((s) => s.user);
   const [createPageOpen, setCreatePageOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
 
   const section = useMemo(
     () => sections.find((sec) => sec.id === sectionId) ?? null,
@@ -80,8 +85,16 @@ export default function SectionDetailScreen() {
 
   const template = getTemplate(section.template_key);
   const rootPages = pages.filter((p) => !p.parent_page_id);
+  const isOwner = !!(user && world && user.id === world.owner_user_id);
+  const sectionIcon = section.custom_icon ?? template.icon;
 
   const openPage = (page: WorldPage) => router.push(worldPageHref(worldId, page.id));
+
+  async function handleIconSelect(icon: string) {
+    if (!section) return;
+    const { data } = await updateSection(section.id, { custom_icon: icon });
+    if (data) useSectionsStore.getState().updateSection(section.id, { custom_icon: icon });
+  }
 
   return (
     <View style={styles.root}>
@@ -113,10 +126,11 @@ export default function SectionDetailScreen() {
 
       <ScrollView contentContainerStyle={styles.container}>
         <PageHead
-          icon={template.icon}
+          icon={sectionIcon}
           title={section.name}
           meta={`${template.label} · ${rootPages.length} ${rootPages.length === 1 ? 'page' : 'pages'}`}
           accentToken={template.accentToken}
+          onIconPress={isOwner ? () => setIconPickerOpen(true) : undefined}
         />
 
         {template.description ? (
@@ -195,6 +209,13 @@ export default function SectionDetailScreen() {
           onDeleted={() => router.replace(worldHref(worldId))}
         />
       ) : null}
+
+      <IconPickerModal
+        visible={iconPickerOpen}
+        currentIcon={sectionIcon}
+        onSelect={handleIconSelect}
+        onClose={() => setIconPickerOpen(false)}
+      />
     </View>
   );
 }

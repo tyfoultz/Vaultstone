@@ -30,7 +30,6 @@ import { Text, colors, spacing, useBreakpoint } from '@vaultstone/ui';
 import { ActiveSectionProvider } from '../../../components/world/ActiveSectionContext';
 import { LensSwitchBanner } from '../../../components/world/LensSwitchBanner';
 import { PlayerViewBanner } from '../../../components/world/PlayerViewBanner';
-import { WorldRail } from '../../../components/world/WorldRail';
 import { WorldSidebar } from '../../../components/world/WorldSidebar';
 
 type World = Database['public']['Tables']['worlds']['Row'];
@@ -157,7 +156,6 @@ export default function WorldLayout() {
   return (
     <ActiveSectionProvider initialSectionId={firstSectionId}>
       <View style={styles.root}>
-        {!isMobile ? <WorldRail world={storeWorld ?? world} /> : null}
         {!isMobile ? <WorldSidebar world={storeWorld ?? world} /> : null}
         <View style={styles.content}>
           <PlayerViewBanner />

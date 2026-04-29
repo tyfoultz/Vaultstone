@@ -18,10 +18,12 @@ export const MATERIAL_ICON: Record<string, string> = {
   mountain: 'terrain',
   'calendar-days': 'event',
   'scroll-text': 'menu-book',
+  groups: 'groups',
+  timeline: 'timeline',
 };
 
 export function toMaterialIcon(name: string): string {
-  return MATERIAL_ICON[name] ?? 'circle';
+  return MATERIAL_ICON[name] ?? name;
 }
 
 type AccentSwatch = {

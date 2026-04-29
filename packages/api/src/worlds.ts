@@ -1,3 +1,4 @@
+import type { Json } from '@vaultstone/types';
 import { supabase } from './client';
 
 // Returns worlds the authenticated user can access (owned ∪ linked-campaign-member).
@@ -42,6 +43,11 @@ export async function updateWorld(
     cover_image_url: string | null;
     thumbnail_url: string | null;
     current_date_values: Record<string, string> | null;
+    opening_title: string | null;
+    opening_body: Json | null;
+    opening_body_text: string | null;
+    opening_updated_at: string | null;
+    opening_updated_by: string | null;
     is_archived: boolean;
   }>,
 ) {

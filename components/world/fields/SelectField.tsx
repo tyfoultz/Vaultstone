@@ -6,11 +6,45 @@ type Props = {
   field: StructuredField;
   value: unknown;
   onChange: (value: string) => void;
+  compact?: boolean;
 };
 
-export function SelectField({ field, value, onChange }: Props) {
+export function SelectField({ field, value, onChange, compact }: Props) {
   const options = field.options ?? [];
   const current = typeof value === 'string' ? value : '';
+
+  if (compact) {
+    return (
+      <View style={styles.compactRoot}>
+        <MetaLabel size="sm" style={styles.compactLabel}>{field.label}</MetaLabel>
+        <View style={styles.compactRow}>
+          {options.map((opt) => {
+            const selected = current === opt;
+            return (
+              <Pressable
+                key={opt}
+                onPress={() => onChange(selected ? '' : opt)}
+                style={[styles.compactChip, selected && styles.compactChipActive]}
+              >
+                <Text
+                  variant="label-sm"
+                  weight="semibold"
+                  style={{
+                    color: selected ? colors.primary : colors.onSurfaceVariant,
+                    fontSize: 10,
+                    letterSpacing: 0.5,
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {opt}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -60,6 +94,28 @@ const styles = StyleSheet.create({
     borderColor: colors.outlineVariant + '55',
   },
   chipActive: {
+    backgroundColor: colors.primaryContainer + '33',
+    borderColor: colors.primary + '66',
+  },
+  compactRoot: {
+    gap: spacing.xs,
+  },
+  compactLabel: {
+    color: colors.outline,
+  },
+  compactRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  compactChip: {
+    paddingHorizontal: spacing.xs + 4,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
+  compactChipActive: {
     backgroundColor: colors.primaryContainer + '33',
     borderColor: colors.primary + '66',
   },

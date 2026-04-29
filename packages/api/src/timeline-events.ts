@@ -72,6 +72,16 @@ export async function trashTimelineEvent(eventId: string) {
   return supabase.rpc('trash_timeline_event', { p_event_id: eventId });
 }
 
+export async function getEventsReferencingPage(worldId: string, pageId: string) {
+  return supabase
+    .from('timeline_events')
+    .select('*')
+    .eq('world_id', worldId)
+    .is('deleted_at', null)
+    .contains('body_refs', [pageId])
+    .order('created_at', { ascending: false });
+}
+
 export async function getEventBySourceSession(
   timelinePageId: string,
   sessionId: string,

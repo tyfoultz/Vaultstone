@@ -7,6 +7,7 @@ import type { WorldPage } from '@vaultstone/types';
 import { colors, radius, spacing } from '@vaultstone/ui';
 
 import { BodyEditorToolbar } from './BodyEditorToolbar';
+import { DragHandle } from './DragHandleExtension';
 import { ImageUploadModal } from './ImageUploadModal.web';
 import { VaultstoneMention } from './MentionExtension';
 import { WorldImageNode } from './WorldImageNode';
@@ -17,6 +18,8 @@ type Props = {
   initialContent: object | null;
   onChange: (body: object, bodyText: string, bodyRefs: string[]) => void;
   editable?: boolean;
+  hideChrome?: boolean;
+  stickyToolbar?: boolean;
   placeholder?: string;
   worldId?: string;
   pageId?: string;
@@ -35,6 +38,8 @@ export function BodyEditor({
   initialContent,
   onChange,
   editable = true,
+  hideChrome = false,
+  stickyToolbar = false,
   placeholder,
   worldId,
   pageId,
@@ -93,7 +98,7 @@ export function BodyEditor({
   ).current;
 
   const editor = useEditor({
-    extensions: [StarterKit, mentionExtension, WorldImageNode],
+    extensions: [StarterKit, mentionExtension, WorldImageNode, ...(editable ? [DragHandle] : [])],
     content: initialRef.current,
     editable,
     immediatelyRender: true,
@@ -155,14 +160,31 @@ export function BodyEditor({
 
   if (!editor) return null;
 
+  const showToolbar = !hideChrome && !stickyToolbar;
+  const rootStyle = stickyToolbar ? styles.rootSticky
+    : hideChrome ? styles.rootBare
+    : styles.root;
+  const frameStyle = (hideChrome || stickyToolbar) ? styles.editorFrameBare : styles.editorFrame;
+
   return (
-    <View style={styles.root}>
-      <BodyEditorToolbar
-        editor={editor}
-        onImagePress={canInsertImage ? () => setImageModalOpen(true) : undefined}
-      />
-      <View style={styles.editorFrame}>
-        <EditorContent editor={editor} />
+    <View style={rootStyle}>
+      {stickyToolbar ? (
+        <div className="vaultstone-sticky-toolbar">
+          <BodyEditorToolbar
+            editor={editor}
+            onImagePress={canInsertImage ? () => setImageModalOpen(true) : undefined}
+          />
+        </div>
+      ) : showToolbar ? (
+        <BodyEditorToolbar
+          editor={editor}
+          onImagePress={canInsertImage ? () => setImageModalOpen(true) : undefined}
+        />
+      ) : null}
+      <View style={frameStyle}>
+        <div className={editable ? 'vaultstone-body-editor-wrap' : undefined}>
+          <EditorContent editor={editor} />
+        </div>
       </View>
       <EditorStyles />
       {imageModalOpen && worldId && pageId ? (
@@ -352,6 +374,61 @@ function EditorStyles() {
             letter-spacing: 0.4px;
           }
           ${worldImageStyles()}
+
+          /* Sticky toolbar — pinned to top of the scroll container */
+          .vaultstone-sticky-toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: ${colors.surfaceCanvas};
+            border-bottom: 1px solid ${colors.outlineVariant}22;
+            margin: 0 -36px;
+            padding: 0 36px;
+          }
+
+          /* Drag handle — floating element positioned by the plugin */
+          .vaultstone-body-editor-wrap {
+            position: relative;
+            padding-left: 28px;
+          }
+          .vaultstone-drag-handle {
+            width: 22px;
+            height: 22px;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            line-height: 1;
+            color: ${colors.outlineVariant}88;
+            cursor: grab;
+            border-radius: 4px;
+            transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+            user-select: none;
+            z-index: 5;
+          }
+          .vaultstone-drag-handle:hover {
+            background: ${colors.surfaceContainerHigh};
+            color: ${colors.onSurfaceVariant};
+          }
+          .vaultstone-drag-handle:active {
+            cursor: grabbing;
+          }
+          .vaultstone-drag-ghost {
+            position: fixed;
+            top: -100px;
+            left: -100px;
+            background: ${colors.surfaceContainerHigh};
+            color: ${colors.onSurface};
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            pointer-events: none;
+          }
         `,
       }}
     />
@@ -367,8 +444,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLowest,
     overflow: 'hidden',
   },
+  rootBare: {
+    flex: 1,
+  },
+  rootSticky: {
+    flex: 1,
+  },
   editorFrame: {
     flex: 1,
     minHeight: 240,
+  },
+  editorFrameBare: {
+    flex: 1,
   },
 });
