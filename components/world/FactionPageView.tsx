@@ -27,7 +27,6 @@ import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 import {
   Icon,
   Text,
-  VisibilityBadge,
   colors,
   fonts,
   radius,
@@ -39,7 +38,6 @@ import { LoreCanvasEditor } from './LoreCanvasEditor.web';
 import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
 import { PAGE_KIND_LABEL } from './helpers';
-import { usePageVisibilityToggle } from './usePageVisibilityToggle';
 import { worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
 import {
   type PillDef,
@@ -354,7 +352,6 @@ export function FactionPageView({ page, worldId }: Props) {
   const pendingBodyRef = useRef<{ body: object; bodyText: string; bodyRefs: string[] } | null>(null);
 
   const myUserId = useAuthStore((s) => s.user?.id ?? null);
-  const toggleVisibility = usePageVisibilityToggle(page);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -385,7 +382,7 @@ export function FactionPageView({ page, worldId }: Props) {
   const size = typeof fields.size === 'string' ? fields.size : '';
   const stance = typeof fields.stance === 'string' ? fields.stance : '';
   const secrecy = typeof fields.secrecy === 'string' ? fields.secrecy : '';
-  const motto = typeof fields.motto === 'string' ? fields.motto : '';
+  const doctrine = typeof fields.doctrine === 'string' ? fields.doctrine : '';
   const hooks = Array.isArray(fields.__hooks) ? (fields.__hooks as string[]) : [];
   const relationships: Relationship[] = Array.isArray(fields.__relationships) ? (fields.__relationships as Relationship[]) : [];
 
@@ -421,10 +418,15 @@ export function FactionPageView({ page, worldId }: Props) {
   // Members — NPCs whose faction field points to this page
   const members = useMemo(() => {
     const pages = allPages ?? [];
-    return pages.filter(
+    const byFaction = pages.filter(
       (p) => p.page_kind === 'npc' && (p.structured_fields as Record<string, unknown>)?.faction === page.id,
     );
-  }, [allPages, page.id]);
+    if (leaderId && !byFaction.some((p) => p.id === leaderId)) {
+      const lp = pages.find((p) => p.id === leaderId);
+      if (lp) return [lp, ...byFaction];
+    }
+    return byFaction;
+  }, [allPages, page.id, leaderId]);
 
   // Lock
   const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(null);
@@ -507,7 +509,7 @@ export function FactionPageView({ page, worldId }: Props) {
     { key: 'size', label: 'SIZE', value: size, icon: 'groups', fieldType: 'select', options: SIZE_OPTIONS },
     { key: 'stance', label: 'STANCE', value: stance, icon: 'mood', fieldType: 'select', options: STANCE_OPTIONS, color: stance ? STANCE_COLOR[stance] : undefined },
     { key: 'secrecy', label: 'SECRECY', value: secrecy, icon: 'visibility-off', fieldType: 'select', options: SECRECY_OPTIONS, color: secrecy ? SECRECY_COLOR[secrecy] : undefined },
-    { key: 'motto', label: 'MOTTO', value: motto, icon: 'format-quote', fieldType: 'text' },
+    { key: 'doctrine', label: 'DOCTRINE', value: doctrine, icon: 'format-quote', fieldType: 'text' },
   ];
 
   const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved · just now' : saveState === 'error' ? 'Save failed' : '';
@@ -541,9 +543,9 @@ export function FactionPageView({ page, worldId }: Props) {
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>{page.title}</Text>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 2 }}>
-            <InlinePagePicker label="Led by" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} />
+            <InlinePagePicker label="Leader:" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} />
             <InlinePagePicker label="HQ:" icon="place" value={hqPage} candidates={hqCandidates} onSelect={(id) => updateField('headquarters', id)} accentColor={colors.primary} />
-            {motto ? <span style={{ fontFamily: "'Manrope'", fontSize: 13, color: colors.onSurfaceVariant, fontStyle: 'italic' }}>"{motto}"</span> : null}
+            {doctrine ? <span style={{ fontFamily: "'Manrope'", fontSize: 13, color: colors.onSurfaceVariant, fontStyle: 'italic' }}>"{doctrine}"</span> : null}
           </div>
           <View style={styles.statRow}>
             {stance ? (
@@ -559,7 +561,6 @@ export function FactionPageView({ page, worldId }: Props) {
                 <Text style={[styles.statChipLabel, { color: SECRECY_COLOR[secrecy] ?? colors.outline }]}>{secrecy.charAt(0).toUpperCase() + secrecy.slice(1)}</Text>
               </View>
             ) : null}
-            <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} interactive={!!toggleVisibility} onPress={toggleVisibility ?? undefined} />
           </View>
         </View>
       </View>

@@ -1,0 +1,50 @@
+{
+  "key": "factions",
+  "version": 4,
+  "label": "Factions",
+  "description": "Organizations, guilds, cults, nations, and rival groups.",
+  "defaultPageKind": "faction",
+  "allowedPageKinds": ["faction", "organization", "religion", "custom"],
+  "defaultSectionView": "list",
+  "icon": "shield",
+  "railIcon": "shield",
+  "accentToken": "primary",
+  "fields": [
+    {
+      "key": "size",
+      "label": "Size",
+      "type": "select",
+      "options": ["cell", "chapter", "order", "legion", "empire"]
+    },
+    {
+      "key": "headquarters",
+      "label": "Headquarters",
+      "type": "page_ref",
+      "pageKindFilter": ["location"]
+    },
+    {
+      "key": "leader",
+      "label": "Leader",
+      "type": "page_ref",
+      "pageKindFilter": ["npc"]
+    },
+    {
+      "key": "stance",
+      "label": "Stance toward the party",
+      "type": "select",
+      "options": ["hostile", "wary", "neutral", "friendly", "allied"]
+    },
+    {
+      "key": "secrecy",
+      "label": "Secrecy",
+      "type": "select",
+      "options": ["public", "known", "secret", "hidden"]
+    },
+    {
+      "key": "doctrine",
+      "label": "Doctrine",
+      "type": "text",
+      "placeholder": "A guiding principle or belief"
+    }
+  ]
+}
