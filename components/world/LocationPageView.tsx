@@ -146,7 +146,7 @@ const MENTION_ICON: Record<string, { icon: string; color: string }> = {
   item: { icon: 'diamond', color: colors.hpWarning },
 };
 
-type RightTab = 'on_this_page' | 'sub_locations' | 'history';
+type RightTab = 'on_this_page' | 'sub_locations';
 
 export function LocationPageView({ page, worldId }: Props) {
   const router = useRouter();
@@ -447,9 +447,6 @@ export function LocationPageView({ page, worldId }: Props) {
             <Text style={styles.tagText}>{tag}</Text>
           </View>
         ))}
-        <Pressable style={styles.tagPill}>
-          <Text style={styles.tagText}>+ Tag</Text>
-        </Pressable>
       </View>
 
       {confirmDelete ? (
@@ -526,7 +523,6 @@ export function LocationPageView({ page, worldId }: Props) {
           <View style={styles.rightTabs}>
             <RightTabBtn label="On This Page" active={rightTab === 'on_this_page'} onPress={() => setRightTab('on_this_page')} />
             <RightTabBtn label="Sub-locations" active={rightTab === 'sub_locations'} onPress={() => setRightTab('sub_locations')} />
-            <RightTabBtn label="History" active={rightTab === 'history'} onPress={() => setRightTab('history')} />
           </View>
 
           <ScrollView contentContainerStyle={styles.rightBody}>
@@ -655,9 +651,6 @@ export function LocationPageView({ page, worldId }: Props) {
               )
             ) : null}
 
-            {rightTab === 'history' ? (
-              <Text variant="body-sm" style={styles.emptyText}>Revision history coming soon.</Text>
-            ) : null}
           </ScrollView>
         </View>
         )}
