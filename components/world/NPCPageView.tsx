@@ -168,7 +168,7 @@ export function NPCPageView({ page, worldId }: Props) {
     setPortraitUploading(true);
     try {
       const usage = await getMyStorageUsage();
-      if (usage.blocked) { setPortraitUploading(false); return; }
+      if (usage.blocked) { console.warn('Portrait: storage blocked'); setPortraitUploading(false); return; }
 
       const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
         const url = URL.createObjectURL(file);
@@ -181,8 +181,11 @@ export function NPCPageView({ page, worldId }: Props) {
       let { w, h } = dims;
       const MAX_DIM = 1920;
       let blob: Blob = file;
-      if (w > MAX_DIM || h > MAX_DIM) {
-        const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+      let mimeType = file.type;
+      if (w > MAX_DIM || h > MAX_DIM || file.type !== 'image/jpeg') {
+        const ratio = (w > MAX_DIM || h > MAX_DIM)
+          ? Math.min(MAX_DIM / w, MAX_DIM / h)
+          : 1;
         w = Math.round(w * ratio);
         h = Math.round(h * ratio);
         const bitmap = await createImageBitmap(file);
@@ -192,15 +195,17 @@ export function NPCPageView({ page, worldId }: Props) {
         canvas.getContext('2d')!.drawImage(bitmap, 0, 0, w, h);
         bitmap.close();
         blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => b ? res(b) : rej(new Error('compress fail')), 'image/jpeg', 0.85));
+        mimeType = 'image/jpeg';
       }
 
       const imageId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const filename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
-      const { error: upErr } = await uploadWorldImage({ worldId, imageId, filename, body: blob, contentType: 'image/jpeg' });
-      if (upErr) { setPortraitUploading(false); return; }
+      const filename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase().replace(/\.(png|webp)$/, '.jpg');
+      const { error: upErr } = await uploadWorldImage({ worldId, imageId, filename, body: blob, contentType: mimeType });
+      if (upErr) { console.error('Portrait storage upload failed:', upErr); setPortraitUploading(false); return; }
 
       const imageKey = `${worldId}/${imageId}/${filename}`;
-      const { data: row } = await createWorldImage({ world_id: worldId, page_id: page.id, image_key: imageKey, width: w, height: h, alt: page.title, byte_size: blob.size, content_type: 'image/jpeg' });
+      const { data: row, error: rowErr } = await createWorldImage({ world_id: worldId, page_id: page.id, image_key: imageKey, width: w, height: h, alt: page.title, byte_size: blob.size, content_type: mimeType });
+      if (rowErr) { console.error('Portrait DB row failed:', rowErr); setPortraitUploading(false); return; }
       if (row) {
         updateFields({
           __portrait_image_id: row.id,
