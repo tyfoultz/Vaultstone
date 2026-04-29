@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
@@ -68,6 +68,234 @@ function getInitials(name: string): string {
   return name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 }
 
+const RELATIONSHIP_TYPES = [
+  'ally', 'rival', 'enemy', 'friend', 'family', 'lover',
+  'employer', 'servant', 'mentor', 'student', 'master', 'informant', 'other',
+] as const;
+
+type Relationship = { targetPageId: string; type: string; note?: string };
+
+function AddRelationshipModal({ allPages, currentPageId, existingRelationships, onAdd, onClose }: {
+  allPages: WorldPage[];
+  currentPageId: string;
+  existingRelationships: Relationship[];
+  onAdd: (rel: Relationship) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [relType, setRelType] = useState<string>('ally');
+  const [note, setNote] = useState('');
+
+  const existingIds = new Set(existingRelationships.map((r) => r.targetPageId));
+  const candidates = allPages
+    .filter((p) => p.page_kind === 'npc' && p.id !== currentPageId && !existingIds.has(p.id))
+    .filter((p) => !search || p.title.toLowerCase().includes(search.toLowerCase()));
+  const selectedPage = selectedPageId ? allPages.find((p) => p.id === selectedPageId) : null;
+
+  return (
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
+      <Pressable style={relStyles.backdrop} onPress={onClose}>
+        <Pressable onPress={(e) => e.stopPropagation()} style={relStyles.wrapper}>
+          <View style={relStyles.card}>
+            <View style={relStyles.header}>
+              <Icon name="people" size={18} color={colors.cosmic} />
+              <Text variant="title-md" family="serif-display" weight="semibold" style={{ color: colors.onSurface }}>
+                Add Relationship
+              </Text>
+            </View>
+
+            {!selectedPageId ? (
+              <>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e: any) => setSearch(e.target.value)}
+                  autoFocus
+                  placeholder="Search NPCs…"
+                  style={{
+                    width: '100%',
+                    background: colors.surfaceContainerLowest,
+                    border: `1px solid ${colors.outlineVariant}44`,
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    color: colors.onSurface,
+                    fontSize: 13,
+                    fontFamily: "'Manrope', system-ui, sans-serif",
+                    outline: 'none',
+                    marginBottom: 8,
+                  }}
+                />
+                <ScrollView style={{ maxHeight: 240 }}>
+                  {candidates.length === 0 ? (
+                    <Text variant="body-sm" style={{ color: colors.outline, padding: 8, fontStyle: 'italic' }}>
+                      {search ? 'No matching NPCs.' : 'No other NPCs in this world yet.'}
+                    </Text>
+                  ) : (
+                    candidates.map((p) => (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => setSelectedPageId(p.id)}
+                        style={relStyles.npcRow}
+                      >
+                        <Icon name="person" size={14} color={colors.cosmic} />
+                        <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>{p.title}</Text>
+                        <Icon name="chevron-right" size={12} color={colors.outline} />
+                      </Pressable>
+                    ))
+                  )}
+                </ScrollView>
+              </>
+            ) : (
+              <>
+                <View style={relStyles.selectedRow}>
+                  <Icon name="person" size={16} color={colors.cosmic} />
+                  <Text variant="body-md" weight="semibold" style={{ flex: 1, color: colors.onSurface }}>{selectedPage?.title}</Text>
+                  <Pressable onPress={() => setSelectedPageId(null)} style={{ padding: 4 }}>
+                    <Icon name="close" size={14} color={colors.outline} />
+                  </Pressable>
+                </View>
+
+                <Text variant="label-sm" uppercase style={{ color: colors.outline, letterSpacing: 1, marginTop: 12, marginBottom: 6 }}>
+                  Relationship type
+                </Text>
+                <View style={relStyles.typeGrid}>
+                  {RELATIONSHIP_TYPES.map((t) => (
+                    <Pressable
+                      key={t}
+                      onPress={() => setRelType(t)}
+                      style={[relStyles.typeChip, relType === t && relStyles.typeChipActive]}
+                    >
+                      <Text style={[relStyles.typeChipText, relType === t && { color: colors.primary }]}>
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e: any) => setNote(e.target.value)}
+                  placeholder="Optional note — e.g. 'owes a debt'"
+                  style={{
+                    width: '100%',
+                    background: colors.surfaceContainerLowest,
+                    border: `1px solid ${colors.outlineVariant}44`,
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    color: colors.onSurface,
+                    fontSize: 13,
+                    fontFamily: "'Manrope', system-ui, sans-serif",
+                    outline: 'none',
+                    marginTop: 12,
+                  }}
+                />
+
+                <View style={relStyles.actions}>
+                  <Pressable onPress={onClose} style={relStyles.cancelBtn}>
+                    <Text variant="label-md" style={{ color: colors.outline }}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => onAdd({ targetPageId: selectedPageId, type: relType, note: note.trim() || undefined })}
+                    style={relStyles.addBtn}
+                  >
+                    <Text variant="label-md" weight="semibold" style={{ color: colors.primary }}>Add</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const relStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(12, 14, 16, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  wrapper: { width: '100%', maxWidth: 380 },
+  card: {
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    padding: spacing.lg,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  npcRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: radius.lg,
+  },
+  selectedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryContainer + '22',
+    borderWidth: 1,
+    borderColor: colors.primary + '33',
+  },
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  typeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
+  typeChipActive: {
+    borderColor: colors.primary + '55',
+    backgroundColor: colors.primaryContainer + '22',
+  },
+  typeChipText: {
+    fontFamily: fonts.label,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    textTransform: 'capitalize',
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  cancelBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.lg,
+  },
+  addBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary + '55',
+    backgroundColor: colors.primaryContainer + '22',
+  },
+});
+
 const STATUS_COLOR: Record<string, string> = {
   alive: colors.hpHealthy,
   dead: colors.hpDanger,
@@ -133,6 +361,10 @@ export function NPCPageView({ page, worldId }: Props) {
   const status = typeof fields.status === 'string' ? fields.status : '';
   const disposition = typeof fields.disposition === 'string' ? fields.disposition : '';
   const hooks = Array.isArray(fields.__hooks) ? (fields.__hooks as string[]) : [];
+  const voice = typeof fields.__voice === 'string' ? fields.__voice : '';
+  const relationships: Relationship[] = Array.isArray(fields.__relationships) ? (fields.__relationships as Relationship[]) : [];
+  const [editingVoice, setEditingVoice] = useState(false);
+  const [addingRelationship, setAddingRelationship] = useState(false);
 
   // Portrait image
   const portraitImageId = typeof fields.__portrait_image_id === 'string' ? fields.__portrait_image_id : null;
@@ -490,6 +722,45 @@ export function NPCPageView({ page, worldId }: Props) {
               onPress={toggleVisibility ?? undefined}
             />
           </View>
+
+          {/* Voice / personality cue */}
+          {editingVoice ? (
+            <div style={{ marginTop: 4 }}>
+              <input
+                type="text"
+                defaultValue={voice}
+                autoFocus
+                placeholder="Voice cue — e.g. 'Speaks in third person, raspy whisper'"
+                onKeyDown={(e: any) => {
+                  if (e.key === 'Enter') { updateField('__voice', e.target.value.trim()); setEditingVoice(false); }
+                  if (e.key === 'Escape') setEditingVoice(false);
+                }}
+                onBlur={(e: any) => { updateField('__voice', e.target.value.trim()); setEditingVoice(false); }}
+                style={{
+                  width: '100%',
+                  background: colors.surfaceContainerHigh,
+                  border: `1px solid ${colors.outlineVariant}44`,
+                  borderRadius: 6,
+                  padding: '4px 8px',
+                  color: colors.onSurfaceVariant,
+                  fontSize: 12,
+                  fontFamily: "'Manrope', system-ui, sans-serif",
+                  fontStyle: 'italic',
+                  outline: 'none',
+                }}
+              />
+            </div>
+          ) : voice ? (
+            <Pressable onPress={() => setEditingVoice(true)} style={styles.voiceCue}>
+              <Icon name="record-voice-over" size={12} color={colors.outline} />
+              <Text variant="body-sm" style={styles.voiceText} numberOfLines={1}>"{voice}"</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => setEditingVoice(true)} style={styles.voiceCueEmpty}>
+              <Icon name="record-voice-over" size={12} color={colors.outline} />
+              <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add voice cue…</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -710,6 +981,40 @@ export function NPCPageView({ page, worldId }: Props) {
                     )}
                   </View>
 
+                  {/* Relationships */}
+                  <View style={sideStyles.sideSection}>
+                    <SideSectionHeader icon="people" title="RELATIONSHIPS" count={relationships.length || undefined} />
+                    {relationships.map((rel, i) => {
+                      const targetPage = (allPages ?? []).find((p) => p.id === rel.targetPageId);
+                      if (!targetPage) return null;
+                      return (
+                        <View key={`${rel.targetPageId}-${i}`} style={styles.relRow}>
+                          <Pressable
+                            onPress={() => router.push(worldPageHref(worldId, rel.targetPageId))}
+                            style={styles.relLink}
+                          >
+                            <View style={[sideStyles.mentionDot, { backgroundColor: colors.cosmic }]} />
+                            <View style={{ flex: 1 }}>
+                              <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{targetPage.title}</Text>
+                              <Text style={sideStyles.mentionMeta}>{rel.type.toUpperCase()}{rel.note ? ` · ${rel.note}` : ''}</Text>
+                            </View>
+                            <Icon name="chevron-right" size={12} color={colors.outline} />
+                          </Pressable>
+                          <Pressable
+                            onPress={() => updateField('__relationships', relationships.filter((_, j) => j !== i))}
+                            style={{ padding: 4 }}
+                          >
+                            <Icon name="close" size={12} color={colors.outline} />
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                    <Pressable onPress={() => setAddingRelationship(true)} style={styles.addRelBtn}>
+                      <Icon name="add" size={14} color={colors.outline} />
+                      <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add relationship</Text>
+                    </Pressable>
+                  </View>
+
                   {/* Hooks & Rumors */}
                   <View style={sideStyles.sideSection}>
                     <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
@@ -749,6 +1054,14 @@ export function NPCPageView({ page, worldId }: Props) {
       </View>
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
+
+      {addingRelationship ? <AddRelationshipModal
+        allPages={allPages ?? []}
+        currentPageId={page.id}
+        existingRelationships={relationships}
+        onAdd={(rel) => { updateField('__relationships', [...relationships, rel]); setAddingRelationship(false); }}
+        onClose={() => setAddingRelationship(false)}
+      /> : null}
 
       {adjustingPortrait && portraitUrl ? createPortal(
         <>
@@ -1037,5 +1350,64 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.lg,
+  },
+
+  // Voice cue
+  voiceCue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '22',
+    backgroundColor: colors.surfaceContainerHigh + '44',
+  },
+  voiceText: {
+    fontStyle: 'italic',
+    color: colors.onSurfaceVariant,
+    fontSize: 12,
+  },
+  voiceCueEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    borderStyle: 'dashed',
+    opacity: 0.6,
+  },
+
+  // Relationships
+  relRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  relLink: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: radius.lg,
+  },
+  addRelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    borderStyle: 'dashed',
   },
 });
