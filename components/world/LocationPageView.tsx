@@ -784,8 +784,23 @@ function PillEditor({ pill, onSelect, onClose }: {
 
   if (pill.fieldType === 'select' && pill.options) {
     return (
-      <div className="lore-table-picker-backdrop" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
-        <View style={styles.pillDropdown}>
+      <>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100 }} onClick={onClose} />
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          marginTop: 4,
+          background: colors.surfaceContainerHigh,
+          border: `1px solid ${colors.outlineVariant}55`,
+          borderRadius: 8,
+          padding: 4,
+          minWidth: 140,
+          maxHeight: 240,
+          overflowY: 'auto',
+          zIndex: 101,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        }}>
           {pill.options.map((opt) => (
             <Pressable
               key={opt}
@@ -802,14 +817,22 @@ function PillEditor({ pill, onSelect, onClose }: {
               <Text style={[styles.pillDropdownText, { color: colors.outline, fontStyle: 'italic' }]}>Clear</Text>
             </Pressable>
           ) : null}
-        </View>
-      </div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="lore-table-picker-backdrop" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
-      <View style={styles.pillDropdown}>
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 100 }} onClick={onClose} />
+      <div style={{
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        marginTop: 4,
+        zIndex: 101,
+        minWidth: 160,
+      }}>
         <input
           type="text"
           value={draft}
@@ -827,10 +850,11 @@ function PillEditor({ pill, onSelect, onClose }: {
             fontFamily: "'Manrope', system-ui, sans-serif",
             outline: 'none',
             width: '100%',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
           }}
         />
-      </View>
-    </div>
+      </div>
+    </>
   );
 }
 
