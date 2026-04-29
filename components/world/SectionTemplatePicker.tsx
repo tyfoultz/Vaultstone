@@ -26,7 +26,7 @@ type Props = {
 };
 
 export function SectionTemplatePicker({ value, onChange }: Props) {
-  const templates: TemplateSummary[] = listTemplates();
+  const templates: TemplateSummary[] = listTemplates().filter((t) => t.key !== 'blank');
   return (
     <View style={styles.grid}>
       {templates.map((t) => {
