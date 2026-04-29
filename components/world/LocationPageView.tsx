@@ -506,7 +506,7 @@ export function LocationPageView({ page, worldId }: Props) {
           <View style={styles.rightPanelCollapsed}>
             <Pressable
               onPress={() => setRightPanelOpen(true)}
-              style={styles.rightPanelExpandBtn}
+              style={styles.rightPanelToggleBtn}
               accessibilityLabel="Show sidebar"
             >
               <Icon name="chevron-left" size={14} color={colors.onSurfaceVariant} />
@@ -514,17 +514,19 @@ export function LocationPageView({ page, worldId }: Props) {
           </View>
         ) : (
         <View style={styles.rightPanel}>
-          <View style={styles.rightTabs}>
-            <RightTabBtn label="On This Page" active={rightTab === 'on_this_page'} onPress={() => setRightTab('on_this_page')} />
-            <RightTabBtn label="Sub-locations" active={rightTab === 'sub_locations'} onPress={() => setRightTab('sub_locations')} />
-            <RightTabBtn label="History" active={rightTab === 'history'} onPress={() => setRightTab('history')} />
+          <View style={styles.rightPanelTopRow}>
             <Pressable
               onPress={() => setRightPanelOpen(false)}
-              style={styles.rightPanelCollapseBtn}
+              style={styles.rightPanelToggleBtn}
               accessibilityLabel="Collapse sidebar"
             >
               <Icon name="chevron-right" size={14} color={colors.outline} />
             </Pressable>
+          </View>
+          <View style={styles.rightTabs}>
+            <RightTabBtn label="On This Page" active={rightTab === 'on_this_page'} onPress={() => setRightTab('on_this_page')} />
+            <RightTabBtn label="Sub-locations" active={rightTab === 'sub_locations'} onPress={() => setRightTab('sub_locations')} />
+            <RightTabBtn label="History" active={rightTab === 'history'} onPress={() => setRightTab('history')} />
           </View>
 
           <ScrollView contentContainerStyle={styles.rightBody}>
@@ -843,9 +845,15 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: colors.outlineVariant + '33',
     alignItems: 'center',
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
   },
-  rightPanelExpandBtn: {
+  rightPanelTopRow: {
+    alignItems: 'flex-start',
+    paddingLeft: spacing.xs,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
+  rightPanelToggleBtn: {
     width: 28,
     height: 28,
     borderRadius: radius.lg,
@@ -853,12 +861,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.outlineVariant + '44',
-  },
-  rightPanelCollapseBtn: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   rightTabs: {
     flexDirection: 'row',

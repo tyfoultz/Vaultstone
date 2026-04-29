@@ -620,35 +620,40 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     setMentionState(null);
 
     const sel = window.getSelection();
-    if (!sel) return;
+    if (!sel || sel.rangeCount === 0) return;
     const text = node.textContent ?? '';
     const cursor = sel.getRangeAt(0).startOffset;
     const before = text.slice(0, startOffset);
     const after = text.slice(cursor);
 
-    const mentionHtml = `<span class="vaultstone-mention" data-id="${page.id}" data-kind="page" contenteditable="false">@ ${page.title}</span>`;
-
     const el = document.querySelector(`[data-block-id="${blockId}"] .lore-block-content`) as HTMLElement | null;
     if (!el) return;
 
-    // Replace the @query text with the mention chip
+    // Build: beforeText + mentionChip + afterText (with trailing space)
     node.textContent = before;
-    const temp = document.createElement('span');
-    temp.innerHTML = mentionHtml + (after ? `<span>${after}</span>` : '');
-    const frag = document.createDocumentFragment();
-    while (temp.firstChild) frag.appendChild(temp.firstChild);
-    node.parentNode?.insertBefore(frag, node.nextSibling);
 
-    // Place cursor after the mention
+    const chip = document.createElement('span');
+    chip.className = 'vaultstone-mention';
+    chip.setAttribute('data-id', page.id);
+    chip.setAttribute('data-kind', 'page');
+    chip.contentEditable = 'false';
+    chip.textContent = `@ ${page.title}`;
+
+    // Always insert a text node after the chip so the cursor has somewhere to go
+    const trailing = document.createTextNode(after ? after : ' ');
+    const parent = node.parentNode;
+    const nextSib = node.nextSibling;
+    parent?.insertBefore(chip, nextSib);
+    parent?.insertBefore(trailing, chip.nextSibling);
+
+    // Place cursor at the start of the trailing text node
     requestAnimationFrame(() => {
-      const chip = el.querySelector(`.vaultstone-mention[data-id="${page.id}"]`);
-      if (chip && chip.nextSibling) {
-        const r = document.createRange();
-        r.setStartAfter(chip);
-        r.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(r);
-      }
+      const r = document.createRange();
+      r.setStart(trailing, after ? 0 : 1);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      el.focus();
       htmlRef.current[blockId] = el.innerHTML;
       emitChange();
     });
