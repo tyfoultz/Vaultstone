@@ -80,13 +80,14 @@ const FACTION_REL_TYPES = [
 
 // ── Inline page_ref picker (for Leader / HQ in header) ──
 
-function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColor }: {
+function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColor, worldId }: {
   label: string;
   icon: string;
   value: WorldPage | null;
   candidates: WorldPage[];
   onSelect: (id: string | null) => void;
   accentColor: string;
+  worldId: string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -117,7 +118,7 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
             textUnderlineOffset: '2px',
           }}
           onClick={(e) => {
-            if (value) { e.stopPropagation(); router.push(worldPageHref('', value.id)); }
+            if (value) { e.stopPropagation(); router.push(worldPageHref(worldId, value.id)); }
           }}
         >
           {value?.title ?? '—'}
@@ -543,8 +544,8 @@ export function FactionPageView({ page, worldId }: Props) {
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>{page.title}</Text>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 2 }}>
-            <InlinePagePicker label="Leader:" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} />
-            <InlinePagePicker label="HQ:" icon="place" value={hqPage} candidates={hqCandidates} onSelect={(id) => updateField('headquarters', id)} accentColor={colors.primary} />
+            <InlinePagePicker label="Leader:" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} worldId={worldId} />
+            <InlinePagePicker label="HQ:" icon="place" value={hqPage} candidates={hqCandidates} onSelect={(id) => updateField('headquarters', id)} accentColor={colors.primary} worldId={worldId} />
             {doctrine ? <span style={{ fontFamily: "'Manrope'", fontSize: 13, color: colors.onSurfaceVariant, fontStyle: 'italic' }}>"{doctrine}"</span> : null}
           </div>
           <View style={styles.statRow}>
