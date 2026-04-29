@@ -452,21 +452,22 @@ export function NPCPageView({ page, worldId }: Props) {
             style={{ display: 'none' }}
           />
 
-          {/* Adjust portrait overlay */}
+          {/* Adjust portrait overlay — fixed modal so it renders above the canvas toolbar */}
           {adjustingPortrait ? (
             <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.4)' }} onClick={() => setAdjustingPortrait(false)} />
+              <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.4)' }} onClick={() => setAdjustingPortrait(false)} />
               <div style={{
-                position: 'absolute',
-                top: 80,
-                left: 0,
-                zIndex: 201,
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 9001,
                 background: colors.surfaceContainerHigh,
                 border: `1px solid ${colors.outlineVariant}55`,
                 borderRadius: 12,
                 padding: 16,
-                minWidth: 220,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                minWidth: 260,
+                boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
               }}>
                 <div style={{
                   width: 180, height: 180, borderRadius: 90, overflow: 'hidden',
