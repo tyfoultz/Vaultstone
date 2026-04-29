@@ -172,6 +172,19 @@ export function LocationPageView({ page, worldId }: Props) {
     [sections, page],
   );
   const fields = (page.structured_fields as Record<string, unknown>) ?? {};
+  const fieldsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [editingPill, setEditingPill] = useState<string | null>(null);
+
+  function updateField(key: string, value: unknown) {
+    const next = { ...fields, [key]: value };
+    updatePageInStore(page.id, { structured_fields: next as Json });
+    setSaveState('saving');
+    if (fieldsTimerRef.current) clearTimeout(fieldsTimerRef.current);
+    fieldsTimerRef.current = setTimeout(async () => {
+      const { error } = await updatePage(page.id, { structured_fields: next as Json });
+      setSaveState(error ? 'error' : 'saved');
+    }, 500);
+  }
 
   const locationType = typeof fields.type === 'string' ? fields.type : '';
   const region = typeof fields.region === 'string' ? fields.region : '';
@@ -180,11 +193,24 @@ export function LocationPageView({ page, worldId }: Props) {
   const dangerLevel = typeof fields.danger_level === 'string' ? fields.danger_level : '';
   const terrain = typeof fields.terrain === 'string' ? fields.terrain : '';
   const tags = Array.isArray(fields.tags) ? (fields.tags as string[]) : [];
+  const hooks = Array.isArray(fields.__hooks) ? (fields.__hooks as string[]) : [];
 
   const parentLocationId = typeof fields.parent_location === 'string' ? fields.parent_location : null;
   const parentPage = parentLocationId
     ? (allPages ?? []).find((p) => p.id === parentLocationId) ?? null
     : null;
+
+  // NPCs associated with this location — mentioned on this page or children
+  const locationNpcs = useMemo(() => {
+    const pages = allPages ?? [];
+    const npcPages = pages.filter((p) => p.page_kind === 'npc');
+    const refs = page.body_refs ?? [];
+    const referencedNpcs = npcPages.filter((p) => refs.includes(p.id));
+    const backlinkNpcs = npcPages.filter(
+      (p) => (p.body_refs ?? []).includes(page.id) && !referencedNpcs.some((r) => r.id === p.id),
+    );
+    return [...referencedNpcs, ...backlinkNpcs];
+  }, [allPages, page.id, page.body_refs]);
 
   // Lock
   const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(null);
@@ -355,21 +381,19 @@ export function LocationPageView({ page, worldId }: Props) {
       .filter((p): p is WorldPage => !!p);
   }, [page.body_refs, allPages]);
 
-  // Property pills
-  const propertyPills: Array<{ label: string; value: string; color?: string; icon?: string }> = [];
-  if (locationType) propertyPills.push({ label: 'TYPE', value: locationType, icon: 'location-city' });
-  if (region) propertyPills.push({ label: 'REGION', value: region, icon: 'public' });
-  if (population) propertyPills.push({ label: 'POP', value: population, icon: 'groups' });
-  if (governance) propertyPills.push({ label: 'RULER', value: governance, icon: 'person' });
-  if (terrain) propertyPills.push({ label: 'TERRAIN', value: terrain, icon: 'terrain' });
-  if (dangerLevel) {
-    propertyPills.push({
-      label: 'DANGER',
-      value: dangerLevel.charAt(0).toUpperCase() + dangerLevel.slice(1),
-      color: DANGER_COLOR[dangerLevel],
-      icon: 'warning',
-    });
-  }
+  const TYPE_OPTIONS = ['city', 'town', 'village', 'hamlet', 'district', 'dungeon', 'wilderness', 'ruin', 'temple', 'tavern', 'fortress', 'landmark'];
+  const DANGER_OPTIONS = ['safe', 'low', 'moderate', 'high', 'deadly'];
+  const TERRAIN_OPTIONS = ['coastal', 'forest', 'mountain', 'desert', 'arctic', 'swamp', 'plains', 'underground', 'urban', 'volcanic', 'island'];
+
+  type PillDef = { key: string; label: string; value: string; color?: string; icon?: string; fieldType: 'select' | 'text'; options?: string[] };
+  const propertyPills: PillDef[] = [
+    { key: 'type', label: 'TYPE', value: locationType, icon: 'location-city', fieldType: 'select', options: TYPE_OPTIONS },
+    { key: 'region', label: 'REGION', value: region, icon: 'public', fieldType: 'text' },
+    { key: 'population', label: 'POP', value: population, icon: 'groups', fieldType: 'text' },
+    { key: 'governance', label: 'RULER', value: governance, icon: 'person', fieldType: 'text' },
+    { key: 'terrain', label: 'TERRAIN', value: terrain, icon: 'terrain', fieldType: 'select', options: TERRAIN_OPTIONS },
+    { key: 'danger_level', label: 'DANGER', value: dangerLevel, icon: 'warning', fieldType: 'select', options: DANGER_OPTIONS, color: dangerLevel ? DANGER_COLOR[dangerLevel] : undefined },
+  ];
 
   const saveLabel = saveState === 'saving' ? 'Saving…' :
     saveState === 'saved' ? 'Saved · just now' :
@@ -416,29 +440,41 @@ export function LocationPageView({ page, worldId }: Props) {
         </Text>
       </View>
 
-      {/* ── Property pills ── */}
+      {/* ── Property pills (editable) ── */}
       <View style={styles.pillBar}>
         {propertyPills.map((pill) => (
-          <View
-            key={pill.label}
-            style={[
-              styles.pill,
-              pill.color ? { borderColor: pill.color + '44' } : undefined,
-            ]}
-          >
-            {pill.icon ? (
-              <Icon
-                name={pill.icon as React.ComponentProps<typeof Icon>['name']}
-                size={12}
-                color={pill.color ?? colors.outline}
+          <View key={pill.key} style={{ position: 'relative' }}>
+            <Pressable
+              onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)}
+              style={[
+                styles.pill,
+                pill.color ? { borderColor: pill.color + '44' } : undefined,
+                !pill.value && styles.pillEmpty,
+              ]}
+            >
+              {pill.icon ? (
+                <Icon
+                  name={pill.icon as React.ComponentProps<typeof Icon>['name']}
+                  size={12}
+                  color={pill.color ?? colors.outline}
+                />
+              ) : null}
+              <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>
+                {pill.label}
+              </Text>
+              {pill.value ? (
+                <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>
+                  {pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}
+                </Text>
+              ) : null}
+            </Pressable>
+            {editingPill === pill.key ? (
+              <PillEditor
+                pill={pill}
+                onSelect={(v) => { updateField(pill.key, v); setEditingPill(null); }}
+                onClose={() => setEditingPill(null)}
               />
             ) : null}
-            <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>
-              {pill.label}
-            </Text>
-            <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>
-              {pill.value}
-            </Text>
           </View>
         ))}
         {tags.map((tag) => (
@@ -627,6 +663,43 @@ export function LocationPageView({ page, worldId }: Props) {
                     ))
                   )}
                 </View>
+
+                {/* NPCs */}
+                <View style={styles.sideSection}>
+                  <SideSectionHeader icon="person" title="NPCS HERE" count={locationNpcs.length || undefined} />
+                  {locationNpcs.length === 0 ? (
+                    <Text variant="body-sm" style={styles.emptyText}>No NPCs linked yet. Use @mention to reference NPC pages.</Text>
+                  ) : (
+                    locationNpcs.map((npc) => (
+                      <Pressable key={npc.id} onPress={() => router.push(worldPageHref(worldId, npc.id))} style={styles.mentionRow}>
+                        <View style={[styles.mentionDot, { backgroundColor: colors.hpDanger }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{npc.title}</Text>
+                          <Text style={styles.mentionMeta}>NPC</Text>
+                        </View>
+                        <Icon name="chevron-right" size={12} color={colors.outline} />
+                      </Pressable>
+                    ))
+                  )}
+                </View>
+
+                {/* Hooks & Rumors */}
+                <View style={styles.sideSection}>
+                  <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
+                  {hooks.map((hook, i) => (
+                    <View key={i} style={styles.hookRow}>
+                      <Text style={styles.hookBullet}>•</Text>
+                      <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{hook}</Text>
+                      <Pressable
+                        onPress={() => updateField('__hooks', hooks.filter((_, j) => j !== i))}
+                        style={{ padding: 2 }}
+                      >
+                        <Icon name="close" size={12} color={colors.outline} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
+                </View>
               </>
             ) : null}
 
@@ -658,6 +731,106 @@ export function LocationPageView({ page, worldId }: Props) {
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
     </View>
+  );
+}
+
+function HookInput({ onAdd }: { onAdd: (text: string) => void }) {
+  const [draft, setDraft] = useState('');
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <Pressable onPress={() => setOpen(true)} style={styles.hookAddBtn}>
+        <Icon name="add" size={14} color={colors.outline} />
+        <Text style={{ color: colors.outline, fontSize: 11, fontFamily: 'Manrope' }}>Add hook or rumor</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={styles.hookInputWrap}>
+      <input
+        type="text"
+        value={draft}
+        onChange={(e: any) => setDraft(e.target.value)}
+        onKeyDown={(e: any) => {
+          if (e.key === 'Enter' && draft.trim()) { onAdd(draft.trim()); setDraft(''); }
+          if (e.key === 'Escape') { setOpen(false); setDraft(''); }
+        }}
+        autoFocus
+        placeholder="A rumor, plot hook, or encounter idea…"
+        style={{
+          background: colors.surfaceContainerHigh,
+          border: `1px solid ${colors.outlineVariant}44`,
+          borderRadius: 6,
+          padding: '6px 8px',
+          color: colors.onSurface,
+          fontSize: 12,
+          fontFamily: "'Manrope', system-ui, sans-serif",
+          outline: 'none',
+          width: '100%',
+        }}
+      />
+    </View>
+  );
+}
+
+function PillEditor({ pill, onSelect, onClose }: {
+  pill: { key: string; label: string; value: string; fieldType: 'select' | 'text'; options?: string[] };
+  onSelect: (value: string) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState(pill.value);
+
+  if (pill.fieldType === 'select' && pill.options) {
+    return (
+      <div className="lore-table-picker-backdrop" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
+        <View style={styles.pillDropdown}>
+          {pill.options.map((opt) => (
+            <Pressable
+              key={opt}
+              onPress={() => onSelect(opt)}
+              style={[styles.pillDropdownItem, pill.value === opt && styles.pillDropdownItemActive]}
+            >
+              <Text style={[styles.pillDropdownText, pill.value === opt && { color: colors.primary }]}>
+                {opt.charAt(0).toUpperCase() + opt.slice(1)}
+              </Text>
+            </Pressable>
+          ))}
+          {pill.value ? (
+            <Pressable onPress={() => onSelect('')} style={styles.pillDropdownItem}>
+              <Text style={[styles.pillDropdownText, { color: colors.outline, fontStyle: 'italic' }]}>Clear</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </div>
+    );
+  }
+
+  return (
+    <div className="lore-table-picker-backdrop" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
+      <View style={styles.pillDropdown}>
+        <input
+          type="text"
+          value={draft}
+          onChange={(e: any) => setDraft(e.target.value)}
+          onKeyDown={(e: any) => { if (e.key === 'Enter') { onSelect(draft); } else if (e.key === 'Escape') { onClose(); } }}
+          autoFocus
+          placeholder={pill.label}
+          style={{
+            background: colors.surfaceContainerHigh,
+            border: `1px solid ${colors.outlineVariant}55`,
+            borderRadius: 6,
+            padding: '6px 10px',
+            color: colors.onSurface,
+            fontSize: 13,
+            fontFamily: "'Manrope', system-ui, sans-serif",
+            outline: 'none',
+            width: '100%',
+          }}
+        />
+      </View>
+    </div>
   );
 }
 
@@ -993,6 +1166,71 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.5,
     color: colors.outline,
+  },
+  pillEmpty: {
+    borderStyle: 'dashed',
+    opacity: 0.6,
+  },
+  pillDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    marginTop: 4,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    borderRadius: radius.lg,
+    padding: spacing.xs,
+    minWidth: 140,
+    maxHeight: 240,
+    overflow: 'scroll',
+    zIndex: 101,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 16,
+  },
+  pillDropdownItem: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radius.lg,
+  },
+  pillDropdownItemActive: {
+    backgroundColor: colors.primaryContainer + '33',
+  },
+  pillDropdownText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.onSurface,
+    textTransform: 'capitalize',
+  },
+  hookRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  hookBullet: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.hpWarning,
+    marginTop: -1,
+  },
+  hookAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    borderStyle: 'dashed',
+  },
+  hookInputWrap: {
+    marginTop: 2,
   },
 
   mentionRow: {
