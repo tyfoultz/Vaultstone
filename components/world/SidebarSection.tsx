@@ -7,8 +7,11 @@ import {
   usePagesStore,
   useSidebarCollapseStore,
 } from '@vaultstone/store';
-import type { WorldPage, WorldSection } from '@vaultstone/types';
+import { getTemplate } from '@vaultstone/content';
+import type { TemplateKey, WorldPage, WorldSection } from '@vaultstone/types';
 import { Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
+
+import { toMaterialIcon } from './helpers';
 
 import { isPageVisibleToPlayersPreview } from './playerViewFilters';
 import { SectionContextMenu } from './SectionContextMenu';
@@ -87,6 +90,11 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
         style={styles.headerLabel}
         accessibilityLabel={`Open ${section.name}`}
       >
+        {(() => {
+          let iconName = 'article';
+          try { iconName = toMaterialIcon(getTemplate(section.template_key as TemplateKey).icon); } catch { /* default */ }
+          return <Icon name={iconName as React.ComponentProps<typeof Icon>['name']} size={13} color={colors.outline} />;
+        })()}
         <MetaLabel size="sm" tone="muted">
           {section.name}
         </MetaLabel>
@@ -183,6 +191,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
   },
   addBtn: {
     width: 22,

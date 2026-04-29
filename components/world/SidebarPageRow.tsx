@@ -142,11 +142,6 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
       ) : (
         <View style={styles.chevronSpacer} />
       )}
-      <Icon
-        name={icon as React.ComponentProps<typeof Icon>['name']}
-        size={14}
-        color={active ? colors.primary : colors.onSurfaceVariant}
-      />
       <Text
         variant="body-sm"
         numberOfLines={1}
