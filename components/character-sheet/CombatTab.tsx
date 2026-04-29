@@ -1,6 +1,8 @@
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, TextInput } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
-import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem } from '@vaultstone/types';
+import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eFeature } from '@vaultstone/types';
 import type { RollResult } from './RollToast';
 
 const ABILITY_KEYS: (keyof Dnd5eAbilityScores)[] = [
@@ -13,10 +15,11 @@ const ABILITY_SHORT: Record<keyof Dnd5eAbilityScores, string> = {
 const SLOT_ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 
 const ALL_CONDITIONS = [
-  'Blinded', 'Charmed', 'Deafened', 'Exhausted', 'Frightened', 'Grappled',
+  'Blinded', 'Charmed', 'Deafened', 'Frightened', 'Grappled',
   'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned',
   'Prone', 'Restrained', 'Stunned', 'Unconscious',
 ];
+const EXHAUSTION_MAX = 6;
 
 // SRD full-caster level-1 default (fallback for pre-slot-init characters)
 const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
@@ -28,22 +31,37 @@ const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 
+// SRD standard actions — always available
+const SRD_ACTIONS: Dnd5eFeature[] = [
+  { id: 'attack',     name: 'Attack',           actionType: 'action',   description: 'Make one melee or ranged attack.' },
+  { id: 'dash',       name: 'Dash',             actionType: 'action',   description: 'Gain extra movement equal to your speed for this turn.' },
+  { id: 'disengage',  name: 'Disengage',        actionType: 'action',   description: 'Your movement doesn\'t provoke opportunity attacks for the rest of the turn.' },
+  { id: 'dodge',      name: 'Dodge',            actionType: 'action',   description: 'Attackers have disadvantage on attacks against you; you have advantage on DEX saves.' },
+  { id: 'help',       name: 'Help',             actionType: 'action',   description: 'Give an ally advantage on their next ability check or attack roll.' },
+  { id: 'hide',       name: 'Hide',             actionType: 'action',   description: 'Make a Stealth check to become hidden.' },
+  { id: 'ready',      name: 'Ready',            actionType: 'action',   description: 'Prepare a reaction to trigger on a specific condition before your next turn.' },
+  { id: 'search',     name: 'Search',           actionType: 'action',   description: 'Devote attention to finding something using Perception or Investigation.' },
+  { id: 'use-object', name: 'Use an Object',    actionType: 'action',   description: 'Interact with a second object or use a special item feature.' },
+];
+const SRD_SPELL_ACTION: Dnd5eFeature =
+  { id: 'cast-spell', name: 'Cast a Spell',     actionType: 'action',   description: 'Cast a spell with a casting time of 1 action.' };
+const SRD_REACTIONS: Dnd5eFeature[] = [
+  { id: 'opp-attack', name: 'Opportunity Attack', actionType: 'reaction', description: 'When a creature leaves your reach, you can make one melee attack against it.' },
+];
+
 interface Props {
   stats: Dnd5eStats;
   resources: Dnd5eResources;
   scores: Dnd5eAbilityScores;
   prof: number;
   activeConditions: string[];
-  showDeathSaves: boolean;
-  isDead: boolean;
-  isStabilized: boolean;
   canEditAny: boolean;
   equipment: Dnd5eEquipmentItem[];
   isDesktop?: boolean;
   onOpenHpModal?: () => void;
   onRoll: (result: RollResult) => void;
   onToggleCondition: (c: string) => void;
-  onDeathSave: (type: 'success' | 'failure') => void;
+  onSetExhaustion: (level: number) => void;
   getAttackBonus: (item: Dnd5eEquipmentItem) => number;
 }
 
@@ -64,8 +82,7 @@ function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void
 
 export function CombatTab({
   stats, resources, scores, prof,
-  activeConditions, showDeathSaves, isDead, isStabilized,
-  canEditAny, equipment, isDesktop, onRoll, onToggleCondition, onDeathSave, getAttackBonus,
+  activeConditions, canEditAny, equipment, isDesktop, onRoll, onToggleCondition, onSetExhaustion, getAttackBonus,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
 
@@ -78,13 +95,50 @@ export function CombatTab({
   const classResources = resources.classResources ?? [];
   const exhaustionLevel = resources.exhaustionLevel ?? 0;
 
-  // ── Desktop: 2-column grid layout ──────────────────────────────────────────
+  // Gather all features with an actionType from class, species, feats
+  const allFeatures = [
+    ...(resources.classFeatures ?? []),
+    ...(resources.speciesTraits ?? []),
+    ...(resources.feats ?? []),
+  ].filter((f) => f.actionType);
+
+  const featureActions   = allFeatures.filter((f) => f.actionType === 'action');
+  const featureBonus     = allFeatures.filter((f) => f.actionType === 'bonus');
+  const featureReactions = allFeatures.filter((f) => f.actionType === 'reaction');
+  const featureFree      = allFeatures.filter((f) => f.actionType === 'free');
+
+  const actions   = [...SRD_ACTIONS, ...(isSpellcaster ? [SRD_SPELL_ACTION] : []), ...featureActions];
+  const bonuses   = featureBonus;
+  const reactions = [...SRD_REACTIONS, ...featureReactions];
+  const freeActions = featureFree;
+
+  // ── Desktop: single-column flat layout ────────────────────────────────────
   if (isDesktop) {
     return (
-      <View style={s.desktopRoot}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
 
-        {/* LEFT COLUMN — Attacks · Spell Slots · Class Resources */}
-        <ScrollView style={s.col} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
+          {/* Ability Scores */}
+          <CardBlock title="Ability Scores">
+            <View style={s.hexRow}>
+              {ABILITY_KEYS.map((key) => {
+                const score = scores[key];
+                const mod = abilityMod(score);
+                const isSpellMod = stats.spellcastingAbility === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[s.hex, isSpellMod && s.hexSpell]}
+                    onPress={() => rollD20(`${ABILITY_SHORT[key]} check`, mod, onRoll)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.hexName, isSpellMod && { color: colors.primary }]}>{ABILITY_SHORT[key]}</Text>
+                    <Text style={[s.hexMod, isSpellMod && { color: colors.primary }]}>{fmtMod(mod)}</Text>
+                    <Text style={s.hexRaw}>{score}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </CardBlock>
 
           {/* Attacks */}
           <CardBlock title="Attacks">
@@ -178,78 +232,15 @@ export function CombatTab({
             </CardBlock>
           )}
 
-        </ScrollView>
-
-        {/* DIVIDER */}
-        <View style={s.colDivider} />
-
-        {/* RIGHT COLUMN — Conditions · Exhaustion · Death Saves */}
-        <ScrollView style={s.col} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
-
-          {/* Conditions */}
-          <CardBlock title="Conditions">
-            <View style={s.conditionsWrap}>
-              {ALL_CONDITIONS.map((c) => {
-                const active = activeConditions.map((x) => x.toLowerCase()).includes(c.toLowerCase());
-                return (
-                  <TouchableOpacity
-                    key={c}
-                    style={[s.condChip, active && s.condChipActive]}
-                    onPress={canEditAny ? () => onToggleCondition(c) : undefined}
-                    activeOpacity={canEditAny ? 0.7 : 1}
-                  >
-                    <Text style={[s.condText, active && s.condTextActive]}>{c}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+          {/* Actions */}
+          <CardBlock title="Actions">
+            <ActionGroup label="Actions" items={actions} />
+            {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} />}
+            {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} accent />}
+            {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} />}
           </CardBlock>
 
-          {/* Exhaustion */}
-          <CardBlock title="Exhaustion Level" hint="tap to set">
-            <View style={s.exhaustionBadges}>
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <TouchableOpacity
-                  key={n}
-                  style={[s.exBadge, exhaustionLevel >= n && s.exBadgeActive]}
-                  onPress={canEditAny ? () => {
-                    // tap active level to clear, tap other to set
-                  } : undefined}
-                  activeOpacity={canEditAny ? 0.7 : 1}
-                >
-                  <Text style={[s.exBadgeText, exhaustionLevel >= n && s.exBadgeTextActive]}>{n}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </CardBlock>
-
-          {/* Death Saves — always visible */}
-          <CardBlock title="Death Saves">
-            {(isDead || isStabilized) && (
-              <Text style={[s.statusText, { color: isDead ? colors.hpDanger : colors.hpWarning, marginBottom: 8 }]}>
-                {isDead ? 'Dead' : 'Stabilized'}
-              </Text>
-            )}
-            <View style={s.deathSavesRow}>
-              <DeathSaveGroup
-                label="Successes"
-                count={resources.deathSaves.successes}
-                max={3}
-                color={colors.hpHealthy}
-                onPress={canEditAny ? () => onDeathSave('success') : undefined}
-              />
-              <DeathSaveGroup
-                label="Failures"
-                count={resources.deathSaves.failures}
-                max={3}
-                color={colors.hpDanger}
-                onPress={canEditAny ? () => onDeathSave('failure') : undefined}
-              />
-            </View>
-          </CardBlock>
-
-        </ScrollView>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -356,21 +347,13 @@ export function CombatTab({
 
       {/* Conditions */}
       <SectionLabel style={{ marginTop: 14 }}>CONDITIONS</SectionLabel>
-      <View style={s.conditionsWrap}>
-        {ALL_CONDITIONS.map((c) => {
-          const active = activeConditions.map((x) => x.toLowerCase()).includes(c.toLowerCase());
-          return (
-            <TouchableOpacity
-              key={c}
-              style={[s.condChip, active && s.condChipActive]}
-              onPress={canEditAny ? () => onToggleCondition(c) : undefined}
-              activeOpacity={canEditAny ? 0.7 : 1}
-            >
-              <Text style={[s.condText, active && s.condTextActive]}>{c}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <ConditionsSection
+        activeConditions={activeConditions}
+        exhaustionLevel={exhaustionLevel}
+        canEditAny={canEditAny}
+        onToggle={onToggleCondition}
+        onSetExhaustion={onSetExhaustion}
+      />
 
       {/* Passives */}
       <SectionLabel style={{ marginTop: 14 }}>PASSIVES</SectionLabel>
@@ -386,6 +369,184 @@ export function CombatTab({
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
+
+export function ConditionsSection({
+  activeConditions, exhaustionLevel, canEditAny, onToggle, onSetExhaustion,
+}: {
+  activeConditions: string[];
+  exhaustionLevel: number;
+  canEditAny: boolean;
+  onToggle: (c: string) => void;
+  onSetExhaustion: (level: number) => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const normalizedActive = activeConditions.map((x) => x.toLowerCase());
+  const pickable = exhaustionLevel === 0 ? ['Exhaustion', ...ALL_CONDITIONS] : ALL_CONDITIONS;
+  const available = pickable.filter((c) => !normalizedActive.includes(c.toLowerCase()));
+  const filtered = search.trim()
+    ? available.filter((c) => c.toLowerCase().includes(search.toLowerCase()))
+    : available;
+
+  const hasActive = activeConditions.length > 0 || exhaustionLevel > 0;
+
+  function closePicker() { setPickerOpen(false); setSearch(''); }
+  function handlePick(name: string) {
+    if (name === 'Exhaustion') onSetExhaustion(1);
+    else onToggle(name);
+    if (available.length === 1) closePicker();
+  }
+
+  return (
+    <View style={{ gap: 6 }}>
+      {/* Active condition chips */}
+      {hasActive && (
+        <View style={s.conditionsWrap}>
+          {exhaustionLevel > 0 && (
+            <View style={s.exhaustionChip}>
+              {canEditAny && (
+                <TouchableOpacity
+                  style={s.exhaustionStep}
+                  onPress={() => onSetExhaustion(Math.max(0, exhaustionLevel - 1))}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="minus" size={11} color={colors.hpDanger} />
+                </TouchableOpacity>
+              )}
+              <Text style={s.condTextActive}>Exhaustion {exhaustionLevel}</Text>
+              {canEditAny && (
+                <TouchableOpacity
+                  style={s.exhaustionStep}
+                  onPress={() => onSetExhaustion(Math.min(EXHAUSTION_MAX, exhaustionLevel + 1))}
+                  activeOpacity={0.7}
+                  disabled={exhaustionLevel >= EXHAUSTION_MAX}
+                >
+                  <MaterialCommunityIcons
+                    name="plus"
+                    size={11}
+                    color={exhaustionLevel >= EXHAUSTION_MAX ? colors.outline : colors.hpDanger}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+          {activeConditions.map((c) => (
+            <TouchableOpacity
+              key={c}
+              style={s.condChipActive}
+              onPress={canEditAny ? () => onToggle(c) : undefined}
+              activeOpacity={canEditAny ? 0.7 : 1}
+            >
+              <Text style={s.condTextActive}>{c}</Text>
+              {canEditAny && (
+                <MaterialCommunityIcons name="close" size={9} color={colors.hpDanger} style={{ marginLeft: 3 }} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Add condition button */}
+      {canEditAny && (
+        <TouchableOpacity style={s.addCondBtn} onPress={() => setPickerOpen(true)} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="plus" size={12} color={colors.outline} />
+          <Text style={s.addCondText}>Add condition</Text>
+        </TouchableOpacity>
+      )}
+      {!canEditAny && !hasActive && (
+        <Text style={s.condNone}>No active conditions</Text>
+      )}
+
+      {/* Condition picker modal */}
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={closePicker}>
+        <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={closePicker}>
+          <View style={s.modalSheet} onStartShouldSetResponder={() => true}>
+
+            {/* Header */}
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Add Condition</Text>
+              <TouchableOpacity onPress={closePicker} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search */}
+            <View style={s.modalSearch}>
+              <MaterialCommunityIcons name="magnify" size={14} color={colors.outline} />
+              <TextInput
+                style={s.modalSearchInput}
+                placeholder="Search conditions..."
+                placeholderTextColor={colors.outline}
+                value={search}
+                onChangeText={setSearch}
+                autoFocus
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')} activeOpacity={0.7}>
+                  <MaterialCommunityIcons name="close-circle" size={13} color={colors.outline} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Scrollable list */}
+            <ScrollView style={s.modalList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              {filtered.length > 0 ? filtered.map((c, i) => (
+                <TouchableOpacity
+                  key={c}
+                  style={[s.condRow, i < filtered.length - 1 && s.condRowBorder]}
+                  onPress={() => handlePick(c)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={s.condRowText}>{c}</Text>
+                  <MaterialCommunityIcons name="plus-circle-outline" size={16} color={colors.outline} />
+                </TouchableOpacity>
+              )) : (
+                <Text style={[s.condNone, { paddingVertical: 12 }]}>
+                  {available.length === 0 ? 'All conditions are active' : 'No matches'}
+                </Text>
+              )}
+            </ScrollView>
+
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
+function ActionGroup({ label, items, accent }: { label: string; items: Dnd5eFeature[]; accent?: boolean }) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <View style={s.actionGroup}>
+      <TouchableOpacity style={s.actionGroupHead} onPress={() => setCollapsed((v) => !v)} activeOpacity={0.7}>
+        <View style={[s.actionGroupBar, accent && s.actionGroupBarAccent]} />
+        <Text style={[s.actionGroupLabel, accent && s.actionGroupLabelAccent]}>{label}</Text>
+        <Text style={s.actionGroupCount}>{items.length}</Text>
+        <MaterialCommunityIcons
+          name={collapsed ? 'chevron-down' : 'chevron-up'}
+          size={13}
+          color={colors.outline}
+        />
+      </TouchableOpacity>
+      {!collapsed && items.map((item) => <ActionRow key={item.id} feature={item} />)}
+    </View>
+  );
+}
+
+function ActionRow({ feature }: { feature: Dnd5eFeature }) {
+  const isSrd = ['attack', 'dash', 'disengage', 'dodge', 'help', 'hide', 'ready', 'search', 'use-object', 'cast-spell', 'opp-attack'].includes(feature.id);
+  return (
+    <View style={s.actionRow}>
+      <View style={s.actionRowHeader}>
+        <Text style={[s.actionName, isSrd && s.actionNameSrd]}>{feature.name}</Text>
+        {feature.uses && (
+          <Text style={s.actionUses}>{feature.uses.current}/{feature.uses.max}</Text>
+        )}
+      </View>
+      <Text style={s.actionDesc}>{feature.description}</Text>
+    </View>
+  );
+}
 
 function CardBlock({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -408,20 +569,6 @@ function SectionLabel({ children, style, accent }: { children: string; style?: a
   );
 }
 
-function DeathSaveGroup({ label, count, max, color, onPress }: {
-  label: string; count: number; max: number; color: string; onPress?: () => void;
-}) {
-  return (
-    <TouchableOpacity style={s.deathGroup} onPress={onPress} disabled={!onPress} activeOpacity={0.7}>
-      <Text style={[s.deathGroupLabel, { color }]}>{label}</Text>
-      <View style={{ flexDirection: 'row', gap: 6 }}>
-        {Array.from({ length: max }).map((_, i) => (
-          <View key={i} style={[s.deathDot, { borderColor: color }, i < count && { backgroundColor: color }]} />
-        ))}
-      </View>
-    </TouchableOpacity>
-  );
-}
 
 function PassiveCard({ label, value, suffix }: { label: string; value: number | string; suffix?: string }) {
   return (
@@ -531,29 +678,78 @@ const s = StyleSheet.create({
     borderRadius: 4,
   },
   condChipActive: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 8, paddingVertical: 4,
     backgroundColor: `${colors.hpDanger}18`,
-    borderColor: colors.hpDanger,
+    borderWidth: 1, borderColor: colors.hpDanger,
+    borderRadius: 4,
   },
   condText: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.onSurfaceVariant },
-  condTextActive: { color: colors.hpDanger },
-
-  // Exhaustion
-  exhaustionBadges: { flexDirection: 'row', gap: 4 },
-  exBadge: {
-    width: 26, height: 26, borderRadius: 5,
-    borderWidth: 1.5, borderColor: colors.outlineVariant,
-    alignItems: 'center', justifyContent: 'center',
+  condTextActive: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.hpDanger },
+  condNone: { fontSize: 11, fontFamily: fonts.label, color: colors.outline, fontStyle: 'italic' },
+  addCondBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderWidth: 1, borderColor: colors.outlineVariant, borderStyle: 'dashed',
+    borderRadius: 4,
   },
-  exBadgeActive: { backgroundColor: `${colors.hpDanger}18`, borderColor: colors.hpDanger },
-  exBadgeText: { fontSize: 9, fontFamily: fonts.headline, fontWeight: '800', color: colors.outline },
-  exBadgeTextActive: { color: colors.hpDanger },
+  addCondText: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
 
-  // Death saves
-  deathSavesRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  deathGroup: { alignItems: 'center', gap: 8 },
-  deathGroupLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1 },
-  deathDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5 },
-  statusText: { fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', textAlign: 'center' },
+  // Condition picker modal
+  modalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  modalSheet: {
+    width: '100%', maxWidth: 360,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 12, padding: 16, gap: 10,
+  },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalTitle: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  modalSearch: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, paddingHorizontal: 10, paddingVertical: 7,
+  },
+  modalSearchInput: { flex: 1, fontSize: 13, fontFamily: fonts.body, color: colors.onSurface },
+  modalList: { maxHeight: 280 },
+  condRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 11, paddingHorizontal: 2,
+  },
+  condRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
+  condRowText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '500', color: colors.onSurface },
+
+  // Abilities (desktop right-column horizontal strip)
+  hexRow: { flexDirection: 'row', gap: 6 },
+  hex: {
+    flex: 1,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 2, borderColor: colors.outlineVariant,
+    borderRadius: 10,
+    alignItems: 'center', paddingVertical: 8, paddingHorizontal: 2,
+  },
+  hexSpell: { borderColor: colors.primaryContainer },
+  hexName: { fontSize: 9, fontFamily: fonts.label, fontWeight: '800', letterSpacing: 1, color: colors.outline },
+  hexMod: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 26, marginTop: 2 },
+  hexRaw: { fontSize: 9, color: colors.outline },
+
+  // Exhaustion (inline chip inside conditions list)
+  exhaustionChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 4, paddingVertical: 2,
+    backgroundColor: `${colors.hpDanger}18`,
+    borderWidth: 1, borderColor: colors.hpDanger,
+    borderRadius: 4,
+  },
+  exhaustionStep: {
+    width: 18, height: 18, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: `${colors.hpDanger}22`,
+  },
+
 
   // ── Mobile section-based layout
   mobileContainer: { paddingHorizontal: spacing.md, paddingTop: 14, paddingBottom: 16 },
@@ -574,6 +770,28 @@ const s = StyleSheet.create({
   sectionLineAccent: { backgroundColor: `${colors.primary}44` },
 
   emptyHint: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic' },
+
+  // Actions
+  actionGroup: { marginBottom: 2 },
+  actionGroupHead: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingTop: 8, paddingBottom: 5,
+  },
+  actionGroupBar: { width: 3, height: 12, borderRadius: 2, backgroundColor: colors.outlineVariant },
+  actionGroupBarAccent: { backgroundColor: colors.hpDanger },
+  actionGroupLabel: { flex: 1, fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline },
+  actionGroupLabelAccent: { color: colors.hpDanger },
+  actionGroupCount: { fontSize: 9, fontFamily: fonts.label, color: colors.outline },
+  actionRow: {
+    paddingHorizontal: 10, paddingVertical: 9,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+    gap: 3,
+  },
+  actionRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  actionName: { flex: 1, fontSize: 12, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
+  actionNameSrd: { color: colors.onSurfaceVariant },
+  actionUses: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
+  actionDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, lineHeight: 16 },
 
   // Mobile ability scores
   abilityGrid: { flexDirection: 'row', gap: 6 },

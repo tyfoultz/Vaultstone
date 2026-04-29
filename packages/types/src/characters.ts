@@ -12,6 +12,13 @@ export interface CharacterSettings {
   manualMode: boolean;
   /** Saved card order for the character sheet grid. */
   cardOrder?: string[];
+  /** Persisted desktop two-column tab layout. */
+  tabLayout?: {
+    left: string[];
+    right: string[];
+    activeLeft: string;
+    activeRight: string | null;
+  };
 }
 
 export interface Dnd5eAbilityScores {
@@ -110,6 +117,8 @@ export interface Dnd5eFeature {
   description: string;
   /** Optional: uses per rest, null if passive */
   uses?: { current: number; max: number; recharge: 'short' | 'long' } | null;
+  /** If set, surfaces this feature in the Combat tab Actions section */
+  actionType?: 'action' | 'bonus' | 'reaction' | 'free';
 }
 
 export interface Dnd5eSpellSlotLevel {
@@ -154,6 +163,16 @@ export interface Dnd5ePreparedSpell {
   ritual?: boolean;
   concentration?: boolean;
   notes?: string;
+  /** Casting time abbreviation, e.g. '1A', '1m', 'Reaction' */
+  castingTime?: string;
+  /** Spell range, e.g. 'Self', 'Touch', '120 ft' */
+  range?: string;
+  /** Attack bonus or save string, e.g. '+5', 'DC 13', or '—' for no attack/save */
+  hitDc?: string;
+  /** Effect category, e.g. 'Utility', 'Damage', 'Buff', 'Control' */
+  effectType?: string;
+  /** Source feature or background that granted this spell, e.g. 'Elven Lineage' */
+  source?: string;
 }
 
 /** Generic per-class resource pool: Barbarian rages, Ki points, Channel Divinity, etc. */

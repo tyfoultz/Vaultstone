@@ -83,35 +83,6 @@ export function SkillsTab({ stats, scores, prof, onRoll }: Props) {
         </View>
       </View>
 
-      {/* Tool proficiencies */}
-      {stats.toolProficiencies.length > 0 && (
-        <>
-          <SectionLabel style={{ marginTop: 16 }}>TOOL PROFICIENCIES</SectionLabel>
-          <View style={s.listCard}>
-            {stats.toolProficiencies.map((t, i) => (
-              <View key={i} style={[s.listRow, i < stats.toolProficiencies.length - 1 && s.listRowBorder]}>
-                <View style={[s.profDot, s.profDotFilled]} />
-                <Text style={s.listText}>{t}</Text>
-              </View>
-            ))}
-          </View>
-        </>
-      )}
-
-      {/* Languages */}
-      {stats.languages.length > 0 && (
-        <>
-          <SectionLabel style={{ marginTop: 16 }}>LANGUAGES</SectionLabel>
-          <View style={s.languageChips}>
-            {stats.languages.map((l, i) => (
-              <View key={i} style={s.langChip}>
-                <Text style={s.langChipText}>{l}</Text>
-              </View>
-            ))}
-          </View>
-        </>
-      )}
-
       <View style={{ height: 16 }} />
     </ScrollView>
   );
