@@ -85,6 +85,7 @@ function AddRelationshipModal({ allPages, currentPageId, existingRelationships, 
   const [search, setSearch] = useState('');
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [relType, setRelType] = useState<string>('ally');
+  const [customType, setCustomType] = useState('');
   const [note, setNote] = useState('');
 
   const existingIds = new Set(existingRelationships.map((r) => r.targetPageId));
@@ -173,6 +174,28 @@ function AddRelationshipModal({ allPages, currentPageId, existingRelationships, 
                   ))}
                 </View>
 
+                {relType === 'other' ? (
+                  <input
+                    type="text"
+                    value={customType}
+                    onChange={(e: any) => setCustomType(e.target.value)}
+                    autoFocus
+                    placeholder="Type a custom relationship…"
+                    style={{
+                      width: '100%',
+                      background: colors.surfaceContainerLowest,
+                      border: `1px solid ${colors.outlineVariant}44`,
+                      borderRadius: 8,
+                      padding: '8px 12px',
+                      color: colors.onSurface,
+                      fontSize: 13,
+                      fontFamily: "'Manrope', system-ui, sans-serif",
+                      outline: 'none',
+                      marginTop: 8,
+                    }}
+                  />
+                ) : null}
+
                 <input
                   type="text"
                   value={note}
@@ -197,7 +220,10 @@ function AddRelationshipModal({ allPages, currentPageId, existingRelationships, 
                     <Text variant="label-md" style={{ color: colors.outline }}>Cancel</Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => onAdd({ targetPageId: selectedPageId, type: relType, note: note.trim() || undefined })}
+                    onPress={() => {
+                      const finalType = relType === 'other' && customType.trim() ? customType.trim() : relType;
+                      onAdd({ targetPageId: selectedPageId, type: finalType, note: note.trim() || undefined });
+                    }}
                     style={relStyles.addBtn}
                   >
                     <Text variant="label-md" weight="semibold" style={{ color: colors.primary }}>Add</Text>
@@ -725,12 +751,12 @@ export function NPCPageView({ page, worldId }: Props) {
 
           {/* Voice / personality cue */}
           {editingVoice ? (
-            <div style={{ marginTop: 4 }}>
+            <div style={{ marginTop: 4, maxWidth: 400 }}>
               <input
                 type="text"
                 defaultValue={voice}
                 autoFocus
-                placeholder="Voice cue — e.g. 'Speaks in third person, raspy whisper'"
+                placeholder="e.g. 'Speaks in third person, raspy whisper'"
                 onKeyDown={(e: any) => {
                   if (e.key === 'Enter') { updateField('__voice', e.target.value.trim()); setEditingVoice(false); }
                   if (e.key === 'Escape') setEditingVoice(false);
@@ -1356,14 +1382,16 @@ const styles = StyleSheet.create({
   voiceCue: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: 6,
     marginTop: 4,
     paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: radius.lg,
+    paddingHorizontal: 8,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '22',
     backgroundColor: colors.surfaceContainerHigh + '44',
+    maxWidth: 400,
   },
   voiceText: {
     fontStyle: 'italic',
@@ -1373,11 +1401,12 @@ const styles = StyleSheet.create({
   voiceCueEmpty: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: 4,
     marginTop: 4,
     paddingVertical: 3,
-    paddingHorizontal: 6,
-    borderRadius: radius.lg,
+    paddingHorizontal: 8,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '33',
     borderStyle: 'dashed',
