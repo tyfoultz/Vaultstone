@@ -441,9 +441,18 @@ export function LocationPageView({ page, worldId }: Props) {
       </View>
 
       {/* ── Property pills (editable) ── */}
-      <View style={styles.pillBar}>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 6,
+        paddingLeft: spacing.lg,
+        paddingRight: spacing.lg,
+        paddingBottom: spacing.xs,
+      }}>
         {propertyPills.map((pill) => (
-          <View key={pill.key} style={{ position: 'relative' }}>
+          <div key={pill.key} style={{ position: 'relative' }}>
             <Pressable
               onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)}
               style={[
@@ -475,7 +484,7 @@ export function LocationPageView({ page, worldId }: Props) {
                 onClose={() => setEditingPill(null)}
               />
             ) : null}
-          </View>
+          </div>
         ))}
         {tags.map((tag) => (
           <View key={tag} style={styles.tagPill}>
@@ -483,7 +492,7 @@ export function LocationPageView({ page, worldId }: Props) {
             <Text style={styles.tagText}>{tag}</Text>
           </View>
         ))}
-      </View>
+      </div>
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
