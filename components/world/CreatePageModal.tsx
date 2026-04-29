@@ -144,45 +144,7 @@ export function CreatePageModal({
                   autoFocus
                 />
 
-                {(() => {
-                  const kinds = template.allowedPageKinds.filter((k) => k !== 'custom');
-                  if (kinds.length <= 1) return null;
-                  return (
-                    <View>
-                      <MetaLabel size="sm">Page kind</MetaLabel>
-                      <View style={styles.chipRow}>
-                        {kinds.map((kind) => {
-                          const selected = pageKind === kind;
-                          return (
-                            <Pressable
-                              key={kind}
-                              onPress={() => setPageKind(kind)}
-                              style={[
-                                styles.selectChip,
-                                selected && styles.selectChipActive,
-                              ]}
-                            >
-                              <Text
-                                variant="label-md"
-                                weight="semibold"
-                                uppercase
-                                style={{
-                                  color: selected
-                                    ? colors.primary
-                                    : colors.onSurfaceVariant,
-                                  letterSpacing: 1,
-                                }}
-                              >
-                                {kind.replace(/_/g, ' ')}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  );
-                })()}
-              </View>
+                </View>
 
               {error ? (
                 <Text variant="body-sm" style={{ color: colors.hpDanger, marginTop: spacing.md }}>

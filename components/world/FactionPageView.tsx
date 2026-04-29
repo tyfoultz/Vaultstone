@@ -359,6 +359,7 @@ export function FactionPageView({ page, worldId }: Props) {
   const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [editingPill, setEditingPill] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
   const [addingRelationship, setAddingRelationship] = useState(false);
 
   const section = useMemo(() => sections.find((s) => s.id === page.section_id) ?? null, [sections, page]);
@@ -542,7 +543,43 @@ export function FactionPageView({ page, worldId }: Props) {
       <View style={styles.factionHead}>
         <View style={{ marginRight: 4 }}><Icon name="shield" size={28} color={colors.hpWarning} /></View>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>{page.title}</Text>
+          {editingTitle ? (
+            <input
+              type="text"
+              defaultValue={page.title}
+              autoFocus
+              onKeyDown={(e: any) => {
+                if (e.key === 'Enter') {
+                  const v = e.target.value.trim();
+                  if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); }
+                  setEditingTitle(false);
+                }
+                if (e.key === 'Escape') setEditingTitle(false);
+              }}
+              onBlur={(e: any) => {
+                const v = e.target.value.trim();
+                if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); }
+                setEditingTitle(false);
+              }}
+              style={{
+                background: 'transparent',
+                border: `1px solid ${colors.outlineVariant}44`,
+                borderRadius: 6,
+                padding: '2px 6px',
+                color: colors.onSurface,
+                fontSize: 28,
+                fontFamily: "'Space Grotesk', system-ui, sans-serif",
+                fontWeight: 700,
+                letterSpacing: -0.4,
+                outline: 'none',
+                width: '100%',
+              }}
+            />
+          ) : (
+            <Pressable onPress={() => setEditingTitle(true)}>
+              <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>{page.title}</Text>
+            </Pressable>
+          )}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 2 }}>
             <InlinePagePicker label="Leader:" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} worldId={worldId} />
             <InlinePagePicker label="HQ:" icon="place" value={hqPage} candidates={hqCandidates} onSelect={(id) => updateField('headquarters', id)} accentColor={colors.primary} worldId={worldId} />
