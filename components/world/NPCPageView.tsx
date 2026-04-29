@@ -112,7 +112,11 @@ export function NPCPageView({ page, worldId }: Props) {
   const fieldsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function updateField(key: string, value: unknown) {
-    const next = { ...fields, [key]: value };
+    updateFields({ [key]: value });
+  }
+
+  function updateFields(patch: Record<string, unknown>) {
+    const next = { ...fields, ...patch };
     updatePageInStore(page.id, { structured_fields: next as Json });
     setSaveState('saving');
     if (fieldsTimerRef.current) clearTimeout(fieldsTimerRef.current);
@@ -198,20 +202,24 @@ export function NPCPageView({ page, worldId }: Props) {
       const imageKey = `${worldId}/${imageId}/${filename}`;
       const { data: row } = await createWorldImage({ world_id: worldId, page_id: page.id, image_key: imageKey, width: w, height: h, alt: page.title, byte_size: blob.size, content_type: 'image/jpeg' });
       if (row) {
-        updateField('__portrait_image_id', row.id);
-        updateField('__portrait_zoom', 1);
-        updateField('__portrait_offset_x', 0);
-        updateField('__portrait_offset_y', 0);
+        updateFields({
+          __portrait_image_id: row.id,
+          __portrait_zoom: 1,
+          __portrait_offset_x: 0,
+          __portrait_offset_y: 0,
+        });
       }
-    } catch { /* swallow */ }
+    } catch (err) { console.error('Portrait upload failed:', err); }
     setPortraitUploading(false);
     if (portraitInputRef.current) portraitInputRef.current.value = '';
   }
 
   function savePortraitCrop() {
-    updateField('__portrait_zoom', localZoom);
-    updateField('__portrait_offset_x', localOffsetX);
-    updateField('__portrait_offset_y', localOffsetY);
+    updateFields({
+      __portrait_zoom: localZoom,
+      __portrait_offset_x: localOffsetX,
+      __portrait_offset_y: localOffsetY,
+    });
     setAdjustingPortrait(false);
   }
 
@@ -389,7 +397,10 @@ export function NPCPageView({ page, worldId }: Props) {
       {/* ── Portrait + Title row ── */}
       <View style={styles.npcHead}>
         <div style={{ position: 'relative' }}>
-          <Pressable onPress={() => portraitUrl ? setAdjustingPortrait(true) : portraitInputRef.current?.click()} style={styles.portrait}>
+          <div
+            onClick={() => portraitUrl ? setAdjustingPortrait(true) : portraitInputRef.current?.click()}
+            style={{ width: 72, height: 72, borderRadius: 36, overflow: 'hidden', cursor: 'pointer' }}
+          >
             {portraitUrl ? (
               <div style={{
                 width: 72, height: 72, borderRadius: 36, overflow: 'hidden', position: 'relative',
@@ -427,7 +438,7 @@ export function NPCPageView({ page, worldId }: Props) {
                 )}
               </LinearGradient>
             )}
-          </Pressable>
+          </div>
           <input
             ref={portraitInputRef as any}
             type="file"
