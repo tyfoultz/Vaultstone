@@ -64,9 +64,6 @@ export function SectionTemplatePicker({ value, onChange }: Props) {
               >
                 {t.description}
               </Text>
-              <MetaLabel size="sm" style={{ marginTop: spacing.sm }}>
-                {t.defaultSectionView} view
-              </MetaLabel>
             </Card>
           </Pressable>
         );
