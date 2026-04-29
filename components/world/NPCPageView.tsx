@@ -4,11 +4,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
   claimPageEdit,
+  createWorldImage,
+  getMyStorageUsage,
   getPagesLinkingTo,
   getEventsReferencingPage,
+  getWorldImageSignedUrlById,
   releasePageEdit,
   trashPage,
   updatePage,
+  uploadWorldImage,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import type { TimelineEvent } from '@vaultstone/types';
@@ -62,14 +66,6 @@ type RightTab = 'on_this_page' | 'sub_npcs';
 function getInitials(name: string): string {
   return name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 }
-
-const THREAT_COLOR: Record<string, string> = {
-  none: colors.outline,
-  low: colors.player,
-  moderate: colors.hpWarning,
-  high: colors.hpDanger,
-  legendary: colors.primary,
-};
 
 const STATUS_COLOR: Record<string, string> = {
   alive: colors.hpHealthy,
@@ -129,10 +125,95 @@ export function NPCPageView({ page, worldId }: Props) {
   const role = typeof fields.role === 'string' ? fields.role : '';
   const species = typeof fields.species === 'string' ? fields.species : '';
   const gender = typeof fields.gender === 'string' ? fields.gender : '';
-  const threat = typeof fields.threat === 'string' ? fields.threat : '';
   const status = typeof fields.status === 'string' ? fields.status : '';
   const disposition = typeof fields.disposition === 'string' ? fields.disposition : '';
   const hooks = Array.isArray(fields.__hooks) ? (fields.__hooks as string[]) : [];
+
+  // Portrait image
+  const portraitImageId = typeof fields.__portrait_image_id === 'string' ? fields.__portrait_image_id : null;
+  const portraitZoom = typeof fields.__portrait_zoom === 'number' ? fields.__portrait_zoom : 1;
+  const portraitOffsetX = typeof fields.__portrait_offset_x === 'number' ? fields.__portrait_offset_x : 0;
+  const portraitOffsetY = typeof fields.__portrait_offset_y === 'number' ? fields.__portrait_offset_y : 0;
+  const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
+  const [portraitUploading, setPortraitUploading] = useState(false);
+  const portraitInputRef = useRef<HTMLInputElement | null>(null);
+  const [adjustingPortrait, setAdjustingPortrait] = useState(false);
+  const [localZoom, setLocalZoom] = useState(portraitZoom);
+  const [localOffsetX, setLocalOffsetX] = useState(portraitOffsetX);
+  const [localOffsetY, setLocalOffsetY] = useState(portraitOffsetY);
+
+  useEffect(() => {
+    setLocalZoom(portraitZoom);
+    setLocalOffsetX(portraitOffsetX);
+    setLocalOffsetY(portraitOffsetY);
+  }, [portraitZoom, portraitOffsetX, portraitOffsetY]);
+
+  useEffect(() => {
+    if (!portraitImageId) { setPortraitUrl(null); return; }
+    let cancelled = false;
+    void (async () => {
+      const { data } = await getWorldImageSignedUrlById(portraitImageId);
+      if (!cancelled && data) setPortraitUrl(data.signedUrl);
+    })();
+    return () => { cancelled = true; };
+  }, [portraitImageId]);
+
+  async function handlePortraitPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return;
+    setPortraitUploading(true);
+    try {
+      const usage = await getMyStorageUsage();
+      if (usage.blocked) { setPortraitUploading(false); return; }
+
+      const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new window.Image();
+        img.onload = () => { resolve({ w: img.naturalWidth, h: img.naturalHeight }); URL.revokeObjectURL(url); };
+        img.onerror = () => { reject(new Error('Bad image')); URL.revokeObjectURL(url); };
+        img.src = url;
+      });
+
+      let { w, h } = dims;
+      const MAX_DIM = 1920;
+      let blob: Blob = file;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+        const bitmap = await createImageBitmap(file);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d')!.drawImage(bitmap, 0, 0, w, h);
+        bitmap.close();
+        blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => b ? res(b) : rej(new Error('compress fail')), 'image/jpeg', 0.85));
+      }
+
+      const imageId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const filename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
+      const { error: upErr } = await uploadWorldImage({ worldId, imageId, filename, body: blob, contentType: 'image/jpeg' });
+      if (upErr) { setPortraitUploading(false); return; }
+
+      const imageKey = `${worldId}/${imageId}/${filename}`;
+      const { data: row } = await createWorldImage({ world_id: worldId, page_id: page.id, image_key: imageKey, width: w, height: h, alt: page.title, byte_size: blob.size, content_type: 'image/jpeg' });
+      if (row) {
+        updateField('__portrait_image_id', row.id);
+        updateField('__portrait_zoom', 1);
+        updateField('__portrait_offset_x', 0);
+        updateField('__portrait_offset_y', 0);
+      }
+    } catch { /* swallow */ }
+    setPortraitUploading(false);
+    if (portraitInputRef.current) portraitInputRef.current.value = '';
+  }
+
+  function savePortraitCrop() {
+    updateField('__portrait_zoom', localZoom);
+    updateField('__portrait_offset_x', localOffsetX);
+    updateField('__portrait_offset_y', localOffsetY);
+    setAdjustingPortrait(false);
+  }
 
   // Lock
   const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(null);
@@ -264,7 +345,6 @@ export function NPCPageView({ page, worldId }: Props) {
   }, [allPages, page.id]);
 
   // Property pills
-  const THREAT_OPTIONS = ['none', 'low', 'moderate', 'high', 'legendary'];
   const STATUS_OPTIONS = ['alive', 'dead', 'missing', 'unknown'];
   const DISPOSITION_OPTIONS = ['friendly', 'neutral', 'hostile', 'unknown'];
   const GENDER_OPTIONS = ['male', 'female', 'unknown', 'other'];
@@ -273,7 +353,6 @@ export function NPCPageView({ page, worldId }: Props) {
     { key: 'role', label: 'ROLE', value: role, icon: 'badge', fieldType: 'text' },
     { key: 'species', label: 'SPECIES', value: species, icon: 'pets', fieldType: 'text' },
     { key: 'gender', label: 'GENDER', value: gender, fieldType: 'select', options: GENDER_OPTIONS },
-    { key: 'threat', label: 'THREAT', value: threat, icon: 'warning', fieldType: 'select', options: THREAT_OPTIONS, color: threat ? THREAT_COLOR[threat] : undefined },
     { key: 'status', label: 'STATUS', value: status, icon: 'favorite', fieldType: 'select', options: STATUS_OPTIONS, color: status ? STATUS_COLOR[status] : undefined },
     { key: 'disposition', label: 'DISPOSITION', value: disposition, icon: 'mood', fieldType: 'select', options: DISPOSITION_OPTIONS, color: disposition ? DISPOSITION_COLOR[disposition] : undefined },
   ];
@@ -309,14 +388,135 @@ export function NPCPageView({ page, worldId }: Props) {
 
       {/* ── Portrait + Title row ── */}
       <View style={styles.npcHead}>
-        <LinearGradient
-          colors={[colors.cosmicContainer, colors.surfaceContainerLowest]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.portrait}
-        >
-          <Text style={styles.portraitInitials}>{getInitials(page.title)}</Text>
-        </LinearGradient>
+        <div style={{ position: 'relative' }}>
+          <Pressable onPress={() => portraitUrl ? setAdjustingPortrait(true) : portraitInputRef.current?.click()} style={styles.portrait}>
+            {portraitUrl ? (
+              <div style={{
+                width: 72, height: 72, borderRadius: 36, overflow: 'hidden', position: 'relative',
+              }}>
+                <img
+                  src={portraitUrl}
+                  alt={page.title}
+                  style={{
+                    position: 'absolute',
+                    width: `${100 * localZoom}%`,
+                    height: `${100 * localZoom}%`,
+                    objectFit: 'cover',
+                    left: `${50 + localOffsetX}%`,
+                    top: `${50 + localOffsetY}%`,
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                />
+              </div>
+            ) : (
+              <LinearGradient
+                colors={[colors.cosmicContainer, colors.surfaceContainerLowest]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.portraitFallback}
+              >
+                {portraitUploading ? (
+                  <Text style={styles.portraitInitials}>…</Text>
+                ) : (
+                  <>
+                    <Text style={styles.portraitInitials}>{getInitials(page.title)}</Text>
+                    <View style={styles.portraitUploadHint}>
+                      <Icon name="camera-alt" size={12} color={colors.outline} />
+                    </View>
+                  </>
+                )}
+              </LinearGradient>
+            )}
+          </Pressable>
+          <input
+            ref={portraitInputRef as any}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handlePortraitPick as any}
+            style={{ display: 'none' }}
+          />
+
+          {/* Adjust portrait overlay */}
+          {adjustingPortrait ? (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.4)' }} onClick={() => setAdjustingPortrait(false)} />
+              <div style={{
+                position: 'absolute',
+                top: 80,
+                left: 0,
+                zIndex: 201,
+                background: colors.surfaceContainerHigh,
+                border: `1px solid ${colors.outlineVariant}55`,
+                borderRadius: 12,
+                padding: 16,
+                minWidth: 220,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              }}>
+                <div style={{
+                  width: 180, height: 180, borderRadius: 90, overflow: 'hidden',
+                  margin: '0 auto 12px', position: 'relative',
+                  border: `2px solid ${colors.outlineVariant}44`,
+                }}>
+                  <img
+                    src={portraitUrl!}
+                    alt={page.title}
+                    draggable={false}
+                    style={{
+                      position: 'absolute',
+                      width: `${100 * localZoom}%`,
+                      height: `${100 * localZoom}%`,
+                      objectFit: 'cover',
+                      left: `${50 + localOffsetX}%`,
+                      top: `${50 + localOffsetY}%`,
+                      transform: 'translate(-50%, -50%)',
+                      cursor: 'grab',
+                    }}
+                    onMouseDown={(e: any) => {
+                      e.preventDefault();
+                      const startX = e.clientX;
+                      const startY = e.clientY;
+                      const startOx = localOffsetX;
+                      const startOy = localOffsetY;
+                      const onMove = (ev: MouseEvent) => {
+                        const dx = ((ev.clientX - startX) / 180) * 100;
+                        const dy = ((ev.clientY - startY) / 180) * 100;
+                        setLocalOffsetX(Math.max(-50, Math.min(50, startOx + dx)));
+                        setLocalOffsetY(Math.max(-50, Math.min(50, startOy + dy)));
+                      };
+                      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+                      document.addEventListener('mousemove', onMove);
+                      document.addEventListener('mouseup', onUp);
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline, minWidth: 36 }}>Zoom</Text>
+                  <input
+                    type="range"
+                    min="1"
+                    max="4"
+                    step="0.1"
+                    value={localZoom}
+                    onChange={(e: any) => setLocalZoom(parseFloat(e.target.value))}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <Pressable onPress={() => portraitInputRef.current?.click()} style={styles.portraitActionBtn}>
+                    <Icon name="cloud-upload" size={14} color={colors.outline} />
+                    <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Replace</Text>
+                  </Pressable>
+                  <Pressable onPress={() => { setAdjustingPortrait(false); setLocalZoom(portraitZoom); setLocalOffsetX(portraitOffsetX); setLocalOffsetY(portraitOffsetY); }} style={styles.portraitActionBtn}>
+                    <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Cancel</Text>
+                  </Pressable>
+                  <Pressable onPress={savePortraitCrop} style={[styles.portraitActionBtn, { borderColor: colors.primary + '55', backgroundColor: colors.primaryContainer + '22' }]}>
+                    <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.primary, fontWeight: '600' }}>Save</Text>
+                  </Pressable>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
 
         <View style={styles.npcTitleCol}>
           <Text variant="headline-md" family="serif-display" weight="bold" style={styles.npcName}>
@@ -332,13 +532,6 @@ export function NPCPageView({ page, worldId }: Props) {
             </Text>
           ) : null}
           <View style={styles.npcStatRow}>
-            {threat ? (
-              <View style={[styles.npcStatChip, { borderColor: (THREAT_COLOR[threat] ?? colors.outline) + '44' }]}>
-                <Text style={[styles.npcStatChipLabel, { color: THREAT_COLOR[threat] ?? colors.outline }]}>
-                  {threat.charAt(0).toUpperCase() + threat.slice(1)} threat
-                </Text>
-              </View>
-            ) : null}
             {status ? (
               <View style={[styles.npcStatChip, { borderColor: (STATUS_COLOR[status] ?? colors.outline) + '44' }]}>
                 <View style={[styles.statusDot, { backgroundColor: STATUS_COLOR[status] ?? colors.outline }]} />
@@ -655,6 +848,12 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
+    overflow: 'hidden',
+  },
+  portraitFallback: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -666,6 +865,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.onSurface,
     letterSpacing: 1,
+  },
+  portraitUploadHint: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
+  portraitActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
   },
   npcTitleCol: { flex: 1, gap: 2 },
   npcName: {
