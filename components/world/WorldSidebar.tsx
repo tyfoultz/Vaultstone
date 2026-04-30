@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadWorldThumbnail } from '@vaultstone/api';
+import { listMaps, uploadWorldThumbnail, type WorldMap } from '@vaultstone/api';
 import {
   selectSectionsForWorld,
   useAuthStore,
@@ -27,12 +27,13 @@ import {
 import { CreatePageModal } from './CreatePageModal';
 import { CreateSectionModal } from './CreateSectionModal';
 import { LensDropdown } from './LensDropdown';
+import { MapUploadModal } from './map/MapUploadModal';
 import { isSectionVisibleToPlayersPreview } from './playerViewFilters';
 import { SidebarDndProvider } from './SidebarDndContext';
 import { SidebarSection } from './SidebarSection';
 import { WorldSearchDrawer } from './WorldSearchDrawer';
 import { WorldSettingsModal } from './WorldSettingsModal';
-import { worldHref, worldMapIndexHref, worldPageHref } from './worldHref';
+import { worldHref, worldMapHref, worldMapIndexHref, worldPageHref } from './worldHref';
 
 type World = Database['public']['Tables']['worlds']['Row'];
 
@@ -58,8 +59,15 @@ export function WorldSidebar({ world, activePageId }: Props) {
   } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [cropUri, setCropUri] = useState<string | null>(null);
+  const [maps, setMaps] = useState<WorldMap[]>([]);
+  const [mapUploadOpen, setMapUploadOpen] = useState(false);
+  const pathname = usePathname();
 
   const isOwner = !!(user && user.id === world.owner_user_id);
+
+  useEffect(() => {
+    listMaps(world.id).then(({ data }) => setMaps((data ?? []) as WorldMap[]));
+  }, [world.id]);
 
   async function handleUploadThumbnail(uri: string, mime: string) {
     setUploading(true);
@@ -304,6 +312,13 @@ export function WorldSidebar({ world, activePageId }: Props) {
             />
           ))
         )}
+        <SidebarMapSection
+          maps={maps}
+          worldId={world.id}
+          activeMapId={pathname.match(/\/world\/[^/]+\/map\/([^/]+)/)?.[1] ?? null}
+          isOwner={isOwner}
+          onAddMap={() => setMapUploadOpen(true)}
+        />
       </ScrollView>
       </SidebarDndProvider>
 
@@ -331,6 +346,17 @@ export function WorldSidebar({ world, activePageId }: Props) {
           onClose={() => setCreatePageTarget(null)}
         />
       ) : null}
+      {mapUploadOpen ? (
+        <MapUploadModal
+          worldId={world.id}
+          onClose={() => setMapUploadOpen(false)}
+          onUploaded={(newMap) => {
+            setMapUploadOpen(false);
+            setMaps((prev) => [...prev, newMap]);
+            router.push(worldMapHref(world.id, newMap.id));
+          }}
+        />
+      ) : null}
       {cropUri ? (
         <ImageCropModal
           visible
@@ -343,6 +369,131 @@ export function WorldSidebar({ world, activePageId }: Props) {
     </View>
   );
 }
+
+function SidebarMapSection({ maps, worldId, activeMapId, isOwner, onAddMap }: {
+  maps: WorldMap[];
+  worldId: string;
+  activeMapId: string | null;
+  isOwner: boolean;
+  onAddMap: () => void;
+}) {
+  const router = useRouter();
+  const collapseKey = `${worldId}:__maps`;
+  const collapsed = useSidebarCollapseStore((s) => !!s.collapsed[collapseKey]);
+  const toggle = useSidebarCollapseStore((s) => s.toggle);
+
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <View style={mapSectionStyles.header}>
+        <Pressable
+          onPress={() => toggle(collapseKey)}
+          style={mapSectionStyles.chevronBtn}
+          accessibilityLabel={collapsed ? 'Expand maps' : 'Collapse maps'}
+        >
+          <Icon
+            name={collapsed ? 'chevron-right' : 'expand-more'}
+            size={16}
+            color={colors.outline}
+          />
+        </Pressable>
+        <Pressable
+          onPress={() => router.push(worldMapIndexHref(worldId))}
+          style={mapSectionStyles.headerLabel}
+          accessibilityLabel="Maps"
+        >
+          <Icon name="map" size={13} color={colors.outline} />
+          <MetaLabel size="sm" tone="muted">Maps</MetaLabel>
+        </Pressable>
+        {isOwner ? (
+          <Pressable
+            onPress={onAddMap}
+            style={mapSectionStyles.addBtn}
+            accessibilityLabel="Add map"
+          >
+            <Icon name="add" size={16} color={colors.outline} />
+          </Pressable>
+        ) : null}
+      </View>
+      {!collapsed ? (
+        maps.length === 0 ? (
+          <Text
+            variant="body-sm"
+            tone="secondary"
+            style={{ paddingLeft: spacing.sm, paddingVertical: 4, color: colors.outline }}
+          >
+            No maps yet.
+          </Text>
+        ) : (
+          <View>
+            {maps.map((m) => {
+              const active = m.id === activeMapId;
+              return (
+                <Pressable
+                  key={m.id}
+                  onPress={() => router.push(worldMapHref(worldId, m.id))}
+                  style={[
+                    mapSectionStyles.mapRow,
+                    active && mapSectionStyles.mapRowActive,
+                  ]}
+                >
+                  <Icon name="map" size={14} color={active ? colors.primary : colors.onSurfaceVariant} />
+                  <Text
+                    variant="body-sm"
+                    numberOfLines={1}
+                    style={{ flex: 1, color: active ? colors.primary : colors.onSurface, fontSize: 13 }}
+                  >
+                    {m.label || 'Untitled map'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )
+      ) : null}
+    </View>
+  );
+}
+
+const mapSectionStyles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xs,
+    height: 28,
+    gap: 2,
+  },
+  chevronBtn: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerLabel: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  addBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 28,
+    paddingRight: spacing.xs,
+    paddingVertical: 4,
+    borderRadius: radius.lg,
+  },
+  mapRowActive: {
+    backgroundColor: colors.primaryContainer + '33',
+  },
+});
 
 const styles = StyleSheet.create({
   root: {

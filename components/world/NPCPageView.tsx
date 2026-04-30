@@ -75,6 +75,53 @@ const RELATIONSHIP_TYPES = [
 
 type Relationship = { targetPageId: string; type: string; note?: string };
 
+const RECIPROCAL_MAP: Record<string, string> = {
+  ally: 'ally',
+  rival: 'rival',
+  enemy: 'enemy',
+  friend: 'friend',
+  family: 'family',
+  lover: 'lover',
+  employer: 'servant',
+  servant: 'employer',
+  mentor: 'student',
+  student: 'mentor',
+};
+
+function getReciprocalType(type: string): string | null {
+  return RECIPROCAL_MAP[type] ?? null;
+}
+
+function addReciprocalRelationship(
+  targetPage: WorldPage,
+  sourcePageId: string,
+  reciprocalType: string,
+) {
+  const fields = (targetPage.structured_fields as Record<string, unknown>) ?? {};
+  const existing: Relationship[] = Array.isArray(fields.__relationships)
+    ? (fields.__relationships as Relationship[])
+    : [];
+  if (existing.some((r) => r.targetPageId === sourcePageId)) return;
+  const next = { ...fields, __relationships: [...existing, { targetPageId: sourcePageId, type: reciprocalType }] };
+  usePagesStore.getState().updatePage(targetPage.id, { structured_fields: next as Json });
+  void updatePage(targetPage.id, { structured_fields: next as Json });
+}
+
+function removeReciprocalRelationship(
+  targetPage: WorldPage,
+  sourcePageId: string,
+) {
+  const fields = (targetPage.structured_fields as Record<string, unknown>) ?? {};
+  const existing: Relationship[] = Array.isArray(fields.__relationships)
+    ? (fields.__relationships as Relationship[])
+    : [];
+  const filtered = existing.filter((r) => r.targetPageId !== sourcePageId);
+  if (filtered.length === existing.length) return;
+  const next = { ...fields, __relationships: filtered };
+  usePagesStore.getState().updatePage(targetPage.id, { structured_fields: next as Json });
+  void updatePage(targetPage.id, { structured_fields: next as Json });
+}
+
 function AddRelationshipModal({ allPages, currentPageId, existingRelationships, onAdd, onClose }: {
   allPages: WorldPage[];
   currentPageId: string;
@@ -1027,7 +1074,10 @@ export function NPCPageView({ page, worldId }: Props) {
                             <Icon name="chevron-right" size={12} color={colors.outline} />
                           </Pressable>
                           <Pressable
-                            onPress={() => updateField('__relationships', relationships.filter((_, j) => j !== i))}
+                            onPress={() => {
+                              updateField('__relationships', relationships.filter((_, j) => j !== i));
+                              if (targetPage) removeReciprocalRelationship(targetPage, page.id);
+                            }}
                             style={{ padding: 4 }}
                           >
                             <Icon name="close" size={12} color={colors.outline} />
@@ -1085,7 +1135,15 @@ export function NPCPageView({ page, worldId }: Props) {
         allPages={allPages ?? []}
         currentPageId={page.id}
         existingRelationships={relationships}
-        onAdd={(rel) => { updateField('__relationships', [...relationships, rel]); setAddingRelationship(false); }}
+        onAdd={(rel) => {
+          updateField('__relationships', [...relationships, rel]);
+          const reciprocal = getReciprocalType(rel.type);
+          if (reciprocal) {
+            const target = (allPages ?? []).find((p) => p.id === rel.targetPageId);
+            if (target) addReciprocalRelationship(target, page.id, reciprocal);
+          }
+          setAddingRelationship(false);
+        }}
         onClose={() => setAddingRelationship(false)}
       /> : null}
 
