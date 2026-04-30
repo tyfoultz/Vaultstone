@@ -107,13 +107,13 @@ export function PageContextMenu({
     },
     'divider',
     {
-      label: 'Indent',
+      label: 'Make sub-page',
       icon: 'format-indent-increase',
       onPress: async () => { onClose(); if (indentMove) await execMove(indentMove); },
       disabled: !indentMove || depth >= 5,
     },
     {
-      label: 'Outdent',
+      label: 'Promote sub-page',
       icon: 'format-indent-decrease',
       onPress: async () => { onClose(); if (outdentMove) await execMove(outdentMove); },
       disabled: !outdentMove,

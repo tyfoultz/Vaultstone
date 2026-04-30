@@ -49,6 +49,7 @@ export async function updateWorld(
     opening_updated_at: string | null;
     opening_updated_by: string | null;
     is_archived: boolean;
+    primary_map_id: string | null;
   }>,
 ) {
   return supabase.from('worlds').update(patch).eq('id', worldId);

@@ -17,6 +17,7 @@ import { isPageVisibleToPlayersPreview } from './playerViewFilters';
 import { SectionContextMenu } from './SectionContextMenu';
 import { SectionSettingsModal } from './SectionSettingsModal';
 import { SidebarPageRow } from './SidebarPageRow';
+import { useSectionDnd } from './useSectionDnd';
 import { worldSectionHref } from './worldHref';
 
 type Props = {
@@ -25,14 +26,27 @@ type Props = {
   activePageId?: string | null;
   onAddPage?: () => void;
   onAddSubPage?: (sectionId: string, parentPageId: string) => void;
+  onReorder?: (dragged: WorldSection, target: WorldSection, position: 'before' | 'after') => void;
 };
 
 const EMPTY_SET = new Set<string>();
 
-export function SidebarSection({ section, worldId, activePageId, onAddPage, onAddSubPage }: Props) {
+export function SidebarSection({ section, worldId, activePageId, onAddPage, onAddSubPage, onReorder }: Props) {
   const collapseKey = `${worldId}:${section.id}`;
   const collapsed = useSidebarCollapseStore((s) => !!s.collapsed[collapseKey]);
   const toggle = useSidebarCollapseStore((s) => s.toggle);
+
+  const handleSectionDrop = useCallback(
+    (dragged: WorldSection, target: WorldSection, position: 'before' | 'after') => {
+      onReorder?.(dragged, target, position);
+    },
+    [onReorder],
+  );
+
+  const { ref: sectionDndRef, isDragging, dropPosition: sectionDropPos, isOver: sectionIsOver } = useSectionDnd(
+    section,
+    handleSectionDrop,
+  );
 
   const rawPages = usePagesStore((s) => s.byWorldId[worldId]);
   const playerView = useCurrentWorldStore((s) => s.playerViewPreview);
@@ -111,14 +125,27 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
     </View>
   );
 
+  const sectionDropLine = sectionIsOver && sectionDropPos ? (
+    <View
+      style={[
+        styles.sectionDropLine,
+        sectionDropPos === 'before' ? { marginBottom: -1 } : { marginTop: -1 },
+      ]}
+    />
+  ) : null;
+
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, isDragging && { opacity: 0.4 }]}>
       {Platform.OS === 'web' ? (
         <View
+          ref={sectionDndRef as React.RefObject<View>}
           // @ts-expect-error -- RN Web supports onContextMenu on View
           onContextMenu={handleContextMenu}
+          style={{ position: 'relative' }}
         >
+          {sectionDropPos === 'before' && sectionDropLine}
           {headerContent}
+          {sectionDropPos === 'after' && sectionDropLine}
         </View>
       ) : (
         headerContent
@@ -199,5 +226,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sectionDropLine: {
+    height: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 1,
   },
 });

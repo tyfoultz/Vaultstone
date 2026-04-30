@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { listMaps, uploadWorldThumbnail, type WorldMap } from '@vaultstone/api';
+import { listMaps, reorderSections, softDeleteMap, updateMap, updateWorld, uploadWorldThumbnail, type WorldMap } from '@vaultstone/api';
 import {
   selectSectionsForWorld,
   useAuthStore,
@@ -12,11 +12,14 @@ import {
   useSidebarCollapseStore,
   useWorldsStore,
 } from '@vaultstone/store';
-import type { Database } from '@vaultstone/types';
+import type { Database, WorldSection } from '@vaultstone/types';
 import {
+  Card,
   GhostButton,
+  GradientButton,
   Icon,
   ImageCropModal,
+  Input,
   MetaLabel,
   Text,
   colors,
@@ -106,6 +109,22 @@ export function WorldSidebar({ world, activePageId }: Props) {
       ? allSections.filter(isSectionVisibleToPlayersPreview)
       : allSections;
   }, [allSections, playerView]);
+
+  const storeUpdateSection = useSectionsStore((s) => s.updateSection);
+  const handleSectionReorder = useCallback(
+    (dragged: WorldSection, target: WorldSection, position: 'before' | 'after') => {
+      if (dragged.id === target.id) return;
+      const ordered = [...allSections].sort((a, b) => a.sort_order - b.sort_order);
+      const without = ordered.filter((s) => s.id !== dragged.id);
+      const targetIdx = without.findIndex((s) => s.id === target.id);
+      const insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
+      without.splice(insertIdx, 0, dragged);
+      const updates = without.map((s, i) => ({ id: s.id, sort_order: i }));
+      for (const u of updates) storeUpdateSection(u.id, { sort_order: u.sort_order });
+      void reorderSections(updates);
+    },
+    [allSections, storeUpdateSection],
+  );
 
   // ── Collapsed rail mode ──────────────────────────────────────────────
   if (!sidebarOpen) {
@@ -309,15 +328,22 @@ export function WorldSidebar({ world, activePageId }: Props) {
               onAddSubPage={(sectionId, parentPageId) =>
                 setCreatePageTarget({ sectionId, parentPageId })
               }
+              onReorder={handleSectionReorder}
             />
           ))
         )}
         <SidebarMapSection
           maps={maps}
+          setMaps={setMaps}
           worldId={world.id}
+          primaryMapId={world.primary_map_id}
           activeMapId={pathname.match(/\/world\/[^/]+\/map\/([^/]+)/)?.[1] ?? null}
           isOwner={isOwner}
           onAddMap={() => setMapUploadOpen(true)}
+          onSetPrimary={(mapId) => {
+            storeUpdateWorld(world.id, { primary_map_id: mapId });
+            setActiveWorld({ ...world, primary_map_id: mapId });
+          }}
         />
       </ScrollView>
       </SidebarDndProvider>
@@ -370,17 +396,40 @@ export function WorldSidebar({ world, activePageId }: Props) {
   );
 }
 
-function SidebarMapSection({ maps, worldId, activeMapId, isOwner, onAddMap }: {
+function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, isOwner, onAddMap, onSetPrimary }: {
   maps: WorldMap[];
+  setMaps: React.Dispatch<React.SetStateAction<WorldMap[]>>;
   worldId: string;
+  primaryMapId: string | null;
   activeMapId: string | null;
   isOwner: boolean;
   onAddMap: () => void;
+  onSetPrimary: (mapId: string | null) => void;
 }) {
   const router = useRouter();
   const collapseKey = `${worldId}:__maps`;
   const collapsed = useSidebarCollapseStore((s) => !!s.collapsed[collapseKey]);
   const toggle = useSidebarCollapseStore((s) => s.toggle);
+  const [menuState, setMenuState] = useState<{ map: WorldMap; anchor: { x: number; y: number } } | null>(null);
+  const [renameMap, setRenameMap] = useState<WorldMap | null>(null);
+
+  async function handleRenameMap(map: WorldMap, newLabel: string) {
+    const trimmed = newLabel.trim();
+    if (!trimmed || trimmed === map.label) return;
+    setMaps((prev) => prev.map((m) => m.id === map.id ? { ...m, label: trimmed } : m));
+    await updateMap(map.id, { label: trimmed });
+  }
+
+  async function handleDeleteMap(map: WorldMap) {
+    setMaps((prev) => prev.filter((m) => m.id !== map.id));
+    if (primaryMapId === map.id) onSetPrimary(null);
+    await softDeleteMap(map.id);
+  }
+
+  async function handleSetPrimary(map: WorldMap) {
+    onSetPrimary(map.id);
+    await updateWorld(worldId, { primary_map_id: map.id });
+  }
 
   return (
     <View style={{ gap: spacing.xs }}>
@@ -427,30 +476,144 @@ function SidebarMapSection({ maps, worldId, activeMapId, isOwner, onAddMap }: {
           <View>
             {maps.map((m) => {
               const active = m.id === activeMapId;
+              const isPrimary = m.id === primaryMapId;
               return (
-                <Pressable
+                <View
                   key={m.id}
-                  onPress={() => router.push(worldMapHref(worldId, m.id))}
-                  style={[
-                    mapSectionStyles.mapRow,
-                    active && mapSectionStyles.mapRowActive,
-                  ]}
+                  // @ts-expect-error -- RN Web supports onContextMenu on View
+                  onContextMenu={(e: { nativeEvent: { pageX: number; pageY: number }; preventDefault?: () => void }) => {
+                    if (e.preventDefault) e.preventDefault();
+                    setMenuState({ map: m, anchor: { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY } });
+                  }}
                 >
-                  <Icon name="map" size={14} color={active ? colors.primary : colors.onSurfaceVariant} />
-                  <Text
-                    variant="body-sm"
-                    numberOfLines={1}
-                    style={{ flex: 1, color: active ? colors.primary : colors.onSurface, fontSize: 13 }}
+                  <Pressable
+                    onPress={() => router.push(worldMapHref(worldId, m.id))}
+                    style={[
+                      mapSectionStyles.mapRow,
+                      active && mapSectionStyles.mapRowActive,
+                    ]}
                   >
-                    {m.label || 'Untitled map'}
-                  </Text>
-                </Pressable>
+                    <Icon
+                      name={isPrimary ? 'star' : 'map'}
+                      size={14}
+                      color={active ? colors.primary : isPrimary ? colors.cosmic : colors.onSurfaceVariant}
+                    />
+                    <Text
+                      variant="body-sm"
+                      numberOfLines={1}
+                      style={{ flex: 1, color: active ? colors.primary : colors.onSurface, fontSize: 13 }}
+                    >
+                      {m.label || 'Untitled map'}
+                    </Text>
+                  </Pressable>
+                </View>
               );
             })}
           </View>
         )
       ) : null}
+
+      {menuState ? (
+        <MapContextMenu
+          anchor={menuState.anchor}
+          map={menuState.map}
+          isPrimary={menuState.map.id === primaryMapId}
+          isOwner={isOwner}
+          onClose={() => setMenuState(null)}
+          onRename={() => { setRenameMap(menuState.map); setMenuState(null); }}
+          onSetPrimary={() => { handleSetPrimary(menuState.map); setMenuState(null); }}
+          onDelete={() => { handleDeleteMap(menuState.map); setMenuState(null); }}
+        />
+      ) : null}
+
+      {renameMap ? (
+        <RenameMapModal
+          map={renameMap}
+          onSave={(label) => { handleRenameMap(renameMap, label); setRenameMap(null); }}
+          onClose={() => setRenameMap(null)}
+        />
+      ) : null}
     </View>
+  );
+}
+
+function MapContextMenu({ anchor, map, isPrimary, isOwner, onClose, onRename, onSetPrimary, onDelete }: {
+  anchor: { x: number; y: number };
+  map: WorldMap;
+  isPrimary: boolean;
+  isOwner: boolean;
+  onClose: () => void;
+  onRename: () => void;
+  onSetPrimary: () => void;
+  onDelete: () => void;
+}) {
+  const items: Array<{ label: string; icon: string; onPress: () => void; disabled?: boolean; destructive?: boolean } | 'divider'> = [
+    { label: 'Rename', icon: 'edit', onPress: onRename },
+    { label: isPrimary ? 'Primary map' : 'Set as primary map', icon: 'star', onPress: onSetPrimary, disabled: isPrimary },
+    'divider',
+    { label: 'Delete map', icon: 'delete', onPress: onDelete, destructive: true },
+  ];
+
+  const menuHeight = items.length * 34;
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const anchorY = Math.min(anchor.y, viewportH - menuHeight - 16);
+  const anchorX = Math.min(anchor.x, viewportW - 220);
+
+  return (
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
+      <Pressable style={mapMenuStyles.backdrop} onPress={onClose}>
+        <Pressable onPress={(e) => e.stopPropagation()} style={[mapMenuStyles.menuWrapper, { position: 'absolute', left: anchorX, top: anchorY }]}>
+          <View style={mapMenuStyles.menu}>
+            {items.map((item, i) => {
+              if (item === 'divider') return <View key={`div-${i}`} style={mapMenuStyles.divider} />;
+              return (
+                <Pressable
+                  key={item.label}
+                  onPress={item.onPress}
+                  disabled={item.disabled}
+                  style={({ pressed }) => [
+                    mapMenuStyles.menuRow,
+                    pressed && { backgroundColor: colors.surfaceContainerHigh },
+                    item.disabled && { opacity: 0.4 },
+                  ]}
+                >
+                  <Icon name={item.icon as React.ComponentProps<typeof Icon>['name']} size={16} color={item.destructive ? colors.hpDanger : colors.onSurfaceVariant} />
+                  <Text variant="label-md" style={{ flex: 1, color: item.destructive ? colors.hpDanger : colors.onSurface }}>{item.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function RenameMapModal({ map, onSave, onClose }: { map: WorldMap; onSave: (label: string) => void; onClose: () => void }) {
+  const [label, setLabel] = useState(map.label);
+  return (
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
+      <Pressable style={mapMenuStyles.backdrop} onPress={onClose}>
+        <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 400, alignSelf: 'center' }}>
+          <Card tier="container" padding="lg" style={{ width: '100%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <MetaLabel size="sm" tone="accent">Rename map</MetaLabel>
+                <Text variant="headline-sm" family="serif-display" weight="bold" style={{ marginTop: 4 }}>{map.label}</Text>
+              </View>
+              <Pressable onPress={onClose} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full }}>
+                <Icon name="close" size={22} color={colors.onSurfaceVariant} />
+              </Pressable>
+            </View>
+            <View style={{ marginTop: spacing.lg, gap: spacing.md }}>
+              <Input label="New name" value={label} onChangeText={setLabel} autoFocus onSubmitEditing={() => onSave(label)} />
+              <GradientButton label="Rename" onPress={() => onSave(label)} disabled={!label.trim()} />
+            </View>
+          </Card>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -492,6 +655,42 @@ const mapSectionStyles = StyleSheet.create({
   },
   mapRowActive: {
     backgroundColor: colors.primaryContainer + '33',
+  },
+});
+
+const mapMenuStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  menuWrapper: {
+    width: 200,
+  },
+  menu: {
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    padding: spacing.xs,
+    gap: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+    borderRadius: radius.lg,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.outlineVariant + '33',
+    marginVertical: 2,
   },
 });
 
