@@ -408,6 +408,7 @@ export default function WorldMapScreen() {
             <PinPreviewPopup
               pin={previewPin}
               page={linkedPage}
+              allPages={worldPages}
               isOwner={isOwner}
               onClose={() => setPreviewPin(null)}
               onOpenPage={(pageId) => {
