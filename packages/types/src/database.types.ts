@@ -646,6 +646,7 @@ export interface Database {
           image_height: number;
           aspect_ratio: number;
           byte_size: number;
+          sort_order: number;
           deleted_at: string | null;
           hard_delete_after: string | null;
           created_at: string;
@@ -662,6 +663,7 @@ export interface Database {
           image_height: number;
           aspect_ratio: number;
           byte_size: number;
+          sort_order?: number;
           deleted_at?: string | null;
           hard_delete_after?: string | null;
           created_at?: string;
@@ -674,6 +676,7 @@ export interface Database {
           image_height?: number;
           aspect_ratio?: number;
           byte_size?: number;
+          sort_order?: number;
           owner_page_id?: string | null;
           campaign_id?: string | null;
           deleted_at?: string | null;

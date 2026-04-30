@@ -30,6 +30,7 @@ import { MapUploadModal } from '../../../../components/world/map/MapUploadModal'
 import { PinEditorModal, type PinEditorInitial } from '../../../../components/world/map/PinEditorModal';
 import { PinFilterBar } from '../../../../components/world/map/PinFilterBar';
 import { PinLayer } from '../../../../components/world/map/PinLayer';
+import { PinPreviewPopup } from '../../../../components/world/map/PinPreviewPopup';
 import { ZoomControl } from '../../../../components/world/map/ZoomControl';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { worldMapHref, worldPageHref } from '../../../../components/world/worldHref';
@@ -66,6 +67,7 @@ export default function WorldMapScreen() {
   const [placementMode, setPlacementMode] = useState(false);
   const [editor, setEditor] = useState<PinEditorInitial | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [previewPin, setPreviewPin] = useState<MapPin | null>(null);
   const [liveScale, setLiveScale] = useState(storedViewport?.scale ?? 1);
   const [canvasSize, setCanvasSize] = useState<{ w: number; h: number } | null>(null);
   const canvasRef = useRef<MapCanvasHandle | null>(null);
@@ -161,7 +163,9 @@ export default function WorldMapScreen() {
 
   const handlePinPress = useCallback(
     (pin: MapPin) => {
-      if (isOwner) {
+      if (pin.linked_page_id) {
+        setPreviewPin(pin);
+      } else if (isOwner) {
         setEditor({
           id: pin.id,
           pin_type: pin.pin_type,
@@ -172,11 +176,9 @@ export default function WorldMapScreen() {
           icon_key_override: pin.icon_key_override,
           color_override: pin.color_override,
         });
-      } else if (pin.linked_page_id && worldId) {
-        router.push(worldPageHref(worldId, pin.linked_page_id));
       }
     },
-    [isOwner, router, worldId],
+    [isOwner],
   );
 
   const handleSave = useCallback(
@@ -398,6 +400,38 @@ export default function WorldMapScreen() {
             </Text>
           </View>
         ) : null}
+
+        {previewPin && previewPin.linked_page_id ? (() => {
+          const linkedPage = worldPages.find((p) => p.id === previewPin.linked_page_id);
+          if (!linkedPage) return null;
+          return (
+            <PinPreviewPopup
+              pin={previewPin}
+              page={linkedPage}
+              allPages={worldPages}
+              isOwner={isOwner}
+              onClose={() => setPreviewPin(null)}
+              onOpenPage={(pageId) => {
+                setPreviewPin(null);
+                router.push(worldPageHref(worldId, pageId));
+              }}
+              onEditPin={() => {
+                const p = previewPin;
+                setPreviewPin(null);
+                setEditor({
+                  id: p.id,
+                  pin_type: p.pin_type,
+                  x_pct: p.x_pct,
+                  y_pct: p.y_pct,
+                  label: p.label,
+                  linked_page_id: p.linked_page_id,
+                  icon_key_override: p.icon_key_override,
+                  color_override: p.color_override,
+                });
+              }}
+            />
+          );
+        })() : null}
       </View>
 
       {editor ? (

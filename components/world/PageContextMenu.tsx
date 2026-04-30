@@ -107,13 +107,13 @@ export function PageContextMenu({
     },
     'divider',
     {
-      label: 'Indent',
+      label: 'Make sub-page',
       icon: 'format-indent-increase',
       onPress: async () => { onClose(); if (indentMove) await execMove(indentMove); },
       disabled: !indentMove || depth >= 5,
     },
     {
-      label: 'Outdent',
+      label: 'Promote sub-page',
       icon: 'format-indent-decrease',
       onPress: async () => { onClose(); if (outdentMove) await execMove(outdentMove); },
       disabled: !outdentMove,
@@ -150,6 +150,12 @@ export function PageContextMenu({
     },
   ];
 
+  const menuHeight = items.length * 34;
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const anchorY = anchor ? Math.min(anchor.y, viewportH - menuHeight - 16) : 0;
+  const anchorX = anchor ? Math.min(anchor.x, viewportW - 220) : 0;
+
   return (
     <Modal transparent visible animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -157,7 +163,7 @@ export function PageContextMenu({
           onPress={(e) => e.stopPropagation()}
           style={[
             styles.menuWrapper,
-            anchor ? { position: 'absolute', left: anchor.x, top: anchor.y } : {},
+            anchor ? { position: 'absolute', left: anchorX, top: anchorY } : {},
           ]}
         >
           <View style={styles.menu}>

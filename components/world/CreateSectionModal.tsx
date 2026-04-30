@@ -99,10 +99,6 @@ export function CreateSectionModal({ worldId, onClose }: Props) {
                     onChangeText={setName}
                     autoFocus
                   />
-                  <Text variant="body-sm" tone="secondary" style={{ color: colors.onSurfaceVariant }}>
-                    Default view: <Text variant="body-sm" weight="semibold">{template.defaultSectionView}</Text>.
-                    You can change it later from the section menu.
-                  </Text>
                 </View>
               )}
 
@@ -154,11 +150,14 @@ const styles = StyleSheet.create({
   panelWrapper: {
     width: '100%',
     maxWidth: 720,
-    maxHeight: '90%',
+    maxHeight: '85%',
+    overflow: 'hidden',
   },
   panel: {
     borderWidth: 1,
     borderColor: colors.outlineVariant + '33',
+    flex: 1,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',

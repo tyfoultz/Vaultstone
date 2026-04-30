@@ -7,13 +7,17 @@ import {
   usePagesStore,
   useSidebarCollapseStore,
 } from '@vaultstone/store';
-import type { WorldPage, WorldSection } from '@vaultstone/types';
-import { Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { getTemplate } from '@vaultstone/content';
+import type { TemplateKey, WorldPage, WorldSection } from '@vaultstone/types';
+import { Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
+
+import { toMaterialIcon } from './helpers';
 
 import { isPageVisibleToPlayersPreview } from './playerViewFilters';
 import { SectionContextMenu } from './SectionContextMenu';
 import { SectionSettingsModal } from './SectionSettingsModal';
 import { SidebarPageRow } from './SidebarPageRow';
+import { useSectionDnd } from './useSectionDnd';
 import { worldSectionHref } from './worldHref';
 
 type Props = {
@@ -22,14 +26,27 @@ type Props = {
   activePageId?: string | null;
   onAddPage?: () => void;
   onAddSubPage?: (sectionId: string, parentPageId: string) => void;
+  onReorder?: (dragged: WorldSection, target: WorldSection, position: 'before' | 'after') => void;
 };
 
 const EMPTY_SET = new Set<string>();
 
-export function SidebarSection({ section, worldId, activePageId, onAddPage, onAddSubPage }: Props) {
+export function SidebarSection({ section, worldId, activePageId, onAddPage, onAddSubPage, onReorder }: Props) {
   const collapseKey = `${worldId}:${section.id}`;
   const collapsed = useSidebarCollapseStore((s) => !!s.collapsed[collapseKey]);
   const toggle = useSidebarCollapseStore((s) => s.toggle);
+
+  const handleSectionDrop = useCallback(
+    (dragged: WorldSection, target: WorldSection, position: 'before' | 'after') => {
+      onReorder?.(dragged, target, position);
+    },
+    [onReorder],
+  );
+
+  const { ref: sectionDndRef, isDragging, dropPosition: sectionDropPos, isOver: sectionIsOver } = useSectionDnd(
+    section,
+    handleSectionDrop,
+  );
 
   const rawPages = usePagesStore((s) => s.byWorldId[worldId]);
   const playerView = useCurrentWorldStore((s) => s.playerViewPreview);
@@ -68,6 +85,12 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
     [],
   );
 
+  const sectionIcon = (() => {
+    let iconName = 'article';
+    try { iconName = toMaterialIcon(getTemplate(section.template_key as TemplateKey).icon); } catch { /* default */ }
+    return iconName;
+  })();
+
   const headerContent = (
     <View style={styles.header}>
       <Pressable
@@ -77,8 +100,8 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
       >
         <Icon
           name={collapsed ? 'chevron-right' : 'expand-more'}
-          size={16}
-          color={colors.outline}
+          size={14}
+          color={colors.onSurfaceVariant}
         />
       </Pressable>
       <Pressable
@@ -87,10 +110,16 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
         style={styles.headerLabel}
         accessibilityLabel={`Open ${section.name}`}
       >
-        <MetaLabel size="sm" tone="muted">
+        <Text
+          variant="label-md"
+          weight="bold"
+          uppercase
+          style={styles.headerText}
+        >
           {section.name}
-        </MetaLabel>
+        </Text>
       </Pressable>
+      <Icon name={sectionIcon as React.ComponentProps<typeof Icon>['name']} size={13} color={colors.outline} />
       {onAddPage ? (
         <Pressable
           onPress={onAddPage}
@@ -103,14 +132,27 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
     </View>
   );
 
+  const sectionDropLine = sectionIsOver && sectionDropPos ? (
+    <View
+      style={[
+        styles.sectionDropLine,
+        sectionDropPos === 'before' ? { marginBottom: -1 } : { marginTop: -1 },
+      ]}
+    />
+  ) : null;
+
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, isDragging && { opacity: 0.4 }]}>
       {Platform.OS === 'web' ? (
         <View
+          ref={sectionDndRef as React.RefObject<View>}
           // @ts-expect-error -- RN Web supports onContextMenu on View
           onContextMenu={handleContextMenu}
+          style={{ position: 'relative' }}
         >
+          {sectionDropPos === 'before' && sectionDropLine}
           {headerContent}
+          {sectionDropPos === 'after' && sectionDropLine}
         </View>
       ) : (
         headerContent
@@ -169,12 +211,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    height: 28,
+    paddingLeft: 2,
+    paddingRight: spacing.xs,
+    height: 32,
     gap: 2,
   },
+  headerText: {
+    color: colors.onSurfaceVariant,
+    letterSpacing: 1.2,
+    fontSize: 11,
+  },
   chevronBtn: {
-    width: 20,
+    width: 14,
     height: 20,
     alignItems: 'center',
     justifyContent: 'center',
@@ -190,5 +238,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sectionDropLine: {
+    height: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 1,
   },
 });

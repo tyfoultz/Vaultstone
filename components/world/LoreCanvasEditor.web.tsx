@@ -578,6 +578,24 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     window.addEventListener('mouseup', onUp);
   }, [BLOCK_PADDING]);
 
+  function resolveTextNode(range: Range): { node: Text; cursor: number } | null {
+    let node: Node = range.startContainer;
+    const cursor = range.startOffset;
+    if (node.nodeType === Node.TEXT_NODE) return { node: node as Text, cursor };
+    // Cursor is in an element node — Chrome wraps new text after
+    // contentEditable=false spans in auto-generated elements.
+    const child = node.childNodes[cursor] ?? node.childNodes[cursor - 1];
+    if (child?.nodeType === Node.TEXT_NODE) {
+      return { node: child as Text, cursor: node.childNodes[cursor] === child ? 0 : (child.textContent ?? '').length };
+    }
+    if (child) {
+      const walk = document.createTreeWalker(child, NodeFilter.SHOW_TEXT);
+      const last = walk.lastChild();
+      if (last) return { node: last as Text, cursor: (last.textContent ?? '').length };
+    }
+    return null;
+  }
+
   function handleBlockInput(id: string, html: string) {
     htmlRef.current[id] = html;
     requestAnimationFrame(() => fitBlockToContent(id));
@@ -587,11 +605,10 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     if (mentionablePages && mentionablePages.length > 0) {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-      const node = range.startContainer;
-      if (node.nodeType !== Node.TEXT_NODE) { setMentionState(null); return; }
+      const resolved = resolveTextNode(sel.getRangeAt(0));
+      if (!resolved) { setMentionState(null); return; }
+      const { node, cursor } = resolved;
       const text = node.textContent ?? '';
-      const cursor = range.startOffset;
       const atIdx = text.lastIndexOf('@', cursor - 1);
       if (atIdx < 0 || (atIdx > 0 && text[atIdx - 1] !== ' ' && text[atIdx - 1] !== '\n')) {
         setMentionState(null);
@@ -621,16 +638,16 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
-    const text = node.textContent ?? '';
-    const cursor = sel.getRangeAt(0).startOffset;
-    const before = text.slice(0, startOffset);
-    const after = text.slice(cursor);
 
     const el = document.querySelector(`[data-block-id="${blockId}"] .lore-block-content`) as HTMLElement | null;
     if (!el) return;
 
-    // Build: beforeText + mentionChip + afterText (with trailing space)
-    node.textContent = before;
+    const curRange = sel.getRangeAt(0);
+    const resolved = resolveTextNode(curRange);
+    const text = node.textContent ?? '';
+    const cursor = resolved && resolved.node === node ? resolved.cursor : text.length;
+    const before = text.slice(0, startOffset);
+    const after = text.slice(cursor);
 
     const chip = document.createElement('span');
     chip.className = 'vaultstone-mention';
@@ -639,12 +656,23 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     chip.contentEditable = 'false';
     chip.textContent = `@ ${page.title}`;
 
-    // Always insert a text node after the chip so the cursor has somewhere to go
-    const trailing = document.createTextNode(after ? after : ' ');
-    const parent = node.parentNode;
-    const nextSib = node.nextSibling;
-    parent?.insertBefore(chip, nextSib);
-    parent?.insertBefore(trailing, chip.nextSibling);
+    const trailing = document.createTextNode(after || ' ');
+
+    // Ensure chip is inserted as a direct child of the content element,
+    // not nested inside browser-generated wrapper spans
+    node.textContent = before;
+    let insertParent: Node = node.parentNode!;
+    let insertRef: Node | null = node.nextSibling;
+    if (insertParent !== el) {
+      insertRef = insertParent as Node;
+      while (insertRef && insertRef.parentNode !== el) {
+        insertRef = insertRef.parentNode;
+      }
+      insertRef = insertRef?.nextSibling ?? null;
+      insertParent = el;
+    }
+    insertParent.insertBefore(chip, insertRef);
+    insertParent.insertBefore(trailing, chip.nextSibling);
 
     // Place cursor at the start of the trailing text node
     requestAnimationFrame(() => {
