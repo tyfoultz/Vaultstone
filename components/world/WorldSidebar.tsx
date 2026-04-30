@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, Style
 import { usePathname, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { listMaps, reorderSections, softDeleteMap, updateMap, updateWorld, uploadWorldThumbnail, type WorldMap } from '@vaultstone/api';
+import { listMaps, reorderMaps, reorderSections, softDeleteMap, updateMap, updateWorld, uploadWorldThumbnail, type WorldMap } from '@vaultstone/api';
 import {
   selectSectionsForWorld,
   useAuthStore,
@@ -31,6 +31,7 @@ import { CreatePageModal } from './CreatePageModal';
 import { CreateSectionModal } from './CreateSectionModal';
 import { LensDropdown } from './LensDropdown';
 import { MapUploadModal } from './map/MapUploadModal';
+import { useMapDnd } from './useMapDnd';
 import { isSectionVisibleToPlayersPreview } from './playerViewFilters';
 import { SidebarDndProvider } from './SidebarDndContext';
 import { SidebarSection } from './SidebarSection';
@@ -396,6 +397,54 @@ export function WorldSidebar({ world, activePageId }: Props) {
   );
 }
 
+function SidebarMapRow({ map, worldId, active, isPrimary, onContextMenu, onDrop }: {
+  map: WorldMap;
+  worldId: string;
+  active: boolean;
+  isPrimary: boolean;
+  onContextMenu: (anchor: { x: number; y: number }) => void;
+  onDrop: (dragged: WorldMap, target: WorldMap, position: 'before' | 'after') => void;
+}) {
+  const router = useRouter();
+  const { ref, isDragging, dropPosition, isOver } = useMapDnd(map, onDrop);
+
+  const dropLine = isOver && dropPosition ? (
+    <View style={[mapSectionStyles.dropLine, dropPosition === 'before' ? { marginBottom: -1 } : { marginTop: -1 }]} />
+  ) : null;
+
+  return (
+    <View
+      ref={ref as React.RefObject<View>}
+      // @ts-expect-error -- RN Web supports onContextMenu on View
+      onContextMenu={(e: { nativeEvent: { pageX: number; pageY: number }; preventDefault?: () => void }) => {
+        if (e.preventDefault) e.preventDefault();
+        onContextMenu({ x: e.nativeEvent.pageX, y: e.nativeEvent.pageY });
+      }}
+      style={[{ position: 'relative' }, isDragging && { opacity: 0.4 }]}
+    >
+      {dropPosition === 'before' && dropLine}
+      <Pressable
+        onPress={() => router.push(worldMapHref(worldId, map.id))}
+        style={[mapSectionStyles.mapRow, active && mapSectionStyles.mapRowActive]}
+      >
+        <Icon
+          name={isPrimary ? 'star' : 'map'}
+          size={14}
+          color={active ? colors.primary : isPrimary ? colors.cosmic : colors.onSurfaceVariant}
+        />
+        <Text
+          variant="body-sm"
+          numberOfLines={1}
+          style={{ flex: 1, color: active ? colors.primary : colors.onSurface, fontSize: 13 }}
+        >
+          {map.label || 'Untitled map'}
+        </Text>
+      </Pressable>
+      {dropPosition === 'after' && dropLine}
+    </View>
+  );
+}
+
 function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, isOwner, onAddMap, onSetPrimary }: {
   maps: WorldMap[];
   setMaps: React.Dispatch<React.SetStateAction<WorldMap[]>>;
@@ -431,6 +480,21 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
     await updateWorld(worldId, { primary_map_id: map.id });
   }
 
+  const handleMapReorder = useCallback(
+    (dragged: WorldMap, target: WorldMap, position: 'before' | 'after') => {
+      if (dragged.id === target.id) return;
+      const ordered = [...maps].sort((a, b) => a.sort_order - b.sort_order);
+      const without = ordered.filter((m) => m.id !== dragged.id);
+      const targetIdx = without.findIndex((m) => m.id === target.id);
+      const insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
+      without.splice(insertIdx, 0, dragged);
+      const reordered = without.map((m, i) => ({ ...m, sort_order: i }));
+      setMaps(reordered);
+      void reorderMaps(reordered.map((m) => ({ id: m.id, sort_order: m.sort_order })));
+    },
+    [maps, setMaps],
+  );
+
   return (
     <View style={{ gap: spacing.xs }}>
       <View style={mapSectionStyles.header}>
@@ -450,8 +514,15 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
           style={mapSectionStyles.headerLabel}
           accessibilityLabel="Maps"
         >
-          <Icon name="map" size={13} color={colors.outline} />
-          <MetaLabel size="sm" tone="muted">Maps</MetaLabel>
+          <Icon name="map" size={14} color={colors.outline} />
+          <Text
+            variant="label-md"
+            weight="bold"
+            uppercase
+            style={mapSectionStyles.headerText}
+          >
+            Maps
+          </Text>
         </Pressable>
         {isOwner ? (
           <Pressable
@@ -474,41 +545,17 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
           </Text>
         ) : (
           <View>
-            {maps.map((m) => {
-              const active = m.id === activeMapId;
-              const isPrimary = m.id === primaryMapId;
-              return (
-                <View
-                  key={m.id}
-                  // @ts-expect-error -- RN Web supports onContextMenu on View
-                  onContextMenu={(e: { nativeEvent: { pageX: number; pageY: number }; preventDefault?: () => void }) => {
-                    if (e.preventDefault) e.preventDefault();
-                    setMenuState({ map: m, anchor: { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY } });
-                  }}
-                >
-                  <Pressable
-                    onPress={() => router.push(worldMapHref(worldId, m.id))}
-                    style={[
-                      mapSectionStyles.mapRow,
-                      active && mapSectionStyles.mapRowActive,
-                    ]}
-                  >
-                    <Icon
-                      name={isPrimary ? 'star' : 'map'}
-                      size={14}
-                      color={active ? colors.primary : isPrimary ? colors.cosmic : colors.onSurfaceVariant}
-                    />
-                    <Text
-                      variant="body-sm"
-                      numberOfLines={1}
-                      style={{ flex: 1, color: active ? colors.primary : colors.onSurface, fontSize: 13 }}
-                    >
-                      {m.label || 'Untitled map'}
-                    </Text>
-                  </Pressable>
-                </View>
-              );
-            })}
+            {maps.map((m) => (
+              <SidebarMapRow
+                key={m.id}
+                map={m}
+                worldId={worldId}
+                active={m.id === activeMapId}
+                isPrimary={m.id === primaryMapId}
+                onContextMenu={(anchor) => setMenuState({ map: m, anchor })}
+                onDrop={handleMapReorder}
+              />
+            ))}
           </View>
         )
       ) : null}
@@ -622,8 +669,8 @@ const mapSectionStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.xs,
-    height: 28,
-    gap: 2,
+    height: 32,
+    gap: 4,
   },
   chevronBtn: {
     width: 20,
@@ -636,6 +683,11 @@ const mapSectionStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  headerText: {
+    color: colors.onSurfaceVariant,
+    letterSpacing: 1.2,
+    fontSize: 11,
   },
   addBtn: {
     width: 22,
@@ -655,6 +707,11 @@ const mapSectionStyles = StyleSheet.create({
   },
   mapRowActive: {
     backgroundColor: colors.primaryContainer + '33',
+  },
+  dropLine: {
+    height: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 1,
   },
 });
 

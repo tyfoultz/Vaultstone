@@ -10,7 +10,7 @@ export async function listMaps(worldId: string) {
     .select('*')
     .eq('world_id', worldId)
     .is('deleted_at', null)
-    .order('created_at', { ascending: true });
+    .order('sort_order', { ascending: true });
 }
 
 export async function getMap(mapId: string) {
@@ -37,9 +37,18 @@ export async function createMap(insert: WorldMapInsert) {
 
 export async function updateMap(
   mapId: string,
-  patch: Partial<Pick<WorldMap, 'label' | 'owner_page_id' | 'campaign_id'>>,
+  patch: Partial<Pick<WorldMap, 'label' | 'owner_page_id' | 'campaign_id' | 'sort_order'>>,
 ) {
   return supabase.from('world_maps').update(patch).eq('id', mapId).select('*').single();
+}
+
+export async function reorderMaps(maps: Array<{ id: string; sort_order: number }>) {
+  const updates = maps.map((m) =>
+    supabase.from('world_maps').update({ sort_order: m.sort_order }).eq('id', m.id),
+  );
+  const results = await Promise.all(updates);
+  const firstError = results.find((r) => r.error);
+  return { error: firstError?.error ?? null };
 }
 
 export async function softDeleteMap(mapId: string) {

@@ -9,7 +9,7 @@ import {
 } from '@vaultstone/store';
 import { getTemplate } from '@vaultstone/content';
 import type { TemplateKey, WorldPage, WorldSection } from '@vaultstone/types';
-import { Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 import { toMaterialIcon } from './helpers';
 
@@ -107,11 +107,16 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
         {(() => {
           let iconName = 'article';
           try { iconName = toMaterialIcon(getTemplate(section.template_key as TemplateKey).icon); } catch { /* default */ }
-          return <Icon name={iconName as React.ComponentProps<typeof Icon>['name']} size={13} color={colors.outline} />;
+          return <Icon name={iconName as React.ComponentProps<typeof Icon>['name']} size={14} color={colors.onSurfaceVariant} />;
         })()}
-        <MetaLabel size="sm" tone="muted">
+        <Text
+          variant="label-md"
+          weight="bold"
+          uppercase
+          style={styles.headerText}
+        >
           {section.name}
-        </MetaLabel>
+        </Text>
       </Pressable>
       {onAddPage ? (
         <Pressable
@@ -205,8 +210,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.xs,
-    height: 28,
-    gap: 2,
+    height: 32,
+    gap: 4,
+  },
+  headerText: {
+    color: colors.onSurfaceVariant,
+    letterSpacing: 1.2,
+    fontSize: 11,
   },
   chevronBtn: {
     width: 20,
