@@ -85,6 +85,12 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
     [],
   );
 
+  const sectionIcon = (() => {
+    let iconName = 'article';
+    try { iconName = toMaterialIcon(getTemplate(section.template_key as TemplateKey).icon); } catch { /* default */ }
+    return iconName;
+  })();
+
   const headerContent = (
     <View style={styles.header}>
       <Pressable
@@ -94,8 +100,8 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
       >
         <Icon
           name={collapsed ? 'chevron-right' : 'expand-more'}
-          size={16}
-          color={colors.outline}
+          size={14}
+          color={colors.onSurfaceVariant}
         />
       </Pressable>
       <Pressable
@@ -104,11 +110,6 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
         style={styles.headerLabel}
         accessibilityLabel={`Open ${section.name}`}
       >
-        {(() => {
-          let iconName = 'article';
-          try { iconName = toMaterialIcon(getTemplate(section.template_key as TemplateKey).icon); } catch { /* default */ }
-          return <Icon name={iconName as React.ComponentProps<typeof Icon>['name']} size={14} color={colors.onSurfaceVariant} />;
-        })()}
         <Text
           variant="label-md"
           weight="bold"
@@ -118,6 +119,7 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
           {section.name}
         </Text>
       </Pressable>
+      <Icon name={sectionIcon as React.ComponentProps<typeof Icon>['name']} size={13} color={colors.outline} />
       {onAddPage ? (
         <Pressable
           onPress={onAddPage}
@@ -209,9 +211,10 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.xs,
+    paddingLeft: 2,
+    paddingRight: spacing.xs,
     height: 32,
-    gap: 4,
+    gap: 2,
   },
   headerText: {
     color: colors.onSurfaceVariant,
@@ -219,7 +222,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   chevronBtn: {
-    width: 20,
+    width: 14,
     height: 20,
     alignItems: 'center',
     justifyContent: 'center',
@@ -228,7 +231,6 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
   },
   addBtn: {
     width: 22,

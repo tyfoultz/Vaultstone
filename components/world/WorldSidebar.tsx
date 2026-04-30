@@ -505,8 +505,8 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
         >
           <Icon
             name={collapsed ? 'chevron-right' : 'expand-more'}
-            size={16}
-            color={colors.outline}
+            size={14}
+            color={colors.onSurfaceVariant}
           />
         </Pressable>
         <Pressable
@@ -514,7 +514,6 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
           style={mapSectionStyles.headerLabel}
           accessibilityLabel="Maps"
         >
-          <Icon name="map" size={14} color={colors.outline} />
           <Text
             variant="label-md"
             weight="bold"
@@ -524,6 +523,7 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
             Maps
           </Text>
         </Pressable>
+        <Icon name="map" size={13} color={colors.outline} />
         {isOwner ? (
           <Pressable
             onPress={onAddMap}
@@ -668,12 +668,13 @@ const mapSectionStyles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.xs,
+    paddingLeft: 2,
+    paddingRight: spacing.xs,
     height: 32,
-    gap: 4,
+    gap: 2,
   },
   chevronBtn: {
-    width: 20,
+    width: 14,
     height: 20,
     alignItems: 'center',
     justifyContent: 'center',
@@ -682,7 +683,6 @@ const mapSectionStyles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
   },
   headerText: {
     color: colors.onSurfaceVariant,
