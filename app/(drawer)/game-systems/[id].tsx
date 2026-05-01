@@ -14,11 +14,15 @@ import type {
   SpeciesResult, ClassResult, BackgroundResult,
   SubclassResult, ConditionResult, SpellResult,
   ItemResult, FeatResult, CreatureResult,
+  SkillResult, DamageTypeResult, SchoolResult, SizeResult,
+  LanguageResult, ActionTypeResult, WeaponPropertyResult, WeaponMasteryResult,
 } from '@vaultstone/types';
 
 const EMPTY_CONTENT: SrdContent = {
   species: [], classes: [], subclasses: [], backgrounds: [],
   conditions: [], spells: [], items: [], feats: [], creatures: [],
+  skills: [], damageTypes: [], schools: [], sizes: [], languages: [],
+  actionTypes: [], weaponProperties: [], weaponMasteries: [],
 };
 
 const BUNDLED: Record<string, GameSystemDefinition> = {
@@ -33,10 +37,19 @@ const BUNDLED: Record<string, GameSystemDefinition> = {
 type TabKey =
   | 'species' | 'classes' | 'subclasses' | 'backgrounds'
   | 'spells' | 'feats' | 'items' | 'creatures' | 'conditions'
-  | 'schema';
+  | 'reference' | 'schema';
 
-// Keys in the order they appear in the tab strip.
-const TAB_DEFS: { key: TabKey; label: string; contentKey: keyof SrdContent | null }[] = [
+// `contentKey` is the SrdContent property whose `.length` drives whether the
+// tab is shown and what count to display. `'__reference__'` is a synthetic
+// marker — Reference rolls up multiple catalog types and is shown whenever
+// any of them have content.
+type TabDef = {
+  key: TabKey;
+  label: string;
+  contentKey: keyof SrdContent | '__reference__' | null;
+};
+
+const TAB_DEFS: TabDef[] = [
   { key: 'species',     label: 'Species',     contentKey: 'species' },
   { key: 'classes',     label: 'Classes',     contentKey: 'classes' },
   { key: 'subclasses',  label: 'Subclasses',  contentKey: 'subclasses' },
@@ -46,7 +59,13 @@ const TAB_DEFS: { key: TabKey; label: string; contentKey: keyof SrdContent | nul
   { key: 'items',       label: 'Items',       contentKey: 'items' },
   { key: 'creatures',   label: 'Monsters',    contentKey: 'creatures' },
   { key: 'conditions',  label: 'Conditions',  contentKey: 'conditions' },
+  { key: 'reference',   label: 'Reference',   contentKey: '__reference__' },
   { key: 'schema',      label: 'Schema',      contentKey: null },
+];
+
+const REFERENCE_KEYS: (keyof SrdContent)[] = [
+  'skills', 'damageTypes', 'schools', 'sizes', 'languages',
+  'actionTypes', 'weaponProperties', 'weaponMasteries',
 ];
 
 export default function GameSystemDetailScreen() {
@@ -73,12 +92,22 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
   // that have at least one item, then always end with Schema.
   const tabs = useMemo(() => {
     return TAB_DEFS
-      .filter((t) => t.contentKey === null || content[t.contentKey].length > 0)
-      .map((t) => ({
-        key: t.key,
-        label: t.label,
-        count: t.contentKey ? content[t.contentKey].length : undefined,
-      }));
+      .filter((t) => {
+        if (t.contentKey === null) return true;
+        if (t.contentKey === '__reference__') {
+          return REFERENCE_KEYS.some((k) => content[k].length > 0);
+        }
+        return content[t.contentKey].length > 0;
+      })
+      .map((t) => {
+        let count: number | undefined;
+        if (t.contentKey === '__reference__') {
+          count = REFERENCE_KEYS.reduce((sum, k) => sum + content[k].length, 0);
+        } else if (t.contentKey) {
+          count = content[t.contentKey].length;
+        }
+        return { key: t.key, label: t.label, count };
+      });
   }, [content]);
 
   // Default tab: first content tab if any, else Schema.
@@ -151,6 +180,7 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
         {tab === 'items'       ? <ItemsList       items={content.items} /> : null}
         {tab === 'creatures'   ? <CreaturesList   items={content.creatures} /> : null}
         {tab === 'conditions'  ? <ConditionsList  items={content.conditions} /> : null}
+        {tab === 'reference'   ? <ReferencePanel  content={content} /> : null}
         {tab === 'schema'      ? <SchemaPanel     sys={sys} /> : null}
       </View>
 
@@ -647,6 +677,110 @@ function ConditionsList({ items }: { items: ConditionResult[] }) {
   );
 }
 
+// ── Reference panel ─────────────────────────────────────────────────────────
+// Compact grid of small lookup tables (skills, damage types, etc.) — short
+// items that don't need ExpandRow's collapse/expand affordance.
+
+function ReferencePanel({ content }: { content: SrdContent }) {
+  const { width } = useWindowDimensions();
+  const isWide = width > 900;
+  const cardStyle = isWide ? styles.schemaHalf : styles.schemaFull;
+  return (
+    <View style={[styles.schemaGrid, { gap: spacing.md }]}>
+      {content.skills.length > 0 ? (
+        <Card tier="container" padding="md" style={cardStyle}>
+          <CardTitle icon="psychology" label="Skills" count={content.skills.length} />
+          {content.skills.slice().sort((a, b) => a.name.localeCompare(b.name)).map((sk) => (
+            <RefRow key={sk.key} title={sk.name} sub={sk.ability.toUpperCase()} body={sk.description} />
+          ))}
+        </Card>
+      ) : null}
+
+      {content.damageTypes.length > 0 ? (
+        <Card tier="container" padding="md" style={cardStyle}>
+          <CardTitle icon="local-fire-department" label="Damage Types" count={content.damageTypes.length} />
+          {content.damageTypes.slice().sort((a, b) => a.name.localeCompare(b.name)).map((d) => (
+            <RefRow key={d.key} title={d.name} sub={d.category} body={d.description} />
+          ))}
+        </Card>
+      ) : null}
+
+      {content.schools.length > 0 ? (
+        <Card tier="container" padding="md" style={cardStyle}>
+          <CardTitle icon="auto-awesome" label="Schools of Magic" count={content.schools.length} />
+          {content.schools.slice().sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+            <RefRow key={s.key} title={s.name} body={s.description} />
+          ))}
+        </Card>
+      ) : null}
+
+      {content.sizes.length > 0 ? (
+        <Card tier="container" padding="md" style={cardStyle}>
+          <CardTitle icon="straighten" label="Sizes" count={content.sizes.length} />
+          {content.sizes.slice().sort((a, b) => content.sizes.indexOf(a) - content.sizes.indexOf(b)).map((sz) => (
+            <RefRow key={sz.key} title={sz.name} sub={sz.space} body={sz.description} />
+          ))}
+        </Card>
+      ) : null}
+
+      {content.languages.length > 0 ? (
+        <Card tier="container" padding="md" style={cardStyle}>
+          <CardTitle icon="language" label="Languages" count={content.languages.length} />
+          {content.languages.slice().sort((a, b) =>
+            (a.rarity === b.rarity ? 0 : a.rarity === 'standard' ? -1 : 1) || a.name.localeCompare(b.name)
+          ).map((l) => (
+            <RefRow
+              key={l.key}
+              title={l.name}
+              sub={[capitalize(l.rarity), l.script ?? 'no script'].join(' · ')}
+              body={l.description}
+            />
+          ))}
+        </Card>
+      ) : null}
+
+      {content.actionTypes.length > 0 ? (
+        <Card tier="container" padding="md" style={cardStyle}>
+          <CardTitle icon="bolt" label="Action Types" count={content.actionTypes.length} />
+          {content.actionTypes.map((a) => (
+            <RefRow key={a.key} title={a.name} sub={a.economy} body={a.description} />
+          ))}
+        </Card>
+      ) : null}
+
+      {content.weaponProperties.length > 0 ? (
+        <Card tier="container" padding="md" style={cardStyle}>
+          <CardTitle icon="construction" label="Weapon Properties" count={content.weaponProperties.length} />
+          {content.weaponProperties.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
+            <RefRow key={p.key} title={p.name} body={p.description} />
+          ))}
+        </Card>
+      ) : null}
+
+      {content.weaponMasteries.length > 0 ? (
+        <Card tier="container" padding="md" style={cardStyle}>
+          <CardTitle icon="military-tech" label="Weapon Masteries" count={content.weaponMasteries.length} />
+          {content.weaponMasteries.slice().sort((a, b) => a.name.localeCompare(b.name)).map((m) => (
+            <RefRow key={m.key} title={m.name} body={m.description} />
+          ))}
+        </Card>
+      ) : null}
+    </View>
+  );
+}
+
+function RefRow({ title, sub, body }: { title: string; sub?: string; body?: string }) {
+  return (
+    <View style={styles.refRow}>
+      <View style={styles.refRowHead}>
+        <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{title}</Text>
+        {sub ? <Text variant="body-sm" family="body" style={styles.refRowSub}>{sub}</Text> : null}
+      </View>
+      {body ? <Text variant="body-sm" family="body" style={styles.bodyText}>{body}</Text> : null}
+    </View>
+  );
+}
+
 function SeedBanner({ type }: { type: keyof SrdContent }) {
   if (!SEED_ONLY_TYPES.has(type)) return null;
   return (
@@ -889,6 +1023,26 @@ const styles = StyleSheet.create({
   emptyHit: {
     paddingVertical: spacing.xl,
     alignItems: 'center',
+  },
+
+  // Reference rows
+  refRow: {
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant + '66',
+    gap: 3,
+  },
+  refRowHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  refRowSub: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: colors.outline,
   },
 
   // Seed banner

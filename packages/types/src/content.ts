@@ -10,7 +10,15 @@ export type ContentType =
   | 'feature'
   | 'background'
   | 'feat'
-  | 'condition';
+  | 'condition'
+  | 'skill'
+  | 'damage-type'
+  | 'school'
+  | 'size'
+  | 'language'
+  | 'action-type'
+  | 'weapon-property'
+  | 'weapon-mastery';
 
 export interface ContentResult {
   key: string;
@@ -92,6 +100,65 @@ export interface SubclassResult extends ContentResult {
   unlockLevel: number;
   /** Featured class abilities granted by this subclass at specific levels. */
   features?: Array<{ level: number; name: string; description: string }>;
+  srdVersions: string[];
+}
+
+// -----------------------------------------------------------------------------
+// Catalog content types — short reference enumerations from the Rules Glossary.
+// These are small, mostly fixed lists (skills, damage types, etc.) that the
+// app references by name in many places. Bundling them as content lets us
+// dedupe ability mappings, deliver descriptions, and surface them in one place.
+// -----------------------------------------------------------------------------
+
+export interface SkillResult extends ContentResult {
+  type: 'skill';
+  /** Lower-case ability key the skill uses ('strength', 'dexterity', etc.). */
+  ability: 'strength' | 'dexterity' | 'constitution' | 'intelligence' | 'wisdom' | 'charisma';
+  srdVersions: string[];
+}
+
+export interface DamageTypeResult extends ContentResult {
+  type: 'damage-type';
+  /** Coarse category — physical damage vs. typed magical damage. */
+  category: 'physical' | 'magical';
+  srdVersions: string[];
+}
+
+export interface SchoolResult extends ContentResult {
+  type: 'school';
+  srdVersions: string[];
+}
+
+export interface SizeResult extends ContentResult {
+  type: 'size';
+  /** Footprint on a battle grid, e.g. "5-by-5 ft" for Medium. */
+  space: string;
+  srdVersions: string[];
+}
+
+export interface LanguageResult extends ContentResult {
+  type: 'language';
+  /** 'standard' (commonly known) or 'rare' (exotic / restricted). */
+  rarity: 'standard' | 'rare';
+  /** Written script the language uses, or null for spoken-only. */
+  script: string | null;
+  srdVersions: string[];
+}
+
+export interface ActionTypeResult extends ContentResult {
+  type: 'action-type';
+  /** How many of this action type a creature gets per turn or round. */
+  economy: string;
+  srdVersions: string[];
+}
+
+export interface WeaponPropertyResult extends ContentResult {
+  type: 'weapon-property';
+  srdVersions: string[];
+}
+
+export interface WeaponMasteryResult extends ContentResult {
+  type: 'weapon-mastery';
   srdVersions: string[];
 }
 
