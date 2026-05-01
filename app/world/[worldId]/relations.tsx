@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCurrentWorldStore, usePagesStore } from '@vaultstone/store';
 import type { PageKind, WorldPage } from '@vaultstone/types';
@@ -38,7 +38,7 @@ export default function RelationsScreen() {
   const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
 
   // Keep visibleKinds in sync when availableKinds changes (new pages added)
-  useMemo(() => {
+  useEffect(() => {
     setVisibleKinds((prev) => {
       const next = new Set(prev);
       let changed = false;
@@ -119,7 +119,7 @@ export default function RelationsScreen() {
           );
         }}
       >
-        {containerSize && Platform.OS === 'web' ? (
+        {containerSize ? (
           <RelationWeb
             nodes={nodes}
             edges={edges}
@@ -132,9 +132,7 @@ export default function RelationsScreen() {
             containerWidth={containerSize.w}
             containerHeight={containerSize.h}
           />
-        ) : (
-          <RelationWeb />
-        )}
+        ) : null}
 
         {/* Node detail card overlay */}
         {selectedNode && selectedPage ? (
