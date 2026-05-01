@@ -9,6 +9,7 @@ import {
 } from '@vaultstone/ui';
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
 import { getSrdContent, SEED_ONLY_TYPES, type SrdContent } from '@vaultstone/content';
+import { DetailModal, DetailSection, DetailSectionHeading } from '../../../components/DetailModal';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
@@ -475,147 +476,223 @@ function SpeciesList({ items }: { items: SpeciesResult[] }) {
 
 function ClassesList({ items, allSubclasses }: { items: ClassResult[]; allSubclasses: SubclassResult[] }) {
   const [q, setQ] = useState('');
-  const exp = useExpanded();
-  const filtered = useMemo(() => filterByName(items, q).slice().sort((a, b) => a.name.localeCompare(b.name)), [items, q]);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const filtered = useMemo(
+    () => filterByName(items, q).slice().sort((a, b) => a.name.localeCompare(b.name)),
+    [items, q],
+  );
+  const active = activeKey ? items.find((c) => c.key === activeKey) ?? null : null;
 
   return (
     <View style={styles.list}>
       <SearchBar value={q} onChange={setQ} placeholder="Search classes…" />
-      {filtered.map((c) => {
-        const subclasses = allSubclasses.filter((s) => s.parentClassKey === c.key);
-        const featureGroups = groupFeaturesByLevel(c.features ?? []);
-        return (
-          <ExpandRow
-            key={c.key}
-            title={c.name}
-            summary={c.description ?? ''}
-            expanded={exp.isOpen(c.key)}
-            onToggle={() => exp.toggle(c.key)}
-          >
-            {/* Core stats — sit alongside proficiencies for visual consistency */}
-            {c.hitDie ? <ProfBlock label="Hit die"         items={[`d${c.hitDie}`]} /> : null}
-            {Array.isArray(c.primaryAbility) && c.primaryAbility.length > 0 ? (
-              <ProfBlock label="Primary ability" items={c.primaryAbility} />
+      {filtered.map((c) => (
+        <Pressable
+          key={c.key}
+          onPress={() => setActiveKey(c.key)}
+          style={({ pressed }) => [styles.row, styles.rowHead, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${c.name}`}
+        >
+          <View style={{ flex: 1 }}>
+            <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
+              {c.name}
+            </Text>
+            {c.description ? (
+              <Text variant="body-sm" family="body" style={styles.rowMeta} numberOfLines={2}>
+                {c.description}
+              </Text>
             ) : null}
-            <ProfBlock
-              label="Spellcasting"
-              items={[c.spellcasting ? (c.spellcastingAbility ?? 'Yes') : 'Martial (none)']}
-            />
-
-            {/* Proficiencies */}
-            <ProfBlock label="Saving throws" items={c.savingThrows} />
-            <ProfBlock label="Armor"         items={c.armorProficiencies} />
-            <ProfBlock label="Weapons"       items={c.weaponProficiencies} />
-            {Array.isArray(c.toolProficiencies) && c.toolProficiencies.length > 0 ? (
-              <ProfBlock label="Tools" items={c.toolProficiencies} />
-            ) : null}
-            {c.skillChoices?.from ? (
-              <View style={styles.subBlock}>
-                <MetaLabel size="sm">{`Skills (choose ${c.skillChoices.count ?? 1})`}</MetaLabel>
-                <View style={styles.chipRow}>
-                  {c.skillChoices.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
-                </View>
-              </View>
-            ) : null}
-
-            {/* Starting equipment */}
-            {Array.isArray(c.startingEquipment) && c.startingEquipment.length > 0 ? (
-              <View style={styles.subBlock}>
-                <MetaLabel size="sm">Starting equipment</MetaLabel>
-                {c.startingEquipment.map((opt, i) => (
-                  <View key={i} style={styles.bullet}>
-                    <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
-                      Option {opt.label ?? String.fromCharCode(65 + i)}
-                    </Text>
-                    {opt.items && opt.items.length > 0 ? (
-                      <Text variant="body-sm" family="body" style={styles.bodyText}>
-                        {opt.items.join(', ')}
-                      </Text>
-                    ) : null}
-                    {opt.gold ? (
-                      <Text variant="body-sm" family="body" style={styles.bodyText}>
-                        {opt.gold.amount} {opt.gold.currency}
-                      </Text>
-                    ) : null}
-                  </View>
-                ))}
-              </View>
-            ) : null}
-
-            {/* Features by level */}
-            {featureGroups.length > 0 ? (
-              <View style={styles.subBlock}>
-                <MetaLabel size="sm">Class features</MetaLabel>
-                {featureGroups.map(([level, feats]) => (
-                  <View key={level} style={styles.featureLevelGroup}>
-                    <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
-                      Level {level}
-                    </Text>
-                    {feats.map((f, i) => (
-                      <View key={i} style={styles.bullet}>
-                        <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
-                        {f.description ? (
-                          <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
-                        ) : null}
-                      </View>
-                    ))}
-                  </View>
-                ))}
-              </View>
-            ) : null}
-
-            {/* Subclasses for this class */}
-            {subclasses.length > 0 ? (
-              <View style={styles.subBlock}>
-                <MetaLabel size="sm">{`Subclasses (unlock at L${c.subclassUnlockLevel})`}</MetaLabel>
-                {subclasses.map((sc) => (
-                  <View key={sc.key} style={styles.bullet}>
-                    <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{sc.name}</Text>
-                    {sc.description ? (
-                      <Text variant="body-sm" family="body" style={styles.bodyText}>{sc.description}</Text>
-                    ) : null}
-                  </View>
-                ))}
-              </View>
-            ) : null}
-
-            {/* Multiclassing */}
-            {(c.multiclassPrerequisite || c.multiclassProficiencies) ? (
-              <View style={styles.subBlock}>
-                <MetaLabel size="sm">Multiclassing</MetaLabel>
-                {c.multiclassPrerequisite ? (
-                  <Text variant="body-sm" family="body" style={styles.bodyText}>
-                    Prerequisite: <Text weight="bold" style={{ color: colors.onSurface }}>{c.multiclassPrerequisite}</Text>
-                  </Text>
-                ) : null}
-                {c.multiclassProficiencies?.armor && c.multiclassProficiencies.armor.length > 0 ? (
-                  <ProfBlock label="Gain armor" items={c.multiclassProficiencies.armor} />
-                ) : null}
-                {c.multiclassProficiencies?.weapons && c.multiclassProficiencies.weapons.length > 0 ? (
-                  <ProfBlock label="Gain weapons" items={c.multiclassProficiencies.weapons} />
-                ) : null}
-                {c.multiclassProficiencies?.tools && c.multiclassProficiencies.tools.length > 0 ? (
-                  <ProfBlock label="Gain tools" items={c.multiclassProficiencies.tools} />
-                ) : null}
-                {c.multiclassProficiencies?.skills?.from ? (
-                  <View style={styles.subBlock}>
-                    <MetaLabel size="sm">{`Gain skills (choose ${c.multiclassProficiencies.skills.count ?? 1})`}</MetaLabel>
-                    <View style={styles.chipRow}>
-                      {c.multiclassProficiencies.skills.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-
-            {Array.isArray(c.srdVersions) && c.srdVersions.length > 0 ? (
-              <SrdVersionsRow versions={c.srdVersions} />
-            ) : null}
-          </ExpandRow>
-        );
-      })}
+          </View>
+          <Icon name="chevron-right" size={20} color={colors.outline} />
+        </Pressable>
+      ))}
       {filtered.length === 0 ? <EmptyHit q={q} /> : null}
+      {active ? (
+        <ClassDetailModal klass={active} allSubclasses={allSubclasses} onClose={() => setActiveKey(null)} />
+      ) : null}
     </View>
+  );
+}
+
+function ClassDetailModal({
+  klass: c, allSubclasses, onClose,
+}: {
+  klass: ClassResult;
+  allSubclasses: SubclassResult[];
+  onClose: () => void;
+}) {
+  const subclasses = allSubclasses.filter((s) => s.parentClassKey === c.key);
+  const featureGroups = groupFeaturesByLevel(c.features ?? []);
+
+  const heroStats = useMemo(() => {
+    const stats: { label: string; value: string }[] = [];
+    if (c.primaryAbility?.length) {
+      stats.push({ label: 'PRIMARY ABILITY', value: c.primaryAbility.join(', ') });
+    }
+    if (c.hitDie) stats.push({ label: 'HIT DIE', value: `d${c.hitDie}` });
+    if (c.savingThrows?.length) {
+      stats.push({ label: 'SAVING THROWS', value: c.savingThrows.join(', ') });
+    }
+    return stats;
+  }, [c]);
+
+  const anchors = useMemo(() => {
+    const list: { id: string; label: string }[] = [
+      { id: 'proficiencies', label: 'Proficiencies' },
+    ];
+    if ((c.startingEquipment ?? []).length > 0) list.push({ id: 'equipment',  label: 'Equipment' });
+    if (featureGroups.length > 0)                list.push({ id: 'features',   label: 'Features' });
+    if (subclasses.length > 0)                   list.push({ id: 'subclasses', label: 'Subclasses' });
+    if (c.multiclassPrerequisite || c.multiclassProficiencies) {
+      list.push({ id: 'multiclass', label: 'Multiclass' });
+    }
+    return list;
+  }, [c, featureGroups.length, subclasses.length]);
+
+  return (
+    <DetailModal
+      visible
+      onClose={onClose}
+      title={c.name}
+      subtitle={c.description}
+      heroStats={heroStats}
+      anchors={anchors}
+    >
+      {/* ── Proficiencies ────────────────────────────────────────────── */}
+      <DetailSection id="proficiencies" style={styles.modalSection}>
+        <DetailSectionHeading>Proficiencies</DetailSectionHeading>
+        <ProfBlock
+          label="Spellcasting"
+          items={[c.spellcasting ? (c.spellcastingAbility ?? 'Yes') : 'Martial (none)']}
+        />
+        <ProfBlock label="Armor"   items={c.armorProficiencies} />
+        <ProfBlock label="Weapons" items={c.weaponProficiencies} />
+        {Array.isArray(c.toolProficiencies) && c.toolProficiencies.length > 0 ? (
+          <ProfBlock label="Tools" items={c.toolProficiencies} />
+        ) : null}
+        {c.skillChoices?.from ? (
+          <View style={styles.subBlock}>
+            <MetaLabel size="sm">{`Skills (choose ${c.skillChoices.count ?? 1})`}</MetaLabel>
+            <View style={styles.chipRow}>
+              {c.skillChoices.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
+            </View>
+          </View>
+        ) : null}
+      </DetailSection>
+
+      {/* ── Starting Equipment ──────────────────────────────────────── */}
+      {Array.isArray(c.startingEquipment) && c.startingEquipment.length > 0 ? (
+        <DetailSection id="equipment" style={styles.modalSection}>
+          <DetailSectionHeading>Starting Equipment</DetailSectionHeading>
+          {c.startingEquipment.map((opt, i) => (
+            <View key={i} style={styles.bullet}>
+              <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+                Option {opt.label ?? String.fromCharCode(65 + i)}
+              </Text>
+              {opt.items && opt.items.length > 0 ? (
+                <Text variant="body-sm" family="body" style={styles.bodyText}>
+                  {opt.items.join(', ')}
+                </Text>
+              ) : null}
+              {opt.gold ? (
+                <Text variant="body-sm" family="body" style={styles.bodyText}>
+                  {opt.gold.amount} {opt.gold.currency}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </DetailSection>
+      ) : null}
+
+      {/* ── Class Features ──────────────────────────────────────────── */}
+      {featureGroups.length > 0 ? (
+        <DetailSection id="features" style={styles.modalSection}>
+          <DetailSectionHeading>Class Features</DetailSectionHeading>
+          {featureGroups.map(([level, feats]) => (
+            <View key={level} style={styles.featureLevelGroup}>
+              <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
+                Level {level}
+              </Text>
+              {feats.map((f, i) => (
+                <View key={i} style={styles.bullet}>
+                  <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
+                  {f.description ? (
+                    <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ))}
+        </DetailSection>
+      ) : null}
+
+      {/* ── Subclasses (nested cards) ───────────────────────────────── */}
+      {subclasses.length > 0 ? (
+        <DetailSection id="subclasses" style={styles.modalSection}>
+          <DetailSectionHeading>{`Subclasses · unlock at L${c.subclassUnlockLevel}`}</DetailSectionHeading>
+          {subclasses.map((sc) => (
+            <View key={sc.key} style={styles.subclassCard}>
+              <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.primary }}>
+                {sc.name}
+              </Text>
+              {sc.description ? (
+                <Text variant="body-sm" family="body" style={[styles.bodyText, { marginTop: 4 }]}>
+                  {sc.description}
+                </Text>
+              ) : null}
+              {Array.isArray(sc.features) && sc.features.length > 0 ? (
+                <View style={[styles.subBlock, { marginTop: spacing.xs + 2 }]}>
+                  {sc.features.map((f, i) => (
+                    <View key={i} style={styles.bullet}>
+                      <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+                        L{f.level} · {f.name}
+                      </Text>
+                      <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ))}
+        </DetailSection>
+      ) : null}
+
+      {/* ── Multiclassing ───────────────────────────────────────────── */}
+      {(c.multiclassPrerequisite || c.multiclassProficiencies) ? (
+        <DetailSection id="multiclass" style={styles.modalSection}>
+          <DetailSectionHeading>Multiclassing</DetailSectionHeading>
+          {c.multiclassPrerequisite ? (
+            <Text variant="body-sm" family="body" style={styles.bodyText}>
+              Prerequisite: <Text weight="bold" style={{ color: colors.onSurface }}>{c.multiclassPrerequisite}</Text>
+            </Text>
+          ) : null}
+          {c.multiclassProficiencies?.armor && c.multiclassProficiencies.armor.length > 0 ? (
+            <ProfBlock label="Gain armor" items={c.multiclassProficiencies.armor} />
+          ) : null}
+          {c.multiclassProficiencies?.weapons && c.multiclassProficiencies.weapons.length > 0 ? (
+            <ProfBlock label="Gain weapons" items={c.multiclassProficiencies.weapons} />
+          ) : null}
+          {c.multiclassProficiencies?.tools && c.multiclassProficiencies.tools.length > 0 ? (
+            <ProfBlock label="Gain tools" items={c.multiclassProficiencies.tools} />
+          ) : null}
+          {c.multiclassProficiencies?.skills?.from ? (
+            <View style={styles.subBlock}>
+              <MetaLabel size="sm">{`Gain skills (choose ${c.multiclassProficiencies.skills.count ?? 1})`}</MetaLabel>
+              <View style={styles.chipRow}>
+                {c.multiclassProficiencies.skills.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
+              </View>
+            </View>
+          ) : null}
+        </DetailSection>
+      ) : null}
+
+      {Array.isArray(c.srdVersions) && c.srdVersions.length > 0 ? (
+        <View style={styles.modalSection}>
+          <SrdVersionsRow versions={c.srdVersions} />
+        </View>
+      ) : null}
+    </DetailModal>
   );
 }
 
@@ -1457,6 +1534,23 @@ const styles = StyleSheet.create({
   emptyHit: {
     paddingVertical: spacing.xl,
     alignItems: 'center',
+  },
+
+  // Detail-modal sections + nested subclass cards
+  modalSection: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant + '55',
+    gap: spacing.xs + 2,
+  },
+  subclassCard: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary + 'AA',
+    padding: spacing.sm + 4,
+    marginTop: spacing.sm,
   },
 
   // Class features grouped by level
