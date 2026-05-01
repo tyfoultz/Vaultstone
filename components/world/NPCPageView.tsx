@@ -921,6 +921,7 @@ export function NPCPageView({ page, worldId }: Props) {
               editable={!heldByOther}
               mentionablePages={mentionablePages}
               getSectionLabel={sectionLabelById}
+              onMentionClick={(targetId) => router.push(worldPageHref(worldId, targetId))}
             />
           </View>
 

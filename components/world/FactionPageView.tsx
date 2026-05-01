@@ -632,7 +632,7 @@ export function FactionPageView({ page, worldId }: Props) {
         <View style={styles.editorCol}>
           {bannerLock ? <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}><EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} /></View> : null}
           <View style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]} pointerEvents={heldByOther ? 'none' : 'auto'}>
-            <LoreCanvasEditor initialBlocks={(page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null} onChange={handleCanvasChange} editable={!heldByOther} mentionablePages={mentionablePages} getSectionLabel={sectionLabelById} />
+            <LoreCanvasEditor initialBlocks={(page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null} onChange={handleCanvasChange} editable={!heldByOther} mentionablePages={mentionablePages} getSectionLabel={sectionLabelById} onMentionClick={(targetId) => router.push(worldPageHref(worldId, targetId))} />
           </View>
           {saveLabel ? <View style={styles.saveIndicator}><View style={[styles.saveDot, saveState === 'error' ? { backgroundColor: colors.hpDanger } : { backgroundColor: colors.hpHealthy }]} /><Text style={styles.saveText}>{saveLabel}</Text></View> : null}
         </View>
