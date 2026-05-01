@@ -5,13 +5,15 @@
     "type": "subclass",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "srdVersions": ["SRD_2.0"],
     "parentClassKey": "barbarian",
     "unlockLevel": 3,
-    "description": "For some barbarians, rage is a means to an end — that end being violence. The Path of the Berserker is a path of untrammeled fury, slick with blood.",
+    "description": "Barbarians who walk the Path of the Berserker direct their Rage primarily toward violence. Their path is one of untrammeled fury, and they thrill in the chaos of battle as they allow their Rage to seize and empower them.",
     "features": [
-      { "level": 3, "name": "Frenzy", "description": "While raging, you can choose to enter a frenzy that lets you make a single melee weapon attack as a Bonus Action on each of your turns after the first." },
-      { "level": 6, "name": "Mindless Rage", "description": "You can't be Charmed or Frightened while raging." }
+      { "level": 3, "name": "Frenzy", "description": "Whenever you make an attack roll while you are raging that uses Strength, the first time you hit the target on your turn you deal extra damage to it. Roll a number of d6s equal to your Rage Damage bonus and add them together — that's the extra damage. The damage type matches the weapon or Unarmed Strike used." },
+      { "level": 6, "name": "Mindless Rage", "description": "You have Immunity to the Charmed and Frightened conditions while you are raging. If you are Charmed or Frightened when you enter Rage, the condition ends immediately." },
+      { "level": 10, "name": "Retaliation", "description": "When you take damage from a creature within 5 feet of you, you can take a Reaction to make one melee attack against that creature, using a weapon or an Unarmed Strike." },
+      { "level": 14, "name": "Intimidating Presence", "description": "As a Bonus Action, you can strike terror into others within a 30-foot Emanation originating from you. Each creature of your choice in the area must make a Wisdom saving throw (DC 8 + your Strength modifier + your Proficiency Bonus). On a failed save, a creature has the Frightened condition for 1 minute. A Frightened creature repeats the save at the end of each of its turns, ending the effect on a success. Once you use this feature, you can't use it again until you finish a Long Rest, unless you expend one Rage use to use it again." }
     ],
     "data": {}
   },
