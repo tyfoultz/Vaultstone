@@ -132,23 +132,23 @@ Default pre-push = Tier 1 + push + Netlify preview. Tiers 2 (`expo export` pre-p
 
 ## SRD Content Import
 
-Bundled SRD content lives in `packages/content/src/srd/data/*.json` and is sourced from [Open5e](https://api.open5e.com) (CC-BY 4.0; see http://open5e.com/legal). The pipeline:
+Bundled SRD content lives in `packages/content/src/srd/data/*.json` and is sourced from [Open5e v2](https://api.open5e.com/v2/) (CC-BY 4.0; see http://open5e.com/legal). The pipeline pulls from both `srd-2014` (5.1 SRD) and `srd-2024` (5.2 SRD) documents and merges them per content type.
 
-1. **Fetch snapshots** from the Open5e API into `vendor/srd/open5e/`:
+1. **Fetch snapshots** from the Open5e v2 API into `vendor/srd/open5e/`:
    ```
    node scripts/import-srd/fetch-open5e.js              # all types
    node scripts/import-srd/fetch-open5e.js spells       # one type
    ```
-   Snapshots are checked into the repo so imports are reproducible. Re-run only when refreshing from upstream.
+   Each snapshot file contains entries from *both* documents — the `document.key` field on each entry tells the transform which edition it came from. Snapshots are checked into the repo so imports are reproducible.
 2. **Transform** the snapshot into our `*Result` shape:
    ```
    node scripts/import-srd/transforms/spells.js
    ```
-   Each transform writes to `packages/content/src/srd/data/<type>.json`. Transforms tag entries with `srdVersions: ['SRD_5.1']` since Open5e's `wotc-srd` document ships the 5.1 bundle. Don't fabricate `SRD_2.0` tags from 5.1 source data.
+   Each transform groups entries by name and unions their edition tags. `srdVersions` ends up `['SRD_5.1']`, `['SRD_2.0']`, or `['SRD_2.0', 'SRD_5.1']` depending on which documents had the entry. When descriptions diverge between editions the 2024 text is preferred; per-edition description support is a future schema extension.
 3. **Drop the seed flag** from `SEED_ONLY_TYPES` (in `packages/content/src/srd/index.ts`) for any type whose bundle is now full.
 
 Coverage as of last refresh:
-- ✅ spells — 319 entries, full SRD 5.1
+- ✅ spells — 341 entries (317 in both editions, 22 new in 2024, 2 dropped from 2024)
 - ⏳ items, magicitems, weapons, armor, monsters, conditions, feats, backgrounds, races, classes — transform scripts pending; data still seed-grade
 
 ---
