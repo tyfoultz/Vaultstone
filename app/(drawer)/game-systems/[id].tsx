@@ -385,14 +385,23 @@ function ExpandRow({
   children: React.ReactNode;
 }) {
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, expanded && styles.rowExpanded]}>
       <Pressable
         onPress={onToggle}
-        style={({ pressed }) => [styles.rowHead, pressed && { opacity: 0.85 }]}
+        style={({ pressed }) => [
+          styles.rowHead,
+          expanded && styles.rowHeadExpanded,
+          pressed && { opacity: 0.85 },
+        ]}
         accessibilityRole="button"
       >
         <View style={{ flex: 1 }}>
-          <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
+          <Text
+            variant="title-sm"
+            family="headline"
+            weight="bold"
+            style={{ color: expanded ? colors.primary : colors.onSurface }}
+          >
             {title}
           </Text>
           {summary ? (
@@ -404,10 +413,10 @@ function ExpandRow({
         <Icon
           name={expanded ? 'expand-less' : 'expand-more'}
           size={20}
-          color={colors.outline}
+          color={expanded ? colors.primary : colors.outline}
         />
       </Pressable>
-      {expanded ? <View style={styles.rowBody}>{children}</View> : null}
+      {expanded ? <View style={[styles.rowBody, styles.rowBodyExpanded]}>{children}</View> : null}
     </View>
   );
 }
@@ -1407,17 +1416,37 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant + '66',
   },
+  // Active expand-row state — lifts the card off the surrounding list with
+  // a tinted background, primary-coloured accent bar, and rounded corners
+  // so it reads as the focused tile rather than another item in the list.
+  rowExpanded: {
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+    borderBottomWidth: 0,
+    marginVertical: spacing.xs + 2,
+  },
   rowHead: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.sm + 2,
   },
+  rowHeadExpanded: {
+    paddingHorizontal: spacing.sm + 4,
+    paddingTop: spacing.sm + 4,
+    paddingBottom: spacing.xs + 2,
+  },
   rowMeta: { color: colors.onSurfaceVariant, marginTop: 2 },
   rowBody: {
     paddingTop: spacing.xs,
     paddingBottom: spacing.md,
     gap: spacing.sm,
+  },
+  rowBodyExpanded: {
+    paddingHorizontal: spacing.sm + 4,
+    paddingBottom: spacing.md,
   },
   bodyText: { color: colors.onSurfaceVariant, lineHeight: 20 },
   subBlock: { gap: 6, marginTop: spacing.xs + 2 },
