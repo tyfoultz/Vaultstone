@@ -1,9 +1,4 @@
-import { useCallback, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { DndProvider, useDrag, useDrop } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
-import { updateTimelineEvent } from '@vaultstone/api';
-import { useTimelineEventsStore } from '@vaultstone/store';
 import type { EraDefinition, TimelineCalendarSchema, TimelineEvent } from '@vaultstone/types';
 import { Icon, Text, colors, spacing } from '@vaultstone/ui';
 
@@ -23,105 +18,7 @@ type Props = {
   onAddEvent: (eraKey?: string) => void;
 };
 
-const DND_TYPE = 'TIMELINE_EVENT';
-type DragItem = { eventId: string; eraKey: string | null };
-
-function DropGap({ index, eraKey, onReorder }: {
-  index: number;
-  eraKey: string | null;
-  onReorder: (dragEventId: string, targetIndex: number, eraKey: string | null) => void;
-}) {
-  const [{ isOver, canDrop }, drop] = useDrop({
-    accept: DND_TYPE,
-    canDrop: (item: DragItem) => item.eraKey === eraKey,
-    drop: (item: DragItem) => {
-      onReorder(item.eventId, index, eraKey);
-    },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-      canDrop: monitor.canDrop(),
-    }),
-  });
-
-  const active = isOver && canDrop;
-
-  return (
-    <div ref={drop as any} style={{ position: 'relative', zIndex: 2 }}>
-      <View style={[styles.dropGap, active && styles.dropGapActive]}>
-        <View style={styles.dropGapCenter}>
-          {active ? (
-            <View style={styles.dropGapDot} />
-          ) : (
-            <View style={styles.dropGapLine} />
-          )}
-        </View>
-      </View>
-    </div>
-  );
-}
-
-function DraggableEventRow({
-  event,
-  era,
-  index,
-  eraKey,
-  isOwner,
-  onEditEvent,
-}: {
-  event: TimelineEvent;
-  era: EraDefinition | null;
-  index: number;
-  eraKey: string | null;
-  isOwner: boolean;
-  onEditEvent: (event: TimelineEvent) => void;
-}) {
-  const isLeft = index % 2 === 0;
-
-  const [{ isDragging }, drag, preview] = useDrag({
-    type: DND_TYPE,
-    item: (): DragItem => ({ eventId: event.id, eraKey }),
-    canDrag: isOwner,
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  });
-
-  return (
-    <div ref={preview as any} style={{ opacity: isDragging ? 0.3 : 1 }}>
-      <View style={styles.eventRow}>
-        <View style={[styles.eventSide, isLeft ? styles.eventLeft : styles.eventRight]}>
-          {isLeft ? (
-            <TimelineEventCard
-              event={event}
-              era={era}
-              isOwner={isOwner}
-              onEdit={() => onEditEvent(event)}
-              dragRef={isOwner ? drag : undefined}
-            />
-          ) : null}
-        </View>
-
-        <View style={styles.connectorCol}>
-          <View style={styles.connectorLine} />
-          <View style={styles.spineDot} />
-          <View style={styles.connectorLine} />
-        </View>
-
-        <View style={[styles.eventSide, isLeft ? styles.eventRight : styles.eventLeft]}>
-          {!isLeft ? (
-            <TimelineEventCard
-              event={event}
-              era={era}
-              isOwner={isOwner}
-              onEdit={() => onEditEvent(event)}
-              dragRef={isOwner ? drag : undefined}
-            />
-          ) : null}
-        </View>
-      </View>
-    </div>
-  );
-}
-
-function TimelineSpineInner({
+export function TimelineSpine({
   events,
   schema,
   isOwner,
@@ -129,47 +26,10 @@ function TimelineSpineInner({
   onEditEvent,
   onAddEvent,
 }: Props) {
-  const setEventsForPage = useTimelineEventsStore((s) => s.setEventsForPage);
   const groups = groupByEra(events, schema);
   const filtered = activeEra
     ? groups.filter((g) => g.era?.key === activeEra)
     : groups;
-
-  const handleReorder = useCallback(
-    (dragEventId: string, targetIndex: number, eraKey: string | null) => {
-      const group = filtered.find((g) => (g.era?.key ?? null) === eraKey);
-      if (!group) return;
-
-      const dragIdx = group.events.findIndex((e) => e.id === dragEventId);
-      if (dragIdx < 0) return;
-
-      const reordered = [...group.events];
-      const [moved] = reordered.splice(dragIdx, 1);
-      const insertAt = dragIdx < targetIndex ? targetIndex - 1 : targetIndex;
-      reordered.splice(insertAt, 0, moved);
-
-      const timelinePageId = events[0]?.timeline_page_id;
-      if (!timelinePageId) return;
-
-      const updatedEvents = events.map((ev) => {
-        const newIdx = reordered.findIndex((r) => r.id === ev.id);
-        if (newIdx >= 0 && ev.tie_breaker !== newIdx) {
-          return { ...ev, tie_breaker: newIdx };
-        }
-        return ev;
-      });
-
-      setEventsForPage(timelinePageId, updatedEvents);
-
-      for (let i = 0; i < reordered.length; i++) {
-        const ev = reordered[i];
-        if (ev.tie_breaker !== i) {
-          void updateTimelineEvent(ev.id, { tie_breaker: i });
-        }
-      }
-    },
-    [events, filtered, setEventsForPage],
-  );
 
   if (filtered.length === 0 && events.length === 0) {
     return (
@@ -210,38 +70,43 @@ function TimelineSpineInner({
             </View>
           ) : null}
 
-          {/* Drop zone before first event */}
-          {isOwner && group.events.length > 0 ? (
-            <DropGap index={0} eraKey={group.era?.key ?? null} onReorder={handleReorder} />
-          ) : null}
+          {group.events.map((event, idx) => {
+            const isLeft = idx % 2 === 0;
+            return (
+              <View key={event.id} style={styles.eventRow}>
+                <View style={[styles.eventSide, isLeft ? styles.eventLeft : styles.eventRight]}>
+                  {isLeft ? (
+                    <TimelineEventCard
+                      event={event}
+                      era={group.era}
+                      isOwner={isOwner}
+                      onEdit={() => onEditEvent(event)}
+                    />
+                  ) : null}
+                </View>
 
-          {group.events.map((event, idx) => (
-            <View key={event.id}>
-              <DraggableEventRow
-                event={event}
-                era={group.era}
-                index={idx}
-                eraKey={group.era?.key ?? null}
-                isOwner={isOwner}
-                onEditEvent={onEditEvent}
-              />
-              {/* Drop zone after each event */}
-              {isOwner ? (
-                <DropGap index={idx + 1} eraKey={group.era?.key ?? null} onReorder={handleReorder} />
-              ) : null}
-            </View>
-          ))}
+                <View style={styles.connectorCol}>
+                  <View style={styles.connectorLine} />
+                  <View style={styles.spineDot} />
+                  <View style={styles.connectorLine} />
+                </View>
+
+                <View style={[styles.eventSide, isLeft ? styles.eventRight : styles.eventLeft]}>
+                  {!isLeft ? (
+                    <TimelineEventCard
+                      event={event}
+                      era={group.era}
+                      isOwner={isOwner}
+                      onEdit={() => onEditEvent(event)}
+                    />
+                  ) : null}
+                </View>
+              </View>
+            );
+          })}
         </View>
       ))}
     </View>
-  );
-}
-
-export function TimelineSpine(props: Props) {
-  return (
-    <DndProvider backend={HTML5Backend}>
-      <TimelineSpineInner {...props} />
-    </DndProvider>
   );
 }
 
@@ -309,7 +174,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.cosmic + '55',
     alignItems: 'center', justifyContent: 'center',
   },
-  eventRow: { flexDirection: 'row', alignItems: 'center', marginVertical: spacing.xs },
+  eventRow: { flexDirection: 'row', alignItems: 'center', marginVertical: spacing.sm },
   eventSide: { flex: 1 },
   eventLeft: { alignItems: 'flex-end', paddingRight: spacing.sm },
   eventRight: { alignItems: 'flex-start', paddingLeft: spacing.sm },
@@ -318,33 +183,6 @@ const styles = StyleSheet.create({
   spineDot: {
     width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2,
     backgroundColor: colors.cosmic, borderWidth: 2, borderColor: colors.surfaceCanvas,
-  },
-  dropGap: {
-    height: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: -2,
-  },
-  dropGapActive: {
-    height: 28,
-  },
-  dropGapCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dropGapLine: {
-    width: SPINE_WIDTH,
-    height: '100%',
-    backgroundColor: colors.outlineVariant + '44',
-  },
-  dropGapDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
-    borderWidth: 2,
-    borderColor: colors.surfaceCanvas,
   },
   emptyState: { alignItems: 'center', paddingVertical: spacing['2xl'] },
 });
