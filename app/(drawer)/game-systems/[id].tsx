@@ -377,13 +377,15 @@ function SearchBar({ value, onChange, placeholder }: { value: string; onChange: 
 }
 
 function ExpandRow({
-  title, summary, expanded, onToggle, children,
+  title, summary, expanded, onToggle, children, badge,
 }: {
   title: string;
   summary: string;
   expanded: boolean;
   onToggle: () => void;
   children: React.ReactNode;
+  /** Optional adornment (e.g. a Chip) anchored to the right of the row head. */
+  badge?: React.ReactNode;
 }) {
   return (
     <View style={[styles.row, expanded && styles.rowExpanded]}>
@@ -411,6 +413,7 @@ function ExpandRow({
             </Text>
           ) : null}
         </View>
+        {badge ? <View style={styles.rowBadge}>{badge}</View> : null}
         <Icon
           name={expanded ? 'expand-less' : 'expand-more'}
           size={20}
@@ -1099,6 +1102,7 @@ function ItemsList({ items }: { items: ItemResult[] }) {
             summary={it.description ?? ''}
             expanded={exp.isOpen(it.key)}
             onToggle={() => exp.toggle(it.key)}
+            badge={<Chip label={typeText} variant="meta" />}
           >
             <View style={styles.itemStatTable}>
               <ItemStatRow label="Type"     value={typeText} />
@@ -1717,6 +1721,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xs + 2,
   },
   rowMeta: { color: colors.onSurfaceVariant, marginTop: 2 },
+  rowBadge: {
+    flexShrink: 0,
+    alignSelf: 'flex-start',
+    marginLeft: spacing.sm,
+  },
   rowBody: {
     paddingTop: spacing.xs,
     paddingBottom: spacing.md,
