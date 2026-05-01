@@ -90,9 +90,16 @@ export function DetailModal({
             contentContainerStyle={s.bodyContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* Subtitle / description */}
+            {/* Subtitle / description — split on blank lines so each paragraph
+                renders as its own Text with proper gap. */}
             {subtitle ? (
-              <Text variant="body-md" family="body" style={s.subtitle}>{subtitle}</Text>
+              <View style={s.subtitleBlock}>
+                {subtitle.split(/\n\s*\n/).map((para, i) => (
+                  <Text key={i} variant="body-md" family="body" style={s.subtitle}>
+                    {para.trim()}
+                  </Text>
+                ))}
+              </View>
             ) : null}
 
             {/* Hero stats strip */}
@@ -237,6 +244,7 @@ const s = StyleSheet.create({
   body: { flex: 1 },
   bodyContent: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
 
+  subtitleBlock: { gap: spacing.sm },
   subtitle: { color: colors.onSurfaceVariant, lineHeight: 22 },
 
   heroStrip: {

@@ -500,7 +500,7 @@ function ClassesList({ items, allSubclasses }: { items: ClassResult[]; allSubcla
             </Text>
             {c.description ? (
               <Text variant="body-sm" family="body" style={styles.rowMeta} numberOfLines={2}>
-                {c.description}
+                {c.description.split(/\n\s*\n/)[0]}
               </Text>
             ) : null}
           </View>
