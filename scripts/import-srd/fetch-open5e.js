@@ -19,21 +19,25 @@ const VENDOR_DIR = path.join(__dirname, '..', '..', 'vendor', 'srd', 'open5e');
 
 // Open5e v2 documents we draw SRD content from. `srd-2014` is the 5.1 SRD
 // (the OGL/CC-BY 4.0 SRD released by WotC in 2016); `srd-2024` is the 5.2 SRD
-// released October 2024. We pull from both and let the transforms tag each
-// entry with the matching srdVersions value.
+// released October 2024.
 const DOCUMENTS = ['srd-2014', 'srd-2024'];
 
-// Endpoints we pull from. Each one fans out across all DOCUMENTS so the
-// snapshot contains every available edition of the entry.
+/**
+ * Endpoint configurations. Some endpoints are partitioned per-document
+ * upstream (spells live in srd-2014 vs srd-2024 separately) — we fan out
+ * across DOCUMENTS for those. Other endpoints (conditions, e.g.) ship a
+ * single entry per item with a `descriptions` array tagged per-edition;
+ * for those we fetch once with no document filter.
+ */
 const ENDPOINTS = [
-  'spells',
-  // Future per-type imports will add: monsters, items, weapons, armor,
-  // conditions, feats, backgrounds, races, classes. Keep this list in sync
-  // with the available v2 endpoints.
+  { slug: 'spells',     filterByDocument: true },
+  { slug: 'conditions', filterByDocument: false },
+  // Future: monsters, items, weapons, armor, feats, backgrounds, races,
+  // classes — add as transforms come online.
 ];
 
-async function fetchAllForDoc(slug, docKey) {
-  let url = `https://api.open5e.com/v2/${slug}/?document__key=${docKey}&limit=200`;
+async function fetchAll(slug, queryString) {
+  let url = `https://api.open5e.com/v2/${slug}/?${queryString}limit=200`;
   const results = [];
   while (url) {
     process.stdout.write(`  fetching ${url}\n`);
@@ -50,27 +54,41 @@ async function main() {
   fs.mkdirSync(VENDOR_DIR, { recursive: true });
   const requested = process.argv.slice(2);
   const targets = requested.length > 0
-    ? ENDPOINTS.filter((e) => requested.includes(e))
+    ? ENDPOINTS.filter((e) => requested.includes(e.slug))
     : ENDPOINTS;
 
   if (requested.length > 0 && targets.length === 0) {
-    console.error(`No matching endpoints. Available: ${ENDPOINTS.join(', ')}`);
+    console.error(`No matching endpoints. Available: ${ENDPOINTS.map((e) => e.slug).join(', ')}`);
     process.exit(1);
   }
 
-  for (const slug of targets) {
-    console.log(`\n=== ${slug} ===`);
+  for (const ep of targets) {
+    console.log(`\n=== ${ep.slug} ===`);
     const combined = [];
-    for (const doc of DOCUMENTS) {
+    if (ep.filterByDocument) {
+      // Fan out across editions; each query returns the entries published
+      // in that document.
+      for (const doc of DOCUMENTS) {
+        try {
+          const items = await fetchAll(ep.slug, `document__key=${doc}&`);
+          console.log(`  ${doc}: ${items.length} entries`);
+          combined.push(...items);
+        } catch (err) {
+          console.error(`  ✗ ${doc} failed: ${err.message}`);
+        }
+      }
+    } else {
+      // Single query — entries are deduped upstream and carry per-edition
+      // tags inside their own structure (e.g. conditions.descriptions[]).
       try {
-        const items = await fetchAllForDoc(slug, doc);
-        console.log(`  ${doc}: ${items.length} entries`);
+        const items = await fetchAll(ep.slug, '');
+        console.log(`  all: ${items.length} entries`);
         combined.push(...items);
       } catch (err) {
-        console.error(`  ✗ ${doc} failed: ${err.message}`);
+        console.error(`  ✗ failed: ${err.message}`);
       }
     }
-    const out = path.join(VENDOR_DIR, `${slug}.json`);
+    const out = path.join(VENDOR_DIR, `${ep.slug}.json`);
     fs.writeFileSync(out, JSON.stringify(combined, null, 2));
     console.log(`  → wrote ${combined.length} entries to ${path.relative(process.cwd(), out)}`);
   }

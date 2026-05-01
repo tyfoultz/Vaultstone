@@ -24,9 +24,15 @@ const EXHAUSTION_MAX = 6;
  * Resolve the bundled condition list for a given SRD edition. Defaults to
  * SRD 2.0 for legacy characters created before `srdVersion` became a required
  * field.
+ *
+ * Exhaustion is intentionally filtered out: the picker injects its own
+ * "Exhaustion" pseudo-entry that routes to the level-track handler
+ * (`onSetExhaustion`), since exhaustion in our app is a 0–6 numeric level
+ * rather than a binary on/off condition like the others.
  */
 function bundledConditionsFor(srdVersion: SrdVersion | null | undefined): ConditionResult[] {
-  return getSrdContent(srdVersion ?? 'SRD_2.0').conditions;
+  const all = getSrdContent(srdVersion ?? 'SRD_2.0').conditions;
+  return all.filter((c) => c.name.toLowerCase() !== 'exhaustion');
 }
 
 // SRD full-caster level-1 default (fallback for pre-slot-init characters)

@@ -149,7 +149,8 @@ Bundled SRD content lives in `packages/content/src/srd/data/*.json` and is sourc
 
 Coverage as of last refresh:
 - ✅ spells — 341 entries (317 in both editions, 22 new in 2024, 2 dropped from 2024)
-- ⏳ items, magicitems, weapons, armor, monsters, conditions, feats, backgrounds, races, classes — transform scripts pending; data still seed-grade
+- ✅ conditions — 30 entries (15 conditions × 2 editions; per-edition descriptions, since 5.1 and 2024 diverge meaningfully — most notably Exhaustion's level-track redesign)
+- ⏳ items, magicitems, weapons, armor, monsters, feats, backgrounds, races, classes — transform scripts pending; data still seed-grade
 
 ---
 
