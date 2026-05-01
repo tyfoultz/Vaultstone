@@ -1018,6 +1018,61 @@ function FeatsList({ items }: { items: FeatResult[] }) {
   );
 }
 
+/**
+ * Pull recognized fields out of an item's flat `properties` string array
+ * so we can render them as a structured stat table. Anything that doesn't
+ * match a known pattern stays in `others`.
+ */
+function parseItemProperties(props: string[]): {
+  typeText: string | null;
+  ac: string | null;
+  damage: string | null;
+  strengthReq: string | null;
+  stealthDisadvantage: boolean;
+  others: string[];
+} {
+  let typeText: string | null = null;
+  let ac: string | null = null;
+  let damage: string | null = null;
+  let strengthReq: string | null = null;
+  let stealthDisadvantage = false;
+  const others: string[] = [];
+  for (const p of props ?? []) {
+    if (/^(Light|Medium|Heavy)\s+Armor$/.test(p)) { typeText = p; continue; }
+    if (/^(Simple|Martial|Improvised)\s+(Melee|Ranged)$/.test(p)) { typeText = p; continue; }
+    if (p.startsWith('AC ')) { ac = p.slice(3); continue; }
+    if (p.startsWith('Damage: ')) { damage = p.slice(8); continue; }
+    const sm = p.match(/^Strength\s+(\d+)\s+required$/);
+    if (sm) { strengthReq = `${sm[1]}`; continue; }
+    if (p === 'Disadvantage on Stealth') { stealthDisadvantage = true; continue; }
+    others.push(p);
+  }
+  return { typeText, ac, damage, strengthReq, stealthDisadvantage, others };
+}
+
+/** Resolve item.srdVersions to a published source label. */
+function srdSourceLabel(versions: string[]): string {
+  if (versions?.includes('SRD_2.0') && versions?.includes('SRD_5.1')) {
+    return 'System Reference Document 5.1 + 5.2';
+  }
+  if (versions?.includes('SRD_2.0')) return 'System Reference Document 5.2';
+  if (versions?.includes('SRD_5.1')) return 'System Reference Document 5.1';
+  return 'System Reference Document';
+}
+
+/** Fall-back human-readable type label when properties don't supply one. */
+function fallbackTypeLabel(category: ItemResult['category']): string {
+  switch (category) {
+    case 'weapon':              return 'Weapon';
+    case 'armor':               return 'Armor';
+    case 'shield':              return 'Shield';
+    case 'adventuring-gear':    return 'Adventuring Gear';
+    case 'crafting-equipment':  return 'Crafting Equipment';
+    case 'magic-item':          return 'Magic Item';
+    default:                    return capitalize(category);
+  }
+}
+
 function ItemsList({ items }: { items: ItemResult[] }) {
   const [q, setQ] = useState('');
   const exp = useExpanded();
@@ -1033,41 +1088,58 @@ function ItemsList({ items }: { items: ItemResult[] }) {
       <SeedBanner type="items" />
       <SearchBar value={q} onChange={setQ} placeholder="Search items…" />
       {filtered.map((it) => {
+        const parsed = parseItemProperties(it.properties ?? []);
+        const typeText = parsed.typeText ?? fallbackTypeLabel(it.category);
         const cost = it.cost ? `${it.cost.amount} ${it.cost.currency}` : null;
+        const weight = typeof it.weight === 'number' ? `${it.weight} lb` : null;
         return (
           <ExpandRow
             key={it.key}
             title={it.name}
-            summary={[
-              capitalize((it.category ?? '').replace('-', ' ')),
-              cost,
-              typeof it.weight === 'number' ? `${it.weight} lb` : null,
-              it.rarity ? capitalize(it.rarity.replace('-', ' ')) : null,
-            ].filter(Boolean).join(' · ')}
+            summary={it.description ?? ''}
             expanded={exp.isOpen(it.key)}
             onToggle={() => exp.toggle(it.key)}
           >
-            {it.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{it.description}</Text> : null}
-            {Array.isArray(it.properties) && it.properties.length > 0 ? (
+            <View style={styles.itemStatTable}>
+              <ItemStatRow label="Type"     value={typeText} />
+              {parsed.ac      ? <ItemStatRow label="AC"      value={parsed.ac} /> : null}
+              {parsed.damage  ? <ItemStatRow label="Damage"  value={parsed.damage} /> : null}
+              {weight         ? <ItemStatRow label="Weight"  value={weight} /> : null}
+              {cost           ? <ItemStatRow label="Cost"    value={cost} /> : null}
+              {parsed.strengthReq ? <ItemStatRow label="Str Req" value={parsed.strengthReq} /> : null}
+              {parsed.stealthDisadvantage ? <ItemStatRow label="Stealth" value="Disadvantage" /> : null}
+              {it.rarity ? <ItemStatRow label="Rarity" value={capitalize(it.rarity.replace('-', ' '))} /> : null}
+              {it.requiresAttunement ? <ItemStatRow label="Attunement" value="Required" /> : null}
+            </View>
+
+            {parsed.others.length > 0 ? (
               <View style={styles.subBlock}>
                 <MetaLabel size="sm">Properties</MetaLabel>
-                {it.properties.map((p, i) => (
-                  <View key={i} style={styles.bullet}>
-                    <Text variant="body-sm" family="body" style={styles.bodyText}>• {p}</Text>
-                  </View>
+                {parsed.others.map((p, i) => (
+                  <Text key={i} variant="body-sm" family="body" style={styles.bodyText}>• {p}</Text>
                 ))}
               </View>
             ) : null}
-            {it.requiresAttunement ? (
-              <View style={styles.subBlock}>
-                <Chip label="Requires attunement" variant="accent" />
-              </View>
-            ) : null}
-            {Array.isArray(it.srdVersions) && it.srdVersions.length > 0 ? <SrdVersionsRow versions={it.srdVersions} /> : null}
+
+            <View style={styles.itemSourceRow}>
+              <Text variant="label-sm" weight="bold" uppercase style={styles.itemStatLabel}>Source</Text>
+              <Text variant="body-sm" family="body" style={styles.itemStatValue}>
+                {srdSourceLabel(it.srdVersions ?? [])}
+              </Text>
+            </View>
           </ExpandRow>
         );
       })}
       {filtered.length === 0 ? <EmptyHit q={q} /> : null}
+    </View>
+  );
+}
+
+function ItemStatRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.itemStatRow}>
+      <Text variant="label-sm" weight="bold" uppercase style={styles.itemStatLabel}>{label}</Text>
+      <Text variant="body-sm" family="body" style={styles.itemStatValue}>{value}</Text>
     </View>
   );
 }
@@ -1723,6 +1795,38 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     marginBottom: 4,
+  },
+
+  // Item stat tables — label / value rows for the expanded item card.
+  itemStatTable: {
+    marginTop: spacing.xs,
+    paddingTop: spacing.xs + 2,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant + '88',
+  },
+  itemStatRow: {
+    flexDirection: 'row',
+    paddingVertical: 4,
+    gap: spacing.md,
+    alignItems: 'baseline',
+  },
+  itemStatLabel: {
+    width: 84,
+    color: colors.outline,
+    letterSpacing: 1,
+  },
+  itemStatValue: {
+    flex: 1,
+    color: colors.onSurface,
+  },
+  itemSourceRow: {
+    flexDirection: 'row',
+    marginTop: spacing.sm + 4,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant + '55',
+    gap: spacing.md,
+    alignItems: 'baseline',
   },
 
   // Reference rows
