@@ -145,7 +145,12 @@ Bundled SRD content lives in `packages/content/src/srd/data/*.json` and is sourc
    node scripts/import-srd/transforms/spells.js
    ```
    Each transform groups entries by name and unions their edition tags. `srdVersions` ends up `['SRD_5.1']`, `['SRD_2.0']`, or `['SRD_2.0', 'SRD_5.1']` depending on which documents had the entry. When descriptions diverge between editions the 2024 text is preferred; per-edition description support is a future schema extension.
-3. **Drop the seed flag** from `SEED_ONLY_TYPES` (in `packages/content/src/srd/index.ts`) for any type whose bundle is now full.
+3. **Augment item flavor text** (items only) by patching from a second source:
+   ```
+   node scripts/import-srd/augment-flavor.js
+   ```
+   Open5e's `/items/` endpoint strips most descriptive prose — especially in the SRD 2024 dataset, which often reduces a paragraph to a one-liner ("A breastplate."). The augment step reads the vendored BTMorton SRD 5.1 snapshot at `vendor/srd/btmorton/{equipment,magic-items}.json` (also CC-BY 4.0), harvests `***Name.*** flavor text` entries plus magic-item leaves, and patches `items.json` for any entry with a thin/stub description. The same SRD 5.1 flavor is applied to both 5.1 and 5.2 entries — the underlying physical object is unchanged and 5.2 dropped flavor prose entirely. Run after `transforms/items.js`. Idempotent.
+4. **Drop the seed flag** from `SEED_ONLY_TYPES` (in `packages/content/src/srd/index.ts`) for any type whose bundle is now full.
 
 Coverage as of last refresh:
 - ✅ spells — 341 entries (317 in both editions, 22 new in 2024, 2 dropped from 2024)

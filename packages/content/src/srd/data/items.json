@@ -451,7 +451,7 @@
       "Two-Handed (unless mounted)",
       "Mastery: Topple"
     ],
-    "description": "A lance.",
+    "description": "You have disadvantage when you use a lance to attack a target within 5 feet of you. Also, a lance requires two hands to wield when you aren’t mounted.",
     "data": {}
   },
   {
@@ -1047,7 +1047,7 @@
       "Reach",
       "Mastery: Slow"
     ],
-    "description": "A whip.",
+    "description": "You can use an action to throw the token to a point within 10 feet of you. The token disappears, and a floating whip takes its place. You can then use a bonus action to make a melee spell attack against a creature within 10 feet of the whip, with an attack bonus of +9. On a hit, the target takes 1d6 + 5 force damage.",
     "data": {}
   },
   {
@@ -1913,7 +1913,7 @@
       "Martial Melee",
       "Reach"
     ],
-    "description": "A whip.",
+    "description": "You can use an action to throw the token to a point within 10 feet of you. The token disappears, and a floating whip takes its place. You can then use a bonus action to make a melee spell attack against a creature within 10 feet of the whip, with an attack bonus of +9. On a hit, the target takes 1d6 + 5 force damage.",
     "data": {}
   },
   {
@@ -1935,7 +1935,7 @@
       "AC 14 + Dex modifier (max 2)",
       "Medium Armor"
     ],
-    "description": "A breastplate.",
+    "description": "This armor consists of a fitted metal chest piece worn with supple leather. Although it leaves the legs and arms relatively unprotected, this armor provides good protection for the wearer’s vital organs while leaving the wearer relatively unencumbered.",
     "data": {}
   },
   {
@@ -1959,7 +1959,7 @@
       "Strength 13 required",
       "Disadvantage on Stealth"
     ],
-    "description": "A chain mail.",
+    "description": "Made of interlocking metal rings, chain mail includes a layer of quilted fabric worn underneath the mail to prevent chafing and to cushion the impact of blows. The suit includes gauntlets.",
     "data": {}
   },
   {
@@ -1981,7 +1981,7 @@
       "AC 13 + Dex modifier (max 2)",
       "Medium Armor"
     ],
-    "description": "A chain shirt.",
+    "description": "Made of interlocking metal rings, a chain shirt is worn between layers of clothing or leather. This armor offers modest protection to the wearer’s upper body and allows the sound of the rings rubbing against one another to be muffled by outer layers.",
     "data": {}
   },
   {
@@ -2004,7 +2004,7 @@
       "Medium Armor",
       "Disadvantage on Stealth"
     ],
-    "description": "A half plate armor.",
+    "description": "Half plate consists of shaped metal plates that cover most of the wearer’s body. It does not include leg protection beyond simple greaves that are attached with leather straps.",
     "data": {}
   },
   {
@@ -2026,7 +2026,7 @@
       "AC 12 + Dex modifier (max 2)",
       "Medium Armor"
     ],
-    "description": "A hide armor.",
+    "description": "This crude armor consists of thick furs and pelts. It is commonly worn by barbarian tribes, evil humanoids, and other folk who lack access to the tools and materials needed to create better armor.",
     "data": {}
   },
   {
@@ -2048,7 +2048,7 @@
       "AC 11 + Dex modifier",
       "Light Armor"
     ],
-    "description": "A leather armor.",
+    "description": "The breastplate and shoulder protectors of this armor are made of leather that has been stiffened by being boiled in oil. The rest of the armor is made of softer and more flexible materials.",
     "data": {}
   },
   {
@@ -2071,7 +2071,7 @@
       "Light Armor",
       "Disadvantage on Stealth"
     ],
-    "description": "A padded armor.",
+    "description": "Padded armor consists of quilted layers of cloth and batting.",
     "data": {}
   },
   {
@@ -2095,7 +2095,7 @@
       "Strength 15 required",
       "Disadvantage on Stealth"
     ],
-    "description": "A plate armor.",
+    "description": "Plate consists of shaped, interlocking metal plates to cover the entire body. A suit of plate includes gauntlets, heavy leather boots, a visored helmet, and thick layers of padding underneath the armor. Buckles and straps distribute the weight over the body.",
     "data": {}
   },
   {
@@ -2118,7 +2118,7 @@
       "Heavy Armor",
       "Disadvantage on Stealth"
     ],
-    "description": "A ring mail.",
+    "description": "This armor is leather armor with heavy rings sewn into it. The rings help reinforce the armor against blows from swords and axes. Ring mail is inferior to chain mail, and it's usually worn only by those who can’t afford better armor.",
     "data": {}
   },
   {
@@ -2141,7 +2141,7 @@
       "Medium Armor",
       "Disadvantage on Stealth"
     ],
-    "description": "A scale mail.",
+    "description": "This armor consists of a coat and leggings (and perhaps a separate skirt) of leather covered with overlapping pieces of metal, much like the scales of a fish. The suit includes gauntlets.",
     "data": {}
   },
   {
@@ -2187,7 +2187,7 @@
       "Strength 15 required",
       "Disadvantage on Stealth"
     ],
-    "description": "A splint armor.",
+    "description": "This armor is made of narrow vertical strips of metal riveted to a backing of leather that is worn over cloth padding. Flexible chain mail protects the joints.",
     "data": {}
   },
   {
@@ -2209,7 +2209,7 @@
       "AC 12 + Dex modifier",
       "Light Armor"
     ],
-    "description": "A studded leather armor.",
+    "description": "Made from tough but flexible leather, studded leather is reinforced with close-set rivets or spikes.",
     "data": {}
   },
   {
@@ -2841,7 +2841,7 @@
       "currency": "gp"
     },
     "weight": 1,
-    "description": "A Crossbow Bolt Case holds up to 20 Bolts.",
+    "description": "This wooden case can hold up to twenty crossbow bolts.",
     "data": {}
   },
   {
@@ -3516,7 +3516,7 @@
       "currency": "sp"
     },
     "weight": 1,
-    "description": "A Pouch holds up to 6 pounds within one-fifth of a cubic foot.",
+    "description": "A cloth or leather pouch can hold up to 20 sling bullets or 50 blowgun needles, among other things. A compartmentalized pouch for holding spell components is called a component pouch (described earlier in this section). Quiver. A quiver can hold up to 20 arrows. Ram, Portable. You can use a portable ram to break down doors. When doing so, you gain a +4 bonus on the Strength check. One other character can help you use the ram, giving you advantage on this check.",
     "data": {}
   },
   {
@@ -3785,7 +3785,7 @@
       "currency": "gp"
     },
     "weight": 1,
-    "description": "Objects viewed through a Spyglass are magnified to twice their size.",
+    "description": "Objects viewed through a spyglass are magnified to twice their size.",
     "data": {}
   },
   {
@@ -3820,7 +3820,7 @@
       "currency": "gp"
     },
     "weight": 20,
-    "description": "A Tent sleeps up to two Small or Medium creatures.",
+    "description": "A simple and portable canvas shelter, a tent sleeps two.",
     "data": {}
   },
   {
@@ -5885,7 +5885,7 @@
       "currency": "gp"
     },
     "weight": 1,
-    "description": "A Map or Scroll Case holds up to 10 sheets of paper or 5 sheets of parchment.",
+    "description": "This cylindrical leather case can hold up to ten rolled-up sheets of paper or five rolled-up sheets of parchment.",
     "data": {}
   },
   {
