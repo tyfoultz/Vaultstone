@@ -24,8 +24,11 @@ function fieldStr(fields: Record<string, unknown>, key: string): string {
 }
 
 function getCanvasSnippetHtml(body: Json): string | null {
-  if (!Array.isArray(body)) return null;
-  const blocks = body as CanvasBlock[];
+  const raw = body && typeof body === 'object' && !Array.isArray(body)
+    ? (body as Record<string, unknown>).__canvas_blocks
+    : body;
+  if (!Array.isArray(raw)) return null;
+  const blocks = raw as CanvasBlock[];
   const textBlocks = blocks.filter((b) => b.html && b.html.trim().length > 0);
   if (textBlocks.length === 0) return null;
   textBlocks.sort((a, b) => a.y - b.y || a.x - b.x);

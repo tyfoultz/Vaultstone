@@ -242,6 +242,7 @@ export function createMentionSuggestion(
       function mount() {
         container = document.createElement('div');
         container.className = 'vaultstone-mention-popup';
+        container.style.zIndex = '99999';
         document.body.appendChild(container);
         root = createRoot(container);
       }

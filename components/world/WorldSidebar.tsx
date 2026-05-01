@@ -37,7 +37,7 @@ import { SidebarDndProvider } from './SidebarDndContext';
 import { SidebarSection } from './SidebarSection';
 import { WorldSearchDrawer } from './WorldSearchDrawer';
 import { WorldSettingsModal } from './WorldSettingsModal';
-import { worldHref, worldMapHref, worldMapIndexHref, worldPageHref } from './worldHref';
+import { worldHref, worldMapHref, worldMapIndexHref, worldPageHref, worldRelationsHref } from './worldHref';
 
 type World = Database['public']['Tables']['worlds']['Row'];
 
@@ -170,6 +170,14 @@ export function WorldSidebar({ world, activePageId }: Props) {
           <Icon name="map" size={20} color={colors.onSurfaceVariant} />
         </Pressable>
 
+        <Pressable
+          onPress={() => router.push(worldRelationsHref(world.id))}
+          style={styles.collapsedItem}
+          accessibilityLabel="Relationship web"
+        >
+          <Icon name="hub" size={20} color={colors.onSurfaceVariant} />
+        </Pressable>
+
         {world.primary_timeline_page_id ? (
           <Pressable
             onPress={() =>
@@ -231,6 +239,13 @@ export function WorldSidebar({ world, activePageId }: Props) {
           accessibilityLabel="Map"
         >
           <Icon name="map" size={18} color={colors.onSurfaceVariant} />
+        </Pressable>
+        <Pressable
+          onPress={() => router.push(worldRelationsHref(world.id))}
+          style={styles.topBarBtn}
+          accessibilityLabel="Relationship web"
+        >
+          <Icon name="hub" size={18} color={colors.onSurfaceVariant} />
         </Pressable>
         {world.primary_timeline_page_id ? (
           <Pressable

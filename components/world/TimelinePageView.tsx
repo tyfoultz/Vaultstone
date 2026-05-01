@@ -35,7 +35,7 @@ import { ShareModal } from './ShareModal';
 import { WorldTopBar } from './WorldTopBar';
 import { PAGE_KIND_LABEL } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
-import { worldSectionHref } from './worldHref';
+import { worldPageHref, worldSectionHref } from './worldHref';
 import { CalendarSchemaEditor } from './timeline/CalendarSchemaEditor';
 import { EraRibbon } from './timeline/EraRibbon';
 import { TimelineSpine } from './timeline/TimelineSpine.web';
@@ -62,6 +62,11 @@ export function TimelinePageView({ page, worldId }: Props) {
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const toggleVisibility = usePageVisibilityToggle(page);
   const updatePageInStore = usePagesStore((s) => s.updatePage);
+  const allPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
+  const mentionablePages = useMemo(
+    () => (allPages ?? []).filter((p) => p.id !== page.id),
+    [allPages, page.id],
+  );
 
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [shareOpen, setShareOpen] = useState(false);
@@ -339,6 +344,12 @@ export function TimelinePageView({ page, worldId }: Props) {
           schema={schema}
           event={editingEvent}
           defaultEra={defaultEra}
+          mentionablePages={mentionablePages}
+          onMentionClick={(targetId) => {
+            setEventEditorOpen(false);
+            setEditingEvent(null);
+            router.push(worldPageHref(worldId, targetId));
+          }}
           onClose={() => {
             setEventEditorOpen(false);
             setEditingEvent(null);

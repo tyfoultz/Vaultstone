@@ -48,7 +48,6 @@ export function TimelineSpine({
 
       {filtered.map((group, gi) => (
         <View key={group.era?.key ?? `ungrouped-${gi}`}>
-          {/* Era divider */}
           {group.era ? (
             <View style={styles.eraDivider}>
               <View style={styles.eraPill}>
@@ -60,7 +59,6 @@ export function TimelineSpine({
             </View>
           ) : null}
 
-          {/* Add event at top of era */}
           {isOwner ? (
             <View style={styles.addBtnRow}>
               <Pressable
@@ -72,7 +70,6 @@ export function TimelineSpine({
             </View>
           ) : null}
 
-          {/* Events alternating L/R */}
           {group.events.map((event, idx) => {
             const isLeft = idx % 2 === 0;
             return (

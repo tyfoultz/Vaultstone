@@ -512,6 +512,11 @@ export default function PageDetailScreen() {
                     }
                     onChange={handleCanvasChange}
                     editable={!heldByOther}
+                    mentionablePages={mentionablePages}
+                    getSectionLabel={sectionLabelById}
+                    onMentionClick={(targetPageId) =>
+                      router.push(worldPageHref(worldId, targetPageId))
+                    }
                   />
                 ) : (
                   <BodyEditor

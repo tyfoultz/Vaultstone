@@ -25,6 +25,7 @@ type Props = {
   minHeight?: number;
   mentionablePages?: MentionablePage[];
   getSectionLabel?: (sectionId: string) => string;
+  onMentionClick?: (pageId: string) => void;
 };
 
 function uid() {
@@ -424,7 +425,7 @@ function MentionTypeahead({ query, pages, position, onSelect, onClose, getSectio
 
 // ── Main Editor ─────────────────────────────────────────────────────────
 
-export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, mentionablePages, getSectionLabel }: Props) {
+export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, mentionablePages, getSectionLabel, onMentionClick }: Props) {
   const [blocks, setBlocks] = useState<CanvasBlock[]>(initialBlocks ?? []);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
@@ -1108,7 +1109,14 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
               top: block.y,
               width: block.width,
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              const chip = (e.target as HTMLElement).closest?.('.vaultstone-mention');
+              if (chip) {
+                const id = chip.getAttribute('data-id');
+                if (id && onMentionClick) { e.preventDefault(); onMentionClick(id); return; }
+              }
+              e.stopPropagation();
+            }}
           >
             {editable ? (
               <div
