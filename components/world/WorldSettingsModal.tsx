@@ -402,42 +402,41 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                       <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
                         Scheduled date & time
                       </Text>
-                      <View style={styles.datePickerWrapper}>
-                        <View style={styles.datePickerBtn} pointerEvents="none">
+                      {Platform.OS === 'web' ? (
+                        <View style={styles.dateInputRow}>
                           <Icon name="event" size={18} color={nextSessionAt ? colors.primary : colors.onSurfaceVariant} />
-                          <Text
-                            variant="body-md"
-                            style={{ color: nextSessionAt ? colors.onSurface : colors.onSurfaceVariant, flex: 1 }}
-                          >
-                            {nextSessionAt
-                              ? new Date(nextSessionAt).toLocaleString(undefined, {
-                                  weekday: 'short', month: 'short', day: 'numeric',
-                                  hour: 'numeric', minute: '2-digit',
-                                })
-                              : 'Pick a date…'}
-                          </Text>
+                          {createElement('input', {
+                            type: 'datetime-local',
+                            value: nextSessionAt,
+                            onChange: (e: any) => setNextSessionAt(e.target.value),
+                            placeholder: 'Pick a date…',
+                            style: {
+                              flex: 1,
+                              background: 'transparent',
+                              border: 'none',
+                              outline: 'none',
+                              color: nextSessionAt ? colors.onSurface : colors.onSurfaceVariant,
+                              fontFamily: "'Manrope', system-ui, sans-serif",
+                              fontSize: 14,
+                              padding: 0,
+                              colorScheme: 'dark',
+                              cursor: 'pointer',
+                            },
+                          })}
+                          {nextSessionAt ? (
+                            <Pressable onPress={() => setNextSessionAt('')} hitSlop={8}>
+                              <Icon name="close" size={16} color={colors.onSurfaceVariant} />
+                            </Pressable>
+                          ) : null}
                         </View>
-                        {Platform.OS === 'web' ? createElement('input', {
-                          type: 'datetime-local',
-                          value: nextSessionAt,
-                          onChange: (e: any) => setNextSessionAt(e.target.value),
-                          style: {
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            opacity: 0,
-                            cursor: 'pointer',
-                            border: 'none',
-                          },
-                        }) : null}
-                        {nextSessionAt ? (
-                          <Pressable onPress={() => setNextSessionAt('')} hitSlop={8} style={styles.dateClearBtn}>
-                            <Icon name="close" size={16} color={colors.onSurfaceVariant} />
-                          </Pressable>
-                        ) : null}
-                      </View>
+                      ) : (
+                        <Input
+                          label=""
+                          value={nextSessionAt}
+                          onChangeText={setNextSessionAt}
+                          placeholder="YYYY-MM-DDTHH:MM"
+                        />
+                      )}
                     </View>
                     <View style={{ gap: spacing.xs }}>
                       <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
@@ -680,7 +679,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: radius.lg,
   },
-  datePickerBtn: {
+  dateInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -689,17 +688,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '55',
-  },
-  datePickerWrapper: {
-    position: 'relative',
-  },
-  dateClearBtn: {
-    position: 'absolute',
-    right: spacing.md,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    zIndex: 2,
   },
   prepPageSelector: {
     flexDirection: 'row',

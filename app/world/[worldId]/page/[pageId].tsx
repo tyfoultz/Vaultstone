@@ -47,7 +47,6 @@ import { StructuredFieldsForm } from '../../../../components/world/StructuredFie
 import { FactionPageView } from '../../../../components/world/FactionPageView';
 import { LocationPageView } from '../../../../components/world/LocationPageView';
 import { NPCPageView } from '../../../../components/world/NPCPageView';
-import { QuestPageView } from '../../../../components/world/QuestPageView';
 import { TimelinePageView } from '../../../../components/world/TimelinePageView';
 import { PCStubPageView } from '../../../../components/world/players/PCStubPageView';
 import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
@@ -371,11 +370,6 @@ export default function PageDetailScreen() {
   // Faction / organization / religion pages get the faction layout
   if (page.page_kind === 'faction' || page.page_kind === 'organization' || page.page_kind === 'religion') {
     return <FactionPageView page={page} worldId={worldId} />;
-  }
-
-  // Quest pages
-  if (page.page_kind === 'quest') {
-    return <QuestPageView page={page} worldId={worldId} />;
   }
 
   // Location pages get the notes-heavy layout with sidebar properties
