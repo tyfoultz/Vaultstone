@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import {
   createTimelineEvent,
   updateTimelineEvent,
   trashTimelineEvent,
 } from '@vaultstone/api';
 import { useTimelineEventsStore } from '@vaultstone/store';
-import type { EraDefinition, Json, TimelineCalendarSchema, TimelineEvent } from '@vaultstone/types';
+import type { EraDefinition, Json, TimelineCalendarSchema, TimelineEvent, WorldPage } from '@vaultstone/types';
 import { Card, GradientButton, GhostButton, Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 type Props = {
@@ -15,6 +15,7 @@ type Props = {
   schema: TimelineCalendarSchema;
   event: TimelineEvent | null;
   defaultEra?: string;
+  mentionablePages?: WorldPage[];
   onClose: () => void;
 };
 
@@ -24,6 +25,7 @@ export function EventEditorModal({
   schema,
   event,
   defaultEra,
+  mentionablePages,
   onClose,
 }: Props) {
   const isEdit = event !== null;
@@ -35,13 +37,26 @@ export function EventEditorModal({
     if (defaultEra) return { era: defaultEra };
     return {};
   });
-  const [description, setDescription] = useState(event?.body_text ?? '');
   const [tagsText, setTagsText] = useState(() => {
     const t = (event as TimelineEvent & { tags?: string[] })?.tags ?? [];
     return t.join(', ');
   });
   const [visibleToPlayers, setVisibleToPlayers] = useState(event?.visible_to_players ?? true);
   const [saving, setSaving] = useState(false);
+
+  // Rich body state (web: TipTap JSON, native: plain text)
+  const bodyRef = useRef<{ body: Json; bodyText: string; bodyRefs: string[] }>({
+    body: (event?.body && typeof event.body === 'object' && Object.keys(event.body as object).length > 0)
+      ? event.body
+      : {},
+    bodyText: event?.body_text ?? '',
+    bodyRefs: event?.body_refs ?? [],
+  });
+  const [plainDescription, setPlainDescription] = useState(event?.body_text ?? '');
+
+  const handleBodyChange = useCallback((body: object, bodyText: string, bodyRefs: string[]) => {
+    bodyRef.current = { body: body as Json, bodyText, bodyRefs };
+  }, []);
 
   const selectedEraKey = dateValues.era ?? '';
   const selectedEra = useMemo(
@@ -85,23 +100,38 @@ export function EventEditorModal({
     if (!title.trim()) return;
     setSaving(true);
 
-    const bodyDoc = description.trim()
-      ? {
-          type: 'doc',
-          content: description.split(/\n{2,}/).map((p) => ({
-            type: 'paragraph',
-            content: p.trim() ? [{ type: 'text', text: p.trim() }] : [],
-          })),
-        }
-      : {};
+    const isWeb = Platform.OS === 'web';
+    let body: Json;
+    let bodyText: string | null;
+    let bodyRefs: string[];
+
+    if (isWeb) {
+      body = bodyRef.current.body;
+      bodyText = bodyRef.current.bodyText || null;
+      bodyRefs = bodyRef.current.bodyRefs;
+    } else {
+      const desc = plainDescription.trim();
+      body = desc
+        ? {
+            type: 'doc',
+            content: desc.split(/\n{2,}/).map((p) => ({
+              type: 'paragraph',
+              content: p.trim() ? [{ type: 'text', text: p.trim() }] : [],
+            })),
+          }
+        : {};
+      bodyText = desc || null;
+      bodyRefs = [];
+    }
 
     if (isEdit) {
       const { data } = await updateTimelineEvent(event.id, {
         title: title.trim(),
         date_values: dateValues as Json,
         visible_to_players: visibleToPlayers,
-        body: bodyDoc as Json,
-        body_text: description.trim() || null,
+        body,
+        body_text: bodyText,
+        body_refs: bodyRefs,
         tags: parsedTags,
       });
       if (data) updateEvent(data.id, data as TimelineEvent);
@@ -112,8 +142,9 @@ export function EventEditorModal({
         title: title.trim(),
         dateValues: dateValues as Json,
         visibleToPlayers,
-        body: bodyDoc as Json,
-        bodyText: description.trim() || undefined,
+        body,
+        bodyText: bodyText ?? undefined,
+        bodyRefs,
         tags: parsedTags,
       });
       if (data) addEvent(data as TimelineEvent);
@@ -129,6 +160,14 @@ export function EventEditorModal({
     removeEvent(event.id);
     onClose();
   };
+
+  const initialBody = useMemo(() => {
+    const b = event?.body;
+    if (!b || typeof b !== 'object' || Object.keys(b as object).length === 0) return null;
+    return b as object;
+  }, [event?.body]);
+
+  const isWeb = Platform.OS === 'web';
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -241,18 +280,26 @@ export function EventEditorModal({
               </View>
             ) : null}
 
-            {/* Description */}
+            {/* Description — rich editor on web, plain TextInput on native */}
             <View style={styles.field}>
               <Text variant="label-md" tone="secondary">Description</Text>
-              <TextInput
-                style={[styles.input, styles.descInput]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="A short description of this event…"
-                placeholderTextColor={colors.outlineVariant}
-                multiline
-                textAlignVertical="top"
-              />
+              {isWeb ? (
+                <RichDescriptionEditor
+                  initialBody={initialBody}
+                  mentionablePages={mentionablePages}
+                  onChange={handleBodyChange}
+                />
+              ) : (
+                <TextInput
+                  style={[styles.input, styles.descInput]}
+                  value={plainDescription}
+                  onChangeText={setPlainDescription}
+                  placeholder="A short description of this event…"
+                  placeholderTextColor={colors.outlineVariant}
+                  multiline
+                  textAlignVertical="top"
+                />
+              )}
             </View>
 
             {/* Tags */}
@@ -308,6 +355,25 @@ export function EventEditorModal({
   );
 }
 
+function RichDescriptionEditor({ initialBody, mentionablePages, onChange }: {
+  initialBody: object | null;
+  mentionablePages?: WorldPage[];
+  onChange: (body: object, bodyText: string, bodyRefs: string[]) => void;
+}) {
+  const { BodyEditor } = require('../BodyEditor.web') as typeof import('../BodyEditor.web');
+  return (
+    <View style={styles.richEditorWrap}>
+      <BodyEditor
+        initialContent={initialBody}
+        onChange={onChange}
+        hideChrome
+        mentionablePages={mentionablePages}
+        placeholder="Describe this event… (type @ to mention pages)"
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
@@ -325,6 +391,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg, backgroundColor: colors.surfaceCanvas,
   },
   descInput: { minHeight: 80, textAlignVertical: 'top' },
+  richEditorWrap: {
+    borderWidth: 1, borderColor: colors.outlineVariant + '55',
+    borderRadius: radius.lg, backgroundColor: colors.surfaceCanvas,
+    minHeight: 100, overflow: 'hidden',
+  },
   eraChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   eraChip: {
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,

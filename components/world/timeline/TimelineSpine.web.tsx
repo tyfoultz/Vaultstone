@@ -1,4 +1,9 @@
+import { useCallback, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import { updateTimelineEvent } from '@vaultstone/api';
+import { useTimelineEventsStore } from '@vaultstone/store';
 import type { EraDefinition, TimelineCalendarSchema, TimelineEvent } from '@vaultstone/types';
 import { Icon, Text, colors, spacing } from '@vaultstone/ui';
 
@@ -18,6 +23,105 @@ type Props = {
   onAddEvent: (eraKey?: string) => void;
 };
 
+const DND_TYPE = 'TIMELINE_EVENT';
+type DragItem = { eventId: string; eraKey: string | null; index: number };
+
+function DraggableEventRow({
+  event,
+  era,
+  index,
+  eraKey,
+  isOwner,
+  onEditEvent,
+  onMoveEvent,
+}: {
+  event: TimelineEvent;
+  era: EraDefinition | null;
+  index: number;
+  eraKey: string | null;
+  isOwner: boolean;
+  onEditEvent: (event: TimelineEvent) => void;
+  onMoveEvent: (dragIndex: number, hoverIndex: number, eraKey: string | null) => void;
+}) {
+  const ref = useRef<View>(null);
+  const isLeft = index % 2 === 0;
+
+  const [{ isDragging }, drag, preview] = useDrag({
+    type: DND_TYPE,
+    item: (): DragItem => ({ eventId: event.id, eraKey, index }),
+    canDrag: isOwner,
+    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
+  });
+
+  const [{ isOver }, drop] = useDrop({
+    accept: DND_TYPE,
+    canDrop: (item: DragItem) => item.eraKey === eraKey,
+    hover: (item: DragItem, monitor) => {
+      if (!ref.current || item.index === index || item.eraKey !== eraKey) return;
+      const el = (ref.current as unknown as { _nativeTag?: number; getNode?: () => HTMLElement })
+      const domNode = (el as any)?._node ?? (el as any)?.getNode?.() ?? (ref.current as any);
+      if (!domNode?.getBoundingClientRect) return;
+      const hoverBoundingRect = domNode.getBoundingClientRect();
+      const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
+      const clientOffset = monitor.getClientOffset();
+      if (!clientOffset) return;
+      const hoverClientY = clientOffset.y - hoverBoundingRect.top;
+
+      if (item.index < index && hoverClientY < hoverMiddleY) return;
+      if (item.index > index && hoverClientY > hoverMiddleY) return;
+
+      onMoveEvent(item.index, index, eraKey);
+      item.index = index;
+    },
+    collect: (monitor) => ({ isOver: monitor.isOver() }),
+  });
+
+  const attachRef = useCallback((node: any) => {
+    (ref as any).current = node;
+    if (isOwner) {
+      preview(node);
+      drop(node);
+    }
+  }, [isOwner, preview, drop]);
+
+  return (
+    <View
+      ref={attachRef}
+      style={[styles.eventRow, isDragging && { opacity: 0.4 }, isOver && styles.eventRowHover]}
+    >
+      <View style={[styles.eventSide, isLeft ? styles.eventLeft : styles.eventRight]}>
+        {isLeft ? (
+          <TimelineEventCard
+            event={event}
+            era={era}
+            isOwner={isOwner}
+            onEdit={() => onEditEvent(event)}
+            dragRef={isOwner ? drag : undefined}
+          />
+        ) : null}
+      </View>
+
+      <View style={styles.connectorCol}>
+        <View style={styles.connectorLine} />
+        <View style={styles.spineDot} />
+        <View style={styles.connectorLine} />
+      </View>
+
+      <View style={[styles.eventSide, isLeft ? styles.eventRight : styles.eventLeft]}>
+        {!isLeft ? (
+          <TimelineEventCard
+            event={event}
+            era={era}
+            isOwner={isOwner}
+            onEdit={() => onEditEvent(event)}
+            dragRef={isOwner ? drag : undefined}
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 export function TimelineSpine({
   events,
   schema,
@@ -26,10 +130,31 @@ export function TimelineSpine({
   onEditEvent,
   onAddEvent,
 }: Props) {
+  const updateEvent = useTimelineEventsStore((s) => s.updateEvent);
   const groups = groupByEra(events, schema);
   const filtered = activeEra
     ? groups.filter((g) => g.era?.key === activeEra)
     : groups;
+
+  const handleMoveEvent = useCallback(
+    (dragIndex: number, hoverIndex: number, eraKey: string | null) => {
+      const group = filtered.find((g) => (g.era?.key ?? null) === eraKey);
+      if (!group) return;
+      const reordered = [...group.events];
+      const [moved] = reordered.splice(dragIndex, 1);
+      reordered.splice(hoverIndex, 0, moved);
+      group.events.splice(0, group.events.length, ...reordered);
+
+      for (let i = 0; i < reordered.length; i++) {
+        const ev = reordered[i];
+        if (ev.tie_breaker !== i) {
+          updateEvent(ev.id, { ...ev, tie_breaker: i });
+          void updateTimelineEvent(ev.id, { tie_breaker: i });
+        }
+      }
+    },
+    [filtered, updateEvent],
+  );
 
   if (filtered.length === 0 && events.length === 0) {
     return (
@@ -43,12 +168,12 @@ export function TimelineSpine({
   }
 
   return (
+    <DndProvider backend={HTML5Backend}>
     <View style={styles.root}>
       <View style={styles.spineLine} />
 
       {filtered.map((group, gi) => (
         <View key={group.era?.key ?? `ungrouped-${gi}`}>
-          {/* Era divider */}
           {group.era ? (
             <View style={styles.eraDivider}>
               <View style={styles.eraPill}>
@@ -60,7 +185,6 @@ export function TimelineSpine({
             </View>
           ) : null}
 
-          {/* Add event at top of era */}
           {isOwner ? (
             <View style={styles.addBtnRow}>
               <Pressable
@@ -72,44 +196,22 @@ export function TimelineSpine({
             </View>
           ) : null}
 
-          {/* Events alternating L/R */}
-          {group.events.map((event, idx) => {
-            const isLeft = idx % 2 === 0;
-            return (
-              <View key={event.id} style={styles.eventRow}>
-                <View style={[styles.eventSide, isLeft ? styles.eventLeft : styles.eventRight]}>
-                  {isLeft ? (
-                    <TimelineEventCard
-                      event={event}
-                      era={group.era}
-                      isOwner={isOwner}
-                      onEdit={() => onEditEvent(event)}
-                    />
-                  ) : null}
-                </View>
-
-                <View style={styles.connectorCol}>
-                  <View style={styles.connectorLine} />
-                  <View style={styles.spineDot} />
-                  <View style={styles.connectorLine} />
-                </View>
-
-                <View style={[styles.eventSide, isLeft ? styles.eventRight : styles.eventLeft]}>
-                  {!isLeft ? (
-                    <TimelineEventCard
-                      event={event}
-                      era={group.era}
-                      isOwner={isOwner}
-                      onEdit={() => onEditEvent(event)}
-                    />
-                  ) : null}
-                </View>
-              </View>
-            );
-          })}
+          {group.events.map((event, idx) => (
+            <DraggableEventRow
+              key={event.id}
+              event={event}
+              era={group.era}
+              index={idx}
+              eraKey={group.era?.key ?? null}
+              isOwner={isOwner}
+              onEditEvent={onEditEvent}
+              onMoveEvent={handleMoveEvent}
+            />
+          ))}
         </View>
       ))}
     </View>
+    </DndProvider>
   );
 }
 
@@ -178,6 +280,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   eventRow: { flexDirection: 'row', alignItems: 'center', marginVertical: spacing.sm },
+  eventRowHover: { backgroundColor: colors.primaryContainer + '11' },
   eventSide: { flex: 1 },
   eventLeft: { alignItems: 'flex-end', paddingRight: spacing.sm },
   eventRight: { alignItems: 'flex-start', paddingLeft: spacing.sm },

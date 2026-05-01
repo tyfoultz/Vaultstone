@@ -62,6 +62,11 @@ export function TimelinePageView({ page, worldId }: Props) {
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const toggleVisibility = usePageVisibilityToggle(page);
   const updatePageInStore = usePagesStore((s) => s.updatePage);
+  const allPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
+  const mentionablePages = useMemo(
+    () => (allPages ?? []).filter((p) => p.id !== page.id),
+    [allPages, page.id],
+  );
 
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [shareOpen, setShareOpen] = useState(false);
@@ -339,6 +344,7 @@ export function TimelinePageView({ page, worldId }: Props) {
           schema={schema}
           event={editingEvent}
           defaultEra={defaultEra}
+          mentionablePages={mentionablePages}
           onClose={() => {
             setEventEditorOpen(false);
             setEditingEvent(null);

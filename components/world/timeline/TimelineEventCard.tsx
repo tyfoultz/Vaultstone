@@ -9,9 +9,10 @@ type Props = {
   era: EraDefinition | null;
   isOwner: boolean;
   onEdit: () => void;
+  dragRef?: any;
 };
 
-export function TimelineEventCard({ event, era, isOwner, onEdit }: Props) {
+export function TimelineEventCard({ event, era, isOwner, onEdit, dragRef }: Props) {
   const removeEvent = useTimelineEventsStore((s) => s.removeEvent);
 
   const dateLabel = formatDateLabel(event.date_values, era);
@@ -27,9 +28,9 @@ export function TimelineEventCard({ event, era, isOwner, onEdit }: Props) {
     <View style={styles.card}>
       <View style={styles.topRow}>
         {isOwner ? (
-          <View style={styles.dragHandle}>
+          <Pressable ref={dragRef} style={[styles.dragHandle, { cursor: 'grab' } as any]}>
             <Icon name="drag-indicator" size={14} color={colors.outlineVariant + '88'} />
-          </View>
+          </Pressable>
         ) : (
           <View style={styles.dragHandle} />
         )}
