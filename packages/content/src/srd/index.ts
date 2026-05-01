@@ -63,3 +63,18 @@ export function getSrdCounts(): SrdCounts {
   const backgrounds = (backgroundsData as unknown as BackgroundResult[]).length;
   return { species, classes, backgrounds, total: species + classes + backgrounds };
 }
+
+export interface SrdContent {
+  species: SpeciesResult[];
+  classes: ClassResult[];
+  backgrounds: BackgroundResult[];
+}
+
+/** Synchronous accessor for the bundled SRD records grouped by type. */
+export function getSrdContent(): SrdContent {
+  return {
+    species: speciesData as unknown as SpeciesResult[],
+    classes: classesData as unknown as ClassResult[],
+    backgrounds: backgroundsData as unknown as BackgroundResult[],
+  };
+}

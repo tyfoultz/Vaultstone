@@ -25,7 +25,7 @@ const NAV_ITEMS: { label: string; href: Href; icon: IconName }[] = [
   { label: 'Campaigns', href: '/campaigns', icon: 'map' },
   { label: 'Characters', href: '/characters', icon: 'person' },
   { label: 'Worlds', href: '/worlds', icon: 'public' },
-  { label: 'Game Systems', href: '/game-systems', icon: 'extension' },
+  { label: 'Game Systems', href: '/game-systems' as Href, icon: 'extension' },
   { label: 'Settings', href: '/settings', icon: 'settings' },
 ];
 

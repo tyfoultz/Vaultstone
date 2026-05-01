@@ -1,4 +1,5 @@
-import { ScrollView, View, StyleSheet, useWindowDimensions } from 'react-native';
+import { ScrollView, View, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 import {
   colors, spacing, radius,
   Card, Chip, MetaLabel, Text, ScreenHeader, Icon, GhostButton,
@@ -11,6 +12,7 @@ import { getSrdCounts } from '@vaultstone/content';
 const BUNDLED_SYSTEMS = [dnd5eSystem, customSystem];
 
 export default function GameSystemsScreen() {
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const numColumns = width > 1100 ? 2 : 1;
   const srd = getSrdCounts();
@@ -35,52 +37,60 @@ export default function GameSystemsScreen() {
           {BUNDLED_SYSTEMS.map((sys) => {
             const isDnd = sys.id === 'dnd5e';
             return (
-              <Card
+              <Pressable
                 key={sys.id}
-                tier="container"
-                padding="md"
-                style={numColumns === 2 ? styles.gridItemHalf : styles.gridItemFull}
+                onPress={() => router.push(`/game-systems/${sys.id}` as Href)}
+                style={({ pressed, hovered }: any) => [
+                  numColumns === 2 ? styles.gridItemHalf : styles.gridItemFull,
+                  { transform: [{ scale: pressed ? 0.995 : 1 }], opacity: pressed ? 0.92 : 1 },
+                  hovered && styles.cardHovered,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${sys.displayName}`}
               >
-                <View style={styles.cardHead}>
-                  <View style={styles.cardHeadIcon}>
-                    <Icon
-                      name={isDnd ? 'casino' : 'extension'}
-                      size={22}
-                      color={colors.primary}
-                    />
+                <Card tier="container" padding="md">
+                  <View style={styles.cardHead}>
+                    <View style={styles.cardHeadIcon}>
+                      <Icon
+                        name={isDnd ? 'casino' : 'extension'}
+                        size={22}
+                        color={colors.primary}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
+                        {sys.displayName}
+                      </Text>
+                      <MetaLabel size="sm">v{sys.version}</MetaLabel>
+                    </View>
+                    <Chip label={sys.isBundled ? 'Bundled' : 'Custom'} variant="accent" />
+                    <Icon name="chevron-right" size={20} color={colors.outline} />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
-                      {sys.displayName}
+
+                  {isDnd ? (
+                    <View style={styles.metaList}>
+                      <Stat label="Species" value={srd.species} />
+                      <Stat label="Classes" value={srd.classes} />
+                      <Stat label="Backgrounds" value={srd.backgrounds} />
+                      <Stat label="Sheet sections" value={sys.sheetSections.length} />
+                    </View>
+                  ) : (
+                    <Text variant="body-sm" family="body" style={styles.bodyMuted}>
+                      Open template — bring your own attributes, resources, and sheet
+                      sections. No bundled SRD content.
                     </Text>
-                    <MetaLabel size="sm">v{sys.version}</MetaLabel>
-                  </View>
-                  <Chip label={sys.isBundled ? 'Bundled' : 'Custom'} variant="accent" />
-                </View>
+                  )}
 
-                {isDnd ? (
-                  <View style={styles.metaList}>
-                    <Stat label="Species" value={srd.species} />
-                    <Stat label="Classes" value={srd.classes} />
-                    <Stat label="Backgrounds" value={srd.backgrounds} />
-                    <Stat label="Sheet sections" value={sys.sheetSections.length} />
+                  <View style={styles.licenseRow}>
+                    <Icon name="info-outline" size={13} color={colors.outline} />
+                    <Text variant="body-sm" family="body" style={styles.licenseText}>
+                      {sys.license === 'CC-BY-4.0'
+                        ? 'CC-BY 4.0 — attribution required when displaying SRD content.'
+                        : 'Custom license — defined per pack.'}
+                    </Text>
                   </View>
-                ) : (
-                  <Text variant="body-sm" family="body" style={styles.bodyMuted}>
-                    Open template — bring your own attributes, resources, and sheet
-                    sections. No bundled SRD content.
-                  </Text>
-                )}
-
-                <View style={styles.licenseRow}>
-                  <Icon name="info-outline" size={13} color={colors.outline} />
-                  <Text variant="body-sm" family="body" style={styles.licenseText}>
-                    {sys.license === 'CC-BY-4.0'
-                      ? 'CC-BY 4.0 — attribution required when displaying SRD content.'
-                      : 'Custom license — defined per pack.'}
-                  </Text>
-                </View>
-              </Card>
+                </Card>
+              </Pressable>
             );
           })}
         </View>
@@ -166,6 +176,10 @@ const styles = StyleSheet.create({
   },
   gridItemFull: { flexBasis: '100%', flexGrow: 1 },
   gridItemHalf: { flexBasis: '48%', flexGrow: 1, minWidth: 360 },
+
+  cardHovered: {
+    transform: [{ scale: 1.005 }],
+  },
 
   cardHead: {
     flexDirection: 'row',
