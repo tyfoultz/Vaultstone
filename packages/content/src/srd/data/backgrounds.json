@@ -1,212 +1,118 @@
 [
   {
-    "key": "acolyte",
+    "key": "acolyte-srd-2-0",
     "name": "Acolyte",
     "type": "background",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_2.0", "SRD_5.1"],
-    "description": "You have spent your life in service to a temple, learning sacred rites and providing assistance to worshipers.",
-    "skillProficiencies": ["Insight", "Religion"],
-    "toolProficiency": null,
-    "languages": 2,
-    "abilityScoreOptions": ["intelligence", "wisdom", "charisma"],
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "skillProficiencies": [
+      "Insight",
+      "Religion"
+    ],
+    "toolProficiency": "Calligrapher's Supplies",
+    "languages": 0,
+    "abilityScoreOptions": [
+      "intelligence",
+      "wisdom",
+      "charisma"
+    ],
     "originFeat": "Magic Initiate (Cleric)",
+    "description": "Starting equipment: *Choose A or B:* (A) Calligrapher's Supplies, Book (prayers), Holy Symbol, Parchment (10 sheets), Robe, 8 GP; or (B) 50 GP",
     "data": {}
   },
   {
-    "key": "artisan",
-    "name": "Artisan",
+    "key": "acolyte-srd-5-1",
+    "name": "Acolyte",
     "type": "background",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You began life as a skilled tradesperson, honing a craft and learning to sell your work.",
-    "skillProficiencies": ["Investigation", "Persuasion"],
-    "toolProficiency": "Artisan's Tools (one kind of your choice)",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "skillProficiencies": [
+      "Insight",
+      "Religion"
+    ],
+    "toolProficiency": null,
     "languages": 0,
-    "abilityScoreOptions": ["strength", "dexterity", "intelligence"],
-    "originFeat": "Crafter",
+    "abilityScoreOptions": [],
+    "originFeat": "",
+    "description": "You have spent your life in the service of a temple to a specific god or pantheon of gods. You act as an intermediary between the realm of the holy and the mortal world, performing sacred rites and offering sacrifices in order to conduct worshipers into the presence of the divine. You are not necessarily a cleric performing sacred rites is not the same thing as channeling divine power.\n\nChoose a god, a pantheon of gods, or some other quasi-divine being from among those listed in \"Fantasy-Historical Pantheons\" or those specified by your GM, and work with your GM to detail the nature of your religious service. Were you a lesser functionary in a temple, raised from childhood to assist the priests in the sacred rites? Or were you a high priest who suddenly experienced a call to serve your god in a different way? Perhaps you were the leader of a small cult outside of any established temple structure, or even an occult group that served a fiendish master that you now deny.",
     "data": {}
   },
   {
-    "key": "charlatan",
-    "name": "Charlatan",
-    "type": "background",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You have always had a way with people and know how to find the mark in every crowd.",
-    "skillProficiencies": ["Deception", "Sleight of Hand"],
-    "toolProficiency": "Forgery Kit",
-    "languages": 0,
-    "abilityScoreOptions": ["dexterity", "constitution", "charisma"],
-    "originFeat": "Skilled",
-    "data": {}
-  },
-  {
-    "key": "criminal",
+    "key": "criminal-srd-2-0",
     "name": "Criminal",
     "type": "background",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You have made a living by breaking the rules, operating outside the law for profit.",
-    "skillProficiencies": ["Sleight of Hand", "Stealth"],
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "skillProficiencies": [
+      "Sleight of Hand",
+      "Stealth"
+    ],
     "toolProficiency": "Thieves' Tools",
     "languages": 0,
-    "abilityScoreOptions": ["dexterity", "constitution", "intelligence"],
+    "abilityScoreOptions": [
+      "dexterity",
+      "constitution",
+      "intelligence"
+    ],
     "originFeat": "Alert",
+    "description": "Starting equipment: *Choose A or B:* (A) 2 Daggers, Thieves' Tools, Crowbar, 2 Pouches, Traveler's Clothes, 16 GP; or (B) 50 GP",
     "data": {}
   },
   {
-    "key": "entertainer",
-    "name": "Entertainer",
+    "key": "sage-srd-2-0",
+    "name": "Sage",
     "type": "background",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You thrive in front of an audience, knowing how to entrance and inspire people through performance.",
-    "skillProficiencies": ["Acrobatics", "Performance"],
-    "toolProficiency": "Musical Instrument (one kind of your choice)",
-    "languages": 0,
-    "abilityScoreOptions": ["strength", "dexterity", "charisma"],
-    "originFeat": "Skilled",
-    "data": {}
-  },
-  {
-    "key": "farmer",
-    "name": "Farmer",
-    "type": "background",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You grew up working the land, learning the rhythms of nature and the value of honest labor.",
-    "skillProficiencies": ["Animal Handling", "Nature"],
-    "toolProficiency": "Carpenter's Tools",
-    "languages": 0,
-    "abilityScoreOptions": ["strength", "constitution", "wisdom"],
-    "originFeat": "Tough",
-    "data": {}
-  },
-  {
-    "key": "guard",
-    "name": "Guard",
-    "type": "background",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Your feet trod many a cobblestone and your eyes watched many a dark corner as you worked to keep the peace.",
-    "skillProficiencies": ["Athletics", "Perception"],
-    "toolProficiency": "Musical Instrument (one kind of your choice)",
-    "languages": 0,
-    "abilityScoreOptions": ["strength", "intelligence", "wisdom"],
-    "originFeat": "Alert",
-    "data": {}
-  },
-  {
-    "key": "guide",
-    "name": "Guide",
-    "type": "background",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You grew up in the wilderness, far from civilization and the comforts of towns, leading others through dangerous terrain.",
-    "skillProficiencies": ["Stealth", "Survival"],
-    "toolProficiency": "Cartographer's Tools",
-    "languages": 0,
-    "abilityScoreOptions": ["dexterity", "constitution", "wisdom"],
-    "originFeat": "Magic Initiate (Druid)",
-    "data": {}
-  },
-  {
-    "key": "hermit",
-    "name": "Hermit",
-    "type": "background",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You lived in seclusion — either in a sheltered community or in the wild — for a formative part of your life.",
-    "skillProficiencies": ["Medicine", "Religion"],
-    "toolProficiency": "Herbalism Kit",
-    "languages": 0,
-    "abilityScoreOptions": ["constitution", "intelligence", "wisdom"],
-    "originFeat": "Magic Initiate (Druid)",
-    "data": {}
-  },
-  {
-    "key": "merchant",
-    "name": "Merchant",
-    "type": "background",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You worked as a trader, buying and selling goods, and learned the value of smooth negotiations.",
-    "skillProficiencies": ["Animal Handling", "Persuasion"],
-    "toolProficiency": "Navigator's Tools",
-    "languages": 0,
-    "abilityScoreOptions": ["constitution", "intelligence", "wisdom"],
-    "originFeat": "Lucky",
-    "data": {}
-  },
-  {
-    "key": "noble",
-    "name": "Noble",
-    "type": "background",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You understand wealth, power, and privilege. You carry a noble title, and your family owns land and collects taxes.",
-    "skillProficiencies": ["History", "Persuasion"],
-    "toolProficiency": "Gaming Set (one kind of your choice)",
-    "languages": 0,
-    "abilityScoreOptions": ["strength", "intelligence", "charisma"],
-    "originFeat": "Skilled",
-    "data": {}
-  },
-  {
-    "key": "scribe",
-    "name": "Scribe",
-    "type": "background",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You spent years learning the art of writing and maintaining records, working in monasteries, courts, or trading firms.",
-    "skillProficiencies": ["Investigation", "Perception"],
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "skillProficiencies": [
+      "Arcana",
+      "History"
+    ],
     "toolProficiency": "Calligrapher's Supplies",
     "languages": 0,
-    "abilityScoreOptions": ["dexterity", "intelligence", "wisdom"],
-    "originFeat": "Skilled",
+    "abilityScoreOptions": [
+      "constitution",
+      "intelligence",
+      "wisdom"
+    ],
+    "originFeat": "Magic Initiate (Wizard)",
+    "description": "Starting equipment: *Choose A or B:* (A) Quarterstaff, Calligrapher's Supplies, Book (history), Parchment (8 sheets), Robe, 8 GP; or (B) 50 GP",
     "data": {}
   },
   {
-    "key": "soldier",
+    "key": "soldier-srd-2-0",
     "name": "Soldier",
     "type": "background",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "War has been your life for as long as you care to remember. You trained as a youth, studied the use of weapons and armor, and learned basic survival techniques.",
-    "skillProficiencies": ["Athletics", "Intimidation"],
-    "toolProficiency": "Gaming Set (one kind of your choice)",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "skillProficiencies": [
+      "Athletics",
+      "Intimidation"
+    ],
+    "toolProficiency": "Choose one kind of Gaming Set",
     "languages": 0,
-    "abilityScoreOptions": ["strength", "dexterity", "constitution"],
+    "abilityScoreOptions": [
+      "strength",
+      "dexterity",
+      "constitution"
+    ],
     "originFeat": "Savage Attacker",
-    "data": {}
-  },
-  {
-    "key": "wayfarer",
-    "name": "Wayfarer",
-    "type": "background",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "You lived as a wanderer or an outcast, surviving by your wits and the occasional kindness of strangers.",
-    "skillProficiencies": ["Insight", "Stealth"],
-    "toolProficiency": "Thieves' Tools",
-    "languages": 0,
-    "abilityScoreOptions": ["dexterity", "wisdom", "charisma"],
-    "originFeat": "Lucky",
+    "description": "Starting equipment: *Choose A or B:* (A) Spear, Shortbow, 20 Arrows, Gaming Set (same as above), Healer's Kit, Quiver, Traveler's Clothes, 14 GP; or (B) 50 GP",
     "data": {}
   }
 ]

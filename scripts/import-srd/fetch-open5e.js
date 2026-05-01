@@ -30,11 +30,12 @@ const DOCUMENTS = ['srd-2014', 'srd-2024'];
  * for those we fetch once with no document filter.
  */
 const ENDPOINTS = [
-  { slug: 'spells',     filterByDocument: true },
-  { slug: 'conditions', filterByDocument: false },
-  { slug: 'feats',      filterByDocument: true },
-  // Future: monsters, items, weapons, armor, backgrounds, races,
-  // classes — add as transforms come online.
+  { slug: 'spells',      filterByDocument: true },
+  { slug: 'conditions',  filterByDocument: false },
+  { slug: 'feats',       filterByDocument: true },
+  { slug: 'backgrounds', filterByDocument: true },
+  // Future: monsters, items, weapons, armor, races, classes — add as
+  // transforms come online.
 ];
 
 async function fetchAll(slug, queryString) {

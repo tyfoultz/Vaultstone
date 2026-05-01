@@ -151,7 +151,8 @@ Coverage as of last refresh:
 - ✅ spells — 341 entries (317 in both editions, 22 new in 2024, 2 dropped from 2024)
 - ✅ conditions — 30 entries (15 conditions × 2 editions; per-edition descriptions, since 5.1 and 2024 diverge meaningfully — most notably Exhaustion's level-track redesign)
 - ✅ feats — 18 entries (1 SRD 5.1, 17 SRD 5.2; per-edition entries — Grappler is the only feat in both, with diverged text). Categories: origin (4), general (3), fighting-style (4), epic-boon (7)
-- ⏳ items, magicitems, weapons, armor, monsters, backgrounds, races, classes — transform scripts pending; data still seed-grade
+- ✅ backgrounds — 5 entries (1 SRD 5.1: Acolyte; 4 SRD 5.2: Acolyte, Criminal, Sage, Soldier). The hand-curated seed had 14 PHB-flavored entries; replaced with strict SRD coverage. Non-SRD backgrounds (Folk Hero, Charlatan, etc.) belong to a future homebrew-pack feature.
+- ⏳ items, magicitems, weapons, armor, monsters, races, classes — transform scripts pending; data still seed-grade
 
 ---
 
