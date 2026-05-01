@@ -488,6 +488,7 @@ function ClassesList({ items, allSubclasses }: { items: ClassResult[]; allSubcla
 
   return (
     <View style={styles.list}>
+      <SeedBanner type="classes" />
       <SearchBar value={q} onChange={setQ} placeholder="Search classes…" />
       {filtered.map((c) => (
         <Pressable
@@ -1148,13 +1149,56 @@ function ItemStatRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Format a signed modifier ("+3", "-1", "+0"). */
+function fmtSigned(n: number): string {
+  return n >= 0 ? `+${n}` : `${n}`;
+}
+
+/** Skill snake_case → display label ("sleight_of_hand" → "Sleight of Hand"). */
+function skillLabel(key: string): string {
+  return key
+    .split('_')
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(' ');
+}
+
+function CreatureAbilityBlock({ scores, mods }: {
+  scores: NonNullable<CreatureResult['abilityScores']>;
+  mods: NonNullable<CreatureResult['abilityModifiers']>;
+}) {
+  const cells: Array<['STR' | 'DEX' | 'CON' | 'INT' | 'WIS' | 'CHA', number, number]> = [
+    ['STR', scores.str, mods.str], ['DEX', scores.dex, mods.dex], ['CON', scores.con, mods.con],
+    ['INT', scores.int, mods.int], ['WIS', scores.wis, mods.wis], ['CHA', scores.cha, mods.cha],
+  ];
+  return (
+    <View style={styles.creatureAbilityGrid}>
+      {cells.map(([label, score, mod]) => (
+        <View key={label} style={styles.creatureAbilityCell}>
+          <Text variant="label-sm" weight="bold" uppercase style={styles.creatureAbilityLabel}>{label}</Text>
+          <Text variant="body-md" family="headline" style={styles.creatureAbilityScore}>{score}</Text>
+          <Text variant="body-sm" family="body" style={styles.creatureAbilityMod}>{fmtSigned(mod)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function CreatureLineRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.itemStatRow}>
+      <Text variant="label-sm" weight="bold" uppercase style={styles.itemStatLabel}>{label}</Text>
+      <Text variant="body-sm" family="body" style={styles.itemStatValue}>{value}</Text>
+    </View>
+  );
+}
+
 function CreaturesList({ items }: { items: CreatureResult[] }) {
   const [q, setQ] = useState('');
   const exp = useExpanded();
   const filtered = useMemo(
     () => filterByName(items, q).slice().sort((a, b) => {
-      const acr = typeof a.challengeRating === 'number' ? a.challengeRating : parseFloat(String(a.challengeRating)) || 0;
-      const bcr = typeof b.challengeRating === 'number' ? b.challengeRating : parseFloat(String(b.challengeRating)) || 0;
+      const acr = crSortValue(a.challengeRating);
+      const bcr = crSortValue(b.challengeRating);
       return acr - bcr || a.name.localeCompare(b.name);
     }),
     [items, q],
@@ -1162,35 +1206,131 @@ function CreaturesList({ items }: { items: CreatureResult[] }) {
 
   return (
     <View style={styles.list}>
-      <SeedBanner type="creatures" />
       <SearchBar value={q} onChange={setQ} placeholder="Search monsters…" />
-      {filtered.map((c) => (
-        <ExpandRow
-          key={c.key}
-          title={c.name}
-          summary={[
-            `CR ${c.challengeRating}`,
-            c.size,
-            c.creatureType,
-            `AC ${c.ac}`,
-            `${c.hp} HP`,
-          ].filter(Boolean).join(' · ')}
-          expanded={exp.isOpen(c.key)}
-          onToggle={() => exp.toggle(c.key)}
-        >
-          {c.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{c.description}</Text> : null}
-          <View style={styles.subBlock}>
-            <View style={styles.chipRow}>
-              {c.alignment ? <Chip label={c.alignment} variant="meta" /> : null}
-              {c.speed ? <Chip label={`Speed ${c.speed}`} variant="meta" /> : null}
+      {filtered.map((c) => {
+        const savesText = c.savingThrows
+          ? Object.entries(c.savingThrows)
+              .map(([ab, v]) => `${ab.toUpperCase()} ${fmtSigned(v as number)}`)
+              .join(', ')
+          : '';
+        const skillsText = c.skills
+          ? Object.entries(c.skills)
+              .map(([k, v]) => `${skillLabel(k)} ${fmtSigned(v as number)}`)
+              .join(', ')
+          : '';
+        const sensesParts: string[] = [];
+        if (c.senses?.darkvision) sensesParts.push(`darkvision ${c.senses.darkvision} ft.`);
+        if (c.senses?.blindsight) sensesParts.push(`blindsight ${c.senses.blindsight} ft.`);
+        if (c.senses?.tremorsense) sensesParts.push(`tremorsense ${c.senses.tremorsense} ft.`);
+        if (c.senses?.truesight) sensesParts.push(`truesight ${c.senses.truesight} ft.`);
+        if (typeof c.senses?.passivePerception === 'number') sensesParts.push(`passive Perception ${c.senses.passivePerception}`);
+        const sensesText = sensesParts.join(', ');
+
+        return (
+          <ExpandRow
+            key={c.key}
+            title={c.name}
+            summary={[
+              `CR ${c.challengeRating}`,
+              [c.size, c.creatureType].filter(Boolean).join(' '),
+              `AC ${c.ac}`,
+              `${c.hp} HP`,
+            ].filter(Boolean).join(' · ')}
+            expanded={exp.isOpen(c.key)}
+            onToggle={() => exp.toggle(c.key)}
+            badge={typeof c.challengeRating !== 'undefined' ? <Chip label={`CR ${c.challengeRating}`} variant="meta" /> : undefined}
+          >
+            {c.alignment ? (
+              <Text variant="body-sm" family="body" style={[styles.bodyText, styles.creatureFlavorLine]}>
+                {[c.size, c.creatureType, c.alignment].filter(Boolean).join(' · ')}
+              </Text>
+            ) : null}
+
+            <View style={styles.itemStatTable}>
+              <CreatureLineRow label="AC" value={c.armorDetail ? `${c.ac} (${c.armorDetail})` : `${c.ac}`} />
+              <CreatureLineRow label="HP" value={c.hitDice ? `${c.hp} (${c.hitDice})` : `${c.hp}`} />
+              {c.speed ? <CreatureLineRow label="Speed" value={c.speed} /> : null}
+              {typeof c.proficiencyBonus === 'number' ? <CreatureLineRow label="Prof" value={fmtSigned(c.proficiencyBonus)} /> : null}
+              {typeof c.xp === 'number' ? <CreatureLineRow label="XP" value={c.xp.toLocaleString()} /> : null}
             </View>
-          </View>
-          {Array.isArray(c.srdVersions) && c.srdVersions.length > 0 ? <SrdVersionsRow versions={c.srdVersions} /> : null}
-        </ExpandRow>
-      ))}
+
+            {c.abilityScores && c.abilityModifiers ? (
+              <View style={styles.subBlock}>
+                <CreatureAbilityBlock scores={c.abilityScores} mods={c.abilityModifiers} />
+              </View>
+            ) : null}
+
+            {(savesText || skillsText || sensesText || c.languages) ? (
+              <View style={styles.itemStatTable}>
+                {savesText ? <CreatureLineRow label="Saves"  value={savesText} /> : null}
+                {skillsText ? <CreatureLineRow label="Skills" value={skillsText} /> : null}
+                {sensesText ? <CreatureLineRow label="Senses" value={sensesText} /> : null}
+                {c.languages ? <CreatureLineRow label="Languages" value={c.languages} /> : null}
+              </View>
+            ) : null}
+
+            {(c.damageResistances?.length || c.damageImmunities?.length || c.damageVulnerabilities?.length || c.conditionImmunities?.length) ? (
+              <View style={styles.itemStatTable}>
+                {c.damageResistances?.length ? <CreatureLineRow label="Resist"   value={c.damageResistances.join(', ')} /> : null}
+                {c.damageImmunities?.length ? <CreatureLineRow label="Immune"   value={c.damageImmunities.join(', ')} /> : null}
+                {c.damageVulnerabilities?.length ? <CreatureLineRow label="Vuln"     value={c.damageVulnerabilities.join(', ')} /> : null}
+                {c.conditionImmunities?.length ? <CreatureLineRow label="Cond Imm" value={c.conditionImmunities.join(', ')} /> : null}
+              </View>
+            ) : null}
+
+            {c.traits?.length ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Traits</MetaLabel>
+                {c.traits.map((t, i) => (
+                  <View key={i} style={styles.bullet}>
+                    <Text variant="body-sm" weight="bold" family="body" style={styles.bodyText}>{t.name}.</Text>
+                    <Text variant="body-sm" family="body" style={styles.bodyText}>{t.description}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {c.actions?.length ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Actions</MetaLabel>
+                {c.actions.map((a, i) => (
+                  <View key={i} style={styles.bullet}>
+                    <Text variant="body-sm" weight="bold" family="body" style={styles.bodyText}>{a.name}.</Text>
+                    <Text variant="body-sm" family="body" style={styles.bodyText}>{a.description}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {c.environments?.length ? (
+              <View style={[styles.subBlock, styles.chipRow]}>
+                {c.environments.map((env) => (
+                  <Chip key={env} label={env} variant="meta" />
+                ))}
+              </View>
+            ) : null}
+
+            <View style={styles.itemSourceRow}>
+              <Text variant="label-sm" weight="bold" uppercase style={styles.itemStatLabel}>Source</Text>
+              <Text variant="body-sm" family="body" style={styles.itemStatValue}>
+                {srdSourceLabel(c.srdVersions ?? [])}
+              </Text>
+            </View>
+          </ExpandRow>
+        );
+      })}
       {filtered.length === 0 ? <EmptyHit q={q} /> : null}
     </View>
   );
+}
+
+/** Numeric sort key for CR — accepts number, "1/2", "10", etc. */
+function crSortValue(cr: CreatureResult['challengeRating']): number {
+  if (typeof cr === 'number') return cr;
+  const m = String(cr).match(/^(\d+)\/(\d+)$/);
+  if (m) return parseInt(m[1], 10) / parseInt(m[2], 10);
+  const n = parseFloat(String(cr));
+  return Number.isFinite(n) ? n : 0;
 }
 
 function ConditionsList({ items }: { items: ConditionResult[] }) {
@@ -1836,6 +1976,45 @@ const styles = StyleSheet.create({
     borderTopColor: colors.outlineVariant + '55',
     gap: spacing.md,
     alignItems: 'baseline',
+  },
+
+  // Creature stat block — six-cell ability grid + flavor line.
+  creatureFlavorLine: {
+    fontStyle: 'italic',
+    marginBottom: spacing.xs,
+  },
+  creatureAbilityGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  creatureAbilityCell: {
+    flexBasis: '15.5%',
+    flexGrow: 1,
+    minWidth: 56,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.outlineVariant + '88',
+    alignItems: 'center',
+  },
+  creatureAbilityLabel: {
+    color: colors.outline,
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  creatureAbilityScore: {
+    color: colors.onSurface,
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  creatureAbilityMod: {
+    color: colors.onSurfaceVariant,
+    marginTop: 1,
   },
 
   // Reference rows

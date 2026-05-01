@@ -60,11 +60,6 @@ import coverData               from './data/cover.json';
 // SRD content is CC-BY 4.0 — attribution must be displayed in the UI wherever this content is shown.
 // Attribution text: "Content from the Systems Reference Document 5.1 / 2.0 is available under
 // the Creative Commons Attribution 4.0 International License."
-//
-// NOTE: spells / items / creatures are currently *seed-only* — a small representative
-// sample (~10 each) wired up so the content pipeline and UI render correctly. The full
-// SRD bundle for those types will land in a follow-up data-import pass that vendors
-// a CC-BY-4.0 SRD JSON dump.
 
 const SPECIES               = speciesData             as unknown as SpeciesResult[];
 const CLASSES               = classesData             as unknown as ClassResult[];
@@ -296,12 +291,10 @@ function countsFromContent(c: SrdContent): SrdCounts {
  * this set so users know more entries are coming.
  */
 export const SEED_ONLY_TYPES = new Set<keyof SrdContent>([
-  // Items now ship the full SRD bundle (308 entries across both
-  // editions — weapons, armor, adventuring gear, crafting equipment,
-  // and the magic items embedded in /items/). Open5e's larger
-  // /magicitems/ catalog (~2300 variants) is a future follow-up.
-  // Creatures (monsters) still seed-only until that import lands.
-  'creatures',
+  // Classes are still seed-grade — only Barbarian is fully populated; the
+  // other 11 classes carry L1 features only. The full per-class progression
+  // import is a future pass.
+  'classes',
 ]);
 
 /**

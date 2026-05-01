@@ -59,12 +59,32 @@ export interface SpellResult extends ContentResult {
 export interface CreatureResult extends ContentResult {
   type: 'monster';
   challengeRating: string | number;
+  xp?: number;
+  proficiencyBonus?: number;
   size: string;
   creatureType: string;
   alignment: string;
   ac: number;
+  armorDetail?: string;
   hp: number;
+  hitDice?: string;
   speed: string;
+  speeds?: { walk?: number; fly?: number; swim?: number; climb?: number; burrow?: number; hover?: boolean };
+  abilityScores?: { str: number; dex: number; con: number; int: number; wis: number; cha: number };
+  abilityModifiers?: { str: number; dex: number; con: number; int: number; wis: number; cha: number };
+  /** Proficient saves only — { ability: total bonus }. */
+  savingThrows?: Partial<Record<'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha', number>>;
+  /** Proficient skills only — { skillKey: total bonus }. Snake_case skill keys. */
+  skills?: Record<string, number>;
+  senses?: { darkvision?: number; blindsight?: number; tremorsense?: number; truesight?: number; passivePerception?: number };
+  languages?: string;
+  damageResistances?: string[];
+  damageImmunities?: string[];
+  damageVulnerabilities?: string[];
+  conditionImmunities?: string[];
+  traits?: { name: string; description: string }[];
+  actions?: { name: string; description: string; actionType?: string }[];
+  environments?: string[];
   srdVersions: string[];
 }
 
