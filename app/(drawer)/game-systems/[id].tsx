@@ -525,18 +525,6 @@ function ClassDetailModal({
   const subclasses = allSubclasses.filter((s) => s.parentClassKey === c.key);
   const featureGroups = groupFeaturesByLevel(c.features ?? []);
 
-  const heroStats = useMemo(() => {
-    const stats: { label: string; value: string }[] = [];
-    if (c.primaryAbility?.length) {
-      stats.push({ label: 'PRIMARY ABILITY', value: c.primaryAbility.join(', ') });
-    }
-    if (c.hitDie) stats.push({ label: 'HIT DIE', value: `d${c.hitDie}` });
-    if (c.savingThrows?.length) {
-      stats.push({ label: 'SAVING THROWS', value: c.savingThrows.join(', ') });
-    }
-    return stats;
-  }, [c]);
-
   const level1Features = (c.features ?? []).filter((f) => f.level === 1);
   const hasBecoming =
     (c.startingEquipment ?? []).length > 0 ||
@@ -560,20 +548,21 @@ function ClassDetailModal({
       onClose={onClose}
       title={c.name}
       subtitle={c.description}
-      heroStats={heroStats}
       anchors={anchors}
     >
       {/* ── Core Traits ──────────────────────────────────────────────── */}
       <DetailSection id="core" style={styles.modalSection}>
         <DetailSectionHeading>{`Core ${c.name} Traits`}</DetailSectionHeading>
-        <ProfBlock
-          label="Spellcasting"
-          items={[c.spellcasting ? (c.spellcastingAbility ?? 'Yes') : 'Martial (none)']}
-        />
-        <ProfBlock label="Armor"   items={c.armorProficiencies} />
-        <ProfBlock label="Weapons" items={c.weaponProficiencies} />
-        {Array.isArray(c.toolProficiencies) && c.toolProficiencies.length > 0 ? (
-          <ProfBlock label="Tools" items={c.toolProficiencies} />
+
+        {/* Order mirrors D&D Beyond's class page: primary → hit die →
+            saves → skills → weapons → armor → tools, with Spellcasting
+            Ability appended only for casters. */}
+        {Array.isArray(c.primaryAbility) && c.primaryAbility.length > 0 ? (
+          <ProfBlock label="Primary ability" items={c.primaryAbility} />
+        ) : null}
+        {c.hitDie ? <ProfBlock label="Hit die" items={[`d${c.hitDie} per ${c.name} level`]} /> : null}
+        {Array.isArray(c.savingThrows) && c.savingThrows.length > 0 ? (
+          <ProfBlock label="Saving throws" items={c.savingThrows} />
         ) : null}
         {c.skillChoices?.from ? (
           <View style={styles.subBlock}>
@@ -582,6 +571,14 @@ function ClassDetailModal({
               {c.skillChoices.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
             </View>
           </View>
+        ) : null}
+        <ProfBlock label="Weapons" items={c.weaponProficiencies} />
+        <ProfBlock label="Armor"   items={c.armorProficiencies} />
+        {Array.isArray(c.toolProficiencies) && c.toolProficiencies.length > 0 ? (
+          <ProfBlock label="Tools" items={c.toolProficiencies} />
+        ) : null}
+        {c.spellcasting ? (
+          <ProfBlock label="Spellcasting ability" items={[c.spellcastingAbility ?? '—']} />
         ) : null}
       </DetailSection>
 
