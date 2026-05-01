@@ -34,39 +34,95 @@ const BUNDLED: Record<string, GameSystemDefinition> = {
   custom: customSystem,
 };
 
-type TabKey =
-  | 'species' | 'classes' | 'subclasses' | 'backgrounds'
-  | 'spells' | 'feats' | 'items' | 'creatures' | 'conditions'
-  | 'reference' | 'schema';
+// Sub-tab `contentKey === '__schema__'` is a synthetic marker — it routes to
+// the SchemaPanel rather than a SrdContent list.
+type SubTabContentKey = keyof SrdContent | '__schema__';
 
-// `contentKey` is the SrdContent property whose `.length` drives whether the
-// tab is shown and what count to display. `'__reference__'` is a synthetic
-// marker — Reference rolls up multiple catalog types and is shown whenever
-// any of them have content.
-type TabDef = {
-  key: TabKey;
+type SubTab = {
+  key: string;
   label: string;
-  contentKey: keyof SrdContent | '__reference__' | null;
+  contentKey: SubTabContentKey;
 };
 
-const TAB_DEFS: TabDef[] = [
-  { key: 'species',     label: 'Species',     contentKey: 'species' },
-  { key: 'classes',     label: 'Classes',     contentKey: 'classes' },
-  { key: 'subclasses',  label: 'Subclasses',  contentKey: 'subclasses' },
-  { key: 'backgrounds', label: 'Backgrounds', contentKey: 'backgrounds' },
-  { key: 'spells',      label: 'Spells',      contentKey: 'spells' },
-  { key: 'feats',       label: 'Feats',       contentKey: 'feats' },
-  { key: 'items',       label: 'Items',       contentKey: 'items' },
-  { key: 'creatures',   label: 'Monsters',    contentKey: 'creatures' },
-  { key: 'conditions',  label: 'Conditions',  contentKey: 'conditions' },
-  { key: 'reference',   label: 'Reference',   contentKey: '__reference__' },
-  { key: 'schema',      label: 'Schema',      contentKey: null },
+type GroupKey =
+  | 'character' | 'spells' | 'combat' | 'equipment' | 'bestiary' | 'schema';
+
+type Group = {
+  key: GroupKey;
+  label: string;
+  subTabs: SubTab[];
+};
+
+// Top-level grouping of the per-system detail page. Within each group the
+// sub-tabs map 1:1 to a SrdContent key (or '__schema__' for the system-
+// definition view). Hiding behavior: if a sub-tab's content list is empty,
+// it's filtered out; if every sub-tab in a group is filtered out, the group
+// itself is filtered out — except Schema, which is always available.
+const GROUPS: Group[] = [
+  {
+    key: 'character',
+    label: 'Character Options',
+    subTabs: [
+      { key: 'species',     label: 'Species',     contentKey: 'species' },
+      { key: 'classes',     label: 'Classes',     contentKey: 'classes' },
+      { key: 'subclasses',  label: 'Subclasses',  contentKey: 'subclasses' },
+      { key: 'backgrounds', label: 'Backgrounds', contentKey: 'backgrounds' },
+      { key: 'feats',       label: 'Feats',       contentKey: 'feats' },
+      { key: 'skills',      label: 'Skills',      contentKey: 'skills' },
+      { key: 'languages',   label: 'Languages',   contentKey: 'languages' },
+    ],
+  },
+  {
+    key: 'spells',
+    label: 'Spells & Magic',
+    subTabs: [
+      { key: 'spells',  label: 'Spells',  contentKey: 'spells' },
+      { key: 'schools', label: 'Schools', contentKey: 'schools' },
+    ],
+  },
+  {
+    key: 'combat',
+    label: 'Combat',
+    subTabs: [
+      { key: 'conditions',    label: 'Conditions',    contentKey: 'conditions' },
+      { key: 'action-types',  label: 'Action Types',  contentKey: 'actionTypes' },
+      { key: 'damage-types',  label: 'Damage Types',  contentKey: 'damageTypes' },
+    ],
+  },
+  {
+    key: 'equipment',
+    label: 'Equipment',
+    subTabs: [
+      { key: 'items',              label: 'Items',              contentKey: 'items' },
+      { key: 'weapon-properties',  label: 'Weapon Properties',  contentKey: 'weaponProperties' },
+      { key: 'weapon-masteries',   label: 'Weapon Masteries',   contentKey: 'weaponMasteries' },
+    ],
+  },
+  {
+    key: 'bestiary',
+    label: 'Bestiary',
+    subTabs: [
+      { key: 'creatures', label: 'Monsters', contentKey: 'creatures' },
+      { key: 'sizes',     label: 'Sizes',    contentKey: 'sizes' },
+    ],
+  },
+  {
+    key: 'schema',
+    label: 'Schema',
+    subTabs: [
+      { key: 'schema', label: 'Schema', contentKey: '__schema__' },
+    ],
+  },
 ];
 
-const REFERENCE_KEYS: (keyof SrdContent)[] = [
-  'skills', 'damageTypes', 'schools', 'sizes', 'languages',
-  'actionTypes', 'weaponProperties', 'weaponMasteries',
-];
+function isSubTabAvailable(t: SubTab, content: SrdContent): boolean {
+  if (t.contentKey === '__schema__') return true;
+  return content[t.contentKey].length > 0;
+}
+
+function visibleSubTabs(group: Group, content: SrdContent): SubTab[] {
+  return group.subTabs.filter((t) => isSubTabAvailable(t, content));
+}
 
 export default function GameSystemDetailScreen() {
   const router = useRouter();
@@ -88,31 +144,30 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
     [sys.srdVersion],
   );
 
-  // Build tab list by walking TAB_DEFS in order; only include content tabs
-  // that have at least one item, then always end with Schema.
-  const tabs = useMemo(() => {
-    return TAB_DEFS
-      .filter((t) => {
-        if (t.contentKey === null) return true;
-        if (t.contentKey === '__reference__') {
-          return REFERENCE_KEYS.some((k) => content[k].length > 0);
-        }
-        return content[t.contentKey].length > 0;
-      })
-      .map((t) => {
-        let count: number | undefined;
-        if (t.contentKey === '__reference__') {
-          count = REFERENCE_KEYS.reduce((sum, k) => sum + content[k].length, 0);
-        } else if (t.contentKey) {
-          count = content[t.contentKey].length;
-        }
-        return { key: t.key, label: t.label, count };
-      });
+  // Build the visible group + sub-tab tree once per content change. A group
+  // disappears entirely when none of its sub-tabs have content — except
+  // Schema, which is always present.
+  const groups = useMemo(() => {
+    return GROUPS
+      .map((g) => ({ ...g, subTabs: visibleSubTabs(g, content) }))
+      .filter((g) => g.subTabs.length > 0);
   }, [content]);
 
-  // Default tab: first content tab if any, else Schema.
-  const initialTab: TabKey = tabs[0]?.key ?? 'schema';
-  const [tab, setTab] = useState<TabKey>(initialTab);
+  // Default selection: first non-Schema group with content if any, else Schema.
+  const initialGroup: GroupKey = groups[0]?.key ?? 'schema';
+  const [activeGroup, setActiveGroup] = useState<GroupKey>(initialGroup);
+  const currentGroup = groups.find((g) => g.key === activeGroup) ?? groups[0];
+
+  // Per-group remembered sub-tab. Switching groups defaults to the first
+  // visible sub-tab; coming back later restores the last one viewed.
+  const [subByGroup, setSubByGroup] = useState<Partial<Record<GroupKey, string>>>({});
+  const activeSubKey = subByGroup[activeGroup] ?? currentGroup?.subTabs[0]?.key ?? '';
+  const activeSub = currentGroup?.subTabs.find((s) => s.key === activeSubKey) ?? currentGroup?.subTabs[0];
+
+  function selectGroup(key: GroupKey) { setActiveGroup(key); }
+  function selectSub(key: string) {
+    setSubByGroup((prev) => ({ ...prev, [activeGroup]: key }));
+  }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}>
@@ -135,19 +190,23 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
         actions={<Chip label={sys.isBundled ? 'Bundled' : 'Custom'} variant="accent" />}
       />
 
-      {/* Tabs — horizontally scrollable so 10 tabs fit on narrow screens. */}
+      {/* Group tabs — primary navigation (horizontal scroll on narrow screens). */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabsBar}
         style={styles.tabsScroll}
       >
-        {tabs.map((t) => {
-          const active = tab === t.key;
+        {groups.map((g) => {
+          const active = activeGroup === g.key;
+          const groupCount = g.subTabs.reduce((sum, s) => {
+            if (s.contentKey === '__schema__') return sum;
+            return sum + content[s.contentKey].length;
+          }, 0);
           return (
             <Pressable
-              key={t.key}
-              onPress={() => setTab(t.key)}
+              key={g.key}
+              onPress={() => selectGroup(g.key)}
               style={({ pressed }) => [
                 styles.tabBtn,
                 active && styles.tabBtnActive,
@@ -160,33 +219,92 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
                 weight={active ? 'bold' : 'medium'}
                 style={{ color: active ? colors.primary : colors.onSurfaceVariant }}
               >
-                {t.label}
+                {g.label}
               </Text>
-              {typeof t.count === 'number' ? (
-                <Text variant="body-sm" family="body" style={styles.tabCount}>{t.count}</Text>
+              {groupCount > 0 ? (
+                <Text variant="body-sm" family="body" style={styles.tabCount}>{groupCount}</Text>
               ) : null}
             </Pressable>
           );
         })}
       </ScrollView>
 
+      {/* Sub-tab strip — only when the active group has more than one sub-tab. */}
+      {currentGroup && currentGroup.subTabs.length > 1 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.subTabsBar}
+          style={styles.subTabsScroll}
+        >
+          {currentGroup.subTabs.map((t) => {
+            const active = activeSubKey === t.key;
+            const subCount = t.contentKey === '__schema__' ? undefined : content[t.contentKey].length;
+            return (
+              <Pressable
+                key={t.key}
+                onPress={() => selectSub(t.key)}
+                style={({ pressed }) => [
+                  styles.subTabBtn,
+                  active && styles.subTabBtnActive,
+                  pressed && { opacity: 0.85 },
+                ]}
+              >
+                <Text
+                  variant="body-sm"
+                  family="body"
+                  weight={active ? 'bold' : 'medium'}
+                  style={{ color: active ? colors.onPrimaryContainer : colors.onSurfaceVariant }}
+                >
+                  {t.label}
+                </Text>
+                {typeof subCount === 'number' ? (
+                  <Text variant="body-sm" family="body" style={styles.subTabCount}>{subCount}</Text>
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
+
       <View style={styles.body}>
-        {tab === 'species'     ? <SpeciesList     items={content.species} /> : null}
-        {tab === 'classes'     ? <ClassesList     items={content.classes} /> : null}
-        {tab === 'subclasses'  ? <SubclassesList  items={content.subclasses} /> : null}
-        {tab === 'backgrounds' ? <BackgroundsList items={content.backgrounds} /> : null}
-        {tab === 'spells'      ? <SpellsList      items={content.spells} /> : null}
-        {tab === 'feats'       ? <FeatsList       items={content.feats} /> : null}
-        {tab === 'items'       ? <ItemsList       items={content.items} /> : null}
-        {tab === 'creatures'   ? <CreaturesList   items={content.creatures} /> : null}
-        {tab === 'conditions'  ? <ConditionsList  items={content.conditions} /> : null}
-        {tab === 'reference'   ? <ReferencePanel  content={content} /> : null}
-        {tab === 'schema'      ? <SchemaPanel     sys={sys} /> : null}
+        {renderSubBody(activeSub, content, sys)}
       </View>
 
       <View style={{ height: spacing.xl }} />
     </ScrollView>
   );
+}
+
+// ── Body dispatcher ──────────────────────────────────────────────────────────
+
+function renderSubBody(
+  active: SubTab | undefined,
+  content: SrdContent,
+  sys: GameSystemDefinition,
+): React.ReactNode {
+  if (!active) return null;
+  switch (active.contentKey) {
+    case 'species':          return <SpeciesList     items={content.species} />;
+    case 'classes':          return <ClassesList     items={content.classes} />;
+    case 'subclasses':       return <SubclassesList  items={content.subclasses} />;
+    case 'backgrounds':      return <BackgroundsList items={content.backgrounds} />;
+    case 'spells':           return <SpellsList      items={content.spells} />;
+    case 'feats':            return <FeatsList       items={content.feats} />;
+    case 'items':            return <ItemsList       items={content.items} />;
+    case 'creatures':        return <CreaturesList   items={content.creatures} />;
+    case 'conditions':       return <ConditionsList  items={content.conditions} />;
+    case 'skills':           return <SkillsList           items={content.skills} />;
+    case 'languages':        return <LanguagesList        items={content.languages} />;
+    case 'schools':          return <SchoolsList          items={content.schools} />;
+    case 'sizes':            return <SizesList            items={content.sizes} />;
+    case 'damageTypes':      return <DamageTypesList      items={content.damageTypes} />;
+    case 'actionTypes':      return <ActionTypesList      items={content.actionTypes} />;
+    case 'weaponProperties': return <WeaponPropertiesList items={content.weaponProperties} />;
+    case 'weaponMasteries':  return <WeaponMasteriesList  items={content.weaponMasteries} />;
+    case '__schema__':       return <SchemaPanel sys={sys} />;
+    default:                 return null;
+  }
 }
 
 // ── Content lists ─────────────────────────────────────────────────────────────
@@ -677,108 +795,117 @@ function ConditionsList({ items }: { items: ConditionResult[] }) {
   );
 }
 
-// ── Reference panel ─────────────────────────────────────────────────────────
-// Compact grid of small lookup tables (skills, damage types, etc.) — short
-// items that don't need ExpandRow's collapse/expand affordance.
+// ── Catalog lists ────────────────────────────────────────────────────────────
+// Compact list views for short SRD lookup tables (skills, damage types, etc.).
+// They don't need ExpandRow's collapse/expand affordance — every item fits in
+// a few lines, so they render as a flat list of name + meta + description rows.
 
-function ReferencePanel({ content }: { content: SrdContent }) {
-  const { width } = useWindowDimensions();
-  const isWide = width > 900;
-  const cardStyle = isWide ? styles.schemaHalf : styles.schemaFull;
+type CatalogItem = {
+  key: string;
+  name: string;
+  description?: string;
+};
+
+function CatalogList<T extends CatalogItem>({
+  items, placeholder, sub, sort,
+}: {
+  items: T[];
+  placeholder: string;
+  /** Render the meta line under the name. */
+  sub?: (item: T) => string | undefined;
+  /** Custom sort. Defaults to alphabetical by name. */
+  sort?: (a: T, b: T) => number;
+}) {
+  const [q, setQ] = useState('');
+  const filtered = useMemo(() => {
+    const ordered = sort ? items.slice().sort(sort) : items.slice().sort((a, b) => a.name.localeCompare(b.name));
+    if (!q.trim()) return ordered;
+    const t = q.toLowerCase();
+    return ordered.filter(
+      (i) => i.name.toLowerCase().includes(t) || (i.description ?? '').toLowerCase().includes(t)
+    );
+  }, [items, q, sort]);
+
   return (
-    <View style={[styles.schemaGrid, { gap: spacing.md }]}>
-      {content.skills.length > 0 ? (
-        <Card tier="container" padding="md" style={cardStyle}>
-          <CardTitle icon="psychology" label="Skills" count={content.skills.length} />
-          {content.skills.slice().sort((a, b) => a.name.localeCompare(b.name)).map((sk) => (
-            <RefRow key={sk.key} title={sk.name} sub={sk.ability.toUpperCase()} body={sk.description} />
-          ))}
-        </Card>
-      ) : null}
-
-      {content.damageTypes.length > 0 ? (
-        <Card tier="container" padding="md" style={cardStyle}>
-          <CardTitle icon="local-fire-department" label="Damage Types" count={content.damageTypes.length} />
-          {content.damageTypes.slice().sort((a, b) => a.name.localeCompare(b.name)).map((d) => (
-            <RefRow key={d.key} title={d.name} sub={d.category} body={d.description} />
-          ))}
-        </Card>
-      ) : null}
-
-      {content.schools.length > 0 ? (
-        <Card tier="container" padding="md" style={cardStyle}>
-          <CardTitle icon="auto-awesome" label="Schools of Magic" count={content.schools.length} />
-          {content.schools.slice().sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
-            <RefRow key={s.key} title={s.name} body={s.description} />
-          ))}
-        </Card>
-      ) : null}
-
-      {content.sizes.length > 0 ? (
-        <Card tier="container" padding="md" style={cardStyle}>
-          <CardTitle icon="straighten" label="Sizes" count={content.sizes.length} />
-          {content.sizes.slice().sort((a, b) => content.sizes.indexOf(a) - content.sizes.indexOf(b)).map((sz) => (
-            <RefRow key={sz.key} title={sz.name} sub={sz.space} body={sz.description} />
-          ))}
-        </Card>
-      ) : null}
-
-      {content.languages.length > 0 ? (
-        <Card tier="container" padding="md" style={cardStyle}>
-          <CardTitle icon="language" label="Languages" count={content.languages.length} />
-          {content.languages.slice().sort((a, b) =>
-            (a.rarity === b.rarity ? 0 : a.rarity === 'standard' ? -1 : 1) || a.name.localeCompare(b.name)
-          ).map((l) => (
-            <RefRow
-              key={l.key}
-              title={l.name}
-              sub={[capitalize(l.rarity), l.script ?? 'no script'].join(' · ')}
-              body={l.description}
-            />
-          ))}
-        </Card>
-      ) : null}
-
-      {content.actionTypes.length > 0 ? (
-        <Card tier="container" padding="md" style={cardStyle}>
-          <CardTitle icon="bolt" label="Action Types" count={content.actionTypes.length} />
-          {content.actionTypes.map((a) => (
-            <RefRow key={a.key} title={a.name} sub={a.economy} body={a.description} />
-          ))}
-        </Card>
-      ) : null}
-
-      {content.weaponProperties.length > 0 ? (
-        <Card tier="container" padding="md" style={cardStyle}>
-          <CardTitle icon="construction" label="Weapon Properties" count={content.weaponProperties.length} />
-          {content.weaponProperties.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
-            <RefRow key={p.key} title={p.name} body={p.description} />
-          ))}
-        </Card>
-      ) : null}
-
-      {content.weaponMasteries.length > 0 ? (
-        <Card tier="container" padding="md" style={cardStyle}>
-          <CardTitle icon="military-tech" label="Weapon Masteries" count={content.weaponMasteries.length} />
-          {content.weaponMasteries.slice().sort((a, b) => a.name.localeCompare(b.name)).map((m) => (
-            <RefRow key={m.key} title={m.name} body={m.description} />
-          ))}
-        </Card>
-      ) : null}
+    <View style={styles.list}>
+      <SearchBar value={q} onChange={setQ} placeholder={placeholder} />
+      {filtered.map((it) => (
+        <View key={it.key} style={styles.refRow}>
+          <View style={styles.refRowHead}>
+            <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+              {it.name}
+            </Text>
+            {sub?.(it) ? (
+              <Text variant="body-sm" family="body" style={styles.refRowSub}>{sub(it)}</Text>
+            ) : null}
+          </View>
+          {it.description ? (
+            <Text variant="body-sm" family="body" style={styles.bodyText}>{it.description}</Text>
+          ) : null}
+        </View>
+      ))}
+      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
     </View>
   );
 }
 
-function RefRow({ title, sub, body }: { title: string; sub?: string; body?: string }) {
+function SkillsList({ items }: { items: SkillResult[] }) {
+  return <CatalogList items={items} placeholder="Search skills…" sub={(s) => s.ability.toUpperCase()} />;
+}
+
+function LanguagesList({ items }: { items: LanguageResult[] }) {
   return (
-    <View style={styles.refRow}>
-      <View style={styles.refRowHead}>
-        <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{title}</Text>
-        {sub ? <Text variant="body-sm" family="body" style={styles.refRowSub}>{sub}</Text> : null}
-      </View>
-      {body ? <Text variant="body-sm" family="body" style={styles.bodyText}>{body}</Text> : null}
-    </View>
+    <CatalogList
+      items={items}
+      placeholder="Search languages…"
+      sub={(l) => [capitalize(l.rarity), l.script ?? 'no script'].join(' · ')}
+      sort={(a, b) =>
+        (a.rarity === b.rarity ? 0 : a.rarity === 'standard' ? -1 : 1) || a.name.localeCompare(b.name)
+      }
+    />
   );
+}
+
+function SchoolsList({ items }: { items: SchoolResult[] }) {
+  return <CatalogList items={items} placeholder="Search schools of magic…" />;
+}
+
+function SizesList({ items }: { items: SizeResult[] }) {
+  // Preserve canonical Tiny → Gargantuan order from the source array.
+  const order = items;
+  return (
+    <CatalogList
+      items={items}
+      placeholder="Search sizes…"
+      sub={(s) => s.space}
+      sort={(a, b) => order.indexOf(a) - order.indexOf(b)}
+    />
+  );
+}
+
+function DamageTypesList({ items }: { items: DamageTypeResult[] }) {
+  return <CatalogList items={items} placeholder="Search damage types…" sub={(d) => capitalize(d.category)} />;
+}
+
+function ActionTypesList({ items }: { items: ActionTypeResult[] }) {
+  // Canonical action-economy order: Action → Bonus → Reaction → Free.
+  const order = items;
+  return (
+    <CatalogList
+      items={items}
+      placeholder="Search action types…"
+      sub={(a) => a.economy}
+      sort={(a, b) => order.indexOf(a) - order.indexOf(b)}
+    />
+  );
+}
+
+function WeaponPropertiesList({ items }: { items: WeaponPropertyResult[] }) {
+  return <CatalogList items={items} placeholder="Search weapon properties…" />;
+}
+
+function WeaponMasteriesList({ items }: { items: WeaponMasteryResult[] }) {
+  return <CatalogList items={items} placeholder="Search weapon masteries…" />;
 }
 
 function SeedBanner({ type }: { type: keyof SrdContent }) {
@@ -953,11 +1080,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
 
-  // Tabs
+  // Group tabs (primary)
   tabsScroll: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant + '88',
-    marginBottom: spacing.md,
     flexGrow: 0,
   },
   tabsBar: {
@@ -975,6 +1101,35 @@ const styles = StyleSheet.create({
   },
   tabBtnActive: { borderBottomColor: colors.primary },
   tabCount: { color: colors.outline, fontSize: 11 },
+
+  // Sub-tabs (secondary, chip style — appears under group tabs when the
+  // active group has more than one sub-tab).
+  subTabsScroll: {
+    flexGrow: 0,
+    marginBottom: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  subTabsBar: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xs + 2,
+  },
+  subTabBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
+  subTabBtnActive: {
+    backgroundColor: colors.primaryContainer + '55',
+    borderColor: colors.primary + '88',
+  },
+  subTabCount: { color: colors.outline, fontSize: 10 },
 
   body: { paddingHorizontal: spacing.lg },
 
