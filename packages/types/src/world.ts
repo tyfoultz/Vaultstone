@@ -7,7 +7,8 @@ export type TemplateKey =
   | 'factions'
   | 'lore'
   | 'blank'
-  | 'timeline';
+  | 'timeline'
+  | 'quests';
 
 export type PageKind =
   | 'custom'
@@ -20,7 +21,8 @@ export type PageKind =
   | 'lore'
   | 'timeline'
   | 'pc_stub'
-  | 'player_character';
+  | 'player_character'
+  | 'quest';
 
 export type FieldType =
   | 'text'

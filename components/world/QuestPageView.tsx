@@ -1,20 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   claimPageEdit,
   forceReleasePageEdit,
-  getMap,
-  getMapImageSignedUrl,
   getPagesLinkingTo,
-  getPinsForPage,
   getEventsReferencingPage,
   releasePageEdit,
   trashPage,
   updatePage,
-  type MapPin,
-  type WorldMap,
 } from '@vaultstone/api';
 import type { TimelineEvent } from '@vaultstone/types';
 import {
@@ -24,10 +19,11 @@ import {
   usePagesStore,
   useSectionsStore,
 } from '@vaultstone/store';
-import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
+import type { Json, WorldPage } from '@vaultstone/types';
 import {
   Icon,
   Text,
+  VisibilityBadge,
   colors,
   fonts,
   radius,
@@ -39,7 +35,8 @@ import { LoreCanvasEditor } from './LoreCanvasEditor.web';
 import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
 import { PAGE_KIND_LABEL } from './helpers';
-import { worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
+import { usePageVisibilityToggle } from './usePageVisibilityToggle';
+import { worldPageHref, worldSectionHref } from './worldHref';
 import {
   type PillDef,
   PillEditor,
@@ -52,34 +49,25 @@ import {
 } from './PageSidebarShared';
 
 const LOCK_HEARTBEAT_MS = 30_000;
-const MAP_PREVIEW_H = 120;
-const MAP_ZOOM = 3;
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type Props = { page: WorldPage; worldId: string };
 type RightTab = 'on_this_page' | 'sub_pages';
-type Relationship = { targetPageId: string; type: string; note?: string };
 
-const STANCE_COLOR: Record<string, string> = {
-  hostile: colors.hpDanger,
-  wary: colors.hpWarning,
-  neutral: colors.outline,
-  friendly: colors.hpHealthy,
-  allied: colors.primary,
+const STATUS_COLOR: Record<string, string> = {
+  active: colors.hpHealthy,
+  completed: colors.gm,
+  failed: colors.hpDanger,
+  'on-hold': colors.outline,
 };
 
-const SECRECY_COLOR: Record<string, string> = {
-  public: colors.outline,
-  known: colors.onSurfaceVariant,
-  secret: colors.hpWarning,
-  hidden: colors.hpDanger,
+const PRIORITY_COLOR: Record<string, string> = {
+  main: colors.primary,
+  side: colors.cosmic,
+  personal: colors.player,
 };
 
-const FACTION_REL_TYPES = [
-  'ally', 'rival', 'enemy', 'vassal', 'patron', 'schism', 'trade partner', 'other',
-] as const;
-
-// ── Inline page_ref picker (for Leader / HQ in header) ──
+// ── Inline page_ref picker (quest giver) ──
 
 function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColor, worldId }: {
   label: string;
@@ -202,147 +190,13 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
   );
 }
 
-// ── Map pin preview (copied from LocationPageView) ──
-
-function MapPinPreview({ signedUrl, label, xPct, yPct, mapWidth, mapHeight }: {
-  signedUrl: string; label: string; xPct: number; yPct: number; mapWidth: number; mapHeight: number;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [containerW, setContainerW] = useState(260);
-  useEffect(() => { if (containerRef.current) setContainerW(containerRef.current.offsetWidth); }, []);
-  const scaledW = containerW * MAP_ZOOM;
-  const scaledH = scaledW * (mapHeight / mapWidth);
-  const offsetX = -(xPct * scaledW) + containerW / 2;
-  const offsetY = -(yPct * scaledH) + MAP_PREVIEW_H / 2;
-  return (
-    <div ref={containerRef} style={{ height: MAP_PREVIEW_H, overflow: 'hidden', position: 'relative', borderRadius: 4 }}>
-      <img src={signedUrl} alt={label} style={{ position: 'absolute', width: scaledW, height: scaledH, left: offsetX, top: offsetY }} />
-      <div style={{
-        position: 'absolute', left: '50%', top: '50%', width: 12, height: 12, borderRadius: 6,
-        backgroundColor: colors.primary, border: `2px solid ${colors.surfaceCanvas}`,
-        marginLeft: -6, marginTop: -6, boxShadow: `0 0 0 3px ${colors.primary}44`, zIndex: 2,
-      }} />
-    </div>
-  );
-}
-
-// ── Add Relationship Modal (faction variant) ──
-
-function AddFactionRelModal({ allPages, currentPageId, existingRelationships, onAdd, onClose }: {
-  allPages: WorldPage[]; currentPageId: string; existingRelationships: Relationship[];
-  onAdd: (rel: Relationship) => void; onClose: () => void;
-}) {
-  const [search, setSearch] = useState('');
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
-  const [relType, setRelType] = useState<string>('ally');
-  const [customType, setCustomType] = useState('');
-  const [note, setNote] = useState('');
-
-  const existingIds = new Set(existingRelationships.map((r) => r.targetPageId));
-  const candidates = allPages
-    .filter((p) => ['faction', 'organization', 'religion', 'npc'].includes(p.page_kind) && p.id !== currentPageId && !existingIds.has(p.id))
-    .filter((p) => !search || p.title.toLowerCase().includes(search.toLowerCase()));
-  const selectedPage = selectedPageId ? allPages.find((p) => p.id === selectedPageId) : null;
-
-  return (
-    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
-      <Pressable style={relStyles.backdrop} onPress={onClose}>
-        <Pressable onPress={(e) => e.stopPropagation()} style={relStyles.wrapper}>
-          <View style={relStyles.card}>
-            <View style={relStyles.header}>
-              <Icon name="people" size={18} color={colors.hpWarning} />
-              <Text variant="title-md" family="serif-display" weight="semibold" style={{ color: colors.onSurface }}>Add Relationship</Text>
-            </View>
-
-            {!selectedPageId ? (
-              <>
-                <input
-                  type="text" value={search} onChange={(e: any) => setSearch(e.target.value)} autoFocus
-                  placeholder="Search factions & NPCs…"
-                  style={{ width: '100%', background: colors.surfaceContainerLowest, border: `1px solid ${colors.outlineVariant}44`, borderRadius: 8, padding: '8px 12px', color: colors.onSurface, fontSize: 13, fontFamily: "'Manrope', system-ui, sans-serif", outline: 'none', marginBottom: 8 }}
-                />
-                <ScrollView style={{ maxHeight: 240 }}>
-                  {candidates.length === 0 ? (
-                    <Text variant="body-sm" style={{ color: colors.outline, padding: 8, fontStyle: 'italic' }}>
-                      {search ? 'No matches.' : 'No other factions or NPCs yet.'}
-                    </Text>
-                  ) : candidates.map((p) => {
-                    const isNpc = p.page_kind === 'npc';
-                    return (
-                      <Pressable key={p.id} onPress={() => setSelectedPageId(p.id)} style={relStyles.npcRow}>
-                        <Icon name={isNpc ? 'person' : 'shield'} size={14} color={isNpc ? colors.cosmic : colors.hpWarning} />
-                        <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>{p.title}</Text>
-                        <Text style={{ fontFamily: fonts.label, fontSize: 10, color: colors.outline, letterSpacing: 0.5 }}>{(PAGE_KIND_LABEL[p.page_kind] ?? 'Page').toUpperCase()}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </>
-            ) : (
-              <>
-                <View style={relStyles.selectedRow}>
-                  <Icon name={selectedPage?.page_kind === 'npc' ? 'person' : 'shield'} size={16} color={selectedPage?.page_kind === 'npc' ? colors.cosmic : colors.hpWarning} />
-                  <Text variant="body-md" weight="semibold" style={{ flex: 1, color: colors.onSurface }}>{selectedPage?.title}</Text>
-                  <Pressable onPress={() => setSelectedPageId(null)} style={{ padding: 4 }}>
-                    <Icon name="close" size={14} color={colors.outline} />
-                  </Pressable>
-                </View>
-
-                <Text variant="label-sm" uppercase style={{ color: colors.outline, letterSpacing: 1, marginTop: 12, marginBottom: 6 }}>Relationship type</Text>
-                <View style={relStyles.typeGrid}>
-                  {FACTION_REL_TYPES.map((t) => (
-                    <Pressable key={t} onPress={() => setRelType(t)} style={[relStyles.typeChip, relType === t && relStyles.typeChipActive]}>
-                      <Text style={[relStyles.typeChipText, relType === t && { color: colors.primary }]}>{t.charAt(0).toUpperCase() + t.slice(1)}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                {relType === 'other' ? (
-                  <input type="text" value={customType} onChange={(e: any) => setCustomType(e.target.value)} autoFocus placeholder="Type a custom relationship…"
-                    style={{ width: '100%', background: colors.surfaceContainerLowest, border: `1px solid ${colors.outlineVariant}44`, borderRadius: 8, padding: '8px 12px', color: colors.onSurface, fontSize: 13, fontFamily: "'Manrope', system-ui, sans-serif", outline: 'none', marginTop: 8 }} />
-                ) : null}
-
-                <input type="text" value={note} onChange={(e: any) => setNote(e.target.value)} placeholder="Optional note"
-                  style={{ width: '100%', background: colors.surfaceContainerLowest, border: `1px solid ${colors.outlineVariant}44`, borderRadius: 8, padding: '8px 12px', color: colors.onSurface, fontSize: 13, fontFamily: "'Manrope', system-ui, sans-serif", outline: 'none', marginTop: 12 }} />
-
-                <View style={relStyles.actions}>
-                  <Pressable onPress={onClose} style={relStyles.cancelBtn}><Text variant="label-md" style={{ color: colors.outline }}>Cancel</Text></Pressable>
-                  <Pressable onPress={() => { const ft = relType === 'other' && customType.trim() ? customType.trim() : relType; onAdd({ targetPageId: selectedPageId, type: ft, note: note.trim() || undefined }); }} style={relStyles.addBtn}>
-                    <Text variant="label-md" weight="semibold" style={{ color: colors.primary }}>Add</Text>
-                  </Pressable>
-                </View>
-              </>
-            )}
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-const relStyles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(12, 14, 16, 0.55)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  wrapper: { width: '100%', maxWidth: 380 },
-  card: { backgroundColor: colors.surfaceContainer, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.outlineVariant + '33', padding: spacing.lg },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
-  npcRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 8, borderRadius: radius.lg },
-  selectedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 10, borderRadius: radius.lg, backgroundColor: colors.primaryContainer + '22', borderWidth: 1, borderColor: colors.primary + '33' },
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  typeChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.outlineVariant + '44' },
-  typeChipActive: { borderColor: colors.primary + '55', backgroundColor: colors.primaryContainer + '22' },
-  typeChipText: { fontFamily: fonts.label, fontSize: 11, color: colors.onSurfaceVariant, textTransform: 'capitalize' },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.lg },
-  cancelBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.lg },
-  addBtn: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.primary + '55', backgroundColor: colors.primaryContainer + '22' },
-});
-
 // ══════════════════════════════════════════════════════════════
 // ── Main Component ───────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════
 
 type CanvasBlock = { id: string; x: number; y: number; width: number; height?: number; html: string };
 
-export function FactionPageView({ page, worldId }: Props) {
+export function QuestPageView({ page, worldId }: Props) {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
@@ -354,6 +208,7 @@ export function FactionPageView({ page, worldId }: Props) {
   const pendingBodyRef = useRef<{ body: object; bodyText: string; bodyRefs: string[] } | null>(null);
 
   const myUserId = useAuthStore((s) => s.user?.id ?? null);
+  const toggleVisibility = usePageVisibilityToggle(page);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -361,7 +216,6 @@ export function FactionPageView({ page, worldId }: Props) {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [editingPill, setEditingPill] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
-  const [addingRelationship, setAddingRelationship] = useState(false);
 
   const section = useMemo(() => sections.find((s) => s.id === page.section_id) ?? null, [sections, page]);
   const fields = (page.structured_fields as Record<string, unknown>) ?? {};
@@ -382,54 +236,17 @@ export function FactionPageView({ page, worldId }: Props) {
   }
 
   // Fields
-  const size = typeof fields.size === 'string' ? fields.size : '';
-  const stance = typeof fields.stance === 'string' ? fields.stance : '';
-  const secrecy = typeof fields.secrecy === 'string' ? fields.secrecy : '';
-  const doctrine = typeof fields.doctrine === 'string' ? fields.doctrine : '';
+  const status = typeof fields.status === 'string' ? fields.status : '';
+  const priority = typeof fields.priority === 'string' ? fields.priority : '';
+  const reward = typeof fields.reward === 'string' ? fields.reward : '';
   const hooks = Array.isArray(fields.__hooks) ? (fields.__hooks as string[]) : [];
-  const relationships: Relationship[] = Array.isArray(fields.__relationships) ? (fields.__relationships as Relationship[]) : [];
+  const locationTags: string[] = Array.isArray(fields.locations) ? (fields.locations as string[]) : [];
+  const relatedNpcTags: string[] = Array.isArray(fields.related_npcs) ? (fields.related_npcs as string[]) : [];
 
-  // Leader & HQ (page_refs)
-  const leaderId = typeof fields.leader === 'string' ? fields.leader : null;
-  const leaderPage = leaderId ? (allPages ?? []).find((p) => p.id === leaderId) ?? null : null;
-  const leaderCandidates = useMemo(() => (allPages ?? []).filter((p) => p.page_kind === 'npc'), [allPages]);
-
-  const hqId = typeof fields.headquarters === 'string' ? fields.headquarters : null;
-  const hqPage = hqId ? (allPages ?? []).find((p) => p.id === hqId) ?? null : null;
-  const hqCandidates = useMemo(() => (allPages ?? []).filter((p) => p.page_kind === 'location'), [allPages]);
-
-  // HQ map pin
-  const [hqMapPin, setHqMapPin] = useState<MapPin | null>(null);
-  const [hqMapData, setHqMapData] = useState<{ map: WorldMap; signedUrl: string } | null>(null);
-  useEffect(() => {
-    if (!hqId) { setHqMapPin(null); setHqMapData(null); return; }
-    let cancelled = false;
-    void (async () => {
-      const { data: pins } = await getPinsForPage(hqId);
-      if (cancelled || !pins || pins.length === 0) return;
-      const pin = pins[0];
-      setHqMapPin(pin);
-      const { data: map } = await getMap(pin.map_id);
-      if (cancelled || !map) return;
-      const { data: signed } = await getMapImageSignedUrl(map.image_key);
-      if (cancelled || !signed) return;
-      setHqMapData({ map, signedUrl: signed.signedUrl });
-    })();
-    return () => { cancelled = true; };
-  }, [hqId]);
-
-  // Members — NPCs whose faction field points to this page
-  const members = useMemo(() => {
-    const pages = allPages ?? [];
-    const byFaction = pages.filter(
-      (p) => p.page_kind === 'npc' && (p.structured_fields as Record<string, unknown>)?.faction === page.id,
-    );
-    if (leaderId && !byFaction.some((p) => p.id === leaderId)) {
-      const lp = pages.find((p) => p.id === leaderId);
-      if (lp) return [lp, ...byFaction];
-    }
-    return byFaction;
-  }, [allPages, page.id, leaderId]);
+  // Quest giver (page_ref)
+  const questGiverId = typeof fields.quest_giver === 'string' ? fields.quest_giver : null;
+  const questGiverPage = questGiverId ? (allPages ?? []).find((p) => p.id === questGiverId) ?? null : null;
+  const questGiverCandidates = useMemo(() => (allPages ?? []).filter((p) => p.page_kind === 'npc'), [allPages]);
 
   // Lock
   const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(null);
@@ -504,27 +321,35 @@ export function FactionPageView({ page, worldId }: Props) {
   }, [page.body_refs, allPages]);
 
   // Property pills
-  const SIZE_OPTIONS = ['cell', 'chapter', 'order', 'legion', 'empire'];
-  const STANCE_OPTIONS = ['hostile', 'wary', 'neutral', 'friendly', 'allied'];
-  const SECRECY_OPTIONS = ['public', 'known', 'secret', 'hidden'];
+  const STATUS_OPTIONS = ['active', 'completed', 'failed', 'on-hold'];
+  const PRIORITY_OPTIONS = ['main', 'side', 'personal'];
 
   const propertyPills: PillDef[] = [
-    { key: 'size', label: 'SIZE', value: size, icon: 'groups', fieldType: 'select', options: SIZE_OPTIONS },
-    { key: 'stance', label: 'STANCE', value: stance, icon: 'mood', fieldType: 'select', options: STANCE_OPTIONS, color: stance ? STANCE_COLOR[stance] : undefined },
-    { key: 'secrecy', label: 'SECRECY', value: secrecy, icon: 'visibility-off', fieldType: 'select', options: SECRECY_OPTIONS, color: secrecy ? SECRECY_COLOR[secrecy] : undefined },
-    { key: 'doctrine', label: 'DOCTRINE', value: doctrine, icon: 'format-quote', fieldType: 'text' },
+    { key: 'status', label: 'STATUS', value: status, icon: 'flag', fieldType: 'select', options: STATUS_OPTIONS, color: status ? STATUS_COLOR[status] : undefined },
+    { key: 'priority', label: 'PRIORITY', value: priority, icon: 'priority-high', fieldType: 'select', options: PRIORITY_OPTIONS, color: priority ? PRIORITY_COLOR[priority] : undefined },
+    { key: 'reward', label: 'REWARD', value: reward, icon: 'card-giftcard', fieldType: 'text' },
   ];
 
   const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved · just now' : saveState === 'error' ? 'Save failed' : '';
+
+  // Tag management helpers
+  function addTag(field: string, current: string[], tag: string) {
+    const trimmed = tag.trim();
+    if (!trimmed || current.includes(trimmed)) return;
+    updateField(field, [...current, trimmed]);
+  }
+  function removeTag(field: string, current: string[], index: number) {
+    updateField(field, current.filter((_, i) => i !== index));
+  }
 
   return (
     <View style={styles.root}>
       {/* ── Top bar ── */}
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
-          <View style={{ marginRight: 6 }}><Icon name="shield" size={18} color={colors.hpWarning} /></View>
+          <View style={{ marginRight: 6 }}><Icon name="menu-book" size={18} color={colors.gm} /></View>
           <Pressable onPress={() => router.push(worldSectionHref(worldId, page.section_id))}>
-            <Text style={styles.crumb}>{section?.name?.toUpperCase() ?? 'FACTIONS'}</Text>
+            <Text style={styles.crumb}>{section?.name?.toUpperCase() ?? 'QUESTS'}</Text>
           </Pressable>
           <Text style={styles.crumbSep}>/</Text>
           <Text style={styles.crumbActive}>{page.title.toUpperCase()}</Text>
@@ -541,8 +366,8 @@ export function FactionPageView({ page, worldId }: Props) {
       </View>
 
       {/* ── Title row ── */}
-      <View style={styles.factionHead}>
-        <View style={{ marginRight: 4 }}><Icon name="shield" size={28} color={colors.hpWarning} /></View>
+      <View style={styles.questHead}>
+        <View style={{ marginRight: 4 }}><Icon name="menu-book" size={28} color={colors.gm} /></View>
         <View style={{ flex: 1, gap: 2 }}>
           {editingTitle ? (
             <input
@@ -582,24 +407,30 @@ export function FactionPageView({ page, worldId }: Props) {
             </Pressable>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 2 }}>
-            <InlinePagePicker label="Leader:" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} worldId={worldId} />
-            <InlinePagePicker label="HQ:" icon="place" value={hqPage} candidates={hqCandidates} onSelect={(id) => updateField('headquarters', id)} accentColor={colors.primary} worldId={worldId} />
-            {doctrine ? <span style={{ fontFamily: "'Manrope'", fontSize: 13, color: colors.onSurfaceVariant, fontStyle: 'italic' }}>"{doctrine}"</span> : null}
+            <InlinePagePicker label="Quest Giver:" icon="person" value={questGiverPage} candidates={questGiverCandidates} onSelect={(id) => updateField('quest_giver', id)} accentColor={colors.cosmic} worldId={worldId} />
+            {reward ? <span style={{ fontFamily: "'Manrope'", fontSize: 13, color: colors.onSurfaceVariant }}>Reward: <span style={{ color: colors.gm, fontWeight: 600 }}>{reward}</span></span> : null}
           </div>
           <View style={styles.statRow}>
-            {stance ? (
-              <View style={[styles.statChip, { borderColor: (STANCE_COLOR[stance] ?? colors.outline) + '44' }]}>
-                <Text style={[styles.statChipLabel, { color: STANCE_COLOR[stance] ?? colors.outline }]}>{stance.charAt(0).toUpperCase() + stance.slice(1)}</Text>
+            {status ? (
+              <View style={[styles.statChip, { borderColor: (STATUS_COLOR[status] ?? colors.outline) + '44' }]}>
+                <View style={[styles.statusDot, { backgroundColor: STATUS_COLOR[status] ?? colors.outline }]} />
+                <Text style={[styles.statChipLabel, { color: STATUS_COLOR[status] ?? colors.outline }]}>
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </Text>
               </View>
             ) : null}
-            {size ? (
-              <View style={styles.statChip}><Text style={styles.statChipLabel}>{size.charAt(0).toUpperCase() + size.slice(1)}</Text></View>
-            ) : null}
-            {secrecy ? (
-              <View style={[styles.statChip, { borderColor: (SECRECY_COLOR[secrecy] ?? colors.outline) + '44' }]}>
-                <Text style={[styles.statChipLabel, { color: SECRECY_COLOR[secrecy] ?? colors.outline }]}>{secrecy.charAt(0).toUpperCase() + secrecy.slice(1)}</Text>
+            {priority ? (
+              <View style={[styles.statChip, { borderColor: (PRIORITY_COLOR[priority] ?? colors.outline) + '44' }]}>
+                <Text style={[styles.statChipLabel, { color: PRIORITY_COLOR[priority] ?? colors.outline }]}>
+                  {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                </Text>
               </View>
             ) : null}
+            <VisibilityBadge
+              visibility={page.visible_to_players ? 'player' : 'gm'}
+              interactive={!!toggleVisibility}
+              onPress={toggleVisibility ?? undefined}
+            />
           </View>
         </View>
       </View>
@@ -656,54 +487,44 @@ export function FactionPageView({ page, worldId }: Props) {
             <ScrollView contentContainerStyle={sideStyles.rightBody}>
               {rightTab === 'on_this_page' ? (
                 <>
-                  {/* Headquarters */}
+                  {/* Locations tags */}
                   <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="place" title="HEADQUARTERS" />
-                    {hqPage ? (
-                      <Pressable onPress={() => hqMapData ? router.push(worldMapHref(worldId, hqMapPin!.map_id)) : router.push(worldPageHref(worldId, hqPage.id))} style={styles.hqCard}>
-                        {hqMapPin && hqMapData ? (
-                          <>
-                            <MapPinPreview signedUrl={hqMapData.signedUrl} label={hqMapData.map.label} xPct={hqMapPin.x_pct} yPct={hqMapPin.y_pct} mapWidth={hqMapData.map.image_width} mapHeight={hqMapData.map.image_height} />
-                            <View style={styles.hqMeta}>
-                              <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>{hqPage.title}</Text>
-                              <Text style={styles.hqMetaLink}>OPEN MAP →</Text>
-                            </View>
-                          </>
-                        ) : (
-                          <View style={styles.hqLinkRow}>
-                            <Icon name="place" size={14} color={colors.primary} />
-                            <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ flex: 1, color: colors.onSurface, fontSize: 13 }}>{hqPage.title}</Text>
-                            <Icon name="chevron-right" size={12} color={colors.outline} />
+                    <SideSectionHeader icon="place" title="LOCATIONS" count={locationTags.length || undefined} />
+                    {locationTags.length > 0 ? (
+                      <View style={styles.tagList}>
+                        {locationTags.map((tag, i) => (
+                          <View key={`loc-${i}`} style={styles.tag}>
+                            <Text style={styles.tagText}>{tag}</Text>
+                            <Pressable onPress={() => removeTag('locations', locationTags, i)} style={{ padding: 2 }}>
+                              <Icon name="close" size={10} color={colors.outline} />
+                            </Pressable>
                           </View>
-                        )}
-                      </Pressable>
-                    ) : (
-                      <View style={styles.hqPlaceholder}>
-                        <Icon name="place" size={20} color={colors.outline} />
-                        <Text variant="body-sm" style={{ color: colors.outline, marginTop: 2 }}>No headquarters set</Text>
+                        ))}
                       </View>
+                    ) : (
+                      <Text variant="body-sm" style={sideStyles.emptyText}>No locations tagged yet.</Text>
                     )}
+                    <TagInput onAdd={(tag) => addTag('locations', locationTags, tag)} placeholder="Add location tag…" />
                   </View>
 
-                  {/* Members */}
+                  {/* Related NPCs tags */}
                   <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="person" title="MEMBERS" count={members.length || undefined} />
-                    {members.length === 0 ? (
-                      <Text variant="body-sm" style={sideStyles.emptyText}>No NPCs have this faction assigned yet.</Text>
+                    <SideSectionHeader icon="person" title="RELATED NPCS" count={relatedNpcTags.length || undefined} />
+                    {relatedNpcTags.length > 0 ? (
+                      <View style={styles.tagList}>
+                        {relatedNpcTags.map((tag, i) => (
+                          <View key={`npc-${i}`} style={styles.tag}>
+                            <Text style={styles.tagText}>{tag}</Text>
+                            <Pressable onPress={() => removeTag('related_npcs', relatedNpcTags, i)} style={{ padding: 2 }}>
+                              <Icon name="close" size={10} color={colors.outline} />
+                            </Pressable>
+                          </View>
+                        ))}
+                      </View>
                     ) : (
-                      members
-                        .sort((a, b) => (a.id === leaderId ? -1 : b.id === leaderId ? 1 : 0))
-                        .map((npc) => (
-                          <Pressable key={npc.id} onPress={() => router.push(worldPageHref(worldId, npc.id))} style={sideStyles.mentionRow}>
-                            <View style={[sideStyles.mentionDot, { backgroundColor: colors.hpDanger }]} />
-                            <View style={{ flex: 1 }}>
-                              <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{npc.title}</Text>
-                              <Text style={sideStyles.mentionMeta}>{npc.id === leaderId ? 'LEADER' : 'NPC'}</Text>
-                            </View>
-                            <Icon name="chevron-right" size={12} color={colors.outline} />
-                          </Pressable>
-                        ))
+                      <Text variant="body-sm" style={sideStyles.emptyText}>No related NPCs tagged yet.</Text>
                     )}
+                    <TagInput onAdd={(tag) => addTag('related_npcs', relatedNpcTags, tag)} placeholder="Add NPC tag…" />
                   </View>
 
                   {/* Mentioned on this page */}
@@ -760,35 +581,6 @@ export function FactionPageView({ page, worldId }: Props) {
                     })}
                   </View>
 
-                  {/* Rivals & Allies */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="people" title="RIVALS & ALLIES" count={relationships.length || undefined} />
-                    {relationships.map((rel, i) => {
-                      const target = (allPages ?? []).find((p) => p.id === rel.targetPageId);
-                      if (!target) return null;
-                      const isNpc = target.page_kind === 'npc';
-                      return (
-                        <View key={`${rel.targetPageId}-${i}`} style={styles.relRow}>
-                          <Pressable onPress={() => router.push(worldPageHref(worldId, rel.targetPageId))} style={styles.relLink}>
-                            <View style={[sideStyles.mentionDot, { backgroundColor: isNpc ? colors.cosmic : colors.hpWarning }]} />
-                            <View style={{ flex: 1 }}>
-                              <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{target.title}</Text>
-                              <Text style={sideStyles.mentionMeta}>{rel.type.toUpperCase()}{rel.note ? ` · ${rel.note}` : ''}</Text>
-                            </View>
-                            <Icon name="chevron-right" size={12} color={colors.outline} />
-                          </Pressable>
-                          <Pressable onPress={() => updateField('__relationships', relationships.filter((_, j) => j !== i))} style={{ padding: 4 }}>
-                            <Icon name="close" size={12} color={colors.outline} />
-                          </Pressable>
-                        </View>
-                      );
-                    })}
-                    <Pressable onPress={() => setAddingRelationship(true)} style={styles.addRelBtn}>
-                      <Icon name="add" size={14} color={colors.outline} />
-                      <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add relationship</Text>
-                    </Pressable>
-                  </View>
-
                   {/* Hooks & Rumors */}
                   <View style={sideStyles.sideSection}>
                     <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
@@ -809,7 +601,7 @@ export function FactionPageView({ page, worldId }: Props) {
                   <Text variant="body-sm" style={sideStyles.emptyText}>No sub-pages yet.</Text>
                 ) : subpages.map((p) => (
                   <Pressable key={p.id} onPress={() => router.push(worldPageHref(worldId, p.id))} style={sideStyles.mentionRow}>
-                    <Icon name="shield" size={14} color={colors.hpWarning} />
+                    <Icon name="menu-book" size={14} color={colors.gm} />
                     <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>{p.title}</Text>
                     <Icon name="chevron-right" size={12} color={colors.outline} />
                   </Pressable>
@@ -821,7 +613,49 @@ export function FactionPageView({ page, worldId }: Props) {
       </View>
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
-      {addingRelationship ? <AddFactionRelModal allPages={allPages ?? []} currentPageId={page.id} existingRelationships={relationships} onAdd={(rel) => { updateField('__relationships', [...relationships, rel]); setAddingRelationship(false); }} onClose={() => setAddingRelationship(false)} /> : null}
+    </View>
+  );
+}
+
+// ── Tag input (lightweight inline widget for tags fields) ──
+
+function TagInput({ onAdd, placeholder }: { onAdd: (tag: string) => void; placeholder?: string }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  if (!open) {
+    return (
+      <Pressable onPress={() => setOpen(true)} style={styles.tagAddBtn}>
+        <Icon name="add" size={14} color={colors.outline} />
+        <Text style={{ color: colors.outline, fontSize: 11, fontFamily: 'Manrope' }}>{placeholder ?? 'Add tag'}</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={{ marginTop: 2 }}>
+      <input
+        type="text"
+        value={draft}
+        onChange={(e: any) => setDraft(e.target.value)}
+        onKeyDown={(e: any) => {
+          if (e.key === 'Enter' && draft.trim()) { onAdd(draft.trim()); setDraft(''); }
+          if (e.key === 'Escape') { setOpen(false); setDraft(''); }
+        }}
+        autoFocus
+        placeholder={placeholder ?? 'Type and press Enter…'}
+        style={{
+          background: colors.surfaceContainerHigh,
+          border: `1px solid ${colors.outlineVariant}44`,
+          borderRadius: 6,
+          padding: '6px 8px',
+          color: colors.onSurface,
+          fontSize: 12,
+          fontFamily: "'Manrope', system-ui, sans-serif",
+          outline: 'none',
+          width: '100%',
+        }}
+      />
     </View>
   );
 }
@@ -835,11 +669,12 @@ const styles = StyleSheet.create({
   crumbSep: { fontFamily: fonts.label, fontSize: 11, color: colors.outlineVariant, marginHorizontal: 6 },
   crumbActive: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: colors.onSurfaceVariant, fontWeight: '600' },
 
-  factionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  questHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   title: { color: colors.onSurface, fontSize: 28, lineHeight: 34, letterSpacing: -0.4 },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' },
   statChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.outlineVariant + '44' },
   statChipLabel: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 0.5, fontWeight: '600', color: colors.onSurfaceVariant },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
 
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.outlineVariant + '44' },
   pillEmpty: { borderStyle: 'dashed', opacity: 0.6 },
@@ -857,15 +692,9 @@ const styles = StyleSheet.create({
   deleteBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.dangerContainer + '44', borderBottomWidth: 1, borderBottomColor: colors.hpDanger + '33' },
   deleteBannerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.lg },
 
-  // HQ sidebar card
-  hqCard: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.outlineVariant + '33', overflow: 'hidden', backgroundColor: colors.surfaceContainerHigh },
-  hqMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.sm, paddingVertical: 6, borderTopWidth: 1, borderTopColor: colors.outlineVariant + '22' },
-  hqMetaLink: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.8, color: colors.primary, fontWeight: '600' },
-  hqLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 10 },
-  hqPlaceholder: { height: 80, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.outlineVariant + '33', backgroundColor: colors.surfaceContainerHigh, alignItems: 'center', justifyContent: 'center' },
-
-  // Relationships
-  relRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  relLink: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 6, borderRadius: radius.lg },
-  addRelBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 4, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.outlineVariant + '33', borderStyle: 'dashed' },
+  // Tags
+  tagList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.outlineVariant + '44', backgroundColor: colors.surfaceContainerHigh + '88' },
+  tagText: { fontFamily: fonts.label, fontSize: 11, color: colors.onSurfaceVariant },
+  tagAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 4, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.outlineVariant + '33', borderStyle: 'dashed' },
 });

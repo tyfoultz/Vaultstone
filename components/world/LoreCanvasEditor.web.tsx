@@ -456,6 +456,18 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
   }
 
+  // Mark mention chips pointing at deleted pages.
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const validIds = new Set((mentionablePages ?? []).map((p) => p.id));
+    canvasRef.current.querySelectorAll<HTMLElement>('.vaultstone-mention[data-id]').forEach((chip) => {
+      const kind = chip.getAttribute('data-kind') ?? 'page';
+      if (kind !== 'page') return;
+      const id = chip.getAttribute('data-id')!;
+      chip.classList.toggle('vaultstone-mention--deleted', !validIds.has(id));
+    });
+  }, [mentionablePages, blocks]);
+
   function buildSnapshot(base?: CanvasBlock[]): CanvasBlock[] {
     return (base ?? blocksRef.current).map((b) => ({
       ...b,
@@ -1110,8 +1122,11 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
               width: block.width,
             }}
             onClick={(e) => {
-              const chip = (e.target as HTMLElement).closest?.('.vaultstone-mention');
+              const chip = (e.target as HTMLElement).closest?.('.vaultstone-mention') as HTMLElement | null;
               if (chip) {
+                if (chip.classList.contains('vaultstone-mention--deleted')) {
+                  e.preventDefault(); e.stopPropagation(); return;
+                }
                 const id = chip.getAttribute('data-id');
                 if (id && onMentionClick) { e.preventDefault(); onMentionClick(id); return; }
               }
@@ -1529,6 +1544,17 @@ function CanvasStyles() {
           .lore-block-content .vaultstone-mention:hover {
             background: ${colors.primary}26;
             border-color: ${colors.primary}55;
+          }
+          .lore-block-content .vaultstone-mention--deleted {
+            background: ${colors.outlineVariant}22;
+            color: ${colors.outline};
+            border-color: ${colors.outlineVariant}33;
+            cursor: default;
+            text-decoration: line-through;
+          }
+          .lore-block-content .vaultstone-mention--deleted:hover {
+            background: ${colors.outlineVariant}22;
+            border-color: ${colors.outlineVariant}33;
           }
 
           /* Mention popup */

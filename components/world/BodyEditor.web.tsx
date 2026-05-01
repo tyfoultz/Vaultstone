@@ -119,6 +119,23 @@ export function BodyEditor({
     if (editor) editor.setEditable(editable);
   }, [editor, editable]);
 
+  // Mark mention chips whose target has been soft-deleted so they render
+  // as inert grey pills.  We derive the valid-ID set from mentionablePages
+  // (which only contains non-deleted pages) and toggle a CSS class on each
+  // chip in the DOM whenever the set or the editor content changes.
+  useEffect(() => {
+    if (!editor) return;
+    const validIds = new Set((mentionablePages ?? []).map((p) => p.id));
+    const el = editor.view.dom;
+    el.querySelectorAll<HTMLElement>('.vaultstone-mention[data-id]').forEach((chip) => {
+      const kind = chip.getAttribute('data-kind') ?? 'page';
+      if (kind !== 'page') return;
+      const id = chip.getAttribute('data-id')!;
+      const isDeleted = !validIds.has(id);
+      chip.classList.toggle('vaultstone-mention--deleted', isDeleted);
+    });
+  }, [editor, mentionablePages]);
+
   // Make mention chips act like links. Tiptap renders each mention as an
   // inline <span class="vaultstone-mention" data-id="…">; without this
   // handler, clicking just places the caret. We hook into mousedown so the
@@ -132,6 +149,11 @@ export function BodyEditor({
         '.vaultstone-mention',
       ) as HTMLElement | null;
       if (!chip) return;
+      if (chip.classList.contains('vaultstone-mention--deleted')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       const id = chip.getAttribute('data-id');
       if (!id) return;
       const kind = chip.getAttribute('data-kind') ?? 'page';
@@ -300,6 +322,17 @@ function EditorStyles() {
           .vaultstone-mention:hover {
             background: ${colors.primary}26;
             border-color: ${colors.primary}55;
+          }
+          .vaultstone-mention--deleted {
+            background: ${colors.outlineVariant}22;
+            color: ${colors.outline};
+            border-color: ${colors.outlineVariant}33;
+            cursor: default;
+            text-decoration: line-through;
+          }
+          .vaultstone-mention--deleted:hover {
+            background: ${colors.outlineVariant}22;
+            border-color: ${colors.outlineVariant}33;
           }
           .vaultstone-mention-popup {
             z-index: 1000;

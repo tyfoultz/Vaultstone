@@ -29,6 +29,7 @@ import {
 
 import { CreatePageModal } from './CreatePageModal';
 import { CreateSectionModal } from './CreateSectionModal';
+import { RecentlyDeletedModal } from './RecentlyDeletedModal';
 import { LensDropdown } from './LensDropdown';
 import { MapUploadModal } from './map/MapUploadModal';
 import { useMapDnd } from './useMapDnd';
@@ -65,6 +66,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
   const [cropUri, setCropUri] = useState<string | null>(null);
   const [maps, setMaps] = useState<WorldMap[]>([]);
   const [mapUploadOpen, setMapUploadOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const pathname = usePathname();
 
   const isOwner = !!(user && user.id === world.owner_user_id);
@@ -369,11 +371,18 @@ export function WorldSidebar({ world, activePageId }: Props) {
           label="+ New section"
           onPress={() => setCreateSectionOpen(true)}
         />
+        {isOwner ? (
+          <Pressable onPress={() => setTrashOpen(true)} style={styles.trashLink}>
+            <Icon name="delete-outline" size={14} color={colors.outline} />
+            <Text variant="label-sm" style={{ color: colors.outline }}>Trash</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {settingsOpen ? (
         <WorldSettingsModal world={world} onClose={() => setSettingsOpen(false)} />
       ) : null}
+      <RecentlyDeletedModal visible={trashOpen} worldId={world.id} onClose={() => setTrashOpen(false)} />
       {createSectionOpen ? (
         <CreateSectionModal
           worldId={world.id}
@@ -842,6 +851,13 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.outlineVariant + '22',
+  },
+  trashLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   // Collapsed rail mode
   collapsedRoot: {

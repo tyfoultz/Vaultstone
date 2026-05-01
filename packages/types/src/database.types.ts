@@ -400,7 +400,7 @@ export interface Database {
           name: string;
           description: string | null;
           custom_icon: string | null;
-          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline';
+          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline' | 'quests';
           section_view: 'grid' | 'list';
           sort_order: number;
           force_hidden_from_players: boolean;
@@ -416,7 +416,7 @@ export interface Database {
           name: string;
           description?: string | null;
           custom_icon?: string | null;
-          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline';
+          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline' | 'quests';
           section_view?: 'grid' | 'list';
           sort_order?: number;
           force_hidden_from_players?: boolean;
@@ -459,7 +459,8 @@ export interface Database {
             | 'lore'
             | 'timeline'
             | 'pc_stub'
-            | 'player_character';
+            | 'player_character'
+            | 'quest';
           template_key: string;
           template_version: number;
           body: Json;
@@ -497,7 +498,8 @@ export interface Database {
             | 'lore'
             | 'timeline'
             | 'pc_stub'
-            | 'player_character';
+            | 'player_character'
+            | 'quest';
           template_key: string;
           template_version: number;
           body?: Json;
@@ -533,7 +535,8 @@ export interface Database {
             | 'lore'
             | 'timeline'
             | 'pc_stub'
-            | 'player_character';
+            | 'player_character'
+            | 'quest';
           template_key?: string;
           template_version?: number;
           body?: Json;
@@ -842,6 +845,10 @@ export interface Database {
         Args: { p_page_id: string };
         Returns: undefined;
       };
+      force_release_world_page_edit: {
+        Args: { p_page_id: string };
+        Returns: undefined;
+      };
       user_can_view_page: {
         Args: { p_user_id: string; p_page_id: string };
         Returns: boolean;
@@ -892,6 +899,49 @@ export interface Database {
           visible_to_players: boolean;
           updated_at: string;
         }[];
+      };
+      list_deleted_world_pages: {
+        Args: { p_world_id: string };
+        Returns: {
+          id: string;
+          title: string;
+          page_kind: string;
+          section_id: string;
+          section_name: string;
+          deleted_at: string;
+          hard_delete_after: string;
+        }[];
+      };
+      list_deleted_world_sections: {
+        Args: { p_world_id: string };
+        Returns: {
+          id: string;
+          name: string;
+          template_key: string;
+          deleted_at: string;
+          hard_delete_after: string;
+        }[];
+      };
+      list_deleted_world_maps: {
+        Args: { p_world_id: string };
+        Returns: {
+          id: string;
+          label: string;
+          deleted_at: string;
+          hard_delete_after: string;
+        }[];
+      };
+      restore_world_page: {
+        Args: { p_page_id: string };
+        Returns: undefined;
+      };
+      restore_world_section: {
+        Args: { p_section_id: string };
+        Returns: undefined;
+      };
+      restore_world_map: {
+        Args: { p_map_id: string };
+        Returns: undefined;
       };
     };
     Enums: {

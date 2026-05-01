@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import {
   claimPageEdit,
   createWorldImage,
+  forceReleasePageEdit,
   getMyStorageUsage,
   getPagesLinkingTo,
   getEventsReferencingPage,
@@ -905,7 +906,7 @@ export function NPCPageView({ page, worldId }: Props) {
         <View style={styles.editorCol}>
           {bannerLock ? (
             <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
-              <EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} />
+              <EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} onForceUnlock={isWorldOwner ? async () => { await forceReleasePageEdit(page.id); updatePageInStore(page.id, { editing_user_id: null, editing_since: null }); void tryClaim(); } : undefined} />
             </View>
           ) : null}
 

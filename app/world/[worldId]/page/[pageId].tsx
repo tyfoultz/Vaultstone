@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   claimPageEdit,
+  forceReleasePageEdit,
   getEventsForTimeline,
   listMaps,
   listPinsForWorld,
@@ -46,6 +47,7 @@ import { StructuredFieldsForm } from '../../../../components/world/StructuredFie
 import { FactionPageView } from '../../../../components/world/FactionPageView';
 import { LocationPageView } from '../../../../components/world/LocationPageView';
 import { NPCPageView } from '../../../../components/world/NPCPageView';
+import { QuestPageView } from '../../../../components/world/QuestPageView';
 import { TimelinePageView } from '../../../../components/world/TimelinePageView';
 import { PCStubPageView } from '../../../../components/world/players/PCStubPageView';
 import { WikiRightPanel } from '../../../../components/world/WikiRightPanel';
@@ -371,6 +373,11 @@ export default function PageDetailScreen() {
     return <FactionPageView page={page} worldId={worldId} />;
   }
 
+  // Quest pages
+  if (page.page_kind === 'quest') {
+    return <QuestPageView page={page} worldId={worldId} />;
+  }
+
   // Location pages get the notes-heavy layout with sidebar properties
   if (page.page_kind === 'location') {
     return <LocationPageView page={page} worldId={worldId} />;
@@ -487,6 +494,11 @@ export default function PageDetailScreen() {
                 ownerUserId={bannerLock.ownerId}
                 lockedSinceIso={bannerLock.since}
                 onRetry={tryClaim}
+                onForceUnlock={isWorldOwner ? async () => {
+                  await forceReleasePageEdit(pageId);
+                  updatePageInStore(pageId, { editing_user_id: null, editing_since: null });
+                  void tryClaim();
+                } : undefined}
               />
             ) : null}
 

@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   claimPageEdit,
+  forceReleasePageEdit,
   getCharacterById,
   releasePageEdit,
   trashPage,
@@ -343,7 +344,7 @@ export function PCStubPageView({ page, worldId }: Props) {
             ) : null}
 
             {bannerLock ? (
-              <EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} />
+              <EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} onForceUnlock={isWorldOwner ? async () => { await forceReleasePageEdit(page.id); updatePageInStore(page.id, { editing_user_id: null, editing_since: null }); void tryClaim(); } : undefined} />
             ) : null}
 
             {/* Character stat hero card */}

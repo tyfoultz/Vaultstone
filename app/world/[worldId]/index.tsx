@@ -24,6 +24,7 @@ import type { Database, TimelineCalendarSchema, WorldSection } from '@vaultstone
 import { useActiveSection } from '../../../components/world/ActiveSectionContext';
 import { CreatePageModal } from '../../../components/world/CreatePageModal';
 import { CreateSectionModal } from '../../../components/world/CreateSectionModal';
+import { SessionPrepPanel } from '../../../components/world/SessionPrepPanel';
 import { WorldOpeningBlock } from '../../../components/world/WorldOpeningBlock';
 import {
   WorldSectionAddCard,
@@ -253,6 +254,11 @@ export default function WorldLandingScreen() {
     const preview = lines.slice(0, 3).join(' ');
     return preview.length > 200 ? preview.slice(0, 197) + '…' : preview;
   }, [prepPage]);
+
+  const fullPrepPage = useMemo(() => {
+    if (!prepPage || !pagesByWorld) return null;
+    return pagesByWorld.find((p) => p.id === prepPage.id) ?? null;
+  }, [prepPage, pagesByWorld]);
 
   const mentionChips = useMemo(() => {
     if (!prepPage?.bodyRefs.length || !pagesByWorld) return [];
@@ -604,6 +610,14 @@ export default function WorldLandingScreen() {
                           </Pressable>
                         ))}
                       </View>
+                    ) : null}
+
+                    {prepPage && fullPrepPage ? (
+                      <SessionPrepPanel
+                        prepPage={fullPrepPage}
+                        allPages={pagesByWorld ?? []}
+                        onOpenPage={(id) => router.push(worldPageHref(worldId, id))}
+                      />
                     ) : null}
 
                     <View style={styles.nextSessionActions}>
