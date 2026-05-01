@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import ForceGraph2D from 'react-force-graph-2d';
 import { Icon, Text, colors, spacing } from '@vaultstone/ui';
 
 import {
@@ -10,6 +9,11 @@ import {
   type GraphNode,
   type RelationEdge,
 } from './constants';
+
+// `react-force-graph-2d` references `window` at module scope, so loading
+// it during SSR (expo-router static render) crashes. Defer the import to
+// useEffect so it only runs in the browser.
+type ForceGraph2DComponent = React.ComponentType<any>;
 
 type Props = {
   nodes: GraphNode[];
@@ -135,6 +139,15 @@ export function RelationWeb({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [ForceGraph2D, setForceGraph2D] = useState<ForceGraph2DComponent | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    import('react-force-graph-2d').then((mod) => {
+      if (!cancelled) setForceGraph2D(() => mod.default);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const connectionCount = useMemo(() => {
     const counts = new Map<string, number>();
@@ -357,6 +370,8 @@ export function RelationWeb({
       </View>
     );
   }
+
+  if (!ForceGraph2D) return null;
 
   return (
     <ForceGraph2D
