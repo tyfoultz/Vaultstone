@@ -1,8 +1,46 @@
 [
-  { "key": "action",        "name": "Action",        "type": "action-type", "tier": "srd", "system": "dnd5e", "economy": "1 per turn",   "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "The primary action a creature takes on its turn — Attack, Cast a Spell, Dash, Disengage, Dodge, Help, Hide, Ready, Search, or Use an Object.", "data": {} },
-  { "key": "bonus-action",  "name": "Bonus Action",  "type": "action-type", "tier": "srd", "system": "dnd5e", "economy": "1 per turn",   "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "A faster supplementary action granted by specific class features, spells, or feats.", "data": {} },
-  { "key": "reaction",      "name": "Reaction",      "type": "action-type", "tier": "srd", "system": "dnd5e", "economy": "1 per round",  "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "An instant response triggered by a specific event — opportunity attacks, the Shield spell, the Cutting Words feature.", "data": {} },
-  { "key": "free-action",   "name": "Free Action",   "type": "action-type", "tier": "srd", "system": "dnd5e", "economy": "Once per turn", "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Called the Object Interaction in 5.1 and Free in 2024 — interact with one nearby object as part of your turn at no cost.", "data": {} },
-  { "key": "magic-action",  "name": "Magic Action",  "type": "action-type", "tier": "srd", "system": "dnd5e", "economy": "1 per turn",   "srdVersions": ["SRD_2.0"], "description": "2024-only: a unified Action used to cast a spell or activate a magic effect (replaces Cast a Spell as a distinct Action type).", "data": {} },
-  { "key": "ritual",        "name": "Ritual",        "type": "action-type", "tier": "srd", "system": "dnd5e", "economy": "10 minutes",   "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Casts a spell with the Ritual tag in +10 minutes without expending a spell slot.", "data": {} }
+  {
+    "key": "action",
+    "name": "Action",
+    "type": "action-type",
+    "tier": "srd",
+    "system": "dnd5e",
+    "economy": "1 per turn",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "The primary action a creature takes on its turn. The slot you spend to do something significant — Attack, Dash, Dodge, Help, Hide, Ready, Search, or to take a Magic action (Cast a Spell), Influence (2024), Study (2024), or Utilize an object.",
+    "data": {}
+  },
+  {
+    "key": "bonus-action",
+    "name": "Bonus Action",
+    "type": "action-type",
+    "tier": "srd",
+    "system": "dnd5e",
+    "economy": "1 per turn",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A faster supplementary slot granted by specific class features, spells, or feats — only one per turn. You can't take a Bonus Action unless something specifically grants you one.",
+    "data": {}
+  },
+  {
+    "key": "reaction",
+    "name": "Reaction",
+    "type": "action-type",
+    "tier": "srd",
+    "system": "dnd5e",
+    "economy": "1 per round",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "An instant response triggered by a specific event — Opportunity Attack, the Shield spell, the Cutting Words feature. You get one per round and recover it at the start of your turn.",
+    "data": {}
+  },
+  {
+    "key": "free-object-interaction",
+    "name": "Free Object Interaction",
+    "type": "action-type",
+    "tier": "srd",
+    "system": "dnd5e",
+    "economy": "1 per turn",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Interact with one nearby object as part of your turn at no slot cost — drawing a weapon, opening a door, picking up a dropped item. Sometimes called a Free Action. A second interaction in the same turn requires the Utilize action.",
+    "data": {}
+  }
 ]
