@@ -42,10 +42,18 @@ const BUNDLED: Record<string, GameSystemDefinition> = {
 // the SchemaPanel rather than a SrdContent list.
 type SubTabContentKey = keyof SrdContent | '__schema__';
 
+type ItemCategory = ItemResult['category'];
+
 type SubTab = {
   key: string;
   label: string;
   contentKey: SubTabContentKey;
+  /**
+   * Optional filter when contentKey === 'items'. Used to split the single
+   * items list into per-category sub-tabs (Weapons / Armor / etc.) without
+   * duplicating the underlying data.
+   */
+  itemCategories?: ItemCategory[];
 };
 
 type GroupKey =
@@ -99,10 +107,14 @@ const GROUPS: Group[] = [
     key: 'equipment',
     label: 'Equipment',
     subTabs: [
-      { key: 'items',                 label: 'Items',                 contentKey: 'items' },
+      { key: 'weapons',               label: 'Weapons',               contentKey: 'items', itemCategories: ['weapon'] },
+      { key: 'armor',                 label: 'Armor',                 contentKey: 'items', itemCategories: ['armor', 'shield'] },
+      { key: 'adventuring-gear',      label: 'Adventuring Gear',      contentKey: 'items', itemCategories: ['adventuring-gear'] },
+      { key: 'magic-items',           label: 'Magic Items',           contentKey: 'items', itemCategories: ['magic-item'] },
+      { key: 'crafting-equipment',    label: 'Crafting Equipment',    contentKey: 'items', itemCategories: ['crafting-equipment'] },
+      { key: 'tools',                 label: 'Tools',                 contentKey: 'tools' },
       { key: 'weapon-properties',     label: 'Weapon Properties',     contentKey: 'weaponProperties' },
       { key: 'weapon-masteries',      label: 'Weapon Masteries',      contentKey: 'weaponMasteries' },
-      { key: 'tools',                 label: 'Tools',                 contentKey: 'tools' },
       { key: 'magic-item-categories', label: 'Magic Item Categories', contentKey: 'magicItemCategories' },
       { key: 'currencies',            label: 'Currencies',            contentKey: 'currencies' },
     ],
@@ -128,9 +140,18 @@ const GROUPS: Group[] = [
   },
 ];
 
+function subTabItemCount(t: SubTab, content: SrdContent): number {
+  if (t.contentKey === '__schema__') return 0;
+  if (t.itemCategories && t.contentKey === 'items') {
+    const set = new Set<ItemCategory>(t.itemCategories);
+    return content.items.filter((i) => set.has(i.category)).length;
+  }
+  return content[t.contentKey].length;
+}
+
 function isSubTabAvailable(t: SubTab, content: SrdContent): boolean {
   if (t.contentKey === '__schema__') return true;
-  return content[t.contentKey].length > 0;
+  return subTabItemCount(t, content) > 0;
 }
 
 function visibleSubTabs(group: Group, content: SrdContent): SubTab[] {
@@ -212,10 +233,7 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
       >
         {groups.map((g) => {
           const active = activeGroup === g.key;
-          const groupCount = g.subTabs.reduce((sum, s) => {
-            if (s.contentKey === '__schema__') return sum;
-            return sum + content[s.contentKey].length;
-          }, 0);
+          const groupCount = g.subTabs.reduce((sum, s) => sum + subTabItemCount(s, content), 0);
           return (
             <Pressable
               key={g.key}
@@ -252,7 +270,7 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
         >
           {currentGroup.subTabs.map((t) => {
             const active = activeSubKey === t.key;
-            const subCount = t.contentKey === '__schema__' ? undefined : content[t.contentKey].length;
+            const subCount = t.contentKey === '__schema__' ? undefined : subTabItemCount(t, content);
             return (
               <Pressable
                 key={t.key}
@@ -297,6 +315,12 @@ function renderSubBody(
   sys: GameSystemDefinition,
 ): React.ReactNode {
   if (!active) return null;
+  // Item sub-tabs share the single `content.items` source but filter by
+  // category (Weapons, Armor, Adventuring Gear, Magic Items, Crafting).
+  if (active.contentKey === 'items' && active.itemCategories) {
+    const set = new Set<ItemCategory>(active.itemCategories);
+    return <ItemsList items={content.items.filter((i) => set.has(i.category))} />;
+  }
   switch (active.contentKey) {
     case 'species':          return <SpeciesList     items={content.species} />;
     case 'classes':          return <ClassesList     items={content.classes} />;

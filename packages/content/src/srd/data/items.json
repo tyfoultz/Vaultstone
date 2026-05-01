@@ -76,7 +76,7 @@
     "tier": "srd",
     "system": "dnd5e",
     "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "gear",
+    "category": "adventuring-gear",
     "cost": { "amount": 5, "currency": "gp" },
     "weight": 3,
     "properties": ["10 uses"],
@@ -90,7 +90,7 @@
     "tier": "srd",
     "system": "dnd5e",
     "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "gear",
+    "category": "adventuring-gear",
     "cost": { "amount": 1, "currency": "gp" },
     "weight": 10,
     "properties": ["50 ft length", "2 HP", "AC 11", "DC 17 Strength check to burst"],
@@ -104,7 +104,7 @@
     "tier": "srd",
     "system": "dnd5e",
     "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "gear",
+    "category": "adventuring-gear",
     "cost": { "amount": 1, "currency": "cp" },
     "weight": 1,
     "properties": ["Sheds bright light in 20-foot radius and dim light in 20 more feet for 1 hour", "Damage: 1d4 fire (improvised weapon, hot end)"],
@@ -148,6 +148,40 @@
       "+1 bonus to attack and damage rolls"
     ],
     "description": "A finely-forged longsword humming with magic. The bonus is reflected on attack and damage rolls when wielded.",
+    "data": {}
+  },
+  {
+    "key": "spell-component-pouch",
+    "name": "Spell Component Pouch",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "category": "crafting-equipment",
+    "cost": { "amount": 25, "currency": "gp" },
+    "weight": 2,
+    "properties": [
+      "Holds the bits of bat guano, mistletoe, and other components a spellcaster needs",
+      "Substitutes for any non-costed material component when casting a spell"
+    ],
+    "description": "A small leather belt pouch sectioned into many compartments holding the diverse mundane reagents used in spellcasting.",
+    "data": {}
+  },
+  {
+    "key": "alchemical-reagents",
+    "name": "Alchemical Reagents (Set)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "category": "crafting-equipment",
+    "cost": { "amount": 50, "currency": "gp" },
+    "weight": 1,
+    "properties": [
+      "Pre-measured reagents for crafting acid, alchemist's fire, antitoxin, or basic potions",
+      "Consumed on use; replenish at any general store carrying alchemy supplies"
+    ],
+    "description": "A satchel of rare salts, oils, and powders bundled and labelled for use with alchemist's supplies. Consumable on craft.",
     "data": {}
   }
 ]

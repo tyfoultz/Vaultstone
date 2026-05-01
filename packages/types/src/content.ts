@@ -70,8 +70,12 @@ export interface CreatureResult extends ContentResult {
 
 export interface ItemResult extends ContentResult {
   type: 'item';
-  /** Coarse category — drives icon + grouping in lists. */
-  category: 'weapon' | 'armor' | 'shield' | 'gear' | 'magic-item' | 'tool';
+  /**
+   * Coarse category — drives grouping in the per-system catalog. Tools have
+   * their own dedicated content type (`ToolResult`), so 'tool' is intentionally
+   * not a valid item category.
+   */
+  category: 'weapon' | 'armor' | 'shield' | 'adventuring-gear' | 'magic-item' | 'crafting-equipment';
   /** Canonical SRD cost. `null` for items without listed price. */
   cost?: { amount: number; currency: 'cp' | 'sp' | 'ep' | 'gp' | 'pp' } | null;
   /** Weight in pounds. */
