@@ -3,11 +3,13 @@ import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, Style
 import { usePathname, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { listMaps, reorderMaps, reorderSections, softDeleteMap, updateMap, updateWorld, uploadWorldThumbnail, type WorldMap } from '@vaultstone/api';
+import { getPage, listMaps, reorderMaps, reorderSections, softDeleteMap, updateMap, updateWorld, uploadWorldThumbnail, type WorldMap } from '@vaultstone/api';
+import { pinPageToPrep } from './SessionPrepPanel';
 import {
   selectSectionsForWorld,
   useAuthStore,
   useCurrentWorldStore,
+  usePagesStore,
   useSectionsStore,
   useSidebarCollapseStore,
   useWorldsStore,
@@ -70,6 +72,25 @@ export function WorldSidebar({ world, activePageId }: Props) {
   const pathname = usePathname();
 
   const isOwner = !!(user && user.id === world.owner_user_id);
+  const linkedCampaigns = useCurrentWorldStore((s) => s.linkedCampaigns);
+  const allPages = usePagesStore((s) => s.byWorldId[world.id]);
+  const updatePageInStore = usePagesStore((s) => s.updatePage);
+
+  const handlePinToPrep = useCallback(async (pageId: string) => {
+    const campaign = linkedCampaigns.find((c) => (c as any).next_session_prep_page_id);
+    if (!campaign) return;
+    const prepPageId = (campaign as any).next_session_prep_page_id as string;
+    const prepPage = allPages?.find((p) => p.id === prepPageId);
+    if (!prepPage) {
+      const { data } = await getPage(prepPageId);
+      if (!data) return;
+      const newFields = await pinPageToPrep(data as any, pageId);
+      updatePageInStore(prepPageId, { structured_fields: newFields });
+    } else {
+      const newFields = await pinPageToPrep(prepPage, pageId);
+      updatePageInStore(prepPageId, { structured_fields: newFields });
+    }
+  }, [linkedCampaigns, allPages, updatePageInStore]);
 
   useEffect(() => {
     listMaps(world.id).then(({ data }) => setMaps((data ?? []) as WorldMap[]));
@@ -347,6 +368,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
                 setCreatePageTarget({ sectionId, parentPageId })
               }
               onReorder={handleSectionReorder}
+              onPinToPrep={isOwner ? handlePinToPrep : undefined}
             />
           ))
         )}

@@ -18,6 +18,7 @@ const MATERIAL_ICON: Record<string, string> = {
   shield: 'shield',
   book: 'auto-stories',
   'file-text': 'article',
+  'scroll-text': 'menu-book',
 };
 
 type Props = {

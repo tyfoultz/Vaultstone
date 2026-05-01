@@ -27,11 +27,12 @@ type Props = {
   onAddPage?: () => void;
   onAddSubPage?: (sectionId: string, parentPageId: string) => void;
   onReorder?: (dragged: WorldSection, target: WorldSection, position: 'before' | 'after') => void;
+  onPinToPrep?: (pageId: string) => void;
 };
 
 const EMPTY_SET = new Set<string>();
 
-export function SidebarSection({ section, worldId, activePageId, onAddPage, onAddSubPage, onReorder }: Props) {
+export function SidebarSection({ section, worldId, activePageId, onAddPage, onAddSubPage, onReorder, onPinToPrep }: Props) {
   const collapseKey = `${worldId}:${section.id}`;
   const collapsed = useSidebarCollapseStore((s) => !!s.collapsed[collapseKey]);
   const toggle = useSidebarCollapseStore((s) => s.toggle);
@@ -195,6 +196,7 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
                 activePageId={activePageId}
                 forcedOpenIds={forcedOpenIds}
                 onAddSubPage={onAddSubPage}
+                onPinToPrep={onPinToPrep}
               />
             ))}
           </View>
