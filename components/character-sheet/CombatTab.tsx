@@ -39,23 +39,40 @@ const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 
-// SRD standard actions — always available
-const SRD_ACTIONS: Dnd5eFeature[] = [
-  { id: 'attack',     name: 'Attack',           actionType: 'action',   description: 'Make one melee or ranged attack.' },
-  { id: 'dash',       name: 'Dash',             actionType: 'action',   description: 'Gain extra movement equal to your speed for this turn.' },
-  { id: 'disengage',  name: 'Disengage',        actionType: 'action',   description: 'Your movement doesn\'t provoke opportunity attacks for the rest of the turn.' },
-  { id: 'dodge',      name: 'Dodge',            actionType: 'action',   description: 'Attackers have disadvantage on attacks against you; you have advantage on DEX saves.' },
-  { id: 'help',       name: 'Help',             actionType: 'action',   description: 'Give an ally advantage on their next ability check or attack roll.' },
-  { id: 'hide',       name: 'Hide',             actionType: 'action',   description: 'Make a Stealth check to become hidden.' },
-  { id: 'ready',      name: 'Ready',            actionType: 'action',   description: 'Prepare a reaction to trigger on a specific condition before your next turn.' },
-  { id: 'search',     name: 'Search',           actionType: 'action',   description: 'Devote attention to finding something using Perception or Investigation.' },
-  { id: 'use-object', name: 'Use an Object',    actionType: 'action',   description: 'Interact with a second object or use a special item feature.' },
-];
-const SRD_SPELL_ACTION: Dnd5eFeature =
-  { id: 'cast-spell', name: 'Cast a Spell',     actionType: 'action',   description: 'Cast a spell with a casting time of 1 action.' };
-const SRD_REACTIONS: Dnd5eFeature[] = [
-  { id: 'opp-attack', name: 'Opportunity Attack', actionType: 'reaction', description: 'When a creature leaves your reach, you can make one melee attack against it.' },
-];
+/** Keys of bundled SRD standard actions — used to style the row as built-in vs custom. */
+const SRD_ACTION_KEYS = new Set([
+  'attack', 'dash', 'disengage', 'dodge', 'help', 'hide', 'ready', 'search',
+  'use-an-object', 'utilize', 'cast-a-spell', 'magic',
+  'influence', 'study', 'opportunity-attack',
+]);
+
+/**
+ * Resolve the bundled standard-action list for the character's edition and
+ * shape it into the `Dnd5eFeature` form used by the action group renderer.
+ * Replaces an earlier hardcoded SRD_ACTIONS / SRD_REACTIONS / SRD_SPELL_ACTION
+ * trio — now data-driven from `@vaultstone/content`.
+ */
+function srdActionsFor(srdVersion: SrdVersion | null | undefined, isSpellcaster: boolean): {
+  actions: Dnd5eFeature[];
+  reactions: Dnd5eFeature[];
+} {
+  const all = getSrdContent(srdVersion ?? 'SRD_2.0').standardActions;
+  const toFeature = (a: { key: string; name: string; description?: string }, slot: 'action' | 'reaction'): Dnd5eFeature => ({
+    id: a.key,
+    name: a.name,
+    description: a.description ?? '',
+    actionType: slot === 'action' ? 'action' : 'reaction',
+  });
+  const actions = all
+    .filter((a) => a.actionEconomy === 'action')
+    // Non-casters drop the Magic / Cast a Spell row. Either name maps depending on edition.
+    .filter((a) => isSpellcaster || (a.key !== 'magic' && a.key !== 'cast-a-spell'))
+    .map((a) => toFeature(a, 'action'));
+  const reactions = all
+    .filter((a) => a.actionEconomy === 'reaction')
+    .map((a) => toFeature(a, 'reaction'));
+  return { actions, reactions };
+}
 
 interface Props {
   stats: Dnd5eStats;
@@ -115,9 +132,10 @@ export function CombatTab({
   const featureReactions = allFeatures.filter((f) => f.actionType === 'reaction');
   const featureFree      = allFeatures.filter((f) => f.actionType === 'free');
 
-  const actions   = [...SRD_ACTIONS, ...(isSpellcaster ? [SRD_SPELL_ACTION] : []), ...featureActions];
-  const bonuses   = featureBonus;
-  const reactions = [...SRD_REACTIONS, ...featureReactions];
+  const { actions: srdActions, reactions: srdReactions } = srdActionsFor(stats.srdVersion, isSpellcaster);
+  const actions     = [...srdActions, ...featureActions];
+  const bonuses     = featureBonus;
+  const reactions   = [...srdReactions, ...featureReactions];
   const freeActions = featureFree;
 
   // ── Desktop: single-column flat layout ────────────────────────────────────
@@ -571,7 +589,7 @@ function ActionGroup({ label, items, accent }: { label: string; items: Dnd5eFeat
 }
 
 function ActionRow({ feature }: { feature: Dnd5eFeature }) {
-  const isSrd = ['attack', 'dash', 'disengage', 'dodge', 'help', 'hide', 'ready', 'search', 'use-object', 'cast-spell', 'opp-attack'].includes(feature.id);
+  const isSrd = SRD_ACTION_KEYS.has(feature.id);
   return (
     <View style={s.actionRow}>
       <View style={s.actionRowHeader}>

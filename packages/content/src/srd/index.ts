@@ -18,26 +18,44 @@ import type {
   ActionTypeResult,
   WeaponPropertyResult,
   WeaponMasteryResult,
+  StandardActionResult,
+  SenseResult,
+  SpeedResult,
+  CreatureTypeResult,
+  AlignmentResult,
+  CurrencyResult,
+  ToolResult,
+  MagicItemCategoryResult,
+  CoverResult,
   SrdVersion,
 } from '@vaultstone/types';
 
-import speciesData         from './data/species.json';
-import classesData         from './data/classes.json';
-import backgroundsData     from './data/backgrounds.json';
-import subclassesData      from './data/subclasses.json';
-import conditionsData      from './data/conditions.json';
-import spellsData          from './data/spells.json';
-import itemsData           from './data/items.json';
-import featsData           from './data/feats.json';
-import creaturesData       from './data/creatures.json';
-import skillsData          from './data/skills.json';
-import damageTypesData     from './data/damage-types.json';
-import schoolsData         from './data/schools.json';
-import sizesData           from './data/sizes.json';
-import languagesData       from './data/languages.json';
-import actionTypesData     from './data/action-types.json';
-import weaponPropsData     from './data/weapon-properties.json';
-import weaponMasteriesData from './data/weapon-masteries.json';
+import speciesData             from './data/species.json';
+import classesData             from './data/classes.json';
+import backgroundsData         from './data/backgrounds.json';
+import subclassesData          from './data/subclasses.json';
+import conditionsData          from './data/conditions.json';
+import spellsData              from './data/spells.json';
+import itemsData               from './data/items.json';
+import featsData               from './data/feats.json';
+import creaturesData           from './data/creatures.json';
+import skillsData              from './data/skills.json';
+import damageTypesData         from './data/damage-types.json';
+import schoolsData             from './data/schools.json';
+import sizesData               from './data/sizes.json';
+import languagesData           from './data/languages.json';
+import actionTypesData         from './data/action-types.json';
+import weaponPropsData         from './data/weapon-properties.json';
+import weaponMasteriesData     from './data/weapon-masteries.json';
+import standardActionsData     from './data/standard-actions.json';
+import sensesData              from './data/senses.json';
+import speedsData              from './data/speeds.json';
+import creatureTypesData       from './data/creature-types.json';
+import alignmentsData          from './data/alignments.json';
+import currenciesData          from './data/currencies.json';
+import toolsData               from './data/tools.json';
+import magicItemCategoriesData from './data/magic-item-categories.json';
+import coverData               from './data/cover.json';
 
 // SRD content is CC-BY 4.0 — attribution must be displayed in the UI wherever this content is shown.
 // Attribution text: "Content from the Systems Reference Document 5.1 / 2.0 is available under
@@ -48,29 +66,40 @@ import weaponMasteriesData from './data/weapon-masteries.json';
 // SRD bundle for those types will land in a follow-up data-import pass that vendors
 // a CC-BY-4.0 SRD JSON dump.
 
-const SPECIES           = speciesData         as unknown as SpeciesResult[];
-const CLASSES           = classesData         as unknown as ClassResult[];
-const BACKGROUNDS       = backgroundsData     as unknown as BackgroundResult[];
-const SUBCLASSES        = subclassesData      as unknown as SubclassResult[];
-const CONDITIONS        = conditionsData      as unknown as ConditionResult[];
-const SPELLS            = spellsData          as unknown as SpellResult[];
-const ITEMS             = itemsData           as unknown as ItemResult[];
-const FEATS             = featsData           as unknown as FeatResult[];
-const CREATURES         = creaturesData       as unknown as CreatureResult[];
-const SKILLS            = skillsData          as unknown as SkillResult[];
-const DAMAGE_TYPES      = damageTypesData     as unknown as DamageTypeResult[];
-const SCHOOLS           = schoolsData         as unknown as SchoolResult[];
-const SIZES             = sizesData           as unknown as SizeResult[];
-const LANGUAGES         = languagesData       as unknown as LanguageResult[];
-const ACTION_TYPES      = actionTypesData     as unknown as ActionTypeResult[];
-const WEAPON_PROPERTIES = weaponPropsData     as unknown as WeaponPropertyResult[];
-const WEAPON_MASTERIES  = weaponMasteriesData as unknown as WeaponMasteryResult[];
+const SPECIES               = speciesData             as unknown as SpeciesResult[];
+const CLASSES               = classesData             as unknown as ClassResult[];
+const BACKGROUNDS           = backgroundsData         as unknown as BackgroundResult[];
+const SUBCLASSES            = subclassesData          as unknown as SubclassResult[];
+const CONDITIONS            = conditionsData          as unknown as ConditionResult[];
+const SPELLS                = spellsData              as unknown as SpellResult[];
+const ITEMS                 = itemsData               as unknown as ItemResult[];
+const FEATS                 = featsData               as unknown as FeatResult[];
+const CREATURES             = creaturesData           as unknown as CreatureResult[];
+const SKILLS                = skillsData              as unknown as SkillResult[];
+const DAMAGE_TYPES          = damageTypesData         as unknown as DamageTypeResult[];
+const SCHOOLS               = schoolsData             as unknown as SchoolResult[];
+const SIZES                 = sizesData               as unknown as SizeResult[];
+const LANGUAGES             = languagesData           as unknown as LanguageResult[];
+const ACTION_TYPES          = actionTypesData         as unknown as ActionTypeResult[];
+const WEAPON_PROPERTIES     = weaponPropsData         as unknown as WeaponPropertyResult[];
+const WEAPON_MASTERIES      = weaponMasteriesData     as unknown as WeaponMasteryResult[];
+const STANDARD_ACTIONS      = standardActionsData     as unknown as StandardActionResult[];
+const SENSES                = sensesData              as unknown as SenseResult[];
+const SPEEDS                = speedsData              as unknown as SpeedResult[];
+const CREATURE_TYPES        = creatureTypesData       as unknown as CreatureTypeResult[];
+const ALIGNMENTS            = alignmentsData          as unknown as AlignmentResult[];
+const CURRENCIES            = currenciesData          as unknown as CurrencyResult[];
+const TOOLS                 = toolsData               as unknown as ToolResult[];
+const MAGIC_ITEM_CATEGORIES = magicItemCategoriesData as unknown as MagicItemCategoryResult[];
+const COVER                 = coverData               as unknown as CoverResult[];
 
 const ALL_SRD: ContentResult[] = [
   ...SPECIES, ...CLASSES, ...BACKGROUNDS, ...SUBCLASSES,
   ...CONDITIONS, ...SPELLS, ...ITEMS, ...FEATS, ...CREATURES,
   ...SKILLS, ...DAMAGE_TYPES, ...SCHOOLS, ...SIZES, ...LANGUAGES,
   ...ACTION_TYPES, ...WEAPON_PROPERTIES, ...WEAPON_MASTERIES,
+  ...STANDARD_ACTIONS, ...SENSES, ...SPEEDS, ...CREATURE_TYPES,
+  ...ALIGNMENTS, ...CURRENCIES, ...TOOLS, ...MAGIC_ITEM_CATEGORIES, ...COVER,
 ];
 
 export function search(query: ContentQuery): ContentResult[] {
@@ -120,6 +149,15 @@ export interface SrdCounts {
   actionTypes: number;
   weaponProperties: number;
   weaponMasteries: number;
+  standardActions: number;
+  senses: number;
+  speeds: number;
+  creatureTypes: number;
+  alignments: number;
+  currencies: number;
+  tools: number;
+  magicItemCategories: number;
+  cover: number;
   total: number;
 }
 
@@ -141,6 +179,15 @@ export interface SrdContent {
   actionTypes: ActionTypeResult[];
   weaponProperties: WeaponPropertyResult[];
   weaponMasteries: WeaponMasteryResult[];
+  standardActions: StandardActionResult[];
+  senses: SenseResult[];
+  speeds: SpeedResult[];
+  creatureTypes: CreatureTypeResult[];
+  alignments: AlignmentResult[];
+  currencies: CurrencyResult[];
+  tools: ToolResult[];
+  magicItemCategories: MagicItemCategoryResult[];
+  cover: CoverResult[];
 }
 
 /**
@@ -157,6 +204,10 @@ export function getSrdContent(version?: SrdVersion): SrdContent {
       skills: SKILLS, damageTypes: DAMAGE_TYPES, schools: SCHOOLS,
       sizes: SIZES, languages: LANGUAGES, actionTypes: ACTION_TYPES,
       weaponProperties: WEAPON_PROPERTIES, weaponMasteries: WEAPON_MASTERIES,
+      standardActions: STANDARD_ACTIONS, senses: SENSES, speeds: SPEEDS,
+      creatureTypes: CREATURE_TYPES, alignments: ALIGNMENTS,
+      currencies: CURRENCIES, tools: TOOLS,
+      magicItemCategories: MAGIC_ITEM_CATEGORIES, cover: COVER,
     };
   }
 
@@ -164,23 +215,32 @@ export function getSrdContent(version?: SrdVersion): SrdContent {
     r.srdVersions?.includes(version) ?? false;
 
   return {
-    species:          SPECIES.filter(matches),
-    classes:          CLASSES.filter(matches),
-    subclasses:       SUBCLASSES.filter(matches),
-    backgrounds:      BACKGROUNDS.filter(matches),
-    conditions:       CONDITIONS.filter(matches),
-    spells:           SPELLS.filter(matches),
-    items:            ITEMS.filter(matches),
-    feats:            FEATS.filter(matches),
-    creatures:        CREATURES.filter(matches),
-    skills:           SKILLS.filter(matches),
-    damageTypes:      DAMAGE_TYPES.filter(matches),
-    schools:          SCHOOLS.filter(matches),
-    sizes:            SIZES.filter(matches),
-    languages:        LANGUAGES.filter(matches),
-    actionTypes:      ACTION_TYPES.filter(matches),
-    weaponProperties: WEAPON_PROPERTIES.filter(matches),
-    weaponMasteries:  WEAPON_MASTERIES.filter(matches),
+    species:             SPECIES.filter(matches),
+    classes:             CLASSES.filter(matches),
+    subclasses:          SUBCLASSES.filter(matches),
+    backgrounds:         BACKGROUNDS.filter(matches),
+    conditions:          CONDITIONS.filter(matches),
+    spells:              SPELLS.filter(matches),
+    items:               ITEMS.filter(matches),
+    feats:               FEATS.filter(matches),
+    creatures:           CREATURES.filter(matches),
+    skills:              SKILLS.filter(matches),
+    damageTypes:         DAMAGE_TYPES.filter(matches),
+    schools:             SCHOOLS.filter(matches),
+    sizes:               SIZES.filter(matches),
+    languages:           LANGUAGES.filter(matches),
+    actionTypes:         ACTION_TYPES.filter(matches),
+    weaponProperties:    WEAPON_PROPERTIES.filter(matches),
+    weaponMasteries:     WEAPON_MASTERIES.filter(matches),
+    standardActions:     STANDARD_ACTIONS.filter(matches),
+    senses:              SENSES.filter(matches),
+    speeds:              SPEEDS.filter(matches),
+    creatureTypes:       CREATURE_TYPES.filter(matches),
+    alignments:          ALIGNMENTS.filter(matches),
+    currencies:          CURRENCIES.filter(matches),
+    tools:               TOOLS.filter(matches),
+    magicItemCategories: MAGIC_ITEM_CATEGORIES.filter(matches),
+    cover:               COVER.filter(matches),
   };
 }
 
@@ -199,23 +259,32 @@ export function getSrdCountsByVersion(version?: SrdVersion): SrdCounts {
 
 function countsFromContent(c: SrdContent): SrdCounts {
   const counts = {
-    species:          c.species.length,
-    classes:          c.classes.length,
-    subclasses:       c.subclasses.length,
-    backgrounds:      c.backgrounds.length,
-    conditions:       c.conditions.length,
-    spells:           c.spells.length,
-    items:            c.items.length,
-    feats:            c.feats.length,
-    creatures:        c.creatures.length,
-    skills:           c.skills.length,
-    damageTypes:      c.damageTypes.length,
-    schools:          c.schools.length,
-    sizes:            c.sizes.length,
-    languages:        c.languages.length,
-    actionTypes:      c.actionTypes.length,
-    weaponProperties: c.weaponProperties.length,
-    weaponMasteries:  c.weaponMasteries.length,
+    species:             c.species.length,
+    classes:             c.classes.length,
+    subclasses:          c.subclasses.length,
+    backgrounds:         c.backgrounds.length,
+    conditions:          c.conditions.length,
+    spells:              c.spells.length,
+    items:               c.items.length,
+    feats:               c.feats.length,
+    creatures:           c.creatures.length,
+    skills:              c.skills.length,
+    damageTypes:         c.damageTypes.length,
+    schools:             c.schools.length,
+    sizes:               c.sizes.length,
+    languages:           c.languages.length,
+    actionTypes:         c.actionTypes.length,
+    weaponProperties:    c.weaponProperties.length,
+    weaponMasteries:     c.weaponMasteries.length,
+    standardActions:     c.standardActions.length,
+    senses:              c.senses.length,
+    speeds:              c.speeds.length,
+    creatureTypes:       c.creatureTypes.length,
+    alignments:          c.alignments.length,
+    currencies:          c.currencies.length,
+    tools:               c.tools.length,
+    magicItemCategories: c.magicItemCategories.length,
+    cover:               c.cover.length,
   };
   const total = Object.values(counts).reduce((a, n) => a + n, 0);
   return { ...counts, total };
@@ -241,6 +310,8 @@ export const SEED_ONLY_TYPES = new Set<keyof SrdContent>([
 export const REFERENCE_TYPES = [
   'skills', 'damageTypes', 'schools', 'sizes', 'languages',
   'actionTypes', 'weaponProperties', 'weaponMasteries',
+  'standardActions', 'senses', 'speeds', 'creatureTypes',
+  'alignments', 'currencies', 'tools', 'magicItemCategories', 'cover',
 ] as const satisfies ReadonlyArray<keyof SrdContent>;
 
 export type ReferenceTypeKey = typeof REFERENCE_TYPES[number];

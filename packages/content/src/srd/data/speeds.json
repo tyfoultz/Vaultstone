@@ -1,0 +1,52 @@
+[
+  {
+    "key": "walking",
+    "name": "Walking Speed",
+    "type": "speed",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Default movement on the ground. The base value (most species: 30 ft.) for the creature's bipedal locomotion.",
+    "data": {}
+  },
+  {
+    "key": "burrow",
+    "name": "Burrow Speed",
+    "type": "speed",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Move through sand, earth, mud, or ice — but not through solid rock unless the creature has a special trait that allows it.",
+    "data": {}
+  },
+  {
+    "key": "climb",
+    "name": "Climb Speed",
+    "type": "speed",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Move on vertical surfaces without making a Strength (Athletics) check. Each foot of climbing costs 1 foot of speed (no extra cost like a creature without a climb speed).",
+    "data": {}
+  },
+  {
+    "key": "fly",
+    "name": "Fly Speed",
+    "type": "speed",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Move through the air. A flying creature falls if it's knocked Prone, has its Speed reduced to 0, or otherwise has its movement denied — unless it can hover.",
+    "data": {}
+  },
+  {
+    "key": "swim",
+    "name": "Swim Speed",
+    "type": "speed",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Move through water without spending extra movement. Each foot of swimming costs 1 foot of speed instead of the usual 2 for a creature without a swim speed.",
+    "data": {}
+  }
+]

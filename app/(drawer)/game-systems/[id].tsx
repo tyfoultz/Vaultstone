@@ -16,6 +16,8 @@ import type {
   ItemResult, FeatResult, CreatureResult,
   SkillResult, DamageTypeResult, SchoolResult, SizeResult,
   LanguageResult, ActionTypeResult, WeaponPropertyResult, WeaponMasteryResult,
+  StandardActionResult, SenseResult, SpeedResult, CreatureTypeResult,
+  AlignmentResult, CurrencyResult, ToolResult, MagicItemCategoryResult, CoverResult,
 } from '@vaultstone/types';
 
 const EMPTY_CONTENT: SrdContent = {
@@ -23,6 +25,8 @@ const EMPTY_CONTENT: SrdContent = {
   conditions: [], spells: [], items: [], feats: [], creatures: [],
   skills: [], damageTypes: [], schools: [], sizes: [], languages: [],
   actionTypes: [], weaponProperties: [], weaponMasteries: [],
+  standardActions: [], senses: [], speeds: [], creatureTypes: [],
+  alignments: [], currencies: [], tools: [], magicItemCategories: [], cover: [],
 };
 
 const BUNDLED: Record<string, GameSystemDefinition> = {
@@ -84,26 +88,35 @@ const GROUPS: Group[] = [
     key: 'combat',
     label: 'Combat',
     subTabs: [
-      { key: 'conditions',    label: 'Conditions',    contentKey: 'conditions' },
-      { key: 'action-types',  label: 'Action Types',  contentKey: 'actionTypes' },
-      { key: 'damage-types',  label: 'Damage Types',  contentKey: 'damageTypes' },
+      { key: 'standard-actions', label: 'Standard Actions', contentKey: 'standardActions' },
+      { key: 'action-types',     label: 'Action Types',     contentKey: 'actionTypes' },
+      { key: 'conditions',       label: 'Conditions',       contentKey: 'conditions' },
+      { key: 'damage-types',     label: 'Damage Types',     contentKey: 'damageTypes' },
+      { key: 'cover',            label: 'Cover',            contentKey: 'cover' },
     ],
   },
   {
     key: 'equipment',
     label: 'Equipment',
     subTabs: [
-      { key: 'items',              label: 'Items',              contentKey: 'items' },
-      { key: 'weapon-properties',  label: 'Weapon Properties',  contentKey: 'weaponProperties' },
-      { key: 'weapon-masteries',   label: 'Weapon Masteries',   contentKey: 'weaponMasteries' },
+      { key: 'items',                 label: 'Items',                 contentKey: 'items' },
+      { key: 'weapon-properties',     label: 'Weapon Properties',     contentKey: 'weaponProperties' },
+      { key: 'weapon-masteries',      label: 'Weapon Masteries',      contentKey: 'weaponMasteries' },
+      { key: 'tools',                 label: 'Tools',                 contentKey: 'tools' },
+      { key: 'magic-item-categories', label: 'Magic Item Categories', contentKey: 'magicItemCategories' },
+      { key: 'currencies',            label: 'Currencies',            contentKey: 'currencies' },
     ],
   },
   {
     key: 'bestiary',
     label: 'Bestiary',
     subTabs: [
-      { key: 'creatures', label: 'Monsters', contentKey: 'creatures' },
-      { key: 'sizes',     label: 'Sizes',    contentKey: 'sizes' },
+      { key: 'creatures',      label: 'Monsters',       contentKey: 'creatures' },
+      { key: 'creature-types', label: 'Creature Types', contentKey: 'creatureTypes' },
+      { key: 'sizes',          label: 'Sizes',          contentKey: 'sizes' },
+      { key: 'senses',         label: 'Senses',         contentKey: 'senses' },
+      { key: 'speeds',         label: 'Speeds',         contentKey: 'speeds' },
+      { key: 'alignments',     label: 'Alignments',     contentKey: 'alignments' },
     ],
   },
   {
@@ -302,6 +315,15 @@ function renderSubBody(
     case 'actionTypes':      return <ActionTypesList      items={content.actionTypes} />;
     case 'weaponProperties': return <WeaponPropertiesList items={content.weaponProperties} />;
     case 'weaponMasteries':  return <WeaponMasteriesList  items={content.weaponMasteries} />;
+    case 'standardActions':     return <StandardActionsList     items={content.standardActions} />;
+    case 'senses':              return <SensesList              items={content.senses} />;
+    case 'speeds':              return <SpeedsList              items={content.speeds} />;
+    case 'creatureTypes':       return <CreatureTypesList       items={content.creatureTypes} />;
+    case 'alignments':          return <AlignmentsList          items={content.alignments} />;
+    case 'currencies':          return <CurrenciesList          items={content.currencies} />;
+    case 'tools':               return <ToolsList               items={content.tools} />;
+    case 'magicItemCategories': return <MagicItemCategoriesList items={content.magicItemCategories} />;
+    case 'cover':               return <CoverList               items={content.cover} />;
     case '__schema__':       return <SchemaPanel sys={sys} />;
     default:                 return null;
   }
@@ -906,6 +928,114 @@ function WeaponPropertiesList({ items }: { items: WeaponPropertyResult[] }) {
 
 function WeaponMasteriesList({ items }: { items: WeaponMasteryResult[] }) {
   return <CatalogList items={items} placeholder="Search weapon masteries…" />;
+}
+
+function StandardActionsList({ items }: { items: StandardActionResult[] }) {
+  // Group order: Action → Bonus Action → Reaction → Free, then alpha within.
+  const economyOrder: Record<string, number> = { action: 0, 'bonus-action': 1, reaction: 2, free: 3 };
+  return (
+    <CatalogList
+      items={items}
+      placeholder="Search standard actions…"
+      sub={(a) => formatEconomy(a.actionEconomy)}
+      sort={(a, b) =>
+        (economyOrder[a.actionEconomy] ?? 9) - (economyOrder[b.actionEconomy] ?? 9) ||
+        a.name.localeCompare(b.name)
+      }
+    />
+  );
+}
+
+function SensesList({ items }: { items: SenseResult[] }) {
+  return (
+    <CatalogList
+      items={items}
+      placeholder="Search senses…"
+      sub={(s) => (s.defaultRange ? `Typical range: ${s.defaultRange} ft` : undefined)}
+    />
+  );
+}
+
+function SpeedsList({ items }: { items: SpeedResult[] }) {
+  return <CatalogList items={items} placeholder="Search speeds…" />;
+}
+
+function CreatureTypesList({ items }: { items: CreatureTypeResult[] }) {
+  return <CatalogList items={items} placeholder="Search creature types…" />;
+}
+
+function AlignmentsList({ items }: { items: AlignmentResult[] }) {
+  // Canonical alignment grid order from the source array (LG → CE, then Unaligned).
+  const order = items;
+  return (
+    <CatalogList
+      items={items}
+      placeholder="Search alignments…"
+      sub={(a) => a.morality === 'unaligned'
+        ? 'Unaligned'
+        : `${capitalize(a.ethics)} · ${capitalize(a.morality)}`
+      }
+      sort={(a, b) => order.indexOf(a) - order.indexOf(b)}
+    />
+  );
+}
+
+function CurrenciesList({ items }: { items: CurrencyResult[] }) {
+  // Canonical denomination order: cp → sp → ep → gp → pp.
+  return (
+    <CatalogList
+      items={items}
+      placeholder="Search currencies…"
+      sub={(c) => `${c.abbreviation.toUpperCase()} · 1 = ${c.conversionToCopper} cp`}
+      sort={(a, b) => a.conversionToCopper - b.conversionToCopper}
+    />
+  );
+}
+
+function ToolsList({ items }: { items: ToolResult[] }) {
+  return (
+    <CatalogList
+      items={items}
+      placeholder="Search tools…"
+      sub={(t) => {
+        const cat = t.category.replace('-', ' ');
+        const cost = t.cost ? `${t.cost.amount} ${t.cost.currency}` : null;
+        return [capitalize(cat), cost].filter(Boolean).join(' · ');
+      }}
+      sort={(a, b) =>
+        a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
+      }
+    />
+  );
+}
+
+function MagicItemCategoriesList({ items }: { items: MagicItemCategoryResult[] }) {
+  return <CatalogList items={items} placeholder="Search magic item categories…" />;
+}
+
+function CoverList({ items }: { items: CoverResult[] }) {
+  // Order by AC bonus: half (+2) → three-quarters (+5) → total (blocks).
+  return (
+    <CatalogList
+      items={items}
+      placeholder="Search cover…"
+      sub={(c) => c.blocksAttacks ? "Can't be targeted directly" : `+${c.acBonus} AC and Dex saves`}
+      sort={(a, b) => {
+        if (a.blocksAttacks !== b.blocksAttacks) return a.blocksAttacks ? 1 : -1;
+        return a.acBonus - b.acBonus;
+      }}
+    />
+  );
+}
+
+/** Render an action-economy slot key as a display label. */
+function formatEconomy(slot: 'action' | 'bonus-action' | 'reaction' | 'free'): string {
+  switch (slot) {
+    case 'action': return 'Action';
+    case 'bonus-action': return 'Bonus Action';
+    case 'reaction': return 'Reaction';
+    case 'free': return 'Free';
+  }
 }
 
 function SeedBanner({ type }: { type: keyof SrdContent }) {

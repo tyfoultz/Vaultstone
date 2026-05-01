@@ -18,7 +18,16 @@ export type ContentType =
   | 'language'
   | 'action-type'
   | 'weapon-property'
-  | 'weapon-mastery';
+  | 'weapon-mastery'
+  | 'standard-action'
+  | 'sense'
+  | 'speed'
+  | 'creature-type'
+  | 'alignment'
+  | 'currency'
+  | 'tool'
+  | 'magic-item-category'
+  | 'cover';
 
 export interface ContentResult {
   key: string;
@@ -41,6 +50,8 @@ export interface SpellResult extends ContentResult {
   components: string[];
   duration: string;
   concentration: boolean;
+  /** Whether the spell can be cast as a ritual (10 extra minutes, no slot). */
+  ritual: boolean;
   classes: string[];
   srdVersions: string[];
 }
@@ -159,6 +170,70 @@ export interface WeaponPropertyResult extends ContentResult {
 
 export interface WeaponMasteryResult extends ContentResult {
   type: 'weapon-mastery';
+  srdVersions: string[];
+}
+
+export interface StandardActionResult extends ContentResult {
+  type: 'standard-action';
+  /** Which action-economy slot this consumes. */
+  actionEconomy: 'action' | 'bonus-action' | 'reaction' | 'free';
+  srdVersions: string[];
+}
+
+export interface SenseResult extends ContentResult {
+  type: 'sense';
+  /** Typical creature range in feet, when listed. */
+  defaultRange: number | null;
+  srdVersions: string[];
+}
+
+export interface SpeedResult extends ContentResult {
+  type: 'speed';
+  srdVersions: string[];
+}
+
+export interface CreatureTypeResult extends ContentResult {
+  type: 'creature-type';
+  srdVersions: string[];
+}
+
+export interface AlignmentResult extends ContentResult {
+  type: 'alignment';
+  /** Moral axis on the alignment grid. */
+  morality: 'good' | 'neutral' | 'evil' | 'unaligned';
+  /** Ethical axis on the alignment grid. */
+  ethics: 'lawful' | 'neutral' | 'chaotic' | 'unaligned';
+  srdVersions: string[];
+}
+
+export interface CurrencyResult extends ContentResult {
+  type: 'currency';
+  abbreviation: 'cp' | 'sp' | 'ep' | 'gp' | 'pp';
+  /** Conversion factor to copper pieces (cp=1, sp=10, ep=50, gp=100, pp=1000). */
+  conversionToCopper: number;
+  srdVersions: string[];
+}
+
+export interface ToolResult extends ContentResult {
+  type: 'tool';
+  category: 'artisan' | 'gaming-set' | 'musical-instrument' | 'other';
+  /** Cost as { amount, currency }, or null when not commercially listed. */
+  cost?: { amount: number; currency: 'cp' | 'sp' | 'ep' | 'gp' | 'pp' } | null;
+  weight?: number;
+  srdVersions: string[];
+}
+
+export interface MagicItemCategoryResult extends ContentResult {
+  type: 'magic-item-category';
+  srdVersions: string[];
+}
+
+export interface CoverResult extends ContentResult {
+  type: 'cover';
+  /** AC bonus granted to the defender (0 / +2 / +5). */
+  acBonus: number;
+  /** Whether attacks bypass entirely (total cover). */
+  blocksAttacks: boolean;
   srdVersions: string[];
 }
 

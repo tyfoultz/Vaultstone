@@ -13,6 +13,7 @@
     "components": ["V", "S"],
     "duration": "Instantaneous",
     "concentration": false,
+    "ritual": false,
     "classes": ["Sorcerer", "Wizard"],
     "description": "Hurl a bubble of acid; choose one or two creatures within 5 feet of each other in range. Each target makes a Dexterity save or takes 1d6 acid damage. Damage scales at higher levels.",
     "data": {}
@@ -31,6 +32,7 @@
     "components": ["V", "S"],
     "duration": "Instantaneous",
     "concentration": false,
+    "ritual": false,
     "classes": ["Sorcerer", "Wizard"],
     "description": "Hurl a mote of fire at a creature or object. Make a ranged spell attack against the target; on a hit, the target takes 1d10 fire damage. Damage scales at higher levels.",
     "data": {}
@@ -49,6 +51,7 @@
     "components": ["V", "S"],
     "duration": "1 minute",
     "concentration": false,
+    "ritual": false,
     "classes": ["Bard", "Sorcerer", "Warlock", "Wizard"],
     "description": "A spectral, floating hand appears at a point of your choice within range. The hand can manipulate objects, open unlocked doors and containers, stow or retrieve items, and pour contents from a flask.",
     "data": {}
@@ -67,6 +70,7 @@
     "components": ["V", "S"],
     "duration": "Instantaneous",
     "concentration": false,
+    "ritual": false,
     "classes": ["Cleric"],
     "description": "Flame-like radiance descends on a creature you can see; the target must succeed on a Dexterity save (no benefit from cover) or take 1d8 radiant damage. Damage scales at higher levels.",
     "data": {}
@@ -85,6 +89,7 @@
     "components": ["V", "S"],
     "duration": "Instantaneous",
     "concentration": false,
+    "ritual": false,
     "classes": ["Bard", "Cleric", "Druid", "Paladin", "Ranger"],
     "description": "A creature you touch regains a number of hit points equal to 2d8 + your spellcasting modifier. This spell has no effect on undead or constructs. Casting at a higher level adds 2d8 per level above 1st.",
     "data": {}
@@ -103,6 +108,7 @@
     "components": ["V", "S"],
     "duration": "Instantaneous",
     "concentration": false,
+    "ritual": false,
     "classes": ["Sorcerer", "Wizard"],
     "description": "You create three glowing darts of magical force. Each dart hits a creature of your choice that you can see within range, dealing 1d4 + 1 force damage. The darts hit simultaneously and you can direct them to hit one creature or several. One additional dart per spell slot above 1st.",
     "data": {}
@@ -121,6 +127,7 @@
     "components": ["V", "S"],
     "duration": "1 round",
     "concentration": false,
+    "ritual": false,
     "classes": ["Sorcerer", "Wizard"],
     "description": "An invisible barrier of magical force appears and protects you. You gain a +5 bonus to AC, including against the triggering attack, and take no damage from Magic Missile until the start of your next turn.",
     "data": {}
@@ -134,11 +141,12 @@
     "srdVersions": ["SRD_5.1", "SRD_2.0"],
     "level": 1,
     "school": "Divination",
-    "castingTime": "Action (Ritual)",
+    "castingTime": "Action",
     "range": "Self",
     "components": ["V", "S"],
     "duration": "10 minutes",
     "concentration": true,
+    "ritual": true,
     "classes": ["Bard", "Cleric", "Druid", "Paladin", "Ranger", "Sorcerer", "Wizard"],
     "description": "For the duration, you sense the presence of magic within 30 feet of you. If you sense magic, you can use your action to see a faint aura around any visible creature or object that bears magic and learn its school of magic, if any.",
     "data": {}
@@ -157,6 +165,7 @@
     "components": ["V"],
     "duration": "Instantaneous",
     "concentration": false,
+    "ritual": false,
     "classes": ["Sorcerer", "Warlock", "Wizard"],
     "description": "Briefly surrounded by silvery mist, you teleport up to 30 feet to an unoccupied space that you can see.",
     "data": {}
@@ -175,6 +184,7 @@
     "components": ["V", "S", "M"],
     "duration": "Instantaneous",
     "concentration": false,
+    "ritual": false,
     "classes": ["Sorcerer", "Wizard"],
     "description": "A bright streak flashes from your finger to a point you choose, then blossoms into an explosion. Each creature in a 20-foot-radius sphere makes a Dexterity save, taking 8d6 fire damage on a failure or half on a success. One extra d6 per spell level above 3rd.",
     "data": {}
@@ -193,6 +203,7 @@
     "components": ["S"],
     "duration": "Instantaneous",
     "concentration": false,
+    "ritual": false,
     "classes": ["Sorcerer", "Warlock", "Wizard"],
     "description": "You attempt to interrupt a creature in the process of casting a spell. If the spell is 3rd level or lower, it automatically fails. If it's 4th level or higher, make an ability check using your spellcasting ability against a DC of 10 + the spell's level.",
     "data": {}
@@ -211,6 +222,7 @@
     "components": ["V"],
     "duration": "Instantaneous",
     "concentration": false,
+    "ritual": false,
     "classes": ["Sorcerer", "Wizard"],
     "description": "The mightiest spell a mortal creature can cast. By simply speaking aloud, you can alter the very foundations of reality in accord with your desires. You can duplicate any 8th-level or lower spell without needing components — or attempt more dramatic effects with significant risk.",
     "data": {}
