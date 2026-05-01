@@ -75,9 +75,10 @@ const GROUPS: Group[] = [
     key: 'character',
     label: 'Character Options',
     subTabs: [
+      // Subclasses are folded into the Classes view (rendered alongside the
+      // class they branch from) rather than a separate sub-tab.
       { key: 'species',     label: 'Species',     contentKey: 'species' },
       { key: 'classes',     label: 'Classes',     contentKey: 'classes' },
-      { key: 'subclasses',  label: 'Subclasses',  contentKey: 'subclasses' },
       { key: 'backgrounds', label: 'Backgrounds', contentKey: 'backgrounds' },
       { key: 'feats',       label: 'Feats',       contentKey: 'feats' },
       { key: 'skills',      label: 'Skills',      contentKey: 'skills' },
@@ -323,8 +324,7 @@ function renderSubBody(
   }
   switch (active.contentKey) {
     case 'species':          return <SpeciesList     items={content.species} />;
-    case 'classes':          return <ClassesList     items={content.classes} />;
-    case 'subclasses':       return <SubclassesList  items={content.subclasses} />;
+    case 'classes':          return <ClassesList     items={content.classes} allSubclasses={content.subclasses} />;
     case 'backgrounds':      return <BackgroundsList items={content.backgrounds} />;
     case 'spells':           return <SpellsList      items={content.spells} />;
     case 'feats':            return <FeatsList       items={content.feats} />;
@@ -464,7 +464,7 @@ function SpeciesList({ items }: { items: SpeciesResult[] }) {
   );
 }
 
-function ClassesList({ items }: { items: ClassResult[] }) {
+function ClassesList({ items, allSubclasses }: { items: ClassResult[]; allSubclasses: SubclassResult[] }) {
   const [q, setQ] = useState('');
   const exp = useExpanded();
   const filtered = useMemo(() => filterByName(items, q).slice().sort((a, b) => a.name.localeCompare(b.name)), [items, q]);
@@ -473,14 +473,15 @@ function ClassesList({ items }: { items: ClassResult[] }) {
     <View style={styles.list}>
       <SearchBar value={q} onChange={setQ} placeholder="Search classes…" />
       {filtered.map((c) => {
-        const cAny = c as any;
         const summary = [
-          cAny.hitDie ? `d${cAny.hitDie} hit die` : null,
-          cAny.spellcasting ? `spellcaster (${cAny.spellcastingAbility ?? '—'})` : 'martial',
-          Array.isArray(cAny.primaryAbility) && cAny.primaryAbility.length > 0
-            ? `primary ${cAny.primaryAbility.join(', ')}`
+          c.hitDie ? `d${c.hitDie} hit die` : null,
+          c.spellcasting ? `spellcaster (${c.spellcastingAbility ?? '—'})` : 'martial',
+          Array.isArray(c.primaryAbility) && c.primaryAbility.length > 0
+            ? `primary ${c.primaryAbility.join(', ')}`
             : null,
         ].filter(Boolean).join(' · ');
+        const subclasses = allSubclasses.filter((s) => s.parentClassKey === c.key);
+        const featureGroups = groupFeaturesByLevel(c.features ?? []);
         return (
           <ExpandRow
             key={c.key}
@@ -490,34 +491,115 @@ function ClassesList({ items }: { items: ClassResult[] }) {
             onToggle={() => exp.toggle(c.key)}
           >
             {c.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{c.description}</Text> : null}
-            <ProfBlock label="Saving throws" items={cAny.savingThrows} />
-            <ProfBlock label="Armor"          items={cAny.armorProficiencies} />
-            <ProfBlock label="Weapons"        items={cAny.weaponProficiencies} />
-            {cAny.skillChoices?.from ? (
+
+            {/* Proficiencies */}
+            <ProfBlock label="Saving throws" items={c.savingThrows} />
+            <ProfBlock label="Armor"         items={c.armorProficiencies} />
+            <ProfBlock label="Weapons"       items={c.weaponProficiencies} />
+            {Array.isArray(c.toolProficiencies) && c.toolProficiencies.length > 0 ? (
+              <ProfBlock label="Tools" items={c.toolProficiencies} />
+            ) : null}
+            {c.skillChoices?.from ? (
               <View style={styles.subBlock}>
-                <MetaLabel size="sm">
-                  {`Skills (choose ${cAny.skillChoices.count ?? 1})`}
-                </MetaLabel>
+                <MetaLabel size="sm">{`Skills (choose ${c.skillChoices.count ?? 1})`}</MetaLabel>
                 <View style={styles.chipRow}>
-                  {(cAny.skillChoices.from as string[]).map((it) => (
-                    <Chip key={it} label={it} variant="meta" />
-                  ))}
+                  {c.skillChoices.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
                 </View>
               </View>
             ) : null}
-            {Array.isArray(cAny.level1Features) && cAny.level1Features.length > 0 ? (
+
+            {/* Starting equipment */}
+            {Array.isArray(c.startingEquipment) && c.startingEquipment.length > 0 ? (
               <View style={styles.subBlock}>
-                <MetaLabel size="sm">Level 1 features</MetaLabel>
-                {cAny.level1Features.map((f: any, i: number) => (
+                <MetaLabel size="sm">Starting equipment</MetaLabel>
+                {c.startingEquipment.map((opt, i) => (
                   <View key={i} style={styles.bullet}>
-                    <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
-                    <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                    <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+                      Option {opt.label ?? String.fromCharCode(65 + i)}
+                    </Text>
+                    {opt.items && opt.items.length > 0 ? (
+                      <Text variant="body-sm" family="body" style={styles.bodyText}>
+                        {opt.items.join(', ')}
+                      </Text>
+                    ) : null}
+                    {opt.gold ? (
+                      <Text variant="body-sm" family="body" style={styles.bodyText}>
+                        {opt.gold.amount} {opt.gold.currency}
+                      </Text>
+                    ) : null}
                   </View>
                 ))}
               </View>
             ) : null}
-            {Array.isArray(cAny.srdVersions) && cAny.srdVersions.length > 0 ? (
-              <SrdVersionsRow versions={cAny.srdVersions} />
+
+            {/* Features by level */}
+            {featureGroups.length > 0 ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Class features</MetaLabel>
+                {featureGroups.map(([level, feats]) => (
+                  <View key={level} style={styles.featureLevelGroup}>
+                    <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
+                      Level {level}
+                    </Text>
+                    {feats.map((f, i) => (
+                      <View key={i} style={styles.bullet}>
+                        <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
+                        {f.description ? (
+                          <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {/* Subclasses for this class */}
+            {subclasses.length > 0 ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">{`Subclasses (unlock at L${c.subclassUnlockLevel})`}</MetaLabel>
+                {subclasses.map((sc) => (
+                  <View key={sc.key} style={styles.bullet}>
+                    <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{sc.name}</Text>
+                    {sc.description ? (
+                      <Text variant="body-sm" family="body" style={styles.bodyText}>{sc.description}</Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {/* Multiclassing */}
+            {(c.multiclassPrerequisite || c.multiclassProficiencies) ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Multiclassing</MetaLabel>
+                {c.multiclassPrerequisite ? (
+                  <Text variant="body-sm" family="body" style={styles.bodyText}>
+                    Prerequisite: <Text weight="bold" style={{ color: colors.onSurface }}>{c.multiclassPrerequisite}</Text>
+                  </Text>
+                ) : null}
+                {c.multiclassProficiencies?.armor && c.multiclassProficiencies.armor.length > 0 ? (
+                  <ProfBlock label="Gain armor" items={c.multiclassProficiencies.armor} />
+                ) : null}
+                {c.multiclassProficiencies?.weapons && c.multiclassProficiencies.weapons.length > 0 ? (
+                  <ProfBlock label="Gain weapons" items={c.multiclassProficiencies.weapons} />
+                ) : null}
+                {c.multiclassProficiencies?.tools && c.multiclassProficiencies.tools.length > 0 ? (
+                  <ProfBlock label="Gain tools" items={c.multiclassProficiencies.tools} />
+                ) : null}
+                {c.multiclassProficiencies?.skills?.from ? (
+                  <View style={styles.subBlock}>
+                    <MetaLabel size="sm">{`Gain skills (choose ${c.multiclassProficiencies.skills.count ?? 1})`}</MetaLabel>
+                    <View style={styles.chipRow}>
+                      {c.multiclassProficiencies.skills.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            {Array.isArray(c.srdVersions) && c.srdVersions.length > 0 ? (
+              <SrdVersionsRow versions={c.srdVersions} />
             ) : null}
           </ExpandRow>
         );
@@ -525,6 +607,19 @@ function ClassesList({ items }: { items: ClassResult[] }) {
       {filtered.length === 0 ? <EmptyHit q={q} /> : null}
     </View>
   );
+}
+
+/** Group features by level, preserving insertion order within each level. */
+function groupFeaturesByLevel(
+  features: Array<{ level: number; name: string; description?: string }>,
+): Array<[number, Array<{ name: string; description?: string }>]> {
+  const buckets = new Map<number, Array<{ name: string; description?: string }>>();
+  for (const f of features) {
+    const list = buckets.get(f.level) ?? [];
+    list.push({ name: f.name, description: f.description });
+    buckets.set(f.level, list);
+  }
+  return [...buckets.entries()].sort((a, b) => a[0] - b[0]);
 }
 
 function BackgroundsList({ items }: { items: BackgroundResult[] }) {
@@ -1332,6 +1427,22 @@ const styles = StyleSheet.create({
   emptyHit: {
     paddingVertical: spacing.xl,
     alignItems: 'center',
+  },
+
+  // Class features grouped by level
+  featureLevelGroup: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant + '44',
+  },
+  featureLevelLabel: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 4,
   },
 
   // Reference rows

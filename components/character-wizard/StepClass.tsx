@@ -97,11 +97,11 @@ export function StepClass({ onPreviewChange, onAdvance }: Props) {
           <DetailRow label="Saving Throws" value={preview.savingThrows.join(', ')} />
         </View>
 
-        {preview.level1Features.length > 0 && (
+        {(preview.features ?? []).filter((f) => f.level === 1).length > 0 && (
           <>
             <Text style={s.sectionLabel}>LEVEL 1 FEATURES</Text>
             <View style={s.traitList}>
-              {preview.level1Features.map((f) => (
+              {(preview.features ?? []).filter((f) => f.level === 1).map((f) => (
                 <Text key={f.name} style={s.traitItem}>
                   <Text style={s.traitName}>{f.name}. </Text>
                   <Text style={s.traitDesc}>{f.description}</Text>

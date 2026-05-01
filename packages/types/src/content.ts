@@ -267,11 +267,36 @@ export interface ClassResult extends ContentResult {
   savingThrows: string[];
   armorProficiencies: string[];
   weaponProficiencies: string[];
+  /** Tool / instrument proficiencies granted by the class. Empty when none. */
+  toolProficiencies?: string[];
   skillChoices: { count: number; from: string[] };
   spellcasting: boolean;
   spellcastingAbility: string | null;
   subclassUnlockLevel: number;
-  level1Features: Array<{ name: string; description: string }>;
+  /**
+   * Class features granted at each level. May be sparse for seeds — e.g.
+   * we ship level 1–5 features for some classes, just level 1 for others.
+   */
+  features?: Array<{ level: number; name: string; description?: string }>;
+  /**
+   * Starting equipment options at character creation. Each option lists
+   * concrete items; some options offer a flat gold alternative instead.
+   */
+  startingEquipment?: Array<{
+    label?: string;
+    items?: string[];
+    gold?: { amount: number; currency: 'cp' | 'sp' | 'ep' | 'gp' | 'pp' };
+  }>;
+  /** Free-text multiclass prerequisite (e.g. "Strength 13"). */
+  multiclassPrerequisite?: string;
+  /** Proficiencies gained when multiclassing into this class. */
+  multiclassProficiencies?: {
+    armor?: string[];
+    weapons?: string[];
+    tools?: string[];
+    savingThrows?: string[];
+    skills?: { count: number; from: string[] };
+  };
   srdVersions: string[];
 }
 

@@ -12,6 +12,7 @@
     "savingThrows": ["Strength", "Constitution"],
     "armorProficiencies": ["Light armor", "Medium armor", "Shields"],
     "weaponProficiencies": ["Simple weapons", "Martial weapons"],
+    "toolProficiencies": [],
     "skillChoices": {
       "count": 2,
       "from": ["Animal Handling", "Athletics", "Intimidation", "Nature", "Perception", "Survival"]
@@ -19,19 +20,26 @@
     "spellcasting": false,
     "spellcastingAbility": null,
     "subclassUnlockLevel": 3,
-    "level1Features": [
-      {
-        "name": "Rage",
-        "description": "As a Bonus Action, enter a rage for up to 1 minute. While raging you gain Advantage on STR checks and saves, a bonus to melee damage (+2 at L1, scaling up), and resistance to Bludgeoning, Piercing, and Slashing damage. Rage ends early if you don't attack or take damage on your turn. Uses: 2/Long Rest (increases with level)."
-      },
-      {
-        "name": "Unarmored Defense",
-        "description": "While not wearing armor, your Armor Class equals 10 + your Dexterity modifier + your Constitution modifier. You can use a shield and still gain this benefit."
-      },
-      {
-        "name": "Weapon Mastery",
-        "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Greataxe", "4 Handaxes", "Explorer's Pack", "15 gp"] },
+      { "label": "B", "gold": { "amount": 75, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Strength 13",
+    "multiclassProficiencies": {
+      "armor": ["Shields"],
+      "weapons": ["Martial weapons"]
+    },
+    "features": [
+      { "level": 1, "name": "Rage", "description": "As a Bonus Action, enter a rage for up to 1 minute. While raging you gain Advantage on STR checks and saves, a bonus to melee damage (+2 at L1, scaling up), and resistance to Bludgeoning, Piercing, and Slashing damage. Rage ends early if you don't attack or take damage on your turn. Uses: 2/Long Rest (increases with level)." },
+      { "level": 1, "name": "Unarmored Defense", "description": "While not wearing armor, your Armor Class equals 10 + your Dexterity modifier + your Constitution modifier. You can use a shield and still gain this benefit." },
+      { "level": 1, "name": "Weapon Mastery", "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest." },
+      { "level": 2, "name": "Danger Sense", "description": "You have Advantage on Dexterity saving throws against effects that you can see (e.g. traps and spells) — you must not be Incapacitated, Blinded, or Deafened." },
+      { "level": 2, "name": "Reckless Attack", "description": "When you make your first attack on your turn, you can choose to attack recklessly: gain Advantage on melee weapon attack rolls using Strength this turn, but attacks against you also have Advantage until your next turn." },
+      { "level": 3, "name": "Barbarian Subclass", "description": "Choose a Primal Path subclass — Path of the Berserker, Path of the Wild Heart, or another. Your subclass grants features at levels 3, 6, 10, and 14." },
+      { "level": 3, "name": "Primal Knowledge", "description": "You gain proficiency in one skill of your choice from the Barbarian skill list. You can also use Strength (instead of Dexterity) for Acrobatics or Stealth checks." },
+      { "level": 4, "name": "Ability Score Improvement", "description": "Increase one ability score by 2, two scores by 1 each, or take a feat for which you qualify." },
+      { "level": 5, "name": "Extra Attack", "description": "You can attack twice, instead of once, when you take the Attack action on your turn." },
+      { "level": 5, "name": "Fast Movement", "description": "Your Speed increases by 10 feet while you aren't wearing Heavy armor." }
     ],
     "data": {}
   },
@@ -48,6 +56,7 @@
     "savingThrows": ["Dexterity", "Charisma"],
     "armorProficiencies": ["Light armor"],
     "weaponProficiencies": ["Simple weapons", "Hand crossbows", "Longswords", "Rapiers", "Shortswords"],
+    "toolProficiencies": ["Three musical instruments of your choice"],
     "skillChoices": {
       "count": 3,
       "from": ["Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception", "History", "Insight", "Intimidation", "Investigation", "Medicine", "Nature", "Perception", "Performance", "Persuasion", "Religion", "Sleight of Hand", "Stealth", "Survival"]
@@ -55,15 +64,19 @@
     "spellcasting": true,
     "spellcastingAbility": "Charisma",
     "subclassUnlockLevel": 3,
-    "level1Features": [
-      {
-        "name": "Spellcasting",
-        "description": "You can cast bard spells using Charisma as your spellcasting ability. At level 1 you know 2 cantrips and 4 spells, and have 2 spell slots."
-      },
-      {
-        "name": "Bardic Inspiration",
-        "description": "As a Bonus Action, give a creature within 60 feet a Bardic Inspiration die (d6, increases with level). Within 10 minutes they can add the result to one ability check, attack roll, or saving throw. Uses = Charisma modifier (minimum 1); recovered on Long Rest."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Leather Armor", "2 Daggers", "Musical Instrument (your choice)", "Diplomat's Pack", "19 gp"] },
+      { "label": "B", "gold": { "amount": 90, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Charisma 13",
+    "multiclassProficiencies": {
+      "armor": ["Light armor"],
+      "tools": ["One musical instrument of your choice"],
+      "skills": { "count": 1, "from": ["Any one skill"] }
+    },
+    "features": [
+      { "level": 1, "name": "Spellcasting", "description": "You can cast bard spells using Charisma as your spellcasting ability. At level 1 you know 2 cantrips and 4 spells, and have 2 spell slots." },
+      { "level": 1, "name": "Bardic Inspiration", "description": "As a Bonus Action, give a creature within 60 feet a Bardic Inspiration die (d6, increases with level). Within 10 minutes they can add the result to one ability check, attack roll, or saving throw. Uses = Charisma modifier (minimum 1); recovered on Long Rest." }
     ],
     "data": {}
   },
@@ -80,6 +93,7 @@
     "savingThrows": ["Wisdom", "Charisma"],
     "armorProficiencies": ["Light armor", "Medium armor", "Shields"],
     "weaponProficiencies": ["Simple weapons"],
+    "toolProficiencies": [],
     "skillChoices": {
       "count": 2,
       "from": ["History", "Insight", "Medicine", "Persuasion", "Religion"]
@@ -87,15 +101,17 @@
     "spellcasting": true,
     "spellcastingAbility": "Wisdom",
     "subclassUnlockLevel": 1,
-    "level1Features": [
-      {
-        "name": "Spellcasting",
-        "description": "You can cast cleric spells using Wisdom as your spellcasting ability. You prepare a list of spells equal to your Wisdom modifier + your Cleric level (minimum 1). At level 1 you know 3 cantrips and have 2 spell slots."
-      },
-      {
-        "name": "Divine Order",
-        "description": "Choose a divine order: Protector (proficiency with Martial weapons and Heavy armor) or Thaumaturge (proficiency in Arcana, and know one additional cleric cantrip)."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Chain Mail", "Shield", "Mace", "Holy Symbol", "Priest's Pack", "7 gp"] },
+      { "label": "B", "gold": { "amount": 110, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Wisdom 13",
+    "multiclassProficiencies": {
+      "armor": ["Light armor", "Medium armor", "Shields"]
+    },
+    "features": [
+      { "level": 1, "name": "Spellcasting", "description": "You can cast cleric spells using Wisdom as your spellcasting ability. You prepare a list of spells equal to your Wisdom modifier + your Cleric level (minimum 1). At level 1 you know 3 cantrips and have 2 spell slots." },
+      { "level": 1, "name": "Divine Order", "description": "Choose a divine order: Protector (proficiency with Martial weapons and Heavy armor) or Thaumaturge (proficiency in Arcana, and know one additional cleric cantrip)." }
     ],
     "data": {}
   },
@@ -112,6 +128,7 @@
     "savingThrows": ["Intelligence", "Wisdom"],
     "armorProficiencies": ["Light armor", "Medium armor", "Shields (not metal)"],
     "weaponProficiencies": ["Simple weapons"],
+    "toolProficiencies": ["Herbalism Kit"],
     "skillChoices": {
       "count": 2,
       "from": ["Animal Handling", "Arcana", "Insight", "Medicine", "Nature", "Perception", "Religion", "Survival"]
@@ -119,19 +136,19 @@
     "spellcasting": true,
     "spellcastingAbility": "Wisdom",
     "subclassUnlockLevel": 3,
-    "level1Features": [
-      {
-        "name": "Druidic",
-        "description": "You know Druidic, the secret language of druids. You can speak it and use it to leave messages, understood only by other druids."
-      },
-      {
-        "name": "Primal Order",
-        "description": "Choose an order: Magician (proficiency in Arcana and one additional druid cantrip) or Warden (proficiency in Martial weapons and the ability to wear Medium armor made of metal, plus proficiency in Athletics or Animal Handling)."
-      },
-      {
-        "name": "Spellcasting",
-        "description": "You can cast druid spells using Wisdom as your spellcasting ability. You prepare spells equal to your Wisdom modifier + your Druid level (minimum 1). At level 1 you know 2 cantrips and have 2 spell slots."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Wooden Shield", "Quarterstaff", "Druidic Focus", "Leather Armor", "Explorer's Pack", "9 gp"] },
+      { "label": "B", "gold": { "amount": 50, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Wisdom 13",
+    "multiclassProficiencies": {
+      "armor": ["Light armor", "Medium armor", "Shields (not metal)"],
+      "tools": ["Herbalism Kit"]
+    },
+    "features": [
+      { "level": 1, "name": "Druidic", "description": "You know Druidic, the secret language of druids. You can speak it and use it to leave messages, understood only by other druids." },
+      { "level": 1, "name": "Primal Order", "description": "Choose an order: Magician (proficiency in Arcana and one additional druid cantrip) or Warden (proficiency in Martial weapons and the ability to wear Medium armor made of metal, plus proficiency in Athletics or Animal Handling)." },
+      { "level": 1, "name": "Spellcasting", "description": "You can cast druid spells using Wisdom as your spellcasting ability. You prepare spells equal to your Wisdom modifier + your Druid level (minimum 1). At level 1 you know 2 cantrips and have 2 spell slots." }
     ],
     "data": {}
   },
@@ -148,6 +165,7 @@
     "savingThrows": ["Strength", "Constitution"],
     "armorProficiencies": ["Light armor", "Medium armor", "Heavy armor", "Shields"],
     "weaponProficiencies": ["Simple weapons", "Martial weapons"],
+    "toolProficiencies": [],
     "skillChoices": {
       "count": 2,
       "from": ["Acrobatics", "Animal Handling", "Athletics", "History", "Insight", "Intimidation", "Perception", "Survival"]
@@ -155,19 +173,19 @@
     "spellcasting": false,
     "spellcastingAbility": null,
     "subclassUnlockLevel": 3,
-    "level1Features": [
-      {
-        "name": "Fighting Style",
-        "description": "Choose a fighting style: Archery (+2 to ranged attack rolls), Defense (+1 AC while armored), Dueling (+2 melee damage with one-handed weapon), Great Weapon Fighting (reroll 1s and 2s on damage dice with two-handed weapons), Protection (impose Disadvantage on attack rolls against allies when you have a shield), or Two-Weapon Fighting (add ability modifier to off-hand attack damage)."
-      },
-      {
-        "name": "Second Wind",
-        "description": "As a Bonus Action, regain Hit Points equal to 1d10 + your Fighter level. Uses: 2 per Short or Long Rest."
-      },
-      {
-        "name": "Weapon Mastery",
-        "description": "You can use the Mastery property of 3 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Chain Mail", "Greatsword (or other martial weapon)", "Light Crossbow", "20 Bolts", "Dungeoneer's Pack", "4 gp"] },
+      { "label": "B", "gold": { "amount": 155, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Strength 13 or Dexterity 13",
+    "multiclassProficiencies": {
+      "armor": ["Light armor", "Medium armor", "Shields"],
+      "weapons": ["Martial weapons"]
+    },
+    "features": [
+      { "level": 1, "name": "Fighting Style", "description": "Choose a fighting style: Archery (+2 to ranged attack rolls), Defense (+1 AC while armored), Dueling (+2 melee damage with one-handed weapon), Great Weapon Fighting (reroll 1s and 2s on damage dice with two-handed weapons), Protection (impose Disadvantage on attack rolls against allies when you have a shield), or Two-Weapon Fighting (add ability modifier to off-hand attack damage)." },
+      { "level": 1, "name": "Second Wind", "description": "As a Bonus Action, regain Hit Points equal to 1d10 + your Fighter level. Uses: 2 per Short or Long Rest." },
+      { "level": 1, "name": "Weapon Mastery", "description": "You can use the Mastery property of 3 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest." }
     ],
     "data": {}
   },
@@ -184,6 +202,7 @@
     "savingThrows": ["Strength", "Dexterity"],
     "armorProficiencies": [],
     "weaponProficiencies": ["Simple weapons", "Shortswords"],
+    "toolProficiencies": ["One artisan's tool or one musical instrument of your choice"],
     "skillChoices": {
       "count": 2,
       "from": ["Acrobatics", "Athletics", "History", "Insight", "Religion", "Stealth"]
@@ -191,19 +210,18 @@
     "spellcasting": false,
     "spellcastingAbility": null,
     "subclassUnlockLevel": 3,
-    "level1Features": [
-      {
-        "name": "Martial Arts",
-        "description": "When using unarmed strikes or monk weapons: use DEX instead of STR for attack and damage rolls, roll a Martial Arts die (d6 at L1) for damage, and make one unarmed strike as a Bonus Action."
-      },
-      {
-        "name": "Unarmored Defense",
-        "description": "While not wearing armor, your Armor Class equals 10 + your Dexterity modifier + your Wisdom modifier."
-      },
-      {
-        "name": "Weapon Mastery",
-        "description": "You can use the Mastery property of 1 Simple weapon. You can change your chosen weapon whenever you finish a Long Rest."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Spear", "5 Daggers", "Artisan's Tools or Musical Instrument", "Explorer's Pack", "11 gp"] },
+      { "label": "B", "gold": { "amount": 50, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Dexterity 13 and Wisdom 13",
+    "multiclassProficiencies": {
+      "weapons": ["Simple weapons", "Shortswords"]
+    },
+    "features": [
+      { "level": 1, "name": "Martial Arts", "description": "When using unarmed strikes or monk weapons: use DEX instead of STR for attack and damage rolls, roll a Martial Arts die (d6 at L1) for damage, and make one unarmed strike as a Bonus Action." },
+      { "level": 1, "name": "Unarmored Defense", "description": "While not wearing armor, your Armor Class equals 10 + your Dexterity modifier + your Wisdom modifier." },
+      { "level": 1, "name": "Weapon Mastery", "description": "You can use the Mastery property of 1 Simple weapon. You can change your chosen weapon whenever you finish a Long Rest." }
     ],
     "data": {}
   },
@@ -220,6 +238,7 @@
     "savingThrows": ["Wisdom", "Charisma"],
     "armorProficiencies": ["Light armor", "Medium armor", "Heavy armor", "Shields"],
     "weaponProficiencies": ["Simple weapons", "Martial weapons"],
+    "toolProficiencies": [],
     "skillChoices": {
       "count": 2,
       "from": ["Athletics", "Insight", "Intimidation", "Medicine", "Persuasion", "Religion"]
@@ -227,19 +246,19 @@
     "spellcasting": true,
     "spellcastingAbility": "Charisma",
     "subclassUnlockLevel": 3,
-    "level1Features": [
-      {
-        "name": "Lay on Hands",
-        "description": "You have a pool of healing power — 5 × your Paladin level in Hit Points. As a Magic action, touch a creature to restore any number of HP from the pool. Alternatively, expend 5 HP from the pool to cure one disease or neutralize one poison."
-      },
-      {
-        "name": "Spellcasting",
-        "description": "You can cast paladin spells using Charisma as your spellcasting ability. You prepare spells equal to your Charisma modifier + half your Paladin level (rounded down, minimum 1). At level 1 you have 2 spell slots."
-      },
-      {
-        "name": "Weapon Mastery",
-        "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Chain Mail", "Shield", "Longsword", "Holy Symbol", "Priest's Pack or Explorer's Pack", "9 gp"] },
+      { "label": "B", "gold": { "amount": 150, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Strength 13 and Charisma 13",
+    "multiclassProficiencies": {
+      "armor": ["Light armor", "Medium armor", "Shields"],
+      "weapons": ["Martial weapons"]
+    },
+    "features": [
+      { "level": 1, "name": "Lay on Hands", "description": "You have a pool of healing power — 5 × your Paladin level in Hit Points. As a Magic action, touch a creature to restore any number of HP from the pool. Alternatively, expend 5 HP from the pool to cure one disease or neutralize one poison." },
+      { "level": 1, "name": "Spellcasting", "description": "You can cast paladin spells using Charisma as your spellcasting ability. You prepare spells equal to your Charisma modifier + half your Paladin level (rounded down, minimum 1). At level 1 you have 2 spell slots." },
+      { "level": 1, "name": "Weapon Mastery", "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest." }
     ],
     "data": {}
   },
@@ -256,6 +275,7 @@
     "savingThrows": ["Strength", "Dexterity"],
     "armorProficiencies": ["Light armor", "Medium armor", "Shields"],
     "weaponProficiencies": ["Simple weapons", "Martial weapons"],
+    "toolProficiencies": [],
     "skillChoices": {
       "count": 3,
       "from": ["Animal Handling", "Athletics", "Insight", "Investigation", "Nature", "Perception", "Stealth", "Survival"]
@@ -263,19 +283,19 @@
     "spellcasting": true,
     "spellcastingAbility": "Wisdom",
     "subclassUnlockLevel": 3,
-    "level1Features": [
-      {
-        "name": "Favored Enemy",
-        "description": "You always have the Hunter's Mark spell prepared. You can cast it twice per Long Rest without expending a spell slot. Wisdom is your spellcasting ability for all Ranger spells."
-      },
-      {
-        "name": "Spellcasting",
-        "description": "You can cast ranger spells using Wisdom as your spellcasting ability. At level 1 you know 2 spells and have 2 spell slots. You don't learn cantrips from this class at level 1."
-      },
-      {
-        "name": "Weapon Mastery",
-        "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Studded Leather Armor", "Scimitar", "Shortsword", "Longbow", "20 Arrows", "Explorer's Pack", "7 gp"] },
+      { "label": "B", "gold": { "amount": 150, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Dexterity 13 and Wisdom 13",
+    "multiclassProficiencies": {
+      "armor": ["Light armor", "Medium armor", "Shields"],
+      "weapons": ["Martial weapons"]
+    },
+    "features": [
+      { "level": 1, "name": "Favored Enemy", "description": "You always have the Hunter's Mark spell prepared. You can cast it twice per Long Rest without expending a spell slot. Wisdom is your spellcasting ability for all Ranger spells." },
+      { "level": 1, "name": "Spellcasting", "description": "You can cast ranger spells using Wisdom as your spellcasting ability. At level 1 you know 2 spells and have 2 spell slots. You don't learn cantrips from this class at level 1." },
+      { "level": 1, "name": "Weapon Mastery", "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons. You can change your chosen weapons whenever you finish a Long Rest." }
     ],
     "data": {}
   },
@@ -292,6 +312,7 @@
     "savingThrows": ["Dexterity", "Intelligence"],
     "armorProficiencies": ["Light armor"],
     "weaponProficiencies": ["Simple weapons", "Hand crossbows", "Longswords", "Rapiers", "Shortswords"],
+    "toolProficiencies": ["Thieves' Tools"],
     "skillChoices": {
       "count": 4,
       "from": ["Acrobatics", "Athletics", "Deception", "Insight", "Intimidation", "Investigation", "Perception", "Persuasion", "Sleight of Hand", "Stealth"]
@@ -299,23 +320,21 @@
     "spellcasting": false,
     "spellcastingAbility": null,
     "subclassUnlockLevel": 3,
-    "level1Features": [
-      {
-        "name": "Expertise",
-        "description": "Choose 2 of your skill proficiencies. Your Proficiency Bonus is doubled for any ability check that uses either of the chosen skills."
-      },
-      {
-        "name": "Sneak Attack",
-        "description": "Once per turn, deal 1d6 extra damage to one creature you hit with a Finesse or Ranged weapon attack, if you have Advantage on the roll or an ally is adjacent to the target and you don't have Disadvantage. Increases by 1d6 every odd level."
-      },
-      {
-        "name": "Thieves' Cant",
-        "description": "You know the secret language of thieves. You can understand messages hidden in mundane conversation and leave hidden messages for other rogues."
-      },
-      {
-        "name": "Weapon Mastery",
-        "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons with the Finesse or Ranged property. You can change your chosen weapons whenever you finish a Long Rest."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Leather Armor", "2 Daggers", "Shortsword", "Shortbow", "20 Arrows", "Thieves' Tools", "Burglar's Pack", "8 gp"] },
+      { "label": "B", "gold": { "amount": 100, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Dexterity 13",
+    "multiclassProficiencies": {
+      "armor": ["Light armor"],
+      "tools": ["Thieves' Tools"],
+      "skills": { "count": 1, "from": ["Any one Rogue skill"] }
+    },
+    "features": [
+      { "level": 1, "name": "Expertise", "description": "Choose 2 of your skill proficiencies. Your Proficiency Bonus is doubled for any ability check that uses either of the chosen skills." },
+      { "level": 1, "name": "Sneak Attack", "description": "Once per turn, deal 1d6 extra damage to one creature you hit with a Finesse or Ranged weapon attack, if you have Advantage on the roll or an ally is adjacent to the target and you don't have Disadvantage. Increases by 1d6 every odd level." },
+      { "level": 1, "name": "Thieves' Cant", "description": "You know the secret language of thieves. You can understand messages hidden in mundane conversation and leave hidden messages for other rogues." },
+      { "level": 1, "name": "Weapon Mastery", "description": "You can use the Mastery property of 2 kinds of Simple or Martial weapons with the Finesse or Ranged property. You can change your chosen weapons whenever you finish a Long Rest." }
     ],
     "data": {}
   },
@@ -332,6 +351,7 @@
     "savingThrows": ["Constitution", "Charisma"],
     "armorProficiencies": [],
     "weaponProficiencies": ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"],
+    "toolProficiencies": [],
     "skillChoices": {
       "count": 2,
       "from": ["Arcana", "Deception", "Insight", "Intimidation", "Persuasion", "Religion"]
@@ -339,15 +359,15 @@
     "spellcasting": true,
     "spellcastingAbility": "Charisma",
     "subclassUnlockLevel": 1,
-    "level1Features": [
-      {
-        "name": "Spellcasting",
-        "description": "You can cast sorcerer spells using Charisma as your spellcasting ability. At level 1 you know 4 cantrips and 2 spells, and have 2 spell slots."
-      },
-      {
-        "name": "Innate Sorcery",
-        "description": "As a Bonus Action, unleash the sorcerous power within for 1 minute. While active, you have Advantage on spell attack rolls and the saving throw DC of your spells increases by 1. Uses: 2 per Long Rest."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Spear", "2 Daggers", "Arcane Focus (Crystal)", "Dungeoneer's Pack", "28 gp"] },
+      { "label": "B", "gold": { "amount": 50, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Charisma 13",
+    "multiclassProficiencies": {},
+    "features": [
+      { "level": 1, "name": "Spellcasting", "description": "You can cast sorcerer spells using Charisma as your spellcasting ability. At level 1 you know 4 cantrips and 2 spells, and have 2 spell slots." },
+      { "level": 1, "name": "Innate Sorcery", "description": "As a Bonus Action, unleash the sorcerous power within for 1 minute. While active, you have Advantage on spell attack rolls and the saving throw DC of your spells increases by 1. Uses: 2 per Long Rest." }
     ],
     "data": {}
   },
@@ -364,6 +384,7 @@
     "savingThrows": ["Wisdom", "Charisma"],
     "armorProficiencies": ["Light armor"],
     "weaponProficiencies": ["Simple weapons"],
+    "toolProficiencies": [],
     "skillChoices": {
       "count": 2,
       "from": ["Arcana", "Deception", "History", "Intimidation", "Investigation", "Nature", "Religion"]
@@ -371,19 +392,18 @@
     "spellcasting": true,
     "spellcastingAbility": "Charisma",
     "subclassUnlockLevel": 1,
-    "level1Features": [
-      {
-        "name": "Eldritch Invocations",
-        "description": "You learn 1 Eldritch Invocation at level 1 (gain more at higher levels). Invocations grant you persistent magical abilities."
-      },
-      {
-        "name": "Magical Cunning",
-        "description": "Once per Long Rest, if all your Pact Magic spell slots are expended, you can use this feature to recover half your slots (rounded up)."
-      },
-      {
-        "name": "Pact Magic",
-        "description": "You cast warlock spells using Charisma. Your Pact Magic slots recharge on a Short or Long Rest. At level 1 you know 2 cantrips and 2 spells, and have 1 spell slot of 1st level."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Leather Armor", "Sickle", "2 Daggers", "Arcane Focus", "Scholar's Pack", "15 gp"] },
+      { "label": "B", "gold": { "amount": 100, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Charisma 13",
+    "multiclassProficiencies": {
+      "armor": ["Light armor"]
+    },
+    "features": [
+      { "level": 1, "name": "Eldritch Invocations", "description": "You learn 1 Eldritch Invocation at level 1 (gain more at higher levels). Invocations grant you persistent magical abilities." },
+      { "level": 1, "name": "Magical Cunning", "description": "Once per Long Rest, if all your Pact Magic spell slots are expended, you can use this feature to recover half your slots (rounded up)." },
+      { "level": 1, "name": "Pact Magic", "description": "You cast warlock spells using Charisma. Your Pact Magic slots recharge on a Short or Long Rest. At level 1 you know 2 cantrips and 2 spells, and have 1 spell slot of 1st level." }
     ],
     "data": {}
   },
@@ -400,6 +420,7 @@
     "savingThrows": ["Intelligence", "Wisdom"],
     "armorProficiencies": [],
     "weaponProficiencies": ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"],
+    "toolProficiencies": [],
     "skillChoices": {
       "count": 2,
       "from": ["Arcana", "History", "Insight", "Investigation", "Medicine", "Religion"]
@@ -407,15 +428,15 @@
     "spellcasting": true,
     "spellcastingAbility": "Intelligence",
     "subclassUnlockLevel": 3,
-    "level1Features": [
-      {
-        "name": "Spellcasting",
-        "description": "You can cast wizard spells using Intelligence as your spellcasting ability. At level 1 you know 3 cantrips and have a spellbook containing 6 first-level spells; you can prepare a number equal to your INT modifier + your Wizard level (minimum 1). You have 2 spell slots."
-      },
-      {
-        "name": "Arcane Recovery",
-        "description": "Once per Long Rest, after a Short Rest, you can recover spell slots with a combined level equal to half your Wizard level (rounded up). Slots recovered this way can't be higher than 5th level."
-      }
+    "startingEquipment": [
+      { "label": "A", "items": ["Quarterstaff", "Spellbook", "Arcane Focus (Orb)", "Scholar's Pack", "5 gp"] },
+      { "label": "B", "gold": { "amount": 55, "currency": "gp" } }
+    ],
+    "multiclassPrerequisite": "Intelligence 13",
+    "multiclassProficiencies": {},
+    "features": [
+      { "level": 1, "name": "Spellcasting", "description": "You can cast wizard spells using Intelligence as your spellcasting ability. At level 1 you know 3 cantrips and have a spellbook containing 6 first-level spells; you can prepare a number equal to your INT modifier + your Wizard level (minimum 1). You have 2 spell slots." },
+      { "level": 1, "name": "Arcane Recovery", "description": "Once per Long Rest, after a Short Rest, you can recover spell slots with a combined level equal to half your Wizard level (rounded up). Slots recovered this way can't be higher than 5th level." }
     ],
     "data": {}
   }
