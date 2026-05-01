@@ -48,3 +48,18 @@ export function search(query: ContentQuery): ContentResult[] {
 
   return results;
 }
+
+export interface SrdCounts {
+  species: number;
+  classes: number;
+  backgrounds: number;
+  total: number;
+}
+
+/** Synchronous count of bundled SRD records, by type. */
+export function getSrdCounts(): SrdCounts {
+  const species = (speciesData as unknown as SpeciesResult[]).length;
+  const classes = (classesData as unknown as ClassResult[]).length;
+  const backgrounds = (backgroundsData as unknown as BackgroundResult[]).length;
+  return { species, classes, backgrounds, total: species + classes + backgrounds };
+}
