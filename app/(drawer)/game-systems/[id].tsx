@@ -405,7 +405,7 @@ function ExpandRow({
             {title}
           </Text>
           {summary ? (
-            <Text variant="body-sm" family="body" style={styles.rowMeta} numberOfLines={1}>
+            <Text variant="body-sm" family="body" style={styles.rowMeta} numberOfLines={2}>
               {summary}
             </Text>
           ) : null}
@@ -482,24 +482,25 @@ function ClassesList({ items, allSubclasses }: { items: ClassResult[]; allSubcla
     <View style={styles.list}>
       <SearchBar value={q} onChange={setQ} placeholder="Search classes…" />
       {filtered.map((c) => {
-        const summary = [
-          c.hitDie ? `d${c.hitDie} hit die` : null,
-          c.spellcasting ? `spellcaster (${c.spellcastingAbility ?? '—'})` : 'martial',
-          Array.isArray(c.primaryAbility) && c.primaryAbility.length > 0
-            ? `primary ${c.primaryAbility.join(', ')}`
-            : null,
-        ].filter(Boolean).join(' · ');
         const subclasses = allSubclasses.filter((s) => s.parentClassKey === c.key);
         const featureGroups = groupFeaturesByLevel(c.features ?? []);
         return (
           <ExpandRow
             key={c.key}
             title={c.name}
-            summary={summary}
+            summary={c.description ?? ''}
             expanded={exp.isOpen(c.key)}
             onToggle={() => exp.toggle(c.key)}
           >
-            {c.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{c.description}</Text> : null}
+            {/* Core stats — sit alongside proficiencies for visual consistency */}
+            {c.hitDie ? <ProfBlock label="Hit die"         items={[`d${c.hitDie}`]} /> : null}
+            {Array.isArray(c.primaryAbility) && c.primaryAbility.length > 0 ? (
+              <ProfBlock label="Primary ability" items={c.primaryAbility} />
+            ) : null}
+            <ProfBlock
+              label="Spellcasting"
+              items={[c.spellcasting ? (c.spellcastingAbility ?? 'Yes') : 'Martial (none)']}
+            />
 
             {/* Proficiencies */}
             <ProfBlock label="Saving throws" items={c.savingThrows} />
