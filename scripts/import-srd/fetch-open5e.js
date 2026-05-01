@@ -34,8 +34,9 @@ const ENDPOINTS = [
   { slug: 'conditions',  filterByDocument: false },
   { slug: 'feats',       filterByDocument: true },
   { slug: 'backgrounds', filterByDocument: true },
-  // Future: monsters, items, weapons, armor, races, classes — add as
-  // transforms come online.
+  { slug: 'species',     filterByDocument: true },
+  // Future: creatures (monsters), items, weapons, armor, magicitems,
+  // classes — add as transforms come online.
 ];
 
 async function fetchAll(slug, queryString) {

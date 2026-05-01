@@ -152,7 +152,8 @@ Coverage as of last refresh:
 - ✅ conditions — 30 entries (15 conditions × 2 editions; per-edition descriptions, since 5.1 and 2024 diverge meaningfully — most notably Exhaustion's level-track redesign)
 - ✅ feats — 18 entries (1 SRD 5.1, 17 SRD 5.2; per-edition entries — Grappler is the only feat in both, with diverged text). Categories: origin (4), general (3), fighting-style (4), epic-boon (7)
 - ✅ backgrounds — 5 entries (1 SRD 5.1: Acolyte; 4 SRD 5.2: Acolyte, Criminal, Sage, Soldier). The hand-curated seed had 14 PHB-flavored entries; replaced with strict SRD coverage. Non-SRD backgrounds (Folk Hero, Charlatan, etc.) belong to a future homebrew-pack feature.
-- ⏳ items, magicitems, weapons, armor, monsters, races, classes — transform scripts pending; data still seed-grade
+- ✅ species — 22 entries (13 SRD 5.1 base + subspecies, 9 SRD 5.2). 5.1 ships subspecies (High Elf, Hill Dwarf, Lightfoot, Rock Gnome) as their own entries with size/speed inherited from parent; 5.2 dropped subspecies in favor of in-species choices. Half-Elf and Half-Orc are 5.1-only — folded into Human/Orc in 2024.
+- ⏳ items, magicitems, weapons, armor, monsters, classes — transform scripts pending; data still seed-grade
 
 ---
 
