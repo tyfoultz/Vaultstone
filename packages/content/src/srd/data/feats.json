@@ -1,246 +1,327 @@
 [
   {
-    "key": "alert",
+    "key": "alert-srd-2-0",
     "name": "Alert",
     "type": "feat",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "category": "origin",
     "prerequisites": "",
-    "description": "Always on the lookout for danger, you gain notable benefits that help you act first when it matters most.",
     "benefits": [
-      "Initiative Proficiency: When you roll Initiative, you can add your Proficiency Bonus to the roll.",
-      "Initiative Swap: Immediately after you roll Initiative, you can swap your Initiative with the Initiative of one willing ally in the same combat (you can't swap if either of you has the Incapacitated condition)."
+      "When you roll Initiative, you can add your Proficiency Bonus to the roll.",
+      "Immediately after you roll Initiative, you can swap your Initiative with the Initiative of one willing ally in the same combat. You can't make this swap if you or the ally has the Incapacitated condition."
     ],
+    "description": "You gain the following benefits.",
     "data": {}
   },
   {
-    "key": "crafter",
-    "name": "Crafter",
+    "key": "magic-initiate-srd-2-0",
+    "name": "Magic Initiate",
     "type": "feat",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "category": "origin",
     "prerequisites": "",
-    "description": "You are skilled in crafting and bartering for valuables. You gain proficiency with three Artisan's Tools of your choice.",
     "benefits": [
-      "Tool Proficiency: Gain proficiency with three Artisan's Tools of your choice.",
-      "Discount: When you craft an item using your Artisan's Tools, the cost is 20% less than the listed price.",
-      "Fast Crafting: When you finish a long rest, you can craft one piece of gear from the Fast Crafting table that costs 20 GP or less."
+      "You learn two cantrips of your choice from the Cleric, Druid, or Wizard spell list. Intelligence, Wisdom, or Charisma is your spellcasting ability for this feat's spells (choose when you select this feat).",
+      "Choose a level 1 spell from the same list you selected for this feat's cantrips. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have.",
+      "Whenever you gain a new level, you can replace one of the spells you chose for this feat with a different spell of the same level from the chosen spell list.",
+      "You can take this feat more than once, but you must choose a different spell list each time."
     ],
+    "description": "You gain the following benefits.",
     "data": {}
   },
   {
-    "key": "healer",
-    "name": "Healer",
-    "type": "feat",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "origin",
-    "prerequisites": "",
-    "description": "You have the training and intuition to administer first aid effectively in dangerous situations.",
-    "benefits": [
-      "Battle Medic: As a Utilize action with a Healer's Kit, you can restore 1d6 + 4 + the target's Hit Dice number Hit Points to a creature you can touch.",
-      "Healing Surge: When you use a Healer's Kit to stabilize a creature, that creature regains 1 Hit Point.",
-      "Mercy: Whenever you roll a 1 on a die rolled for the Battle Medic ability, you can reroll the die."
-    ],
-    "data": {}
-  },
-  {
-    "key": "lucky",
-    "name": "Lucky",
-    "type": "feat",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "origin",
-    "prerequisites": "",
-    "description": "You have inexplicable luck that seems to kick in at just the right moment.",
-    "benefits": [
-      "Luck Points: You have a number of Luck Points equal to your Proficiency Bonus and regain expended points when you finish a long rest.",
-      "Advantage: Spend a Luck Point to give yourself advantage on an attack roll, ability check, or saving throw.",
-      "Disadvantage: Spend a Luck Point when an attack roll is made against you to impose disadvantage on that roll."
-    ],
-    "data": {}
-  },
-  {
-    "key": "magic-initiate-cleric",
-    "name": "Magic Initiate (Cleric)",
-    "type": "feat",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "origin",
-    "prerequisites": "",
-    "description": "You have learned spells from the Cleric class. Wisdom is your spellcasting ability for them.",
-    "benefits": [
-      "Two Cleric Cantrips: Learn two cantrips of your choice from the Cleric spell list.",
-      "Level 1 Spell: Choose a level 1 spell from the Cleric spell list. You can cast it once per long rest without a spell slot, or use a spell slot if you have any.",
-      "Spell Change: Whenever you gain a new level, you can replace one cantrip or the level 1 spell with another from the same list."
-    ],
-    "data": {}
-  },
-  {
-    "key": "magic-initiate-druid",
-    "name": "Magic Initiate (Druid)",
-    "type": "feat",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "origin",
-    "prerequisites": "",
-    "description": "You have learned spells from the Druid class. Wisdom is your spellcasting ability for them.",
-    "benefits": [
-      "Two Druid Cantrips: Learn two cantrips of your choice from the Druid spell list.",
-      "Level 1 Spell: Choose a level 1 spell from the Druid spell list. You can cast it once per long rest without a spell slot, or use a spell slot if you have any."
-    ],
-    "data": {}
-  },
-  {
-    "key": "magic-initiate-wizard",
-    "name": "Magic Initiate (Wizard)",
-    "type": "feat",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "origin",
-    "prerequisites": "",
-    "description": "You have learned spells from the Wizard class. Intelligence is your spellcasting ability for them.",
-    "benefits": [
-      "Two Wizard Cantrips: Learn two cantrips of your choice from the Wizard spell list.",
-      "Level 1 Spell: Choose a level 1 spell from the Wizard spell list. You can cast it once per long rest without a spell slot, or use a spell slot if you have any."
-    ],
-    "data": {}
-  },
-  {
-    "key": "musician",
-    "name": "Musician",
-    "type": "feat",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "category": "origin",
-    "prerequisites": "",
-    "description": "You have a way with musical instruments — gaining proficiency with three of your choice and a knack for inspiring allies.",
-    "benefits": [
-      "Instrument Training: Gain proficiency with three Musical Instruments of your choice.",
-      "Encouraging Song: As you finish a Short or Long Rest, you can play a song on a Musical Instrument and grant Heroic Inspiration to allies (up to your Proficiency Bonus) who heard the song."
-    ],
-    "data": {}
-  },
-  {
-    "key": "savage-attacker",
+    "key": "savage-attacker-srd-2-0",
     "name": "Savage Attacker",
     "type": "feat",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "category": "origin",
     "prerequisites": "",
-    "description": "You have trained to deal particularly damaging strikes.",
     "benefits": [
-      "Boundless Strikes: Once per turn when you hit a target with a weapon, you can roll the weapon's damage dice twice and use either total against the target."
+      "You've trained to deal particularly damaging strikes. Once per turn when you hit a target with a weapon, you can roll the weapon's damage dice twice and use either roll against the target."
     ],
+    "description": "",
     "data": {}
   },
   {
-    "key": "skilled",
+    "key": "skilled-srd-2-0",
     "name": "Skilled",
     "type": "feat",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "category": "origin",
     "prerequisites": "",
-    "description": "You have a knack for picking up new things — and you know a little about a lot of subjects.",
     "benefits": [
-      "Skill Training: Gain proficiency in any combination of three skills or tools of your choice."
+      "You gain proficiency in any combination of three skills or tools of your choice.",
+      "You can take this feat more than once."
     ],
+    "description": "",
     "data": {}
   },
   {
-    "key": "tavern-brawler",
-    "name": "Tavern Brawler",
+    "key": "ability-score-improvement-srd-2-0",
+    "name": "Ability Score Improvement",
     "type": "feat",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "origin",
-    "prerequisites": "",
-    "description": "Accustomed to rough-and-tumble fighting using whatever's at hand, you've learned to make the most of unarmed strikes and improvised weapons.",
-    "benefits": [
-      "Enhanced Unarmed Strike: Your Unarmed Strike uses 1d4 instead of 1.",
-      "Damaging Shove: When you hit with an Unarmed Strike and choose damage, you can also push the target 5 feet.",
-      "Improvised Proficiency: You have proficiency with Improvised Weapons."
+    "srdVersions": [
+      "SRD_2.0"
     ],
+    "category": "general",
+    "prerequisites": "Level 4+",
+    "benefits": [
+      "Increase one ability score of your choice by 2, or increase two ability scores of your choice by 1. This feat can't increase an ability score above 20.",
+      "You can take this feat more than once."
+    ],
+    "description": "",
     "data": {}
   },
   {
-    "key": "tough",
-    "name": "Tough",
+    "key": "grappler-srd-2-0",
+    "name": "Grappler",
     "type": "feat",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "origin",
-    "prerequisites": "",
-    "description": "Your Hit Point maximum increases by an amount equal to twice your character level — and continues to increase as you level up.",
-    "benefits": [
-      "Hit Point Boost: Your Hit Point maximum increases by an amount equal to 2 × your character level when you take this feat. It increases by 2 each time you gain a level thereafter."
+    "srdVersions": [
+      "SRD_2.0"
     ],
+    "category": "general",
+    "prerequisites": "Level 4+, Strength or Dexterity 13+",
+    "benefits": [
+      "Increase your Strength or Dexterity score by 1, to a maximum of 20.",
+      "When you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can use both the Damage and the Grapple option. You can use this benefit only once per turn.",
+      "You have Advantage on attack rolls against a creature Grappled by you.",
+      "You don't have to spend extra movement to move a creature Grappled by you if the creature is your size or smaller."
+    ],
+    "description": "You gain the following benefits.",
     "data": {}
   },
   {
-    "key": "great-weapon-master",
-    "name": "Great Weapon Master",
+    "key": "grappler-srd-5-1",
+    "name": "Grappler",
     "type": "feat",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
+    "srdVersions": [
+      "SRD_5.1"
+    ],
     "category": "general",
     "prerequisites": "Strength 13 or higher",
-    "description": "You've learned to put the weight of a heavy two-handed weapon to deadly use.",
     "benefits": [
-      "Reckless Strike: When you take the Attack action and score a critical hit (or reduce a creature to 0 HP) with a heavy melee weapon, you can make one additional weapon attack as a Bonus Action.",
-      "Power Attack: Before making a melee attack with a heavy weapon, you can choose to take a -5 penalty to the attack roll. If the attack hits, you add +10 to the damage."
+      "You have advantage on attack rolls against a creature you are grappling.",
+      "You can use your action to try to pin a creature grappled by you. The creature makes a Strength or Dexterity saving throw against your maneuver DC. On a failure, you and the creature are both restrained until the grapple ends."
     ],
+    "description": "You've developed the skills necessary to hold your own in close-quarters grappling. You gain the following benefits:",
     "data": {}
   },
   {
-    "key": "sharpshooter",
-    "name": "Sharpshooter",
+    "key": "archery-srd-2-0",
+    "name": "Archery",
     "type": "feat",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
-    "category": "general",
-    "prerequisites": "Dexterity 13 or higher",
-    "description": "You have mastered ranged weapons and can make shots that others find impossible.",
-    "benefits": [
-      "Long Range: Attacking at long range doesn't impose disadvantage on your ranged weapon attack rolls.",
-      "Cover Defiance: Your ranged weapon attacks ignore half cover and three-quarters cover.",
-      "Power Shot: Before making a ranged attack with a weapon you're proficient with, you can take a -5 penalty to the attack roll. If the attack hits, you add +10 to the damage."
+    "srdVersions": [
+      "SRD_2.0"
     ],
+    "category": "fighting-style",
+    "prerequisites": "Fighting Style Feature",
+    "benefits": [
+      "You gain a +2 bonus to attack rolls you make with Ranged weapons."
+    ],
+    "description": "",
     "data": {}
   },
   {
-    "key": "war-caster",
-    "name": "War Caster",
+    "key": "defense-srd-2-0",
+    "name": "Defense",
     "type": "feat",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "general",
-    "prerequisites": "Ability to cast at least one spell",
-    "description": "You have practiced casting spells in the midst of combat, learning techniques that grant you the following benefits.",
-    "benefits": [
-      "Concentration Advantage: You have advantage on Constitution saving throws made to maintain Concentration on a spell when you take damage.",
-      "Free Hands: You can perform somatic components of spells even when you have weapons or a shield in one or both hands.",
-      "Reactive Spell: When a creature provokes an Opportunity Attack from you, you can use your Reaction to cast a spell at it (the spell must have a casting time of 1 action and target only that creature)."
+    "srdVersions": [
+      "SRD_2.0"
     ],
+    "category": "fighting-style",
+    "prerequisites": "Fighting Style Feature",
+    "benefits": [
+      "While you're wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class."
+    ],
+    "description": "",
+    "data": {}
+  },
+  {
+    "key": "great-weapon-fighting-srd-2-0",
+    "name": "Great Weapon Fighting",
+    "type": "feat",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "fighting-style",
+    "prerequisites": "Fighting Style Feature",
+    "benefits": [
+      "When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit."
+    ],
+    "description": "",
+    "data": {}
+  },
+  {
+    "key": "two-weapon-fighting-srd-2-0",
+    "name": "Two-Weapon Fighting",
+    "type": "feat",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "fighting-style",
+    "prerequisites": "Fighting Style Feature",
+    "benefits": [
+      "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage."
+    ],
+    "description": "",
+    "data": {}
+  },
+  {
+    "key": "boon-of-combat-prowess-srd-2-0",
+    "name": "Boon of Combat Prowess",
+    "type": "feat",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "epic-boon",
+    "prerequisites": "Level 19+",
+    "benefits": [
+      "Increase one ability score of your choice by 1, to a maximum of 30.",
+      "When you miss with an attack roll, you can hit instead. Once you use this benefit, you can't use it again until the start of your next turn."
+    ],
+    "description": "You gain the following benefits.",
+    "data": {}
+  },
+  {
+    "key": "boon-of-dimensional-travel-srd-2-0",
+    "name": "Boon of Dimensional Travel",
+    "type": "feat",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "epic-boon",
+    "prerequisites": "Level 19+",
+    "benefits": [
+      "Increase one ability score of your choice by 1, to a maximum of 30.",
+      "Immediately after you take the Attack action or the Magic action, you can teleport up to 30 feet to an unoccupied space you can see."
+    ],
+    "description": "You gain the following benefits.",
+    "data": {}
+  },
+  {
+    "key": "boon-of-fate-srd-2-0",
+    "name": "Boon of Fate",
+    "type": "feat",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "epic-boon",
+    "prerequisites": "Level 19+",
+    "benefits": [
+      "Increase one ability score of your choice by 1, to a maximum of 30.",
+      "When you or another creature within 60 feet of you succeeds on or fails a D20 Test, you can roll 2d4 and apply the total rolled as a bonus or penalty to the d20 roll. Once you use this benefit, you can't use it again until you roll Initiative or finish a Short or Long Rest."
+    ],
+    "description": "You gain the following benefits.",
+    "data": {}
+  },
+  {
+    "key": "boon-of-irresistible-offense-srd-2-0",
+    "name": "Boon of Irresistible Offense",
+    "type": "feat",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "epic-boon",
+    "prerequisites": "Level 19+",
+    "benefits": [
+      "Increase one ability score of your choice by 1, to a maximum of 30.",
+      "The Bludgeoning, Piercing, and Slashing damage you deal always ignores Resistance.",
+      "When you roll a 20 on the d20 for an attack roll, you can deal extra damage to the target equal to the ability score increased by this feat. The extra damage's type is the same as the attack's type."
+    ],
+    "description": "You gain the following benefits.",
+    "data": {}
+  },
+  {
+    "key": "boon-of-spell-recall-srd-2-0",
+    "name": "Boon of Spell Recall",
+    "type": "feat",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "epic-boon",
+    "prerequisites": "Level 19+, Spellcasting Feature",
+    "benefits": [
+      "Increase one ability score of your choice by 1, to a maximum of 30.",
+      "Whenever you cast a spell with a level 1–4 spell slot, roll 1d4. If the number you roll is the same as the slot's level, the slot isn't expended."
+    ],
+    "description": "You gain the following benefits.",
+    "data": {}
+  },
+  {
+    "key": "boon-of-the-night-spirit-srd-2-0",
+    "name": "Boon of the Night Spirit",
+    "type": "feat",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "epic-boon",
+    "prerequisites": "Level 19+",
+    "benefits": [
+      "Increase one ability score of your choice by 1, to a maximum of 30.",
+      "While within Dim Light or Darkness, you can give yourself the Invisible condition as a Bonus Action. The condition ends on you immediately after you take an action, a Bonus Action, or a Reaction.",
+      "While within Dim Light or Darkness, you have Resistance to all damage except Psychic and Radiant."
+    ],
+    "description": "You gain the following benefits.",
+    "data": {}
+  },
+  {
+    "key": "boon-of-the-truesight-srd-2-0",
+    "name": "Boon of the Truesight",
+    "type": "feat",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "epic-boon",
+    "prerequisites": "Level 19+",
+    "benefits": [
+      "Increase one ability score of your choice by 1, to a maximum of 30.",
+      "You have Truesight with a range of 60 feet."
+    ],
+    "description": "You gain the following benefits.",
     "data": {}
   }
 ]

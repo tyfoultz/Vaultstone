@@ -32,7 +32,8 @@ const DOCUMENTS = ['srd-2014', 'srd-2024'];
 const ENDPOINTS = [
   { slug: 'spells',     filterByDocument: true },
   { slug: 'conditions', filterByDocument: false },
-  // Future: monsters, items, weapons, armor, feats, backgrounds, races,
+  { slug: 'feats',      filterByDocument: true },
+  // Future: monsters, items, weapons, armor, backgrounds, races,
   // classes — add as transforms come online.
 ];
 
