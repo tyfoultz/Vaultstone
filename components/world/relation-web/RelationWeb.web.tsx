@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d';
-import { Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { StyleSheet, View } from 'react-native';
+import ForceGraph2D from 'react-force-graph-2d';
+import { Icon, Text, colors, spacing } from '@vaultstone/ui';
 
 import {
   BASE_NODE_RADIUS,
   EDGE_STYLE,
-  KIND_COLOR,
-  KIND_ICON,
   type EdgeSource,
   type GraphNode,
   type RelationEdge,
@@ -29,24 +27,103 @@ type Props = {
 type FGNode = GraphNode & { x?: number; y?: number; fx?: number; fy?: number; [key: string]: unknown };
 type FGLink = RelationEdge & { source: string | FGNode; target: string | FGNode; [key: string]: unknown };
 
-const ICON_GLYPHS: Record<string, string> = {
-  person: '',
-  place: '',
-  shield: '',
-  'auto-stories': '',
-  timeline: '',
-  diamond: '',
-  article: '',
-};
+function drawNodeIcon(ctx: CanvasRenderingContext2D, iconName: string, cx: number, cy: number, s: number, clr: string) {
+  ctx.strokeStyle = clr;
+  ctx.fillStyle = clr;
+  ctx.lineWidth = 1.8;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
 
-function getIconGlyph(iconName: string): string {
-  return ICON_GLYPHS[iconName] ?? '';
+  switch (iconName) {
+    case 'person': {
+      ctx.beginPath();
+      ctx.arc(cx, cy - s * 0.22, s * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy + s * 0.6, s * 0.38, Math.PI * 1.15, Math.PI * 1.85);
+      ctx.stroke();
+      break;
+    }
+    case 'place': {
+      ctx.beginPath();
+      ctx.arc(cx, cy - s * 0.08, s * 0.22, Math.PI, 0);
+      ctx.lineTo(cx, cy + s * 0.4);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'shield': {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.38);
+      ctx.lineTo(cx + s * 0.32, cy - s * 0.18);
+      ctx.lineTo(cx + s * 0.32, cy + s * 0.05);
+      ctx.quadraticCurveTo(cx + s * 0.28, cy + s * 0.35, cx, cy + s * 0.42);
+      ctx.quadraticCurveTo(cx - s * 0.28, cy + s * 0.35, cx - s * 0.32, cy + s * 0.05);
+      ctx.lineTo(cx - s * 0.32, cy - s * 0.18);
+      ctx.closePath();
+      ctx.stroke();
+      break;
+    }
+    case 'auto-stories': {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.08);
+      ctx.lineTo(cx - s * 0.32, cy - s * 0.28);
+      ctx.lineTo(cx - s * 0.32, cy + s * 0.22);
+      ctx.lineTo(cx, cy + s * 0.12);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.08);
+      ctx.lineTo(cx + s * 0.32, cy - s * 0.28);
+      ctx.lineTo(cx + s * 0.32, cy + s * 0.22);
+      ctx.lineTo(cx, cy + s * 0.12);
+      ctx.stroke();
+      break;
+    }
+    case 'timeline': {
+      const dots = [
+        { x: cx - s * 0.28, y: cy - s * 0.2 },
+        { x: cx - s * 0.05, y: cy + s * 0.05 },
+        { x: cx + s * 0.12, y: cy - s * 0.12 },
+        { x: cx + s * 0.28, y: cy + s * 0.2 },
+      ];
+      ctx.beginPath();
+      ctx.moveTo(dots[0].x, dots[0].y);
+      for (let i = 1; i < dots.length; i++) ctx.lineTo(dots[i].x, dots[i].y);
+      ctx.stroke();
+      for (const d of dots) {
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'diamond': {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.32);
+      ctx.lineTo(cx + s * 0.28, cy);
+      ctx.lineTo(cx, cy + s * 0.32);
+      ctx.lineTo(cx - s * 0.28, cy);
+      ctx.closePath();
+      ctx.stroke();
+      break;
+    }
+    default: {
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.2, cy - s * 0.12);
+      ctx.lineTo(cx + s * 0.2, cy - s * 0.12);
+      ctx.moveTo(cx - s * 0.2, cy + s * 0.02);
+      ctx.lineTo(cx + s * 0.2, cy + s * 0.02);
+      ctx.moveTo(cx - s * 0.2, cy + s * 0.16);
+      ctx.lineTo(cx + s * 0.1, cy + s * 0.16);
+      ctx.stroke();
+      break;
+    }
+  }
 }
 
 export function RelationWeb({
   nodes,
   edges,
-  nodeById,
   visibleKinds,
   visibleEdgeSources,
   selectedNodeId,
@@ -134,7 +211,6 @@ export function RelationWeb({
       ctx.save();
       ctx.globalAlpha = alpha;
 
-      // Glow for active node
       if (isActive) {
         ctx.beginPath();
         ctx.arc(x, y, r + 6, 0, 2 * Math.PI);
@@ -142,7 +218,6 @@ export function RelationWeb({
         ctx.fill();
       }
 
-      // Node circle
       ctx.beginPath();
       ctx.arc(x, y, r, 0, 2 * Math.PI);
       ctx.fillStyle = node.color + '33';
@@ -151,14 +226,8 @@ export function RelationWeb({
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Icon
-      ctx.font = `${r * 0.8}px Material Icons`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = node.color;
-      ctx.fillText(getIconGlyph(node.iconName), x, y);
+      drawNodeIcon(ctx, node.iconName, x, y, r * 0.7, node.color);
 
-      // Label
       if (globalScale > 0.4 || isActive) {
         const fontSize = Math.max(11, 12 / globalScale);
         ctx.font = `500 ${fontSize}px Manrope, sans-serif`;
@@ -194,7 +263,6 @@ export function RelationWeb({
         ctx.setLineDash(style.dash);
       }
 
-      // Calculate angle and shorten line to node borders
       const dx = target.x - source.x;
       const dy = target.y - source.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -217,7 +285,6 @@ export function RelationWeb({
       ctx.lineTo(tx, ty);
       ctx.stroke();
 
-      // Arrowhead for directed edges
       if (link.directed) {
         const arrowLen = 8;
         const arrowAngle = Math.PI / 7;
@@ -237,7 +304,6 @@ export function RelationWeb({
         ctx.stroke();
       }
 
-      // Edge label on hover
       const isHighlighted =
         !isDimmed &&
         (hoveredNodeId === source.id || hoveredNodeId === target.id);
@@ -274,18 +340,10 @@ export function RelationWeb({
     [onSelectNode, selectedNodeId],
   );
 
-  const handleNodeDblClick = useCallback(
-    (node: FGNode) => {
-      onDoubleClickNode(node.id);
-    },
-    [onDoubleClickNode],
-  );
-
   const handleBackgroundClick = useCallback(() => {
     onSelectNode(null);
   }, [onSelectNode]);
 
-  // Empty state
   if (filteredNodes.length === 0) {
     return (
       <View style={styles.emptyState}>
@@ -308,8 +366,8 @@ export function RelationWeb({
       height={containerHeight}
       backgroundColor={colors.surfaceCanvas}
       nodeId="id"
-      nodeCanvasObject={drawNode}
-      nodePointerAreaPaint={(node: FGNode, color: string, ctx: CanvasRenderingContext2D) => {
+      nodeCanvasObject={drawNode as any}
+      nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
         const count = connectionCount.get(node.id) ?? 0;
         const r = BASE_NODE_RADIUS + Math.min(count * 1.5, 8);
         ctx.beginPath();
@@ -317,12 +375,16 @@ export function RelationWeb({
         ctx.fillStyle = color;
         ctx.fill();
       }}
-      linkCanvasObject={drawLink}
+      linkCanvasObject={drawLink as any}
       linkSource="sourceId"
       linkTarget="targetId"
-      onNodeClick={handleNodeClick}
-      onNodeHover={(node: FGNode | null) => setHoveredNodeId(node?.id ?? null)}
+      onNodeClick={handleNodeClick as any}
+      onNodeHover={(node: any) => setHoveredNodeId(node?.id ?? null)}
       onBackgroundClick={handleBackgroundClick}
+      onNodeDragEnd={(node: any) => {
+        node.fx = node.x;
+        node.fy = node.y;
+      }}
       cooldownTicks={80}
       enableNodeDrag
       minZoom={0.3}
