@@ -7,7 +7,7 @@ import {
   colors, spacing, radius,
   Card, Chip, MetaLabel, Text, ScreenHeader, Icon,
 } from '@vaultstone/ui';
-import { dnd5eSystem, customSystem } from '@vaultstone/systems';
+import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
 import { getSrdContent } from '@vaultstone/content';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
@@ -15,7 +15,11 @@ import type {
 } from '@vaultstone/types';
 
 const BUNDLED: Record<string, GameSystemDefinition> = {
-  dnd5e: dnd5eSystem,
+  dnd5e_2014: dnd5e2014System,
+  dnd5e_2024: dnd5e2024System,
+  // Legacy alias — pre-split characters / campaigns referencing `dnd5e`
+  // resolve to the 2024 edition until they migrate.
+  dnd5e: dnd5e2024System,
   custom: customSystem,
 };
 
@@ -34,11 +38,16 @@ export default function GameSystemDetailScreen() {
 }
 
 function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: () => void }) {
-  const isDnd = sys.id === 'dnd5e';
-  const content = useMemo(() => (isDnd ? getSrdContent() : { species: [], classes: [], backgrounds: [] }), [isDnd]);
+  // Filter bundled SRD content to records tagged with this system's edition.
+  // Systems without an SRD version (Custom, future homebrew systems) get nothing.
+  const content = useMemo(
+    () => (sys.srdVersion ? getSrdContent(sys.srdVersion) : { species: [], classes: [], backgrounds: [] }),
+    [sys.srdVersion],
+  );
 
   // Default tab: Species for systems with bundled content, Schema for others (Custom).
-  const initialTab: TabKey = isDnd ? 'species' : 'schema';
+  const hasContent = content.species.length + content.classes.length + content.backgrounds.length > 0;
+  const initialTab: TabKey = hasContent ? 'species' : 'schema';
   const [tab, setTab] = useState<TabKey>(initialTab);
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [];

@@ -6,6 +6,7 @@ export const customSystem: GameSystemDefinition = {
   version: '1.0',
   license: 'custom',
   isBundled: false,
+  srdVersion: null,
   attributes: [],
   resourcePools: [],
   creationSteps: [],

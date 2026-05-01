@@ -29,12 +29,25 @@ export interface SheetSection {
   order: number;
 }
 
+/**
+ * Which bundled SRD revision this system pulls its baseline content from.
+ * `null` means the system has no SRD-tagged content (Custom, future homebrew systems).
+ */
+export type SrdVersion = 'SRD_5.1' | 'SRD_2.0';
+
 export interface GameSystemDefinition {
   id: string;
   displayName: string;
   version: string;
   license: string;
   isBundled: boolean;
+  /**
+   * Filters which bundled SRD records this system surfaces. SRD items carry
+   * `srdVersions: SrdVersion[]`; a system with `srdVersion: 'SRD_5.1'` only
+   * shows items whose `srdVersions` array includes 'SRD_5.1'. `null` skips
+   * SRD filtering entirely (e.g. Custom).
+   */
+  srdVersion: SrdVersion | null;
   attributes: AttributeDefinition[];
   resourcePools: ResourcePool[];
   creationSteps: CreationStep[];

@@ -4,6 +4,7 @@ import type {
   SpeciesResult,
   ClassResult,
   BackgroundResult,
+  SrdVersion,
 } from '@vaultstone/types';
 
 import speciesData from './data/species.json';
@@ -70,11 +71,38 @@ export interface SrdContent {
   backgrounds: BackgroundResult[];
 }
 
-/** Synchronous accessor for the bundled SRD records grouped by type. */
-export function getSrdContent(): SrdContent {
+/**
+ * Synchronous accessor for the bundled SRD records grouped by type.
+ * Pass a `version` to filter to records whose `srdVersions` array includes
+ * that version. Omit `version` to get the unfiltered union.
+ */
+export function getSrdContent(version?: SrdVersion): SrdContent {
+  const species = speciesData as unknown as SpeciesResult[];
+  const classes = classesData as unknown as ClassResult[];
+  const backgrounds = backgroundsData as unknown as BackgroundResult[];
+
+  if (!version) return { species, classes, backgrounds };
+
+  const matches = (r: ContentResult & { srdVersions?: string[] }) =>
+    r.srdVersions?.includes(version) ?? false;
+
   return {
-    species: speciesData as unknown as SpeciesResult[],
-    classes: classesData as unknown as ClassResult[],
-    backgrounds: backgroundsData as unknown as BackgroundResult[],
+    species: species.filter(matches),
+    classes: classes.filter(matches),
+    backgrounds: backgrounds.filter(matches),
+  };
+}
+
+/**
+ * Synchronous count of bundled SRD records by type, optionally filtered to
+ * a specific SRD version.
+ */
+export function getSrdCountsByVersion(version?: SrdVersion): SrdCounts {
+  const c = getSrdContent(version);
+  return {
+    species: c.species.length,
+    classes: c.classes.length,
+    backgrounds: c.backgrounds.length,
+    total: c.species.length + c.classes.length + c.backgrounds.length,
   };
 }

@@ -4,18 +4,17 @@ import {
   colors, spacing, radius,
   Card, Chip, MetaLabel, Text, ScreenHeader, Icon, GhostButton,
 } from '@vaultstone/ui';
-import { dnd5eSystem, customSystem } from '@vaultstone/systems';
-import { getSrdCounts } from '@vaultstone/content';
+import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
+import { getSrdCountsByVersion } from '@vaultstone/content';
 
 // Stays in lockstep with the bundled `GameSystemDefinition` exports — when a
 // new system is added there, surface it here too.
-const BUNDLED_SYSTEMS = [dnd5eSystem, customSystem];
+const BUNDLED_SYSTEMS = [dnd5e2024System, dnd5e2014System, customSystem];
 
 export default function GameSystemsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const numColumns = width > 1100 ? 2 : 1;
-  const srd = getSrdCounts();
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}>
@@ -35,7 +34,8 @@ export default function GameSystemsScreen() {
 
         <View style={[styles.grid, { gap: spacing.md }]}>
           {BUNDLED_SYSTEMS.map((sys) => {
-            const isDnd = sys.id === 'dnd5e';
+            const counts = sys.srdVersion ? getSrdCountsByVersion(sys.srdVersion) : null;
+            const iconName = sys.id.startsWith('dnd5e') ? 'casino' : 'extension';
             return (
               <Pressable
                 key={sys.id}
@@ -51,11 +51,7 @@ export default function GameSystemsScreen() {
                 <Card tier="container" padding="md">
                   <View style={styles.cardHead}>
                     <View style={styles.cardHeadIcon}>
-                      <Icon
-                        name={isDnd ? 'casino' : 'extension'}
-                        size={22}
-                        color={colors.primary}
-                      />
+                      <Icon name={iconName} size={22} color={colors.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
@@ -67,11 +63,11 @@ export default function GameSystemsScreen() {
                     <Icon name="chevron-right" size={20} color={colors.outline} />
                   </View>
 
-                  {isDnd ? (
+                  {counts ? (
                     <View style={styles.metaList}>
-                      <Stat label="Species" value={srd.species} />
-                      <Stat label="Classes" value={srd.classes} />
-                      <Stat label="Backgrounds" value={srd.backgrounds} />
+                      <Stat label="Species"        value={counts.species} />
+                      <Stat label="Classes"        value={counts.classes} />
+                      <Stat label="Backgrounds"    value={counts.backgrounds} />
                       <Stat label="Sheet sections" value={sys.sheetSections.length} />
                     </View>
                   ) : (
