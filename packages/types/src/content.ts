@@ -279,6 +279,20 @@ export interface ClassResult extends ContentResult {
    */
   features?: Array<{ level: number; name: string; description?: string }>;
   /**
+   * Class progression-table column definitions, paired with `progressionTable`
+   * rows. Columns are class-specific (Rages / Rage Damage for Barbarian,
+   * Sneak Attack dice for Rogue, Spell Slots per level for casters, etc.).
+   * Order in the array drives the column order in the UI.
+   */
+  progressionColumns?: Array<{ key: string; label: string }>;
+  /**
+   * Per-level rows of the class progression table. Each row's `values`
+   * record maps `progressionColumns[].key` to the value for that level.
+   * String values let us encode bonuses with a sign ('+2') or non-numeric
+   * cells ('—', 'Unlimited'). Numeric values are also accepted.
+   */
+  progressionTable?: Array<{ level: number; values: Record<string, string | number> }>;
+  /**
    * Starting equipment options at character creation. Each option lists
    * concrete items; some options offer a flat gold alternative instead.
    */

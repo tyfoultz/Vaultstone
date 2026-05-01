@@ -675,7 +675,7 @@ function ClassDetailModal({
           {/* Class table — Level → feature names per level */}
           <View style={styles.subSection}>
             <MetaLabel size="sm">Class table</MetaLabel>
-            <ClassFeatureTable groups={featureGroups} />
+            <ClassFeatureTable klass={c} groups={featureGroups} />
           </View>
 
           {/* Detailed list — full descriptions grouped by level */}
@@ -741,38 +741,89 @@ function ClassDetailModal({
 }
 
 /**
- * Compact class progression table — Level | Feature names. Mirrors the
- * "class table" header section on D&D Beyond's class pages without the
- * per-class custom columns (proficiency bonus, rage damage, etc.) which
- * we'd need additional schema to express.
+ * Class progression table — mirrors the per-class table on D&D Beyond.
+ * Always shows Level + Features columns; additional columns are read
+ * from `klass.progressionColumns` (e.g. Prof Bonus, Rages, Spell Slots
+ * per level for casters). Supports horizontal scrolling so wide tables
+ * like Wizard or Warlock don't blow out the modal width.
  */
 function ClassFeatureTable({
+  klass: c,
   groups,
-}: { groups: Array<[number, Array<{ name: string }>]> }) {
+}: {
+  klass: ClassResult;
+  groups: Array<[number, Array<{ name: string }>]>;
+}) {
+  const cols = c.progressionColumns ?? [];
+  const rowsByLevel = new Map<number, Record<string, string | number>>();
+  (c.progressionTable ?? []).forEach((row) => rowsByLevel.set(row.level, row.values));
+
+  // Derive the level set as the union of progressionTable levels and feature
+  // groups, ascending. Lets the table show a row for any level that has data,
+  // even if one source omits it.
+  const levels = new Set<number>();
+  groups.forEach(([lvl]) => levels.add(lvl));
+  (c.progressionTable ?? []).forEach((r) => levels.add(r.level));
+  const orderedLevels = [...levels].sort((a, b) => a - b);
+  const featuresByLevel = new Map<number, string>();
+  groups.forEach(([lvl, feats]) => {
+    featuresByLevel.set(lvl, feats.map((f) => f.name).join(', '));
+  });
+
   return (
-    <View style={styles.classTable}>
-      <View style={[styles.classTableRow, styles.classTableHeadRow]}>
-        <Text variant="label-sm" weight="bold" uppercase style={[styles.classTableCell, styles.classTableLevelCell]}>
-          Level
-        </Text>
-        <Text variant="label-sm" weight="bold" uppercase style={[styles.classTableCell, styles.classTableFeaturesCell]}>
-          Features
-        </Text>
-      </View>
-      {groups.map(([lvl, feats], i) => (
-        <View
-          key={lvl}
-          style={[styles.classTableRow, i === groups.length - 1 && styles.classTableRowLast]}
-        >
-          <Text variant="body-sm" family="body" weight="bold" style={[styles.classTableCell, styles.classTableLevelCell, { color: colors.primary }]}>
-            {lvl}
+    <ScrollView horizontal showsHorizontalScrollIndicator style={{ flexGrow: 0 }}>
+      <View style={styles.classTable}>
+        <View style={[styles.classTableRow, styles.classTableHeadRow]}>
+          <Text variant="label-sm" weight="bold" uppercase style={[styles.classTableCell, styles.classTableLevelCell]}>
+            Level
           </Text>
-          <Text variant="body-sm" family="body" style={[styles.classTableCell, styles.classTableFeaturesCell, { color: colors.onSurface }]}>
-            {feats.map((f) => f.name).join(', ')}
+          {cols.map((col) => (
+            <Text
+              key={col.key}
+              variant="label-sm"
+              weight="bold"
+              uppercase
+              style={[styles.classTableCell, styles.classTableMetaCell]}
+            >
+              {col.label}
+            </Text>
+          ))}
+          <Text variant="label-sm" weight="bold" uppercase style={[styles.classTableCell, styles.classTableFeaturesCell]}>
+            Features
           </Text>
         </View>
-      ))}
-    </View>
+        {orderedLevels.map((lvl, i) => {
+          const values = rowsByLevel.get(lvl) ?? {};
+          const featuresText = featuresByLevel.get(lvl) ?? '—';
+          return (
+            <View
+              key={lvl}
+              style={[styles.classTableRow, i === orderedLevels.length - 1 && styles.classTableRowLast]}
+            >
+              <Text variant="body-sm" family="body" weight="bold" style={[styles.classTableCell, styles.classTableLevelCell, { color: colors.primary }]}>
+                {lvl}
+              </Text>
+              {cols.map((col) => {
+                const v = values[col.key];
+                return (
+                  <Text
+                    key={col.key}
+                    variant="body-sm"
+                    family="body"
+                    style={[styles.classTableCell, styles.classTableMetaCell, { color: colors.onSurface }]}
+                  >
+                    {v == null ? '—' : String(v)}
+                  </Text>
+                );
+              })}
+              <Text variant="body-sm" family="body" style={[styles.classTableCell, styles.classTableFeaturesCell, { color: colors.onSurface }]}>
+                {featuresText}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -1657,8 +1708,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: spacing.xs + 2,
   },
-  classTableLevelCell: { width: 56, color: colors.outline, letterSpacing: 1 },
-  classTableFeaturesCell: { flex: 1, color: colors.outline, letterSpacing: 1 },
+  classTableLevelCell:    { width: 56,  color: colors.outline, letterSpacing: 1 },
+  classTableMetaCell:     { width: 100, color: colors.outline, letterSpacing: 1 },
+  classTableFeaturesCell: { width: 280, color: colors.outline, letterSpacing: 1 },
 
   // Class features grouped by level
   featureLevelGroup: {
