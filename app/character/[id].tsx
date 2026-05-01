@@ -12,6 +12,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, supabase } from '@vaultstone/api';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius } from '@vaultstone/ui';
+import { getSrdContent } from '@vaultstone/content';
 import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature } from '@vaultstone/types';
 import { HpModal } from '../../components/character-sheet/HpModal';
 import { ConditionsPanel } from '../../components/character-sheet/ConditionsPanel';
@@ -1197,6 +1198,7 @@ export default function CharacterSheetScreen() {
                   canEditAny={canEditAny}
                   onToggle={handleToggleCondition}
                   onSetExhaustion={handleSetExhaustion}
+                  bundledConditions={getSrdContent(stats.srdVersion ?? 'SRD_2.0').conditions}
                 />
               </View>
 

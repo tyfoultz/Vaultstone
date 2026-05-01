@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
-import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eFeature } from '@vaultstone/types';
+import { getSrdContent } from '@vaultstone/content';
+import type {
+  Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eFeature,
+  ConditionResult, SrdVersion,
+} from '@vaultstone/types';
 import type { RollResult } from './RollToast';
 
 const ABILITY_KEYS: (keyof Dnd5eAbilityScores)[] = [
@@ -14,12 +18,16 @@ const ABILITY_SHORT: Record<keyof Dnd5eAbilityScores, string> = {
 };
 const SLOT_ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 
-const ALL_CONDITIONS = [
-  'Blinded', 'Charmed', 'Deafened', 'Frightened', 'Grappled',
-  'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned',
-  'Prone', 'Restrained', 'Stunned', 'Unconscious',
-];
 const EXHAUSTION_MAX = 6;
+
+/**
+ * Resolve the bundled condition list for a given SRD edition. Defaults to
+ * SRD 2.0 for legacy characters created before `srdVersion` became a required
+ * field.
+ */
+function bundledConditionsFor(srdVersion: SrdVersion | null | undefined): ConditionResult[] {
+  return getSrdContent(srdVersion ?? 'SRD_2.0').conditions;
+}
 
 // SRD full-caster level-1 default (fallback for pre-slot-init characters)
 const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
@@ -353,6 +361,7 @@ export function CombatTab({
         canEditAny={canEditAny}
         onToggle={onToggleCondition}
         onSetExhaustion={onSetExhaustion}
+        bundledConditions={bundledConditionsFor(stats.srdVersion)}
       />
 
       {/* Passives */}
@@ -372,20 +381,43 @@ export function CombatTab({
 
 export function ConditionsSection({
   activeConditions, exhaustionLevel, canEditAny, onToggle, onSetExhaustion,
+  bundledConditions,
 }: {
   activeConditions: string[];
   exhaustionLevel: number;
   canEditAny: boolean;
   onToggle: (c: string) => void;
   onSetExhaustion: (level: number) => void;
+  /** Bundled SRD condition catalog filtered to the character's edition. */
+  bundledConditions: ConditionResult[];
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const normalizedActive = activeConditions.map((x) => x.toLowerCase());
-  const pickable = exhaustionLevel === 0 ? ['Exhaustion', ...ALL_CONDITIONS] : ALL_CONDITIONS;
-  const available = pickable.filter((c) => !normalizedActive.includes(c.toLowerCase()));
+
+  // Pickable list: bundled SRD conditions, plus a synthetic "Exhaustion" entry
+  // (handled separately because it's a level track, not a binary condition).
+  type Pickable = { name: string; description?: string };
+  const pickable: Pickable[] = useMemo(() => {
+    const conds: Pickable[] = bundledConditions
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => ({ name: c.name, description: c.description }));
+    if (exhaustionLevel === 0) {
+      conds.unshift({
+        name: 'Exhaustion',
+        description: 'Track exhaustion as a 1–6 level. Higher levels stack penalties; level 6 is death.',
+      });
+    }
+    return conds;
+  }, [bundledConditions, exhaustionLevel]);
+
+  const available = pickable.filter((c) => !normalizedActive.includes(c.name.toLowerCase()));
   const filtered = search.trim()
-    ? available.filter((c) => c.toLowerCase().includes(search.toLowerCase()))
+    ? available.filter((c) =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        (c.description ?? '').toLowerCase().includes(search.toLowerCase())
+      )
     : available;
 
   const hasActive = activeConditions.length > 0 || exhaustionLevel > 0;
@@ -492,12 +524,17 @@ export function ConditionsSection({
             <ScrollView style={s.modalList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {filtered.length > 0 ? filtered.map((c, i) => (
                 <TouchableOpacity
-                  key={c}
+                  key={c.name}
                   style={[s.condRow, i < filtered.length - 1 && s.condRowBorder]}
-                  onPress={() => handlePick(c)}
+                  onPress={() => handlePick(c.name)}
                   activeOpacity={0.7}
                 >
-                  <Text style={s.condRowText}>{c}</Text>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={s.condRowText}>{c.name}</Text>
+                    {c.description ? (
+                      <Text style={s.condRowDesc} numberOfLines={2}>{c.description}</Text>
+                    ) : null}
+                  </View>
                   <MaterialCommunityIcons name="plus-circle-outline" size={16} color={colors.outline} />
                 </TouchableOpacity>
               )) : (
@@ -721,6 +758,7 @@ const s = StyleSheet.create({
   },
   condRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
   condRowText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '500', color: colors.onSurface },
+  condRowDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 15 },
 
   // Abilities (desktop right-column horizontal strip)
   hexRow: { flexDirection: 'row', gap: 6 },
