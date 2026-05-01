@@ -1,5 +1,5 @@
 export { ContentResolver } from './resolver';
-export { getSrdCounts, getSrdCountsByVersion, getSrdContent } from './srd';
+export { getSrdCounts, getSrdCountsByVersion, getSrdContent, SEED_ONLY_TYPES } from './srd';
 export type { SrdCounts, SrdContent } from './srd';
 export {
   getSourcesByCampaign,

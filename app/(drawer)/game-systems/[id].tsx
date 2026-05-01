@@ -8,11 +8,18 @@ import {
   Card, Chip, MetaLabel, Text, ScreenHeader, Icon,
 } from '@vaultstone/ui';
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
-import { getSrdContent } from '@vaultstone/content';
+import { getSrdContent, SEED_ONLY_TYPES, type SrdContent } from '@vaultstone/content';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
+  SubclassResult, ConditionResult, SpellResult,
+  ItemResult, FeatResult, CreatureResult,
 } from '@vaultstone/types';
+
+const EMPTY_CONTENT: SrdContent = {
+  species: [], classes: [], subclasses: [], backgrounds: [],
+  conditions: [], spells: [], items: [], feats: [], creatures: [],
+};
 
 const BUNDLED: Record<string, GameSystemDefinition> = {
   dnd5e_2014: dnd5e2014System,
@@ -23,7 +30,24 @@ const BUNDLED: Record<string, GameSystemDefinition> = {
   custom: customSystem,
 };
 
-type TabKey = 'species' | 'classes' | 'backgrounds' | 'schema';
+type TabKey =
+  | 'species' | 'classes' | 'subclasses' | 'backgrounds'
+  | 'spells' | 'feats' | 'items' | 'creatures' | 'conditions'
+  | 'schema';
+
+// Keys in the order they appear in the tab strip.
+const TAB_DEFS: { key: TabKey; label: string; contentKey: keyof SrdContent | null }[] = [
+  { key: 'species',     label: 'Species',     contentKey: 'species' },
+  { key: 'classes',     label: 'Classes',     contentKey: 'classes' },
+  { key: 'subclasses',  label: 'Subclasses',  contentKey: 'subclasses' },
+  { key: 'backgrounds', label: 'Backgrounds', contentKey: 'backgrounds' },
+  { key: 'spells',      label: 'Spells',      contentKey: 'spells' },
+  { key: 'feats',       label: 'Feats',       contentKey: 'feats' },
+  { key: 'items',       label: 'Items',       contentKey: 'items' },
+  { key: 'creatures',   label: 'Monsters',    contentKey: 'creatures' },
+  { key: 'conditions',  label: 'Conditions',  contentKey: 'conditions' },
+  { key: 'schema',      label: 'Schema',      contentKey: null },
+];
 
 export default function GameSystemDetailScreen() {
   const router = useRouter();
@@ -41,20 +65,25 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
   // Filter bundled SRD content to records tagged with this system's edition.
   // Systems without an SRD version (Custom, future homebrew systems) get nothing.
   const content = useMemo(
-    () => (sys.srdVersion ? getSrdContent(sys.srdVersion) : { species: [], classes: [], backgrounds: [] }),
+    () => (sys.srdVersion ? getSrdContent(sys.srdVersion) : EMPTY_CONTENT),
     [sys.srdVersion],
   );
 
-  // Default tab: Species for systems with bundled content, Schema for others (Custom).
-  const hasContent = content.species.length + content.classes.length + content.backgrounds.length > 0;
-  const initialTab: TabKey = hasContent ? 'species' : 'schema';
-  const [tab, setTab] = useState<TabKey>(initialTab);
+  // Build tab list by walking TAB_DEFS in order; only include content tabs
+  // that have at least one item, then always end with Schema.
+  const tabs = useMemo(() => {
+    return TAB_DEFS
+      .filter((t) => t.contentKey === null || content[t.contentKey].length > 0)
+      .map((t) => ({
+        key: t.key,
+        label: t.label,
+        count: t.contentKey ? content[t.contentKey].length : undefined,
+      }));
+  }, [content]);
 
-  const tabs: { key: TabKey; label: string; count?: number }[] = [];
-  if (content.species.length > 0)     tabs.push({ key: 'species',     label: 'Species',     count: content.species.length });
-  if (content.classes.length > 0)     tabs.push({ key: 'classes',     label: 'Classes',     count: content.classes.length });
-  if (content.backgrounds.length > 0) tabs.push({ key: 'backgrounds', label: 'Backgrounds', count: content.backgrounds.length });
-  tabs.push({ key: 'schema', label: 'Schema' });
+  // Default tab: first content tab if any, else Schema.
+  const initialTab: TabKey = tabs[0]?.key ?? 'schema';
+  const [tab, setTab] = useState<TabKey>(initialTab);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}>
@@ -77,8 +106,13 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
         actions={<Chip label={sys.isBundled ? 'Bundled' : 'Custom'} variant="accent" />}
       />
 
-      {/* Tabs */}
-      <View style={styles.tabsBar}>
+      {/* Tabs — horizontally scrollable so 10 tabs fit on narrow screens. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabsBar}
+        style={styles.tabsScroll}
+      >
         {tabs.map((t) => {
           const active = tab === t.key;
           return (
@@ -105,13 +139,19 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       <View style={styles.body}>
         {tab === 'species'     ? <SpeciesList     items={content.species} /> : null}
         {tab === 'classes'     ? <ClassesList     items={content.classes} /> : null}
+        {tab === 'subclasses'  ? <SubclassesList  items={content.subclasses} /> : null}
         {tab === 'backgrounds' ? <BackgroundsList items={content.backgrounds} /> : null}
-        {tab === 'schema'      ? <SchemaPanel    sys={sys} /> : null}
+        {tab === 'spells'      ? <SpellsList      items={content.spells} /> : null}
+        {tab === 'feats'       ? <FeatsList       items={content.feats} /> : null}
+        {tab === 'items'       ? <ItemsList       items={content.items} /> : null}
+        {tab === 'creatures'   ? <CreaturesList   items={content.creatures} /> : null}
+        {tab === 'conditions'  ? <ConditionsList  items={content.conditions} /> : null}
+        {tab === 'schema'      ? <SchemaPanel     sys={sys} /> : null}
       </View>
 
       <View style={{ height: spacing.xl }} />
@@ -343,6 +383,287 @@ function BackgroundsList({ items }: { items: BackgroundResult[] }) {
   );
 }
 
+function SubclassesList({ items }: { items: SubclassResult[] }) {
+  const [q, setQ] = useState('');
+  const exp = useExpanded();
+  const filtered = useMemo(
+    () => filterByName(items, q).slice().sort((a, b) =>
+      (a.parentClassKey ?? '').localeCompare(b.parentClassKey ?? '') ||
+      a.name.localeCompare(b.name)
+    ),
+    [items, q],
+  );
+
+  return (
+    <View style={styles.list}>
+      <SearchBar value={q} onChange={setQ} placeholder="Search subclasses…" />
+      {filtered.map((s) => (
+        <ExpandRow
+          key={s.key}
+          title={s.name}
+          summary={[
+            s.parentClassKey ? capitalize(s.parentClassKey) : null,
+            typeof s.unlockLevel === 'number' ? `unlocks at L${s.unlockLevel}` : null,
+          ].filter(Boolean).join(' · ')}
+          expanded={exp.isOpen(s.key)}
+          onToggle={() => exp.toggle(s.key)}
+        >
+          {s.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{s.description}</Text> : null}
+          {Array.isArray(s.features) && s.features.length > 0 ? (
+            <View style={styles.subBlock}>
+              <MetaLabel size="sm">Features</MetaLabel>
+              {s.features.map((f, i) => (
+                <View key={i} style={styles.bullet}>
+                  <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+                    L{f.level} · {f.name}
+                  </Text>
+                  <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {Array.isArray(s.srdVersions) && s.srdVersions.length > 0 ? <SrdVersionsRow versions={s.srdVersions} /> : null}
+        </ExpandRow>
+      ))}
+      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
+    </View>
+  );
+}
+
+function SpellsList({ items }: { items: SpellResult[] }) {
+  const [q, setQ] = useState('');
+  const exp = useExpanded();
+  const filtered = useMemo(
+    () => filterByName(items, q).slice().sort((a, b) => (a.level - b.level) || a.name.localeCompare(b.name)),
+    [items, q],
+  );
+
+  return (
+    <View style={styles.list}>
+      <SeedBanner type="spells" />
+      <SearchBar value={q} onChange={setQ} placeholder="Search spells…" />
+      {filtered.map((s) => {
+        const lvl = s.level === 0 ? 'Cantrip' : `Level ${s.level}`;
+        return (
+          <ExpandRow
+            key={s.key}
+            title={s.name}
+            summary={[lvl, s.school, s.castingTime].filter(Boolean).join(' · ')}
+            expanded={exp.isOpen(s.key)}
+            onToggle={() => exp.toggle(s.key)}
+          >
+            {s.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{s.description}</Text> : null}
+            <View style={styles.subBlock}>
+              <View style={styles.chipRow}>
+                {s.range ? <Chip label={`Range: ${s.range}`} variant="meta" /> : null}
+                {s.duration ? <Chip label={`Duration: ${s.duration}`} variant="meta" /> : null}
+                {s.concentration ? <Chip label="Concentration" variant="accent" /> : null}
+              </View>
+            </View>
+            {Array.isArray(s.components) && s.components.length > 0 ? <ProfBlock label="Components" items={s.components} /> : null}
+            {Array.isArray(s.classes) && s.classes.length > 0 ? <ProfBlock label="Classes" items={s.classes} /> : null}
+            {Array.isArray(s.srdVersions) && s.srdVersions.length > 0 ? <SrdVersionsRow versions={s.srdVersions} /> : null}
+          </ExpandRow>
+        );
+      })}
+      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
+    </View>
+  );
+}
+
+function FeatsList({ items }: { items: FeatResult[] }) {
+  const [q, setQ] = useState('');
+  const exp = useExpanded();
+  const filtered = useMemo(
+    () => filterByName(items, q).slice().sort((a, b) =>
+      (a.category ?? '').localeCompare(b.category ?? '') || a.name.localeCompare(b.name)
+    ),
+    [items, q],
+  );
+
+  return (
+    <View style={styles.list}>
+      <SearchBar value={q} onChange={setQ} placeholder="Search feats…" />
+      {filtered.map((f) => (
+        <ExpandRow
+          key={f.key}
+          title={f.name}
+          summary={[
+            f.category ? capitalize(f.category.replace('-', ' ')) : null,
+            f.prerequisites ? `req: ${f.prerequisites}` : null,
+          ].filter(Boolean).join(' · ')}
+          expanded={exp.isOpen(f.key)}
+          onToggle={() => exp.toggle(f.key)}
+        >
+          {f.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text> : null}
+          {Array.isArray(f.benefits) && f.benefits.length > 0 ? (
+            <View style={styles.subBlock}>
+              <MetaLabel size="sm">Benefits</MetaLabel>
+              {f.benefits.map((b, i) => (
+                <View key={i} style={styles.bullet}>
+                  <Text variant="body-sm" family="body" style={styles.bodyText}>• {b}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {Array.isArray(f.srdVersions) && f.srdVersions.length > 0 ? <SrdVersionsRow versions={f.srdVersions} /> : null}
+        </ExpandRow>
+      ))}
+      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
+    </View>
+  );
+}
+
+function ItemsList({ items }: { items: ItemResult[] }) {
+  const [q, setQ] = useState('');
+  const exp = useExpanded();
+  const filtered = useMemo(
+    () => filterByName(items, q).slice().sort((a, b) =>
+      (a.category ?? '').localeCompare(b.category ?? '') || a.name.localeCompare(b.name)
+    ),
+    [items, q],
+  );
+
+  return (
+    <View style={styles.list}>
+      <SeedBanner type="items" />
+      <SearchBar value={q} onChange={setQ} placeholder="Search items…" />
+      {filtered.map((it) => {
+        const cost = it.cost ? `${it.cost.amount} ${it.cost.currency}` : null;
+        return (
+          <ExpandRow
+            key={it.key}
+            title={it.name}
+            summary={[
+              capitalize((it.category ?? '').replace('-', ' ')),
+              cost,
+              typeof it.weight === 'number' ? `${it.weight} lb` : null,
+              it.rarity ? capitalize(it.rarity.replace('-', ' ')) : null,
+            ].filter(Boolean).join(' · ')}
+            expanded={exp.isOpen(it.key)}
+            onToggle={() => exp.toggle(it.key)}
+          >
+            {it.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{it.description}</Text> : null}
+            {Array.isArray(it.properties) && it.properties.length > 0 ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Properties</MetaLabel>
+                {it.properties.map((p, i) => (
+                  <View key={i} style={styles.bullet}>
+                    <Text variant="body-sm" family="body" style={styles.bodyText}>• {p}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {it.requiresAttunement ? (
+              <View style={styles.subBlock}>
+                <Chip label="Requires attunement" variant="accent" />
+              </View>
+            ) : null}
+            {Array.isArray(it.srdVersions) && it.srdVersions.length > 0 ? <SrdVersionsRow versions={it.srdVersions} /> : null}
+          </ExpandRow>
+        );
+      })}
+      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
+    </View>
+  );
+}
+
+function CreaturesList({ items }: { items: CreatureResult[] }) {
+  const [q, setQ] = useState('');
+  const exp = useExpanded();
+  const filtered = useMemo(
+    () => filterByName(items, q).slice().sort((a, b) => {
+      const acr = typeof a.challengeRating === 'number' ? a.challengeRating : parseFloat(String(a.challengeRating)) || 0;
+      const bcr = typeof b.challengeRating === 'number' ? b.challengeRating : parseFloat(String(b.challengeRating)) || 0;
+      return acr - bcr || a.name.localeCompare(b.name);
+    }),
+    [items, q],
+  );
+
+  return (
+    <View style={styles.list}>
+      <SeedBanner type="creatures" />
+      <SearchBar value={q} onChange={setQ} placeholder="Search monsters…" />
+      {filtered.map((c) => (
+        <ExpandRow
+          key={c.key}
+          title={c.name}
+          summary={[
+            `CR ${c.challengeRating}`,
+            c.size,
+            c.creatureType,
+            `AC ${c.ac}`,
+            `${c.hp} HP`,
+          ].filter(Boolean).join(' · ')}
+          expanded={exp.isOpen(c.key)}
+          onToggle={() => exp.toggle(c.key)}
+        >
+          {c.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{c.description}</Text> : null}
+          <View style={styles.subBlock}>
+            <View style={styles.chipRow}>
+              {c.alignment ? <Chip label={c.alignment} variant="meta" /> : null}
+              {c.speed ? <Chip label={`Speed ${c.speed}`} variant="meta" /> : null}
+            </View>
+          </View>
+          {Array.isArray(c.srdVersions) && c.srdVersions.length > 0 ? <SrdVersionsRow versions={c.srdVersions} /> : null}
+        </ExpandRow>
+      ))}
+      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
+    </View>
+  );
+}
+
+function ConditionsList({ items }: { items: ConditionResult[] }) {
+  const [q, setQ] = useState('');
+  const exp = useExpanded();
+  const filtered = useMemo(() => filterByName(items, q).slice().sort((a, b) => a.name.localeCompare(b.name)), [items, q]);
+
+  return (
+    <View style={styles.list}>
+      <SearchBar value={q} onChange={setQ} placeholder="Search conditions…" />
+      {filtered.map((c) => (
+        <ExpandRow
+          key={c.key}
+          title={c.name}
+          summary={c.description ?? ''}
+          expanded={exp.isOpen(c.key)}
+          onToggle={() => exp.toggle(c.key)}
+        >
+          {Array.isArray(c.effects) && c.effects.length > 0 ? (
+            <View style={styles.subBlock}>
+              <MetaLabel size="sm">Effects</MetaLabel>
+              {c.effects.map((e, i) => (
+                <View key={i} style={styles.bullet}>
+                  <Text variant="body-sm" family="body" style={styles.bodyText}>• {e}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {Array.isArray(c.srdVersions) && c.srdVersions.length > 0 ? <SrdVersionsRow versions={c.srdVersions} /> : null}
+        </ExpandRow>
+      ))}
+      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
+    </View>
+  );
+}
+
+function SeedBanner({ type }: { type: keyof SrdContent }) {
+  if (!SEED_ONLY_TYPES.has(type)) return null;
+  return (
+    <View style={styles.seedBanner}>
+      <Icon name="info-outline" size={14} color={colors.primary} />
+      <Text variant="body-sm" family="body" style={styles.seedBannerText}>
+        Seed only — a small representative sample. The full SRD bundle for this
+        category lands in a follow-up data import.
+      </Text>
+    </View>
+  );
+}
+
+function capitalize(s: string) {
+  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
+}
+
 function ProfBlock({ label, items }: { label: string; items?: string[] | null }) {
   if (!Array.isArray(items) || items.length === 0) return null;
   return (
@@ -499,13 +820,16 @@ const styles = StyleSheet.create({
   },
 
   // Tabs
+  tabsScroll: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant + '88',
+    marginBottom: spacing.md,
+    flexGrow: 0,
+  },
   tabsBar: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
     gap: spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.outlineVariant + '88',
-    marginBottom: spacing.md,
   },
   tabBtn: {
     flexDirection: 'row',
@@ -565,6 +889,25 @@ const styles = StyleSheet.create({
   emptyHit: {
     paddingVertical: spacing.xl,
     alignItems: 'center',
+  },
+
+  // Seed banner
+  seedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.primaryContainer + '22',
+    borderWidth: 1,
+    borderColor: colors.primary + '55',
+    borderRadius: radius.lg,
+    marginBottom: spacing.sm + 4,
+  },
+  seedBannerText: {
+    flex: 1,
+    color: colors.onSurfaceVariant,
+    lineHeight: 18,
   },
 
   // Schema

@@ -1,0 +1,205 @@
+[
+  {
+    "key": "blinded",
+    "name": "Blinded",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A blinded creature can't see and automatically fails any ability check that requires sight.",
+    "effects": [
+      "You can't see, automatically failing any ability check that requires sight.",
+      "Attack rolls against you have advantage, and your attack rolls have disadvantage."
+    ],
+    "data": {}
+  },
+  {
+    "key": "charmed",
+    "name": "Charmed",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A charmed creature can't attack the charmer or target the charmer with harmful abilities or magical effects.",
+    "effects": [
+      "You can't attack the charmer or target them with harmful abilities or magical effects.",
+      "The charmer has advantage on social ability checks made against you."
+    ],
+    "data": {}
+  },
+  {
+    "key": "deafened",
+    "name": "Deafened",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A deafened creature can't hear and automatically fails any ability check that requires hearing.",
+    "effects": [
+      "You can't hear, automatically failing any ability check that requires hearing."
+    ],
+    "data": {}
+  },
+  {
+    "key": "frightened",
+    "name": "Frightened",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A frightened creature has disadvantage on ability checks and attack rolls while the source of its fear is within line of sight, and it can't willingly move closer to the source of its fear.",
+    "effects": [
+      "While the source of fear is within line of sight, you have disadvantage on ability checks and attack rolls.",
+      "You can't willingly move closer to the source of your fear."
+    ],
+    "data": {}
+  },
+  {
+    "key": "grappled",
+    "name": "Grappled",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A grappled creature's speed becomes 0 and it can't benefit from any bonus to its speed.",
+    "effects": [
+      "Your speed becomes 0, and you can't benefit from any bonus to your speed.",
+      "The condition ends if the grappler is incapacitated, or if you're moved out of the grappler's reach by an effect.",
+      "You can spend an action to make a Strength (Athletics) or Dexterity (Acrobatics) check (DC = grappler's escape DC) to escape."
+    ],
+    "data": {}
+  },
+  {
+    "key": "incapacitated",
+    "name": "Incapacitated",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "An incapacitated creature can't take actions or reactions.",
+    "effects": [
+      "You can't take actions, bonus actions, or reactions.",
+      "Your concentration is broken."
+    ],
+    "data": {}
+  },
+  {
+    "key": "invisible",
+    "name": "Invisible",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "An invisible creature is impossible to see without the aid of magic or a special sense and is heavily obscured for the purpose of hiding.",
+    "effects": [
+      "You're heavily obscured for the purpose of hiding; your location can be detected by noise or tracks.",
+      "Attack rolls against you have disadvantage, and your attack rolls have advantage."
+    ],
+    "data": {}
+  },
+  {
+    "key": "paralyzed",
+    "name": "Paralyzed",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A paralyzed creature is incapacitated and can't move or speak.",
+    "effects": [
+      "You're Incapacitated and can't move or speak.",
+      "You auto-fail Strength and Dexterity saving throws.",
+      "Attack rolls against you have advantage; any attack that hits is a critical hit if the attacker is within 5 feet of you."
+    ],
+    "data": {}
+  },
+  {
+    "key": "petrified",
+    "name": "Petrified",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A petrified creature is transformed, along with any nonmagical object it is wearing or carrying, into a solid inanimate substance (usually stone).",
+    "effects": [
+      "You're transformed (along with mundane gear) into a solid inanimate substance, and your weight increases by a factor of ten.",
+      "You're Incapacitated, can't move or speak, and are unaware of your surroundings.",
+      "Attack rolls against you have advantage; you auto-fail Strength and Dexterity saves.",
+      "You have resistance to all damage and immunity to poison and disease (an active poison/disease pauses)."
+    ],
+    "data": {}
+  },
+  {
+    "key": "poisoned",
+    "name": "Poisoned",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A poisoned creature has disadvantage on attack rolls and ability checks.",
+    "effects": [
+      "You have disadvantage on attack rolls and ability checks."
+    ],
+    "data": {}
+  },
+  {
+    "key": "prone",
+    "name": "Prone",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A prone creature's only movement option is to crawl, unless it stands up and thereby ends the condition.",
+    "effects": [
+      "Your only movement option is to crawl unless you stand up (costs half your speed).",
+      "You have disadvantage on attack rolls.",
+      "Attack rolls against you have advantage if the attacker is within 5 feet, and disadvantage if farther away."
+    ],
+    "data": {}
+  },
+  {
+    "key": "restrained",
+    "name": "Restrained",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A restrained creature's speed becomes 0, and it can't benefit from any bonus to its speed.",
+    "effects": [
+      "Your speed becomes 0, and you can't benefit from any bonus to your speed.",
+      "Attack rolls against you have advantage, and your attack rolls have disadvantage.",
+      "You have disadvantage on Dexterity saving throws."
+    ],
+    "data": {}
+  },
+  {
+    "key": "stunned",
+    "name": "Stunned",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "A stunned creature is incapacitated, can't move, and can speak only falteringly.",
+    "effects": [
+      "You're Incapacitated, can't move, and can speak only falteringly.",
+      "You auto-fail Strength and Dexterity saving throws.",
+      "Attack rolls against you have advantage."
+    ],
+    "data": {}
+  },
+  {
+    "key": "unconscious",
+    "name": "Unconscious",
+    "type": "condition",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "An unconscious creature is incapacitated, can't move or speak, and is unaware of its surroundings.",
+    "effects": [
+      "You're Incapacitated, can't move or speak, and are unaware of your surroundings.",
+      "You drop whatever you're holding and fall Prone.",
+      "You auto-fail Strength and Dexterity saving throws.",
+      "Attack rolls against you have advantage; any attack that hits is a critical hit if the attacker is within 5 feet of you."
+    ],
+    "data": {}
+  }
+]

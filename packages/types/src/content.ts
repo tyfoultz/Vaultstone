@@ -5,10 +5,12 @@ export type ContentType =
   | 'monster'
   | 'item'
   | 'class'
+  | 'subclass'
   | 'species'
   | 'feature'
   | 'background'
-  | 'feat';
+  | 'feat'
+  | 'condition';
 
 export interface ContentResult {
   key: string;
@@ -32,6 +34,7 @@ export interface SpellResult extends ContentResult {
   duration: string;
   concentration: boolean;
   classes: string[];
+  srdVersions: string[];
 }
 
 export interface CreatureResult extends ContentResult {
@@ -43,6 +46,53 @@ export interface CreatureResult extends ContentResult {
   ac: number;
   hp: number;
   speed: string;
+  srdVersions: string[];
+}
+
+export interface ItemResult extends ContentResult {
+  type: 'item';
+  /** Coarse category — drives icon + grouping in lists. */
+  category: 'weapon' | 'armor' | 'shield' | 'gear' | 'magic-item' | 'tool';
+  /** Canonical SRD cost. `null` for items without listed price. */
+  cost?: { amount: number; currency: 'cp' | 'sp' | 'ep' | 'gp' | 'pp' } | null;
+  /** Weight in pounds. */
+  weight?: number;
+  /** Loose properties list — weapon properties, armor donning notes, etc. */
+  properties?: string[];
+  /** Whether the item requires attunement before its magical effects apply. */
+  requiresAttunement?: boolean;
+  /** Standard 5e magic-item rarity. */
+  rarity?: 'common' | 'uncommon' | 'rare' | 'very-rare' | 'legendary' | 'artifact';
+  srdVersions: string[];
+}
+
+export interface FeatResult extends ContentResult {
+  type: 'feat';
+  /** Origin (taken via background), General (taken via ASI), Fighting Style, Epic Boon. */
+  category: 'origin' | 'general' | 'fighting-style' | 'epic-boon';
+  /** Free-form prerequisite text (e.g. "Strength 13+", "level 4+"). Empty string if none. */
+  prerequisites?: string;
+  /** Bullet-form benefits. */
+  benefits: string[];
+  srdVersions: string[];
+}
+
+export interface ConditionResult extends ContentResult {
+  type: 'condition';
+  /** Mechanical effects — one bullet per rule. */
+  effects: string[];
+  srdVersions: string[];
+}
+
+export interface SubclassResult extends ContentResult {
+  type: 'subclass';
+  /** Key of the parent class (e.g. 'wizard', 'barbarian'). */
+  parentClassKey: string;
+  /** Level at which a character chooses this subclass branch. */
+  unlockLevel: number;
+  /** Featured class abilities granted by this subclass at specific levels. */
+  features?: Array<{ level: number; name: string; description: string }>;
+  srdVersions: string[];
 }
 
 export interface ContentQuery {

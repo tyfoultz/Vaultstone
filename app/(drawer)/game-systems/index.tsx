@@ -65,10 +65,15 @@ export default function GameSystemsScreen() {
 
                   {counts ? (
                     <View style={styles.metaList}>
-                      <Stat label="Species"        value={counts.species} />
-                      <Stat label="Classes"        value={counts.classes} />
-                      <Stat label="Backgrounds"    value={counts.backgrounds} />
-                      <Stat label="Sheet sections" value={sys.sheetSections.length} />
+                      <Stat label="Species"     value={counts.species} />
+                      <Stat label="Classes"     value={counts.classes} />
+                      <Stat label="Subclasses"  value={counts.subclasses} />
+                      <Stat label="Backgrounds" value={counts.backgrounds} />
+                      <Stat label="Spells"      value={counts.spells} />
+                      <Stat label="Feats"       value={counts.feats} />
+                      <Stat label="Conditions"  value={counts.conditions} />
+                      <Stat label="Items"       value={counts.items} />
+                      <Stat label="Monsters"    value={counts.creatures} />
                     </View>
                   ) : (
                     <Text variant="body-sm" family="body" style={styles.bodyMuted}>
