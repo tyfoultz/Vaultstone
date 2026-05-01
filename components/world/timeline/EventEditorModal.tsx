@@ -16,6 +16,7 @@ type Props = {
   event: TimelineEvent | null;
   defaultEra?: string;
   mentionablePages?: WorldPage[];
+  onMentionClick?: (pageId: string) => void;
   onClose: () => void;
 };
 
@@ -26,6 +27,7 @@ export function EventEditorModal({
   event,
   defaultEra,
   mentionablePages,
+  onMentionClick,
   onClose,
 }: Props) {
   const isEdit = event !== null;
@@ -287,6 +289,7 @@ export function EventEditorModal({
                 <RichDescriptionEditor
                   initialBody={initialBody}
                   mentionablePages={mentionablePages}
+                  onMentionClick={onMentionClick}
                   onChange={handleBodyChange}
                 />
               ) : (
@@ -355,9 +358,10 @@ export function EventEditorModal({
   );
 }
 
-function RichDescriptionEditor({ initialBody, mentionablePages, onChange }: {
+function RichDescriptionEditor({ initialBody, mentionablePages, onMentionClick, onChange }: {
   initialBody: object | null;
   mentionablePages?: WorldPage[];
+  onMentionClick?: (pageId: string) => void;
   onChange: (body: object, bodyText: string, bodyRefs: string[]) => void;
 }) {
   const { BodyEditor } = require('../BodyEditor.web') as typeof import('../BodyEditor.web');
@@ -368,6 +372,7 @@ function RichDescriptionEditor({ initialBody, mentionablePages, onChange }: {
         onChange={onChange}
         hideChrome
         mentionablePages={mentionablePages}
+        onMentionClick={onMentionClick}
         placeholder="Describe this event… (type @ to mention pages)"
       />
     </View>

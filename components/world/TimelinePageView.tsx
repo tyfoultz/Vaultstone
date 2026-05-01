@@ -35,7 +35,7 @@ import { ShareModal } from './ShareModal';
 import { WorldTopBar } from './WorldTopBar';
 import { PAGE_KIND_LABEL } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
-import { worldSectionHref } from './worldHref';
+import { worldPageHref, worldSectionHref } from './worldHref';
 import { CalendarSchemaEditor } from './timeline/CalendarSchemaEditor';
 import { EraRibbon } from './timeline/EraRibbon';
 import { TimelineSpine } from './timeline/TimelineSpine.web';
@@ -345,6 +345,11 @@ export function TimelinePageView({ page, worldId }: Props) {
           event={editingEvent}
           defaultEra={defaultEra}
           mentionablePages={mentionablePages}
+          onMentionClick={(targetId) => {
+            setEventEditorOpen(false);
+            setEditingEvent(null);
+            router.push(worldPageHref(worldId, targetId));
+          }}
           onClose={() => {
             setEventEditorOpen(false);
             setEditingEvent(null);
