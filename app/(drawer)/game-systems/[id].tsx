@@ -537,18 +537,22 @@ function ClassDetailModal({
     return stats;
   }, [c]);
 
+  const level1Features = (c.features ?? []).filter((f) => f.level === 1);
+  const hasBecoming =
+    (c.startingEquipment ?? []).length > 0 ||
+    level1Features.length > 0 ||
+    !!c.multiclassPrerequisite ||
+    !!c.multiclassProficiencies;
+
   const anchors = useMemo(() => {
     const list: { id: string; label: string }[] = [
-      { id: 'proficiencies', label: 'Proficiencies' },
+      { id: 'core', label: 'Core Traits' },
     ];
-    if ((c.startingEquipment ?? []).length > 0) list.push({ id: 'equipment',  label: 'Equipment' });
-    if (featureGroups.length > 0)                list.push({ id: 'features',   label: 'Features' });
-    if (subclasses.length > 0)                   list.push({ id: 'subclasses', label: 'Subclasses' });
-    if (c.multiclassPrerequisite || c.multiclassProficiencies) {
-      list.push({ id: 'multiclass', label: 'Multiclass' });
-    }
+    if (hasBecoming)              list.push({ id: 'becoming',   label: 'Becoming' });
+    if (featureGroups.length > 0) list.push({ id: 'features',   label: 'Features' });
+    if (subclasses.length > 0)    list.push({ id: 'subclasses', label: 'Subclasses' });
     return list;
-  }, [c, featureGroups.length, subclasses.length]);
+  }, [hasBecoming, featureGroups.length, subclasses.length]);
 
   return (
     <DetailModal
@@ -559,9 +563,9 @@ function ClassDetailModal({
       heroStats={heroStats}
       anchors={anchors}
     >
-      {/* ── Proficiencies ────────────────────────────────────────────── */}
-      <DetailSection id="proficiencies" style={styles.modalSection}>
-        <DetailSectionHeading>Proficiencies</DetailSectionHeading>
+      {/* ── Core Traits ──────────────────────────────────────────────── */}
+      <DetailSection id="core" style={styles.modalSection}>
+        <DetailSectionHeading>{`Core ${c.name} Traits`}</DetailSectionHeading>
         <ProfBlock
           label="Spellcasting"
           items={[c.spellcasting ? (c.spellcastingAbility ?? 'Yes') : 'Martial (none)']}
@@ -581,49 +585,118 @@ function ClassDetailModal({
         ) : null}
       </DetailSection>
 
-      {/* ── Starting Equipment ──────────────────────────────────────── */}
-      {Array.isArray(c.startingEquipment) && c.startingEquipment.length > 0 ? (
-        <DetailSection id="equipment" style={styles.modalSection}>
-          <DetailSectionHeading>Starting Equipment</DetailSectionHeading>
-          {c.startingEquipment.map((opt, i) => (
-            <View key={i} style={styles.bullet}>
-              <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
-                Option {opt.label ?? String.fromCharCode(65 + i)}
+      {/* ── Becoming a [Class] ──────────────────────────────────────── */}
+      {hasBecoming ? (
+        <DetailSection id="becoming" style={styles.modalSection}>
+          <DetailSectionHeading>{`Becoming a ${c.name}`}</DetailSectionHeading>
+
+          {/* Level 1 — starting equipment + level 1 features */}
+          {((c.startingEquipment ?? []).length > 0 || level1Features.length > 0) ? (
+            <View style={styles.subSection}>
+              <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
+                Level 1
               </Text>
-              {opt.items && opt.items.length > 0 ? (
-                <Text variant="body-sm" family="body" style={styles.bodyText}>
-                  {opt.items.join(', ')}
-                </Text>
+              {Array.isArray(c.startingEquipment) && c.startingEquipment.length > 0 ? (
+                <View style={styles.subBlock}>
+                  <MetaLabel size="sm">Starting equipment</MetaLabel>
+                  {c.startingEquipment.map((opt, i) => (
+                    <View key={i} style={styles.bullet}>
+                      <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+                        Option {opt.label ?? String.fromCharCode(65 + i)}
+                      </Text>
+                      {opt.items && opt.items.length > 0 ? (
+                        <Text variant="body-sm" family="body" style={styles.bodyText}>
+                          {opt.items.join(', ')}
+                        </Text>
+                      ) : null}
+                      {opt.gold ? (
+                        <Text variant="body-sm" family="body" style={styles.bodyText}>
+                          {opt.gold.amount} {opt.gold.currency}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
               ) : null}
-              {opt.gold ? (
-                <Text variant="body-sm" family="body" style={styles.bodyText}>
-                  {opt.gold.amount} {opt.gold.currency}
-                </Text>
+              {level1Features.length > 0 ? (
+                <View style={styles.subBlock}>
+                  <MetaLabel size="sm">Level 1 features</MetaLabel>
+                  {level1Features.map((f, i) => (
+                    <View key={i} style={styles.bullet}>
+                      <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
+                      {f.description ? (
+                        <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
               ) : null}
             </View>
-          ))}
+          ) : null}
+
+          {/* Multiclass */}
+          {(c.multiclassPrerequisite || c.multiclassProficiencies) ? (
+            <View style={styles.subSection}>
+              <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
+                Multiclass
+              </Text>
+              {c.multiclassPrerequisite ? (
+                <Text variant="body-sm" family="body" style={styles.bodyText}>
+                  Prerequisite: <Text weight="bold" style={{ color: colors.onSurface }}>{c.multiclassPrerequisite}</Text>
+                </Text>
+              ) : null}
+              {c.multiclassProficiencies?.armor && c.multiclassProficiencies.armor.length > 0 ? (
+                <ProfBlock label="Gain armor" items={c.multiclassProficiencies.armor} />
+              ) : null}
+              {c.multiclassProficiencies?.weapons && c.multiclassProficiencies.weapons.length > 0 ? (
+                <ProfBlock label="Gain weapons" items={c.multiclassProficiencies.weapons} />
+              ) : null}
+              {c.multiclassProficiencies?.tools && c.multiclassProficiencies.tools.length > 0 ? (
+                <ProfBlock label="Gain tools" items={c.multiclassProficiencies.tools} />
+              ) : null}
+              {c.multiclassProficiencies?.skills?.from ? (
+                <View style={styles.subBlock}>
+                  <MetaLabel size="sm">{`Gain skills (choose ${c.multiclassProficiencies.skills.count ?? 1})`}</MetaLabel>
+                  <View style={styles.chipRow}>
+                    {c.multiclassProficiencies.skills.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
         </DetailSection>
       ) : null}
 
-      {/* ── Class Features ──────────────────────────────────────────── */}
+      {/* ── Class Features (table + detailed list) ──────────────────── */}
       {featureGroups.length > 0 ? (
         <DetailSection id="features" style={styles.modalSection}>
-          <DetailSectionHeading>Class Features</DetailSectionHeading>
-          {featureGroups.map(([level, feats]) => (
-            <View key={level} style={styles.featureLevelGroup}>
-              <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
-                Level {level}
-              </Text>
-              {feats.map((f, i) => (
-                <View key={i} style={styles.bullet}>
-                  <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
-                  {f.description ? (
-                    <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          ))}
+          <DetailSectionHeading>{`${c.name} Class Features`}</DetailSectionHeading>
+
+          {/* Class table — Level → feature names per level */}
+          <View style={styles.subSection}>
+            <MetaLabel size="sm">Class table</MetaLabel>
+            <ClassFeatureTable groups={featureGroups} />
+          </View>
+
+          {/* Detailed list — full descriptions grouped by level */}
+          <View style={styles.subSection}>
+            <MetaLabel size="sm">Detailed list</MetaLabel>
+            {featureGroups.map(([level, feats]) => (
+              <View key={level} style={styles.featureLevelGroup}>
+                <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
+                  Level {level}
+                </Text>
+                {feats.map((f, i) => (
+                  <View key={i} style={styles.bullet}>
+                    <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
+                    {f.description ? (
+                      <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
         </DetailSection>
       ) : null}
 
@@ -658,41 +731,48 @@ function ClassDetailModal({
         </DetailSection>
       ) : null}
 
-      {/* ── Multiclassing ───────────────────────────────────────────── */}
-      {(c.multiclassPrerequisite || c.multiclassProficiencies) ? (
-        <DetailSection id="multiclass" style={styles.modalSection}>
-          <DetailSectionHeading>Multiclassing</DetailSectionHeading>
-          {c.multiclassPrerequisite ? (
-            <Text variant="body-sm" family="body" style={styles.bodyText}>
-              Prerequisite: <Text weight="bold" style={{ color: colors.onSurface }}>{c.multiclassPrerequisite}</Text>
-            </Text>
-          ) : null}
-          {c.multiclassProficiencies?.armor && c.multiclassProficiencies.armor.length > 0 ? (
-            <ProfBlock label="Gain armor" items={c.multiclassProficiencies.armor} />
-          ) : null}
-          {c.multiclassProficiencies?.weapons && c.multiclassProficiencies.weapons.length > 0 ? (
-            <ProfBlock label="Gain weapons" items={c.multiclassProficiencies.weapons} />
-          ) : null}
-          {c.multiclassProficiencies?.tools && c.multiclassProficiencies.tools.length > 0 ? (
-            <ProfBlock label="Gain tools" items={c.multiclassProficiencies.tools} />
-          ) : null}
-          {c.multiclassProficiencies?.skills?.from ? (
-            <View style={styles.subBlock}>
-              <MetaLabel size="sm">{`Gain skills (choose ${c.multiclassProficiencies.skills.count ?? 1})`}</MetaLabel>
-              <View style={styles.chipRow}>
-                {c.multiclassProficiencies.skills.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
-              </View>
-            </View>
-          ) : null}
-        </DetailSection>
-      ) : null}
-
       {Array.isArray(c.srdVersions) && c.srdVersions.length > 0 ? (
         <View style={styles.modalSection}>
           <SrdVersionsRow versions={c.srdVersions} />
         </View>
       ) : null}
     </DetailModal>
+  );
+}
+
+/**
+ * Compact class progression table — Level | Feature names. Mirrors the
+ * "class table" header section on D&D Beyond's class pages without the
+ * per-class custom columns (proficiency bonus, rage damage, etc.) which
+ * we'd need additional schema to express.
+ */
+function ClassFeatureTable({
+  groups,
+}: { groups: Array<[number, Array<{ name: string }>]> }) {
+  return (
+    <View style={styles.classTable}>
+      <View style={[styles.classTableRow, styles.classTableHeadRow]}>
+        <Text variant="label-sm" weight="bold" uppercase style={[styles.classTableCell, styles.classTableLevelCell]}>
+          Level
+        </Text>
+        <Text variant="label-sm" weight="bold" uppercase style={[styles.classTableCell, styles.classTableFeaturesCell]}>
+          Features
+        </Text>
+      </View>
+      {groups.map(([lvl, feats], i) => (
+        <View
+          key={lvl}
+          style={[styles.classTableRow, i === groups.length - 1 && styles.classTableRowLast]}
+        >
+          <Text variant="body-sm" family="body" weight="bold" style={[styles.classTableCell, styles.classTableLevelCell, { color: colors.primary }]}>
+            {lvl}
+          </Text>
+          <Text variant="body-sm" family="body" style={[styles.classTableCell, styles.classTableFeaturesCell, { color: colors.onSurface }]}>
+            {feats.map((f) => f.name).join(', ')}
+          </Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -1544,6 +1624,11 @@ const styles = StyleSheet.create({
     borderTopColor: colors.outlineVariant + '55',
     gap: spacing.xs + 2,
   },
+  /** Sub-section inside a modal section (e.g. Becoming → Level 1 / Multiclass). */
+  subSection: {
+    marginTop: spacing.sm + 2,
+    gap: spacing.xs + 2,
+  },
   subclassCard: {
     backgroundColor: colors.surfaceContainerHigh,
     borderRadius: radius.lg,
@@ -1552,6 +1637,28 @@ const styles = StyleSheet.create({
     padding: spacing.sm + 4,
     marginTop: spacing.sm,
   },
+
+  // Class progression table
+  classTable: {
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceContainer,
+  },
+  classTableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant + '55',
+  },
+  classTableRowLast: { borderBottomWidth: 0 },
+  classTableHeadRow: { backgroundColor: colors.surfaceContainerHigh },
+  classTableCell: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+  },
+  classTableLevelCell: { width: 56, color: colors.outline, letterSpacing: 1 },
+  classTableFeaturesCell: { flex: 1, color: colors.outline, letterSpacing: 1 },
 
   // Class features grouped by level
   featureLevelGroup: {
