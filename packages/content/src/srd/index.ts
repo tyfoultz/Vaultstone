@@ -296,9 +296,11 @@ function countsFromContent(c: SrdContent): SrdCounts {
  * this set so users know more entries are coming.
  */
 export const SEED_ONLY_TYPES = new Set<keyof SrdContent>([
-  // Spells now ship the full SRD 5.1 bundle (319 entries, imported from
-  // Open5e). Items + creatures still seed-only until their own import passes.
-  'items',
+  // Items now ship the full SRD bundle (308 entries across both
+  // editions — weapons, armor, adventuring gear, crafting equipment,
+  // and the magic items embedded in /items/). Open5e's larger
+  // /magicitems/ catalog (~2300 variants) is a future follow-up.
+  // Creatures (monsters) still seed-only until that import lands.
   'creatures',
 ]);
 

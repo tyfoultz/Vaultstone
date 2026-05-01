@@ -35,8 +35,10 @@ const ENDPOINTS = [
   { slug: 'feats',       filterByDocument: true },
   { slug: 'backgrounds', filterByDocument: true },
   { slug: 'species',     filterByDocument: true },
-  // Future: creatures (monsters), items, weapons, armor, magicitems,
-  // classes — add as transforms come online.
+  { slug: 'items',       filterByDocument: true },
+  // Future: creatures (monsters), magicitems, classes. /weapons and
+  // /armor are sub-views of /items — the weapon{} and armor{} sub-objects
+  // on each item carry the mechanical detail, so we pull only /items/.
 ];
 
 async function fetchAll(slug, queryString) {

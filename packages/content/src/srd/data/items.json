@@ -1,187 +1,6056 @@
 [
   {
-    "key": "longsword",
+    "key": "acid-srd-2-0",
+    "name": "Acid",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "When you take the Attack action, you can replace one of your attacks with throwing a vial of Acid. Target one creature or object you can see within 20 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or take 2d6 Acid damage.",
+    "data": {}
+  },
+  {
+    "key": "alchemist-s-fire-srd-2-0",
+    "name": "Alchemist's Fire",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "When you take the Attack action, you can replace one of your attacks with throwing a flask of Alchemist's Fire. Target one creature or object you can see within 20 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or take 1d4 Fire damage and start burning (see \"Rules Glossary\").",
+    "data": {}
+  },
+  {
+    "key": "battleaxe-srd-2-0",
+    "name": "Battleaxe",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "properties": [
+      "Damage: 1d8 slashing",
+      "Martial Melee",
+      "Versatile (1d10)",
+      "Mastery: Topple"
+    ],
+    "description": "A battleaxe.",
+    "data": {}
+  },
+  {
+    "key": "blowgun-srd-2-0",
+    "name": "Blowgun",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "properties": [
+      "Damage: 1 piercing",
+      "Martial Ranged",
+      "Ammunition (Range 25/100; Needle)",
+      "Loading",
+      "Mastery: Vex"
+    ],
+    "description": "A blowgun.",
+    "data": {}
+  },
+  {
+    "key": "club-srd-2-0",
+    "name": "Club",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d4 bludgeoning",
+      "Simple Melee",
+      "Light",
+      "Mastery: Slow"
+    ],
+    "description": "A club.",
+    "data": {}
+  },
+  {
+    "key": "dagger-srd-2-0",
+    "name": "Dagger",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "properties": [
+      "Damage: 1d4 piercing",
+      "Simple Ranged",
+      "Finesse",
+      "Light",
+      "Thrown (Range 20/60)",
+      "Mastery: Nick"
+    ],
+    "description": "A dagger.",
+    "data": {}
+  },
+  {
+    "key": "dart-srd-2-0",
+    "name": "Dart",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "weight": 1,
+    "properties": [
+      "Damage: 1d4 piercing",
+      "Simple Ranged",
+      "Finesse",
+      "Thrown (Range 20/60)",
+      "Mastery: Vex"
+    ],
+    "description": "A dart.",
+    "data": {}
+  },
+  {
+    "key": "flail-srd-2-0",
+    "name": "Flail",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d8 bludgeoning",
+      "Martial Melee",
+      "Mastery: Sap"
+    ],
+    "description": "A flail.",
+    "data": {}
+  },
+  {
+    "key": "glaive-srd-2-0",
+    "name": "Glaive",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 20,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "properties": [
+      "Damage: 1d10 slashing",
+      "Martial Melee",
+      "Heavy",
+      "Reach",
+      "Two-Handed",
+      "Mastery: Graze"
+    ],
+    "description": "A glaive.",
+    "data": {}
+  },
+  {
+    "key": "greataxe-srd-2-0",
+    "name": "Greataxe",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 7,
+    "properties": [
+      "Damage: 1d12 slashing",
+      "Martial Melee",
+      "Heavy",
+      "Two-Handed",
+      "Mastery: Cleave"
+    ],
+    "description": "A greataxe.",
+    "data": {}
+  },
+  {
+    "key": "greatclub-srd-2-0",
+    "name": "Greatclub",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 2,
+      "currency": "sp"
+    },
+    "weight": 10,
+    "properties": [
+      "Damage: 1d8 bludgeoning",
+      "Simple Melee",
+      "Two-Handed",
+      "Mastery: Push"
+    ],
+    "description": "A greatclub.",
+    "data": {}
+  },
+  {
+    "key": "greatsword-srd-2-0",
+    "name": "Greatsword",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "properties": [
+      "Damage: 2d6 slashing",
+      "Martial Melee",
+      "Heavy",
+      "Two-Handed",
+      "Mastery: Graze"
+    ],
+    "description": "A greatsword.",
+    "data": {}
+  },
+  {
+    "key": "halberd-srd-2-0",
+    "name": "Halberd",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 20,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "properties": [
+      "Damage: 1d10 slashing",
+      "Martial Melee",
+      "Heavy",
+      "Reach",
+      "Two-Handed",
+      "Mastery: Cleave"
+    ],
+    "description": "A halberd.",
+    "data": {}
+  },
+  {
+    "key": "hand-crossbow-srd-2-0",
+    "name": "Hand Crossbow",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 75,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "properties": [
+      "Damage: 1d6 piercing",
+      "Martial Ranged",
+      "Ammunition (Range 30/120; Bolt)",
+      "Light",
+      "Loading",
+      "Mastery: Vex"
+    ],
+    "description": "A hand crossbow.",
+    "data": {}
+  },
+  {
+    "key": "handaxe-srd-2-0",
+    "name": "Handaxe",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d6 slashing",
+      "Simple Ranged",
+      "Light",
+      "Thrown (Range 20/60)",
+      "Mastery: Vex"
+    ],
+    "description": "A handaxe.",
+    "data": {}
+  },
+  {
+    "key": "heavy-crossbow-srd-2-0",
+    "name": "Heavy Crossbow",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 18,
+    "properties": [
+      "Damage: 1d10 piercing",
+      "Martial Ranged",
+      "Ammunition (Range 100/400; Bolt)",
+      "Heavy",
+      "Loading",
+      "Two-Handed",
+      "Mastery: Push"
+    ],
+    "description": "A heavy crossbow.",
+    "data": {}
+  },
+  {
+    "key": "holy-water-srd-2-0",
+    "name": "Holy Water",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "When you take the Attack action, you can replace one of your attacks with throwing a flask of Holy Water. Target one creature you can see within 20 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or take 2d8 Radiant damage if it is a Fiend or an Undead.",
+    "data": {}
+  },
+  {
+    "key": "javelin-srd-2-0",
+    "name": "Javelin",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d6 piercing",
+      "Simple Ranged",
+      "Thrown (Range 30/120)",
+      "Mastery: Slow"
+    ],
+    "description": "A javelin.",
+    "data": {}
+  },
+  {
+    "key": "lance-srd-2-0",
+    "name": "Lance",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "properties": [
+      "Damage: 1d10 piercing",
+      "Martial Melee",
+      "Heavy",
+      "Reach",
+      "Two-Handed (unless mounted)",
+      "Mastery: Topple"
+    ],
+    "description": "A lance.",
+    "data": {}
+  },
+  {
+    "key": "light-crossbow-srd-2-0",
+    "name": "Light Crossbow",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "properties": [
+      "Damage: 1d8 piercing",
+      "Simple Ranged",
+      "Ammunition (Range 80/320; Bolt)",
+      "Loading",
+      "Two-Handed",
+      "Mastery: Slow"
+    ],
+    "description": "A light crossbow.",
+    "data": {}
+  },
+  {
+    "key": "light-hammer-srd-2-0",
+    "name": "Light Hammer",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d4 bludgeoning",
+      "Simple Ranged",
+      "Light",
+      "Thrown (Range 20/60)",
+      "Mastery: Nick"
+    ],
+    "description": "A light hammer.",
+    "data": {}
+  },
+  {
+    "key": "longbow-srd-2-0",
+    "name": "Longbow",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d8 piercing",
+      "Martial Ranged",
+      "Ammunition (Range 150/600; Arrow)",
+      "Heavy",
+      "Two-Handed",
+      "Mastery: Slow"
+    ],
+    "description": "A longbow.",
+    "data": {}
+  },
+  {
+    "key": "longsword-srd-2-0",
     "name": "Longsword",
     "type": "item",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "category": "weapon",
-    "cost": { "amount": 15, "currency": "gp" },
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
     "weight": 3,
-    "properties": ["Versatile (1d10)", "Martial Melee", "Damage: 1d8 slashing"],
-    "description": "A classic martial sword with a long blade and grip suitable for one or two hands.",
+    "properties": [
+      "Damage: 1d8 slashing",
+      "Martial Melee",
+      "Versatile (1d10)",
+      "Mastery: Sap"
+    ],
+    "description": "A longsword.",
     "data": {}
   },
   {
-    "key": "shortbow",
+    "key": "mace-srd-2-0",
+    "name": "Mace",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "properties": [
+      "Damage: 1d6 bludgeoning",
+      "Simple Melee",
+      "Mastery: Sap"
+    ],
+    "description": "A mace.",
+    "data": {}
+  },
+  {
+    "key": "maul-srd-2-0",
+    "name": "Maul",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "properties": [
+      "Damage: 2d6 bludgeoning",
+      "Martial Melee",
+      "Heavy",
+      "Two-Handed",
+      "Mastery: Topple"
+    ],
+    "description": "A maul.",
+    "data": {}
+  },
+  {
+    "key": "morningstar-srd-2-0",
+    "name": "Morningstar",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "properties": [
+      "Damage: 1d8 piercing",
+      "Martial Melee",
+      "Mastery: Sap"
+    ],
+    "description": "A morningstar.",
+    "data": {}
+  },
+  {
+    "key": "musket-srd-2-0",
+    "name": "Musket",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 500,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "properties": [
+      "Damage: 1d12 piercing",
+      "Martial Ranged",
+      "Ammunition (Range 40/120; Bullet)",
+      "Loading",
+      "Two-Handed",
+      "Mastery: Slow"
+    ],
+    "description": "A musket.",
+    "data": {}
+  },
+  {
+    "key": "net-srd-2-0",
+    "name": "Net",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "When you take the Attack action, you can replace one of your attacks with throwing a Net. Target a creature you can see within 15 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or have the Restrained condition until it escapes. The target succeeds automatically if it is Huge or larger. To escape, the target or a creature within 5 feet of it must take an action to make a DC 10 Strength (Athletics) check, freeing the Restrained creature on a success. Destroying the Net (AC 10; 5 HP; Immunity to Bludgeoning, Poison, and Psychic damage) also frees the target, ending the effect.",
+    "data": {}
+  },
+  {
+    "key": "oil-srd-2-0",
+    "name": "Oil",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "weight": 1,
+    "description": "You can douse a creature, object, or space with Oil or use it as fuel, as detailed below. Dousing a Creature or an Object. When you take the Attack action, you can replace one of your attacks with throwing an Oil flask. Target one creature or object within 20 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or be covered in oil. If the target takes Fire damage before the oil dries (after 1 minute), the target takes an extra 5 Fire damage from burning oil. Dousing a Space. You can take the Utilize action to pour an Oil flask on level ground to cover a 5-foot-square area within 5 feet of yourself. If lit, the oil burns until the end of the turn 2 rounds from when the oil was lit (or 12 seconds) and deals 5 Fire damage to any creature that enters the area or ends its turn there. A creature can take this damage only once per turn. Fuel. Oil serves as fuel for Lamps and Lanterns. Once lit, a flask of Oil burns for 6 hours in a Lamp or Lantern. That duration doesn't need to be consecutive; you can extinguish the burning Oil (as a Utilize action) and rekindle it again until it has burned for a total of 6 hours.",
+    "data": {}
+  },
+  {
+    "key": "pike-srd-2-0",
+    "name": "Pike",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 18,
+    "properties": [
+      "Damage: 1d10 piercing",
+      "Martial Melee",
+      "Heavy",
+      "Reach",
+      "Two-Handed",
+      "Mastery: Push"
+    ],
+    "description": "A pike.",
+    "data": {}
+  },
+  {
+    "key": "pistol-srd-2-0",
+    "name": "Pistol",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 250,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "properties": [
+      "Damage: 1d10 piercing",
+      "Martial Ranged",
+      "Ammunition (Range 30/90; Bullet)",
+      "Loading",
+      "Mastery: Vex"
+    ],
+    "description": "A pistol.",
+    "data": {}
+  },
+  {
+    "key": "quarterstaff-srd-2-0",
+    "name": "Quarterstaff",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 2,
+      "currency": "sp"
+    },
+    "weight": 4,
+    "properties": [
+      "Damage: 1d6 bludgeoning",
+      "Simple Melee",
+      "Versatile (1d8)",
+      "Mastery: Topple"
+    ],
+    "description": "A quarterstaff.",
+    "data": {}
+  },
+  {
+    "key": "rapier-srd-2-0",
+    "name": "Rapier",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d8 piercing",
+      "Martial Melee",
+      "Finesse",
+      "Mastery: Vex"
+    ],
+    "description": "A rapier.",
+    "data": {}
+  },
+  {
+    "key": "scimitar-srd-2-0",
+    "name": "Scimitar",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "properties": [
+      "Damage: 1d6 slashing",
+      "Martial Melee",
+      "Finesse",
+      "Light",
+      "Mastery: Nick"
+    ],
+    "description": "A scimitar.",
+    "data": {}
+  },
+  {
+    "key": "shortbow-srd-2-0",
     "name": "Shortbow",
     "type": "item",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "category": "weapon",
-    "cost": { "amount": 25, "currency": "gp" },
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
     "weight": 2,
-    "properties": ["Ammunition (range 80/320)", "Two-Handed", "Simple Ranged", "Damage: 1d6 piercing"],
-    "description": "A compact ranged weapon firing arrows; common among scouts, rangers, and skirmishers.",
+    "properties": [
+      "Damage: 1d6 piercing",
+      "Simple Ranged",
+      "Ammunition (Range 80/320; Arrow)",
+      "Two-Handed",
+      "Mastery: Vex"
+    ],
+    "description": "A shortbow.",
     "data": {}
   },
   {
-    "key": "leather-armor",
-    "name": "Leather Armor",
+    "key": "shortsword-srd-2-0",
+    "name": "Shortsword",
     "type": "item",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "armor",
-    "cost": { "amount": 10, "currency": "gp" },
-    "weight": 10,
-    "properties": ["Light Armor", "AC 11 + Dex modifier"],
-    "description": "Stiffened, boiled leather plates fit comfortably for stealthy work or extended travel.",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d6 piercing",
+      "Martial Melee",
+      "Finesse",
+      "Light",
+      "Mastery: Vex"
+    ],
+    "description": "A shortsword.",
     "data": {}
   },
   {
-    "key": "chain-mail",
-    "name": "Chain Mail",
+    "key": "sickle-srd-2-0",
+    "name": "Sickle",
     "type": "item",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "armor",
-    "cost": { "amount": 75, "currency": "gp" },
-    "weight": 55,
-    "properties": ["Heavy Armor", "AC 16", "Strength 13 required", "Disadvantage on Stealth"],
-    "description": "Interlocking metal rings include a layer of quilted fabric underneath to prevent chafing and to cushion blows.",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d4 slashing",
+      "Simple Melee",
+      "Light",
+      "Mastery: Nick"
+    ],
+    "description": "A sickle.",
     "data": {}
   },
   {
-    "key": "shield",
-    "name": "Shield",
+    "key": "sling-srd-2-0",
+    "name": "Sling",
     "type": "item",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "shield",
-    "cost": { "amount": 10, "currency": "gp" },
-    "weight": 6,
-    "properties": ["+2 AC bonus while wielded"],
-    "description": "Wood or metal carried in one hand. Wielding a shield increases your AC by 2.",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "properties": [
+      "Damage: 1d4 bludgeoning",
+      "Simple Ranged",
+      "Ammunition (Range 30/120; Bullet)",
+      "Mastery: Slow"
+    ],
+    "description": "A sling.",
     "data": {}
   },
   {
-    "key": "healers-kit",
-    "name": "Healer's Kit",
+    "key": "spear-srd-2-0",
+    "name": "Spear",
     "type": "item",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "adventuring-gear",
-    "cost": { "amount": 5, "currency": "gp" },
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
     "weight": 3,
-    "properties": ["10 uses"],
-    "description": "Bandages, salves, and splints. As a Utilize action, expend one use to stabilize a creature with 0 HP without making a Wisdom (Medicine) check.",
+    "properties": [
+      "Damage: 1d6 piercing",
+      "Simple Ranged",
+      "Thrown (Range 20/60)",
+      "Versatile (1d8)",
+      "Mastery: Sap"
+    ],
+    "description": "A spear.",
     "data": {}
   },
   {
-    "key": "rope-hempen",
-    "name": "Rope, Hempen (50 ft)",
-    "type": "item",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "adventuring-gear",
-    "cost": { "amount": 1, "currency": "gp" },
-    "weight": 10,
-    "properties": ["50 ft length", "2 HP", "AC 11", "DC 17 Strength check to burst"],
-    "description": "Standard adventurer's rope. Useful for climbing, binding, and improvised solutions.",
-    "data": {}
-  },
-  {
-    "key": "torch",
+    "key": "torch-srd-2-0",
     "name": "Torch",
     "type": "item",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "adventuring-gear",
-    "cost": { "amount": 1, "currency": "cp" },
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "cp"
+    },
     "weight": 1,
-    "properties": ["Sheds bright light in 20-foot radius and dim light in 20 more feet for 1 hour", "Damage: 1d4 fire (improvised weapon, hot end)"],
-    "description": "A wooden stick wrapped at one end with cloth soaked in pitch.",
+    "description": "A Torch burns for 1 hour, casting Bright Light in a 20-foot radius and Dim Light for an additional 20 feet. When you take the Attack action, you can attack with the Torch, using it as a Simple Melee weapon. On a hit, the target takes 1 Fire damage.",
     "data": {}
   },
   {
-    "key": "bag-of-holding",
-    "name": "Bag of Holding",
+    "key": "trident-srd-2-0",
+    "name": "Trident",
     "type": "item",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "magic-item",
-    "cost": null,
-    "weight": 15,
-    "rarity": "uncommon",
-    "requiresAttunement": false,
-    "properties": [
-      "Holds up to 500 pounds of contents",
-      "Always weighs 15 pounds regardless of contents",
-      "Internal extradimensional space — placing the bag inside another extradimensional space tears it open"
+    "srdVersions": [
+      "SRD_2.0"
     ],
-    "description": "A capacious magical sack that holds far more than its size suggests. Treasure of all shapes and sizes can vanish inside without strain.",
-    "data": {}
-  },
-  {
-    "key": "longsword-plus-1",
-    "name": "Longsword, +1",
-    "type": "item",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "magic-item",
-    "cost": null,
-    "weight": 3,
-    "rarity": "uncommon",
-    "requiresAttunement": false,
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 4,
     "properties": [
-      "Magical longsword",
-      "+1 bonus to attack and damage rolls"
+      "Damage: 1d8 piercing",
+      "Martial Ranged",
+      "Thrown (Range 20/60)",
+      "Versatile (1d10)",
+      "Mastery: Topple"
     ],
-    "description": "A finely-forged longsword humming with magic. The bonus is reflected on attack and damage rolls when wielded.",
+    "description": "A trident.",
     "data": {}
   },
   {
-    "key": "spell-component-pouch",
-    "name": "Spell Component Pouch",
+    "key": "war-pick-srd-2-0",
+    "name": "War Pick",
     "type": "item",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "crafting-equipment",
-    "cost": { "amount": 25, "currency": "gp" },
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
     "weight": 2,
     "properties": [
-      "Holds the bits of bat guano, mistletoe, and other components a spellcaster needs",
-      "Substitutes for any non-costed material component when casting a spell"
+      "Damage: 1d8 piercing",
+      "Martial Melee",
+      "Versatile (1d10)",
+      "Mastery: Sap"
     ],
-    "description": "A small leather belt pouch sectioned into many compartments holding the diverse mundane reagents used in spellcasting.",
+    "description": "A war pick.",
     "data": {}
   },
   {
-    "key": "alchemical-reagents",
-    "name": "Alchemical Reagents (Set)",
+    "key": "warhammer-srd-2-0",
+    "name": "Warhammer",
     "type": "item",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1", "SRD_2.0"],
-    "category": "crafting-equipment",
-    "cost": { "amount": 50, "currency": "gp" },
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "properties": [
+      "Damage: 1d8 bludgeoning",
+      "Martial Melee",
+      "Versatile (1d10)",
+      "Mastery: Push"
+    ],
+    "description": "A warhammer.",
+    "data": {}
+  },
+  {
+    "key": "whip-srd-2-0",
+    "name": "Whip",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "properties": [
+      "Damage: 1d4 slashing",
+      "Martial Melee",
+      "Finesse",
+      "Reach",
+      "Mastery: Slow"
+    ],
+    "description": "A whip.",
+    "data": {}
+  },
+  {
+    "key": "battleaxe-srd-5-1",
+    "name": "Battleaxe",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "properties": [
+      "Damage: 1d8 slashing",
+      "Martial Melee",
+      "Versatile (1d10)"
+    ],
+    "description": "A battleaxe.",
+    "data": {}
+  },
+  {
+    "key": "blowgun-srd-5-1",
+    "name": "Blowgun",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
     "weight": 1,
     "properties": [
-      "Pre-measured reagents for crafting acid, alchemist's fire, antitoxin, or basic potions",
-      "Consumed on use; replenish at any general store carrying alchemy supplies"
+      "Damage: 1 piercing",
+      "Martial Ranged",
+      "Ammunition (range 25/100)",
+      "Loading"
     ],
-    "description": "A satchel of rare salts, oils, and powders bundled and labelled for use with alchemist's supplies. Consumable on craft.",
+    "description": "A blowgun.",
+    "data": {}
+  },
+  {
+    "key": "club-srd-5-1",
+    "name": "Club",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d4 bludgeoning",
+      "Simple Melee",
+      "Light"
+    ],
+    "description": "A club",
+    "data": {}
+  },
+  {
+    "key": "crossbow-hand-srd-5-1",
+    "name": "Crossbow, hand",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 75,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "properties": [
+      "Damage: 1d6 piercing",
+      "Martial Ranged",
+      "Ammunition (range 30/120)",
+      "Light",
+      "Loading"
+    ],
+    "description": "A hand crossbow.",
+    "data": {}
+  },
+  {
+    "key": "crossbow-heavy-srd-5-1",
+    "name": "Crossbow, heavy",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 18,
+    "properties": [
+      "Damage: 1d10 piercing",
+      "Martial Ranged",
+      "Loading",
+      "Two-Handed"
+    ],
+    "description": "A heavy crossbow",
+    "data": {}
+  },
+  {
+    "key": "crossbow-light-srd-5-1",
+    "name": "Crossbow, light",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "properties": [
+      "Damage: 1d8 piercing",
+      "Simple Ranged",
+      "Ammunition (range 80/320)",
+      "Loading"
+    ],
+    "description": "A light crossbow.",
+    "data": {}
+  },
+  {
+    "key": "dagger-srd-5-1",
+    "name": "Dagger",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "properties": [
+      "Damage: 1d4 piercing",
+      "Simple Ranged",
+      "Finesse",
+      "Light",
+      "Thrown (range 20/60)"
+    ],
+    "description": "A dagger.",
+    "data": {}
+  },
+  {
+    "key": "dart-srd-5-1",
+    "name": "Dart",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "weight": 0.25,
+    "properties": [
+      "Damage: 1d4 piercing",
+      "Simple Ranged",
+      "Finesse",
+      "Thrown (range 20/60)"
+    ],
+    "description": "A dart.",
+    "data": {}
+  },
+  {
+    "key": "flail-srd-5-1",
+    "name": "Flail",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d8 bludgeoning",
+      "Martial Melee"
+    ],
+    "description": "A flail.",
+    "data": {}
+  },
+  {
+    "key": "glaive-srd-5-1",
+    "name": "Glaive",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 20,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "properties": [
+      "Damage: 1d10 slashing",
+      "Martial Melee",
+      "Reach",
+      "Two-Handed"
+    ],
+    "description": "A glaive.",
+    "data": {}
+  },
+  {
+    "key": "greataxe-srd-5-1",
+    "name": "Greataxe",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 7,
+    "properties": [
+      "Damage: 1d12 slashing",
+      "Martial Melee",
+      "Two-Handed"
+    ],
+    "description": "A greataxe.",
+    "data": {}
+  },
+  {
+    "key": "greatclub-srd-5-1",
+    "name": "Greatclub",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 2,
+      "currency": "sp"
+    },
+    "weight": 10,
+    "properties": [
+      "Damage: 1d8 bludgeoning",
+      "Simple Melee",
+      "Two-Handed"
+    ],
+    "description": "A greatclub.",
+    "data": {}
+  },
+  {
+    "key": "greatsword-srd-5-1",
+    "name": "Greatsword",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "properties": [
+      "Damage: 2d6 slashing",
+      "Martial Melee",
+      "Two-Handed"
+    ],
+    "description": "A great sword.",
+    "data": {}
+  },
+  {
+    "key": "halberd-srd-5-1",
+    "name": "Halberd",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 20,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "properties": [
+      "Damage: 1d10 slashing",
+      "Martial Melee",
+      "Reach",
+      "Two-Handed"
+    ],
+    "description": "A halberd.",
+    "data": {}
+  },
+  {
+    "key": "handaxe-srd-5-1",
+    "name": "Handaxe",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d6 slashing",
+      "Simple Melee",
+      "Light"
+    ],
+    "description": "A handaxe.",
+    "data": {}
+  },
+  {
+    "key": "javelin-srd-5-1",
+    "name": "Javelin",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d6 piercing",
+      "Simple Ranged",
+      "Thrown (range 30/120)"
+    ],
+    "description": "A javelin",
+    "data": {}
+  },
+  {
+    "key": "lance-srd-5-1",
+    "name": "Lance",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "properties": [
+      "Damage: 1d12 piercing",
+      "Martial Melee",
+      "Special (Lance)",
+      "Reach"
+    ],
+    "description": "A lance.\n\nYou have disadvantage when you use a lance to attack a target within 5 feet of you. Also, a lance requires two hands to wield when you aren't mounted.",
+    "data": {}
+  },
+  {
+    "key": "light-hammer-srd-5-1",
+    "name": "Light hammer",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d4 bludgeoning",
+      "Simple Ranged",
+      "Light",
+      "Thrown (range 20/60)"
+    ],
+    "description": "A light hammer.",
+    "data": {}
+  },
+  {
+    "key": "longbow-srd-5-1",
+    "name": "Longbow",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d8 piercing",
+      "Martial Ranged",
+      "Ammunition (range 150/600)",
+      "Two-Handed"
+    ],
+    "description": "A longbow.",
+    "data": {}
+  },
+  {
+    "key": "longsword-srd-5-1",
+    "name": "Longsword",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "properties": [
+      "Damage: 1d8 slashing",
+      "Martial Melee",
+      "Versatile (1d10)"
+    ],
+    "description": "A longsword",
+    "data": {}
+  },
+  {
+    "key": "mace-srd-5-1",
+    "name": "Mace",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "properties": [
+      "Damage: 1d6 bludgeoning",
+      "Simple Melee"
+    ],
+    "description": "A mace.",
+    "data": {}
+  },
+  {
+    "key": "maul-srd-5-1",
+    "name": "Maul",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "properties": [
+      "Damage: 2d6 bludgeoning",
+      "Martial Melee",
+      "Two-Handed"
+    ],
+    "description": "A maul.",
+    "data": {}
+  },
+  {
+    "key": "morningstar-srd-5-1",
+    "name": "Morningstar",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "properties": [
+      "Damage: 1d8 piercing",
+      "Martial Melee"
+    ],
+    "description": "A morningstar",
+    "data": {}
+  },
+  {
+    "key": "net-srd-5-1",
+    "name": "Net",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "properties": [
+      "Damage: 0 bludgeoning",
+      "Martial Ranged",
+      "Special (Net)",
+      "Thrown (range 5/15)"
+    ],
+    "description": "A net.\n\nA Large or smaller creature hit by a net is restrained until it is freed. A net has no effect on creatures that are formless, or creatures that are Huge or larger. A creature can use its action to make a DC 10 Strength check, freeing itself or another creature within its reach on a success. Dealing 5 slashing damage to the net (AC 10) also frees the creature without harming it, ending the effect and destroying the net.\n\nWhen you use an action, bonus action, or reaction to attack with a net, you can make only one attack regardless of the number of attacks you can normally make.",
+    "data": {}
+  },
+  {
+    "key": "pike-srd-5-1",
+    "name": "Pike",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 18,
+    "properties": [
+      "Damage: 1d10 piercing",
+      "Martial Melee",
+      "Reach",
+      "Two-Handed"
+    ],
+    "description": "A pike.",
+    "data": {}
+  },
+  {
+    "key": "quarterstaff-srd-5-1",
+    "name": "Quarterstaff",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 2,
+      "currency": "sp"
+    },
+    "weight": 4,
+    "properties": [
+      "Damage: 1d6 bludgeoning",
+      "Simple Melee",
+      "Versatile (1d8)"
+    ],
+    "description": "A quarterstaff.",
+    "data": {}
+  },
+  {
+    "key": "rapier-srd-5-1",
+    "name": "Rapier",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d8 piercing",
+      "Martial Melee",
+      "Finesse"
+    ],
+    "description": "A rapier.",
+    "data": {}
+  },
+  {
+    "key": "scimitar-srd-5-1",
+    "name": "Scimitar",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "properties": [
+      "Damage: 1d6 slashing",
+      "Martial Melee",
+      "Finesse",
+      "Light"
+    ],
+    "description": "A scimitar.",
+    "data": {}
+  },
+  {
+    "key": "shortbow-srd-5-1",
+    "name": "Shortbow",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d6 piercing",
+      "Simple Ranged",
+      "Ammunition (range 80/320)",
+      "Two-Handed"
+    ],
+    "description": "A shortbow",
+    "data": {}
+  },
+  {
+    "key": "shortsword-srd-5-1",
+    "name": "Shortsword",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d6 slashing",
+      "Martial Melee",
+      "Finesse",
+      "Light"
+    ],
+    "description": "A short sword.",
+    "data": {}
+  },
+  {
+    "key": "sickle-srd-5-1",
+    "name": "Sickle",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d4 slashing",
+      "Simple Melee",
+      "Light"
+    ],
+    "description": "A sickle.",
+    "data": {}
+  },
+  {
+    "key": "sling-srd-5-1",
+    "name": "Sling",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "properties": [
+      "Damage: 1d4 bludgeoning",
+      "Simple Ranged",
+      "Ammunition (range 80/320)"
+    ],
+    "description": "A sling.",
+    "data": {}
+  },
+  {
+    "key": "spear-srd-5-1",
+    "name": "Spear",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "properties": [
+      "Damage: 1d6 piercing",
+      "Simple Ranged",
+      "Thrown (range 20/60)",
+      "Versatile (1d8)"
+    ],
+    "description": "A spear.",
+    "data": {}
+  },
+  {
+    "key": "trident-srd-5-1",
+    "name": "Trident",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "properties": [
+      "Damage: 1d6 piercing",
+      "Martial Ranged",
+      "Two-Handed",
+      "Thrown (range 20/60)",
+      "Versatile (1d8)"
+    ],
+    "description": "A trident.",
+    "data": {}
+  },
+  {
+    "key": "war-pick-srd-5-1",
+    "name": "War pick",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d8 piercing",
+      "Martial Melee"
+    ],
+    "description": "A war pick.",
+    "data": {}
+  },
+  {
+    "key": "warhammer-srd-5-1",
+    "name": "Warhammer",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "properties": [
+      "Damage: 1d8 bludgeoning",
+      "Martial Melee",
+      "Versatile (1d10)"
+    ],
+    "description": "A warhammer.",
+    "data": {}
+  },
+  {
+    "key": "whip-srd-5-1",
+    "name": "Whip",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "weapon",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "properties": [
+      "Damage: 1d4 slashing",
+      "Martial Melee",
+      "Reach"
+    ],
+    "description": "A whip.",
+    "data": {}
+  },
+  {
+    "key": "breastplate-srd-2-0",
+    "name": "Breastplate",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 400,
+      "currency": "gp"
+    },
+    "weight": 20,
+    "properties": [
+      "AC 14 + Dex modifier (max 2)",
+      "Medium Armor"
+    ],
+    "description": "A breastplate.",
+    "data": {}
+  },
+  {
+    "key": "chain-mail-srd-2-0",
+    "name": "Chain Mail",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 75,
+      "currency": "gp"
+    },
+    "weight": 55,
+    "properties": [
+      "AC 16",
+      "Heavy Armor",
+      "Strength 13 required",
+      "Disadvantage on Stealth"
+    ],
+    "description": "A chain mail.",
+    "data": {}
+  },
+  {
+    "key": "chain-shirt-srd-2-0",
+    "name": "Chain Shirt",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 20,
+    "properties": [
+      "AC 13 + Dex modifier (max 2)",
+      "Medium Armor"
+    ],
+    "description": "A chain shirt.",
+    "data": {}
+  },
+  {
+    "key": "half-plate-armor-srd-2-0",
+    "name": "Half Plate Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 750,
+      "currency": "gp"
+    },
+    "weight": 40,
+    "properties": [
+      "AC 15 + Dex modifier (max 2)",
+      "Medium Armor",
+      "Disadvantage on Stealth"
+    ],
+    "description": "A half plate armor.",
+    "data": {}
+  },
+  {
+    "key": "hide-armor-srd-2-0",
+    "name": "Hide Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 12,
+    "properties": [
+      "AC 12 + Dex modifier (max 2)",
+      "Medium Armor"
+    ],
+    "description": "A hide armor.",
+    "data": {}
+  },
+  {
+    "key": "leather-armor-srd-2-0",
+    "name": "Leather Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "properties": [
+      "AC 11 + Dex modifier",
+      "Light Armor"
+    ],
+    "description": "A leather armor.",
+    "data": {}
+  },
+  {
+    "key": "padded-armor-srd-2-0",
+    "name": "Padded Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 8,
+    "properties": [
+      "AC 11 + Dex modifier",
+      "Light Armor",
+      "Disadvantage on Stealth"
+    ],
+    "description": "A padded armor.",
+    "data": {}
+  },
+  {
+    "key": "plate-armor-srd-2-0",
+    "name": "Plate Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 1500,
+      "currency": "gp"
+    },
+    "weight": 65,
+    "properties": [
+      "AC 18",
+      "Heavy Armor",
+      "Strength 15 required",
+      "Disadvantage on Stealth"
+    ],
+    "description": "A plate armor.",
+    "data": {}
+  },
+  {
+    "key": "ring-mail-srd-2-0",
+    "name": "Ring Mail",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 40,
+    "properties": [
+      "AC 14",
+      "Heavy Armor",
+      "Disadvantage on Stealth"
+    ],
+    "description": "A ring mail.",
+    "data": {}
+  },
+  {
+    "key": "scale-mail-srd-2-0",
+    "name": "Scale Mail",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 45,
+    "properties": [
+      "AC 14 + Dex modifier (max 2)",
+      "Medium Armor",
+      "Disadvantage on Stealth"
+    ],
+    "description": "A scale mail.",
+    "data": {}
+  },
+  {
+    "key": "shield-srd-2-0",
+    "name": "Shield",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "properties": [
+      "AC 2",
+      "Heavy Armor"
+    ],
+    "description": "A shield.",
+    "data": {}
+  },
+  {
+    "key": "splint-armor-srd-2-0",
+    "name": "Splint Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 200,
+      "currency": "gp"
+    },
+    "weight": 60,
+    "properties": [
+      "AC 17",
+      "Heavy Armor",
+      "Strength 15 required",
+      "Disadvantage on Stealth"
+    ],
+    "description": "A splint armor.",
+    "data": {}
+  },
+  {
+    "key": "studded-leather-armor-srd-2-0",
+    "name": "Studded Leather Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 45,
+      "currency": "gp"
+    },
+    "weight": 13,
+    "properties": [
+      "AC 12 + Dex modifier",
+      "Light Armor"
+    ],
+    "description": "A studded leather armor.",
+    "data": {}
+  },
+  {
+    "key": "breastplate-srd-5-1",
+    "name": "Breastplate",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 400,
+      "currency": "gp"
+    },
+    "weight": 20,
+    "properties": [
+      "AC 14 + Dex modifier (max 2)",
+      "Medium Armor"
+    ],
+    "description": "This armor consists of a fitted metal chest piece worn with supple leather. Although it leaves the legs and arms relatively unprotected, this armor provides good protection for the wearer's vital organs while leaving the wearer relatively unencumbered.",
+    "data": {}
+  },
+  {
+    "key": "chain-mail-srd-5-1",
+    "name": "Chain mail",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 75,
+      "currency": "gp"
+    },
+    "weight": 55,
+    "properties": [
+      "AC 16",
+      "Heavy Armor",
+      "Strength 13 required",
+      "Disadvantage on Stealth"
+    ],
+    "description": "Made of interlocking metal rings, chain mail includes a layer of quilted fabric worn underneath the mail to prevent chafing and to cushion the impact of blows. The suit includes gauntlets.",
+    "data": {}
+  },
+  {
+    "key": "chain-shirt-srd-5-1",
+    "name": "Chain shirt",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 20,
+    "properties": [
+      "AC 13 + Dex modifier (max 2)",
+      "Medium Armor"
+    ],
+    "description": "Made of interlocking metal rings, a chain shirt is worn between layers of clothing or leather. This armor offers modest protection to the wearer's upper body and allows the sound of the rings rubbing against one another to be muffled by outer layers.",
+    "data": {}
+  },
+  {
+    "key": "half-plate-srd-5-1",
+    "name": "Half plate",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 750,
+      "currency": "gp"
+    },
+    "weight": 40,
+    "properties": [
+      "AC 15 + Dex modifier (max 2)",
+      "Medium Armor",
+      "Disadvantage on Stealth"
+    ],
+    "description": "Half plate consists of shaped metal plates that cover most of the wearer's body. It does not include leg protection beyond simple greaves that are attached with leather straps.",
+    "data": {}
+  },
+  {
+    "key": "hide-armor-srd-5-1",
+    "name": "Hide Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 12,
+    "properties": [
+      "AC 12 + Dex modifier (max 2)",
+      "Medium Armor"
+    ],
+    "description": "This crude armor consists of thick furs and pelts. It is commonly worn by barbarian tribes, evil humanoids, and other folk who lack access to the tools and materials needed to create better armor.",
+    "data": {}
+  },
+  {
+    "key": "leather-armor-srd-5-1",
+    "name": "Leather Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "properties": [
+      "AC 11 + Dex modifier",
+      "Light Armor"
+    ],
+    "description": "The breastplate and shoulder protectors of this armor are made of leather that has been stiffened by being boiled in oil. The rest of the armor is made of softer and more flexible materials.",
+    "data": {}
+  },
+  {
+    "key": "padded-armor-srd-5-1",
+    "name": "Padded Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 8,
+    "properties": [
+      "AC 11 + Dex modifier",
+      "Light Armor",
+      "Disadvantage on Stealth"
+    ],
+    "description": "Padded armor consists of quilted layers of cloth and batting.",
+    "data": {}
+  },
+  {
+    "key": "plate-armor-srd-5-1",
+    "name": "Plate Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 1500,
+      "currency": "gp"
+    },
+    "weight": 65,
+    "properties": [
+      "AC 18",
+      "Heavy Armor",
+      "Strength 15 required",
+      "Disadvantage on Stealth"
+    ],
+    "description": "Plate consists of shaped, interlocking metal plates to cover the entire body. A suit of plate includes gauntlets, heavy leather boots, a visored helmet, and thick layers of padding underneath the armor. Buckles and straps distribute the weight over the body.",
+    "data": {}
+  },
+  {
+    "key": "ring-mail-srd-5-1",
+    "name": "Ring mail",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 40,
+    "properties": [
+      "AC 14",
+      "Heavy Armor",
+      "Disadvantage on Stealth"
+    ],
+    "description": "This armor is leather armor with heavy rings sewn into it. The rings help reinforce the armor against blows from swords and axes. Ring mail is inferior to chain mail, and it's usually worn only by those who can't afford better armor.",
+    "data": {}
+  },
+  {
+    "key": "scale-mail-srd-5-1",
+    "name": "Scale mail",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 45,
+    "properties": [
+      "AC 14 + Dex modifier (max 2)",
+      "Medium Armor",
+      "Disadvantage on Stealth"
+    ],
+    "description": "This armor consists of a coat and leggings (and perhaps a separate skirt) of leather covered with overlapping pieces of metal, much like the scales of a fish. The suit includes gauntlets.",
+    "data": {}
+  },
+  {
+    "key": "splint-armor-srd-5-1",
+    "name": "Splint Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 200,
+      "currency": "gp"
+    },
+    "weight": 60,
+    "properties": [
+      "AC 17",
+      "Heavy Armor",
+      "Strength 15 required",
+      "Disadvantage on Stealth"
+    ],
+    "description": "This armor is made of narrow vertical strips of metal riveted to a backing of leather that is worn over cloth padding. Flexible chain mail protects the joints.",
+    "data": {}
+  },
+  {
+    "key": "studded-leather-armor-srd-5-1",
+    "name": "Studded Leather Armor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "armor",
+    "cost": {
+      "amount": 45,
+      "currency": "gp"
+    },
+    "weight": 13,
+    "properties": [
+      "AC 12 + Dex modifier",
+      "Light Armor"
+    ],
+    "description": "Made from tough but flexible leather, studded leather is reinforced with close-set rivets or spikes.",
+    "data": {}
+  },
+  {
+    "key": "shield-srd-5-1",
+    "name": "Shield",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "shield",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "description": "A shield is made from wood or metal and is carried in one hand. Wielding a shield increases your Armor Class by 2. You can benefit from only one shield at a time.",
+    "data": {}
+  },
+  {
+    "key": "arrows-20-srd-2-0",
+    "name": "Arrows (20)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Ammunition for weapons that use arrows. Comes in a pack of 20. Typically stored in a quiver.",
+    "data": {}
+  },
+  {
+    "key": "backpack-srd-2-0",
+    "name": "Backpack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "A Backpack holds up to 30 pounds within 1 cubic foot. It can also serve as a saddlebag.",
+    "data": {}
+  },
+  {
+    "key": "ball-bearings-srd-2-0",
+    "name": "Ball Bearings",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "As a Utilize action, you can spill Ball Bearings from their pouch. They spread to cover a level, 10-footsquare area within 10 feet of yourself. A creature that enters this area for the first time on a turn must succeed on a DC 10 Dexterity saving throw or have the Prone condition. It takes 10 minutes to recover the Ball Bearings.",
+    "data": {}
+  },
+  {
+    "key": "barrel-srd-2-0",
+    "name": "Barrel",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 70,
+    "description": "A Barrel holds up to 40 gallons of liquid or up to 4 cubic feet of dry goods.",
+    "data": {}
+  },
+  {
+    "key": "basket-srd-2-0",
+    "name": "Basket",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 4,
+      "currency": "sp"
+    },
+    "weight": 2,
+    "description": "A Basket holds up to 40 pounds within 2 cubic feet.",
+    "data": {}
+  },
+  {
+    "key": "bedroll-srd-2-0",
+    "name": "Bedroll",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 7,
+    "description": "A Bedroll sleeps one Small or Medium creature. While in a Bedroll, you automatically succeed on saving throws against extreme cold (see \"Gameplay Toolbox\").",
+    "data": {}
+  },
+  {
+    "key": "bell-srd-2-0",
+    "name": "Bell",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "description": "When rung as a Utilize action, a Bell produces a sound that can be heard up to 60 feet away.",
+    "data": {}
+  },
+  {
+    "key": "blanket-srd-2-0",
+    "name": "Blanket",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 3,
+    "description": "While wrapped in a blanket, you have Advantage on saving throws against extreme cold (see \"Gameplay Toolbox\").",
+    "data": {}
+  },
+  {
+    "key": "block-and-tackle-srd-2-0",
+    "name": "Block and Tackle",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "A Block and Tackle allows you to hoist up to four times the weight you can normally lift.",
+    "data": {}
+  },
+  {
+    "key": "bolts-20-srd-2-0",
+    "name": "Bolts (20)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 1.5,
+    "description": "Ammunition for weapons that use bolts. Comes in a pack of 20. Typically stored in a case.",
+    "data": {}
+  },
+  {
+    "key": "book-srd-2-0",
+    "name": "Book",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "A Book contains fiction or nonfiction. If you consult an accurate nonfiction Book about its topic, you gain a +5 bonus to Intelligence (Arcana, History, Nature, or Religion) checks you make about that topic.",
+    "data": {}
+  },
+  {
+    "key": "bottle-glass-srd-2-0",
+    "name": "Bottle, Glass",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "A Glass Bottle holds up to 1 0.5 pints.",
+    "data": {}
+  },
+  {
+    "key": "bucket-srd-2-0",
+    "name": "Bucket",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "weight": 2,
+    "description": "A Bucket holds up to half a cubic foot of contents.",
+    "data": {}
+  },
+  {
+    "key": "bullets-firearm-10-srd-2-0",
+    "name": "Bullets, Firearm (10)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 3,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "Ammunition for weapons that use bullets, firearm. Comes in a pack of 10. Typically stored in a pouch.",
+    "data": {}
+  },
+  {
+    "key": "bullets-sling-20-srd-2-0",
+    "name": "Bullets, Sling (20)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 4,
+      "currency": "cp"
+    },
+    "weight": 1.5,
+    "description": "Ammunition for weapons that use bullets, sling. Comes in a pack of 20. Typically stored in a pouch.",
+    "data": {}
+  },
+  {
+    "key": "burglar-s-pack-srd-2-0",
+    "name": "Burglar's Pack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 16,
+      "currency": "gp"
+    },
+    "weight": 42,
+    "description": "A Burglar's Pack contains the following items: Backpack, Ball Bearings, Bell, 10 Candles, Crowbar, Hooded Lantern, 7 flasks of Oil, 5 days of Rations, Rope, Tinderbox, and Waterskin.",
+    "data": {}
+  },
+  {
+    "key": "caltrops-srd-2-0",
+    "name": "Caltrops",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "As a Utilize action, you can spread Caltrops from their bag to cover a 5-foot-square area within 5 feet of yourself. A creature that enters this area for the first time on a turn must succeed on a DC 15 Dexterity saving throw or take 1 Piercing damage and have its Speed reduced to 0 until the start of its next turn. It takes 10 minutes to recover the Caltrops.",
+    "data": {}
+  },
+  {
+    "key": "candle-srd-2-0",
+    "name": "Candle",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "cp"
+    },
+    "description": "For 1 hour, a lit Candle sheds Bright Light in a 5-foot radius and Dim Light for an additional 5 feet.",
+    "data": {}
+  },
+  {
+    "key": "case-crossbow-bolt-srd-2-0",
+    "name": "Case, Crossbow Bolt",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "A Crossbow Bolt Case holds up to 20 Bolts.",
+    "data": {}
+  },
+  {
+    "key": "chain-srd-2-0",
+    "name": "Chain",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "description": "As a Utilize action, you can wrap a Chain around an unwilling creature within 5 feet of yourself that has the Grappled, Incapacitated, or Restrained condition if you succeed on a DC 13 Strength (Athletics) check. If the creature's legs are bound, the creature has the Restrained condition until it escapes. Escaping the Chain requires the creature to make a successful DC 18 Dexterity (Acrobatics) check as an action. Bursting the Chain requires a successful DC 20 Strength (Athletics) check as an action.",
+    "data": {}
+  },
+  {
+    "key": "chest-srd-2-0",
+    "name": "Chest",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 25,
+    "description": "A Chest holds up to 12 cubic feet of contents.",
+    "data": {}
+  },
+  {
+    "key": "clothes-fine-srd-2-0",
+    "name": "Clothes, Fine",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "description": "Fine Clothes are made of expensive fabrics and adorned with expertly crafted details. Some events and locations admit only people wearing these clothes.",
+    "data": {}
+  },
+  {
+    "key": "clothes-traveler-s-srd-2-0",
+    "name": "Clothes, Traveler's",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "Traveler's Clothes are resilient garments designed for travel in various environments.",
+    "data": {}
+  },
+  {
+    "key": "component-pouch-srd-2-0",
+    "name": "Component Pouch",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "A Component Pouch is watertight and filled with compartments that hold all the free Material components of your spells.",
+    "data": {}
+  },
+  {
+    "key": "costume-srd-2-0",
+    "name": "Costume",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "While wearing a Costume, you have Advantage on any ability check you make to impersonate the person or type of person it represents.",
+    "data": {}
+  },
+  {
+    "key": "crowbar-srd-2-0",
+    "name": "Crowbar",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "Using a Crowbar gives you Advantage on Strength checks where the Crowbar's leverage can be applied.",
+    "data": {}
+  },
+  {
+    "key": "diplomat-s-pack-srd-2-0",
+    "name": "Diplomat's Pack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 39,
+      "currency": "gp"
+    },
+    "weight": 39,
+    "description": "A Diplomat's Pack contains the following items: Chest, Fine Clothes, Ink, 5 Ink Pens, Lamp, 2 Map or Scroll Cases, 4 flasks of Oil, 5 sheets of Paper, 5 sheets of Parchment, Perfume, and Tinderbox.",
+    "data": {}
+  },
+  {
+    "key": "dungeoneer-s-pack-srd-2-0",
+    "name": "Dungeoneer's Pack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 12,
+      "currency": "gp"
+    },
+    "weight": 55,
+    "description": "A Dungeoneer's Pack contains the following items: Backpack, Caltrops, Crowbar, 2 flasks of Oil, 10 days of Rations, Rope, Tinderbox, 10 Torches, and Waterskin.",
+    "data": {}
+  },
+  {
+    "key": "entertainer-s-pack-srd-2-0",
+    "name": "Entertainer's Pack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 40,
+      "currency": "gp"
+    },
+    "weight": 58,
+    "description": "An Entertainer's Pack contains the following items: Backpack, Bedroll, Bell, Bullseye Lantern, 3 Costumes, Mirror, 8 flasks of Oil, 9 days of Rations, Tinderbox, and Waterskin.",
+    "data": {}
+  },
+  {
+    "key": "explorer-s-pack-srd-2-0",
+    "name": "Explorer's Pack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 55,
+    "description": "An Explorer's Pack contains the following items: Backpack, Bedroll, 2 flasks of Oil, 10 days of Rations, Rope, Tinderbox, 10 Torches, and Waterskin.",
+    "data": {}
+  },
+  {
+    "key": "feed-per-day-srd-2-0",
+    "name": "Feed (per day)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "weight": 10,
+    "description": "Daily feed for a mount.",
+    "data": {}
+  },
+  {
+    "key": "flask-srd-2-0",
+    "name": "Flask",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "cp"
+    },
+    "weight": 1,
+    "description": "A Flask holds up to 1 pint.",
+    "data": {}
+  },
+  {
+    "key": "grappling-hook-srd-2-0",
+    "name": "Grappling Hook",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "As a Utilize action, you can throw the Grappling Hook at a railing, a ledge, or another catch within 50 feet of yourself, and the hook catches on if you succeed on a DC 13 Dexterity (Acrobatics) check. If you tied a Rope to the hook, you can then climb it.",
+    "data": {}
+  },
+  {
+    "key": "holy-symbol-amulet-srd-2-0",
+    "name": "Holy Symbol, Amulet)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "A Holy Symbol Amulet is bejeweled or painted to channel divine magic. A Cleric or Paladin can use it as a Spellcasting Focus. It can be worn around the neck or held in hand.",
+    "data": {}
+  },
+  {
+    "key": "holy-symbol-emblem-srd-2-0",
+    "name": "Holy Symbol, Emblem)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "description": "A Holy Symbol Emblem is bejeweled or painted to channel divine magic. A Cleric or Paladin can use it as a Spellcasting Focus. It must be borne on fabric (such as a tabard or banner) or a Shield.",
+    "data": {}
+  },
+  {
+    "key": "holy-symbol-reliquary-srd-2-0",
+    "name": "Holy Symbol, Reliquary",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "A Holy Symbol Reliquary is bejeweled or painted to channel divine magic. A Cleric or Paladin can use it as a Spellcasting Focus. It must be held in hand.",
+    "data": {}
+  },
+  {
+    "key": "hunting-trap-srd-2-0",
+    "name": "Hunting Trap",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 25,
+    "description": "As a Utilize action, you can set a Hunting Trap, which is a sawtooth steel ring that snaps shut when a creature steps on a pressure plate in the center. The trap is affixed by a heavy chain to an immobile object, such as a tree or a spike driven into the ground. A creature that steps on the plate must succeed on a DC 13 Dexterity saving throw or take 1d4 Piercing damage and have its Speed reduced to 0 until the start of its next turn. Thereafter, until the creature breaks free of the trap, its movement is limited by the length of the chain (typically 3 feet). A creature can use its action to make a DC 13 Strength (Athletics) check, freeing itself or another creature within its reach on a success. Each failed check deals 1 Piercing damage to the trapped creature.",
+    "data": {}
+  },
+  {
+    "key": "ink-srd-2-0",
+    "name": "Ink",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "description": "Ink comes in a 1-ounce bottle, which provides enough ink to write about 500 pages.",
+    "data": {}
+  },
+  {
+    "key": "ink-pen-srd-2-0",
+    "name": "Ink Pen",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "cp"
+    },
+    "description": "Using Ink, an Ink Pen is used to write or draw.",
+    "data": {}
+  },
+  {
+    "key": "jug-srd-2-0",
+    "name": "Jug",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "cp"
+    },
+    "weight": 4,
+    "description": "A Jug holds up to 1 gallon.",
+    "data": {}
+  },
+  {
+    "key": "ladder-srd-2-0",
+    "name": "Ladder",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "weight": 25,
+    "description": "A Ladder is 10 feet tall. You must climb to move up or down it.",
+    "data": {}
+  },
+  {
+    "key": "lamp-srd-2-0",
+    "name": "Lamp",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 1,
+    "description": "A Lamp burns Oil as fuel to cast Bright Light in a 15 foot radius and Dim Light for an additional 30 feet.",
+    "data": {}
+  },
+  {
+    "key": "lantern-bullseye-srd-2-0",
+    "name": "Lantern, Bullseye",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "A Bullseye Lantern burns Oil as fuel to cast Bright Light in a 60-foot Cone and Dim Light for an additional 60 feet.",
+    "data": {}
+  },
+  {
+    "key": "lantern-hooded-srd-2-0",
+    "name": "Lantern, Hooded",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "A Hooded Lantern burns Oil as fuel to cast Bright Light in a 30-foot radius and Dim Light for an additional 30 feet. As a Bonus Action, you can lower the hood, reducing the light to Dim Light in a 5-foot radius, or raise it again.",
+    "data": {}
+  },
+  {
+    "key": "lock-srd-2-0",
+    "name": "Lock",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "A Lock comes with a key. Without the key, a creature can use Thieves' Tools to pick this Lock with a successful DC 15 Dexterity (Sleight of Hand) check.",
+    "data": {}
+  },
+  {
+    "key": "magnifying-glass-srd-2-0",
+    "name": "Magnifying Glass",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 100,
+      "currency": "gp"
+    },
+    "description": "A Magnifying Glass grants Advantage on any ability check made to appraise or inspect a highly detailed item. Lighting a fire with a Magnifying Glass requires light as bright as sunlight to focus, tinder to ignite, and about 5 minutes for the fire to ignite.",
+    "data": {}
+  },
+  {
+    "key": "manacles-srd-2-0",
+    "name": "Manacles",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "description": "As a Utilize action, you can use Manacles to bind an unwilling Small or Medium creature within 5 feet of yourself that has the Grappled, Incapacitated, or Restrained condition if you succeed on a DC 13 Dexterity (Sleight of Hand) check. While bound, a creature has Disadvantage on attack rolls, and the creature is Restrained if the Manacles are attached to a chain or hook that is fixed in place. Escaping the Manacles requires a successful DC 20 Dexterity (Sleight of Hand) check as an action. Bursting them requires a successful DC 25 Strength (Athletics) check as an action. Each set of Manacles comes with a key. Without the key, a creature can use Thieves' Tools to pick the Manacles' lock with a successful DC 15 Dexterity (Sleight of Hand) check.",
+    "data": {}
+  },
+  {
+    "key": "map-srd-2-0",
+    "name": "Map",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "description": "If you consult an accurate Map, you gain a +5 bonus to Wisdom (Survival) checks you make to find your way in the place represented on it.",
+    "data": {}
+  },
+  {
+    "key": "mirror-srd-2-0",
+    "name": "Mirror",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 0.5,
+    "description": "A handheld steel Mirror is useful for personal cosmetics but also for peeking around corners and reflecting light as a signal.",
+    "data": {}
+  },
+  {
+    "key": "needles-50-srd-2-0",
+    "name": "Needles (50)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Ammunition for weapons that use needles. Comes in a pack of 50. Typically stored in a pouch.",
+    "data": {}
+  },
+  {
+    "key": "paper-srd-2-0",
+    "name": "Paper",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "sp"
+    },
+    "description": "One sheet of Paper can hold about 250 handwritten words.",
+    "data": {}
+  },
+  {
+    "key": "parchment-srd-2-0",
+    "name": "Parchment",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "description": "One sheet of Parchment can hold about 250 handwritten words.",
+    "data": {}
+  },
+  {
+    "key": "perfume-srd-2-0",
+    "name": "Perfume",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "description": "Perfume comes in a 4-ounce vial. For 1 hour after applying Perfume to yourself, you have Advantage on Charisma (Persuasion) checks made to influence an Indifferent Humanoid within 5 feet of yourself.",
+    "data": {}
+  },
+  {
+    "key": "poison-basic-srd-2-0",
+    "name": "Poison, Basic",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 100,
+      "currency": "gp"
+    },
+    "description": "As a Bonus Action, you can use a vial of Basic Poison to coat one weapon or up to three pieces of ammunition. A creature that takes Piercing or Slashing damage from the poisoned weapon or ammunition takes an extra 1d4 Poison damage. Once applied, the poison retains potency for 1 minute or until its damage is dealt, whichever comes first.",
+    "data": {}
+  },
+  {
+    "key": "pole-srd-2-0",
+    "name": "Pole",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "weight": 7,
+    "description": "A Pole is 10 feet long. You can use it to touch something up to 10 feet away. If you must make a Strength (Athletics) check as part of a High or Long Jump, you can use the Pole to vault, giving yourself Advantage on the check.",
+    "data": {}
+  },
+  {
+    "key": "pot-iron-srd-2-0",
+    "name": "Pot, Iron",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "description": "An Iron Pot holds up to 1 gallon.",
+    "data": {}
+  },
+  {
+    "key": "pouch-srd-2-0",
+    "name": "Pouch",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 1,
+    "description": "A Pouch holds up to 6 pounds within one-fifth of a cubic foot.",
+    "data": {}
+  },
+  {
+    "key": "priest-s-pack-srd-2-0",
+    "name": "Priest's Pack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 33,
+      "currency": "gp"
+    },
+    "weight": 29,
+    "description": "A Priest's Pack contains the following items: Backpack, Blanket, Holy Water, Lamp, 7 days of Rations, Robe, and Tinderbox.",
+    "data": {}
+  },
+  {
+    "key": "quiver-srd-2-0",
+    "name": "Quiver",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "A Quiver holds up to 20 Arrows.",
+    "data": {}
+  },
+  {
+    "key": "ram-portable-srd-2-0",
+    "name": "Ram, Portable",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 4,
+      "currency": "gp"
+    },
+    "weight": 35,
+    "description": "You can use a Portable Ram to break down doors. When doing so, you gain a +4 bonus to the Strength check. One other character can help you use the ram, giving you Advantage on this check.",
+    "data": {}
+  },
+  {
+    "key": "rations-srd-2-0",
+    "name": "Rations",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 2,
+    "description": "Rations consist of travel-ready food, including jerky, dried fruit, hardtack, and nuts. See \"Malnutrition\" in \"Rules Glossary\" for the risks of not eating.",
+    "data": {}
+  },
+  {
+    "key": "robe-srd-2-0",
+    "name": "Robe",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "A Robe has vocational or ceremonial significance. Some events and locations admit only people wearing a Robe bearing certain colors or symbols.",
+    "data": {}
+  },
+  {
+    "key": "rope-srd-2-0",
+    "name": "Rope",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "As a Utilize action, you can tie a knot with Rope if you succeed on a DC 10 Dexterity (Sleight of Hand) check. The Rope can be burst with a successful DC 20 Strength (Athletics) check. You can bind an unwilling creature with the Rope only if the creature has the Grappled, Incapacitated, or Restrained condition. If the creature's legs are bound, the creature has the Restrained condition until it escapes. Escaping the Rope requires the creature to make a successful DC 15 Dexterity (Acrobatics) check as an action.",
+    "data": {}
+  },
+  {
+    "key": "sack-srd-2-0",
+    "name": "Sack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "cp"
+    },
+    "weight": 0.5,
+    "description": "A Sack holds up to 30 pounds within 1 cubic foot.",
+    "data": {}
+  },
+  {
+    "key": "saddle-exotic-srd-2-0",
+    "name": "Saddle (Exotic)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 60,
+      "currency": "gp"
+    },
+    "weight": 40,
+    "description": "A saddle designed for unusual mounts, such as aquatic or flying creatures.",
+    "data": {}
+  },
+  {
+    "key": "saddle-military-srd-2-0",
+    "name": "Saddle (Military)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 20,
+      "currency": "gp"
+    },
+    "weight": 30,
+    "description": "A saddle designed for combat, providing advantage on checks to remain mounted.",
+    "data": {}
+  },
+  {
+    "key": "saddle-riding-srd-2-0",
+    "name": "Saddle (Riding)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 25,
+    "description": "A standard saddle for riding mounts.",
+    "data": {}
+  },
+  {
+    "key": "scholar-s-pack-srd-2-0",
+    "name": "Scholar's Pack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 40,
+      "currency": "gp"
+    },
+    "weight": 22,
+    "description": "A Scholar's Pack contains the following items: Backpack, Book, Ink, Ink Pen, Lamp, 10 flasks of Oil, 10 sheets of Parchment, and Tinderbox.",
+    "data": {}
+  },
+  {
+    "key": "shovel-srd-2-0",
+    "name": "Shovel",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "Working for 1 hour, you can use a Shovel to dig a hole that is 5 feet on each side in soil or similar material.",
+    "data": {}
+  },
+  {
+    "key": "signal-whistle-srd-2-0",
+    "name": "Signal Whistle",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "description": "When blown as a Utilize action, a Signal Whistle produces a sound that can be heard up to 600 feet away.",
+    "data": {}
+  },
+  {
+    "key": "spikes-iron-srd-2-0",
+    "name": "Spikes, Iron",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "Iron Spikes come in bundles of ten. As a Utilize action, you can use a blunt object, such as a Light Hammer, to hammer a spike into wood, earth, or a similar material. You can do so to jam a door shut or to then tie a Rope or Chain to the Spike.",
+    "data": {}
+  },
+  {
+    "key": "spyglass-srd-2-0",
+    "name": "Spyglass",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1000,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Objects viewed through a Spyglass are magnified to twice their size.",
+    "data": {}
+  },
+  {
+    "key": "string-srd-2-0",
+    "name": "String",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "description": "String is 10 feet long. You can tie a knot in it as a Utilize action.",
+    "data": {}
+  },
+  {
+    "key": "tent-srd-2-0",
+    "name": "Tent",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 20,
+    "description": "A Tent sleeps up to two Small or Medium creatures.",
+    "data": {}
+  },
+  {
+    "key": "tinderbox-srd-2-0",
+    "name": "Tinderbox",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 1,
+    "description": "A Tinderbox is a small container holding flint, fire steel, and tinder (usually dry cloth soaked in light oil) used to kindle a fire. Using it to light a Candle, Lamp, Lantern, or Torch—or anything else with exposed fuel—takes a Bonus Action. Lighting any other fire takes 1 minute.",
+    "data": {}
+  },
+  {
+    "key": "vial-srd-2-0",
+    "name": "Vial",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "description": "A Vial holds up to 4 ounces.",
+    "data": {}
+  },
+  {
+    "key": "waterskin-srd-2-0",
+    "name": "Waterskin",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "sp"
+    },
+    "weight": 5,
+    "description": "A Waterskin holds up to 4 pints. If you don't drink sufficient water, you risk dehydration (see \"Rules Glossary\").",
+    "data": {}
+  },
+  {
+    "key": "abacus-srd-5-1",
+    "name": "Abacus",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "An abacus.",
+    "data": {}
+  },
+  {
+    "key": "acid-srd-5-1",
+    "name": "Acid",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": null,
+    "description": "As an action, you can splash the contents of this vial onto a creature within 5 feet of you or throw the vial up to 20 feet, shattering it on impact. In either case, make a ranged attack against a creature or object, treating the acid as an improvised weapon. On a hit, the target takes 2d6 acid damage.",
+    "data": {}
+  },
+  {
+    "key": "acid-vial-srd-5-1",
+    "name": "Acid (vial)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "As an action, you can splash the contents of this vial onto a creature within 5 feet of you or throw the vial up to 20 feet, shattering it on impact. In either case, make a ranged attack against a creature or object, treating the acid as an improvised weapon. On a hit, the target takes 2d6 acid damage.",
+    "data": {}
+  },
+  {
+    "key": "alchemist-s-fire-flask-srd-5-1",
+    "name": "Alchemist's Fire (Flask)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "This sticky, adhesive fluid ignites when exposed to air. As an action, you can throw this flask up to 20 feet, shattering it on impact. Make a ranged attack against a creature or object, treating the alchemist's fire as an improvised weapon. On a hit, the target takes 1d4 fire damage at the start of each of its turns. A creature can end this damage by using its action to make a DC 10 Dexterity check to extinguish the flames.",
+    "data": {}
+  },
+  {
+    "key": "amulet-srd-5-1",
+    "name": "Amulet",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Can be used as a holy symbol.",
+    "data": {}
+  },
+  {
+    "key": "antitoxin-vial-srd-5-1",
+    "name": "Antitoxin (Vial)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "description": "A creature that drinks this vial of liquid gains advantage on saving throws against poison for 1 hour. It confers no benefit to undead or constructs.",
+    "data": {}
+  },
+  {
+    "key": "arrow-bow-srd-5-1",
+    "name": "Arrow (bow)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "weight": 0.05,
+    "description": "An arrow for a bow.",
+    "data": {}
+  },
+  {
+    "key": "assassin-s-blood-srd-5-1",
+    "name": "Assassin's Blood",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 150,
+      "currency": "gp"
+    },
+    "description": "A creature subjected to this poison must make a DC 10 Constitution saving throw. On a failed save, it takes 6 (1d12) poison damage and is poisoned for 24 hours. On a successful save, the creature takes half damage and isn't poisoned.\\n\\n\n\n**_Ingested._** A creature must swallow an entire dose of ingested poison to suffer its effects. The dose can be delivered in food or a liquid. You may decide that a partial dose has a reduced effect, such as allowing advantage on the saving throw or dealing only half damage on a failed save.",
+    "data": {}
+  },
+  {
+    "key": "backpack-srd-5-1",
+    "name": "Backpack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "A backpack. Capacity: 1 cubic foot/30 pounds of gear.",
+    "data": {}
+  },
+  {
+    "key": "ball-bearings-bag-of-1000-srd-5-1",
+    "name": "Ball Bearings (bag of 1000)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "As an action, you can spill these tiny metal balls from their pouch to cover a level, square area that is 10 feet on a side. A creature moving across the covered area must succeed on a DC 10 Dexterity saving throw or fall prone. A creature moving through the area at half speed doesn't need to make the save.",
+    "data": {}
+  },
+  {
+    "key": "barrel-srd-5-1",
+    "name": "Barrel",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 70,
+    "description": "A barrel. Capacity: 40 gallons liquid, 4 cubic feet solid.",
+    "data": {}
+  },
+  {
+    "key": "basket-srd-5-1",
+    "name": "Basket",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 4,
+      "currency": "sp"
+    },
+    "weight": 2,
+    "description": "A basket. Capacity: 2 cubic feet/40 pounds of gear.",
+    "data": {}
+  },
+  {
+    "key": "bedroll-srd-5-1",
+    "name": "Bedroll",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 7,
+    "description": "A bedroll.",
+    "data": {}
+  },
+  {
+    "key": "bell-srd-5-1",
+    "name": "Bell",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "description": "A bell.",
+    "data": {}
+  },
+  {
+    "key": "blanket-srd-5-1",
+    "name": "Blanket",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "description": "A blanket.",
+    "data": {}
+  },
+  {
+    "key": "block-and-tackle-srd-5-1",
+    "name": "Block and Tackle",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "A set of pulleys with a cable threaded through them and a hook to attach to objects, a block and tackle allows you to hoist up to four times the weight you can normally lift.",
+    "data": {}
+  },
+  {
+    "key": "blowgun-needles-srd-5-1",
+    "name": "Blowgun needles",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "cp"
+    },
+    "weight": 0.02,
+    "description": "Needles to be fired with a blowgun.",
+    "data": {}
+  },
+  {
+    "key": "book-srd-5-1",
+    "name": "Book",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "A book might contain poetry, historical accounts, information pertaining to a particular field of lore, diagrams and notes on gnomish contraptions, or just about anything else that can be represented using text or pictures. A book of spells is a spellbook (described later in this section).",
+    "data": {}
+  },
+  {
+    "key": "bottle-glass-srd-5-1",
+    "name": "Bottle, glass",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "A glass bottle. Capacity: 1.5 pints liquid.",
+    "data": {}
+  },
+  {
+    "key": "bucket-srd-5-1",
+    "name": "Bucket",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "weight": 2,
+    "description": "A bucket. Capacity: 3 gallons liquid, 1/2 cubic foot solid.",
+    "data": {}
+  },
+  {
+    "key": "burnt-othur-fumes-srd-5-1",
+    "name": "Burnt othur fumes",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 500,
+      "currency": "gp"
+    },
+    "description": "A creature subjected to this poison must succeed on a DC 13 Constitution saving throw or take 10 (3d6) poison damage, and must repeat the saving throw at the start of each of its turns. On each successive failed save, the character takes 3 (1d6) poison damage. After three successful saves, the poison ends.\\n\\n**_Inhaled._** These poisons are powders or gases that take effect when inhaled. Blowing the powder or releasing the gas subjects creatures in a 5-foot cube to its effect. The resulting cloud dissipates immediately afterward. Holding one's breath is ineffective against inhaled poisons, as they affect nasal membranes, tear ducts, and other parts of the body.",
+    "data": {}
+  },
+  {
+    "key": "caltrops-bag-of-20-srd-5-1",
+    "name": "Caltrops (bag of 20)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "As an action, you can spread a bag of caltrops to cover a square area that is 5 feet on a side. Any creature that enters the area must succeed on a DC 15 Dexterity saving throw or stop moving this turn and take 1 piercing damage. Taking this damage reduces the creature's walking speed by 10 feet until the creature regains at least 1 hit point. A creature moving through the area at half speed doesn't need to make the save.",
+    "data": {}
+  },
+  {
+    "key": "candle-srd-5-1",
+    "name": "Candle",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "cp"
+    },
+    "description": "For 1 hour, a candle sheds bright light in a 5-foot radius and dim light for an additional 5 feet.",
+    "data": {}
+  },
+  {
+    "key": "case-crossbow-bolt-srd-5-1",
+    "name": "Case, Crossbow Bolt",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "This wooden case can hold up to twenty crossbow bolts.",
+    "data": {}
+  },
+  {
+    "key": "case-map-or-scroll-srd-5-1",
+    "name": "Case, Map or Scroll",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "This cylindrical leather case can hold up to ten rolled-up sheets of paper or five rolled-up sheets of parchment.",
+    "data": {}
+  },
+  {
+    "key": "chain-10-feet-srd-5-1",
+    "name": "Chain (10 feet)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "description": "A chain has 10 hit points. It can be burst with a successful DC 20 Strength check.",
+    "data": {}
+  },
+  {
+    "key": "chalk-1-piece-srd-5-1",
+    "name": "Chalk (1 piece)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "cp"
+    },
+    "description": "A piece of chalk.",
+    "data": {}
+  },
+  {
+    "key": "chest-srd-5-1",
+    "name": "Chest",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 25,
+    "description": "A chest. Capacity: 12 cubic feet/300 pounds of gear.",
+    "data": {}
+  },
+  {
+    "key": "climber-s-kit-srd-5-1",
+    "name": "Climber's Kit",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 12,
+    "description": "A climber's kit includes special pitons, boot tips, gloves, and a harness. You can use the climber's kit as an action to anchor yourself; when you do, you can't fall more than 25 feet from the point where you anchored yourself, and you can't climb more than 25 feet away from that point without undoing the anchor.",
+    "data": {}
+  },
+  {
+    "key": "clothes-common-srd-5-1",
+    "name": "Clothes, Common",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 3,
+    "description": "Common clothes.",
+    "data": {}
+  },
+  {
+    "key": "clothes-costume-srd-5-1",
+    "name": "Clothes, costume",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "A costume.",
+    "data": {}
+  },
+  {
+    "key": "clothes-fine-srd-5-1",
+    "name": "Clothes, fine",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "description": "Fine clothing.",
+    "data": {}
+  },
+  {
+    "key": "clothes-traveler-s-srd-5-1",
+    "name": "Clothes, traveler's",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "Traveler's clothing.",
+    "data": {}
+  },
+  {
+    "key": "component-pouch-srd-5-1",
+    "name": "Component Pouch",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "A component pouch is a small, watertight leather belt pouch that has compartments to hold all the material components and other special items you need to cast your spells, except for those components that have a specific cost (as indicated in a spell's description).",
+    "data": {}
+  },
+  {
+    "key": "crawler-mucus-srd-5-1",
+    "name": "Crawler mucus",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 200,
+      "currency": "gp"
+    },
+    "description": "This poison must be harvested from a dead or incapacitated crawler. A creature subjected to this poison must succeed on a DC 13 Constitution saving throw or be poisoned for 1 minute. The poisoned creature is paralyzed. The creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success.\\n\\n\n**_Contact._** Contact poison can be smeared on an object and remains potent until it is touched or washed off. A creature that touches contact poison with exposed skin suffers its effects.",
+    "data": {}
+  },
+  {
+    "key": "crossbow-bolt-srd-5-1",
+    "name": "Crossbow bolt",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "weight": 0.08,
+    "description": "Bolts to be used in a crossbow.",
+    "data": {}
+  },
+  {
+    "key": "crowbar-srd-5-1",
+    "name": "Crowbar",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "Using a crowbar grants advantage to Strength checks where the crowbar's leverage can be applied.",
+    "data": {}
+  },
+  {
+    "key": "crystal-srd-5-1",
+    "name": "Crystal",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Can be used as an arcane focus.",
+    "data": {}
+  },
+  {
+    "key": "drow-poison-srd-5-1",
+    "name": "Drow poison",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 200,
+      "currency": "gp"
+    },
+    "description": "This poison is typically made only by the drow, and only in a place far removed from sunlight. A creature subjected to this poison must succeed on a DC 13 Constitution saving throw or be poisoned for 1 hour. If the saving throw fails by 5 or more, the creature is also unconscious while poisoned in this way. The creature wakes up if it takes damage or if another creature takes an action to shake it awake.\n\\n\\n**_Injury._** Injury poison can be applied to weapons, ammunition, trap components, and other objects that deal piercing or slashing damage and remains potent until delivered through a wound or washed off. A creature that takes piercing or slashing damage from an object coated with the poison is exposed to its effects.",
+    "data": {}
+  },
+  {
+    "key": "emblem-srd-5-1",
+    "name": "Emblem",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "description": "Can be used as a holy symbol.",
+    "data": {}
+  },
+  {
+    "key": "essense-of-either-srd-5-1",
+    "name": "Essense of either",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 300,
+      "currency": "gp"
+    },
+    "description": "A creature subjected to this poison must succeed on a DC 15 Constitution saving throw or become poisoned for 8 hours. The poisoned creature is unconscious. The creature wakes up if it takes damage or if another creature takes an action to shake it awake.\\n\\n**_Inhaled._** These poisons are powders or gases that take effect when inhaled. Blowing the powder or releasing the gas subjects creatures in a 5-foot cube to its effect. The resulting cloud dissipates immediately afterward. Holding one's breath is ineffective against inhaled poisons, as they affect nasal membranes, tear ducts, and other parts of the body.",
+    "data": {}
+  },
+  {
+    "key": "fishing-tackle-srd-5-1",
+    "name": "Fishing Tackle",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "This kit includes a wooden rod, silken line, corkwood bobbers, steel hooks, lead sinkers, velvet lures, and narrow netting.",
+    "data": {}
+  },
+  {
+    "key": "flask-or-tankard-srd-5-1",
+    "name": "Flask or tankard",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "cp"
+    },
+    "weight": 1,
+    "description": "For drinking. Capacity: 1 pint liquid.",
+    "data": {}
+  },
+  {
+    "key": "grappling-hook-srd-5-1",
+    "name": "Grappling hook",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "A grappling hook.",
+    "data": {}
+  },
+  {
+    "key": "hammer-srd-5-1",
+    "name": "Hammer",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "A hammer.",
+    "data": {}
+  },
+  {
+    "key": "hammer-sledge-srd-5-1",
+    "name": "Hammer, sledge",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "description": "A sledgehammer",
+    "data": {}
+  },
+  {
+    "key": "healer-s-kit-srd-5-1",
+    "name": "Healer's Kit",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "This kit is a leather pouch containing bandages, salves, and splints. The kit has ten uses. As an action, you can expend one use of the kit to stabilize a creature that has 0 hit points, without needing to make a Wisdom (Medicine) check.",
+    "data": {}
+  },
+  {
+    "key": "holy-water-flask-srd-5-1",
+    "name": "Holy Water (flask)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "As an action, you can splash the contents of this flask onto a creature within 5 feet of you or throw it up to 20 feet, shattering it on impact.In either case, make a ranged attack against a target creature, treating the holy water as an improvised weapon. If the target is a fiend or undead, it takes 2d6 radiant damage.\\n\\nA cleric or paladin may create holy water by performing a special ritual. The ritual takes 1 hour to perform, uses 25 gp worth of powdered silver, and requires the caster to expend a 1st-­‐‑level spell slot.",
+    "data": {}
+  },
+  {
+    "key": "hourglass-srd-5-1",
+    "name": "Hourglass",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "An hourglass.",
+    "data": {}
+  },
+  {
+    "key": "hunting-trap-srd-5-1",
+    "name": "Hunting Trap",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 25,
+    "description": "When you use your action to set it, this trap forms a saw-­‐‑toothed steel ring that snaps shut when a creature steps on a pressure plate in the center. The trap is affixed by a heavy chain to an immobile object, such as a tree or a spike driven into the ground. A creature that steps on the plate must succeed on a DC 13 Dexterity saving throw or take 1d4 piercing damage and stop moving. Thereafter, until the creature breaks free of the trap, its movement is limited by the length of the chain (typically 3 feet long). A creature can use its action to make a DC 13 Strength check, freeing itself or another creature within its reach on a success. Each failed check deals 1 piercing damage to the trapped creature.",
+    "data": {}
+  },
+  {
+    "key": "ink-1-ounce-bottle-srd-5-1",
+    "name": "Ink (1 ounce bottle)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "description": "A bottle of ink.",
+    "data": {}
+  },
+  {
+    "key": "ink-pen-srd-5-1",
+    "name": "Ink pen",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "cp"
+    },
+    "description": "A pen for writing with ink.",
+    "data": {}
+  },
+  {
+    "key": "jug-or-pitcher-srd-5-1",
+    "name": "Jug or pitcher",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "cp"
+    },
+    "weight": 4,
+    "description": "For drinking a lot. Capacity: 1 gallon liquid.",
+    "data": {}
+  },
+  {
+    "key": "ladder-10-foot-srd-5-1",
+    "name": "Ladder (10-foot)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "weight": 25,
+    "description": "A 10 foot ladder.",
+    "data": {}
+  },
+  {
+    "key": "lamp-srd-5-1",
+    "name": "Lamp",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 1,
+    "description": "A lamp casts bright light in a 15-foot radius and dim light for an additional 30 feet. Once lit, it burns for 6 hours on a flask (1 pint) of oil.",
+    "data": {}
+  },
+  {
+    "key": "lamp-oil-flask-srd-5-1",
+    "name": "Lamp oil (flask)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "weight": 1,
+    "description": "Oil usually comes in a clay flask that holds 1 pint. As an action, you can splash the oil in this flask onto a creature within 5 feet of you or throw it up to 20 feet, shattering it on impact. Make a ranged attack against a target creature or object, treating the oil as an improvised weapon. On a hit, the target is covered in oil. If the target takes any fire damage before the oil dries (after 1 minute), the target takes an additional 5 fire damage from the burning oil. You can also pour a flask of oil on the ground to cover a 5-­foot‑square area, provided that the surface is level. If lit, the oil burns for 2 rounds and deals 5 fire damage to any creature that enters the area or ends its turn in the area. A creature can take this damage only once per turn.",
+    "data": {}
+  },
+  {
+    "key": "lantern-bullseye-srd-5-1",
+    "name": "Lantern, Bullseye",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "A bullseye lantern casts bright light in a 60-­‐‑foot cone and dim light for an additional 60 feet. Once lit, it burns for 6 hours on a flask (1 pint) of oil.",
+    "data": {}
+  },
+  {
+    "key": "lantern-hooded-srd-5-1",
+    "name": "Lantern, Hooded",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "A hooded lantern casts bright light in a 30-­‐‑foot radius and dim light for an additional 30 feet. Once lit, it burns for 6 hours on a flask (1 pint) of oil. As an action, you can lower the hood, reducing the light to dim light in a 5-­‐‑foot radius.",
+    "data": {}
+  },
+  {
+    "key": "lock-srd-5-1",
+    "name": "Lock",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "A key is provided with the lock. Without the key, a creature proficient with thieves’ tools can pick this lock with a successful DC 15 Dexterity check. Your GM may decide that better locks are available for higher prices.",
+    "data": {}
+  },
+  {
+    "key": "magnifying-glass-srd-5-1",
+    "name": "Magnifying Glass",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 100,
+      "currency": "gp"
+    },
+    "description": "This lens allows a closer look at small objects. It is also useful as a substitute for flint and steel when starting fires. Lighting a fire with a magnifying glass requires light as bright as sunlight to focus, tinder to ignite, and about 5 minutes for the fire to ignite. A magnifying glass grants advantage on any ability check made to appraise or inspect an item that is small or highly detailed.",
+    "data": {}
+  },
+  {
+    "key": "malice-srd-5-1",
+    "name": "Malice",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 250,
+      "currency": "gp"
+    },
+    "description": "A creature subjected to this poison must succeed on a DC 15 Constitution saving throw or become poisoned for 1 hour. The poisoned creature is blinded.\\n\\n**_Inhaled._** These poisons are powders or gases that take effect when inhaled. Blowing the powder or releasing the gas subjects creatures in a 5-foot cube to its effect. The resulting cloud dissipates immediately afterward. Holding one's breath is ineffective against inhaled poisons, as they affect nasal membranes, tear ducts, and other parts of the body.",
+    "data": {}
+  },
+  {
+    "key": "manacles-srd-5-1",
+    "name": "Manacles",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "description": "These metal restraints can bind a Small or Medium creature. Escaping the manacles requires a successful DC 20 Dexterity check. Breaking them requires a successful DC 20 Strength check. Each set of manacles comes with one key. Without the key, a creature proficient with thieves’ tools can pick the manacles’ lock with a successful DC 15 Dexterity check. Manacles have 15 hit points.",
+    "data": {}
+  },
+  {
+    "key": "mess-kit-srd-5-1",
+    "name": "Mess Kit",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "sp"
+    },
+    "weight": 1,
+    "description": "This tin box contains a cup and simple cutlery. The box clamps together, and one side can be used as a cooking pan and the other as a plate or shallow bowl.",
+    "data": {}
+  },
+  {
+    "key": "midnight-tears-srd-5-1",
+    "name": "Midnight tears",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1500,
+      "currency": "gp"
+    },
+    "description": "A creature that ingests this poison suffers no effect until the stroke of midnight. If the poison has not been neutralized before then, the creature must succeed on a DC 17 Constitution saving throw, taking 31 (9d6) poison damage on a failed save, or half as much damage on a successful one.\\n\\n **_Ingested._** A creature must swallow an entire dose of ingested poison to suffer its effects. The dose can be delivered in food or a liquid. You may decide that a partial dose has a reduced effect, such as allowing advantage on the saving throw or dealing only half damage on a failed save.",
+    "data": {}
+  },
+  {
+    "key": "mirror-steel-srd-5-1",
+    "name": "Mirror, steel",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 0.5,
+    "description": "A mirror.",
+    "data": {}
+  },
+  {
+    "key": "oil-of-taggit-srd-5-1",
+    "name": "Oil of taggit",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 400,
+      "currency": "gp"
+    },
+    "description": "A creature subjected to this poison must succeed on a DC 13 Constitution saving throw or become poisoned for 24 hours. The poisoned creature is unconscious. The creature wakes up if it takes damage.\\n\\n **_Contact._** Contact poison can be smeared on an object and remains potent until it is touched or washed off. A creature that touches contact poison with exposed skin suffers its effects.",
+    "data": {}
+  },
+  {
+    "key": "orb-srd-5-1",
+    "name": "Orb",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 20,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "Can be used as an Arcane Focus.",
+    "data": {}
+  },
+  {
+    "key": "pale-tincture-srd-5-1",
+    "name": "Pale tincture",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 250,
+      "currency": "gp"
+    },
+    "description": "A creature subjected to this poison must succeed on a DC 16 Constitution saving throw or take 3 (1d6) poison damage and become poisoned. The poisoned creature must repeat the saving throw every 24 hours, taking 3 (1d6) poison damage on a failed save. Until this poison ends, the damage the poison deals can't be healed by any means. After seven successful saving throws, the effect ends and the creature can heal normally. \\n\\n **_Ingested._** A creature must swallow an entire dose of ingested poison to suffer its effects. The dose can be delivered in food or a liquid. You may decide that a partial dose has a reduced effect, such as allowing advantage on the saving throw or dealing only half damage on a failed save.",
+    "data": {}
+  },
+  {
+    "key": "paper-one-sheet-srd-5-1",
+    "name": "Paper (one sheet)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "sp"
+    },
+    "description": "A sheet of paper",
+    "data": {}
+  },
+  {
+    "key": "parchment-one-sheet-srd-5-1",
+    "name": "Parchment (one sheet)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "description": "A sheet of parchment",
+    "data": {}
+  },
+  {
+    "key": "perfume-vial-srd-5-1",
+    "name": "Perfume (vial)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "description": "A vial of perfume.",
+    "data": {}
+  },
+  {
+    "key": "pick-miner-s-srd-5-1",
+    "name": "Pick, miner's",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "description": "A pick for mining.",
+    "data": {}
+  },
+  {
+    "key": "piton-srd-5-1",
+    "name": "Piton",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "weight": 0.25,
+    "description": "A piton for climbing.",
+    "data": {}
+  },
+  {
+    "key": "poison-basic-srd-5-1",
+    "name": "Poison, Basic",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 100,
+      "currency": "gp"
+    },
+    "description": "You can use the poison in this vial to coat one slashing or piercing weapon or up to three pieces of ammunition. Applying the poison takes an action. A creature hit by the poisoned weapon or ammunition must make a DC 10 Constitution saving throw or take 1d4 poison damage. Once applied, the poison retains potency for 1 minute before drying.",
+    "data": {}
+  },
+  {
+    "key": "pole-10-foot-srd-5-1",
+    "name": "Pole (10-foot)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "weight": 7,
+    "description": "A 10 foot pole.",
+    "data": {}
+  },
+  {
+    "key": "pot-iron-srd-5-1",
+    "name": "Pot, iron",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "description": "An iron pot. Capacity: 1 gallon liquid.",
+    "data": {}
+  },
+  {
+    "key": "pouch-srd-5-1",
+    "name": "Pouch",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 1,
+    "description": "A cloth or leather pouch can hold up to 20 sling bullets or 50 blowgun needles, among other things. A compartmentalized pouch for holding spell components is called a component pouch (described earlier in this section).\nCapacity: 1/5 cubic foot/6 pounds of gear.",
+    "data": {}
+  },
+  {
+    "key": "purple-worm-poison-srd-5-1",
+    "name": "Purple worm poison",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2000,
+      "currency": "gp"
+    },
+    "description": "This poison must be harvested from a dead or incapacitated purple worm. A creature subjected to this poison must make a DC 19 Constitution saving throw, taking 42 (12d6) poison damage on a failed save, or half as much damage on a successful one.\n\\n\\n\n**_Injury._** Injury poison can be applied to weapons, ammunition, trap components, and other objects that deal piercing or slashing damage and remains potent until delivered through a wound or washed off. A creature that takes piercing or slashing damage from an object coated with the poison is exposed to its effects.",
+    "data": {}
+  },
+  {
+    "key": "quiver-srd-5-1",
+    "name": "Quiver",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "A quiver can hold up to 20 arrows.",
+    "data": {}
+  },
+  {
+    "key": "ram-portable-srd-5-1",
+    "name": "Ram, Portable",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 4,
+      "currency": "gp"
+    },
+    "weight": 35,
+    "description": "You can use a portable ram to break down doors. When doing so, you gain a +4 bonus on the Strength check. One other character can help you use the ram, giving you advantage on this check.",
+    "data": {}
+  },
+  {
+    "key": "rations-1-day-srd-5-1",
+    "name": "Rations (1 day)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 2,
+    "description": "Rations consist of dry foods suitable for extended travel, including jerky, dried fruit, hardtack, and nuts.",
+    "data": {}
+  },
+  {
+    "key": "reliquary-srd-5-1",
+    "name": "Reliquary",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "Can be used as a holy symbol.",
+    "data": {}
+  },
+  {
+    "key": "robes-srd-5-1",
+    "name": "Robes",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "Robes, for wearing.",
+    "data": {}
+  },
+  {
+    "key": "rope-hempen-50-feet-srd-5-1",
+    "name": "Rope, hempen (50 feet)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "description": "Rope, whether made of hemp or silk, has 2 hit points and can be burst with a DC 17 Strength check.",
+    "data": {}
+  },
+  {
+    "key": "rope-silk-50-feet-srd-5-1",
+    "name": "Rope, silk (50 feet)",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "Rope, whether made of hemp or silk, has 2 hit points and can be burst with a DC 17 Strength check.",
+    "data": {}
+  },
+  {
+    "key": "sack-srd-5-1",
+    "name": "Sack",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "cp"
+    },
+    "weight": 0.5,
+    "description": "A sack. Capacity: 1 cubic foot/30 pounds of gear.",
+    "data": {}
+  },
+  {
+    "key": "scale-merchant-s-srd-5-1",
+    "name": "Scale, Merchant's",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "A scale includes a small balance, pans, and a suitable assortment of weights up to 2 pounds. With it, you can measure the exact weight of small objects, such as raw precious metals or trade goods, to help determine their worth.",
+    "data": {}
+  },
+  {
+    "key": "sealing-wax-srd-5-1",
+    "name": "Sealing wax",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "description": "For sealing written letters.",
+    "data": {}
+  },
+  {
+    "key": "serpent-venom-srd-5-1",
+    "name": "Serpent venom",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 200,
+      "currency": "gp"
+    },
+    "description": "This poison must be harvested from a dead or incapacitated giant poisonous snake. A creature subjected to this poison must succeed on a DC 11 Constitution saving throw, taking 10 (3d6) poison damage on a failed save, or half as much damage on a successful one.\n\\n\\n\n**_Injury._** Injury poison can be applied to weapons, ammunition, trap components, and other objects that deal piercing or slashing damage and remains potent until delivered through a wound or washed off. A creature that takes piercing or slashing damage from an object coated with the poison is exposed to its effects.",
+    "data": {}
+  },
+  {
+    "key": "shovel-srd-5-1",
+    "name": "Shovel",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "A shovel.",
+    "data": {}
+  },
+  {
+    "key": "signal-whistle-srd-5-1",
+    "name": "Signal whistle",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "cp"
+    },
+    "description": "For signalling.",
+    "data": {}
+  },
+  {
+    "key": "sling-bullets-srd-5-1",
+    "name": "Sling bullets",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "cp"
+    },
+    "weight": 0.075,
+    "description": "Technically their cost is 20 for 4cp.",
+    "data": {}
+  },
+  {
+    "key": "soap-srd-5-1",
+    "name": "Soap",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "cp"
+    },
+    "description": "For cleaning.",
+    "data": {}
+  },
+  {
+    "key": "spellbook-srd-5-1",
+    "name": "Spellbook",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "Essential for wizards, a spellbook is a leather-­‐‑bound tome with 100 blank vellum pages suitable for recording spells.",
+    "data": {}
+  },
+  {
+    "key": "spike-iron-srd-5-1",
+    "name": "Spike, iron",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "weight": 0.5,
+    "description": "An iron spike.",
+    "data": {}
+  },
+  {
+    "key": "sprig-of-mistletoe-srd-5-1",
+    "name": "Sprig of mistletoe",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "description": "A sprig of mistletoe that can be used as a druidic focus.",
+    "data": {}
+  },
+  {
+    "key": "spyglass-srd-5-1",
+    "name": "Spyglass",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1000,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Objects viewed through a spyglass are magnified to twice their size.",
+    "data": {}
+  },
+  {
+    "key": "tent-srd-5-1",
+    "name": "Tent",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 20,
+    "description": "A simple and portable canvas shelter, a tent sleeps two.",
+    "data": {}
+  },
+  {
+    "key": "tinderbox-srd-5-1",
+    "name": "Tinderbox",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "weight": 1,
+    "description": "This small container holds flint, fire steel, and tinder (usually dry cloth soaked in light oil) used to kindle a fire. Using it to light a torch—or anything else with abundant, exposed fuel—takes an action. Lighting any other fire takes 1 minute.",
+    "data": {}
+  },
+  {
+    "key": "torch-srd-5-1",
+    "name": "Torch",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "cp"
+    },
+    "weight": 1,
+    "description": "A torch burns for 1 hour, providing bright light in a 20-­‐‑foot radius and dim light for an additional 20 feet. If you make a melee attack with a burning torch and hit, it deals 1 fire damage.",
+    "data": {}
+  },
+  {
+    "key": "torpor-srd-5-1",
+    "name": "Torpor",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 600,
+      "currency": "gp"
+    },
+    "description": "A creature subjected to this poison must succeed on a DC 15 Constitution saving throw or become poisoned for 4d6 hours. The poisoned creature is incapacitated.\n\\n\\n\n**_Ingested._** A creature must swallow an entire dose of ingested poison to suffer its effects. The dose can be delivered in food or a liquid. You may decide that a partial dose has a reduced effect, such as allowing advantage on the saving throw or dealing only half damage on a failed save.",
+    "data": {}
+  },
+  {
+    "key": "totem-srd-5-1",
+    "name": "Totem",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "description": "Can be used as a druidic focus.",
+    "data": {}
+  },
+  {
+    "key": "truth-serum-srd-5-1",
+    "name": "Truth serum",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 150,
+      "currency": "gp"
+    },
+    "description": "A creature subjected to this poison must succeed on a DC 11 Constitution saving throw or become poisoned for 1 hour. The poisoned creature can't knowingly speak a lie, as if under the effect of a zone of truth spell.\n\\n\\n\n**_Ingested._** A creature must swallow an entire dose of ingested poison to suffer its effects. The dose can be delivered in food or a liquid. You may decide that a partial dose has a reduced effect, such as allowing advantage on the saving throw or dealing only half damage on a failed save.",
+    "data": {}
+  },
+  {
+    "key": "vial-srd-5-1",
+    "name": "Vial",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "description": "For holding liquids. Capacity: 4 ounces liquid.",
+    "data": {}
+  },
+  {
+    "key": "waterskin-srd-5-1",
+    "name": "Waterskin",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 2,
+      "currency": "sp"
+    },
+    "weight": 5,
+    "description": "For drinking. 5lb is the full weight. Capacity: 4 pints liquid.",
+    "data": {}
+  },
+  {
+    "key": "whetstone-srd-5-1",
+    "name": "Whetstone",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "cp"
+    },
+    "weight": 1,
+    "description": "For sharpening.",
+    "data": {}
+  },
+  {
+    "key": "wooden-staff-srd-5-1",
+    "name": "Wooden staff",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "Can be used as a druidic focus.",
+    "data": {}
+  },
+  {
+    "key": "wyvern-poison-srd-5-1",
+    "name": "Wyvern poison",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1200,
+      "currency": "gp"
+    },
+    "description": "This poison must be harvested from a dead or incapacitated wyvern. A creature subjected to this poison must make a DC 15 Constitution saving throw, taking 24 (7d6) poison damage on a failed save, or half as much damage on a successful one.\n\\n\\n\n**_Injury._** Injury poison can be applied to weapons, ammunition, trap components, and other objects that deal piercing or slashing damage and remains potent until delivered through a wound or washed off. A creature that takes piercing or slashing damage from an object coated with the poison is exposed to its effects.",
+    "data": {}
+  },
+  {
+    "key": "druidic-focus-sprig-of-mistletoe-srd-2-0",
+    "name": "Druidic Focus, Sprig of Mistletoe",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "crafting-equipment",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "description": "A Druidic Focus is carved, tied with ribbon, or painted to channel primal magic. A Druid or Ranger can use such an object as a Spellcasting Focus.",
+    "data": {}
+  },
+  {
+    "key": "druidic-focus-wooden-staff-srd-2-0",
+    "name": "Druidic Focus, Wooden Staff",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "crafting-equipment",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "A Druidic Focus is carved, tied with ribbon, or painted to channel primal magic. A Druid or Ranger can use such an object as a Spellcasting Focus. This staff can also be used as a Quarterstaff.",
+    "data": {}
+  },
+  {
+    "key": "druidic-focus-yew-wand-srd-2-0",
+    "name": "Druidic Focus, Yew Wand",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "crafting-equipment",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "A Druidic Focus is carved, tied with ribbon, or painted to channel primal magic. A Druid or Ranger can use such an object as a Spellcasting Focus.",
+    "data": {}
+  },
+  {
+    "key": "airship-srd-2-0",
+    "name": "Airship",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "magic-item",
+    "cost": {
+      "amount": 40000,
+      "currency": "gp"
+    },
+    "description": "A magical flying vessel capable of air travel.",
+    "data": {}
+  },
+  {
+    "key": "antitoxin-srd-2-0",
+    "name": "Antitoxin",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "magic-item",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "description": "As a Bonus Action, you can drink a vial of Antitoxin to gain Advantage on saving throws to avoid or end the Poisoned condition for 1 hour. abo",
+    "data": {}
+  },
+  {
+    "key": "case-map-or-scroll-srd-2-0",
+    "name": "Case, Map or Scroll",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "magic-item",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "A Map or Scroll Case holds up to 10 sheets of paper or 5 sheets of parchment.",
+    "data": {}
+  },
+  {
+    "key": "ioun-stone-srd-2-0",
+    "name": "Ioun Stone",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "magic-item",
+    "cost": null,
+    "description": "Roughly marble sized, Ioun Stones are named after Ioun, a god of knowledge and prophecy revered on some worlds. Many types of Ioun Stones exist, each type a distinct combination of shape and color. When you take a Magic action to toss an Ioun Stone into the air, the stone orbits your head at a distance of 1d3 feet, conferring its benefit to you while doing so. You can have up to three Ioun Stones orbiting your head at the same time. Each Ioun Stone orbiting your head is considered to be an object you are wearing. The orbiting stone avoids contact with other creatures and objects, adjusting its orbit to avoid collisions and thwarting all attempts by other creatures to attack or snatch it. As a Utilize action, you can seize and stow any number of Ioun Stones orbiting your head. If your Attunement to an Ioun Stone ends while it's orbiting your head, the stone falls as though you had dropped it. The type of stone determines its rarity and effects. Absorption (Very Rare). While this pale lavender ellipsoid orbits your head, you can take a Reaction to cancel a spell of level 4 or lower cast by a creature you can see. A canceled spell has no effect, and any resources used to cast it are wasted. Once the stone has canceled 20 levels of spells, it burns out, turns dull gray, and loses its magic. Agility (Very Rare). Your Dexterity increases by 2, to a maximum of 20, while this deep-red sphere orbits your head. Awareness (Rare). While this dark-blue rhomboid orbits your head, you have Advantage on Initiative rolls and Wisdom (Perception) checks. Fortitude (Very Rare). Your Constitution increases by 2, to a maximum of 20, while this pink rhomboid orbits your head. Greater Absorption (Legendary). While this marbled lavender and green ellipsoid orbits your head, you can take a Reaction to cancel a spell of level 8 or lower cast by a creature you can see. A canceled spell has no effect, and any resources used to cast it are wasted. Once the stone has canceled 20 levels of spells, it burns out, turns dull gray, and loses its magic. Insight (Very Rare). Your Wisdom increases by 2, to a maximum of 20, while this incandescent blue sphere orbits your head. Intellect (Very Rare). Your Intelligence increases by 2, to a maximum of 20, while this marbled scarlet and blue sphere orbits your head. Leadership (Very Rare). Your Charisma increases by 2, to a maximum of 20, while this marbled pink and green sphere orbits your head. Mastery (Legendary). Your Proficiency Bonus increases by 1 while this pale green prism orbits your head. Protection (Rare). You gain a +1 bonus to Armor Class while this dusty-rose prism orbits your head. Regeneration (Legendary). You regain 15 Hit Points at the end of each hour this pearly white spindle orbits your head if you have at least 1 Hit Point. Reserve (Rare). This vibrant purple prism stores spells cast into it, holding them until you use them. The stone can store up to 4 levels of spells at a time. When found, it contains 1d4 levels of stored spells chosen by the GM. Any creature can cast a spell of level 1 through 4 into the stone by touching it as the spell is cast. The spell has no effect, other than to be stored in the stone. If the stone can't hold the spell, the spell is expended without effect. The level of the slot used to cast the spell determines how much space it uses. While this stone orbits your head, you can cast any spell stored in it. The spell uses the slot level, spell save DC, spell attack bonus, and spellcasting ability of the original caster but is otherwise treated as if you cast the spell. The spell cast from the stone is no longer stored in it, freeing up space. Strength (Very Rare). Your Strength increases by 2, to a maximum of 20, while this pale blue rhomboid orbits your head. Sustenance (Rare). You don't need to eat or drink while this clear spindle orbits your head.",
+    "data": {}
+  },
+  {
+    "key": "potion-of-giant-strength-srd-2-0",
+    "name": "Potion of Giant Strength",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "magic-item",
+    "cost": null,
+    "description": "When you drink this potion, your Strength score changes for 1 hour. The type of giant determines the score (see the table below). The potion has no effect on you if your Strength is equal to or greater than that score.\n\nThis potion's transparent liquid has floating in it a sliver of light resembling a giant's fingernail.\n\n| Potion                                    | Str. | Rarity    |\n|-------------------------------------------|------|-----------|\n| Potion of Giant Strength (hill)           | 21   | Uncommon  |\n| Potion of Giant Strength (frost or stone) | 23   | Rare      |\n| Potion of Giant Strength (fire)           | 25   | Rare      |\n| Potion of Giant Strength (cloud)          | 27   | Very Rare |\n| Potion of Giant Strength (storm)          | 29   | Legendary |",
+    "data": {}
+  },
+  {
+    "key": "potion-of-healing-srd-2-0",
+    "name": "Potion of Healing",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "magic-item",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 0.5,
+    "description": "This potion is a magic item. As a Bonus Action, you can drink it or administer it to another creature within 5 feet of yourself. The creature that drinks the magical red fluid in this vial regains 2d4 + 2 Hit Points.",
+    "data": {}
+  },
+  {
+    "key": "potions-of-healing-srd-2-0",
+    "name": "Potions of Healing",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "magic-item",
+    "cost": null,
+    "description": "You regain Hit Points when you drink this potion. The number of Hit Points depends on the potion's rarity, as shown in the table below.\n\nWhatever its potency, the potion's red liquid glimmers when agitated.\n\n| Potion                       | HP Regained | Rarity    |\n|------------------------------|-------------|-----------|\n| Potion of Healing            | 2d4 + 2     | Common    |\n| Potion of Healing (greater)  | 4d4 + 4     | Uncommon  |\n| Potion of Healing (superior) | 8d4 + 8     | Rare      |\n| Potion of Healing (supreme)  | 10d4 + 20   | Very Rare |",
+    "data": {}
+  },
+  {
+    "key": "spell-scroll-srd-2-0",
+    "name": "Spell Scroll",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "magic-item",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "description": "A Spell Scroll (Cantrip) or Spell Scroll (Level 1) is a magic item that bears the words of a cantrip or level 1 spell, respectively, determined by the scroll's creator. If the spell is on your class's spell list, you can read the scroll and cast the spell using its normal casting time and without providing any Material components. If the spell requires a saving throw or an attack roll, the spell save DC is 13, and the attack bonus is +5. The scroll disintegrates when the casting is completed.",
+    "data": {}
+  },
+  {
+    "key": "rod-srd-5-1",
+    "name": "Rod",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "magic-item",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "description": "Can be used as an arcane focus.",
+    "data": {}
+  },
+  {
+    "key": "signet-ring-srd-5-1",
+    "name": "Signet Ring",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "magic-item",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "description": "A ring with a signet on it.",
+    "data": {}
+  },
+  {
+    "key": "staff-srd-5-1",
+    "name": "Staff",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "magic-item",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "Can be used as an arcane focus.",
+    "data": {}
+  },
+  {
+    "key": "wand-srd-5-1",
+    "name": "Wand",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "magic-item",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Can be used as an arcane focus.",
+    "data": {}
+  },
+  {
+    "key": "yew-wand-srd-5-1",
+    "name": "Yew wand",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "magic-item",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Can be used as a druidic focus.",
     "data": {}
   }
 ]

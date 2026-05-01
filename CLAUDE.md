@@ -153,7 +153,8 @@ Coverage as of last refresh:
 - ✅ feats — 18 entries (1 SRD 5.1, 17 SRD 5.2; per-edition entries — Grappler is the only feat in both, with diverged text). Categories: origin (4), general (3), fighting-style (4), epic-boon (7)
 - ✅ backgrounds — 5 entries (1 SRD 5.1: Acolyte; 4 SRD 5.2: Acolyte, Criminal, Sage, Soldier). The hand-curated seed had 14 PHB-flavored entries; replaced with strict SRD coverage. Non-SRD backgrounds (Folk Hero, Charlatan, etc.) belong to a future homebrew-pack feature.
 - ✅ species — 22 entries (13 SRD 5.1 base + subspecies, 9 SRD 5.2). 5.1 ships subspecies (High Elf, Hill Dwarf, Lightfoot, Rock Gnome) as their own entries with size/speed inherited from parent; 5.2 dropped subspecies in favor of in-species choices. Half-Elf and Half-Orc are 5.1-only — folded into Human/Orc in 2024.
-- ⏳ items, magicitems, weapons, armor, monsters, classes — transform scripts pending; data still seed-grade
+- ✅ items — 308 entries (163 SRD 5.1 + 145 SRD 5.2). Per-edition entries because Open5e's /items/ data has wildly inconsistent naming across editions ("Crossbow, hand" vs "Hand Crossbow", "Half plate" vs "Half Plate Armor"). Categories: weapon (81), armor (25), shield (1), adventuring-gear (185), crafting-equipment (3), magic-item (13). The /weapons/ and /armor/ endpoints are sub-views of /items/ — the weapon{} and armor{} sub-objects on each item entry carry the mechanical detail, so we pull only /items/. The larger /magicitems/ catalog (~2300 variant-level entries) is a future follow-up.
+- ⏳ monsters (creatures), classes — transform scripts pending; data still seed-grade
 
 ---
 
