@@ -296,7 +296,8 @@ function countsFromContent(c: SrdContent): SrdCounts {
  * this set so users know more entries are coming.
  */
 export const SEED_ONLY_TYPES = new Set<keyof SrdContent>([
-  'spells',
+  // Spells now ship the full SRD 5.1 bundle (319 entries, imported from
+  // Open5e). Items + creatures still seed-only until their own import passes.
   'items',
   'creatures',
 ]);
