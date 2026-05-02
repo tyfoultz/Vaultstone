@@ -129,8 +129,15 @@ export interface ConditionResult extends ContentResult {
 
 export interface SubclassResult extends ContentResult {
   type: 'subclass';
-  /** Key of the parent class (e.g. 'wizard', 'barbarian'). */
+  /**
+   * Key of the parent class — must match a `ClassResult.key` exactly so the
+   * class detail page can filter its subclasses. Keys are edition-suffixed
+   * (e.g. `barbarian-srd-2-0`), so a single subclass with diverged 5.1/2024
+   * features ships as two records pointing at the matching edition's class.
+   */
   parentClassKey: string;
+  /** Display name of the parent class ("Barbarian", "Wizard"). */
+  parentClassName?: string;
   /** Level at which a character chooses this subclass branch. */
   unlockLevel: number;
   /** Featured class abilities granted by this subclass at specific levels. */

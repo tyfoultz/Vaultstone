@@ -953,8 +953,9 @@ function SubclassesList({ items }: { items: SubclassResult[] }) {
   const exp = useExpanded();
   const filtered = useMemo(
     () => filterByName(items, q).slice().sort((a, b) =>
-      (a.parentClassKey ?? '').localeCompare(b.parentClassKey ?? '') ||
-      a.name.localeCompare(b.name)
+      (a.parentClassName ?? a.parentClassKey ?? '').localeCompare(b.parentClassName ?? b.parentClassKey ?? '') ||
+      a.name.localeCompare(b.name) ||
+      (a.srdVersions?.[0] ?? '').localeCompare(b.srdVersions?.[0] ?? '')
     ),
     [items, q],
   );
@@ -967,7 +968,7 @@ function SubclassesList({ items }: { items: SubclassResult[] }) {
           key={s.key}
           title={s.name}
           summary={[
-            s.parentClassKey ? capitalize(s.parentClassKey) : null,
+            s.parentClassName ?? (s.parentClassKey ? capitalize(s.parentClassKey) : null),
             typeof s.unlockLevel === 'number' ? `unlocks at L${s.unlockLevel}` : null,
           ].filter(Boolean).join(' · ')}
           expanded={exp.isOpen(s.key)}
