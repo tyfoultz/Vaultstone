@@ -103,9 +103,7 @@ export function CreatePageModal({
     if (!section) return;
     setSubmitting(true);
     setError('');
-    const visibleToPlayers = section.force_hidden_from_players
-      ? false
-      : section.default_pages_visible;
+    const visibleToPlayers = false;
     const { data, error: err } = await createPage({
       worldId,
       sectionId,

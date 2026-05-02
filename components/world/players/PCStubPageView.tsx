@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
   claimPageEdit,
+  createWorldImage,
   forceReleasePageEdit,
   getCampaignMembers,
   getCharacterById,
+  getMyStorageUsage,
   getPagesLinkingTo,
   getEventsReferencingPage,
+  getWorldImageSignedUrlById,
   releasePageEdit,
   trashPage,
   updatePage,
+  uploadWorldImage,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
@@ -65,6 +71,10 @@ const RECIPROCAL_MAP: Record<string, string> = { ally: 'ally', rival: 'rival', e
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type Props = { page: WorldPage; worldId: string };
+
+function getInitials(name: string): string {
+  return name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
+}
 
 function addReciprocalRelationship(targetPage: WorldPage, sourcePageId: string, type: string) {
   const reciprocal = RECIPROCAL_MAP[type] ?? type;
@@ -127,8 +137,9 @@ export function PCStubPageView({ page, worldId }: Props) {
   // Structured fields
   const fields = (page.structured_fields as Record<string, unknown>) ?? {};
   const fieldsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function updateField(key: string, value: unknown) {
-    const next = { ...fields, [key]: value };
+
+  function updateFields(patch: Record<string, unknown>) {
+    const next = { ...fields, ...patch };
     updatePageInStore(page.id, { structured_fields: next as Json });
     setSaveState('saving');
     if (fieldsTimerRef.current) clearTimeout(fieldsTimerRef.current);
@@ -138,9 +149,106 @@ export function PCStubPageView({ page, worldId }: Props) {
     }, 500);
   }
 
+  function updateField(key: string, value: unknown) {
+    updateFields({ [key]: value });
+  }
+
   const hooks = Array.isArray(fields.__hooks) ? (fields.__hooks as string[]) : [];
   const goals = Array.isArray(fields.__goals) ? (fields.__goals as string[]) : [];
   const relationships: Relationship[] = Array.isArray(fields.__relationships) ? (fields.__relationships as Relationship[]) : [];
+
+  // Portrait image
+  const portraitImageId = typeof fields.__portrait_image_id === 'string' ? fields.__portrait_image_id : null;
+  const portraitZoom = typeof fields.__portrait_zoom === 'number' ? fields.__portrait_zoom : 1;
+  const portraitOffsetX = typeof fields.__portrait_offset_x === 'number' ? fields.__portrait_offset_x : 0;
+  const portraitOffsetY = typeof fields.__portrait_offset_y === 'number' ? fields.__portrait_offset_y : 0;
+  const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
+  const [portraitUploading, setPortraitUploading] = useState(false);
+  const portraitInputRef = useRef<HTMLInputElement | null>(null);
+  const [adjustingPortrait, setAdjustingPortrait] = useState(false);
+  const [localZoom, setLocalZoom] = useState(portraitZoom);
+  const [localOffsetX, setLocalOffsetX] = useState(portraitOffsetX);
+  const [localOffsetY, setLocalOffsetY] = useState(portraitOffsetY);
+
+  useEffect(() => {
+    setLocalZoom(portraitZoom);
+    setLocalOffsetX(portraitOffsetX);
+    setLocalOffsetY(portraitOffsetY);
+  }, [portraitZoom, portraitOffsetX, portraitOffsetY]);
+
+  useEffect(() => {
+    if (!portraitImageId) { setPortraitUrl(null); return; }
+    let cancelled = false;
+    void (async () => {
+      const { data } = await getWorldImageSignedUrlById(portraitImageId);
+      if (!cancelled && data) setPortraitUrl(data.signedUrl);
+    })();
+    return () => { cancelled = true; };
+  }, [portraitImageId]);
+
+  async function handlePortraitPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return;
+    setPortraitUploading(true);
+    try {
+      const usage = await getMyStorageUsage();
+      if (usage.blocked) { console.warn('Portrait: storage blocked'); setPortraitUploading(false); return; }
+
+      const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new window.Image();
+        img.onload = () => { resolve({ w: img.naturalWidth, h: img.naturalHeight }); URL.revokeObjectURL(url); };
+        img.onerror = () => { reject(new Error('Bad image')); URL.revokeObjectURL(url); };
+        img.src = url;
+      });
+
+      let { w, h } = dims;
+      const MAX_DIM = 1920;
+      let blob: Blob = file;
+      let mimeType = file.type;
+      if (w > MAX_DIM || h > MAX_DIM || file.type !== 'image/jpeg') {
+        const ratio = (w > MAX_DIM || h > MAX_DIM) ? Math.min(MAX_DIM / w, MAX_DIM / h) : 1;
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+        const bitmap = await createImageBitmap(file);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d')!.drawImage(bitmap, 0, 0, w, h);
+        bitmap.close();
+        blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => b ? res(b) : rej(new Error('compress fail')), 'image/jpeg', 0.85));
+        mimeType = 'image/jpeg';
+      }
+
+      const imageId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const filename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase().replace(/\.(png|webp)$/, '.jpg');
+      const { error: upErr } = await uploadWorldImage({ worldId, imageId, filename, body: blob, contentType: mimeType });
+      if (upErr) { console.error('Portrait storage upload failed:', upErr); setPortraitUploading(false); return; }
+
+      const imageKey = `${worldId}/${imageId}/${filename}`;
+      const { data: row, error: rowErr } = await createWorldImage({ world_id: worldId, page_id: page.id, image_key: imageKey, width: w, height: h, alt: page.title, byte_size: blob.size, content_type: mimeType });
+      if (rowErr) { console.error('Portrait DB row failed:', rowErr); setPortraitUploading(false); return; }
+      if (row) {
+        updateFields({
+          __portrait_image_id: row.id,
+          __portrait_zoom: 1,
+          __portrait_offset_x: 0,
+          __portrait_offset_y: 0,
+        });
+      }
+    } catch (err) { console.error('Portrait upload failed:', err); }
+    setPortraitUploading(false);
+    if (portraitInputRef.current) portraitInputRef.current.value = '';
+  }
+
+  function savePortraitCrop() {
+    updateFields({
+      __portrait_zoom: localZoom,
+      __portrait_offset_x: localOffsetX,
+      __portrait_offset_y: localOffsetY,
+    });
+    setAdjustingPortrait(false);
+  }
 
   // Title override
   const [editingTitle, setEditingTitle] = useState(false);
@@ -296,7 +404,57 @@ export function PCStubPageView({ page, worldId }: Props) {
         <View style={styles.editorCol}>
           {/* Title row */}
           <View style={styles.titleRow}>
-            <Icon name="person" size={28} color={colors.player} />
+            <div style={{ position: 'relative' }}>
+              <div
+                onClick={() => portraitUrl ? setAdjustingPortrait(true) : portraitInputRef.current?.click()}
+                style={{ width: 72, height: 72, borderRadius: 36, overflow: 'hidden', cursor: 'pointer' }}
+              >
+                {portraitUrl ? (
+                  <div style={{
+                    width: 72, height: 72, borderRadius: 36, overflow: 'hidden', position: 'relative',
+                  }}>
+                    <img
+                      src={portraitUrl}
+                      alt={page.title}
+                      style={{
+                        position: 'absolute',
+                        width: `${100 * localZoom}%`,
+                        height: `${100 * localZoom}%`,
+                        objectFit: 'cover',
+                        left: `${50 + localOffsetX}%`,
+                        top: `${50 + localOffsetY}%`,
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <LinearGradient
+                    colors={[colors.player, colors.surfaceContainerLowest]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.portraitFallback}
+                  >
+                    {portraitUploading ? (
+                      <Text style={styles.portraitInitials}>...</Text>
+                    ) : (
+                      <>
+                        <Text style={styles.portraitInitials}>{getInitials(page.title)}</Text>
+                        <View style={styles.portraitUploadHint}>
+                          <Icon name="camera-alt" size={12} color={colors.outline} />
+                        </View>
+                      </>
+                    )}
+                  </LinearGradient>
+                )}
+              </div>
+              <input
+                ref={portraitInputRef as any}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handlePortraitPick as any}
+                style={{ display: 'none' }}
+              />
+            </div>
             <View style={{ flex: 1 }}>
               {editingTitle ? (
                 <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
@@ -584,6 +742,108 @@ export function PCStubPageView({ page, worldId }: Props) {
         }}
         onClose={() => setAddingRelationship(false)}
       /> : null}
+
+      {adjustingPortrait && portraitUrl ? createPortal(
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.5)' }}
+            onClick={() => { setAdjustingPortrait(false); setLocalZoom(portraitZoom); setLocalOffsetX(portraitOffsetX); setLocalOffsetY(portraitOffsetY); }}
+          />
+          <div style={{
+            position: 'fixed',
+            top: 120,
+            left: 80,
+            zIndex: 9001,
+            background: colors.surfaceContainerHigh,
+            border: `1px solid ${colors.outlineVariant}55`,
+            borderRadius: 12,
+            padding: 20,
+            width: 280,
+            boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+          }}>
+            <div style={{
+              width: 200, height: 200, borderRadius: 100, overflow: 'hidden',
+              margin: '0 auto 16px', position: 'relative',
+              border: `2px solid ${colors.outlineVariant}44`,
+            }}>
+              <img
+                src={portraitUrl}
+                alt={page.title}
+                draggable={false}
+                style={{
+                  position: 'absolute',
+                  width: `${100 * localZoom}%`,
+                  height: `${100 * localZoom}%`,
+                  objectFit: 'cover',
+                  left: `${50 + localOffsetX}%`,
+                  top: `${50 + localOffsetY}%`,
+                  transform: 'translate(-50%, -50%)',
+                  cursor: 'grab',
+                }}
+                onMouseDown={(e: any) => {
+                  e.preventDefault();
+                  const startX = e.clientX;
+                  const startY = e.clientY;
+                  const startOx = localOffsetX;
+                  const startOy = localOffsetY;
+                  const onMove = (ev: MouseEvent) => {
+                    const dx = ((ev.clientX - startX) / 200) * 100;
+                    const dy = ((ev.clientY - startY) / 200) * 100;
+                    setLocalOffsetX(Math.max(-50, Math.min(50, startOx + dx)));
+                    setLocalOffsetY(Math.max(-50, Math.min(50, startOy + dy)));
+                  };
+                  const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+                  document.addEventListener('mousemove', onMove);
+                  document.addEventListener('mouseup', onUp);
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontFamily: 'Manrope, system-ui', fontSize: 11, color: colors.outline, minWidth: 36 }}>Zoom</span>
+              <input
+                type="range"
+                min="1"
+                max="4"
+                step="0.1"
+                value={localZoom}
+                onChange={(e: any) => setLocalZoom(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: colors.primary }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => portraitInputRef.current?.click()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '5px 10px', borderRadius: 8,
+                  border: `1px solid ${colors.outlineVariant}44`,
+                  background: 'transparent', color: colors.outline,
+                  fontFamily: 'Manrope, system-ui', fontSize: 11, cursor: 'pointer',
+                }}
+              >Replace</button>
+              <button
+                onClick={() => { setAdjustingPortrait(false); setLocalZoom(portraitZoom); setLocalOffsetX(portraitOffsetX); setLocalOffsetY(portraitOffsetY); }}
+                style={{
+                  padding: '5px 10px', borderRadius: 8,
+                  border: `1px solid ${colors.outlineVariant}44`,
+                  background: 'transparent', color: colors.outline,
+                  fontFamily: 'Manrope, system-ui', fontSize: 11, cursor: 'pointer',
+                }}
+              >Cancel</button>
+              <button
+                onClick={savePortraitCrop}
+                style={{
+                  padding: '5px 10px', borderRadius: 8,
+                  border: `1px solid ${colors.primary}55`,
+                  background: colors.primaryContainer + '22', color: colors.primary,
+                  fontFamily: 'Manrope, system-ui', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                }}
+              >Save</button>
+            </div>
+          </div>
+        </>,
+        document.body,
+      ) : null}
     </View>
   );
 }
@@ -760,7 +1020,36 @@ const styles = StyleSheet.create({
   crumbActive: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.2, color: colors.onSurfaceVariant },
   mainWrap: { flex: 1, flexDirection: 'row', minHeight: 0 },
   editorCol: { flex: 1, minWidth: 0 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  portraitFallback: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.outlineVariant + '44',
+  },
+  portraitInitials: {
+    fontFamily: fonts.headline,
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.onSurface,
+    letterSpacing: 1,
+  },
+  portraitUploadHint: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
   titleBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, borderWidth: 1, borderColor: colors.outlineVariant + '55' },
   charSection: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   charLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.player + '33', alignSelf: 'flex-start' },
