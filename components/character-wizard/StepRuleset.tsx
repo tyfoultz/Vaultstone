@@ -245,6 +245,23 @@ function CampaignModeScreen({
         has enabled.
       </Text>
 
+      {/* ── Join a New Campaign ───────────────────────────────────────── */}
+      {/* Pinned to the top because new players hitting this step have a
+          code in hand and shouldn't have to scroll past the existing-
+          campaigns list to enter it. */}
+      <View style={s.section}>
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionLabel}>Join a New Campaign</Text>
+        </View>
+        <Text style={s.guidance}>
+          Have a 6-character code from a DM? Join here — the campaign will be
+          added to your list and selected automatically.
+        </Text>
+        <JoinCodeForm onJoined={onJoined} alreadyIn={campaigns} />
+      </View>
+
+      <View style={s.sectionDivider} />
+
       {/* ── Your Campaigns ────────────────────────────────────────────── */}
       <View style={s.section}>
         <View style={s.sectionHeader}>
@@ -261,8 +278,8 @@ function CampaignModeScreen({
         ) : campaigns.length === 0 ? (
           <View style={s.emptyCard}>
             <Text style={s.emptyText}>
-              You aren't part of any campaigns yet. Use the join code below to
-              join one, or go back and pick "Standalone character".
+              You aren't part of any campaigns yet. Use the join form above,
+              or go back and pick "Standalone character".
             </Text>
           </View>
         ) : (
@@ -289,18 +306,6 @@ function CampaignModeScreen({
             })}
           </View>
         )}
-      </View>
-
-      {/* ── Join a New Campaign ───────────────────────────────────────── */}
-      <View style={s.section}>
-        <View style={s.sectionHeader}>
-          <Text style={s.sectionLabel}>Join a New Campaign</Text>
-        </View>
-        <Text style={s.guidance}>
-          Have a 6-character code from a DM? Join here — the campaign will be
-          added to your list and selected automatically.
-        </Text>
-        <JoinCodeForm onJoined={onJoined} alreadyIn={campaigns} />
       </View>
 
       {/* ── Locked ruleset preview (shows once a campaign is selected) ── */}
@@ -597,6 +602,11 @@ const s = StyleSheet.create({
 
   // Section helpers (used inside campaign mode)
   section: {},
+  // Vertical breathing room between Join + Your Campaigns sections so
+  // they read as distinct groupings rather than one long list.
+  sectionDivider: {
+    height: spacing.lg,
+  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
