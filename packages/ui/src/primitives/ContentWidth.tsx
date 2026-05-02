@@ -16,7 +16,7 @@ import type { ReactNode } from 'react';
 import { View, type ViewStyle, type StyleProp } from 'react-native';
 
 const PRESETS = {
-  reading: 720,
+  reading: 1080,
   wide: 1080,
   full: undefined,
 } as const;
