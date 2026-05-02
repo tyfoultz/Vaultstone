@@ -9,11 +9,20 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   getHomebrewPack,
-  getHomebrewPackEntryCount,
   updateHomebrewPack,
   deleteHomebrewPack,
+  listHomebrewEntries,
+  deleteHomebrewEntry,
   type HomebrewPackRow,
+  type HomebrewContentRow,
 } from '@vaultstone/api';
+import type { HomebrewContentType } from '@vaultstone/types';
+import { SpellFormModal } from '../../../components/homebrew/forms/SpellFormModal';
+import { ItemFormModal } from '../../../components/homebrew/forms/ItemFormModal';
+import { FeatFormModal } from '../../../components/homebrew/forms/FeatFormModal';
+import { CreatureFormModal } from '../../../components/homebrew/forms/CreatureFormModal';
+import { ClassFormModal } from '../../../components/homebrew/forms/ClassFormModal';
+import { SpeciesFormModal } from '../../../components/homebrew/forms/SpeciesFormModal';
 import {
   colors,
   spacing,
@@ -34,7 +43,7 @@ export default function HomebrewPackDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [pack, setPack] = useState<HomebrewPackRow | null>(null);
-  const [entryCount, setEntryCount] = useState(0);
+  const [entries, setEntries] = useState<HomebrewContentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<EditableField | null>(null);
@@ -45,13 +54,23 @@ export default function HomebrewPackDetailScreen() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  // Form modal state — `formOpen` is the content type whose modal is up;
+  // `editingEntry` is the row being edited (null = create mode).
+  const [formOpen, setFormOpen] = useState<HomebrewContentType | null>(null);
+  const [editingEntry, setEditingEntry] = useState<HomebrewContentRow | null>(null);
+
+  // Per-row delete confirmation. Track by entry id so multiple rows can
+  // confirm independently without sharing state.
+  const [confirmEntryId, setConfirmEntryId] = useState<string | null>(null);
+  const [entryDeleting, setEntryDeleting] = useState<string | null>(null);
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     Promise.all([
       getHomebrewPack(id),
-      getHomebrewPackEntryCount(id),
-    ]).then(([packRes, countRes]) => {
+      listHomebrewEntries(id),
+    ]).then(([packRes, entriesRes]) => {
       if (cancelled) return;
       if (packRes.error || !packRes.data) {
         setError('Pack not found.');
@@ -59,7 +78,7 @@ export default function HomebrewPackDetailScreen() {
         return;
       }
       setPack(packRes.data);
-      setEntryCount(countRes.count);
+      setEntries(entriesRes.data ?? []);
       setDraftName(packRes.data.name);
       setDraftDescription(packRes.data.description ?? '');
       setLoading(false);
@@ -68,6 +87,8 @@ export default function HomebrewPackDetailScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  const entryCount = entries.length;
 
   async function commitField(field: EditableField) {
     if (!pack) return;
@@ -99,6 +120,37 @@ export default function HomebrewPackDetailScreen() {
       return;
     }
     router.back();
+  }
+
+  function handleEntrySaved(saved: HomebrewContentRow) {
+    setEntries((prev) => {
+      const idx = prev.findIndex((e) => e.id === saved.id);
+      if (idx === -1) return [...prev, saved];
+      const next = prev.slice();
+      next[idx] = saved;
+      return next;
+    });
+    setFormOpen(null);
+    setEditingEntry(null);
+  }
+
+  function openCreateForm(contentType: HomebrewContentType) {
+    setEditingEntry(null);
+    setFormOpen(contentType);
+  }
+
+  function openEditForm(entry: HomebrewContentRow) {
+    setEditingEntry(entry);
+    setFormOpen(entry.content_type as HomebrewContentType);
+  }
+
+  async function handleEntryDelete(entry: HomebrewContentRow) {
+    setEntryDeleting(entry.id);
+    const { error: err } = await deleteHomebrewEntry(entry.id);
+    setEntryDeleting(null);
+    if (err) return; // surface in row-level UI in a follow-up
+    setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+    setConfirmEntryId(null);
   }
 
   if (loading) {
@@ -310,7 +362,7 @@ export default function HomebrewPackDetailScreen() {
           ) : null}
         </Card>
 
-        {/* Entries section — placeholder for Phase 2 authoring forms */}
+        {/* Entries section */}
         <Card tier="container" padding="lg" style={styles.card}>
           <View style={styles.cardSectionHeader}>
             <MetaLabel size="sm">Contents</MetaLabel>
@@ -321,29 +373,184 @@ export default function HomebrewPackDetailScreen() {
             </Text>
           </View>
 
-          <View style={styles.placeholderBox}>
-            <Icon name="auto-awesome" size={32} color={colors.outline} />
-            <Text
-              variant="title-sm"
-              family="headline"
-              weight="bold"
-              style={{ marginTop: spacing.sm, textAlign: 'center' }}
-            >
-              Authoring forms coming soon.
-            </Text>
-            <Text
-              variant="body-sm"
-              tone="secondary"
-              style={{ marginTop: spacing.xs, textAlign: 'center', maxWidth: 380 }}
-            >
-              In Phase 2 you'll be able to create homebrew spells, creatures, items,
-              species, classes, and features inside this pack — each with structured
-              forms matching the SRD content schema.
-            </Text>
+          <View style={styles.addRow}>
+            {(CONTENT_TYPES).map((ct) => (
+              <Pressable
+                key={ct.key}
+                onPress={() => openCreateForm(ct.key)}
+                style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}
+                accessibilityLabel={`Add ${ct.label.toLowerCase()}`}
+              >
+                <Icon name={ct.icon} size={16} color={colors.primary} />
+                <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.primary, letterSpacing: 1 }}>
+                  Add {ct.label}
+                </Text>
+              </Pressable>
+            ))}
           </View>
+
+          {entryCount === 0 ? (
+            <View style={styles.placeholderBox}>
+              <Icon name="auto-awesome" size={28} color={colors.outline} />
+              <Text variant="body-sm" tone="secondary" style={{ marginTop: spacing.xs, textAlign: 'center' }}>
+                Choose a content type above to create your first entry.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.entriesList}>
+              {CONTENT_TYPES.map((ct) => {
+                const group = entries.filter((e) => e.content_type === ct.key);
+                if (group.length === 0) return null;
+                return (
+                  <View key={ct.key} style={styles.entryGroup}>
+                    <View style={styles.entryGroupHead}>
+                      <MetaLabel size="sm">{ct.pluralLabel} ({group.length})</MetaLabel>
+                    </View>
+                    {group.map((entry) => (
+                      <EntryRow
+                        key={entry.id}
+                        entry={entry}
+                        confirming={confirmEntryId === entry.id}
+                        deleting={entryDeleting === entry.id}
+                        onEdit={() => openEditForm(entry)}
+                        onRequestDelete={() => setConfirmEntryId(entry.id)}
+                        onCancelDelete={() => setConfirmEntryId(null)}
+                        onConfirmDelete={() => handleEntryDelete(entry)}
+                      />
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </Card>
       </View>
+
+      {pack && formOpen === 'spell' ? (
+        <SpellFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
+      {pack && formOpen === 'item' ? (
+        <ItemFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
+      {pack && formOpen === 'feat' ? (
+        <FeatFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
+      {pack && formOpen === 'creature' ? (
+        <CreatureFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
+      {pack && formOpen === 'class' ? (
+        <ClassFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
+      {pack && formOpen === 'species' ? (
+        <SpeciesFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
     </ScrollView>
+  );
+}
+
+// Content-type metadata: label, plural form for group headings, icon used
+// in the "Add ..." action chips.
+const CONTENT_TYPES: Array<{
+  key: HomebrewContentType;
+  label: string;
+  pluralLabel: string;
+  icon: 'auto-awesome' | 'pets' | 'inventory' | 'stars' | 'school' | 'public';
+}> = [
+  { key: 'spell',    label: 'Spell',    pluralLabel: 'Spells',    icon: 'auto-awesome' },
+  { key: 'creature', label: 'Creature', pluralLabel: 'Creatures', icon: 'pets' },
+  { key: 'item',     label: 'Item',     pluralLabel: 'Items',     icon: 'inventory' },
+  { key: 'feat',     label: 'Feat',     pluralLabel: 'Feats',     icon: 'stars' },
+  { key: 'class',    label: 'Class',    pluralLabel: 'Classes',   icon: 'school' },
+  { key: 'species',  label: 'Species',  pluralLabel: 'Species',   icon: 'public' },
+];
+
+function EntryRow({
+  entry,
+  confirming,
+  deleting,
+  onEdit,
+  onRequestDelete,
+  onCancelDelete,
+  onConfirmDelete,
+}: {
+  entry: HomebrewContentRow;
+  confirming: boolean;
+  deleting: boolean;
+  onEdit: () => void;
+  onRequestDelete: () => void;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => void;
+}) {
+  const data = entry.data as { description?: string } | null;
+  const description = data?.description ?? '';
+
+  return (
+    <View style={styles.entryRow}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+          {entry.name}
+        </Text>
+        {description ? (
+          <Text variant="body-sm" tone="secondary" numberOfLines={2} style={{ color: colors.onSurfaceVariant }}>
+            {description}
+          </Text>
+        ) : null}
+      </View>
+
+      {confirming ? (
+        <View style={styles.entryConfirmRow}>
+          <Pressable onPress={onCancelDelete} style={[styles.entryActionBtn, styles.entryCancelBtn]}>
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}>
+              Cancel
+            </Text>
+          </Pressable>
+          <Pressable onPress={onConfirmDelete} disabled={deleting} style={[styles.entryActionBtn, styles.entryDeleteBtn]}>
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: '#fff', letterSpacing: 1 }}>
+              {deleting ? 'Deleting…' : 'Delete'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.entryActionRow}>
+          <Pressable onPress={onEdit} style={styles.entryIconBtn} accessibilityLabel={`Edit ${entry.name}`}>
+            <Icon name="edit" size={16} color={colors.onSurfaceVariant} />
+          </Pressable>
+          <Pressable onPress={onRequestDelete} style={styles.entryIconBtn} accessibilityLabel={`Delete ${entry.name}`}>
+            <Icon name="delete" size={16} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -442,5 +649,74 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.outlineVariant + '22',
     borderStyle: 'dashed',
+  },
+  addRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+    marginBottom: spacing.md,
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.primary + '55',
+    borderStyle: 'dashed',
+    backgroundColor: 'transparent',
+  },
+  entriesList: {
+    gap: spacing.lg,
+  },
+  entryGroup: {
+    gap: spacing.xs,
+  },
+  entryGroupHead: {
+    paddingBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '33',
+  },
+  entryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '22',
+  },
+  entryActionRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  entryIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+  },
+  entryConfirmRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  entryActionBtn: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  entryCancelBtn: {
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: 'transparent',
+  },
+  entryDeleteBtn: {
+    borderColor: colors.hpDanger,
+    backgroundColor: colors.hpDanger,
   },
 });
