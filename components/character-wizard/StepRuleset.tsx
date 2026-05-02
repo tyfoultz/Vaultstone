@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useCharacterDraftStore, useAuthStore, useCampaignStore, type RulesetMode } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
-import { getCampaigns, getCampaignByJoinCode, joinCampaign } from '@vaultstone/api';
+import {
+  getCampaigns,
+  getCampaignByJoinCode,
+  joinCampaign,
+  listCampaignPacks,
+} from '@vaultstone/api';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
@@ -312,40 +317,100 @@ function CampaignModeScreen({
         )}
       </View>
 
-      {/* ── Locked ruleset preview (shows once a campaign is selected) ── */}
-      {lockedRuleset ? (
-        <View style={[s.section, { marginTop: spacing.lg }]}>
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionLabel}>Ruleset</Text>
-            <Text style={s.sectionMeta}>Locked</Text>
-          </View>
-          <View style={s.lockBanner}>
-            <Text style={s.lockTitle}>Locked by campaign</Text>
-            <Text style={s.lockText}>
-              {linkedCampaign?.name} uses{' '}
-              <Text style={s.lockEmphasis}>
-                {lockedRuleset.label} {lockedRuleset.year}
-              </Text>
-              .
-            </Text>
-          </View>
-          <View style={s.list}>
-            {RULESETS.map((r) => {
-              const selected = srdVersion === r.srdVersion;
-              const dim = r.srdVersion !== lockedRuleset.srdVersion;
-              return (
-                <View
-                  key={r.srdVersion}
-                  style={[s.card, selected && s.cardSelected, dim && s.cardDisabled]}
-                >
-                  {selected && <View style={s.selectedGlow} pointerEvents="none" />}
-                  <RulesetCardInner ruleset={r} selected={selected} />
-                </View>
-              );
-            })}
-          </View>
-        </View>
+      {/* ── Campaign summary (only after a selection — reads as a
+          confirmation, not a choice) ──────────────────────────────────── */}
+      {linkedCampaign && lockedRuleset ? (
+        <CampaignSummary
+          campaign={linkedCampaign}
+          ruleset={lockedRuleset}
+        />
       ) : null}
+    </View>
+  );
+}
+
+// ── Campaign summary ─────────────────────────────────────────────────────
+//
+// Renders only after the user picks a campaign. Replaces the earlier
+// dimmed-card-pair UI which read as a ruleset choice; this version is
+// purely informational — "this campaign uses X ruleset and N homebrew
+// packs". The pack list reflects which packs the DM toggled on; disabled
+// packs are filtered out so the player only sees what's actually in play.
+
+function CampaignSummary({
+  campaign,
+  ruleset,
+}: {
+  campaign: Campaign;
+  ruleset: Ruleset;
+}) {
+  type AttachedPack = {
+    pack_id: string;
+    enabled: boolean;
+    homebrew_packs: { id: string; name: string; description: string | null };
+  };
+  const [packs, setPacks] = useState<AttachedPack[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    listCampaignPacks(campaign.id).then(({ data }) => {
+      if (cancelled) return;
+      const enabled = ((data as unknown as AttachedPack[]) ?? []).filter((p) => p.enabled);
+      setPacks(enabled);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [campaign.id]);
+
+  return (
+    <View style={[s.section, { marginTop: spacing.lg }]}>
+      <View style={s.sectionHeader}>
+        <Text style={s.sectionLabel}>This campaign uses</Text>
+      </View>
+
+      {/* Ruleset row */}
+      <View style={s.summaryRow}>
+        <View style={s.summaryIcon}>
+          <Text style={s.summaryIconText}>📘</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.summaryRowLabel}>Ruleset</Text>
+          <Text style={s.summaryRowValue}>
+            {ruleset.label} {ruleset.year}
+            <Text style={s.summaryRowMeta}> · {ruleset.subtitle}</Text>
+          </Text>
+        </View>
+      </View>
+
+      {/* Homebrew packs row */}
+      <View style={s.summaryRow}>
+        <View style={s.summaryIcon}>
+          <Text style={s.summaryIconText}>📦</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.summaryRowLabel}>Homebrew packs</Text>
+          {loading ? (
+            <Text style={s.summaryRowMeta}>Loading…</Text>
+          ) : packs.length === 0 ? (
+            <Text style={s.summaryRowMeta}>None — SRD content only</Text>
+          ) : (
+            <View style={s.packList}>
+              {packs.map((p) => (
+                <View key={p.pack_id} style={s.packItem}>
+                  <Text style={s.packName}>{p.homebrew_packs.name}</Text>
+                  {p.homebrew_packs.description ? (
+                    <Text style={s.packDesc} numberOfLines={1}>
+                      {p.homebrew_packs.description}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </View>
     </View>
   );
 }
@@ -744,33 +809,65 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Locked banner
-  lockBanner: {
-    backgroundColor: colors.primaryContainer + '22',
-    borderWidth: 1,
-    borderColor: colors.primary + '55',
-    borderRadius: radius.lg,
-    padding: 12,
-    marginBottom: 12,
+  // Campaign summary (post-selection confirmation)
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant,
   },
-  lockTitle: {
-    fontSize: 11,
+  summaryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryContainer + '33',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryIconText: {
+    fontSize: 16,
+  },
+  summaryRowLabel: {
+    fontSize: 10,
     fontFamily: fonts.label,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
-    color: colors.primary,
-    marginBottom: 4,
+    color: colors.outline,
+    marginBottom: 2,
   },
-  lockText: {
+  summaryRowValue: {
+    fontSize: 14,
+    fontFamily: fonts.headline,
+    fontWeight: '600',
+    color: colors.onSurface,
+    letterSpacing: -0.2,
+  },
+  summaryRowMeta: {
+    fontSize: 12,
+    fontFamily: fonts.body,
+    fontWeight: '400',
+    color: colors.onSurfaceVariant,
+    letterSpacing: 0,
+  },
+  packList: {
+    gap: 4,
+    marginTop: 2,
+  },
+  packItem: {
+    paddingVertical: 2,
+  },
+  packName: {
     fontSize: 13,
     fontFamily: fonts.body,
-    color: colors.onSurfaceVariant,
-    lineHeight: 19,
-  },
-  lockEmphasis: {
+    fontWeight: '600',
     color: colors.onSurface,
-    fontWeight: '700',
+  },
+  packDesc: {
+    fontSize: 12,
+    fontFamily: fonts.body,
+    color: colors.onSurfaceVariant,
   },
 
   // Ruleset cards
