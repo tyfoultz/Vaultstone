@@ -472,6 +472,13 @@ export function FactionPageView({ page, worldId }: Props) {
   const mentionablePages = useMemo(() => (allPages ?? []).filter((p) => p.id !== page.id), [allPages, page.id]);
   const sectionLabelById = useCallback((id: string) => sections.find((s) => s.id === id)?.name ?? '', [sections]);
 
+  async function flushAndNavigate(targetId: string) {
+    if (bodyTimerRef.current) { clearTimeout(bodyTimerRef.current); bodyTimerRef.current = null; }
+    const pending = pendingBodyRef.current;
+    if (pending) { pendingBodyRef.current = null; await updatePage(page.id, { body: pending.body as Json, body_text: pending.bodyText, body_refs: pending.bodyRefs }); }
+    router.push(worldPageHref(worldId, targetId));
+  }
+
   function handleCanvasChange(blocks: CanvasBlock[], plainText: string, bodyRefs: string[]) {
     if (heldByOther) return;
     const body = { __canvas_blocks: blocks };
@@ -642,7 +649,7 @@ export function FactionPageView({ page, worldId }: Props) {
         <View style={styles.editorCol}>
           {bannerLock ? <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}><EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} onForceUnlock={isWorldOwner ? async () => { await forceReleasePageEdit(page.id); updatePageInStore(page.id, { editing_user_id: null, editing_since: null }); void tryClaim(); } : undefined} /></View> : null}
           <View style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]} pointerEvents={heldByOther ? 'none' : 'auto'}>
-            <LoreCanvasEditor initialBlocks={(page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null} onChange={handleCanvasChange} editable={!heldByOther} mentionablePages={mentionablePages} getSectionLabel={sectionLabelById} onMentionClick={(targetId) => router.push(worldPageHref(worldId, targetId))} />
+            <LoreCanvasEditor initialBlocks={(page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null} onChange={handleCanvasChange} editable={!heldByOther} mentionablePages={mentionablePages} getSectionLabel={sectionLabelById} onMentionClick={(targetId) => void flushAndNavigate(targetId)} />
           </View>
           {saveLabel ? <View style={styles.saveIndicator}><View style={[styles.saveDot, saveState === 'error' ? { backgroundColor: colors.hpDanger } : { backgroundColor: colors.hpHealthy }]} /><Text style={styles.saveText}>{saveLabel}</Text></View> : null}
         </View>

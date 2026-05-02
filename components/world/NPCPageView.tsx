@@ -591,6 +591,13 @@ export function NPCPageView({ page, worldId }: Props) {
     [sections],
   );
 
+  async function flushAndNavigate(targetId: string) {
+    if (bodyTimerRef.current) { clearTimeout(bodyTimerRef.current); bodyTimerRef.current = null; }
+    const pending = pendingBodyRef.current;
+    if (pending) { pendingBodyRef.current = null; await updatePage(page.id, { body: pending.body as Json, body_text: pending.bodyText, body_refs: pending.bodyRefs }); }
+    router.push(worldPageHref(worldId, targetId));
+  }
+
   function handleCanvasChange(blocks: CanvasBlock[], plainText: string, bodyRefs: string[]) {
     if (heldByOther) return;
     const body = { __canvas_blocks: blocks };
@@ -927,7 +934,7 @@ export function NPCPageView({ page, worldId }: Props) {
               editable={!heldByOther}
               mentionablePages={mentionablePages}
               getSectionLabel={sectionLabelById}
-              onMentionClick={(targetId) => router.push(worldPageHref(worldId, targetId))}
+              onMentionClick={(targetId) => void flushAndNavigate(targetId)}
             />
           </View>
 

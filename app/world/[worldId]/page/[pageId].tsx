@@ -279,6 +279,23 @@ export default function PageDetailScreen() {
     };
   }, [pageId, tryClaim]);
 
+  async function flushAndNavigate(targetPageId: string) {
+    if (bodyTimerRef.current) {
+      clearTimeout(bodyTimerRef.current);
+      bodyTimerRef.current = null;
+    }
+    const pending = pendingBodyRef.current;
+    if (pending && pageId) {
+      pendingBodyRef.current = null;
+      await updatePage(pageId, {
+        body: pending.body as Json,
+        body_text: pending.bodyText,
+        body_refs: pending.bodyRefs,
+      });
+    }
+    router.push(worldPageHref(worldId, targetPageId));
+  }
+
   function handleCanvasChange(blocks: Array<{ id: string; x: number; y: number; width: number; height?: number; html: string }>, plainText: string, bodyRefs?: string[]) {
     if (!pageId || heldByOther) return;
     const body = { __canvas_blocks: blocks };
@@ -529,9 +546,7 @@ export default function PageDetailScreen() {
                     editable={!heldByOther}
                     mentionablePages={mentionablePages}
                     getSectionLabel={sectionLabelById}
-                    onMentionClick={(targetPageId) =>
-                      router.push(worldPageHref(worldId, targetPageId))
-                    }
+                    onMentionClick={(targetPageId) => void flushAndNavigate(targetPageId)}
                   />
                 ) : (
                   <BodyEditor
@@ -545,9 +560,7 @@ export default function PageDetailScreen() {
                     mentionablePins={mentionablePins}
                     mentionableEvents={mentionableEvents}
                     getSectionLabel={sectionLabelById}
-                    onMentionClick={(targetPageId) =>
-                      router.push(worldPageHref(worldId, targetPageId))
-                    }
+                    onMentionClick={(targetPageId) => void flushAndNavigate(targetPageId)}
                     onPinMentionClick={(_pinId, mapId) =>
                       router.push(worldMapHref(worldId, mapId))
                     }
