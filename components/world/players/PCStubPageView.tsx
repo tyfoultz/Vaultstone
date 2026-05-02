@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   claimPageEdit,
   forceReleasePageEdit,
+  getCampaignMembers,
   getCharacterById,
   getPagesLinkingTo,
   getEventsReferencingPage,
@@ -19,10 +20,11 @@ import {
   usePagesStore,
   useSectionsStore,
 } from '@vaultstone/store';
-import type { Database, Json, TemplateKey, WorldPage, Dnd5eStats, Dnd5eResources, Dnd5eEquipmentItem, TimelineEvent } from '@vaultstone/types';
+import type { Database, Json, TemplateKey, WorldPage, Dnd5eStats, Dnd5eResources, TimelineEvent } from '@vaultstone/types';
 import {
   Card,
   GhostButton,
+  GradientButton,
   Icon,
   Input,
   MetaLabel,
@@ -45,38 +47,52 @@ import { worldPageHref, worldSectionHref } from '../worldHref';
 import {
   SideSectionHeader,
   RightTabBtn,
+  HookInput,
   formatRelativeTime,
+  MENTION_ICON,
   PAGE_SIDEBAR_STYLES as sideStyles,
 } from '../PageSidebarShared';
 import { OrphanResolveModal } from './OrphanResolveModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 type CanvasBlock = { id: string; x: number; y: number; width: number; height?: number; html: string };
+type Relationship = { targetPageId: string; type: string; note?: string };
+type CampaignMember = { user_id: string; character_id: string | null; role: string; profiles: any; characters: any };
 
 const LOCK_HEARTBEAT_MS = 30_000;
-const ABILITY_KEYS = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const;
-const ABILITY_ABBR: Record<string, string> = {
-  strength: 'STR', dexterity: 'DEX', constitution: 'CON',
-  intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
-};
-function mod(val: number): string {
-  const m = Math.floor((val - 10) / 2);
-  return (m >= 0 ? '+' : '') + m;
-}
+const RELATIONSHIP_TYPES = ['ally', 'rival', 'enemy', 'friend', 'family', 'lover', 'mentor', 'student', 'employer', 'servant'];
+const RECIPROCAL_MAP: Record<string, string> = { ally: 'ally', rival: 'rival', enemy: 'enemy', friend: 'friend', family: 'family', lover: 'lover', employer: 'servant', servant: 'employer', mentor: 'student', student: 'mentor' };
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-
 type Props = { page: WorldPage; worldId: string };
+
+function addReciprocalRelationship(targetPage: WorldPage, sourcePageId: string, type: string) {
+  const reciprocal = RECIPROCAL_MAP[type] ?? type;
+  const fields = (targetPage.structured_fields as Record<string, unknown>) ?? {};
+  const existing: Relationship[] = Array.isArray(fields.__relationships) ? (fields.__relationships as Relationship[]) : [];
+  if (existing.some((r) => r.targetPageId === sourcePageId && r.type === reciprocal)) return;
+  const next = { ...fields, __relationships: [...existing, { targetPageId: sourcePageId, type: reciprocal }] };
+  usePagesStore.getState().updatePage(targetPage.id, { structured_fields: next as Json });
+  void updatePage(targetPage.id, { structured_fields: next as Json });
+}
+
+function removeReciprocalRelationship(targetPage: WorldPage, sourcePageId: string) {
+  const fields = (targetPage.structured_fields as Record<string, unknown>) ?? {};
+  const existing: Relationship[] = Array.isArray(fields.__relationships) ? (fields.__relationships as Relationship[]) : [];
+  const filtered = existing.filter((r) => r.targetPageId !== sourcePageId);
+  if (filtered.length === existing.length) return;
+  const next = { ...fields, __relationships: filtered };
+  usePagesStore.getState().updatePage(targetPage.id, { structured_fields: next as Json });
+  void updatePage(targetPage.id, { structured_fields: next as Json });
+}
 
 export function PCStubPageView({ page, worldId }: Props) {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
+  const linkedCampaigns = useCurrentWorldStore((s) => s.linkedCampaigns);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
   const allPages = usePagesStore((s) => worldId ? s.byWorldId[worldId] : undefined);
-  const mentionablePages = useMemo(
-    () => (allPages ?? []).filter((p) => p.id !== page.id),
-    [allPages, page.id],
-  );
+  const mentionablePages = useMemo(() => (allPages ?? []).filter((p) => p.id !== page.id), [allPages, page.id]);
   const sectionLabelById = useCallback((id: string) => sections.find((s) => s.id === id)?.name ?? '', [sections]);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const updatePageInStore = usePagesStore((s) => s.updatePage);
@@ -90,8 +106,9 @@ export function PCStubPageView({ page, worldId }: Props) {
 
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [statsCollapsed, setStatsCollapsed] = useState(false);
   const [orphanResolveOpen, setOrphanResolveOpen] = useState(false);
+  const [characterPickerOpen, setCharacterPickerOpen] = useState(false);
+  const [addingRelationship, setAddingRelationship] = useState(false);
 
   // Character data
   const [character, setCharacter] = useState<Character | null>(null);
@@ -106,7 +123,24 @@ export function PCStubPageView({ page, worldId }: Props) {
 
   const stats = character?.base_stats as unknown as Dnd5eStats | null;
   const resources = character?.resources as unknown as Dnd5eResources | null;
-  const conditions = character?.conditions ?? [];
+
+  // Structured fields
+  const fields = (page.structured_fields as Record<string, unknown>) ?? {};
+  const fieldsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function updateField(key: string, value: unknown) {
+    const next = { ...fields, [key]: value };
+    updatePageInStore(page.id, { structured_fields: next as Json });
+    setSaveState('saving');
+    if (fieldsTimerRef.current) clearTimeout(fieldsTimerRef.current);
+    fieldsTimerRef.current = setTimeout(async () => {
+      const { error } = await updatePage(page.id, { structured_fields: next as Json });
+      setSaveState(error ? 'error' : 'saved');
+    }, 500);
+  }
+
+  const hooks = Array.isArray(fields.__hooks) ? (fields.__hooks as string[]) : [];
+  const goals = Array.isArray(fields.__goals) ? (fields.__goals as string[]) : [];
+  const relationships: Relationship[] = Array.isArray(fields.__relationships) ? (fields.__relationships as Relationship[]) : [];
 
   // Title override
   const [editingTitle, setEditingTitle] = useState(false);
@@ -132,7 +166,6 @@ export function PCStubPageView({ page, worldId }: Props) {
   const lockFresh = lockSince !== null && Date.now() - Date.parse(lockSince) < 90_000;
   const heldByOther = lockFresh && lockOwnerId !== null && myUserId !== null && lockOwnerId !== myUserId;
   const bannerLock = heldByOther ? { ownerId: lockOwnerId as string, since: lockSince as string } : lockError;
-
   const lockCtxRef = useRef({ lockOwnerId, lockSince, myUserId, updatePageInStore });
   lockCtxRef.current = { lockOwnerId, lockSince, myUserId, updatePageInStore };
 
@@ -140,14 +173,8 @@ export function PCStubPageView({ page, worldId }: Props) {
     if (!page.id) return;
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
-    if (error) {
-      setLockError({ ownerId: ctx.lockOwnerId ?? 'unknown', since: ctx.lockSince ?? new Date().toISOString() });
-      return;
-    }
-    if (data) {
-      ctx.updatePageInStore(data.id, { editing_user_id: data.editing_user_id, editing_since: data.editing_since });
-      setLockError(null);
-    }
+    if (error) { setLockError({ ownerId: ctx.lockOwnerId ?? 'unknown', since: ctx.lockSince ?? new Date().toISOString() }); return; }
+    if (data) { ctx.updatePageInStore(data.id, { editing_user_id: data.editing_user_id, editing_since: data.editing_since }); setLockError(null); }
   }, [page.id]);
 
   useEffect(() => {
@@ -156,8 +183,7 @@ export function PCStubPageView({ page, worldId }: Props) {
     return () => {
       clearInterval(t);
       if (bodyTimerRef.current) {
-        clearTimeout(bodyTimerRef.current);
-        bodyTimerRef.current = null;
+        clearTimeout(bodyTimerRef.current); bodyTimerRef.current = null;
         const pending = pendingBodyRef.current;
         if (pending) { pendingBodyRef.current = null; void updatePage(page.id, { body: pending.body as unknown as Json, body_text: pending.bodyText, body_refs: pending.bodyRefs }); }
       }
@@ -165,7 +191,6 @@ export function PCStubPageView({ page, worldId }: Props) {
     };
   }, [page.id, tryClaim]);
 
-  // Canvas body save
   async function flushAndNavigate(targetId: string) {
     if (bodyTimerRef.current) { clearTimeout(bodyTimerRef.current); bodyTimerRef.current = null; }
     const pending = pendingBodyRef.current;
@@ -183,11 +208,7 @@ export function PCStubPageView({ page, worldId }: Props) {
       const pending = pendingBodyRef.current;
       if (!pending) return;
       pendingBodyRef.current = null;
-      const { data, error } = await updatePage(page.id, {
-        body: pending.body as unknown as Json,
-        body_text: pending.bodyText,
-        body_refs: pending.bodyRefs,
-      });
+      const { data, error } = await updatePage(page.id, { body: pending.body as unknown as Json, body_text: pending.bodyText, body_refs: pending.bodyRefs });
       if (error || !data) { setSaveState('error'); return; }
       updatePageInStore(page.id, { body: data.body, body_text: data.body_text, body_refs: data.body_refs });
       setSaveState('saved');
@@ -196,8 +217,7 @@ export function PCStubPageView({ page, worldId }: Props) {
 
   async function handleDeletePage() {
     if (!confirmDelete) { setConfirmDelete(true); return; }
-    await trashPage(page.id);
-    removePage(page.id);
+    await trashPage(page.id); removePage(page.id);
     router.replace(worldSectionHref(worldId, page.section_id));
   }
 
@@ -222,6 +242,10 @@ export function PCStubPageView({ page, worldId }: Props) {
     const map = new Map(allPages.map((p) => [p.id, p]));
     return refs.map((id) => map.get(id)).filter((p): p is WorldPage => !!p);
   }, [page.body_refs, allPages]);
+
+  const npcLocations = useMemo(() => {
+    return (allPages ?? []).filter((p) => p.page_kind === 'location' && (p.body_refs ?? []).includes(page.id));
+  }, [allPages, page.id]);
 
   const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'error' ? 'Error' : null;
 
@@ -270,7 +294,7 @@ export function PCStubPageView({ page, worldId }: Props) {
       {/* Main area */}
       <View style={styles.mainWrap}>
         <View style={styles.editorCol}>
-          {/* Title row with rename controls */}
+          {/* Title row */}
           <View style={styles.titleRow}>
             <Icon name="person" size={28} color={colors.player} />
             <View style={{ flex: 1 }}>
@@ -323,37 +347,41 @@ export function PCStubPageView({ page, worldId }: Props) {
             </View>
           ) : null}
 
-          {/* Character stats hero — collapsible */}
-          {character && stats ? (
-            <View style={styles.heroSection}>
-              <Pressable onPress={() => setStatsCollapsed(!statsCollapsed)} style={styles.heroToggle}>
-                <Icon name="person" size={14} color={colors.player} />
-                <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.player, letterSpacing: 1, flex: 1 }}>
-                  Character Stats
-                </Text>
-                {statsCollapsed ? (
-                  <View style={styles.heroCollapsedSummary}>
+          {/* Character link card */}
+          <View style={styles.charSection}>
+            {character && stats ? (
+              <Card tier="container" style={styles.charCard}>
+                <View style={styles.charCardRow}>
+                  <Icon name="person" size={20} color={colors.player} />
+                  <View style={{ flex: 1 }}>
+                    <Text variant="body-md" weight="semibold">{character.name}</Text>
                     <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                      HP {resources?.hpCurrent ?? 0}/{stats.hpMax} · AC {computeAC(stats, resources)} · Lv {stats.level ?? 1}
+                      {[stats.speciesKey?.replace(/-/g, ' '), stats.classKey?.replace(/-/g, ' '), `Lv ${stats.level ?? 1}`].filter(Boolean).join(' · ')}
                     </Text>
                   </View>
-                ) : null}
-                <Icon name={statsCollapsed ? 'expand-more' : 'expand-less'} size={18} color={colors.outline} />
-              </Pressable>
-              {!statsCollapsed ? (
-                <View style={styles.heroCardWrap}>
-                  <CharacterStatsHero stats={stats} resources={resources} conditions={conditions} />
+                  <View style={styles.charStatChips}>
+                    <View style={styles.charStatChip}>
+                      <Text style={styles.charStatValue}>HP {resources?.hpCurrent ?? 0}/{stats.hpMax}</Text>
+                    </View>
+                    <View style={styles.charStatChip}>
+                      <Text style={styles.charStatValue}>AC {computeAC(stats, resources)}</Text>
+                    </View>
+                  </View>
+                  <GhostButton label="Open Sheet" icon="open-in-new" onPress={() => router.push(`/character/${page.character_id}`)} />
                 </View>
-              ) : null}
-            </View>
-          ) : !page.character_id ? (
-            <View style={styles.heroSection}>
-              <Card tier="container" padding="lg" style={{ alignItems: 'center', borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: radius.xl, maxWidth: 480 }}>
-                <Icon name="person-off" size={24} color={colors.outlineVariant} />
-                <Text variant="body-sm" tone="secondary" style={{ marginTop: spacing.xs }}>No linked character — standalone player page.</Text>
               </Card>
-            </View>
-          ) : null}
+            ) : isWorldOwner && linkedCampaigns.length > 0 && !page.character_id ? (
+              <Pressable onPress={() => setCharacterPickerOpen(true)} style={styles.linkCharBtn}>
+                <Icon name="person-add" size={16} color={colors.player} />
+                <Text variant="body-sm" weight="semibold" style={{ color: colors.player }}>Link a character from campaign</Text>
+              </Pressable>
+            ) : !page.character_id ? (
+              <View style={styles.linkCharBtn}>
+                <Icon name="person-off" size={16} color={colors.outline} />
+                <Text variant="body-sm" style={{ color: colors.outline }}>No linked character</Text>
+              </View>
+            ) : null}
+          </View>
 
           {/* Canvas editor */}
           <View style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]} pointerEvents={heldByOther ? 'none' : 'auto'}>
@@ -374,73 +402,167 @@ export function PCStubPageView({ page, worldId }: Props) {
           ) : null}
         </View>
 
-        {/* Right sidebar */}
+        {/* ── Right sidebar ── */}
         {rightCollapsed ? (
-          <Pressable onPress={() => setRightCollapsed(false)} style={sideStyles.rightPanelCollapsed}>
-            <View style={sideStyles.rightPanelToggleBtn}>
-              <Icon name="chevron-left" size={16} color={colors.outline} />
-            </View>
-          </Pressable>
+          <View style={sideStyles.rightPanelCollapsed}>
+            <Pressable onPress={() => setRightCollapsed(false)} style={sideStyles.rightPanelToggleBtn}>
+              <Icon name="chevron-left" size={14} color={colors.onSurfaceVariant} />
+            </Pressable>
+          </View>
         ) : (
           <View style={sideStyles.rightPanel}>
-            <View style={sideStyles.rightTabs}>
-              <RightTabBtn label="Info" active={rightTab === 'info'} onPress={() => setRightTab('info')} />
-              <RightTabBtn label="Sub-pages" active={rightTab === 'sub'} onPress={() => setRightTab('sub')} />
-              <View style={{ flex: 1 }} />
-              <Pressable onPress={() => setRightCollapsed(true)} hitSlop={8} style={{ justifyContent: 'center' }}>
-                <Icon name="chevron-right" size={16} color={colors.outline} />
+            <View style={sideStyles.rightPanelTopRow}>
+              <Pressable onPress={() => setRightCollapsed(true)} style={sideStyles.rightPanelToggleBtn}>
+                <Icon name="chevron-right" size={14} color={colors.outline} />
               </Pressable>
             </View>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={sideStyles.rightBody}>
+            <View style={sideStyles.rightTabs}>
+              <RightTabBtn label="On This Page" active={rightTab === 'info'} onPress={() => setRightTab('info')} />
+              <RightTabBtn label="Sub-pages" active={rightTab === 'sub'} onPress={() => setRightTab('sub')} />
+            </View>
+            <ScrollView contentContainerStyle={sideStyles.rightBody}>
               {rightTab === 'info' ? (
                 <>
-                  {mentionedPages.length > 0 ? (
-                    <View style={sideStyles.sideSection}>
-                      <SideSectionHeader icon="link" title="Mentioned On This Page" count={mentionedPages.length} />
-                      {mentionedPages.map((p) => (
-                        <Pressable key={p.id} onPress={() => router.push(worldPageHref(worldId, p.id))} style={sideStyles.mentionRow}>
-                          <Text variant="body-sm" numberOfLines={1} style={{ color: colors.primary, flex: 1 }}>{p.title}</Text>
-                          <Text variant="label-sm" style={{ color: colors.outline }}>{PAGE_KIND_LABEL[p.page_kind] ?? p.page_kind}</Text>
+                  {/* Mentioned on this page */}
+                  <View style={sideStyles.sideSection}>
+                    <SideSectionHeader icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined} />
+                    {mentionedPages.length === 0 ? (
+                      <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
+                    ) : mentionedPages.map((mp) => {
+                      const mi = MENTION_ICON[mp.page_kind] ?? MENTION_ICON.custom;
+                      return (
+                        <Pressable key={mp.id} onPress={() => router.push(worldPageHref(worldId, mp.id))} style={sideStyles.mentionRow}>
+                          <View style={[sideStyles.mentionDot, { backgroundColor: mi.color }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{mp.title}</Text>
+                            <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[mp.page_kind] ?? 'Page').toUpperCase()}</Text>
+                          </View>
+                          <Icon name="chevron-right" size={12} color={colors.outline} />
                         </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
+                      );
+                    })}
+                  </View>
 
-                  {seenLoaded && seenInPlay.length > 0 ? (
-                    <View style={sideStyles.sideSection}>
-                      <SideSectionHeader icon="timeline" title="Seen in Play" count={seenInPlay.length} />
-                      {seenInPlay.slice(0, 8).map((ev) => (
-                        <View key={ev.id} style={sideStyles.mentionRow}>
-                          <Text variant="body-sm" numberOfLines={1} style={{ color: colors.onSurface, flex: 1 }}>{ev.title}</Text>
-                          <Text variant="label-sm" style={{ color: colors.outline }}>{formatRelativeTime(ev.created_at)}</Text>
+                  {/* Locations */}
+                  <View style={sideStyles.sideSection}>
+                    <SideSectionHeader icon="place" title="LOCATIONS" count={npcLocations.length || undefined} />
+                    {npcLocations.length === 0 ? (
+                      <Text variant="body-sm" style={sideStyles.emptyText}>No locations linked yet.</Text>
+                    ) : npcLocations.map((loc) => (
+                      <Pressable key={loc.id} onPress={() => router.push(worldPageHref(worldId, loc.id))} style={sideStyles.mentionRow}>
+                        <View style={[sideStyles.mentionDot, { backgroundColor: colors.primary }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{loc.title}</Text>
+                          <Text style={sideStyles.mentionMeta}>LOCATION</Text>
                         </View>
-                      ))}
-                    </View>
-                  ) : null}
+                        <Icon name="chevron-right" size={12} color={colors.outline} />
+                      </Pressable>
+                    ))}
+                  </View>
 
-                  {backlinksLoaded && backlinks.length > 0 ? (
-                    <View style={sideStyles.sideSection}>
-                      <SideSectionHeader icon="link" title="Linked From" count={backlinks.length} />
-                      {backlinks.map((bl) => (
-                        <Pressable key={bl.id} onPress={() => router.push(worldPageHref(worldId, bl.id))} style={sideStyles.mentionRow}>
-                          <Text variant="body-sm" numberOfLines={1} style={{ color: colors.primary, flex: 1 }}>{bl.title}</Text>
-                          <Text variant="label-sm" style={{ color: colors.outline }}>{PAGE_KIND_LABEL[bl.page_kind] ?? bl.page_kind}</Text>
+                  {/* Linked from */}
+                  <View style={sideStyles.sideSection}>
+                    <SideSectionHeader icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined} />
+                    {backlinksLoaded && backlinks.length === 0 ? (
+                      <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
+                    ) : backlinks.map((bl) => (
+                      <Pressable key={bl.id} onPress={() => router.push(worldPageHref(worldId, bl.id))} style={sideStyles.mentionRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{bl.title}</Text>
+                          <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[bl.page_kind] ?? 'Page').toUpperCase()}</Text>
+                        </View>
+                        <Icon name="chevron-right" size={12} color={colors.outline} />
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  {/* Seen in play */}
+                  <View style={sideStyles.sideSection}>
+                    <SideSectionHeader icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined} />
+                    {seenLoaded && seenInPlay.length === 0 ? (
+                      <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
+                    ) : seenInPlay.slice(0, 5).map((evt) => (
+                      <View key={evt.id} style={sideStyles.seenRow}>
+                        <View style={sideStyles.seenHeader}>
+                          <View style={sideStyles.seenBadge}><Text style={sideStyles.seenBadgeText}>{evt.source_session_id ? 'S' : 'E'}</Text></View>
+                          <Text style={sideStyles.seenAgo}>{formatRelativeTime(evt.created_at)}</Text>
+                        </View>
+                        <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>{evt.title}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Relationships */}
+                  <View style={sideStyles.sideSection}>
+                    <SideSectionHeader icon="people" title="RELATIONSHIPS" count={relationships.length || undefined} />
+                    {relationships.map((rel, i) => {
+                      const targetPage = (allPages ?? []).find((p) => p.id === rel.targetPageId);
+                      if (!targetPage) return null;
+                      return (
+                        <View key={`${rel.targetPageId}-${i}`} style={styles.relRow}>
+                          <Pressable onPress={() => router.push(worldPageHref(worldId, rel.targetPageId))} style={styles.relLink}>
+                            <View style={[sideStyles.mentionDot, { backgroundColor: colors.cosmic }]} />
+                            <View style={{ flex: 1 }}>
+                              <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{targetPage.title}</Text>
+                              <Text style={sideStyles.mentionMeta}>{rel.type.toUpperCase()}</Text>
+                            </View>
+                            <Icon name="chevron-right" size={12} color={colors.outline} />
+                          </Pressable>
+                          <Pressable onPress={() => { updateField('__relationships', relationships.filter((_, j) => j !== i)); if (targetPage) removeReciprocalRelationship(targetPage, page.id); }} style={{ padding: 4 }}>
+                            <Icon name="close" size={12} color={colors.outline} />
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                    <Pressable onPress={() => setAddingRelationship(true)} style={styles.addRelBtn}>
+                      <Icon name="add" size={14} color={colors.outline} />
+                      <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add relationship</Text>
+                    </Pressable>
+                  </View>
+
+                  {/* Goals */}
+                  <View style={sideStyles.sideSection}>
+                    <SideSectionHeader icon="flag" title="GOALS" count={goals.length || undefined} />
+                    {goals.map((goal, i) => (
+                      <View key={i} style={sideStyles.hookRow}>
+                        <Text style={sideStyles.hookBullet}>•</Text>
+                        <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{goal}</Text>
+                        <Pressable onPress={() => updateField('__goals', goals.filter((_, j) => j !== i))} style={{ padding: 2 }}>
+                          <Icon name="close" size={12} color={colors.outline} />
                         </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
+                      </View>
+                    ))}
+                    <HookInput onAdd={(text) => updateField('__goals', [...goals, text])} placeholder="Add a goal or motivation" />
+                  </View>
+
+                  {/* Hooks & Rumors */}
+                  <View style={sideStyles.sideSection}>
+                    <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
+                    {hooks.map((hook, i) => (
+                      <View key={i} style={sideStyles.hookRow}>
+                        <Text style={sideStyles.hookBullet}>•</Text>
+                        <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{hook}</Text>
+                        <Pressable onPress={() => updateField('__hooks', hooks.filter((_, j) => j !== i))} style={{ padding: 2 }}>
+                          <Icon name="close" size={12} color={colors.outline} />
+                        </Pressable>
+                      </View>
+                    ))}
+                    <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
+                  </View>
                 </>
               ) : (
                 <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="subdirectory-arrow-right" title="Sub-pages" count={subpages.length} />
-                  {subpages.map((sp) => (
+                  <SideSectionHeader icon="subdirectory-arrow-right" title="SUB-PAGES" count={subpages.length || undefined} />
+                  {subpages.length === 0 ? (
+                    <Text variant="body-sm" style={sideStyles.emptyText}>No sub-pages yet.</Text>
+                  ) : subpages.map((sp) => (
                     <Pressable key={sp.id} onPress={() => router.push(worldPageHref(worldId, sp.id))} style={sideStyles.mentionRow}>
-                      <Text variant="body-sm" numberOfLines={1} style={{ color: colors.primary, flex: 1 }}>{sp.title}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{sp.title}</Text>
+                      </View>
+                      <Icon name="chevron-right" size={12} color={colors.outline} />
                     </Pressable>
                   ))}
-                  {subpages.length === 0 ? (
-                    <Text variant="body-sm" style={{ color: colors.outline, fontStyle: 'italic' }}>No sub-pages</Text>
-                  ) : null}
                 </View>
               )}
             </ScrollView>
@@ -450,139 +572,187 @@ export function PCStubPageView({ page, worldId }: Props) {
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
       {orphanResolveOpen ? <OrphanResolveModal page={page} worldId={worldId} onClose={() => setOrphanResolveOpen(false)} /> : null}
+      {characterPickerOpen ? <CharacterPickerModal campaigns={linkedCampaigns} onSelect={async (charId) => {
+        setCharacterPickerOpen(false);
+        const { data } = await updatePage(page.id, { character_id: charId } as any);
+        if (data) { updatePageInStore(page.id, { character_id: charId } as any); getCharacterById(charId).then(({ data: ch }) => { if (ch) setCharacter(ch); }); }
+      }} onClose={() => setCharacterPickerOpen(false)} /> : null}
+      {addingRelationship ? <AddRelationshipModal
+        allPages={allPages ?? []}
+        currentPageId={page.id}
+        existingRelationships={relationships}
+        onAdd={(rel) => {
+          updateField('__relationships', [...relationships, rel]);
+          const target = (allPages ?? []).find((p) => p.id === rel.targetPageId);
+          if (target) addReciprocalRelationship(target, page.id, rel.type);
+          setAddingRelationship(false);
+        }}
+        onClose={() => setAddingRelationship(false)}
+      /> : null}
     </View>
   );
 }
 
-// ── Character Stats Hero ──────────────────────────────────────────────
+// ── Character Picker Modal ────────────────────────────────────────────
 
-function CharacterStatsHero({ stats, resources, conditions }: {
-  stats: Dnd5eStats;
-  resources: Dnd5eResources | null;
-  conditions: string[];
+function CharacterPickerModal({ campaigns, onSelect, onClose }: {
+  campaigns: any[];
+  onSelect: (characterId: string) => void;
+  onClose: () => void;
 }) {
-  const hpCurrent = resources?.hpCurrent ?? 0;
-  const hpMax = stats.hpMax || 1;
-  const hpPct = Math.round((hpCurrent / hpMax) * 100);
-  const hpColor = hpPct < 30 ? colors.hpDanger : hpPct < 60 ? colors.hpWarning : colors.hpHealthy;
-  const ac = computeAC(stats, resources);
-  const dexMod = Math.floor(((stats.abilityScores?.dexterity ?? 10) - 10) / 2);
-  const initMod = dexMod;
-  const profBonus = (stats as any).proficiencyBonus ?? Math.floor((stats.level ?? 1) / 4) + 2;
+  const [members, setMembers] = useState<CampaignMember[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const results = await Promise.all(campaigns.map((c) => getCampaignMembers(c.id)));
+      if (cancelled) return;
+      const all: CampaignMember[] = [];
+      for (const r of results) {
+        for (const m of (r.data ?? []) as any[]) {
+          if (m.character_id && m.characters) all.push(m);
+        }
+      }
+      setMembers(all);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [campaigns]);
 
   return (
-    <Card tier="container" style={heroStyles.card}>
-      {/* HP row */}
-      <View style={heroStyles.hpRow}>
-        <Icon name="favorite" size={16} color={hpColor} />
-        <Text style={[heroStyles.hpValue, { color: hpColor }]}>{hpCurrent}</Text>
-        <Text style={heroStyles.hpMax}>/ {hpMax}</Text>
-        <View style={{ flex: 1 }} />
-        {(resources?.hpTemp ?? 0) > 0 ? (
-          <View style={heroStyles.tempBadge}>
-            <Text style={heroStyles.tempText}>+{resources!.hpTemp} temp</Text>
-          </View>
-        ) : null}
-      </View>
-      <View style={heroStyles.hpBarTrack}>
-        <View style={[heroStyles.hpBarFill, { width: `${Math.min(hpPct, 100)}%`, backgroundColor: hpColor }]} />
-      </View>
-
-      {/* Stat grid */}
-      <View style={heroStyles.statGrid}>
-        <View style={heroStyles.statCell}>
-          <Text style={heroStyles.statValue}>{ac}</Text>
-          <Text style={heroStyles.statLabel}>ARMOR CLASS</Text>
-        </View>
-        <View style={[heroStyles.statCell, heroStyles.statCellBorder]}>
-          <Text style={heroStyles.statValue}>{stats.speed ?? 30} ft</Text>
-          <Text style={heroStyles.statLabel}>SPEED</Text>
-        </View>
-        <View style={[heroStyles.statCell, heroStyles.statCellBorder]}>
-          <Text style={heroStyles.statValue}>{initMod >= 0 ? '+' : ''}{initMod}</Text>
-          <Text style={heroStyles.statLabel}>INITIATIVE</Text>
-        </View>
-        <View style={[heroStyles.statCell, heroStyles.statCellBorder]}>
-          <Text style={heroStyles.statValue}>+{profBonus}</Text>
-          <Text style={heroStyles.statLabel}>PROF</Text>
-        </View>
-      </View>
-
-      {/* Ability scores */}
-      <View style={heroStyles.abilRow}>
-        {ABILITY_KEYS.map((key) => {
-          const val = stats.abilityScores?.[key] ?? 10;
-          const isSave = stats.savingThrowProficiencies?.includes(key);
-          return (
-            <View key={key} style={heroStyles.abilCell}>
-              {isSave ? <View style={heroStyles.saveDot} /> : null}
-              <Text style={heroStyles.abilLabel}>{ABILITY_ABBR[key]}</Text>
-              <Text style={heroStyles.abilValue}>{val}</Text>
-              <Text style={heroStyles.abilMod}>{mod(val)}</Text>
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
+      <Pressable style={pickerStyles.backdrop} onPress={onClose}>
+        <Pressable onPress={(e) => e.stopPropagation()} style={pickerStyles.wrapper}>
+          <View style={pickerStyles.card}>
+            <View style={pickerStyles.header}>
+              <Icon name="person-add" size={18} color={colors.player} />
+              <Text variant="title-md" family="serif-display" weight="semibold" style={{ flex: 1 }}>Link Character</Text>
+              <Pressable onPress={onClose}><Icon name="close" size={18} color={colors.onSurfaceVariant} /></Pressable>
             </View>
-          );
-        })}
-      </View>
-
-      {/* Conditions */}
-      {conditions.length > 0 ? (
-        <View style={heroStyles.condRow}>
-          <Text style={heroStyles.condLabel}>CONDITIONS</Text>
-          <View style={heroStyles.condChips}>
-            {conditions.map((c) => (
-              <View key={c} style={heroStyles.condChip}>
-                <Text style={heroStyles.condChipText}>{c}</Text>
-              </View>
-            ))}
+            {loading ? (
+              <Text variant="body-sm" style={{ color: colors.outline, padding: spacing.md }}>Loading characters…</Text>
+            ) : members.length === 0 ? (
+              <Text variant="body-sm" style={{ color: colors.outline, padding: spacing.md }}>No characters found in linked campaigns.</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 300 }}>
+                {members.map((m) => {
+                  const ch = m.characters;
+                  const stats = ch?.base_stats as Dnd5eStats | null;
+                  return (
+                    <Pressable key={m.character_id} onPress={() => onSelect(m.character_id!)} style={pickerStyles.row}>
+                      <Icon name="person" size={16} color={colors.player} />
+                      <View style={{ flex: 1 }}>
+                        <Text variant="body-sm" weight="semibold">{ch?.name ?? 'Unknown'}</Text>
+                        {stats ? <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                          {[stats.speciesKey?.replace(/-/g, ' '), stats.classKey?.replace(/-/g, ' '), `Lv ${stats.level ?? 1}`].filter(Boolean).join(' · ')}
+                        </Text> : null}
+                      </View>
+                      <Icon name="chevron-right" size={14} color={colors.outline} />
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
-        </View>
-      ) : null}
-    </Card>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// ── Add Relationship Modal ────────────────────────────────────────────
+
+function AddRelationshipModal({ allPages, currentPageId, existingRelationships, onAdd, onClose }: {
+  allPages: WorldPage[];
+  currentPageId: string;
+  existingRelationships: Relationship[];
+  onAdd: (rel: Relationship) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [relType, setRelType] = useState('ally');
+  const existingIds = new Set(existingRelationships.map((r) => r.targetPageId));
+  const candidates = allPages
+    .filter((p) => ['npc', 'pc_stub', 'player_character', 'faction'].includes(p.page_kind) && p.id !== currentPageId && !existingIds.has(p.id))
+    .filter((p) => !search || p.title.toLowerCase().includes(search.toLowerCase()));
+  const selectedPage = selectedPageId ? allPages.find((p) => p.id === selectedPageId) : null;
+
+  return (
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
+      <Pressable style={pickerStyles.backdrop} onPress={onClose}>
+        <Pressable onPress={(e) => e.stopPropagation()} style={pickerStyles.wrapper}>
+          <View style={pickerStyles.card}>
+            <View style={pickerStyles.header}>
+              <Icon name="people" size={18} color={colors.cosmic} />
+              <Text variant="title-md" family="serif-display" weight="semibold" style={{ flex: 1 }}>Add Relationship</Text>
+              <Pressable onPress={onClose}><Icon name="close" size={18} color={colors.onSurfaceVariant} /></Pressable>
+            </View>
+            {!selectedPageId ? (
+              <>
+                <input type="text" value={search} onChange={(e: any) => setSearch(e.target.value)} autoFocus placeholder="Search pages…" style={{ width: '100%', background: colors.surfaceContainerLowest, border: `1px solid ${colors.outlineVariant}44`, borderRadius: 8, padding: '8px 12px', color: colors.onSurface, fontSize: 13, fontFamily: "'Manrope', system-ui, sans-serif", outline: 'none', marginBottom: 8 }} />
+                <ScrollView style={{ maxHeight: 240 }}>
+                  {candidates.length === 0 ? (
+                    <Text variant="body-sm" style={{ color: colors.outline, padding: 8, fontStyle: 'italic' }}>No matching pages.</Text>
+                  ) : candidates.map((p) => (
+                    <Pressable key={p.id} onPress={() => setSelectedPageId(p.id)} style={pickerStyles.row}>
+                      <Icon name="person" size={14} color={colors.cosmic} />
+                      <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>{p.title}</Text>
+                      <Icon name="chevron-right" size={12} color={colors.outline} />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </>
+            ) : (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
+                  <Icon name="person" size={16} color={colors.cosmic} />
+                  <Text variant="body-md" weight="semibold" style={{ flex: 1 }}>{selectedPage?.title}</Text>
+                  <Pressable onPress={() => setSelectedPageId(null)} style={{ padding: 4 }}><Icon name="close" size={14} color={colors.outline} /></Pressable>
+                </View>
+                <Text variant="label-sm" uppercase style={{ color: colors.outline, letterSpacing: 1, marginBottom: 6 }}>Relationship type</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {RELATIONSHIP_TYPES.map((t) => (
+                    <Pressable key={t} onPress={() => setRelType(t)} style={[pickerStyles.typeChip, relType === t && pickerStyles.typeChipActive]}>
+                      <Text variant="label-sm" style={{ color: relType === t ? colors.primary : colors.onSurfaceVariant, textTransform: 'capitalize' }}>{t}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.lg }}>
+                  <GhostButton label="Cancel" onPress={onClose} />
+                  <GradientButton label="Add" onPress={() => onAdd({ targetPageId: selectedPageId, type: relType })} />
+                </View>
+              </>
+            )}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
 function computeAC(stats: Dnd5eStats, resources: Dnd5eResources | null): number {
   const dexMod = Math.floor(((stats.abilityScores?.dexterity ?? 10) - 10) / 2);
-  const equipment: Dnd5eEquipmentItem[] = resources?.equipment ?? [];
+  const equipment: any[] = resources?.equipment ?? [];
   const armor = equipment.find((e) => e.slot === 'armor' && e.equipped);
   const shield = equipment.find((e) => e.slot === 'shield' && e.equipped);
   let ac = 10 + dexMod;
-  if (armor) {
-    ac = armor.acBase ?? 10;
-    if (armor.dexCap === null || armor.dexCap === undefined) ac += dexMod;
-    else ac += Math.min(dexMod, armor.dexCap);
-  }
+  if (armor) { ac = armor.acBase ?? 10; if (armor.dexCap == null) ac += dexMod; else ac += Math.min(dexMod, armor.dexCap); }
   if (shield) ac += shield.acBonus ?? 2;
   return ac;
 }
 
 // ── Styles ────────────────────────────────────────────────────────────
 
-const heroStyles = StyleSheet.create({
-  card: { borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: radius.xl, overflow: 'hidden' },
-  hpRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xs },
-  hpValue: { fontFamily: fonts.headline, fontSize: 28, fontWeight: '600' },
-  hpMax: { fontFamily: fonts.headline, fontSize: 16, color: colors.outline },
-  tempBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.player + '22', borderWidth: 1, borderColor: colors.player + '44' },
-  tempText: { fontFamily: fonts.label, fontSize: 11, color: colors.player },
-  hpBarTrack: { height: 6, backgroundColor: colors.surfaceContainerHighest, marginHorizontal: spacing.md, marginBottom: spacing.md, borderRadius: 3, overflow: 'hidden' },
-  hpBarFill: { height: '100%', borderRadius: 3 },
-  statGrid: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.outlineVariant, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant },
-  statCell: { flex: 1, alignItems: 'center', paddingVertical: 12 },
-  statCellBorder: { borderLeftWidth: 1, borderLeftColor: colors.outlineVariant },
-  statValue: { fontFamily: fonts.headline, fontSize: 18, fontWeight: '500', color: colors.onSurface },
-  statLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.2, color: colors.outline, marginTop: 2 },
-  abilRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.outlineVariant },
-  abilCell: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRightWidth: 1, borderRightColor: colors.outlineVariant },
-  saveDot: { position: 'absolute', top: 5, right: 5, width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary },
-  abilLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.4, color: colors.outline },
-  abilValue: { fontFamily: fonts.headline, fontSize: 18, fontWeight: '500', color: colors.onSurface, marginTop: 2 },
-  abilMod: { fontFamily: fonts.label, fontSize: 11, color: colors.onSurfaceVariant, marginTop: 1 },
-  condRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: spacing.md },
-  condLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.2, color: colors.outline },
-  condChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  condChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.hpWarning },
-  condChipText: { fontFamily: fonts.label, fontSize: 11, color: colors.hpWarning },
+const pickerStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(12, 14, 16, 0.7)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  wrapper: { width: '100%', maxWidth: 440 },
+  card: { backgroundColor: colors.surfaceContainer, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.outlineVariant + '33', padding: spacing.lg },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.xs, borderRadius: radius.lg },
+  typeChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.outlineVariant + '55' },
+  typeChipActive: { backgroundColor: colors.primaryContainer + '33', borderColor: colors.primary + '66' },
 });
 
 const styles = StyleSheet.create({
@@ -590,18 +760,24 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '22' },
   topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  crumb: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.2, color: colors.outline, cursor: 'pointer' },
+  crumb: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.2, color: colors.outline, cursor: 'pointer' as any },
   crumbSep: { fontFamily: fonts.label, fontSize: 11, color: colors.outlineVariant, marginHorizontal: 4 },
   crumbActive: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.2, color: colors.onSurfaceVariant },
   mainWrap: { flex: 1, flexDirection: 'row', minHeight: 0 },
   editorCol: { flex: 1, minWidth: 0 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
   titleBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, borderWidth: 1, borderColor: colors.outlineVariant + '55' },
-  heroSection: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  heroToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: spacing.xs, marginBottom: spacing.xs },
-  heroCollapsedSummary: { marginRight: spacing.xs },
-  heroCardWrap: { maxWidth: 480 },
+  charSection: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  charCard: { borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: radius.xl },
+  charCardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md },
+  charStatChips: { flexDirection: 'row', gap: 6 },
+  charStatChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.outlineVariant + '55' },
+  charStatValue: { fontFamily: fonts.label, fontSize: 11, color: colors.onSurfaceVariant },
+  linkCharBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.player + '33', borderStyle: 'dashed' as any },
   resolveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm, paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.player + '44', alignSelf: 'flex-start' },
+  relRow: { flexDirection: 'row', alignItems: 'center' },
+  relLink: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 6, borderRadius: radius.lg },
+  addRelBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 6 },
   disabledEditor: { opacity: 0.55 },
   saveIndicator: { position: 'absolute', bottom: spacing.md, right: spacing.md, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surfaceContainerHigh + 'dd', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
   saveDot: { width: 6, height: 6, borderRadius: 3 },
