@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { ScrollView, View, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import {
@@ -6,6 +7,12 @@ import {
 } from '@vaultstone/ui';
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
 import { getSrdCountsByVersion } from '@vaultstone/content';
+import {
+  listHomebrewPacks,
+  type HomebrewPackRow,
+} from '@vaultstone/api';
+import { useAuthStore } from '@vaultstone/store';
+import { CreateHomebrewPackModal } from '../../../components/homebrew/CreateHomebrewPackModal';
 
 // Stays in lockstep with the bundled `GameSystemDefinition` exports — when a
 // new system is added there, surface it here too.
@@ -13,8 +20,25 @@ const BUNDLED_SYSTEMS = [dnd5e2024System, dnd5e2014System, customSystem];
 
 export default function GameSystemsScreen() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
   const { width } = useWindowDimensions();
   const numColumns = width > 1100 ? 2 : 1;
+  const [packs, setPacks] = useState<HomebrewPackRow[]>([]);
+  const [packsLoading, setPacksLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    listHomebrewPacks().then(({ data }) => {
+      if (cancelled) return;
+      setPacks(data ?? []);
+      setPacksLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}>
@@ -103,19 +127,79 @@ export default function GameSystemsScreen() {
           <Text variant="title-md" family="headline" weight="bold" style={styles.sectionTitle}>
             Homebrew Packs
           </Text>
+          {packs.length > 0 ? (
+            <GhostButton label="New pack" icon="add" onPress={() => setCreateOpen(true)} />
+          ) : null}
         </View>
-        <Card tier="low" padding="lg" style={styles.emptyCard}>
-          <Icon name="auto-fix-high" size={28} color={colors.outline} />
-          <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurfaceVariant }}>
-            No packs yet
-          </Text>
-          <Text variant="body-sm" family="body" style={[styles.bodyMuted, { textAlign: 'center', maxWidth: 480 }]}>
-            Bundle your custom species, classes, backgrounds, items, or spells into a
-            pack and toggle it on per campaign. Coming in the next phase.
-          </Text>
-          <GhostButton label="Create a pack" icon="add" disabled />
-        </Card>
+
+        {packsLoading ? null : packs.length === 0 ? (
+          <Card tier="low" padding="lg" style={styles.emptyCard}>
+            <Icon name="auto-fix-high" size={28} color={colors.outline} />
+            <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurfaceVariant }}>
+              No packs yet
+            </Text>
+            <Text variant="body-sm" family="body" style={[styles.bodyMuted, { textAlign: 'center', maxWidth: 480 }]}>
+              Bundle your custom species, classes, backgrounds, items, or spells into a
+              pack and toggle it on per campaign.
+            </Text>
+            <GhostButton label="Create a pack" icon="add" onPress={() => setCreateOpen(true)} />
+          </Card>
+        ) : (
+          <View style={[styles.grid, { gap: spacing.md }]}>
+            {packs.map((pack) => (
+              <Pressable
+                key={pack.id}
+                onPress={() => router.push(`/homebrew-pack/${pack.id}` as Href)}
+                style={({ pressed, hovered }: any) => [
+                  numColumns === 2 ? styles.gridItemHalf : styles.gridItemFull,
+                  { transform: [{ scale: pressed ? 0.995 : 1 }], opacity: pressed ? 0.92 : 1 },
+                  hovered && styles.cardHovered,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${pack.name}`}
+              >
+                <Card tier="container" padding="md">
+                  <View style={styles.cardHead}>
+                    <View style={styles.cardHeadIcon}>
+                      <Icon name="auto-fix-high" size={22} color={colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }} numberOfLines={1}>
+                        {pack.name}
+                      </Text>
+                      <MetaLabel size="sm">
+                        {pack.campaign_id ? 'Campaign-scoped' : 'Personal library'}
+                      </MetaLabel>
+                    </View>
+                    {pack.is_published ? <Chip label="Shared" variant="accent" /> : null}
+                    <Icon name="chevron-right" size={20} color={colors.outline} />
+                  </View>
+                  {pack.description ? (
+                    <Text variant="body-sm" family="body" style={styles.bodyMuted} numberOfLines={2}>
+                      {pack.description}
+                    </Text>
+                  ) : (
+                    <Text variant="body-sm" family="body" style={styles.bodyMuted}>
+                      No description yet.
+                    </Text>
+                  )}
+                </Card>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </View>
+
+      {createOpen ? (
+        <CreateHomebrewPackModal
+          onClose={() => setCreateOpen(false)}
+          onCreated={(pack) => {
+            setCreateOpen(false);
+            setPacks((prev) => [pack, ...prev]);
+            router.push(`/homebrew-pack/${pack.id}` as Href);
+          }}
+        />
+      ) : null}
 
       {/* ── Imported Books ────────────────────────────────────────────── */}
       <View style={styles.section}>
