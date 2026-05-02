@@ -14,7 +14,6 @@ import npcsV2 from './npcs.v2.json';
 import npcsV3 from './npcs.v3.json';
 import npcsV4 from './npcs.v4.json';
 import playersV1 from './players.v1.json';
-import questsV1 from './quests.v1.json';
 import timelineV1 from './timeline.v1.json';
 import timelineV2 from './timeline.v2.json';
 
@@ -26,7 +25,6 @@ const REGISTRY: Record<TemplateKey, SectionTemplate[]> = {
   lore: [loreV1 as SectionTemplate, loreV2 as SectionTemplate],
   blank: [blankV1 as SectionTemplate],
   timeline: [timelineV1 as SectionTemplate, timelineV2 as SectionTemplate],
-  quests: [questsV1 as SectionTemplate],
 };
 
 export function getLatestVersion(key: TemplateKey): number {

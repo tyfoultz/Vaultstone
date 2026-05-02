@@ -33,7 +33,6 @@ import { SectionPageGrid } from '../../../../components/world/SectionPageGrid';
 import { SectionPageList } from '../../../../components/world/SectionPageList';
 import { SectionSettingsModal } from '../../../../components/world/SectionSettingsModal';
 import { PlayersSectionView } from '../../../../components/world/players/PlayersSectionView';
-import { QuestSectionView } from '../../../../components/world/QuestSectionView';
 import { WorldTopBar } from '../../../../components/world/WorldTopBar';
 import { worldHref, worldPageHref } from '../../../../components/world/worldHref';
 
@@ -156,14 +155,6 @@ export default function SectionDetailScreen() {
               worldId={worldId}
               pages={rootPages}
               template={template}
-              onCreatePage={() => setCreatePageOpen(true)}
-            />
-          ) : template.key === 'quests' ? (
-            <QuestSectionView
-              worldId={worldId}
-              pages={rootPages}
-              template={template}
-              onPagePress={(pageId) => router.push(worldPageHref(worldId, pageId))}
               onCreatePage={() => setCreatePageOpen(true)}
             />
           ) : rootPages.length === 0 ? (

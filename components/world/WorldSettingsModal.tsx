@@ -1,4 +1,4 @@
-import { createElement, useEffect, useMemo, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -40,6 +40,54 @@ type Props = {
   world: World;
   onClose: () => void;
 };
+
+function DateTimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let input = el.querySelector('input') as HTMLInputElement | null;
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'datetime-local';
+      Object.assign(input.style, {
+        flex: '1',
+        background: 'transparent',
+        border: 'none',
+        outline: 'none',
+        color: colors.onSurface,
+        fontFamily: "'Manrope', system-ui, sans-serif",
+        fontSize: '14px',
+        padding: '0',
+        colorScheme: 'dark',
+        cursor: 'pointer',
+        width: '100%',
+      });
+      input.addEventListener('input', (e) => {
+        onChangeRef.current((e.target as HTMLInputElement).value);
+      });
+      el.appendChild(input);
+    }
+    input.value = value;
+  }, [value]);
+
+  return (
+    <View style={styles.dateInputRow}>
+      <Icon name="event" size={18} color={value ? colors.primary : colors.onSurfaceVariant} />
+      <View style={{ flex: 1 }}>
+        <div ref={containerRef as any} style={{ display: 'flex', flex: 1 }} />
+      </View>
+      {value ? (
+        <Pressable onPress={() => onChange('')} hitSlop={8}>
+          <Icon name="close" size={16} color={colors.onSurfaceVariant} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
 
 export function WorldSettingsModal({ world, onClose }: Props) {
   const router = useRouter();
@@ -402,41 +450,7 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                       <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
                         Scheduled date & time
                       </Text>
-                      {Platform.OS === 'web' ? (
-                        <View style={styles.dateInputRow}>
-                          <Icon name="event" size={18} color={nextSessionAt ? colors.primary : colors.onSurfaceVariant} />
-                          {createElement('input', {
-                            type: 'datetime-local',
-                            value: nextSessionAt,
-                            onChange: (e: any) => setNextSessionAt(e.target.value),
-                            placeholder: 'Pick a date…',
-                            style: {
-                              flex: 1,
-                              background: 'transparent',
-                              border: 'none',
-                              outline: 'none',
-                              color: nextSessionAt ? colors.onSurface : colors.onSurfaceVariant,
-                              fontFamily: "'Manrope', system-ui, sans-serif",
-                              fontSize: 14,
-                              padding: 0,
-                              colorScheme: 'dark',
-                              cursor: 'pointer',
-                            },
-                          })}
-                          {nextSessionAt ? (
-                            <Pressable onPress={() => setNextSessionAt('')} hitSlop={8}>
-                              <Icon name="close" size={16} color={colors.onSurfaceVariant} />
-                            </Pressable>
-                          ) : null}
-                        </View>
-                      ) : (
-                        <Input
-                          label=""
-                          value={nextSessionAt}
-                          onChangeText={setNextSessionAt}
-                          placeholder="YYYY-MM-DDTHH:MM"
-                        />
-                      )}
+                      <DateTimeInput value={nextSessionAt} onChange={setNextSessionAt} />
                     </View>
                     <View style={{ gap: spacing.xs }}>
                       <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>

@@ -257,6 +257,13 @@ export function WorldSidebar({ world, activePageId }: Props) {
         </Pressable>
         <View style={{ flex: 1 }} />
         <Pressable
+          onPress={() => router.push(worldHref(world.id))}
+          style={styles.topBarBtn}
+          accessibilityLabel="World home"
+        >
+          <Icon name="home" size={18} color={colors.onSurfaceVariant} />
+        </Pressable>
+        <Pressable
           onPress={() => router.push(worldMapIndexHref(world.id))}
           style={styles.topBarBtn}
           accessibilityLabel="Map"

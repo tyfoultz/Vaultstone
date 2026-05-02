@@ -85,5 +85,4 @@ export const PAGE_KIND_LABEL: Record<PageKind, string> = {
   timeline: 'Timeline',
   pc_stub: 'Player character',
   player_character: 'Player character',
-  quest: 'Quest',
 };

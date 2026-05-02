@@ -33,7 +33,6 @@ export const KIND_COLOR: Record<string, string> = {
   item: '#e6a255',
   pc_stub: colors.player,
   player_character: colors.player,
-  quest: '#e6a255',
   custom: colors.onSurfaceVariant,
 };
 
@@ -48,7 +47,6 @@ export const KIND_ICON: Record<string, string> = {
   item: 'diamond',
   pc_stub: 'person',
   player_character: 'person',
-  quest: 'menu-book',
   custom: 'article',
 };
 
@@ -63,7 +61,6 @@ export const KIND_LABEL: Record<string, string> = {
   item: 'Item',
   pc_stub: 'PC',
   player_character: 'PC',
-  quest: 'Quest',
   custom: 'Page',
 };
 
@@ -91,5 +88,4 @@ export const STRUCTURAL_FIELD_EDGES: {
   { pageKind: 'faction', fieldKey: 'leader', label: 'led by', reverseLabel: 'leads' },
   { pageKind: 'faction', fieldKey: 'headquarters', label: 'HQ at', reverseLabel: 'HQ of' },
   { pageKind: 'location', fieldKey: 'parent_location', label: 'located in', reverseLabel: 'contains' },
-  { pageKind: 'quest', fieldKey: 'quest_giver', label: 'given by', reverseLabel: 'gave quest' },
 ];

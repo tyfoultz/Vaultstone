@@ -34,7 +34,6 @@ const MATERIAL_ICON: Record<string, string> = {
   timeline: 'timeline',
   pc_stub: 'person-outline',
   player_character: 'person',
-  quest: 'menu-book',
 };
 
 const CHEVRON_WIDTH = 16;

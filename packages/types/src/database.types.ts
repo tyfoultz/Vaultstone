@@ -400,7 +400,7 @@ export interface Database {
           name: string;
           description: string | null;
           custom_icon: string | null;
-          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline' | 'quests';
+          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline';
           section_view: 'grid' | 'list';
           sort_order: number;
           force_hidden_from_players: boolean;
@@ -416,7 +416,7 @@ export interface Database {
           name: string;
           description?: string | null;
           custom_icon?: string | null;
-          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline' | 'quests';
+          template_key: 'locations' | 'npcs' | 'players' | 'factions' | 'lore' | 'blank' | 'timeline';
           section_view?: 'grid' | 'list';
           sort_order?: number;
           force_hidden_from_players?: boolean;
@@ -459,8 +459,7 @@ export interface Database {
             | 'lore'
             | 'timeline'
             | 'pc_stub'
-            | 'player_character'
-            | 'quest';
+            | 'player_character';
           template_key: string;
           template_version: number;
           body: Json;
@@ -498,8 +497,7 @@ export interface Database {
             | 'lore'
             | 'timeline'
             | 'pc_stub'
-            | 'player_character'
-            | 'quest';
+            | 'player_character';
           template_key: string;
           template_version: number;
           body?: Json;
@@ -535,8 +533,7 @@ export interface Database {
             | 'lore'
             | 'timeline'
             | 'pc_stub'
-            | 'player_character'
-            | 'quest';
+            | 'player_character';
           template_key?: string;
           template_version?: number;
           body?: Json;
