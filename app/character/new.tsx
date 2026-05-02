@@ -106,6 +106,7 @@ export default function NewCharacterScreen() {
       srdVersion: s.srdVersion,
       system: s.system,
       campaignId: s.campaignId,
+      selectedPackIds: s.selectedPackIds,
     }))
   );
   const resetDraft = useCharacterDraftStore((s) => s.resetDraft);
@@ -433,6 +434,9 @@ export default function NewCharacterScreen() {
         system: draft.system,
         base_stats: base_stats as unknown as import('@vaultstone/types').Json,
         resources: resources as unknown as import('@vaultstone/types').Json,
+        // Standalone characters persist their pack opt-in here; campaign
+        // characters get [] because they inherit packs from campaign_packs.
+        pack_ids: draft.campaignId ? [] : draft.selectedPackIds,
       });
 
       if (error) {

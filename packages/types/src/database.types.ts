@@ -136,6 +136,10 @@ export interface Database {
           base_stats: Json;
           resources: Json;
           conditions: string[];
+          /** Homebrew pack ids the character opted into at creation. Empty
+           *  for campaign-linked characters (those inherit packs from
+           *  campaign_packs) and for SRD-only standalone characters. */
+          pack_ids: string[];
           created_at: string;
           updated_at: string;
         };
@@ -148,6 +152,7 @@ export interface Database {
           base_stats: Json;
           resources: Json;
           conditions?: string[];
+          pack_ids?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -160,6 +165,7 @@ export interface Database {
           base_stats?: Json;
           resources?: Json;
           conditions?: string[];
+          pack_ids?: string[];
           updated_at?: string;
         };
         Relationships: [];

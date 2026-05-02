@@ -58,12 +58,15 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   // definition not SRD. Bail before any network calls.
   if (query.srdVersion) return [];
 
-  // Build the optional campaign-scoped pack allowlist before fetching the
-  // entries. When `query.campaignId` is set we restrict to packs whose
-  // campaign_packs row exists with enabled=true. Players in a campaign
-  // see only what the DM has approved; the DM's own private packs that
-  // aren't attached are not surfaced even though RLS would let them be
-  // read.
+  // Build the optional pack allowlist before fetching entries. Two
+  // mutually-exclusive scopes:
+  //   - `campaignId` → packs the campaign has enabled (campaign_packs
+  //     join with enabled=true). Used by campaign-linked character flows.
+  //   - `packIds`    → an explicit set passed by the caller (typically
+  //     a standalone-character wizard where the user toggles which of
+  //     their own packs apply). Bypasses the campaign_packs lookup.
+  // When neither is set, all the authenticated user's accessible
+  // homebrew is returned (the Game Systems detail page reads this way).
   let allowedPackIds: Set<string> | null = null;
   if (query.campaignId) {
     const { data: enabled, error: enabledErr } = await supabase
@@ -73,7 +76,11 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
       .eq('enabled', true);
     if (enabledErr) return [];
     allowedPackIds = new Set((enabled ?? []).map((r) => r.pack_id));
-    // Empty allowlist short-circuits — no homebrew applies to this campaign.
+    if (allowedPackIds.size === 0) return [];
+  } else if (query.packIds) {
+    allowedPackIds = new Set(query.packIds);
+    // Empty list = no homebrew. Standalone characters who picked
+    // "include packs" but selected zero get SRD-only.
     if (allowedPackIds.size === 0) return [];
   }
 

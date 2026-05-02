@@ -22,29 +22,44 @@ interface Props {
 }
 
 export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
-  const { srdVersion, speciesKey, setSpecies, campaignId } = useCharacterDraftStore(
-    useShallow((s) => ({
-      srdVersion: s.srdVersion,
-      speciesKey: s.speciesKey,
-      setSpecies: s.setSpecies,
-      campaignId: s.campaignId,
-    }))
-  );
+  const { srdVersion, speciesKey, setSpecies, campaignId, selectedPackIds } =
+    useCharacterDraftStore(
+      useShallow((s) => ({
+        srdVersion: s.srdVersion,
+        speciesKey: s.speciesKey,
+        setSpecies: s.setSpecies,
+        campaignId: s.campaignId,
+        selectedPackIds: s.selectedPackIds,
+      }))
+    );
 
   const [list, setList] = useState<SpeciesResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewKey, setPreviewKey] = useState<string | null>(null);
+  // Stable string key for the effect dep — joining the array keeps the
+  // hook from re-running on identical re-renders that produced a new
+  // array reference but no actual change.
+  const packIdsKey = selectedPackIds.join(',');
 
   useEffect(() => {
-    // When the wizard is launched from a campaign, include homebrew species
-    // from packs the DM has enabled for that campaign. Outside a campaign
-    // the wizard sticks to SRD only — homebrew authoring without a target
-    // campaign isn't a flow we expose today.
-    const tiers: Array<'srd' | 'homebrew'> = campaignId ? ['srd', 'homebrew'] : ['srd'];
-    ContentResolver.search({ type: 'species', system: 'dnd5e', srdVersion, tiers, campaignId: campaignId ?? undefined })
+    // Two homebrew scopes feed this picker:
+    //   - campaign-linked → use the campaign's enabled packs (resolver
+    //     fetches campaign_packs internally).
+    //   - standalone with selectedPackIds → restrict to that explicit set.
+    // Standalone with no packs picked stays SRD-only.
+    const includeHomebrew = !!campaignId || selectedPackIds.length > 0;
+    const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+    ContentResolver.search({
+      type: 'species',
+      system: 'dnd5e',
+      srdVersion,
+      tiers,
+      campaignId: campaignId ?? undefined,
+      packIds: !campaignId && selectedPackIds.length > 0 ? selectedPackIds : undefined,
+    })
       .then((r) => setList(r as SpeciesResult[]))
       .finally(() => setLoading(false));
-  }, [srdVersion, campaignId]);
+  }, [srdVersion, campaignId, packIdsKey]);
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
 

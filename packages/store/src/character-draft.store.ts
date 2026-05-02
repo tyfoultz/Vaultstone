@@ -45,6 +45,14 @@ export interface CharacterDraft {
 
   // Optional campaign linkage (set via post-join prompt, not required during wizard)
   campaignId: string | null;
+
+  /**
+   * Standalone-mode opt-in for homebrew packs. Empty for campaign-linked
+   * characters (those inherit from the campaign's enabled packs) and for
+   * standalone characters who didn't pick any packs. The wizard's content
+   * pickers consume this to scope the homebrew tier.
+   */
+  selectedPackIds: string[];
 }
 
 interface CharacterDraftActions {
@@ -59,6 +67,7 @@ interface CharacterDraftActions {
   setAbilityScores: (scores: Dnd5eAbilityScores) => void;
   setCharacterName: (name: string) => void;
   setCampaignId: (id: string | null) => void;
+  setSelectedPackIds: (ids: string[]) => void;
   /**
    * Bulk-set the working state from a saved server-side draft. Resets to
    * INITIAL_DRAFT first so any field absent from `partial` lands at its
@@ -81,6 +90,7 @@ const INITIAL_DRAFT: CharacterDraft = {
   abilityScores: null,
   characterName: '',
   campaignId: null,
+  selectedPackIds: [],
 };
 
 export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActions>()(
@@ -110,6 +120,8 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
       setCharacterName: (characterName) => set({ characterName }),
 
       setCampaignId: (campaignId) => set({ campaignId }),
+
+      setSelectedPackIds: (selectedPackIds) => set({ selectedPackIds }),
 
       hydrateFromSnapshot: (partial) => set({ ...INITIAL_DRAFT, ...partial }),
 

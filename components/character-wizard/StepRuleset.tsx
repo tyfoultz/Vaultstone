@@ -7,6 +7,8 @@ import {
   getCampaignByJoinCode,
   joinCampaign,
   listCampaignPacks,
+  listHomebrewPacks,
+  type HomebrewPackRow,
 } from '@vaultstone/api';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
@@ -62,6 +64,7 @@ export function StepRuleset() {
     srdVersion, setRuleset,
     campaignId, setCampaignId,
     rulesetMode, setRulesetMode,
+    selectedPackIds, setSelectedPackIds,
   } =
     useCharacterDraftStore(
       useShallow((s) => ({
@@ -71,8 +74,18 @@ export function StepRuleset() {
         setCampaignId: s.setCampaignId,
         rulesetMode: s.rulesetMode,
         setRulesetMode: s.setRulesetMode,
+        selectedPackIds: s.selectedPackIds,
+        setSelectedPackIds: s.setSelectedPackIds,
       }))
     );
+
+  function togglePack(packId: string) {
+    if (selectedPackIds.includes(packId)) {
+      setSelectedPackIds(selectedPackIds.filter((id) => id !== packId));
+    } else {
+      setSelectedPackIds([...selectedPackIds, packId]);
+    }
+  }
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
@@ -96,6 +109,11 @@ export function StepRuleset() {
     setCampaignId(c.id);
     const matching = campaignSystemToRuleset(c.system);
     setRuleset(matching.system, matching.srdVersion);
+    // Campaigns own their pack set via campaign_packs; the standalone
+    // selection isn't relevant once linked. Clearing it avoids carrying
+    // a stale selection back into a future standalone wizard if the
+    // user flips modes mid-flow.
+    setSelectedPackIds([]);
   }
 
   /**
@@ -158,8 +176,10 @@ export function StepRuleset() {
       ) : (
         <StandaloneModeScreen
           srdVersion={srdVersion}
+          selectedPackIds={selectedPackIds}
           onBack={backToChoice}
           onPick={(r) => setRuleset(r.system, r.srdVersion)}
+          onTogglePack={togglePack}
         />
       )}
     </ScrollView>
@@ -509,17 +529,61 @@ function JoinCodeForm({
   );
 }
 
-// ── Standalone mode: just the ruleset cards ───────────────────────────────
+// ── Standalone mode: ruleset cards + optional homebrew pack picker ───────
+//
+// Standalone characters don't inherit content from a campaign, so the user
+// has to opt in explicitly to which of their personal homebrew packs (if
+// any) should be available during the wizard. We surface a multi-select
+// list of the user's packs filtered to the chosen ruleset's edition. If
+// the user has no packs for that edition, the section hides entirely so
+// the screen stays tidy.
+
+const SRD_VERSION_TO_SYSTEM_ID: Record<'SRD_5.1' | 'SRD_2.0', string[]> = {
+  // The legacy 'dnd5e' system id was the 2024 default before the 5.1/5.2
+  // split shipped, so packs tagged 'dnd5e' show up alongside 'dnd5e_2024'
+  // for the 2024 ruleset.
+  'SRD_5.1': ['dnd5e_2014'],
+  'SRD_2.0': ['dnd5e', 'dnd5e_2024'],
+};
 
 function StandaloneModeScreen({
   srdVersion,
+  selectedPackIds,
   onBack,
   onPick,
+  onTogglePack,
 }: {
   srdVersion: 'SRD_5.1' | 'SRD_2.0';
+  selectedPackIds: string[];
   onBack: () => void;
   onPick: (r: Ruleset) => void;
+  onTogglePack: (id: string) => void;
 }) {
+  const user = useAuthStore((s) => s.user);
+  const [packs, setPacks] = useState<HomebrewPackRow[]>([]);
+  const [loadingPacks, setLoadingPacks] = useState(true);
+
+  // Fetch the user's packs once, then filter client-side per srdVersion.
+  // Packs are RLS-scoped to owner already, but we double-filter on
+  // owner_user_id so a user who's also a campaign member doesn't see
+  // shared campaign-scoped packs leak into their personal options.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    listHomebrewPacks().then(({ data }) => {
+      if (cancelled) return;
+      setPacks((data ?? []).filter((p) => p.owner_user_id === user.id));
+      setLoadingPacks(false);
+    });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const compatibleSystems = SRD_VERSION_TO_SYSTEM_ID[srdVersion];
+  const eligiblePacks = useMemo(
+    () => packs.filter((p) => compatibleSystems.includes(p.system)),
+    [packs, srdVersion],
+  );
+
   return (
     <View>
       <BackRow onPress={onBack} />
@@ -545,6 +609,46 @@ function StandaloneModeScreen({
           );
         })}
       </View>
+
+      {/* Homebrew pack picker — only renders when the user has at least
+          one pack tagged for the selected ruleset's edition. */}
+      {!loadingPacks && eligiblePacks.length > 0 ? (
+        <View style={[s.section, { marginTop: spacing.lg }]}>
+          <View style={s.sectionHeader}>
+            <Text style={s.sectionLabel}>Homebrew Packs</Text>
+            <Text style={s.sectionMeta}>Optional</Text>
+          </View>
+          <Text style={s.guidance}>
+            Pick which of your packs apply. Their species, classes, items, and
+            spells will show alongside the SRD options in the wizard.
+          </Text>
+          <View style={s.standalonePackList}>
+            {eligiblePacks.map((p) => {
+              const checked = selectedPackIds.includes(p.id);
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  style={[s.standalonePackRow, checked && s.standalonePackRowSelected]}
+                  onPress={() => onTogglePack(p.id)}
+                  activeOpacity={0.85}
+                >
+                  <View style={[s.standalonePackCheck, checked && s.standalonePackCheckOn]}>
+                    {checked ? <Text style={s.standalonePackCheckMark}>✓</Text> : null}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.standalonePackName}>{p.name}</Text>
+                    {p.description ? (
+                      <Text style={s.standalonePackDesc} numberOfLines={2}>
+                        {p.description}
+                      </Text>
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -868,6 +972,59 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontFamily: fonts.body,
     color: colors.onSurfaceVariant,
+  },
+
+  // Standalone-mode pack picker — checkbox-style rows so multi-select
+  // reads obviously distinct from the campaign-mode radio rows above.
+  standalonePackList: {
+    gap: 6,
+  },
+  standalonePackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  standalonePackRowSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  standalonePackCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.outlineVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  standalonePackCheckOn: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  standalonePackCheckMark: {
+    color: colors.onPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 14,
+  },
+  standalonePackName: {
+    fontSize: 14,
+    fontFamily: fonts.headline,
+    fontWeight: '600',
+    color: colors.onSurface,
+    letterSpacing: -0.2,
+  },
+  standalonePackDesc: {
+    fontSize: 12,
+    fontFamily: fonts.body,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
   },
 
   // Ruleset cards

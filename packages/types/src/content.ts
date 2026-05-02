@@ -282,6 +282,14 @@ export interface ContentQuery {
    * authenticated user's accessible homebrew is returned (existing behavior).
    */
   campaignId?: string;
+  /**
+   * Scope homebrew results to a specific list of pack ids. Mutually exclusive
+   * with `campaignId` — pass one or the other, not both. Used by the
+   * standalone-character flow where the user explicitly opts into a subset
+   * of their personal homebrew library at character creation time. An empty
+   * array short-circuits the homebrew tier (no packs → no homebrew).
+   */
+  packIds?: string[];
   filters?: Record<string, unknown>;
 }
 

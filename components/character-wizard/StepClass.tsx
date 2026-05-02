@@ -30,27 +30,41 @@ interface Props {
 }
 
 export function StepClass({ onPreviewChange, onAdvance }: Props) {
-  const { srdVersion, classKey, chosenSkills, setClass: selectClass, setChosenSkills, campaignId } =
-    useCharacterDraftStore(
-      useShallow((s) => ({
-        srdVersion: s.srdVersion, classKey: s.classKey,
-        chosenSkills: s.chosenSkills, setClass: s.setClass, setChosenSkills: s.setChosenSkills,
-        campaignId: s.campaignId,
-      }))
-    );
+  const {
+    srdVersion, classKey, chosenSkills,
+    setClass: selectClass, setChosenSkills,
+    campaignId, selectedPackIds,
+  } = useCharacterDraftStore(
+    useShallow((s) => ({
+      srdVersion: s.srdVersion, classKey: s.classKey,
+      chosenSkills: s.chosenSkills, setClass: s.setClass, setChosenSkills: s.setChosenSkills,
+      campaignId: s.campaignId,
+      selectedPackIds: s.selectedPackIds,
+    }))
+  );
 
   const [classes, setClasses] = useState<ClassResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewKey, setPreviewKey] = useState<string | null>(null);
   const [filter, setFilter] = useState('All');
+  const packIdsKey = selectedPackIds.join(',');
 
   useEffect(() => {
-    // Same campaign-scoped homebrew rule as the species step.
-    const tiers: Array<'srd' | 'homebrew'> = campaignId ? ['srd', 'homebrew'] : ['srd'];
-    ContentResolver.search({ type: 'class', system: 'dnd5e', srdVersion, tiers, campaignId: campaignId ?? undefined })
+    // Mirrors StepSpecies: campaign or explicit pack picks include
+    // homebrew; otherwise SRD-only.
+    const includeHomebrew = !!campaignId || selectedPackIds.length > 0;
+    const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+    ContentResolver.search({
+      type: 'class',
+      system: 'dnd5e',
+      srdVersion,
+      tiers,
+      campaignId: campaignId ?? undefined,
+      packIds: !campaignId && selectedPackIds.length > 0 ? selectedPackIds : undefined,
+    })
       .then((r) => setClasses(r as ClassResult[]))
       .finally(() => setLoading(false));
-  }, [srdVersion, campaignId]);
+  }, [srdVersion, campaignId, packIdsKey]);
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
 
