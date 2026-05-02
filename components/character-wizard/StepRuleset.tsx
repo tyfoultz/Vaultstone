@@ -31,42 +31,57 @@ const RULESETS = [
 
 type Ruleset = (typeof RULESETS)[number];
 
-// Translate the campaign's `system` (dnd5e_2014 | dnd5e_2024 | dnd5e legacy
-// alias | custom) into the wizard's draft (system + srdVersion). Keep the
-// draft.system at the legacy 'dnd5e' alias because SRD content rows are
-// keyed under it; the campaign edition is conveyed through srdVersion.
-// Mirrors the helper in app/character/new.tsx — kept inline here so this
-// step is self-contained.
+// dnd5e_2014 → SRD 5.1; everything else (dnd5e_2024 / legacy dnd5e / custom)
+// → 2024 SRD. Keeps draft.system at the legacy 'dnd5e' alias because SRD
+// content rows are keyed under it; the campaign edition is conveyed via
+// srdVersion which the content bundles filter on.
 function campaignSystemToRuleset(systemId: string): Ruleset {
-  if (systemId === 'dnd5e_2014') return RULESETS[1]; // 5.1
-  return RULESETS[0]; // dnd5e_2024 / legacy / custom → 2024 SRD
+  if (systemId === 'dnd5e_2014') return RULESETS[1];
+  return RULESETS[0];
 }
 
+// Three-state machine for the step:
+//   'choose'     — initial fork, ask whether linking or going standalone
+//   'campaign'   — campaign picker active; ruleset cards shown locked
+//   'standalone' — ruleset picker active; campaign explicitly absent
+type Mode = 'choose' | 'campaign' | 'standalone';
+
 export function StepRuleset() {
-  const { srdVersion, setRuleset, campaignId, setCampaignId } = useCharacterDraftStore(
-    useShallow((s) => ({
-      srdVersion: s.srdVersion,
-      setRuleset: s.setRuleset,
-      campaignId: s.campaignId,
-      setCampaignId: s.setCampaignId,
-    }))
-  );
+  const { srdVersion, setRuleset, campaignId, setCampaignId, speciesKey } =
+    useCharacterDraftStore(
+      useShallow((s) => ({
+        srdVersion: s.srdVersion,
+        setRuleset: s.setRuleset,
+        campaignId: s.campaignId,
+        setCampaignId: s.setCampaignId,
+        // speciesKey isn't read for content; it's the "have they progressed
+        // past this step" signal. If they're back-navigating from step 2+
+        // we restore the matching mode rather than dump them on the fork.
+        speciesKey: s.speciesKey,
+      }))
+    );
+
+  const [mode, setMode] = useState<Mode>(() => {
+    if (campaignId) return 'campaign';
+    if (speciesKey) return 'standalone';
+    return 'choose';
+  });
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     getCampaigns().then(({ data }) => {
       if (cancelled) return;
       setCampaigns((data ?? []).filter((c) => !c.is_archived));
-      setLoading(false);
+      setLoadingCampaigns(false);
     });
     return () => { cancelled = true; };
   }, []);
 
-  const linkedCampaign = useMemo(
-    () => (campaignId ? campaigns.find((c) => c.id === campaignId) : null),
+  const linkedCampaign = useMemo<Campaign | null>(
+    () => (campaignId ? campaigns.find((c) => c.id === campaignId) ?? null : null),
     [campaigns, campaignId],
   );
 
@@ -76,155 +91,282 @@ export function StepRuleset() {
     setRuleset(matching.system, matching.srdVersion);
   }
 
-  function handleUnlink() {
+  function startStandalone() {
     setCampaignId(null);
-    // Leave the ruleset where the user previously had it — they may want
-    // to keep the same edition selected after unlinking.
+    setMode('standalone');
   }
 
-  // When linked, the ruleset cards are locked to the campaign's edition.
-  const lockedSrdVersion = linkedCampaign
-    ? campaignSystemToRuleset(linkedCampaign.system).srdVersion
-    : null;
+  function startCampaign() {
+    setMode('campaign');
+  }
+
+  function backToChoice() {
+    // Going back doesn't clear the user's prior selection — the next
+    // screen will surface it as already-selected. The campaign / standalone
+    // distinction is handled by the chosen mode.
+    setMode('choose');
+  }
 
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
-      <Text style={s.title}>Choose a ruleset</Text>
+      {mode === 'choose' ? (
+        <ChoiceScreen
+          hasCampaigns={campaigns.length > 0}
+          loading={loadingCampaigns}
+          onPickCampaign={startCampaign}
+          onPickStandalone={startStandalone}
+        />
+      ) : mode === 'campaign' ? (
+        <CampaignModeScreen
+          campaigns={campaigns}
+          loading={loadingCampaigns}
+          linkedCampaign={linkedCampaign}
+          srdVersion={srdVersion}
+          onBack={backToChoice}
+          onPick={handlePickCampaign}
+        />
+      ) : (
+        <StandaloneModeScreen
+          srdVersion={srdVersion}
+          onBack={backToChoice}
+          onPick={(r) => setRuleset(r.system, r.srdVersion)}
+        />
+      )}
+    </ScrollView>
+  );
+}
 
-      {/* ── Linked Campaign section ───────────────────────────────────── */}
-      <View style={s.section}>
-        <View style={s.sectionHeader}>
-          <Text style={s.sectionLabel}>Linked Campaign</Text>
-          <Text style={s.sectionMeta}>Recommended first</Text>
-        </View>
-        <Text style={s.guidance}>
-          If you're rolling for a campaign, link it now so the wizard uses that
-          campaign's ruleset and content packs. Linking after selecting a ruleset
-          will overwrite your choice.
-        </Text>
+// ── Initial fork: pick a path ─────────────────────────────────────────────
 
-        {loading ? (
-          <View style={s.loaderRow}>
-            <ActivityIndicator color={colors.primary} size="small" />
-          </View>
-        ) : campaigns.length === 0 ? (
-          <View style={s.emptyCard}>
-            <Text style={s.emptyText}>
-              You aren't part of any campaigns yet. You can still create a
-              standalone character; link a campaign later from the campaign
-              page.
-            </Text>
-          </View>
-        ) : (
-          <View style={s.campaignList}>
-            {/* "Standalone" option — explicit, so the absence of a linked
-                campaign isn't ambiguous. */}
-            <TouchableOpacity
-              style={[s.campaignRow, !linkedCampaign && s.campaignRowSelected]}
-              onPress={handleUnlink}
-              activeOpacity={0.85}
-            >
-              <View style={[s.campaignRadio, !linkedCampaign && s.campaignRadioSelected]} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.campaignName}>No campaign (standalone)</Text>
-                <Text style={s.campaignSub}>Pick any ruleset below</Text>
-              </View>
-            </TouchableOpacity>
+function ChoiceScreen({
+  hasCampaigns,
+  loading,
+  onPickCampaign,
+  onPickStandalone,
+}: {
+  hasCampaigns: boolean;
+  loading: boolean;
+  onPickCampaign: () => void;
+  onPickStandalone: () => void;
+}) {
+  return (
+    <View>
+      <Text style={s.title}>Where will this character play?</Text>
+      <Text style={s.guidance}>
+        Linking a campaign now lets the wizard use that campaign's ruleset and
+        any homebrew the DM has approved. You can always unlink later.
+      </Text>
 
-            {campaigns.map((c) => {
-              const selected = linkedCampaign?.id === c.id;
-              const ruleset = campaignSystemToRuleset(c.system);
-              return (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[s.campaignRow, selected && s.campaignRowSelected]}
-                  onPress={() => handlePickCampaign(c)}
-                  activeOpacity={0.85}
-                >
-                  <View style={[s.campaignRadio, selected && s.campaignRadioSelected]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.campaignName}>{c.name}</Text>
-                    <Text style={s.campaignSub}>
-                      {ruleset.label} {ruleset.year} · {c.system_label ?? 'Campaign'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-      </View>
-
-      {/* ── Ruleset section ───────────────────────────────────────────── */}
-      <View style={s.section}>
-        <View style={s.sectionHeader}>
-          <Text style={s.sectionLabel}>Ruleset</Text>
-          {lockedSrdVersion ? <Text style={s.sectionMeta}>Locked</Text> : null}
-        </View>
-
-        {linkedCampaign ? (
-          <View style={s.lockBanner}>
-            <Text style={s.lockTitle}>Locked by campaign</Text>
-            <Text style={s.lockText}>
-              {linkedCampaign.name} uses{' '}
-              <Text style={s.lockEmphasis}>
-                {campaignSystemToRuleset(linkedCampaign.system).label}{' '}
-                {campaignSystemToRuleset(linkedCampaign.system).year}
-              </Text>
-              . Unlink the campaign above to change rulesets.
-            </Text>
-          </View>
-        ) : (
-          <Text style={s.guidance}>
-            Both editions are fully playable. The 2024 rules are smoother for new players.
+      <View style={s.choiceList}>
+        <TouchableOpacity
+          style={[s.choiceCard, !hasCampaigns && !loading && s.choiceCardMuted]}
+          onPress={hasCampaigns ? onPickCampaign : undefined}
+          disabled={!hasCampaigns}
+          activeOpacity={0.85}
+        >
+          <Text style={s.choiceTag}>Recommended</Text>
+          <Text style={s.choiceTitle}>Link a campaign</Text>
+          <Text style={s.choiceBody}>
+            {loading
+              ? 'Checking your campaigns…'
+              : hasCampaigns
+                ? "Inherit the campaign's ruleset and content packs. Best for players joining an existing game."
+                : "You aren't part of any campaigns yet. Create or join one first, or pick standalone for now."}
           </Text>
-        )}
+        </TouchableOpacity>
 
-        <View style={s.list}>
-          {RULESETS.map((r) => {
-            const selected = srdVersion === r.srdVersion;
-            const locked = lockedSrdVersion !== null;
-            const lockedHidden = locked && r.srdVersion !== lockedSrdVersion;
+        <TouchableOpacity
+          style={s.choiceCard}
+          onPress={onPickStandalone}
+          activeOpacity={0.85}
+        >
+          <Text style={[s.choiceTag, s.choiceTagMuted]}>Flexible</Text>
+          <Text style={s.choiceTitle}>Standalone character</Text>
+          <Text style={s.choiceBody}>
+            Pick the ruleset yourself. Good for one-shots, NPCs, or a build
+            you'll link to a campaign later.
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// ── Campaign mode: pick a campaign, ruleset locks to it ───────────────────
+
+function CampaignModeScreen({
+  campaigns,
+  loading,
+  linkedCampaign,
+  srdVersion,
+  onBack,
+  onPick,
+}: {
+  campaigns: Campaign[];
+  loading: boolean;
+  linkedCampaign: Campaign | null;
+  srdVersion: 'SRD_5.1' | 'SRD_2.0';
+  onBack: () => void;
+  onPick: (c: Campaign) => void;
+}) {
+  const lockedRuleset = linkedCampaign
+    ? campaignSystemToRuleset(linkedCampaign.system)
+    : null;
+
+  return (
+    <View>
+      <BackRow onPress={onBack} />
+      <Text style={s.title}>Pick a campaign</Text>
+      <Text style={s.guidance}>
+        The wizard will use this campaign's ruleset and any homebrew the DM
+        has enabled.
+      </Text>
+
+      {loading ? (
+        <View style={s.loaderRow}>
+          <ActivityIndicator color={colors.primary} size="small" />
+        </View>
+      ) : campaigns.length === 0 ? (
+        <View style={s.emptyCard}>
+          <Text style={s.emptyText}>
+            You aren't part of any campaigns. Go back and pick "Standalone
+            character" — you can link this character to a campaign later
+            from the campaign page.
+          </Text>
+        </View>
+      ) : (
+        <View style={s.campaignList}>
+          {campaigns.map((c) => {
+            const selected = linkedCampaign?.id === c.id;
+            const ruleset = campaignSystemToRuleset(c.system);
             return (
               <TouchableOpacity
-                key={r.srdVersion}
-                style={[
-                  s.card,
-                  selected && s.cardSelected,
-                  lockedHidden && s.cardDisabled,
-                ]}
-                onPress={() => {
-                  if (locked) return; // ruleset is owned by the linked campaign
-                  setRuleset(r.system, r.srdVersion);
-                }}
-                disabled={locked}
-                activeOpacity={locked ? 1 : 0.8}
+                key={c.id}
+                style={[s.campaignRow, selected && s.campaignRowSelected]}
+                onPress={() => onPick(c)}
+                activeOpacity={0.85}
               >
-                {selected && <View style={s.selectedGlow} pointerEvents="none" />}
-                <View style={s.cardInner}>
-                  <View style={[s.radio, selected && s.radioSelected]} />
-                  <View style={s.cardText}>
-                    <Text style={s.cardName}>
-                      {r.label}{' '}
-                      <Text style={s.cardYear}>{r.year}</Text>
-                    </Text>
-                    <Text style={s.cardBlurb}>{r.blurb}</Text>
-                    <View style={s.tagRow}>
-                      <Text style={s.metaLabel}>{r.subtitle}</Text>
-                      <View style={[s.tagPill, r.tag === 'Recommended' && s.tagPillRecommended]}>
-                        <Text style={[s.tagText, r.tag === 'Recommended' && s.tagTextRecommended]}>
-                          {r.tag}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
+                <View style={[s.campaignRadio, selected && s.campaignRadioSelected]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.campaignName}>{c.name}</Text>
+                  <Text style={s.campaignSub}>
+                    {ruleset.label} {ruleset.year} · {c.system_label ?? 'Campaign'}
+                  </Text>
                 </View>
               </TouchableOpacity>
             );
           })}
         </View>
+      )}
+
+      {lockedRuleset ? (
+        <View style={[s.section, { marginTop: spacing.lg }]}>
+          <View style={s.sectionHeader}>
+            <Text style={s.sectionLabel}>Ruleset</Text>
+            <Text style={s.sectionMeta}>Locked</Text>
+          </View>
+          <View style={s.lockBanner}>
+            <Text style={s.lockTitle}>Locked by campaign</Text>
+            <Text style={s.lockText}>
+              {linkedCampaign?.name} uses{' '}
+              <Text style={s.lockEmphasis}>
+                {lockedRuleset.label} {lockedRuleset.year}
+              </Text>
+              .
+            </Text>
+          </View>
+          <View style={s.list}>
+            {RULESETS.map((r) => {
+              const selected = srdVersion === r.srdVersion;
+              const dim = r.srdVersion !== lockedRuleset.srdVersion;
+              return (
+                <View
+                  key={r.srdVersion}
+                  style={[s.card, selected && s.cardSelected, dim && s.cardDisabled]}
+                >
+                  {selected && <View style={s.selectedGlow} pointerEvents="none" />}
+                  <RulesetCardInner ruleset={r} selected={selected} />
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+// ── Standalone mode: just the ruleset cards ───────────────────────────────
+
+function StandaloneModeScreen({
+  srdVersion,
+  onBack,
+  onPick,
+}: {
+  srdVersion: 'SRD_5.1' | 'SRD_2.0';
+  onBack: () => void;
+  onPick: (r: Ruleset) => void;
+}) {
+  return (
+    <View>
+      <BackRow onPress={onBack} />
+      <Text style={s.title}>Choose a ruleset</Text>
+      <Text style={s.guidance}>
+        Both editions are fully playable. The 2024 rules are smoother for new
+        players.
+      </Text>
+
+      <View style={s.list}>
+        {RULESETS.map((r) => {
+          const selected = srdVersion === r.srdVersion;
+          return (
+            <TouchableOpacity
+              key={r.srdVersion}
+              style={[s.card, selected && s.cardSelected]}
+              onPress={() => onPick(r)}
+              activeOpacity={0.8}
+            >
+              {selected && <View style={s.selectedGlow} pointerEvents="none" />}
+              <RulesetCardInner ruleset={r} selected={selected} />
+            </TouchableOpacity>
+          );
+        })}
       </View>
-    </ScrollView>
+    </View>
+  );
+}
+
+// ── Shared bits ───────────────────────────────────────────────────────────
+
+function BackRow({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={s.backRow} activeOpacity={0.7} hitSlop={8}>
+      <Text style={s.backArrow}>←</Text>
+      <Text style={s.backLabel}>Change choice</Text>
+    </TouchableOpacity>
+  );
+}
+
+function RulesetCardInner({ ruleset: r, selected }: { ruleset: Ruleset; selected: boolean }) {
+  return (
+    <View style={s.cardInner}>
+      <View style={[s.radio, selected && s.radioSelected]} />
+      <View style={s.cardText}>
+        <Text style={s.cardName}>
+          {r.label}{' '}
+          <Text style={s.cardYear}>{r.year}</Text>
+        </Text>
+        <Text style={s.cardBlurb}>{r.blurb}</Text>
+        <View style={s.tagRow}>
+          <Text style={s.metaLabel}>{r.subtitle}</Text>
+          <View style={[s.tagPill, r.tag === 'Recommended' && s.tagPillRecommended]}>
+            <Text style={[s.tagText, r.tag === 'Recommended' && s.tagTextRecommended]}>
+              {r.tag}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -233,6 +375,8 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.lg,
   },
+
+  // Headers
   title: {
     fontSize: 26,
     fontFamily: fonts.headline,
@@ -240,14 +384,80 @@ const s = StyleSheet.create({
     color: colors.onSurface,
     letterSpacing: -0.5,
     marginTop: 12,
-    marginBottom: 16,
+    marginBottom: 8,
     lineHeight: 30,
   },
-
-  // Section scaffolding (Linked Campaign + Ruleset)
-  section: {
-    marginBottom: spacing.lg,
+  guidance: {
+    fontSize: 13,
+    fontFamily: fonts.body,
+    color: colors.onSurfaceVariant,
+    lineHeight: 19,
+    marginBottom: 16,
   },
+
+  // Back row
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  backArrow: {
+    fontSize: 16,
+    color: colors.primary,
+    fontFamily: fonts.body,
+  },
+  backLabel: {
+    fontSize: 13,
+    fontFamily: fonts.label,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    color: colors.primary,
+  },
+
+  // Choice cards (initial fork)
+  choiceList: {
+    gap: 10,
+  },
+  choiceCard: {
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    borderRadius: radius.xl,
+    padding: 16,
+    gap: 6,
+  },
+  choiceCardMuted: {
+    opacity: 0.55,
+  },
+  choiceTag: {
+    fontSize: 10,
+    fontFamily: fonts.label,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    color: colors.primary,
+  },
+  choiceTagMuted: {
+    color: colors.outline,
+  },
+  choiceTitle: {
+    fontSize: 19,
+    fontFamily: fonts.headline,
+    fontWeight: '700',
+    color: colors.onSurface,
+    letterSpacing: -0.4,
+  },
+  choiceBody: {
+    fontSize: 13,
+    fontFamily: fonts.body,
+    color: colors.onSurfaceVariant,
+    lineHeight: 19,
+  },
+
+  // Section helpers (used inside campaign mode)
+  section: {},
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -270,15 +480,8 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     color: colors.primary,
   },
-  guidance: {
-    fontSize: 13,
-    fontFamily: fonts.body,
-    color: colors.onSurfaceVariant,
-    lineHeight: 19,
-    marginBottom: 12,
-  },
 
-  // Linked-campaign list
+  // Campaign list
   loaderRow: {
     paddingVertical: spacing.md,
     alignItems: 'center',
@@ -367,7 +570,7 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Ruleset cards (existing)
+  // Ruleset cards
   list: {
     gap: 10,
   },
