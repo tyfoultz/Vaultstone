@@ -57,16 +57,13 @@ const CATEGORY_MAP = {
   'equipment-pack': 'adventuring-gear',
   'poison': 'adventuring-gear',
   'spellcasting-focus': 'crafting-equipment',
-  // Magic-item-ish categories — collapsed to 'magic-item' since our enum
-  // doesn't split them per kind. (We have a separate MagicItemCategoryResult
-  // catalog for the kind enumeration.)
-  'wondrous-item': 'magic-item',
-  'potion': 'magic-item',
-  'scroll': 'magic-item',
-  'rod': 'magic-item',
-  'wand': 'magic-item',
-  'staff': 'magic-item',
-  'ring': 'magic-item',
+  // Magic-item categories (wondrous-item, potion, scroll, rod, wand, staff,
+  // ring) are intentionally NOT mapped here. The dedicated /magicitems/
+  // import (transforms/magic-items.js) owns the variant-level catalog —
+  // letting them flow through items.js produced 13 mis-categorized stub
+  // entries ("Rod", "Wand", "Signet Ring") that collided with real magic
+  // items. Filter them out here so items.json stays mundane-equipment
+  // only.
 };
 
 function slugify(name) {

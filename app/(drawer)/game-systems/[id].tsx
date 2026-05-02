@@ -1135,6 +1135,38 @@ function fallbackTypeLabel(category: ItemResult['category']): string {
   }
 }
 
+/**
+ * Pick a Chip variant for a magic-item rarity. Legendary/artifact use the
+ * accent palette so the rarest items pop visually while browsing the
+ * catalog; lower tiers use the secondary palette to differentiate from
+ * the meta-variant type chip beside them.
+ */
+function rarityVariant(rarity: ItemResult['rarity']): 'category' | 'meta' | 'accent' {
+  if (rarity === 'legendary' || rarity === 'artifact') return 'accent';
+  if (rarity === 'rare' || rarity === 'very-rare') return 'category';
+  return 'meta';
+}
+
+/**
+ * Resolve the most specific type label for an item — prefers the magic-item
+ * sub-category (Wand / Potion / Ring) over the generic "Magic Item" so
+ * browsing the catalog is more informative.
+ */
+function itemTypeLabel(it: ItemResult, parsedTypeText: string | null): string {
+  if (parsedTypeText) return parsedTypeText;
+  if (it.category === 'magic-item') {
+    const kind = (it.data as { magicItemKind?: string } | undefined)?.magicItemKind;
+    if (kind) {
+      // 'wondrous-item' → 'Wondrous Item'
+      return kind
+        .split('-')
+        .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+        .join(' ');
+    }
+  }
+  return fallbackTypeLabel(it.category);
+}
+
 function ItemsList({ items }: { items: ItemResult[] }) {
   const [q, setQ] = useState('');
   const exp = useExpanded();
@@ -1151,9 +1183,20 @@ function ItemsList({ items }: { items: ItemResult[] }) {
       <SearchBar value={q} onChange={setQ} placeholder="Search items…" />
       {filtered.map((it) => {
         const parsed = parseItemProperties(it.properties ?? []);
-        const typeText = parsed.typeText ?? fallbackTypeLabel(it.category);
+        const typeText = itemTypeLabel(it, parsed.typeText ?? null);
         const cost = it.cost ? `${it.cost.amount} ${it.cost.currency}` : null;
         const weight = typeof it.weight === 'number' ? `${it.weight} lb` : null;
+        const rarityLabel = it.rarity ? capitalize(it.rarity.replace('-', ' ')) : null;
+        // For magic items, surface the rarity chip alongside the type chip
+        // so legendary/artifact stand out at a glance while browsing 1k+
+        // entries. Mundane items keep the single type chip.
+        const badge = (
+          <View style={styles.itemBadgeStack}>
+            {rarityLabel ? <Chip label={rarityLabel} variant={rarityVariant(it.rarity)} /> : null}
+            <Chip label={typeText} variant="meta" />
+            {it.requiresAttunement ? <Chip label="Attunement" variant="meta" /> : null}
+          </View>
+        );
         return (
           <ExpandRow
             key={it.key}
@@ -1161,7 +1204,7 @@ function ItemsList({ items }: { items: ItemResult[] }) {
             summary={it.description ?? ''}
             expanded={exp.isOpen(it.key)}
             onToggle={() => exp.toggle(it.key)}
-            badge={<Chip label={typeText} variant="meta" />}
+            badge={badge}
           >
             <View style={styles.itemStatTable}>
               <ItemStatRow label="Type"     value={typeText} />
@@ -2047,6 +2090,14 @@ const styles = StyleSheet.create({
     borderTopColor: colors.outlineVariant + '55',
     gap: spacing.md,
     alignItems: 'baseline',
+  },
+  itemBadgeStack: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
+    maxWidth: 220,
   },
 
   // Creature stat block — six-cell ability grid + flavor line.

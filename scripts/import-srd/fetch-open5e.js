@@ -38,7 +38,8 @@ const ENDPOINTS = [
   { slug: 'items',       filterByDocument: true },
   { slug: 'creatures',   filterByDocument: true },
   { slug: 'classes',     filterByDocument: true },
-  // Future: magicitems (variant-level). /weapons and
+  { slug: 'magicitems',  filterByDocument: true },
+  // /weapons and
   // /armor are sub-views of /items — the weapon{} and armor{} sub-objects
   // on each item carry the mechanical detail, so we pull only /items/.
 ];

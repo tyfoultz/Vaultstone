@@ -37,6 +37,7 @@ import subclassesData          from './data/subclasses.json';
 import conditionsData          from './data/conditions.json';
 import spellsData              from './data/spells.json';
 import itemsData               from './data/items.json';
+import magicItemsData          from './data/magic-items.json';
 import featsData               from './data/feats.json';
 import creaturesData           from './data/creatures.json';
 import skillsData              from './data/skills.json';
@@ -67,7 +68,14 @@ const BACKGROUNDS           = backgroundsData         as unknown as BackgroundRe
 const SUBCLASSES            = subclassesData          as unknown as SubclassResult[];
 const CONDITIONS            = conditionsData          as unknown as ConditionResult[];
 const SPELLS                = spellsData              as unknown as SpellResult[];
-const ITEMS                 = itemsData               as unknown as ItemResult[];
+// Items split across two source files: items.json carries mundane equipment
+// (weapons / armor / adventuring gear / crafting equipment), magic-items.json
+// carries the variant-level magic-item catalog (~1,250 entries from Open5e
+// /magicitems/). The catalog is unioned here so consumers see one ItemResult[]
+// stream regardless of upstream source.
+const MUNDANE_ITEMS         = itemsData               as unknown as ItemResult[];
+const MAGIC_ITEMS_CATALOG   = magicItemsData          as unknown as ItemResult[];
+const ITEMS                 = [...MUNDANE_ITEMS, ...MAGIC_ITEMS_CATALOG];
 const FEATS                 = featsData               as unknown as FeatResult[];
 const CREATURES             = creaturesData           as unknown as CreatureResult[];
 const SKILLS                = skillsData              as unknown as SkillResult[];
