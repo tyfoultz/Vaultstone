@@ -291,10 +291,9 @@ function countsFromContent(c: SrdContent): SrdCounts {
  * this set so users know more entries are coming.
  */
 export const SEED_ONLY_TYPES = new Set<keyof SrdContent>([
-  // Classes are still seed-grade — only Barbarian is fully populated; the
-  // other 11 classes carry L1 features only. The full per-class progression
-  // import is a future pass.
-  'classes',
+  // No types are currently seed-only — every catalog has a real bundle.
+  // Subclasses are still hand-curated (Path of the Berserker only) but
+  // there's no seed banner for them; that's a separate import follow-up.
 ]);
 
 /**

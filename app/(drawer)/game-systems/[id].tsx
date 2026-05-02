@@ -488,7 +488,6 @@ function ClassesList({ items, allSubclasses }: { items: ClassResult[]; allSubcla
 
   return (
     <View style={styles.list}>
-      <SeedBanner type="classes" />
       <SearchBar value={q} onChange={setQ} placeholder="Search classes…" />
       {filtered.map((c) => (
         <Pressable
