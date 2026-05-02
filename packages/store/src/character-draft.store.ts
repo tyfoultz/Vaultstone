@@ -59,6 +59,12 @@ interface CharacterDraftActions {
   setAbilityScores: (scores: Dnd5eAbilityScores) => void;
   setCharacterName: (name: string) => void;
   setCampaignId: (id: string | null) => void;
+  /**
+   * Bulk-set the working state from a saved server-side draft. Resets to
+   * INITIAL_DRAFT first so any field absent from `partial` lands at its
+   * default rather than retaining whatever leaked from a prior session.
+   */
+  hydrateFromSnapshot: (partial: Partial<CharacterDraft>) => void;
   resetDraft: () => void;
 }
 
@@ -104,6 +110,8 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
       setCharacterName: (characterName) => set({ characterName }),
 
       setCampaignId: (campaignId) => set({ campaignId }),
+
+      hydrateFromSnapshot: (partial) => set({ ...INITIAL_DRAFT, ...partial }),
 
       resetDraft: () => set(INITIAL_DRAFT),
     }),

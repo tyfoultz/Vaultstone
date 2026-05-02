@@ -2,13 +2,25 @@ import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getMyCharacters, supabase } from '@vaultstone/api';
+import {
+  getMyCharacters,
+  supabase,
+  listCharacterDrafts,
+  deleteCharacterDraft,
+  type CharacterDraftRow,
+} from '@vaultstone/api';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
 type Character = Database['public']['Tables']['characters']['Row'];
-type ListItem = Character | { id: '__new__' };
+
+// The unified list mixes a "+ New" tile, drafts, and completed characters.
+// A discriminator field on each entry keeps the renderer's switch tight.
+type ListItem =
+  | { kind: 'new' }
+  | { kind: 'draft'; row: CharacterDraftRow }
+  | { kind: 'character'; row: Character };
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -24,32 +36,62 @@ function getStats(character: Character) {
   };
 }
 
+/** Best-effort label for a draft. Mirrors the fallback we apply on save. */
+function draftLabel(draft: CharacterDraftRow) {
+  if (draft.name && draft.name.trim().length > 0) return draft.name;
+  const data = draft.data as Record<string, unknown> | null;
+  const characterName = typeof data?.characterName === 'string' ? data.characterName.trim() : '';
+  if (characterName) return characterName;
+  const classKey = typeof data?.classKey === 'string' ? capitalize(data.classKey) : null;
+  const speciesKey = typeof data?.speciesKey === 'string' ? capitalize(data.speciesKey) : null;
+  if (classKey || speciesKey) return [speciesKey, classKey].filter(Boolean).join(' ');
+  return 'Untitled draft';
+}
+
+/** Sub-line for a draft card — surface the wizard step they're on. */
+function draftSubtitle(draft: CharacterDraftRow) {
+  const data = draft.data as Record<string, unknown> | null;
+  const speciesKey = typeof data?.speciesKey === 'string' ? capitalize(data.speciesKey) : null;
+  const classKey = typeof data?.classKey === 'string' ? capitalize(data.classKey) : null;
+  const parts: string[] = [];
+  if (speciesKey) parts.push(speciesKey);
+  if (classKey) parts.push(classKey);
+  if (parts.length > 0) return parts.join(' · ');
+  return 'Just getting started';
+}
+
 export default function CharactersScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const { characters, setCharacters } = useCharacterStore();
+  const [drafts, setDrafts] = useState<CharacterDraftRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [campaignMap, setCampaignMap] = useState<Record<string, string>>({});
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const { width } = useWindowDimensions();
 
   const numColumns = width > 900 ? 3 : width > 560 ? 2 : 1;
 
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
     Promise.all([
       getMyCharacters(),
+      listCharacterDrafts(),
       supabase
         .from('campaign_members')
         .select('character_id, campaigns(name)')
         .eq('user_id', user.id)
         .not('character_id', 'is', null),
-    ]).then(([chars, memberships]) => {
+    ]).then(([chars, draftsRes, memberships]) => {
+      if (cancelled) return;
       if (chars.error) {
         setError('Failed to load characters.');
       } else {
         setCharacters(chars.data ?? []);
       }
+      setDrafts(draftsRes.data ?? []);
       const map: Record<string, string> = {};
       type MembershipRow = { character_id: string | null; campaigns: { name: string } | null };
       for (const row of (memberships.data ?? []) as unknown as MembershipRow[]) {
@@ -60,10 +102,19 @@ export default function CharactersScreen() {
       setCampaignMap(map);
       setLoading(false);
     });
-  }, [user]);
+    return () => { cancelled = true; };
+  }, [user, setCharacters]);
+
+  async function handleDeleteDraft(draftId: string) {
+    setDeletingDraftId(draftId);
+    const { error } = await deleteCharacterDraft(draftId);
+    setDeletingDraftId(null);
+    if (error) return;
+    setDrafts((prev) => prev.filter((d) => d.id !== draftId));
+  }
 
   function renderItem({ item }: { item: ListItem }) {
-    if (item.id === '__new__') {
+    if (item.kind === 'new') {
       return (
         <TouchableOpacity
           style={[styles.card, styles.newCard, { flex: 1 / numColumns }]}
@@ -81,7 +132,52 @@ export default function CharactersScreen() {
       );
     }
 
-    const char = item as Character;
+    if (item.kind === 'draft') {
+      const draft = item.row;
+      const isDeleting = deletingDraftId === draft.id;
+      return (
+        <TouchableOpacity
+          style={[styles.card, styles.draftCard, { flex: 1 / numColumns }]}
+          onPress={() => router.push(`/character/new?draftId=${draft.id}` as never)}
+          activeOpacity={0.75}
+        >
+          <View style={styles.draftBadge}>
+            <MaterialCommunityIcons name="pencil-outline" size={11} color={colors.brand} />
+            <Text style={styles.draftBadgeText}>Draft</Text>
+          </View>
+
+          <View style={styles.avatarArea}>
+            <MaterialCommunityIcons name="account-edit-outline" size={48} color={colors.brand + '99'} />
+          </View>
+
+          <View style={styles.cardBody}>
+            <Text style={styles.cardName} numberOfLines={1}>{draftLabel(draft)}</Text>
+            <Text style={styles.subtitle} numberOfLines={1}>{draftSubtitle(draft)}</Text>
+
+            <View style={styles.draftActionRow}>
+              <Text style={styles.draftResumeText}>Tap to resume →</Text>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleDeleteDraft(draft.id);
+                }}
+                disabled={isDeleting}
+                hitSlop={6}
+                style={styles.draftDeleteBtn}
+              >
+                <MaterialCommunityIcons
+                  name={isDeleting ? 'loading' : 'trash-can-outline'}
+                  size={16}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    const char = item.row;
     const { classKey, level, speciesKey } = getStats(char);
     const campaignName = campaignMap[char.id];
 
@@ -131,6 +227,14 @@ export default function CharactersScreen() {
     );
   }
 
+  // Drafts go between the "New" tile and completed characters so they're
+  // discoverable but don't dominate the layout when there are several.
+  const data: ListItem[] = [
+    { kind: 'new' as const },
+    ...drafts.map((row) => ({ kind: 'draft' as const, row })),
+    ...characters.map((row) => ({ kind: 'character' as const, row })),
+  ];
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -142,8 +246,10 @@ export default function CharactersScreen() {
 
       <FlatList
         key={numColumns}
-        data={[{ id: '__new__' } as ListItem, ...characters]}
-        keyExtractor={(item) => item.id}
+        data={data}
+        keyExtractor={(item) =>
+          item.kind === 'new' ? '__new__' : `${item.kind}-${item.row.id}`
+        }
         renderItem={renderItem}
         numColumns={numColumns}
         columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
@@ -194,6 +300,50 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.brand,
   },
+  // Draft card — same footprint as a regular character card but with a
+  // tinted edge + badge so users can tell it apart at a glance.
+  draftCard: {
+    borderColor: colors.brand + '55',
+    borderStyle: 'dashed' as any,
+  },
+  draftBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: colors.brand + '22',
+    zIndex: 1,
+  },
+  draftBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.brand,
+  },
+  draftActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+  },
+  draftResumeText: {
+    fontSize: 12,
+    color: colors.brand,
+    fontWeight: '600',
+  },
+  draftDeleteBtn: {
+    padding: 4,
+  },
+
   // Card
   card: {
     backgroundColor: colors.surface,

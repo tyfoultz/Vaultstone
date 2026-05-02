@@ -3,7 +3,14 @@ import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Platform } from
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useCharacterDraftStore, useAuthStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
-import { createCharacter, supabase } from '@vaultstone/api';
+import {
+  createCharacter,
+  supabase,
+  getCharacterDraft,
+  createCharacterDraft,
+  updateCharacterDraft,
+  deleteCharacterDraft,
+} from '@vaultstone/api';
 import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
@@ -84,8 +91,9 @@ function systemToDraft(systemId: string): { system: string; srdVersion: 'SRD_5.1
 
 export default function NewCharacterScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ campaignId?: string }>();
+  const params = useLocalSearchParams<{ campaignId?: string; draftId?: string }>();
   const launchedCampaignId = params.campaignId ?? null;
+  const launchedDraftId = params.draftId ?? null;
   const user = useAuthStore((s) => s.user);
   const draft = useCharacterDraftStore(
     useShallow((s) => ({
@@ -101,6 +109,7 @@ export default function NewCharacterScreen() {
     }))
   );
   const resetDraft = useCharacterDraftStore((s) => s.resetDraft);
+  const hydrateFromSnapshot = useCharacterDraftStore((s) => s.hydrateFromSnapshot);
   const setDraftCampaignId = useCharacterDraftStore((s) => s.setCampaignId);
   const setDraftRuleset = useCharacterDraftStore((s) => s.setRuleset);
   const setDraftRulesetMode = useCharacterDraftStore((s) => s.setRulesetMode);
@@ -108,42 +117,86 @@ export default function NewCharacterScreen() {
   // user picks a path on the fork screen.
   const rulesetMode = useCharacterDraftStore((s) => s.rulesetMode);
 
-  // Bootstrap from the campaign route parameter. We fetch the campaign's
-  // system server-side, set the draft state, and pin the wizard to the
-  // campaign-step list so the user starts at Species rather than picking
-  // a ruleset they can't change. The bootstrap effect runs once per
-  // mount (the campaignId param doesn't change mid-wizard).
-  const [bootstrapping, setBootstrapping] = useState(!!launchedCampaignId);
-  const [campaignBootstrapError, setCampaignBootstrapError] = useState('');
+  // Track which saved draft (if any) the wizard is currently editing.
+  // Set when launched with ?draftId=, or when the user taps "Save draft"
+  // on a fresh wizard (so subsequent saves update the same row).
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(launchedDraftId);
+
+  // Bootstrap orchestration:
+  //   - launched with ?campaignId= → fetch campaign system, set draft
+  //   - launched with ?draftId=     → fetch saved draft, hydrate store
+  //   - neither                     → reset working store so the user
+  //     always sees a fresh fork screen, untouched by prior sessions
+  //
+  // The bootstrapping flag keeps the rest of the wizard unmounted until
+  // the bootstrap completes; otherwise the steps would render briefly
+  // with stale state from the persisted store.
+  const [bootstrapping, setBootstrapping] = useState(
+    !!launchedCampaignId || !!launchedDraftId
+  );
+  const [bootstrapError, setBootstrapError] = useState('');
   useEffect(() => {
-    if (!launchedCampaignId) return;
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        .from('campaigns')
-        .select('id, system')
-        .eq('id', launchedCampaignId)
-        .single();
-      if (cancelled) return;
-      if (error || !data) {
-        setCampaignBootstrapError('Could not load campaign context.');
+      // Fresh wizard — wipe persisted working state so the user starts
+      // at the fork. Drafts they wanted to keep live in character_drafts.
+      if (!launchedCampaignId && !launchedDraftId) {
+        resetDraft();
+        return;
+      }
+
+      // Resume a saved draft.
+      if (launchedDraftId) {
+        const { data, error } = await getCharacterDraft(launchedDraftId);
+        if (cancelled) return;
+        if (error || !data) {
+          setBootstrapError('Could not load draft.');
+          setBootstrapping(false);
+          return;
+        }
+        const snapshot = (data.data as Record<string, unknown>) ?? {};
+        // Rehydrate over a clean baseline so any field missing from the
+        // snapshot lands at its INITIAL_DRAFT default.
+        hydrateFromSnapshot(snapshot as never);
         setBootstrapping(false);
         return;
       }
-      const { system, srdVersion } = systemToDraft(data.system);
-      setDraftCampaignId(launchedCampaignId);
-      setDraftRuleset(system, srdVersion);
-      // The user opened the wizard via a campaign route, so they've
-      // implicitly committed to campaign mode — record it in the draft
-      // so the Next-button gate doesn't see a null rulesetMode and lock
-      // them out. (For campaign-launched flows the ruleset step is
-      // skipped entirely, but the gate still reads rulesetMode for
-      // step 0 in standalone-launched flows.)
-      setDraftRulesetMode('campaign');
-      setBootstrapping(false);
+
+      // Launched from a campaign — fetch its system + lock the wizard.
+      if (launchedCampaignId) {
+        // Reset first so we don't carry stale species/class from a
+        // prior session into this campaign-locked flow.
+        resetDraft();
+        const { data, error } = await supabase
+          .from('campaigns')
+          .select('id, system')
+          .eq('id', launchedCampaignId)
+          .single();
+        if (cancelled) return;
+        if (error || !data) {
+          setBootstrapError('Could not load campaign context.');
+          setBootstrapping(false);
+          return;
+        }
+        const { system, srdVersion } = systemToDraft(data.system);
+        setDraftCampaignId(launchedCampaignId);
+        setDraftRuleset(system, srdVersion);
+        // Implicit commit to campaign mode (ruleset step is skipped in
+        // this flow, but the gate still reads rulesetMode).
+        setDraftRulesetMode('campaign');
+        setBootstrapping(false);
+      }
     })();
     return () => { cancelled = true; };
-  }, [launchedCampaignId, setDraftCampaignId, setDraftRuleset, setDraftRulesetMode]);
+  }, [
+    launchedCampaignId,
+    launchedDraftId,
+    resetDraft,
+    hydrateFromSnapshot,
+    setDraftCampaignId,
+    setDraftRuleset,
+    setDraftRulesetMode,
+  ]);
 
   // Active step list and current step, swapped based on launch context.
   const STEPS = launchedCampaignId ? CAMPAIGN_STEPS : STANDALONE_STEPS;
@@ -242,6 +295,79 @@ export default function NewCharacterScreen() {
     }
   }
 
+  // Save Draft state. Distinct from `saving` (which is for finishing
+  // the character) so a save-draft mid-wizard doesn't disable Next.
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSaveError, setDraftSaveError] = useState('');
+
+  /**
+   * Snapshot the full working draft to a server-side row. First save on a
+   * fresh wizard creates a new row; subsequent saves update it in place
+   * (tracked via `currentDraftId`). On success we route back to the
+   * Characters drawer page where the draft now appears with its badge.
+   */
+  async function handleSaveDraft() {
+    if (!user) return;
+    setSavingDraft(true);
+    setDraftSaveError('');
+
+    // Pull the entire CharacterDraft (not just the destructured `draft`
+    // we use for rendering) so every wizard field round-trips.
+    const snapshot = useCharacterDraftStore.getState();
+    const data = {
+      currentStep: snapshot.currentStep,
+      system: snapshot.system,
+      srdVersion: snapshot.srdVersion,
+      rulesetMode: snapshot.rulesetMode,
+      speciesKey: snapshot.speciesKey,
+      classKey: snapshot.classKey,
+      chosenSkills: snapshot.chosenSkills,
+      backgroundKey: snapshot.backgroundKey,
+      abilityScoreMethod: snapshot.abilityScoreMethod,
+      abilityScores: snapshot.abilityScores,
+      characterName: snapshot.characterName,
+      campaignId: snapshot.campaignId,
+    };
+    // Display name fallback for the Characters list. characterName takes
+    // precedence; otherwise show the most-specific identifier the user
+    // has so far.
+    const name =
+      snapshot.characterName?.trim() ||
+      snapshot.classKey ||
+      snapshot.speciesKey ||
+      null;
+
+    if (currentDraftId) {
+      const { error } = await updateCharacterDraft(currentDraftId, {
+        name,
+        data: data as never,
+      });
+      setSavingDraft(false);
+      if (error) {
+        setDraftSaveError('Failed to save draft.');
+        return;
+      }
+    } else {
+      const { data: row, error } = await createCharacterDraft({
+        userId: user.id,
+        name,
+        data: data as never,
+      });
+      setSavingDraft(false);
+      if (error || !row) {
+        setDraftSaveError('Failed to save draft.');
+        return;
+      }
+      setCurrentDraftId(row.id);
+    }
+
+    // Send the user back to the characters list where the draft now
+    // surfaces. The wizard's working state stays in the store but
+    // nothing's reading it once we navigate; resetDraft fires next
+    // time the user taps "+ New".
+    router.replace('/(drawer)/characters');
+  }
+
   async function handleFinish() {
     if (!user || !draft.abilityScores || !draft.speciesKey || !draft.classKey || !draft.backgroundKey) return;
     setSaving(true);
@@ -315,6 +441,13 @@ export default function NewCharacterScreen() {
         return;
       }
 
+      // Promotion to a real character; the draft (if any) has fulfilled
+      // its purpose. Best-effort delete — failure here doesn't roll back
+      // the character, just leaves an orphan draft the user can clean up.
+      if (currentDraftId) {
+        await deleteCharacterDraft(currentDraftId).catch(() => undefined);
+      }
+
       resetDraft();
       router.replace(`/character/${data.id}`);
     } catch {
@@ -345,13 +478,14 @@ export default function NewCharacterScreen() {
   // pinned in the draft so the picker queries can fire with the right
   // filters from the first render.
   if (bootstrapping) {
+    const loadingLabel = launchedDraftId ? 'Loading draft…' : 'Loading campaign…';
     return (
       <SafeAreaView style={s.safeArea}>
         <View style={s.bootstrapWrap}>
           <Text style={s.bootstrapText}>
-            {campaignBootstrapError || 'Loading campaign…'}
+            {bootstrapError || loadingLabel}
           </Text>
-          {campaignBootstrapError ? (
+          {bootstrapError ? (
             <TouchableOpacity onPress={() => router.back()} style={[s.nextBtn, { marginTop: spacing.md }]}>
               <Text style={s.nextBtnText}>Back</Text>
             </TouchableOpacity>
@@ -373,8 +507,20 @@ export default function NewCharacterScreen() {
           <Text style={s.stepCounter}>STEP {String(step + 1).padStart(2, '0')}/{String(STEPS.length).padStart(2, '0')}</Text>
           <Text style={s.stepLabel}>{STEPS[step].label}</Text>
         </View>
-        <View style={s.headerSide} />
+        <TouchableOpacity
+          onPress={handleSaveDraft}
+          style={[s.headerSide, s.headerSideRight]}
+          disabled={savingDraft}
+          hitSlop={8}
+        >
+          <Text style={s.headerAction}>
+            {savingDraft ? 'Saving…' : 'Save draft'}
+          </Text>
+        </TouchableOpacity>
       </View>
+      {draftSaveError ? (
+        <Text style={s.draftSaveError}>{draftSaveError}</Text>
+      ) : null}
       </ContentWidth>
 
       {/* Constellation progress */}
@@ -510,11 +656,19 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
   },
-  headerSide: { width: 70 },
+  headerSide: { width: 90 },
+  headerSideRight: { alignItems: 'flex-end' },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerAction: {
     fontSize: 13, fontFamily: fonts.label, fontWeight: '600',
     color: colors.primary, letterSpacing: 0.3,
+  },
+  draftSaveError: {
+    fontSize: 12,
+    color: colors.hpDanger,
+    fontFamily: fonts.body,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
   },
   stepCounter: {
     fontSize: 9, fontFamily: fonts.label, fontWeight: '600',

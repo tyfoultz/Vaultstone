@@ -356,6 +356,29 @@ export interface Database {
         };
         Relationships: [];
       };
+      character_drafts: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string | null;
+          data: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name?: string | null;
+          data?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string | null;
+          data?: Json;
+        };
+        Relationships: [];
+      };
       campaign_members: {
         Row: {
           campaign_id: string;
