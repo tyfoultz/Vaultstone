@@ -9,14 +9,16 @@ import {
   View,
 } from 'react-native';
 import {
+  getCampaignMembers,
   getProfilesByIds,
   grantPagePermission,
   listPagePermissionsForAncestors,
   revokePagePermission,
   searchProfilesByDisplayName,
+  updatePage,
   updatePagePermission,
 } from '@vaultstone/api';
-import { useAuthStore, usePagesStore } from '@vaultstone/store';
+import { useAuthStore, useCurrentWorldStore, usePagesStore } from '@vaultstone/store';
 import type {
   WorldPage,
   WorldPagePermission,
@@ -68,9 +70,19 @@ function ancestorIds(allPages: WorldPage[] | undefined, startId: string): string
   return out;
 }
 
+type CampaignPlayer = {
+  userId: string;
+  displayName: string;
+  characterName: string | null;
+  campaignId: string;
+  campaignName: string;
+};
+
 export function ShareModal({ page, onClose }: Props) {
   const myUserId = useAuthStore((s) => s.user?.id ?? null);
   const allPages = usePagesStore((s) => s.byWorldId[page.world_id]);
+  const updatePageInStore = usePagesStore((s) => s.updatePage);
+  const linkedCampaigns = useCurrentWorldStore((s) => s.linkedCampaigns);
   const titlesById = useMemo(() => {
     const m = new Map<string, string>();
     for (const p of allPages ?? []) m.set(p.id, p.title);
@@ -80,6 +92,38 @@ export function ShareModal({ page, onClose }: Props) {
   const [rows, setRows] = useState<GrantRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Player visibility
+  const [visibleToAll, setVisibleToAll] = useState(page.visible_to_players);
+  const [campaignPlayers, setCampaignPlayers] = useState<CampaignPlayer[]>([]);
+  const [playerGrantIds, setPlayerGrantIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (linkedCampaigns.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const results = await Promise.all(
+        linkedCampaigns.map((c) => getCampaignMembers(c.id)),
+      );
+      if (cancelled) return;
+      const players: CampaignPlayer[] = [];
+      for (let i = 0; i < linkedCampaigns.length; i++) {
+        const campaign = linkedCampaigns[i];
+        for (const m of (results[i].data ?? []) as any[]) {
+          if (m.user_id === myUserId) continue;
+          players.push({
+            userId: m.user_id,
+            displayName: m.profiles?.display_name ?? 'Player',
+            characterName: m.characters?.name ?? null,
+            campaignId: campaign.id,
+            campaignName: campaign.name,
+          });
+        }
+      }
+      setCampaignPlayers(players);
+    })();
+    return () => { cancelled = true; };
+  }, [linkedCampaigns, myUserId]);
 
   // Add-grant form state.
   const [query, setQuery] = useState('');
@@ -119,6 +163,7 @@ export function ShareModal({ page, onClose }: Props) {
     // Sort: direct grants first, then inherited.
     next.sort((a, b) => Number(a.inherited) - Number(b.inherited));
     setRows(next);
+    setPlayerGrantIds(new Set(next.filter((r) => !r.inherited).map((r) => r.perm.user_id)));
     setLoading(false);
   }, [allPages, page.id, titlesById]);
 
@@ -210,6 +255,31 @@ export function ShareModal({ page, onClose }: Props) {
     }
   }
 
+  async function handleToggleVisibleToAll(on: boolean) {
+    setVisibleToAll(on);
+    updatePageInStore(page.id, { visible_to_players: on });
+    await updatePage(page.id, { visible_to_players: on });
+  }
+
+  async function handleTogglePlayerGrant(player: CampaignPlayer) {
+    if (!myUserId) return;
+    const hasGrant = playerGrantIds.has(player.userId);
+    if (hasGrant) {
+      setPlayerGrantIds((prev) => { const n = new Set(prev); n.delete(player.userId); return n; });
+      await revokePagePermission(page.id, player.userId);
+    } else {
+      setPlayerGrantIds((prev) => new Set(prev).add(player.userId));
+      await grantPagePermission({
+        pageId: page.id,
+        userId: player.userId,
+        permission: 'view',
+        cascade: false,
+        grantedBy: myUserId,
+      });
+    }
+    await refresh();
+  }
+
   async function handleRevoke(row: GrantRow) {
     if (row.inherited) return;
     setRows((prev) =>
@@ -253,6 +323,82 @@ export function ShareModal({ page, onClose }: Props) {
                   <Icon name="close" size={22} color={colors.onSurfaceVariant} />
                 </Pressable>
               </View>
+
+              {/* Player visibility */}
+              {linkedCampaigns.length > 0 ? (
+                <View style={styles.section}>
+                  <MetaLabel size="sm" tone="muted">
+                    Player visibility
+                  </MetaLabel>
+
+                  <View style={styles.toggleRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text variant="label-md" weight="semibold">
+                        Show to all players
+                      </Text>
+                      <Text variant="body-sm" tone="secondary" style={styles.toggleHelp}>
+                        Every member of every linked campaign can view this page.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={visibleToAll}
+                      onValueChange={handleToggleVisibleToAll}
+                      thumbColor={visibleToAll ? colors.player : colors.outline}
+                      trackColor={{ false: colors.outlineVariant, true: colors.player + '55' }}
+                    />
+                  </View>
+
+                  {!visibleToAll && campaignPlayers.length > 0 ? (
+                    <View style={{ gap: 2, marginTop: spacing.sm }}>
+                      <Text variant="label-sm" style={{ color: colors.outline, marginBottom: 4 }}>
+                        Or grant to specific players:
+                      </Text>
+                      {(() => {
+                        const grouped = new Map<string, { name: string; players: CampaignPlayer[] }>();
+                        for (const p of campaignPlayers) {
+                          if (!grouped.has(p.campaignId)) grouped.set(p.campaignId, { name: p.campaignName, players: [] });
+                          grouped.get(p.campaignId)!.players.push(p);
+                        }
+                        return Array.from(grouped.entries()).map(([campId, { name, players }]) => (
+                          <View key={campId}>
+                            {grouped.size > 1 ? (
+                              <Text variant="label-sm" uppercase style={{ color: colors.outline, letterSpacing: 1, fontSize: 10, marginTop: spacing.xs, marginBottom: 2 }}>
+                                {name}
+                              </Text>
+                            ) : null}
+                            {players.map((p) => {
+                              const granted = playerGrantIds.has(p.userId);
+                              return (
+                                <Pressable
+                                  key={p.userId}
+                                  onPress={() => handleTogglePlayerGrant(p)}
+                                  style={styles.playerRow}
+                                >
+                                  <Icon
+                                    name={granted ? 'check-circle' : 'radio-button-unchecked'}
+                                    size={18}
+                                    color={granted ? colors.player : colors.outline}
+                                  />
+                                  <View style={{ flex: 1 }}>
+                                    <Text variant="label-md" weight="semibold" style={{ color: colors.onSurface }}>
+                                      {p.displayName}
+                                    </Text>
+                                    {p.characterName ? (
+                                      <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                                        {p.characterName}
+                                      </Text>
+                                    ) : null}
+                                  </View>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        ));
+                      })()}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
 
               <View style={styles.section}>
                 <MetaLabel size="sm" tone="muted">
@@ -649,5 +795,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     justifyContent: 'flex-end',
     marginTop: spacing.xl,
+  },
+  playerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.lg,
   },
 });

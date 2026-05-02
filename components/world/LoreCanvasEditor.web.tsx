@@ -456,11 +456,32 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
   }
 
+  // Mark mention chips pointing at deleted pages.
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const validIds = new Set((mentionablePages ?? []).map((p) => p.id));
+    canvasRef.current.querySelectorAll<HTMLElement>('.vaultstone-mention[data-id]').forEach((chip) => {
+      const kind = chip.getAttribute('data-kind') ?? 'page';
+      if (kind !== 'page') return;
+      const id = chip.getAttribute('data-id')!;
+      chip.classList.toggle('vaultstone-mention--deleted', !validIds.has(id));
+    });
+  }, [mentionablePages, blocks]);
+
   function buildSnapshot(base?: CanvasBlock[]): CanvasBlock[] {
     return (base ?? blocksRef.current).map((b) => ({
       ...b,
       html: htmlRef.current[b.id] ?? b.html,
     }));
+  }
+
+  function flushPendingSave() {
+    if (changeTimerRef.current) {
+      clearTimeout(changeTimerRef.current);
+      changeTimerRef.current = null;
+      const final = buildSnapshot();
+      onChangeRef.current(final, blocksToPlainText(final), extractRefsFromBlocks(final));
+    }
   }
 
   function emitChange(next?: CanvasBlock[]) {
@@ -675,6 +696,11 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     insertParent.insertBefore(chip, insertRef);
     insertParent.insertBefore(trailing, chip.nextSibling);
 
+    // Capture the chip HTML immediately — don't defer to rAF because a blur
+    // event (triggered by clicking the typeahead popup) may have already
+    // captured stale HTML without the chip.
+    htmlRef.current[blockId] = el.innerHTML;
+
     // Place cursor at the start of the trailing text node
     requestAnimationFrame(() => {
       const r = document.createRange();
@@ -683,9 +709,18 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       sel.removeAllRanges();
       sel.addRange(r);
       el.focus();
+      // Update htmlRef again in case the DOM settled differently after rAF
       htmlRef.current[blockId] = el.innerHTML;
-      emitChange();
     });
+
+    // Fire onChange immediately (no debounce) so the chip is persisted
+    // before any navigation can race it.
+    if (changeTimerRef.current) {
+      clearTimeout(changeTimerRef.current);
+      changeTimerRef.current = null;
+    }
+    const final = buildSnapshot();
+    onChangeRef.current(final, blocksToPlainText(final), extractRefsFromBlocks(final));
   }
 
   function handleBlockBlur(id: string, el: HTMLElement, html: string) {
@@ -1110,10 +1145,13 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
               width: block.width,
             }}
             onClick={(e) => {
-              const chip = (e.target as HTMLElement).closest?.('.vaultstone-mention');
+              const chip = (e.target as HTMLElement).closest?.('.vaultstone-mention') as HTMLElement | null;
               if (chip) {
+                if (chip.classList.contains('vaultstone-mention--deleted')) {
+                  e.preventDefault(); e.stopPropagation(); return;
+                }
                 const id = chip.getAttribute('data-id');
-                if (id && onMentionClick) { e.preventDefault(); onMentionClick(id); return; }
+                if (id && onMentionClick) { e.preventDefault(); flushPendingSave(); onMentionClick(id); return; }
               }
               e.stopPropagation();
             }}
@@ -1529,6 +1567,17 @@ function CanvasStyles() {
           .lore-block-content .vaultstone-mention:hover {
             background: ${colors.primary}26;
             border-color: ${colors.primary}55;
+          }
+          .lore-block-content .vaultstone-mention--deleted {
+            background: ${colors.outlineVariant}22;
+            color: ${colors.outline};
+            border-color: ${colors.outlineVariant}33;
+            cursor: default;
+            text-decoration: line-through;
+          }
+          .lore-block-content .vaultstone-mention--deleted:hover {
+            background: ${colors.outlineVariant}22;
+            border-color: ${colors.outlineVariant}33;
           }
 
           /* Mention popup */

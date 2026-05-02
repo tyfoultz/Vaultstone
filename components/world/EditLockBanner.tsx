@@ -7,6 +7,7 @@ type Props = {
   ownerUserId: string;
   lockedSinceIso: string;
   onRetry?: () => void;
+  onForceUnlock?: () => void;
 };
 
 const LOCK_TTL_SECONDS = 90;
@@ -15,7 +16,7 @@ const LOCK_TTL_SECONDS = 90;
 // left accent border, pencil icon, inline message ("<Kira> is editing this
 // page — you're viewing read-only"), and a right-aligned "Request Takeover"
 // pill button. Re-renders every second so the countdown stays live.
-export function EditLockBanner({ ownerUserId, lockedSinceIso, onRetry }: Props) {
+export function EditLockBanner({ ownerUserId, lockedSinceIso, onRetry, onForceUnlock }: Props) {
   const [name, setName] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
@@ -51,6 +52,21 @@ export function EditLockBanner({ ownerUserId, lockedSinceIso, onRetry }: Props) 
           {remaining > 0 ? ` — lock expires in ${remaining}s.` : ' — lock expired.'}
         </Text>
       </View>
+      {onForceUnlock ? (
+        <Pressable
+          onPress={() => {
+            const msg = 'Force-unlock this page? The other editor will lose unsaved changes.';
+            if (Platform.OS === 'web' ? window.confirm(msg) : true) {
+              onForceUnlock();
+            }
+          }}
+          style={styles.forceUnlock}
+        >
+          <Text variant="label-sm" weight="semibold" uppercase style={styles.forceUnlockLabel}>
+            Force Unlock
+          </Text>
+        </Pressable>
+      ) : null}
       {onRetry ? (
         <Pressable onPress={onRetry} style={styles.takeover}>
           <Text
@@ -111,6 +127,18 @@ const styles = StyleSheet.create({
   },
   takeoverLabel: {
     color: colors.gm,
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  forceUnlock: {
+    borderWidth: 1,
+    borderColor: colors.hpDanger,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  forceUnlockLabel: {
+    color: colors.hpDanger,
     fontSize: 10,
     letterSpacing: 1,
   },

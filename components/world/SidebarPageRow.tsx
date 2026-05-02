@@ -19,6 +19,7 @@ type Props = {
   activePageId?: string | null;
   forcedOpenIds: Set<string>;
   onAddSubPage?: (sectionId: string, parentPageId: string) => void;
+  onPinToPrep?: (pageId: string) => void;
 };
 
 const MATERIAL_ICON: Record<string, string> = {
@@ -38,7 +39,7 @@ const MATERIAL_ICON: Record<string, string> = {
 const CHEVRON_WIDTH = 16;
 const SIDEBAR_DEPTH_CAP = 6;
 
-export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onAddSubPage }: Props) {
+export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onAddSubPage, onPinToPrep }: Props) {
   const router = useRouter();
   const icon = MATERIAL_ICON[node.page.page_kind] ?? 'article';
   const active = activePageId === node.page.id;
@@ -209,6 +210,7 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
           }
           onRename={() => setRenameOpen(true)}
           onMoveToSection={() => setMoveToSectionOpen(true)}
+          onPinToPrep={onPinToPrep ? () => onPinToPrep(node.page.id) : undefined}
         />
       ) : null}
 

@@ -23,6 +23,7 @@ type Props = {
   onAddSubPage: () => void;
   onRename: () => void;
   onMoveToSection: () => void;
+  onPinToPrep?: () => void;
 };
 
 type MenuItem = {
@@ -43,6 +44,7 @@ export function PageContextMenu({
   onAddSubPage,
   onRename,
   onMoveToSection,
+  onPinToPrep,
 }: Props) {
   const allPages = usePagesStore((s) => s.byWorldId[worldId]) ?? [];
   const storeUpdate = usePagesStore((s) => s.updatePage);
@@ -137,6 +139,11 @@ export function PageContextMenu({
       onPress: () => { onClose(); onMoveToSection(); },
     },
     'divider',
+    ...(onPinToPrep ? [{
+      label: 'Pin to session prep',
+      icon: 'push-pin',
+      onPress: () => { onClose(); onPinToPrep(); },
+    } as MenuItem, 'divider' as const] : []),
     {
       label: 'Rename',
       icon: 'edit',

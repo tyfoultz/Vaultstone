@@ -142,6 +142,7 @@ export default function RelationsScreen() {
               page={selectedPage}
               connectedEdges={connectedEdges}
               nodeById={nodeById}
+              worldId={worldId}
               onClose={() => setSelectedNodeId(null)}
               onOpenPage={handleOpenPage}
             />

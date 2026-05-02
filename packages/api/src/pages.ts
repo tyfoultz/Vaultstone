@@ -110,3 +110,7 @@ export async function claimPageEdit(pageId: string) {
 export async function releasePageEdit(pageId: string) {
   return supabase.rpc('release_world_page_edit', { p_page_id: pageId });
 }
+
+export async function forceReleasePageEdit(pageId: string) {
+  return supabase.rpc('force_release_world_page_edit', { p_page_id: pageId });
+}

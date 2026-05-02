@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   claimPageEdit,
+  forceReleasePageEdit,
   getEventsForTimeline,
   releasePageEdit,
   trashPage,
@@ -275,6 +276,11 @@ export function TimelinePageView({ page, worldId }: Props) {
             ownerUserId={bannerLock.ownerId}
             lockedSinceIso={bannerLock.since}
             onRetry={tryClaim}
+            onForceUnlock={isWorldOwner ? async () => {
+              await forceReleasePageEdit(page.id);
+              updatePageInStore(page.id, { editing_user_id: null, editing_since: null });
+              void tryClaim();
+            } : undefined}
           />
         ) : null}
 
