@@ -13,6 +13,7 @@ import { DetailModal, DetailSection, DetailSectionHeading } from '../../../compo
 import { CreateHomebrewPackModal } from '../../../components/homebrew/CreateHomebrewPackModal';
 import { listHomebrewPacks, deleteHomebrewPack, type HomebrewPackRow } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
+import { useSystemHomebrewContent } from './useSystemHomebrewContent';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
@@ -178,10 +179,35 @@ export default function GameSystemDetailScreen() {
 function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: () => void }) {
   // Filter bundled SRD content to records tagged with this system's edition.
   // Systems without an SRD version (Custom, future homebrew systems) get nothing.
-  const content = useMemo(
+  const srdContent = useMemo(
     () => (sys.srdVersion ? getSrdContent(sys.srdVersion) : EMPTY_CONTENT),
     [sys.srdVersion],
   );
+
+  // Fetch the user's homebrew entries scoped to this system. Loads async on
+  // top of the synchronous SRD content — the page renders SRD immediately
+  // and homebrew entries fade in once the query resolves. Each homebrew
+  // entry already comes shaped as the matching `*Result` thanks to the
+  // ContentResolver mapping in packages/content/src/homebrew/index.ts.
+  const homebrew = useSystemHomebrewContent(sys.id);
+
+  // Merge: spread SRD first, concat homebrew per bucket. Homebrew entries
+  // sort to the bottom of each list naturally because the existing list
+  // sorts (alphabetical, by-CR, etc.) re-sort the merged array. The Schema
+  // and reference catalog buckets pass through untouched — those aren't
+  // user-authorable.
+  const content = useMemo(() => {
+    const merged: typeof srdContent = { ...srdContent };
+    for (const [k, hbList] of Object.entries(homebrew.buckets)) {
+      if (!hbList || hbList.length === 0) continue;
+      const key = k as keyof typeof srdContent;
+      // Cast through unknown — the per-bucket array types are heterogeneous
+      // (SpellResult[], ItemResult[], etc.) but the indexer only sees the
+      // union, so the spread is provably correct at runtime.
+      (merged[key] as unknown[]) = [...(srdContent[key] as unknown[]), ...hbList];
+    }
+    return merged;
+  }, [srdContent, homebrew.buckets]);
 
   // Build the visible group + sub-tab tree once per content change. A group
   // disappears entirely when none of its sub-tabs have content — except
@@ -642,7 +668,7 @@ function SearchBar({ value, onChange, placeholder }: { value: string; onChange: 
 }
 
 function ExpandRow({
-  title, summary, expanded, onToggle, children, badge,
+  title, summary, expanded, onToggle, children, badge, tier,
 }: {
   title: string;
   summary: string;
@@ -651,9 +677,13 @@ function ExpandRow({
   children: React.ReactNode;
   /** Optional adornment (e.g. a Chip) anchored to the right of the row head. */
   badge?: React.ReactNode;
+  /** When 'homebrew', adds a Homebrew chip and a left border accent so users can
+   *  tell user-authored content apart from bundled SRD at a glance. */
+  tier?: 'srd' | 'local' | 'homebrew';
 }) {
+  const isHomebrew = tier === 'homebrew';
   return (
-    <View style={[styles.row, expanded && styles.rowExpanded]}>
+    <View style={[styles.row, expanded && styles.rowExpanded, isHomebrew && styles.rowHomebrew]}>
       <Pressable
         onPress={onToggle}
         style={({ pressed }) => [
@@ -678,6 +708,7 @@ function ExpandRow({
             </Text>
           ) : null}
         </View>
+        {isHomebrew ? <Chip label="Homebrew" variant="accent" /> : null}
         {badge ? <View style={styles.rowBadge}>{badge}</View> : null}
         <Icon
           name={expanded ? 'expand-less' : 'expand-more'}
@@ -719,6 +750,7 @@ function SpeciesList({ items }: { items: SpeciesResult[] }) {
           summary={`${s.size ?? '—'} · ${s.speed ?? '—'} ft`}
           expanded={exp.isOpen(s.key)}
           onToggle={() => exp.toggle(s.key)}
+          tier={s.tier}
         >
           {s.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{s.description}</Text> : null}
           {Array.isArray(s.traits) && s.traits.length > 0 ? (
@@ -758,7 +790,12 @@ function ClassesList({ items, allSubclasses }: { items: ClassResult[]; allSubcla
         <Pressable
           key={c.key}
           onPress={() => setActiveKey(c.key)}
-          style={({ pressed }) => [styles.row, styles.rowHead, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [
+            styles.row,
+            styles.rowHead,
+            c.tier === 'homebrew' && styles.rowHomebrew,
+            pressed && { opacity: 0.85 },
+          ]}
           accessibilityRole="button"
           accessibilityLabel={`Open ${c.name}`}
         >
@@ -772,6 +809,7 @@ function ClassesList({ items, allSubclasses }: { items: ClassResult[]; allSubcla
               </Text>
             ) : null}
           </View>
+          {c.tier === 'homebrew' ? <Chip label="Homebrew" variant="accent" /> : null}
           <Icon name="chevron-right" size={20} color={colors.outline} />
         </Pressable>
       ))}
@@ -1184,6 +1222,7 @@ function BackgroundsList({ items }: { items: BackgroundResult[] }) {
             ].filter(Boolean).join(' · ')}
             expanded={exp.isOpen(b.key)}
             onToggle={() => exp.toggle(b.key)}
+            tier={b.tier}
           >
             {b.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{b.description}</Text> : null}
             <ProfBlock label="Skill proficiencies" items={skills} />
@@ -1238,6 +1277,7 @@ function SubclassesList({ items }: { items: SubclassResult[] }) {
           ].filter(Boolean).join(' · ')}
           expanded={exp.isOpen(s.key)}
           onToggle={() => exp.toggle(s.key)}
+          tier={s.tier}
         >
           {s.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{s.description}</Text> : null}
           {Array.isArray(s.features) && s.features.length > 0 ? (
@@ -1282,6 +1322,7 @@ function SpellsList({ items }: { items: SpellResult[] }) {
             summary={[lvl, s.school, s.castingTime].filter(Boolean).join(' · ')}
             expanded={exp.isOpen(s.key)}
             onToggle={() => exp.toggle(s.key)}
+            tier={s.tier}
           >
             {s.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{s.description}</Text> : null}
             <View style={styles.subBlock}>
@@ -1325,6 +1366,7 @@ function FeatsList({ items }: { items: FeatResult[] }) {
           ].filter(Boolean).join(' · ')}
           expanded={exp.isOpen(f.key)}
           onToggle={() => exp.toggle(f.key)}
+          tier={f.tier}
         >
           {f.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text> : null}
           {Array.isArray(f.benefits) && f.benefits.length > 0 ? (
@@ -1470,6 +1512,7 @@ function ItemsList({ items }: { items: ItemResult[] }) {
             expanded={exp.isOpen(it.key)}
             onToggle={() => exp.toggle(it.key)}
             badge={badge}
+            tier={it.tier}
           >
             <View style={styles.itemStatTable}>
               <ItemStatRow label="Type"     value={typeText} />
@@ -1605,6 +1648,7 @@ function CreaturesList({ items }: { items: CreatureResult[] }) {
             expanded={exp.isOpen(c.key)}
             onToggle={() => exp.toggle(c.key)}
             badge={typeof c.challengeRating !== 'undefined' ? <Chip label={`CR ${c.challengeRating}`} variant="meta" /> : undefined}
+            tier={c.tier}
           >
             {c.alignment ? (
               <Text variant="body-sm" family="body" style={[styles.bodyText, styles.creatureFlavorLine]}>
@@ -1714,6 +1758,7 @@ function ConditionsList({ items }: { items: ConditionResult[] }) {
           summary={c.description ?? ''}
           expanded={exp.isOpen(c.key)}
           onToggle={() => exp.toggle(c.key)}
+          tier={c.tier}
         >
           {Array.isArray(c.effects) && c.effects.length > 0 ? (
             <View style={styles.subBlock}>
@@ -2214,6 +2259,15 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.primary,
     borderBottomWidth: 0,
     marginVertical: spacing.xs + 2,
+  },
+  // Subtle accent for homebrew-tier rows — primaryContainer-tinted left
+  // edge so they read as user-authored without overpowering the SRD
+  // content sitting next to them. The Homebrew Chip in the row head does
+  // the explicit labeling.
+  rowHomebrew: {
+    borderLeftWidth: 2,
+    borderLeftColor: colors.primaryContainer,
+    paddingLeft: 4,
   },
   rowHead: {
     flexDirection: 'row',
