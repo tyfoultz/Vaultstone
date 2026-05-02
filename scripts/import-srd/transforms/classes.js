@@ -257,7 +257,9 @@ function parseStartingEquipment51(desc) {
  */
 function buildProgression(features) {
   const tableFeats = features.filter(
-    (f) => f.feature_type === 'PROFICIENCY_BONUS' || f.feature_type === 'CLASS_TABLE_DATA',
+    (f) => f.feature_type === 'PROFICIENCY_BONUS'
+      || f.feature_type === 'CLASS_TABLE_DATA'
+      || f.feature_type === 'SPELL_SLOTS',
   );
   // 5.1 ships some progression columns as CLASS_LEVEL_FEATURE with empty
   // gained_at (Rages, Rage Damage, Sneak Attack dice). Detect them
@@ -272,11 +274,23 @@ function buildProgression(features) {
   const allCols = [...tableFeats, ...ambiguousColumns];
   if (allCols.length === 0) return { columns: undefined, table: undefined };
 
-  // Stable sort: profBonus first, then CLASS_TABLE_DATA in upstream order.
+  // Stable sort by category, mirroring the SRD class-table reading order:
+  //   Prof Bonus → CLASS_TABLE_DATA / ambiguous columns (Cantrips, Prepared
+  //   Spells, Rages, Sneak Attack) → SPELL_SLOTS (1st through 9th).
+  // Within SPELL_SLOTS we re-sort by ordinal because Open5e doesn't
+  // guarantee a stable order across the slot features.
+  const categoryRank = (f) => {
+    if (f.feature_type === 'PROFICIENCY_BONUS') return 0;
+    if (f.feature_type === 'SPELL_SLOTS') return 2;
+    return 1;
+  };
   allCols.sort((a, b) => {
-    const aProf = a.feature_type === 'PROFICIENCY_BONUS' ? 0 : 1;
-    const bProf = b.feature_type === 'PROFICIENCY_BONUS' ? 0 : 1;
-    return aProf - bProf;
+    const c = categoryRank(a) - categoryRank(b);
+    if (c !== 0) return c;
+    if (a.feature_type === 'SPELL_SLOTS' && b.feature_type === 'SPELL_SLOTS') {
+      return spellSlotOrdinal(a.name) - spellSlotOrdinal(b.name);
+    }
+    return 0;
   });
 
   const columns = allCols.map((f) => ({
@@ -315,6 +329,12 @@ function shortColumnLabel(name) {
   if (/^proficiency bonus$/i.test(name)) return 'Prof. Bonus';
   if (/^rage damage$/i.test(name)) return 'Rage Dmg';
   return name;
+}
+
+/** Map "1st" / "2nd" / ... "9th" to its ordinal for stable column ordering. */
+function spellSlotOrdinal(name) {
+  const m = String(name).match(/^(\d+)/);
+  return m ? parseInt(m[1], 10) : 99;
 }
 
 /**

@@ -780,6 +780,42 @@
       {
         "key": "preparedSpells",
         "label": "Prepared Spells"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
+      },
+      {
+        "key": "6th",
+        "label": "6th"
+      },
+      {
+        "key": "7th",
+        "label": "7th"
+      },
+      {
+        "key": "8th",
+        "label": "8th"
+      },
+      {
+        "key": "9th",
+        "label": "9th"
       }
     ],
     "progressionTable": [
@@ -789,7 +825,16 @@
           "profBonus": "+2",
           "bardicDie": "D6",
           "cantrips": "2",
-          "preparedSpells": "4"
+          "preparedSpells": "4",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -798,7 +843,16 @@
           "profBonus": "+2",
           "bardicDie": "D6",
           "cantrips": "2",
-          "preparedSpells": "5"
+          "preparedSpells": "5",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -807,7 +861,16 @@
           "profBonus": "+2",
           "bardicDie": "D6",
           "cantrips": "2",
-          "preparedSpells": "6"
+          "preparedSpells": "6",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -816,7 +879,16 @@
           "profBonus": "+2",
           "bardicDie": "D6",
           "cantrips": "3",
-          "preparedSpells": "7"
+          "preparedSpells": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -825,7 +897,16 @@
           "profBonus": "+3",
           "bardicDie": "D8",
           "cantrips": "3",
-          "preparedSpells": "9"
+          "preparedSpells": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -834,7 +915,16 @@
           "profBonus": "+3",
           "bardicDie": "D8",
           "cantrips": "3",
-          "preparedSpells": "10"
+          "preparedSpells": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -843,7 +933,16 @@
           "profBonus": "+3",
           "bardicDie": "D8",
           "cantrips": "3",
-          "preparedSpells": "11"
+          "preparedSpells": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -852,7 +951,16 @@
           "profBonus": "+3",
           "bardicDie": "D8",
           "cantrips": "3",
-          "preparedSpells": "12"
+          "preparedSpells": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -861,7 +969,16 @@
           "profBonus": "+4",
           "bardicDie": "D8",
           "cantrips": "3",
-          "preparedSpells": "14"
+          "preparedSpells": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -870,7 +987,16 @@
           "profBonus": "+4",
           "bardicDie": "D10",
           "cantrips": "4",
-          "preparedSpells": "15"
+          "preparedSpells": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -879,7 +1005,16 @@
           "profBonus": "+4",
           "bardicDie": "D10",
           "cantrips": "4",
-          "preparedSpells": "16"
+          "preparedSpells": "16",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -888,7 +1023,16 @@
           "profBonus": "+4",
           "bardicDie": "D10",
           "cantrips": "4",
-          "preparedSpells": "16"
+          "preparedSpells": "16",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -897,7 +1041,16 @@
           "profBonus": "+5",
           "bardicDie": "D10",
           "cantrips": "4",
-          "preparedSpells": "17"
+          "preparedSpells": "17",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -906,7 +1059,16 @@
           "profBonus": "+5",
           "bardicDie": "D10",
           "cantrips": "4",
-          "preparedSpells": "17"
+          "preparedSpells": "17",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -915,7 +1077,16 @@
           "profBonus": "+5",
           "bardicDie": "D12",
           "cantrips": "4",
-          "preparedSpells": "18"
+          "preparedSpells": "18",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -924,7 +1095,16 @@
           "profBonus": "+5",
           "bardicDie": "D12",
           "cantrips": "4",
-          "preparedSpells": "18"
+          "preparedSpells": "18",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -933,7 +1113,16 @@
           "profBonus": "+6",
           "bardicDie": "D12",
           "cantrips": "4",
-          "preparedSpells": "19"
+          "preparedSpells": "19",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -942,7 +1131,16 @@
           "profBonus": "+6",
           "bardicDie": "D12",
           "cantrips": "4",
-          "preparedSpells": "20"
+          "preparedSpells": "20",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -951,7 +1149,16 @@
           "profBonus": "+6",
           "bardicDie": "D12",
           "cantrips": "4",
-          "preparedSpells": "21"
+          "preparedSpells": "21",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -960,7 +1167,16 @@
           "profBonus": "+6",
           "bardicDie": "D12",
           "cantrips": "4",
-          "preparedSpells": "22"
+          "preparedSpells": "22",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "2",
+          "8th": "1",
+          "9th": "1"
         }
       }
     ],
@@ -1099,6 +1315,42 @@
       {
         "key": "spellsKnown",
         "label": "Spells Known"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
+      },
+      {
+        "key": "6th",
+        "label": "6th"
+      },
+      {
+        "key": "7th",
+        "label": "7th"
+      },
+      {
+        "key": "8th",
+        "label": "8th"
+      },
+      {
+        "key": "9th",
+        "label": "9th"
       }
     ],
     "progressionTable": [
@@ -1107,7 +1359,16 @@
         "values": {
           "profBonus": "+2",
           "cantripsKnown": "2",
-          "spellsKnown": "4"
+          "spellsKnown": "4",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1115,7 +1376,16 @@
         "values": {
           "profBonus": "+2",
           "cantripsKnown": "2",
-          "spellsKnown": "5"
+          "spellsKnown": "5",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1123,7 +1393,16 @@
         "values": {
           "profBonus": "+2",
           "cantripsKnown": "2",
-          "spellsKnown": "6"
+          "spellsKnown": "6",
+          "1st": "4",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1131,7 +1410,16 @@
         "values": {
           "profBonus": "+2",
           "cantripsKnown": "3",
-          "spellsKnown": "7"
+          "spellsKnown": "7",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1139,7 +1427,16 @@
         "values": {
           "profBonus": "+3",
           "cantripsKnown": "3",
-          "spellsKnown": "8"
+          "spellsKnown": "8",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1147,7 +1444,16 @@
         "values": {
           "profBonus": "+3",
           "cantripsKnown": "3",
-          "spellsKnown": "9"
+          "spellsKnown": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1155,7 +1461,16 @@
         "values": {
           "profBonus": "+3",
           "cantripsKnown": "3",
-          "spellsKnown": "10"
+          "spellsKnown": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1163,7 +1478,16 @@
         "values": {
           "profBonus": "+3",
           "cantripsKnown": "3",
-          "spellsKnown": "11"
+          "spellsKnown": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1171,7 +1495,16 @@
         "values": {
           "profBonus": "+4",
           "cantripsKnown": "3",
-          "spellsKnown": "12"
+          "spellsKnown": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1179,7 +1512,16 @@
         "values": {
           "profBonus": "+4",
           "cantripsKnown": "4",
-          "spellsKnown": "14"
+          "spellsKnown": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1187,7 +1529,16 @@
         "values": {
           "profBonus": "+4",
           "cantripsKnown": "4",
-          "spellsKnown": "15"
+          "spellsKnown": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1195,7 +1546,16 @@
         "values": {
           "profBonus": "+4",
           "cantripsKnown": "4",
-          "spellsKnown": "15"
+          "spellsKnown": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1203,7 +1563,16 @@
         "values": {
           "profBonus": "+5",
           "cantripsKnown": "4",
-          "spellsKnown": "16"
+          "spellsKnown": "16",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1211,7 +1580,16 @@
         "values": {
           "profBonus": "+5",
           "cantripsKnown": "4",
-          "spellsKnown": "18"
+          "spellsKnown": "18",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1219,7 +1597,16 @@
         "values": {
           "profBonus": "+5",
           "cantripsKnown": "4",
-          "spellsKnown": "19"
+          "spellsKnown": "19",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -1227,7 +1614,16 @@
         "values": {
           "profBonus": "+5",
           "cantripsKnown": "4",
-          "spellsKnown": "19"
+          "spellsKnown": "19",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -1235,7 +1631,16 @@
         "values": {
           "profBonus": "+6",
           "cantripsKnown": "4",
-          "spellsKnown": "20"
+          "spellsKnown": "20",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -1243,7 +1648,16 @@
         "values": {
           "profBonus": "+6",
           "cantripsKnown": "4",
-          "spellsKnown": "22"
+          "spellsKnown": "22",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -1251,7 +1665,16 @@
         "values": {
           "profBonus": "+6",
           "cantripsKnown": "4",
-          "spellsKnown": "22"
+          "spellsKnown": "22",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -1259,7 +1682,16 @@
         "values": {
           "profBonus": "+6",
           "cantripsKnown": "4",
-          "spellsKnown": "22"
+          "spellsKnown": "22",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "2",
+          "8th": "1",
+          "9th": "1"
         }
       }
     ],
@@ -1463,6 +1895,42 @@
       {
         "key": "preparedSpells",
         "label": "Prepared Spells"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
+      },
+      {
+        "key": "6th",
+        "label": "6th"
+      },
+      {
+        "key": "7th",
+        "label": "7th"
+      },
+      {
+        "key": "8th",
+        "label": "8th"
+      },
+      {
+        "key": "9th",
+        "label": "9th"
       }
     ],
     "progressionTable": [
@@ -1472,7 +1940,16 @@
           "profBonus": "+2",
           "cantrips": "3",
           "channelDivinity": "—",
-          "preparedSpells": "4"
+          "preparedSpells": "4",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1481,7 +1958,16 @@
           "profBonus": "+2",
           "cantrips": "3",
           "channelDivinity": "2",
-          "preparedSpells": "5"
+          "preparedSpells": "5",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1490,7 +1976,16 @@
           "profBonus": "+2",
           "cantrips": "3",
           "channelDivinity": "2",
-          "preparedSpells": "6"
+          "preparedSpells": "6",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1499,7 +1994,16 @@
           "profBonus": "+2",
           "cantrips": "4",
           "channelDivinity": "2",
-          "preparedSpells": "7"
+          "preparedSpells": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1508,7 +2012,16 @@
           "profBonus": "+3",
           "cantrips": "4",
           "channelDivinity": "2",
-          "preparedSpells": "9"
+          "preparedSpells": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1517,7 +2030,16 @@
           "profBonus": "+3",
           "cantrips": "4",
           "channelDivinity": "3",
-          "preparedSpells": "10"
+          "preparedSpells": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1526,7 +2048,16 @@
           "profBonus": "+3",
           "cantrips": "4",
           "channelDivinity": "3",
-          "preparedSpells": "11"
+          "preparedSpells": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1535,7 +2066,16 @@
           "profBonus": "+3",
           "cantrips": "4",
           "channelDivinity": "3",
-          "preparedSpells": "12"
+          "preparedSpells": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1544,7 +2084,16 @@
           "profBonus": "+4",
           "cantrips": "4",
           "channelDivinity": "3",
-          "preparedSpells": "14"
+          "preparedSpells": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1553,7 +2102,16 @@
           "profBonus": "+4",
           "cantrips": "5",
           "channelDivinity": "3",
-          "preparedSpells": "15"
+          "preparedSpells": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1562,7 +2120,16 @@
           "profBonus": "+4",
           "cantrips": "5",
           "channelDivinity": "3",
-          "preparedSpells": "16"
+          "preparedSpells": "16",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1571,7 +2138,16 @@
           "profBonus": "+4",
           "cantrips": "5",
           "channelDivinity": "3",
-          "preparedSpells": "16"
+          "preparedSpells": "16",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1580,7 +2156,16 @@
           "profBonus": "+5",
           "cantrips": "5",
           "channelDivinity": "3",
-          "preparedSpells": "17"
+          "preparedSpells": "17",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1589,7 +2174,16 @@
           "profBonus": "+5",
           "cantrips": "5",
           "channelDivinity": "3",
-          "preparedSpells": "17"
+          "preparedSpells": "17",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -1598,7 +2192,16 @@
           "profBonus": "+5",
           "cantrips": "5",
           "channelDivinity": "3",
-          "preparedSpells": "18"
+          "preparedSpells": "18",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -1607,7 +2210,16 @@
           "profBonus": "+5",
           "cantrips": "5",
           "channelDivinity": "3",
-          "preparedSpells": "18"
+          "preparedSpells": "18",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -1616,7 +2228,16 @@
           "profBonus": "+6",
           "cantrips": "5",
           "channelDivinity": "3",
-          "preparedSpells": "19"
+          "preparedSpells": "19",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -1625,7 +2246,16 @@
           "profBonus": "+6",
           "cantrips": "5",
           "channelDivinity": "4",
-          "preparedSpells": "20"
+          "preparedSpells": "20",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -1634,7 +2264,16 @@
           "profBonus": "+6",
           "cantrips": "5",
           "channelDivinity": "4",
-          "preparedSpells": "21"
+          "preparedSpells": "21",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -1643,7 +2282,16 @@
           "profBonus": "+6",
           "cantrips": "5",
           "channelDivinity": "4",
-          "preparedSpells": "22"
+          "preparedSpells": "22",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "2",
+          "8th": "1",
+          "9th": "1"
         }
       }
     ],
@@ -1779,6 +2427,42 @@
       {
         "key": "cantripsKnown",
         "label": "Cantrips Known"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
+      },
+      {
+        "key": "6th",
+        "label": "6th"
+      },
+      {
+        "key": "7th",
+        "label": "7th"
+      },
+      {
+        "key": "8th",
+        "label": "8th"
+      },
+      {
+        "key": "9th",
+        "label": "9th"
       }
     ],
     "progressionTable": [
@@ -1786,140 +2470,320 @@
         "level": 1,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 2,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 3,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 4,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 5,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 6,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 7,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 8,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 9,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 10,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 11,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 12,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 13,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 14,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 15,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
         "level": 16,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
         "level": 17,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
         "level": 18,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
         "level": 19,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
         "level": 20,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "2",
+          "8th": "1",
+          "9th": "1"
         }
       }
     ],
@@ -2088,6 +2952,42 @@
       {
         "key": "cantripsKnown",
         "label": "Cantrips Known"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
+      },
+      {
+        "key": "6th",
+        "label": "6th"
+      },
+      {
+        "key": "7th",
+        "label": "7th"
+      },
+      {
+        "key": "8th",
+        "label": "8th"
+      },
+      {
+        "key": "9th",
+        "label": "9th"
       }
     ],
     "progressionTable": [
@@ -2097,7 +2997,16 @@
           "profBonus": "+2",
           "cantrips": "2",
           "preparedSpells": "4",
-          "cantripsKnown": "—"
+          "cantripsKnown": "—",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2106,7 +3015,16 @@
           "profBonus": "+2",
           "cantrips": "2",
           "preparedSpells": "5",
-          "cantripsKnown": "2"
+          "cantripsKnown": "2",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2115,7 +3033,16 @@
           "profBonus": "+2",
           "cantrips": "2",
           "preparedSpells": "6",
-          "cantripsKnown": "2"
+          "cantripsKnown": "2",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2124,7 +3051,16 @@
           "profBonus": "+2",
           "cantrips": "3",
           "preparedSpells": "7",
-          "cantripsKnown": "2"
+          "cantripsKnown": "2",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2133,7 +3069,16 @@
           "profBonus": "+3",
           "cantrips": "3",
           "preparedSpells": "9",
-          "cantripsKnown": "2"
+          "cantripsKnown": "2",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2142,7 +3087,16 @@
           "profBonus": "+3",
           "cantrips": "3",
           "preparedSpells": "10",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2151,7 +3105,16 @@
           "profBonus": "+3",
           "cantrips": "3",
           "preparedSpells": "11",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2160,7 +3123,16 @@
           "profBonus": "+3",
           "cantrips": "3",
           "preparedSpells": "12",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2169,7 +3141,16 @@
           "profBonus": "+4",
           "cantrips": "3",
           "preparedSpells": "14",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2178,7 +3159,16 @@
           "profBonus": "+4",
           "cantrips": "4",
           "preparedSpells": "15",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2187,7 +3177,16 @@
           "profBonus": "+4",
           "cantrips": "4",
           "preparedSpells": "16",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2196,7 +3195,16 @@
           "profBonus": "+4",
           "cantrips": "4",
           "preparedSpells": "16",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2205,7 +3213,16 @@
           "profBonus": "+5",
           "cantrips": "4",
           "preparedSpells": "17",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2214,7 +3231,16 @@
           "profBonus": "+5",
           "cantrips": "4",
           "preparedSpells": "17",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -2223,7 +3249,16 @@
           "profBonus": "+5",
           "cantrips": "4",
           "preparedSpells": "18",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -2232,7 +3267,16 @@
           "profBonus": "+5",
           "cantrips": "4",
           "preparedSpells": "18",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -2241,7 +3285,16 @@
           "profBonus": "+6",
           "cantrips": "4",
           "preparedSpells": "19",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -2250,7 +3303,16 @@
           "profBonus": "+6",
           "cantrips": "4",
           "preparedSpells": "20",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -2259,7 +3321,16 @@
           "profBonus": "+6",
           "cantrips": "4",
           "preparedSpells": "21",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -2268,7 +3339,16 @@
           "profBonus": "+6",
           "cantrips": "4",
           "preparedSpells": "22",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "2",
+          "8th": "1",
+          "9th": "1"
         }
       }
     ],
@@ -2426,6 +3506,42 @@
       {
         "key": "cantripsKnown",
         "label": "Cantrips Known"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
+      },
+      {
+        "key": "6th",
+        "label": "6th"
+      },
+      {
+        "key": "7th",
+        "label": "7th"
+      },
+      {
+        "key": "8th",
+        "label": "8th"
+      },
+      {
+        "key": "9th",
+        "label": "9th"
       }
     ],
     "progressionTable": [
@@ -2433,140 +3549,320 @@
         "level": 1,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "2"
+          "cantripsKnown": "2",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 2,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "2"
+          "cantripsKnown": "2",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 3,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "2"
+          "cantripsKnown": "2",
+          "1st": "4",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 4,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 5,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 6,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 7,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 8,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 9,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 10,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 11,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 12,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 13,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 14,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 15,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
         "level": 16,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
         "level": 17,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
         "level": 18,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
         "level": 19,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
         "level": 20,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "2",
+          "8th": "1",
+          "9th": "1"
         }
       }
     ],
@@ -4053,6 +5349,26 @@
       {
         "key": "preparedSpells",
         "label": "Prepared Spells"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
       }
     ],
     "progressionTable": [
@@ -4061,7 +5377,12 @@
         "values": {
           "profBonus": "+2",
           "channelDivinity": "—",
-          "preparedSpells": "2"
+          "preparedSpells": "2",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4069,7 +5390,12 @@
         "values": {
           "profBonus": "+2",
           "channelDivinity": "—",
-          "preparedSpells": "3"
+          "preparedSpells": "3",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4077,7 +5403,12 @@
         "values": {
           "profBonus": "+2",
           "channelDivinity": "2",
-          "preparedSpells": "4"
+          "preparedSpells": "4",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4085,7 +5416,12 @@
         "values": {
           "profBonus": "+2",
           "channelDivinity": "2",
-          "preparedSpells": "5"
+          "preparedSpells": "5",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4093,7 +5429,12 @@
         "values": {
           "profBonus": "+3",
           "channelDivinity": "2",
-          "preparedSpells": "6"
+          "preparedSpells": "6",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4101,7 +5442,12 @@
         "values": {
           "profBonus": "+3",
           "channelDivinity": "2",
-          "preparedSpells": "6"
+          "preparedSpells": "6",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4109,7 +5455,12 @@
         "values": {
           "profBonus": "+3",
           "channelDivinity": "2",
-          "preparedSpells": "7"
+          "preparedSpells": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4117,7 +5468,12 @@
         "values": {
           "profBonus": "+3",
           "channelDivinity": "2",
-          "preparedSpells": "7"
+          "preparedSpells": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4125,7 +5481,12 @@
         "values": {
           "profBonus": "+4",
           "channelDivinity": "2",
-          "preparedSpells": "9"
+          "preparedSpells": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4133,7 +5494,12 @@
         "values": {
           "profBonus": "+4",
           "channelDivinity": "2",
-          "preparedSpells": "9"
+          "preparedSpells": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4141,7 +5507,12 @@
         "values": {
           "profBonus": "+4",
           "channelDivinity": "3",
-          "preparedSpells": "10"
+          "preparedSpells": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4149,7 +5520,12 @@
         "values": {
           "profBonus": "+4",
           "channelDivinity": "3",
-          "preparedSpells": "10"
+          "preparedSpells": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4157,7 +5533,12 @@
         "values": {
           "profBonus": "+5",
           "channelDivinity": "3",
-          "preparedSpells": "11"
+          "preparedSpells": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—"
         }
       },
       {
@@ -4165,7 +5546,12 @@
         "values": {
           "profBonus": "+5",
           "channelDivinity": "3",
-          "preparedSpells": "11"
+          "preparedSpells": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—"
         }
       },
       {
@@ -4173,7 +5559,12 @@
         "values": {
           "profBonus": "+5",
           "channelDivinity": "3",
-          "preparedSpells": "12"
+          "preparedSpells": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—"
         }
       },
       {
@@ -4181,7 +5572,12 @@
         "values": {
           "profBonus": "+5",
           "channelDivinity": "3",
-          "preparedSpells": "12"
+          "preparedSpells": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—"
         }
       },
       {
@@ -4189,7 +5585,12 @@
         "values": {
           "profBonus": "+6",
           "channelDivinity": "3",
-          "preparedSpells": "14"
+          "preparedSpells": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1"
         }
       },
       {
@@ -4197,7 +5598,12 @@
         "values": {
           "profBonus": "+6",
           "channelDivinity": "3",
-          "preparedSpells": "14"
+          "preparedSpells": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1"
         }
       },
       {
@@ -4205,7 +5611,12 @@
         "values": {
           "profBonus": "+6",
           "channelDivinity": "3",
-          "preparedSpells": "15"
+          "preparedSpells": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2"
         }
       },
       {
@@ -4213,7 +5624,12 @@
         "values": {
           "profBonus": "+6",
           "channelDivinity": "3",
-          "preparedSpells": "15"
+          "preparedSpells": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2"
         }
       }
     ],
@@ -4375,127 +5791,247 @@
       {
         "key": "profBonus",
         "label": "Prof. Bonus"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
       }
     ],
     "progressionTable": [
       {
         "level": 1,
         "values": {
-          "profBonus": "+2"
+          "profBonus": "+2",
+          "1st": "—",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 2,
         "values": {
-          "profBonus": "+2"
+          "profBonus": "+2",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 3,
         "values": {
-          "profBonus": "+2"
+          "profBonus": "+2",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 4,
         "values": {
-          "profBonus": "+2"
+          "profBonus": "+2",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 5,
         "values": {
-          "profBonus": "+3"
+          "profBonus": "+3",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 6,
         "values": {
-          "profBonus": "+3"
+          "profBonus": "+3",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 7,
         "values": {
-          "profBonus": "+3"
+          "profBonus": "+3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 8,
         "values": {
-          "profBonus": "+3"
+          "profBonus": "+3",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 9,
         "values": {
-          "profBonus": "+4"
+          "profBonus": "+4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 10,
         "values": {
-          "profBonus": "+4"
+          "profBonus": "+4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 11,
         "values": {
-          "profBonus": "+4"
+          "profBonus": "+4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 12,
         "values": {
-          "profBonus": "+4"
+          "profBonus": "+4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 13,
         "values": {
-          "profBonus": "+5"
+          "profBonus": "+5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—"
         }
       },
       {
         "level": 14,
         "values": {
-          "profBonus": "+5"
+          "profBonus": "+5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—"
         }
       },
       {
         "level": 15,
         "values": {
-          "profBonus": "+5"
+          "profBonus": "+5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—"
         }
       },
       {
         "level": 16,
         "values": {
-          "profBonus": "+5"
+          "profBonus": "+5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—"
         }
       },
       {
         "level": 17,
         "values": {
-          "profBonus": "+6"
+          "profBonus": "+6",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1"
         }
       },
       {
         "level": 18,
         "values": {
-          "profBonus": "+6"
+          "profBonus": "+6",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1"
         }
       },
       {
         "level": 19,
         "values": {
-          "profBonus": "+6"
+          "profBonus": "+6",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2"
         }
       },
       {
         "level": 20,
         "values": {
-          "profBonus": "+6"
+          "profBonus": "+6",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2"
         }
       }
     ],
@@ -4678,6 +6214,26 @@
       {
         "key": "preparedSpells",
         "label": "Prepared Spells"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
       }
     ],
     "progressionTable": [
@@ -4686,7 +6242,12 @@
         "values": {
           "profBonus": "+2",
           "favoredEnemy": "2",
-          "preparedSpells": "2"
+          "preparedSpells": "2",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4694,7 +6255,12 @@
         "values": {
           "profBonus": "+2",
           "favoredEnemy": "2",
-          "preparedSpells": "3"
+          "preparedSpells": "3",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4702,7 +6268,12 @@
         "values": {
           "profBonus": "+2",
           "favoredEnemy": "2",
-          "preparedSpells": "4"
+          "preparedSpells": "4",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4710,7 +6281,12 @@
         "values": {
           "profBonus": "+2",
           "favoredEnemy": "2",
-          "preparedSpells": "5"
+          "preparedSpells": "5",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4718,7 +6294,12 @@
         "values": {
           "profBonus": "+3",
           "favoredEnemy": "3",
-          "preparedSpells": "6"
+          "preparedSpells": "6",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4726,7 +6307,12 @@
         "values": {
           "profBonus": "+3",
           "favoredEnemy": "3",
-          "preparedSpells": "6"
+          "preparedSpells": "6",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4734,7 +6320,12 @@
         "values": {
           "profBonus": "+3",
           "favoredEnemy": "3",
-          "preparedSpells": "7"
+          "preparedSpells": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4742,7 +6333,12 @@
         "values": {
           "profBonus": "+3",
           "favoredEnemy": "3",
-          "preparedSpells": "7"
+          "preparedSpells": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4750,7 +6346,12 @@
         "values": {
           "profBonus": "+4",
           "favoredEnemy": "4",
-          "preparedSpells": "9"
+          "preparedSpells": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4758,7 +6359,12 @@
         "values": {
           "profBonus": "+4",
           "favoredEnemy": "4",
-          "preparedSpells": "9"
+          "preparedSpells": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4766,7 +6372,12 @@
         "values": {
           "profBonus": "+4",
           "favoredEnemy": "4",
-          "preparedSpells": "10"
+          "preparedSpells": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4774,7 +6385,12 @@
         "values": {
           "profBonus": "+4",
           "favoredEnemy": "4",
-          "preparedSpells": "10"
+          "preparedSpells": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
@@ -4782,7 +6398,12 @@
         "values": {
           "profBonus": "+5",
           "favoredEnemy": "5",
-          "preparedSpells": "11"
+          "preparedSpells": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—"
         }
       },
       {
@@ -4790,7 +6411,12 @@
         "values": {
           "profBonus": "+5",
           "favoredEnemy": "5",
-          "preparedSpells": "11"
+          "preparedSpells": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—"
         }
       },
       {
@@ -4798,7 +6424,12 @@
         "values": {
           "profBonus": "+5",
           "favoredEnemy": "5",
-          "preparedSpells": "12"
+          "preparedSpells": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—"
         }
       },
       {
@@ -4806,7 +6437,12 @@
         "values": {
           "profBonus": "+5",
           "favoredEnemy": "5",
-          "preparedSpells": "12"
+          "preparedSpells": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—"
         }
       },
       {
@@ -4814,7 +6450,12 @@
         "values": {
           "profBonus": "+6",
           "favoredEnemy": "6",
-          "preparedSpells": "14"
+          "preparedSpells": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1"
         }
       },
       {
@@ -4822,7 +6463,12 @@
         "values": {
           "profBonus": "+6",
           "favoredEnemy": "6",
-          "preparedSpells": "14"
+          "preparedSpells": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1"
         }
       },
       {
@@ -4830,7 +6476,12 @@
         "values": {
           "profBonus": "+6",
           "favoredEnemy": "6",
-          "preparedSpells": "15"
+          "preparedSpells": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2"
         }
       },
       {
@@ -4838,7 +6489,12 @@
         "values": {
           "profBonus": "+6",
           "favoredEnemy": "6",
-          "preparedSpells": "15"
+          "preparedSpells": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2"
         }
       }
     ],
@@ -5007,6 +6663,26 @@
       {
         "key": "spellsKnown",
         "label": "Spells Known"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
       }
     ],
     "progressionTable": [
@@ -5014,140 +6690,240 @@
         "level": 1,
         "values": {
           "profBonus": "+2",
-          "spellsKnown": "—"
+          "spellsKnown": "—",
+          "1st": "—",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 2,
         "values": {
           "profBonus": "+2",
-          "spellsKnown": "2"
+          "spellsKnown": "2",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 3,
         "values": {
           "profBonus": "+2",
-          "spellsKnown": "3"
+          "spellsKnown": "3",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 4,
         "values": {
           "profBonus": "+2",
-          "spellsKnown": "3"
+          "spellsKnown": "3",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 5,
         "values": {
           "profBonus": "+3",
-          "spellsKnown": "4"
+          "spellsKnown": "4",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 6,
         "values": {
           "profBonus": "+3",
-          "spellsKnown": "4"
+          "spellsKnown": "4",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 7,
         "values": {
           "profBonus": "+3",
-          "spellsKnown": "5"
+          "spellsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 8,
         "values": {
           "profBonus": "+3",
-          "spellsKnown": "5"
+          "spellsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 9,
         "values": {
           "profBonus": "+4",
-          "spellsKnown": "6"
+          "spellsKnown": "6",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 10,
         "values": {
           "profBonus": "+4",
-          "spellsKnown": "6"
+          "spellsKnown": "6",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 11,
         "values": {
           "profBonus": "+4",
-          "spellsKnown": "7"
+          "spellsKnown": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 12,
         "values": {
           "profBonus": "+4",
-          "spellsKnown": "7"
+          "spellsKnown": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—"
         }
       },
       {
         "level": 13,
         "values": {
           "profBonus": "+5",
-          "spellsKnown": "8"
+          "spellsKnown": "8",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—"
         }
       },
       {
         "level": 14,
         "values": {
           "profBonus": "+5",
-          "spellsKnown": "8"
+          "spellsKnown": "8",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—"
         }
       },
       {
         "level": 15,
         "values": {
           "profBonus": "+5",
-          "spellsKnown": "9"
+          "spellsKnown": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—"
         }
       },
       {
         "level": 16,
         "values": {
           "profBonus": "+5",
-          "spellsKnown": "9"
+          "spellsKnown": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—"
         }
       },
       {
         "level": 17,
         "values": {
           "profBonus": "+6",
-          "spellsKnown": "10"
+          "spellsKnown": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1"
         }
       },
       {
         "level": 18,
         "values": {
           "profBonus": "+6",
-          "spellsKnown": "10"
+          "spellsKnown": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1"
         }
       },
       {
         "level": 19,
         "values": {
           "profBonus": "+6",
-          "spellsKnown": "11"
+          "spellsKnown": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2"
         }
       },
       {
         "level": 20,
         "values": {
           "profBonus": "+6",
-          "spellsKnown": "11"
+          "spellsKnown": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2"
         }
       }
     ],
@@ -5953,6 +7729,42 @@
       {
         "key": "sorceryPoints",
         "label": "Sorcery Points"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
+      },
+      {
+        "key": "6th",
+        "label": "6th"
+      },
+      {
+        "key": "7th",
+        "label": "7th"
+      },
+      {
+        "key": "8th",
+        "label": "8th"
+      },
+      {
+        "key": "9th",
+        "label": "9th"
       }
     ],
     "progressionTable": [
@@ -5962,7 +7774,16 @@
           "profBonus": "+2",
           "cantrips": "4",
           "preparedSpells": "2",
-          "sorceryPoints": "—"
+          "sorceryPoints": "—",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -5971,7 +7792,16 @@
           "profBonus": "+2",
           "cantrips": "4",
           "preparedSpells": "4",
-          "sorceryPoints": "2"
+          "sorceryPoints": "2",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -5980,7 +7810,16 @@
           "profBonus": "+2",
           "cantrips": "4",
           "preparedSpells": "6",
-          "sorceryPoints": "3"
+          "sorceryPoints": "3",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -5989,7 +7828,16 @@
           "profBonus": "+2",
           "cantrips": "5",
           "preparedSpells": "7",
-          "sorceryPoints": "4"
+          "sorceryPoints": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -5998,7 +7846,16 @@
           "profBonus": "+3",
           "cantrips": "5",
           "preparedSpells": "9",
-          "sorceryPoints": "5"
+          "sorceryPoints": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6007,7 +7864,16 @@
           "profBonus": "+3",
           "cantrips": "5",
           "preparedSpells": "10",
-          "sorceryPoints": "6"
+          "sorceryPoints": "6",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6016,7 +7882,16 @@
           "profBonus": "+3",
           "cantrips": "5",
           "preparedSpells": "11",
-          "sorceryPoints": "7"
+          "sorceryPoints": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6025,7 +7900,16 @@
           "profBonus": "+3",
           "cantrips": "5",
           "preparedSpells": "12",
-          "sorceryPoints": "8"
+          "sorceryPoints": "8",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6034,7 +7918,16 @@
           "profBonus": "+4",
           "cantrips": "5",
           "preparedSpells": "14",
-          "sorceryPoints": "9"
+          "sorceryPoints": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6043,7 +7936,16 @@
           "profBonus": "+4",
           "cantrips": "6",
           "preparedSpells": "15",
-          "sorceryPoints": "10"
+          "sorceryPoints": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6052,7 +7954,16 @@
           "profBonus": "+4",
           "cantrips": "6",
           "preparedSpells": "16",
-          "sorceryPoints": "11"
+          "sorceryPoints": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6061,7 +7972,16 @@
           "profBonus": "+4",
           "cantrips": "6",
           "preparedSpells": "16",
-          "sorceryPoints": "12"
+          "sorceryPoints": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6070,7 +7990,16 @@
           "profBonus": "+5",
           "cantrips": "6",
           "preparedSpells": "17",
-          "sorceryPoints": "13"
+          "sorceryPoints": "13",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6079,7 +8008,16 @@
           "profBonus": "+5",
           "cantrips": "6",
           "preparedSpells": "17",
-          "sorceryPoints": "14"
+          "sorceryPoints": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6088,7 +8026,16 @@
           "profBonus": "+5",
           "cantrips": "6",
           "preparedSpells": "18",
-          "sorceryPoints": "15"
+          "sorceryPoints": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -6097,7 +8044,16 @@
           "profBonus": "+5",
           "cantrips": "6",
           "preparedSpells": "18",
-          "sorceryPoints": "16"
+          "sorceryPoints": "16",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -6106,7 +8062,16 @@
           "profBonus": "+6",
           "cantrips": "6",
           "preparedSpells": "19",
-          "sorceryPoints": "17"
+          "sorceryPoints": "17",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -6115,7 +8080,16 @@
           "profBonus": "+6",
           "cantrips": "6",
           "preparedSpells": "20",
-          "sorceryPoints": "18"
+          "sorceryPoints": "18",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -6124,7 +8098,16 @@
           "profBonus": "+6",
           "cantrips": "6",
           "preparedSpells": "21",
-          "sorceryPoints": "19"
+          "sorceryPoints": "19",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -6133,7 +8116,16 @@
           "profBonus": "+6",
           "cantrips": "6",
           "preparedSpells": "22",
-          "sorceryPoints": "20"
+          "sorceryPoints": "20",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "2",
+          "8th": "1",
+          "9th": "1"
         }
       }
     ],
@@ -6277,6 +8269,42 @@
       {
         "key": "spellsKnown",
         "label": "Spells Known"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
+      },
+      {
+        "key": "6th",
+        "label": "6th"
+      },
+      {
+        "key": "7th",
+        "label": "7th"
+      },
+      {
+        "key": "8th",
+        "label": "8th"
+      },
+      {
+        "key": "9th",
+        "label": "9th"
       }
     ],
     "progressionTable": [
@@ -6286,7 +8314,16 @@
           "profBonus": "+2",
           "cantripsKnown": "4",
           "sorceryPoints": "—",
-          "spellsKnown": "2"
+          "spellsKnown": "2",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6295,7 +8332,16 @@
           "profBonus": "+2",
           "cantripsKnown": "4",
           "sorceryPoints": "2",
-          "spellsKnown": "3"
+          "spellsKnown": "3",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6304,7 +8350,16 @@
           "profBonus": "+2",
           "cantripsKnown": "4",
           "sorceryPoints": "3",
-          "spellsKnown": "4"
+          "spellsKnown": "4",
+          "1st": "4",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6313,7 +8368,16 @@
           "profBonus": "+2",
           "cantripsKnown": "5",
           "sorceryPoints": "4",
-          "spellsKnown": "5"
+          "spellsKnown": "5",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6322,7 +8386,16 @@
           "profBonus": "+3",
           "cantripsKnown": "5",
           "sorceryPoints": "5",
-          "spellsKnown": "6"
+          "spellsKnown": "6",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6331,7 +8404,16 @@
           "profBonus": "+3",
           "cantripsKnown": "5",
           "sorceryPoints": "6",
-          "spellsKnown": "7"
+          "spellsKnown": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6340,7 +8422,16 @@
           "profBonus": "+3",
           "cantripsKnown": "5",
           "sorceryPoints": "7",
-          "spellsKnown": "8"
+          "spellsKnown": "8",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6349,7 +8440,16 @@
           "profBonus": "+3",
           "cantripsKnown": "5",
           "sorceryPoints": "8",
-          "spellsKnown": "9"
+          "spellsKnown": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6358,7 +8458,16 @@
           "profBonus": "+4",
           "cantripsKnown": "5",
           "sorceryPoints": "9",
-          "spellsKnown": "10"
+          "spellsKnown": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6367,7 +8476,16 @@
           "profBonus": "+4",
           "cantripsKnown": "6",
           "sorceryPoints": "10",
-          "spellsKnown": "11"
+          "spellsKnown": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6376,7 +8494,16 @@
           "profBonus": "+4",
           "cantripsKnown": "6",
           "sorceryPoints": "11",
-          "spellsKnown": "12"
+          "spellsKnown": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6385,7 +8512,16 @@
           "profBonus": "+4",
           "cantripsKnown": "6",
           "sorceryPoints": "12",
-          "spellsKnown": "12"
+          "spellsKnown": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6394,7 +8530,16 @@
           "profBonus": "+5",
           "cantripsKnown": "6",
           "sorceryPoints": "13",
-          "spellsKnown": "13"
+          "spellsKnown": "13",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6403,7 +8548,16 @@
           "profBonus": "+5",
           "cantripsKnown": "6",
           "sorceryPoints": "14",
-          "spellsKnown": "13"
+          "spellsKnown": "13",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -6412,7 +8566,16 @@
           "profBonus": "+5",
           "cantripsKnown": "6",
           "sorceryPoints": "15",
-          "spellsKnown": "14"
+          "spellsKnown": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -6421,7 +8584,16 @@
           "profBonus": "+5",
           "cantripsKnown": "6",
           "sorceryPoints": "16",
-          "spellsKnown": "14"
+          "spellsKnown": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -6430,7 +8602,16 @@
           "profBonus": "+6",
           "cantripsKnown": "6",
           "sorceryPoints": "17",
-          "spellsKnown": "15"
+          "spellsKnown": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -6439,7 +8620,16 @@
           "profBonus": "+6",
           "cantripsKnown": "6",
           "sorceryPoints": "18",
-          "spellsKnown": "15"
+          "spellsKnown": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -6448,7 +8638,16 @@
           "profBonus": "+6",
           "cantripsKnown": "6",
           "sorceryPoints": "19",
-          "spellsKnown": "15"
+          "spellsKnown": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -6457,7 +8656,16 @@
           "profBonus": "+6",
           "cantripsKnown": "6",
           "sorceryPoints": "20",
-          "spellsKnown": "15"
+          "spellsKnown": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "2",
+          "8th": "1",
+          "9th": "1"
         }
       }
     ],
@@ -7349,6 +9557,42 @@
       {
         "key": "preparedSpells",
         "label": "Prepared Spells"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
+      },
+      {
+        "key": "6th",
+        "label": "6th"
+      },
+      {
+        "key": "7th",
+        "label": "7th"
+      },
+      {
+        "key": "8th",
+        "label": "8th"
+      },
+      {
+        "key": "9th",
+        "label": "9th"
       }
     ],
     "progressionTable": [
@@ -7357,7 +9601,16 @@
         "values": {
           "profBonus": "+2",
           "cantrips": "3",
-          "preparedSpells": "4"
+          "preparedSpells": "4",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7365,7 +9618,16 @@
         "values": {
           "profBonus": "+2",
           "cantrips": "3",
-          "preparedSpells": "5"
+          "preparedSpells": "5",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7373,7 +9635,16 @@
         "values": {
           "profBonus": "+2",
           "cantrips": "3",
-          "preparedSpells": "6"
+          "preparedSpells": "6",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7381,7 +9652,16 @@
         "values": {
           "profBonus": "+2",
           "cantrips": "4",
-          "preparedSpells": "7"
+          "preparedSpells": "7",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7389,7 +9669,16 @@
         "values": {
           "profBonus": "+3",
           "cantrips": "4",
-          "preparedSpells": "9"
+          "preparedSpells": "9",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7397,7 +9686,16 @@
         "values": {
           "profBonus": "+3",
           "cantrips": "4",
-          "preparedSpells": "10"
+          "preparedSpells": "10",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7405,7 +9703,16 @@
         "values": {
           "profBonus": "+3",
           "cantrips": "4",
-          "preparedSpells": "11"
+          "preparedSpells": "11",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7413,7 +9720,16 @@
         "values": {
           "profBonus": "+3",
           "cantrips": "4",
-          "preparedSpells": "12"
+          "preparedSpells": "12",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7421,7 +9737,16 @@
         "values": {
           "profBonus": "+4",
           "cantrips": "4",
-          "preparedSpells": "14"
+          "preparedSpells": "14",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7429,7 +9754,16 @@
         "values": {
           "profBonus": "+4",
           "cantrips": "5",
-          "preparedSpells": "15"
+          "preparedSpells": "15",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7437,7 +9771,16 @@
         "values": {
           "profBonus": "+4",
           "cantrips": "5",
-          "preparedSpells": "16"
+          "preparedSpells": "16",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7445,7 +9788,16 @@
         "values": {
           "profBonus": "+4",
           "cantrips": "5",
-          "preparedSpells": "16"
+          "preparedSpells": "16",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7453,7 +9805,16 @@
         "values": {
           "profBonus": "+5",
           "cantrips": "5",
-          "preparedSpells": "17"
+          "preparedSpells": "17",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7461,7 +9822,16 @@
         "values": {
           "profBonus": "+5",
           "cantrips": "5",
-          "preparedSpells": "18"
+          "preparedSpells": "18",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
@@ -7469,7 +9839,16 @@
         "values": {
           "profBonus": "+5",
           "cantrips": "5",
-          "preparedSpells": "19"
+          "preparedSpells": "19",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -7477,7 +9856,16 @@
         "values": {
           "profBonus": "+5",
           "cantrips": "5",
-          "preparedSpells": "21"
+          "preparedSpells": "21",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
@@ -7485,7 +9873,16 @@
         "values": {
           "profBonus": "+6",
           "cantrips": "5",
-          "preparedSpells": "22"
+          "preparedSpells": "22",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -7493,7 +9890,16 @@
         "values": {
           "profBonus": "+6",
           "cantrips": "5",
-          "preparedSpells": "23"
+          "preparedSpells": "23",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -7501,7 +9907,16 @@
         "values": {
           "profBonus": "+6",
           "cantrips": "5",
-          "preparedSpells": "24"
+          "preparedSpells": "24",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
@@ -7509,7 +9924,16 @@
         "values": {
           "profBonus": "+6",
           "cantrips": "5",
-          "preparedSpells": "25"
+          "preparedSpells": "25",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "2",
+          "8th": "1",
+          "9th": "1"
         }
       }
     ],
@@ -7640,6 +10064,42 @@
       {
         "key": "cantripsKnown",
         "label": "Cantrips Known"
+      },
+      {
+        "key": "1st",
+        "label": "1st"
+      },
+      {
+        "key": "2nd",
+        "label": "2nd"
+      },
+      {
+        "key": "3rd",
+        "label": "3rd"
+      },
+      {
+        "key": "4th",
+        "label": "4th"
+      },
+      {
+        "key": "5th",
+        "label": "5th"
+      },
+      {
+        "key": "6th",
+        "label": "6th"
+      },
+      {
+        "key": "7th",
+        "label": "7th"
+      },
+      {
+        "key": "8th",
+        "label": "8th"
+      },
+      {
+        "key": "9th",
+        "label": "9th"
       }
     ],
     "progressionTable": [
@@ -7647,140 +10107,320 @@
         "level": 1,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "2",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 2,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "3",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 3,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "3"
+          "cantripsKnown": "3",
+          "1st": "4",
+          "2nd": "—",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 4,
         "values": {
           "profBonus": "+2",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "2",
+          "3rd": "—",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 5,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "2",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 6,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "—",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 7,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "1",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 8,
         "values": {
           "profBonus": "+3",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "2",
+          "5th": "—",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 9,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "4"
+          "cantripsKnown": "4",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "1",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 10,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "—",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 11,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 12,
         "values": {
           "profBonus": "+4",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "—",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 13,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 14,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "—",
+          "9th": "—"
         }
       },
       {
         "level": 15,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
         "level": 16,
         "values": {
           "profBonus": "+5",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "—"
         }
       },
       {
         "level": 17,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "2",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
         "level": 18,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "1",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
         "level": 19,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "1",
+          "8th": "1",
+          "9th": "1"
         }
       },
       {
         "level": 20,
         "values": {
           "profBonus": "+6",
-          "cantripsKnown": "5"
+          "cantripsKnown": "5",
+          "1st": "4",
+          "2nd": "3",
+          "3rd": "3",
+          "4th": "3",
+          "5th": "3",
+          "6th": "2",
+          "7th": "2",
+          "8th": "1",
+          "9th": "1"
         }
       }
     ],
