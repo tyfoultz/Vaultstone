@@ -26,6 +26,7 @@ const NAV_ITEMS: { label: string; href: Href; icon: IconName }[] = [
   { label: 'Characters', href: '/characters', icon: 'person' },
   { label: 'Worlds', href: '/worlds', icon: 'public' },
   { label: 'Game Systems', href: '/game-systems' as Href, icon: 'extension' },
+  { label: 'Homebrew Packs', href: '/homebrew-packs' as Href, icon: 'inventory-2' },
   { label: 'Settings', href: '/settings', icon: 'settings' },
 ];
 

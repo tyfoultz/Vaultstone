@@ -7,6 +7,7 @@ export * from './sessions';
 export * from './session-events';
 export * from './session-sync-filter';
 export * from './homebrew';
+export * from './homebrew-packs';
 export * from './worlds';
 export * from './world-campaigns';
 export * from './sections';
