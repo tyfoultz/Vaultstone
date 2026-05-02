@@ -347,29 +347,24 @@ export function PCStubPageView({ page, worldId }: Props) {
             </View>
           ) : null}
 
-          {/* Character link card */}
+          {/* Character link */}
           <View style={styles.charSection}>
             {character && stats ? (
-              <Card tier="container" style={styles.charCard}>
-                <View style={styles.charCardRow}>
-                  <Icon name="person" size={20} color={colors.player} />
-                  <View style={{ flex: 1 }}>
-                    <Text variant="body-md" weight="semibold">{character.name}</Text>
-                    <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                      {[stats.speciesKey?.replace(/-/g, ' '), stats.classKey?.replace(/-/g, ' '), `Lv ${stats.level ?? 1}`].filter(Boolean).join(' · ')}
-                    </Text>
-                  </View>
-                  <View style={styles.charStatChips}>
-                    <View style={styles.charStatChip}>
-                      <Text style={styles.charStatValue}>HP {resources?.hpCurrent ?? 0}/{stats.hpMax}</Text>
-                    </View>
-                    <View style={styles.charStatChip}>
-                      <Text style={styles.charStatValue}>AC {computeAC(stats, resources)}</Text>
-                    </View>
-                  </View>
-                  <GhostButton label="Open Sheet" icon="open-in-new" onPress={() => router.push(`/character/${page.character_id}`)} />
-                </View>
-              </Card>
+              <Pressable onPress={() => router.push(`/character/${page.character_id}`)} style={styles.charLink}>
+                <Icon name="person" size={14} color={colors.player} />
+                <Text variant="label-sm" weight="semibold" style={{ color: colors.player }}>
+                  {character.name}
+                </Text>
+                <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
+                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                  {[stats.speciesKey?.replace(/-/g, ' '), stats.classKey?.replace(/-/g, ' '), `Lv ${stats.level ?? 1}`].filter(Boolean).join(' · ')}
+                </Text>
+                <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
+                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                  HP {resources?.hpCurrent ?? 0}/{stats.hpMax}
+                </Text>
+                <Icon name="open-in-new" size={12} color={colors.outline} />
+              </Pressable>
             ) : isWorldOwner && linkedCampaigns.length > 0 && !page.character_id ? (
               <Pressable onPress={() => setCharacterPickerOpen(true)} style={styles.linkCharBtn}>
                 <Icon name="person-add" size={16} color={colors.player} />
@@ -767,13 +762,9 @@ const styles = StyleSheet.create({
   editorCol: { flex: 1, minWidth: 0 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
   titleBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, borderWidth: 1, borderColor: colors.outlineVariant + '55' },
-  charSection: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  charCard: { borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: radius.xl },
-  charCardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md },
-  charStatChips: { flexDirection: 'row', gap: 6 },
-  charStatChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.outlineVariant + '55' },
-  charStatValue: { fontFamily: fonts.label, fontSize: 11, color: colors.onSurfaceVariant },
-  linkCharBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.player + '33', borderStyle: 'dashed' as any },
+  charSection: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
+  charLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.player + '33', alignSelf: 'flex-start' },
+  linkCharBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.player + '33', borderStyle: 'dashed' as any, alignSelf: 'flex-start' },
   resolveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm, paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.player + '44', alignSelf: 'flex-start' },
   relRow: { flexDirection: 'row', alignItems: 'center' },
   relLink: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 6, borderRadius: radius.lg },

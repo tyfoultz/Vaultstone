@@ -696,6 +696,11 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     insertParent.insertBefore(chip, insertRef);
     insertParent.insertBefore(trailing, chip.nextSibling);
 
+    // Capture the chip HTML immediately — don't defer to rAF because a blur
+    // event (triggered by clicking the typeahead popup) may have already
+    // captured stale HTML without the chip.
+    htmlRef.current[blockId] = el.innerHTML;
+
     // Place cursor at the start of the trailing text node
     requestAnimationFrame(() => {
       const r = document.createRange();
@@ -704,9 +709,18 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       sel.removeAllRanges();
       sel.addRange(r);
       el.focus();
+      // Update htmlRef again in case the DOM settled differently after rAF
       htmlRef.current[blockId] = el.innerHTML;
-      emitChange();
     });
+
+    // Fire onChange immediately (no debounce) so the chip is persisted
+    // before any navigation can race it.
+    if (changeTimerRef.current) {
+      clearTimeout(changeTimerRef.current);
+      changeTimerRef.current = null;
+    }
+    const final = buildSnapshot();
+    onChangeRef.current(final, blocksToPlainText(final), extractRefsFromBlocks(final));
   }
 
   function handleBlockBlur(id: string, el: HTMLElement, html: string) {
