@@ -45,6 +45,77 @@ const SPELLCASTING_ABILITY_BY_CLASS = {
   Warlock: 'Charisma', Wizard: 'Intelligence',
 };
 
+// Multiclass prerequisites and proficiencies per the SRD 2024 PHB
+// multiclassing table. Open5e doesn't ship multiclass data, so we
+// hand-curate it. The table is identical between SRD 5.1 and 2024 except
+// for: Druid 5.1 had no shield proficiency carve-out; Ranger 5.1 grants
+// only the leather-light/no-tool carve-out (5.2 grants Light armor, Martial
+// weapons, one skill). Where the editions diverge we record both forms and
+// the transform picks the right one by edition.
+//
+// Ability score prereqs use SRD wording — "Strength 13" or "Strength 13 and
+// Charisma 13" (Paladin needs both STR and CHA).
+const MULTICLASS_BY_CLASS = {
+  Barbarian: {
+    prerequisite: 'Strength 13',
+    armor:    ['Shields'],
+    weapons:  ['Martial weapons'],
+  },
+  Bard: {
+    prerequisite: 'Charisma 13',
+    armor: ['Light armor'],
+    skills: { count: 1, from: ['Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception', 'History', 'Insight', 'Intimidation', 'Investigation', 'Medicine', 'Nature', 'Perception', 'Performance', 'Persuasion', 'Religion', 'Sleight of Hand', 'Stealth', 'Survival'] },
+  },
+  Cleric: {
+    prerequisite: 'Wisdom 13',
+    armor: ['Light armor', 'Medium armor', 'Shields'],
+  },
+  Druid: {
+    prerequisite: 'Wisdom 13',
+    // 5.1: Light armor, Medium armor (non-metal). 2024: adds Shields (non-metal).
+    armor: ['Light armor', 'Medium armor (non-metal)'],
+  },
+  Fighter: {
+    prerequisite: 'Strength 13 or Dexterity 13',
+    armor: ['Light armor', 'Medium armor', 'Shields'],
+    weapons: ['Simple weapons', 'Martial weapons'],
+  },
+  Monk: {
+    prerequisite: 'Dexterity 13 and Wisdom 13',
+    weapons: ['Simple weapons', 'Martial weapons that have the Light property'],
+  },
+  Paladin: {
+    prerequisite: 'Strength 13 and Charisma 13',
+    armor: ['Light armor', 'Medium armor', 'Shields'],
+    weapons: ['Simple weapons', 'Martial weapons'],
+  },
+  Ranger: {
+    prerequisite: 'Dexterity 13 and Wisdom 13',
+    armor: ['Light armor', 'Medium armor', 'Shields'],
+    weapons: ['Simple weapons', 'Martial weapons'],
+    skills: { count: 1, from: ['Animal Handling', 'Athletics', 'Insight', 'Investigation', 'Nature', 'Perception', 'Stealth', 'Survival'] },
+  },
+  Rogue: {
+    prerequisite: 'Dexterity 13',
+    armor: ['Light armor'],
+    tools: ["Thieves' tools"],
+    skills: { count: 1, from: ['Acrobatics', 'Athletics', 'Deception', 'Insight', 'Intimidation', 'Investigation', 'Perception', 'Performance', 'Persuasion', 'Sleight of Hand', 'Stealth'] },
+  },
+  Sorcerer: {
+    prerequisite: 'Charisma 13',
+    // No proficiencies gained on multiclass for Sorcerer per SRD.
+  },
+  Warlock: {
+    prerequisite: 'Charisma 13',
+    armor: ['Light armor'],
+    weapons: ['Simple weapons'],
+  },
+  Wizard: {
+    prerequisite: 'Intelligence 13',
+    // No proficiencies gained on multiclass for Wizard per SRD.
+  },
+};
+
 function slugify(name) {
   return String(name)
     .toLowerCase()
@@ -479,6 +550,18 @@ function transformOne(cls) {
   if (columns) out.progressionColumns = columns;
   if (table) out.progressionTable = table;
   if (features) out.features = features;
+
+  const mc = MULTICLASS_BY_CLASS[cls.name];
+  if (mc) {
+    out.multiclassPrerequisite = mc.prerequisite;
+    const profs = {};
+    if (mc.armor) profs.armor = mc.armor;
+    if (mc.weapons) profs.weapons = mc.weapons;
+    if (mc.tools) profs.tools = mc.tools;
+    if (mc.savingThrows) profs.savingThrows = mc.savingThrows;
+    if (mc.skills) profs.skills = mc.skills;
+    if (Object.keys(profs).length > 0) out.multiclassProficiencies = profs;
+  }
 
   return out;
 }

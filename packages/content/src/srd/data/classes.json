@@ -376,7 +376,16 @@
         "name": "Primal Champion",
         "description": "You embody primal power. Your Strength and Constitution scores increase by 4, to a maximum of 25."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Strength 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Shields"
+      ],
+      "weapons": [
+        "Martial weapons"
+      ]
+    }
   },
   {
     "key": "barbarian-srd-5-1",
@@ -706,7 +715,16 @@
         "name": "Primal Champion",
         "description": "At 20th level, you embody the power of the wilds. Your Strength and Constitution scores increase by 4. Your maximum for those scores is now 24."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Strength 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Shields"
+      ],
+      "weapons": [
+        "Martial weapons"
+      ]
+    }
   },
   {
     "key": "bard-srd-2-0",
@@ -1251,7 +1269,36 @@
         "name": "Words of Creation",
         "description": "You have mastered two of the Words of Creation: the words of life and death. You therefore always have the *Power Word Heal* and *Power Word Kill* spells prepared. When you cast either spell, you can target a second creature with it if that creature is within 10 feet of the first target."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Charisma 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor"
+      ],
+      "skills": {
+        "count": 1,
+        "from": [
+          "Acrobatics",
+          "Animal Handling",
+          "Arcana",
+          "Athletics",
+          "Deception",
+          "History",
+          "Insight",
+          "Intimidation",
+          "Investigation",
+          "Medicine",
+          "Nature",
+          "Perception",
+          "Performance",
+          "Persuasion",
+          "Religion",
+          "Sleight of Hand",
+          "Stealth",
+          "Survival"
+        ]
+      }
+    }
   },
   {
     "key": "bard-srd-5-1",
@@ -1816,7 +1863,36 @@
         "name": "Superior Inspiration",
         "description": "At 20th level, when you roll initiative and have no uses of Bardic Inspiration left, you regain one use."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Charisma 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor"
+      ],
+      "skills": {
+        "count": 1,
+        "from": [
+          "Acrobatics",
+          "Animal Handling",
+          "Arcana",
+          "Athletics",
+          "Deception",
+          "History",
+          "Insight",
+          "Intimidation",
+          "Investigation",
+          "Medicine",
+          "Nature",
+          "Perception",
+          "Performance",
+          "Persuasion",
+          "Religion",
+          "Sleight of Hand",
+          "Stealth",
+          "Survival"
+        ]
+      }
+    }
   },
   {
     "key": "cleric-srd-2-0",
@@ -2366,7 +2442,15 @@
         "name": "Greater Divine Intervention",
         "description": "You can call on even more powerful divine intervention. When you use your Divine Intervention feature, you can choose *Wish* when you select a spell. If you do so, you can't use Divine Intervention again until you finish 2d4 Long Rests."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Wisdom 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor",
+        "Medium armor",
+        "Shields"
+      ]
+    }
   },
   {
     "key": "cleric-srd-5-1",
@@ -2868,7 +2952,15 @@
         "name": "Divine Intervention",
         "description": "Beginning at 10th level, you can call on your deity to intervene on your behalf when your need is great.\n\nImploring your deity's aid requires you to use your action. Describe the assistance you seek, and roll percentile dice. If you roll a number equal to or lower than your cleric level, your deity intervenes. The GM chooses the nature of the intervention; the effect of any cleric spell or cleric domain spell would be appropriate.\n\nIf your deity intervenes, you can't use this feature again for 7 days. Otherwise, you can use it again after you finish a long rest.\n\nAt 20th level, your call for intervention succeeds automatically, no roll required."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Wisdom 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor",
+        "Medium armor",
+        "Shields"
+      ]
+    }
   },
   {
     "key": "druid-srd-2-0",
@@ -3433,7 +3525,14 @@
         "name": "Archdruid",
         "description": "The vitality of nature constantly blooms within you, granting you the following benefits.\n\n**Evergreen Wild Shape.** Whenever you roll Initiative and have no uses of Wild Shape left, you regain one expended use of it.\n\n**Nature Magician.** You can convert uses of Wild Shape into a spell slot (no action required). Choose a number of your unexpended uses of Wild Shape and convert them into a single spell slot, with each use contributing 2 spell levels. For example, if you convert two uses of Wild Shape, you produce a level 4 spell slot. Once you use this benefit, you can't do so again until you finish a Long Rest.\n\n**Longevity.** The primal magic that you wield causes you to age more slowly. For every ten years that pass, your body ages only one year."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Wisdom 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor",
+        "Medium armor (non-metal)"
+      ]
+    }
   },
   {
     "key": "druid-srd-5-1",
@@ -3932,7 +4031,14 @@
         "name": "Archdruid",
         "description": "At 20th level, you can use your Wild Shape an unlimited number of times.\n\nAdditionally, you can ignore the verbal and somatic components of your druid spells, as well as any material components that lack a cost and aren't consumed by a spell. You gain this benefit in both your normal shape and your beast shape from Wild Shape."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Wisdom 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor",
+        "Medium armor (non-metal)"
+      ]
+    }
   },
   {
     "key": "fighter-srd-2-0",
@@ -4306,7 +4412,19 @@
         "name": "Three Extra Attacks",
         "description": "You can attack four times instead of once whenever you take the Attack action on your turn."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Strength 13 or Dexterity 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor",
+        "Medium armor",
+        "Shields"
+      ],
+      "weapons": [
+        "Simple weapons",
+        "Martial weapons"
+      ]
+    }
   },
   {
     "key": "fighter-srd-5-1",
@@ -4580,7 +4698,19 @@
         "name": "Extra Attack",
         "description": "Beginning at 5th level, you can attack twice, instead of once, whenever you take the Attack action on your turn.\n\nThe number of attacks increases to three when you reach 11th level in this class and to four when you reach 20th level in this class."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Strength 13 or Dexterity 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor",
+        "Medium armor",
+        "Shields"
+      ],
+      "weapons": [
+        "Simple weapons",
+        "Martial weapons"
+      ]
+    }
   },
   {
     "key": "monk-srd-2-0",
@@ -4950,7 +5080,14 @@
         "name": "Body and Mind",
         "description": "You have developed your body and mind to new heights. Your Dexterity and Wisdom scores increase by 4, to a maximum of 25."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Dexterity 13 and Wisdom 13",
+    "multiclassProficiencies": {
+      "weapons": [
+        "Simple weapons",
+        "Martial weapons that have the Light property"
+      ]
+    }
   },
   {
     "key": "monk-srd-5-1",
@@ -5269,7 +5406,14 @@
         "name": "Perfect Self",
         "description": "At 20th level, when you roll for initiative and have no ki points remaining, you regain 4 ki points."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Dexterity 13 and Wisdom 13",
+    "multiclassProficiencies": {
+      "weapons": [
+        "Simple weapons",
+        "Martial weapons that have the Light property"
+      ]
+    }
   },
   {
     "key": "paladin-srd-2-0",
@@ -5734,7 +5878,19 @@
         "name": "Epic Boon",
         "description": "You gain an Epic Boon feat (see \"Feats\") or another feat of your choice for which you qualify. Boon of Truesight is recommended."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Strength 13 and Charisma 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor",
+        "Medium armor",
+        "Shields"
+      ],
+      "weapons": [
+        "Simple weapons",
+        "Martial weapons"
+      ]
+    }
   },
   {
     "key": "paladin-srd-5-1",
@@ -6131,7 +6287,19 @@
         "name": "Ability Score Improvement",
         "description": "When you reach 4th level, and again at 8th, 12th, 16th, and 19th level, you can increase one ability score of your choice by 2, or you can increase two ability scores of your choice by 1. As normal, you can't increase an ability score above 20 using this feature."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Strength 13 and Charisma 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor",
+        "Medium armor",
+        "Shields"
+      ],
+      "weapons": [
+        "Simple weapons",
+        "Martial weapons"
+      ]
+    }
   },
   {
     "key": "ranger-srd-2-0",
@@ -6599,7 +6767,32 @@
         "name": "Foe Slayer",
         "description": "The damage die of your *Hunter's Mark* is a d10 rather than a d6."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Dexterity 13 and Wisdom 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor",
+        "Medium armor",
+        "Shields"
+      ],
+      "weapons": [
+        "Simple weapons",
+        "Martial weapons"
+      ],
+      "skills": {
+        "count": 1,
+        "from": [
+          "Animal Handling",
+          "Athletics",
+          "Insight",
+          "Investigation",
+          "Nature",
+          "Perception",
+          "Stealth",
+          "Survival"
+        ]
+      }
+    }
   },
   {
     "key": "ranger-srd-5-1",
@@ -7033,7 +7226,32 @@
         "name": "Foe Slayer",
         "description": "At 20th level, you become an unparalleled hunter of your enemies. Once on each of your turns, you can add your Wisdom modifier to the attack roll or the damage roll of an attack you make against one of your favored enemies. You can choose to use this feature before or after the roll, but before any effects of the roll are applied."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Dexterity 13 and Wisdom 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor",
+        "Medium armor",
+        "Shields"
+      ],
+      "weapons": [
+        "Simple weapons",
+        "Martial weapons"
+      ],
+      "skills": {
+        "count": 1,
+        "from": [
+          "Animal Handling",
+          "Athletics",
+          "Insight",
+          "Investigation",
+          "Nature",
+          "Perception",
+          "Stealth",
+          "Survival"
+        ]
+      }
+    }
   },
   {
     "key": "rogue-srd-2-0",
@@ -7368,7 +7586,32 @@
         "name": "Stroke of Luck",
         "description": "You have a marvelous knack for succeeding when you need to. If you fail a D20 Test, you can turn the roll into a 20.\n\nOnce you use this feature, you can't use it again until you finish a Short or Long Rest."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Dexterity 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor"
+      ],
+      "tools": [
+        "Thieves' tools"
+      ],
+      "skills": {
+        "count": 1,
+        "from": [
+          "Acrobatics",
+          "Athletics",
+          "Deception",
+          "Insight",
+          "Intimidation",
+          "Investigation",
+          "Perception",
+          "Performance",
+          "Persuasion",
+          "Sleight of Hand",
+          "Stealth"
+        ]
+      }
+    }
   },
   {
     "key": "rogue-srd-5-1",
@@ -7654,7 +7897,32 @@
         "name": "Stroke of Luck",
         "description": "At 20th level, you have an uncanny knack for succeeding when you need to. If your attack misses a target within range, you can turn the miss into a hit. Alternatively, if you fail an ability check, you can treat the d20 roll as a 20.\n\nOnce you use this feature, you can't use it again until you finish a short or long rest."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Dexterity 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor"
+      ],
+      "tools": [
+        "Thieves' tools"
+      ],
+      "skills": {
+        "count": 1,
+        "from": [
+          "Acrobatics",
+          "Athletics",
+          "Deception",
+          "Insight",
+          "Intimidation",
+          "Investigation",
+          "Perception",
+          "Performance",
+          "Persuasion",
+          "Sleight of Hand",
+          "Stealth"
+        ]
+      }
+    }
   },
   {
     "key": "sorcerer-srd-2-0",
@@ -8200,7 +8468,8 @@
         "name": "Arcane Apotheosis",
         "description": "While your Innate Sorcery feature is active, you can use one Metamagic option on each of your turns without spending Sorcery Points on it."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Charisma 13"
   },
   {
     "key": "sorcerer-srd-5-1",
@@ -8730,7 +8999,8 @@
         "name": "Sorcerous Restoration",
         "description": "At 20th level, you regain 4 expended sorcery points whenever you finish a short rest."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Charisma 13"
   },
   {
     "key": "warlock-srd-2-0",
@@ -9118,7 +9388,16 @@
         "name": "Eldritch Master",
         "description": "When you use your Magical Cunning feature, you regain all your expended Pact Magic spell slots."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Charisma 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor"
+      ],
+      "weapons": [
+        "Simple weapons"
+      ]
+    }
   },
   {
     "key": "warlock-srd-5-1",
@@ -9484,7 +9763,16 @@
         "name": "Eldritch Master",
         "description": "At 20th level, you can draw on your inner reserve of mystical power while entreating your patron to regain expended spell slots. You can spend 1 minute entreating your patron for aid to regain all your expended spell slots from your Pact Magic feature. Once you regain spell slots with this feature, you must finish a long rest before you can do so again."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Charisma 13",
+    "multiclassProficiencies": {
+      "armor": [
+        "Light armor"
+      ],
+      "weapons": [
+        "Simple weapons"
+      ]
+    }
   },
   {
     "key": "wizard-srd-2-0",
@@ -10003,7 +10291,8 @@
         "name": "Signature Spells",
         "description": "Choose two level 3 spells in your spellbook as your signature spells. You always have these spells prepared, and you can cast each of them once at level 3 without expending a spell slot. When you do so, you can't cast them in this way again until you finish a Short or Long Rest. To cast either spell at a higher level, you must expend a spell slot."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Intelligence 13"
   },
   {
     "key": "wizard-srd-5-1",
@@ -10475,6 +10764,7 @@
         "name": "Signature Spells",
         "description": "When you reach 20th level, you gain mastery over two powerful spells and can cast them with little effort. Choose two 3rd-level wizard spells in your spellbook as your signature spells. You always have these spells prepared, they don't count against the number of spells you have prepared, and you can cast each of them once at 3rd level without expending a spell slot. When you do so, you can't do so again until you finish a short or long rest.\n\nIf you want to cast either spell at a higher level, you must expend a spell slot as normal."
       }
-    ]
+    ],
+    "multiclassPrerequisite": "Intelligence 13"
   }
 ]
