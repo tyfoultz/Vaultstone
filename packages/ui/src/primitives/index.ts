@@ -12,3 +12,5 @@ export { TextButton } from './TextButton';
 export { GlassOverlay } from './GlassOverlay';
 export { VisibilityBadge } from './VisibilityBadge';
 export type { VisibilityState } from './VisibilityBadge';
+export { ContentWidth } from './ContentWidth';
+export type { ContentWidthSize } from './ContentWidth';

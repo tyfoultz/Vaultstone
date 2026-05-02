@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useCharacterDraftStore, useAuthStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
 import { createCharacter, supabase } from '@vaultstone/api';
-import { colors, fonts, spacing, radius } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
 import { StepSpecies } from '../../components/character-wizard/StepSpecies';
@@ -364,6 +364,7 @@ export default function NewCharacterScreen() {
   return (
     <SafeAreaView style={s.safeArea}>
       {/* Header */}
+      <ContentWidth size="reading">
       <View style={s.header}>
         <TouchableOpacity onPress={handleBack} style={s.headerSide} hitSlop={8}>
           <Text style={s.headerAction}>{step === 0 ? 'Cancel' : '← Back'}</Text>
@@ -374,97 +375,110 @@ export default function NewCharacterScreen() {
         </View>
         <View style={s.headerSide} />
       </View>
+      </ContentWidth>
 
       {/* Constellation progress */}
-      <View style={s.constellation}>
-        {STEPS.map((st, i) => {
-          const done = i < step;
-          const active = i === step;
-          return (
-            <View key={st.key} style={s.constellationItem}>
-              {i > 0 && (
-                <View style={[s.constellationLine, (done || active) && s.constellationLineActive]} />
-              )}
-              <View style={[s.constellationNode, done && s.constellationNodeDone, active && s.constellationNodeActive]}>
-                {done ? (
-                  <Text style={s.constellationCheck}>✓</Text>
-                ) : (
-                  <Text style={[s.constellationNum, active && s.constellationNumActive]}>{i + 1}</Text>
+      <ContentWidth size="reading">
+        <View style={s.constellation}>
+          {STEPS.map((st, i) => {
+            const done = i < step;
+            const active = i === step;
+            return (
+              <View key={st.key} style={s.constellationItem}>
+                {i > 0 && (
+                  <View style={[s.constellationLine, (done || active) && s.constellationLineActive]} />
                 )}
+                <View style={[s.constellationNode, done && s.constellationNodeDone, active && s.constellationNodeActive]}>
+                  {done ? (
+                    <Text style={s.constellationCheck}>✓</Text>
+                  ) : (
+                    <Text style={[s.constellationNum, active && s.constellationNumActive]}>{i + 1}</Text>
+                  )}
+                </View>
               </View>
-            </View>
-          );
-        })}
-      </View>
+            );
+          })}
+        </View>
+      </ContentWidth>
 
       {/* Step content. Keyed off the active step's `key` so the indices
-          line up across the standalone-vs-campaign step lists. */}
-      <View style={s.content}>
-        {(() => {
-          const key = STEPS[step]?.key;
-          // Helper to advance to the step after the current one. Uses the
-          // active step list's index so we land on the right next step in
-          // either launch mode.
-          const advanceTo = (targetKey: string) => {
-            const idx = STEPS.findIndex((s) => s.key === targetKey);
-            if (idx >= 0) setStep(idx);
-            setInPreview(false);
-          };
-          switch (key) {
-            case 'ruleset':
-              return <StepRuleset />;
-            case 'species':
-              return <StepSpecies onPreviewChange={setInPreview} onAdvance={() => advanceTo('class')} />;
-            case 'class':
-              return <StepClass onPreviewChange={setInPreview} onAdvance={() => advanceTo('background')} />;
-            case 'background':
-              return <StepBackground onPreviewChange={setInPreview} onAdvance={() => advanceTo('scores')} />;
-            case 'scores':
-              return <StepAbilityScores />;
-            case 'review':
-              return <StepReview />;
-            default:
-              return null;
-          }
-        })()}
-      </View>
+          line up across the standalone-vs-campaign step lists. The
+          ContentWidth wrapper takes the flex:1 so it absorbs the
+          remaining vertical space the way the original View did, while
+          capping horizontal width so long-form steps (Ruleset, Review)
+          don't span the full screen on widescreens. */}
+      <ContentWidth size="reading" style={{ flex: 1 }}>
+        <View style={s.content}>
+          {(() => {
+            const key = STEPS[step]?.key;
+            // Helper to advance to the step after the current one. Uses the
+            // active step list's index so we land on the right next step in
+            // either launch mode.
+            const advanceTo = (targetKey: string) => {
+              const idx = STEPS.findIndex((s) => s.key === targetKey);
+              if (idx >= 0) setStep(idx);
+              setInPreview(false);
+            };
+            switch (key) {
+              case 'ruleset':
+                return <StepRuleset />;
+              case 'species':
+                return <StepSpecies onPreviewChange={setInPreview} onAdvance={() => advanceTo('class')} />;
+              case 'class':
+                return <StepClass onPreviewChange={setInPreview} onAdvance={() => advanceTo('background')} />;
+              case 'background':
+                return <StepBackground onPreviewChange={setInPreview} onAdvance={() => advanceTo('scores')} />;
+              case 'scores':
+                return <StepAbilityScores />;
+              case 'review':
+                return <StepReview />;
+              default:
+                return null;
+            }
+          })()}
+        </View>
+      </ContentWidth>
 
       {/* SheetSoFar summary bar */}
       {showSheetSoFar && (
-        <SheetSoFar
-          speciesName={speciesName}
-          className={className}
-          classDie={classDie}
-          backgroundName={backgroundName}
-          highestStat={highestStat}
-          onJumpTo={(key) => {
-            const idx = STEPS.findIndex((s) => s.key === key);
-            if (idx >= 0) setStep(idx);
-            setInPreview(false);
-          }}
-        />
+        <ContentWidth size="reading">
+          <SheetSoFar
+            speciesName={speciesName}
+            className={className}
+            classDie={classDie}
+            backgroundName={backgroundName}
+            highestStat={highestStat}
+            onJumpTo={(key) => {
+              const idx = STEPS.findIndex((s) => s.key === key);
+              if (idx >= 0) setStep(idx);
+              setInPreview(false);
+            }}
+          />
+        </ContentWidth>
       )}
 
       {/* Footer */}
       {!inPreview && (
-        <View style={s.footer}>
-          {showSkillHint && (
-            <Text style={s.footerHint}>
-              Pick {classSkillCount - draft.chosenSkills.length} more skill{classSkillCount - draft.chosenSkills.length !== 1 ? 's' : ''} to continue
-            </Text>
-          )}
-          {saveError ? <Text style={s.saveError}>{saveError}</Text> : null}
-          <TouchableOpacity
-            style={[s.nextBtn, !canAdvance && s.nextBtnDisabled]}
-            disabled={!canAdvance || saving}
-            onPress={isLast ? handleFinish : () => { setStep(step + 1); setInPreview(false); }}
-            activeOpacity={0.85}
-          >
-            <Text style={[s.nextBtnText, !canAdvance && s.nextBtnTextDisabled]}>
-              {saving ? 'Creating…' : isLast ? 'Create Character' : 'Continue →'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <ContentWidth size="reading">
+          <View style={s.footer}>
+            {showSkillHint && (
+              <Text style={s.footerHint}>
+                Pick {classSkillCount - draft.chosenSkills.length} more skill{classSkillCount - draft.chosenSkills.length !== 1 ? 's' : ''} to continue
+              </Text>
+            )}
+            {saveError ? <Text style={s.saveError}>{saveError}</Text> : null}
+            <TouchableOpacity
+              style={[s.nextBtn, !canAdvance && s.nextBtnDisabled]}
+              disabled={!canAdvance || saving}
+              onPress={isLast ? handleFinish : () => { setStep(step + 1); setInPreview(false); }}
+              activeOpacity={0.85}
+            >
+              <Text style={[s.nextBtnText, !canAdvance && s.nextBtnTextDisabled]}>
+                {saving ? 'Creating…' : isLast ? 'Create Character' : 'Continue →'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ContentWidth>
       )}
     </SafeAreaView>
   );

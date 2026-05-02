@@ -2,7 +2,7 @@ import { ScrollView, View, Pressable, StyleSheet, useWindowDimensions } from 're
 import { useRouter, type Href } from 'expo-router';
 import {
   colors, spacing, radius,
-  Card, Chip, MetaLabel, Text, ScreenHeader, Icon,
+  Card, Chip, ContentWidth, MetaLabel, Text, ScreenHeader, Icon,
 } from '@vaultstone/ui';
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
 import { getSrdCountsByVersion } from '@vaultstone/content';
@@ -22,6 +22,8 @@ export default function GameSystemsScreen() {
         title="Game Systems"
         subtitle="Manage rulesets, official source content, and your homebrew library."
       />
+
+      <ContentWidth size="wide">
 
       {/* ── Available Systems ─────────────────────────────────────────── */}
       <View style={styles.section}>
@@ -118,6 +120,8 @@ export default function GameSystemsScreen() {
       </View>
 
       <View style={{ height: spacing.xl }} />
+
+      </ContentWidth>
     </ScrollView>
   );
 }

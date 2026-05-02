@@ -5,7 +5,7 @@ import {
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import {
   colors, spacing, radius,
-  Card, Chip, MetaLabel, Text, ScreenHeader, Icon,
+  Card, Chip, ContentWidth, MetaLabel, Text, ScreenHeader, Icon,
 } from '@vaultstone/ui';
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
 import { getSrdContent, SEED_ONLY_TYPES, type SrdContent } from '@vaultstone/content';
@@ -236,6 +236,7 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}>
+      <ContentWidth size="wide">
       {/* Back link */}
       <Pressable
         onPress={onBack}
@@ -338,6 +339,7 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
       </View>
 
       <View style={{ height: spacing.xl }} />
+      </ContentWidth>
     </ScrollView>
   );
 }
