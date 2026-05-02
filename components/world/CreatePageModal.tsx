@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { createPage } from '@vaultstone/api';
-import { getLatestVersion, getTemplate } from '@vaultstone/content';
+import { getLatestVersion, getTemplate, listTemplates } from '@vaultstone/content';
 import {
   filterPagesBySection,
   selectSectionsForWorld,
   usePagesStore,
   useSectionsStore,
 } from '@vaultstone/store';
-import type { PageKind, WorldPage } from '@vaultstone/types';
+import type { PageKind, TemplateKey, WorldPage } from '@vaultstone/types';
 import {
   Card,
   GhostButton,
@@ -23,6 +23,7 @@ import {
   spacing,
 } from '@vaultstone/ui';
 
+import { toMaterialIcon, ACCENT_SWATCH } from './helpers';
 import { worldPageHref } from './worldHref';
 
 type Props = {
@@ -32,6 +33,8 @@ type Props = {
   onClose: () => void;
   onCreated?: (page: WorldPage) => void;
 };
+
+const TEMPLATE_OPTIONS: TemplateKey[] = ['locations', 'npcs', 'factions', 'lore', 'blank'];
 
 export function CreatePageModal({
   worldId,
@@ -60,31 +63,47 @@ export function CreatePageModal({
   }, [rawPages, sectionId, parentPageId]);
   const addPage = usePagesStore((s) => s.addPage);
 
-  const template = useMemo(
+  const sectionTemplate = useMemo(
     () => (section ? getTemplate(section.template_key) : null),
     [section],
   );
 
-  const [pageKind, setPageKind] = useState<PageKind>(
-    template?.defaultPageKind ?? 'custom',
+  const sectionKey = section?.template_key ?? 'blank';
+  const isSpecialSection = sectionKey === 'players' || sectionKey === 'timeline';
+
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<TemplateKey>(
+    isSpecialSection ? sectionKey : sectionKey,
   );
+  const selectedTemplate = useMemo(
+    () => getTemplate(selectedTemplateKey),
+    [selectedTemplateKey],
+  );
+
+  const templateChoices = useMemo(() => {
+    const all = listTemplates().filter((t) => TEMPLATE_OPTIONS.includes(t.key));
+    // Ensure the section's own template is first if it's in the list
+    const sorted = [...all].sort((a, b) => {
+      if (a.key === sectionKey) return -1;
+      if (b.key === sectionKey) return 1;
+      return 0;
+    });
+    return sorted;
+  }, [sectionKey]);
+
   const [title, setTitle] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  if (!section || !template) return null;
+  if (!section || !sectionTemplate) return null;
 
   async function handleSubmit() {
     if (!title.trim()) {
       setError('Page title is required.');
       return;
     }
-    if (!template || !section) return;
+    if (!section) return;
     setSubmitting(true);
     setError('');
-    // Inherit visibility from the section: force_hidden_from_players is the
-    // trump card (section-wide GM-only), otherwise default_pages_visible
-    // seeds the new page. The page-level eye can still be flipped later.
     const visibleToPlayers = section.force_hidden_from_players
       ? false
       : section.default_pages_visible;
@@ -93,9 +112,9 @@ export function CreatePageModal({
       sectionId,
       parentPageId: parentPageId ?? null,
       title,
-      pageKind,
-      templateKey: section.template_key,
-      templateVersion: getLatestVersion(section.template_key),
+      pageKind: selectedTemplate.defaultPageKind,
+      templateKey: selectedTemplateKey,
+      templateVersion: getLatestVersion(selectedTemplateKey),
       visibleToPlayers,
       sortOrder: nextSortOrder,
     });
@@ -144,7 +163,45 @@ export function CreatePageModal({
                   autoFocus
                 />
 
-                </View>
+                {!isSpecialSection ? (
+                  <View style={{ gap: spacing.xs }}>
+                    <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                      Page type
+                    </Text>
+                    <View style={styles.chipRow}>
+                      {templateChoices.map((t) => {
+                        const active = selectedTemplateKey === t.key;
+                        const swatch = ACCENT_SWATCH[t.accentToken];
+                        const tint = swatch?.fg ?? colors.primary;
+                        const iconName = toMaterialIcon(t.icon);
+                        return (
+                          <Pressable
+                            key={t.key}
+                            onPress={() => setSelectedTemplateKey(t.key)}
+                            style={[
+                              styles.selectChip,
+                              active && { backgroundColor: tint + '18', borderColor: tint + '66' },
+                            ]}
+                          >
+                            <Icon
+                              name={iconName as React.ComponentProps<typeof Icon>['name']}
+                              size={14}
+                              color={active ? tint : colors.onSurfaceVariant}
+                            />
+                            <Text
+                              variant="label-sm"
+                              weight={active ? 'semibold' : 'regular'}
+                              style={{ color: active ? tint : colors.onSurfaceVariant }}
+                            >
+                              {t.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ) : null}
+              </View>
 
               {error ? (
                 <Text variant="body-sm" style={{ color: colors.hpDanger, marginTop: spacing.md }}>
@@ -201,6 +258,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   selectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: spacing.sm + 4,
     paddingVertical: spacing.xs + 2,
     borderRadius: radius.pill,
