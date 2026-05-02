@@ -28,8 +28,13 @@ interface Props {
 }
 
 export function StepBackground({ onPreviewChange, onAdvance }: Props) {
-  const { srdVersion, backgroundKey, setBackground } = useCharacterDraftStore(
-    useShallow((s) => ({ srdVersion: s.srdVersion, backgroundKey: s.backgroundKey, setBackground: s.setBackground }))
+  const { srdVersion, backgroundKey, setBackground, campaignId } = useCharacterDraftStore(
+    useShallow((s) => ({
+      srdVersion: s.srdVersion,
+      backgroundKey: s.backgroundKey,
+      setBackground: s.setBackground,
+      campaignId: s.campaignId,
+    }))
   );
 
   const [list, setList] = useState<BackgroundResult[]>([]);
@@ -37,10 +42,11 @@ export function StepBackground({ onPreviewChange, onAdvance }: Props) {
   const [previewKey, setPreviewKey] = useState<string | null>(null);
 
   useEffect(() => {
-    ContentResolver.search({ type: 'background', system: 'dnd5e', srdVersion, tiers: ['srd'] })
+    const tiers: Array<'srd' | 'homebrew'> = campaignId ? ['srd', 'homebrew'] : ['srd'];
+    ContentResolver.search({ type: 'background', system: 'dnd5e', srdVersion, tiers, campaignId: campaignId ?? undefined })
       .then((r) => setList(r as BackgroundResult[]))
       .finally(() => setLoading(false));
-  }, [srdVersion]);
+  }, [srdVersion, campaignId]);
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
 

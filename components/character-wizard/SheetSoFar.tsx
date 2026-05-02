@@ -1,13 +1,20 @@
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { colors, fonts, spacing } from '@vaultstone/ui';
 
+type StepKey = 'species' | 'class' | 'background' | 'scores';
+
 interface SheetSoFarProps {
   speciesName?: string | null;
   className?: string | null;
   classDie?: number | null;
   backgroundName?: string | null;
   highestStat?: { label: string; value: number } | null;
-  onJumpTo: (step: number) => void;
+  /**
+   * Jump-to handler — receives a step key rather than a numeric index so
+   * the wizard's parent can look it up against whichever step list is
+   * active (standalone has ruleset at index 0, campaign-launched skips it).
+   */
+  onJumpTo: (key: StepKey) => void;
 }
 
 export function SheetSoFar({
@@ -27,11 +34,11 @@ export function SheetSoFar({
         <View style={s.divider} />
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-        <Chip label="Species" value={speciesName} onPress={() => onJumpTo(1)} />
-        <Chip label="Class" value={className} detail={classDie ? `d${classDie}` : undefined} onPress={() => onJumpTo(2)} />
-        <Chip label="Bg" value={backgroundName} onPress={() => onJumpTo(3)} />
+        <Chip label="Species" value={speciesName} onPress={() => onJumpTo('species')} />
+        <Chip label="Class" value={className} detail={classDie ? `d${classDie}` : undefined} onPress={() => onJumpTo('class')} />
+        <Chip label="Bg" value={backgroundName} onPress={() => onJumpTo('background')} />
         {highestStat && (
-          <Chip label="Stats" value={`${highestStat.label} ${highestStat.value}`} onPress={() => onJumpTo(4)} />
+          <Chip label="Stats" value={`${highestStat.label} ${highestStat.value}`} onPress={() => onJumpTo('scores')} />
         )}
       </ScrollView>
     </View>

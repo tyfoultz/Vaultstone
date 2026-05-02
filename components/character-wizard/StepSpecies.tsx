@@ -22,8 +22,13 @@ interface Props {
 }
 
 export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
-  const { srdVersion, speciesKey, setSpecies } = useCharacterDraftStore(
-    useShallow((s) => ({ srdVersion: s.srdVersion, speciesKey: s.speciesKey, setSpecies: s.setSpecies }))
+  const { srdVersion, speciesKey, setSpecies, campaignId } = useCharacterDraftStore(
+    useShallow((s) => ({
+      srdVersion: s.srdVersion,
+      speciesKey: s.speciesKey,
+      setSpecies: s.setSpecies,
+      campaignId: s.campaignId,
+    }))
   );
 
   const [list, setList] = useState<SpeciesResult[]>([]);
@@ -31,10 +36,15 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
   const [previewKey, setPreviewKey] = useState<string | null>(null);
 
   useEffect(() => {
-    ContentResolver.search({ type: 'species', system: 'dnd5e', srdVersion, tiers: ['srd'] })
+    // When the wizard is launched from a campaign, include homebrew species
+    // from packs the DM has enabled for that campaign. Outside a campaign
+    // the wizard sticks to SRD only — homebrew authoring without a target
+    // campaign isn't a flow we expose today.
+    const tiers: Array<'srd' | 'homebrew'> = campaignId ? ['srd', 'homebrew'] : ['srd'];
+    ContentResolver.search({ type: 'species', system: 'dnd5e', srdVersion, tiers, campaignId: campaignId ?? undefined })
       .then((r) => setList(r as SpeciesResult[]))
       .finally(() => setLoading(false));
-  }, [srdVersion]);
+  }, [srdVersion, campaignId]);
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
 

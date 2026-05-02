@@ -274,6 +274,14 @@ export interface ContentQuery {
   system?: string;
   srdVersion?: 'SRD_5.1' | 'SRD_2.0';
   tiers?: ContentTier[];
+  /**
+   * Scope homebrew results to packs enabled for this campaign. Only affects
+   * the homebrew tier — SRD/local content ignores it. When set, the homebrew
+   * resolver returns entries only from packs whose row in `campaign_packs`
+   * has `enabled = true` for the given campaign. When undefined, all of the
+   * authenticated user's accessible homebrew is returned (existing behavior).
+   */
+  campaignId?: string;
   filters?: Record<string, unknown>;
 }
 

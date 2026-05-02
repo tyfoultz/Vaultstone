@@ -30,11 +30,12 @@ interface Props {
 }
 
 export function StepClass({ onPreviewChange, onAdvance }: Props) {
-  const { srdVersion, classKey, chosenSkills, setClass: selectClass, setChosenSkills } =
+  const { srdVersion, classKey, chosenSkills, setClass: selectClass, setChosenSkills, campaignId } =
     useCharacterDraftStore(
       useShallow((s) => ({
         srdVersion: s.srdVersion, classKey: s.classKey,
         chosenSkills: s.chosenSkills, setClass: s.setClass, setChosenSkills: s.setChosenSkills,
+        campaignId: s.campaignId,
       }))
     );
 
@@ -44,10 +45,12 @@ export function StepClass({ onPreviewChange, onAdvance }: Props) {
   const [filter, setFilter] = useState('All');
 
   useEffect(() => {
-    ContentResolver.search({ type: 'class', system: 'dnd5e', srdVersion, tiers: ['srd'] })
+    // Same campaign-scoped homebrew rule as the species step.
+    const tiers: Array<'srd' | 'homebrew'> = campaignId ? ['srd', 'homebrew'] : ['srd'];
+    ContentResolver.search({ type: 'class', system: 'dnd5e', srdVersion, tiers, campaignId: campaignId ?? undefined })
       .then((r) => setClasses(r as ClassResult[]))
       .finally(() => setLoading(false));
-  }, [srdVersion]);
+  }, [srdVersion, campaignId]);
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
 

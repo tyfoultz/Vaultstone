@@ -54,6 +54,29 @@ type HomebrewContentRow = {
  * surface even if the network is flaky.
  */
 export async function search(query: ContentQuery): Promise<ContentResult[]> {
+  // SRD version filter immediately excludes homebrew — homebrew is by
+  // definition not SRD. Bail before any network calls.
+  if (query.srdVersion) return [];
+
+  // Build the optional campaign-scoped pack allowlist before fetching the
+  // entries. When `query.campaignId` is set we restrict to packs whose
+  // campaign_packs row exists with enabled=true. Players in a campaign
+  // see only what the DM has approved; the DM's own private packs that
+  // aren't attached are not surfaced even though RLS would let them be
+  // read.
+  let allowedPackIds: Set<string> | null = null;
+  if (query.campaignId) {
+    const { data: enabled, error: enabledErr } = await supabase
+      .from('campaign_packs')
+      .select('pack_id')
+      .eq('campaign_id', query.campaignId)
+      .eq('enabled', true);
+    if (enabledErr) return [];
+    allowedPackIds = new Set((enabled ?? []).map((r) => r.pack_id));
+    // Empty allowlist short-circuits — no homebrew applies to this campaign.
+    if (allowedPackIds.size === 0) return [];
+  }
+
   // Fetch packs + entries in parallel. Both are RLS-gated; missing auth
   // just returns 0 rows, no error.
   const [packsRes, entriesRes] = await Promise.all([
@@ -70,23 +93,20 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   const results: ContentResult[] = [];
   for (const entry of entries) {
     if (!entry.pack_id) continue; // legacy rows without a pack are skipped
+    if (allowedPackIds && !allowedPackIds.has(entry.pack_id)) continue;
     const pack = packById.get(entry.pack_id);
     if (!pack) continue;
     const mapped = mapEntryToResult(entry, pack);
     if (mapped) results.push(mapped);
   }
 
-  // Apply ContentResolver's filters in-memory.
+  // Apply remaining filters in-memory.
   let filtered = results;
   if (query.system) {
     filtered = filtered.filter((r) => r.system === query.system);
   }
   if (query.type) {
     filtered = filtered.filter((r) => r.type === query.type);
-  }
-  if (query.srdVersion) {
-    // Homebrew isn't SRD — version filter excludes us by definition.
-    return [];
   }
   if (query.search) {
     const term = query.search.toLowerCase();

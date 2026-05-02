@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useCharacterDraftStore, useAuthStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
-import { createCharacter } from '@vaultstone/api';
+import { createCharacter, supabase } from '@vaultstone/api';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
@@ -49,7 +49,9 @@ function initSpellSlots(level: number): Dnd5eResources['spellSlots'] {
   };
 }
 
-const STEPS = [
+// Step list when the wizard is launched without a campaign — user picks
+// the ruleset themselves at step 0.
+const STANDALONE_STEPS = [
   { key: 'ruleset', label: 'Ruleset' },
   { key: 'species', label: 'Species' },
   { key: 'class', label: 'Class' },
@@ -58,8 +60,32 @@ const STEPS = [
   { key: 'review', label: 'Review' },
 ];
 
+// When launched from inside a campaign the ruleset is locked to the
+// campaign's system, so we skip the picker entirely.
+const CAMPAIGN_STEPS = [
+  { key: 'species', label: 'Species' },
+  { key: 'class', label: 'Class' },
+  { key: 'background', label: 'Background' },
+  { key: 'scores', label: 'Ability Scores' },
+  { key: 'review', label: 'Review' },
+];
+
+// Translate a campaigns.system id (dnd5e_2014 / dnd5e_2024 / dnd5e legacy
+// alias) into the wizard's draft shape (system + srdVersion). The draft's
+// `system` is left at the legacy 'dnd5e' alias because SRD content rows
+// are keyed under 'dnd5e' uniformly — switching to the explicit edition id
+// would break content filtering. The campaign edition is conveyed through
+// `srdVersion`, which the content bundles already filter on.
+function systemToDraft(systemId: string): { system: string; srdVersion: 'SRD_5.1' | 'SRD_2.0' } {
+  if (systemId === 'dnd5e_2014') return { system: 'dnd5e', srdVersion: 'SRD_5.1' };
+  // dnd5e_2024 / legacy dnd5e / Custom all fall through to the 2024 SRD.
+  return { system: 'dnd5e', srdVersion: 'SRD_2.0' };
+}
+
 export default function NewCharacterScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ campaignId?: string }>();
+  const launchedCampaignId = params.campaignId ?? null;
   const user = useAuthStore((s) => s.user);
   const draft = useCharacterDraftStore(
     useShallow((s) => ({
@@ -75,6 +101,41 @@ export default function NewCharacterScreen() {
     }))
   );
   const resetDraft = useCharacterDraftStore((s) => s.resetDraft);
+  const setDraftCampaignId = useCharacterDraftStore((s) => s.setCampaignId);
+  const setDraftRuleset = useCharacterDraftStore((s) => s.setRuleset);
+
+  // Bootstrap from the campaign route parameter. We fetch the campaign's
+  // system server-side, set the draft state, and pin the wizard to the
+  // campaign-step list so the user starts at Species rather than picking
+  // a ruleset they can't change. The bootstrap effect runs once per
+  // mount (the campaignId param doesn't change mid-wizard).
+  const [bootstrapping, setBootstrapping] = useState(!!launchedCampaignId);
+  const [campaignBootstrapError, setCampaignBootstrapError] = useState('');
+  useEffect(() => {
+    if (!launchedCampaignId) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select('id, system')
+        .eq('id', launchedCampaignId)
+        .single();
+      if (cancelled) return;
+      if (error || !data) {
+        setCampaignBootstrapError('Could not load campaign context.');
+        setBootstrapping(false);
+        return;
+      }
+      const { system, srdVersion } = systemToDraft(data.system);
+      setDraftCampaignId(launchedCampaignId);
+      setDraftRuleset(system, srdVersion);
+      setBootstrapping(false);
+    })();
+    return () => { cancelled = true; };
+  }, [launchedCampaignId, setDraftCampaignId, setDraftRuleset]);
+
+  // Active step list and current step, swapped based on launch context.
+  const STEPS = launchedCampaignId ? CAMPAIGN_STEPS : STANDALONE_STEPS;
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -139,14 +200,15 @@ export default function NewCharacterScreen() {
     : null;
 
   function isStepComplete(index: number): boolean {
-    switch (index) {
-      case 0: return true;
-      case 1: return draft.speciesKey !== null;
-      case 2: return draft.classKey !== null && (classSkillCount === 0 || draft.chosenSkills.length >= classSkillCount);
-      case 3: return draft.backgroundKey !== null;
-      case 4: return draft.abilityScores !== null;
-      case 5: return (draft.characterName ?? '').trim().length > 0;
-      default: return false;
+    const key = STEPS[index]?.key;
+    switch (key) {
+      case 'ruleset':    return true;
+      case 'species':    return draft.speciesKey !== null;
+      case 'class':      return draft.classKey !== null && (classSkillCount === 0 || draft.chosenSkills.length >= classSkillCount);
+      case 'background': return draft.backgroundKey !== null;
+      case 'scores':     return draft.abilityScores !== null;
+      case 'review':     return (draft.characterName ?? '').trim().length > 0;
+      default:           return false;
     }
   }
 
@@ -242,12 +304,41 @@ export default function NewCharacterScreen() {
 
   const isLast = step === STEPS.length - 1;
   const canAdvance = isStepComplete(step);
+  const activeKey = STEPS[step]?.key;
 
   // Class skills hint: class chosen but skills not yet all picked
-  const showSkillHint = step === 2 && draft.classKey !== null && classSkillCount > 0 && draft.chosenSkills.length < classSkillCount;
+  const showSkillHint = activeKey === 'class' && draft.classKey !== null && classSkillCount > 0 && draft.chosenSkills.length < classSkillCount;
 
   // SheetSoFar visible between steps 1-4, not when in a detail preview, not on last step
-  const showSheetSoFar = step >= 1 && step <= 4 && !inPreview;
+  // Sheet summary visible on species → scores, hidden on the ruleset
+  // picker (when present) and the final review step. Key-based so it's
+  // correct under both step-list orderings.
+  const showSheetSoFar =
+    !inPreview &&
+    activeKey != null &&
+    activeKey !== 'ruleset' &&
+    activeKey !== 'review';
+
+  // While we're loading the campaign context, show a minimal placeholder.
+  // The wizard mounts the steps as soon as the system + campaignId are
+  // pinned in the draft so the picker queries can fire with the right
+  // filters from the first render.
+  if (bootstrapping) {
+    return (
+      <SafeAreaView style={s.safeArea}>
+        <View style={s.bootstrapWrap}>
+          <Text style={s.bootstrapText}>
+            {campaignBootstrapError || 'Loading campaign…'}
+          </Text>
+          {campaignBootstrapError ? (
+            <TouchableOpacity onPress={() => router.back()} style={[s.nextBtn, { marginTop: spacing.md }]}>
+              <Text style={s.nextBtnText}>Back</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.safeArea}>
@@ -285,29 +376,36 @@ export default function NewCharacterScreen() {
         })}
       </View>
 
-      {/* Step content */}
+      {/* Step content. Keyed off the active step's `key` so the indices
+          line up across the standalone-vs-campaign step lists. */}
       <View style={s.content}>
-        {step === 0 && <StepRuleset />}
-        {step === 1 && (
-          <StepSpecies
-            onPreviewChange={setInPreview}
-            onAdvance={() => { setStep(2); setInPreview(false); }}
-          />
-        )}
-        {step === 2 && (
-          <StepClass
-            onPreviewChange={setInPreview}
-            onAdvance={() => { setStep(3); setInPreview(false); }}
-          />
-        )}
-        {step === 3 && (
-          <StepBackground
-            onPreviewChange={setInPreview}
-            onAdvance={() => { setStep(4); setInPreview(false); }}
-          />
-        )}
-        {step === 4 && <StepAbilityScores />}
-        {step === 5 && <StepReview />}
+        {(() => {
+          const key = STEPS[step]?.key;
+          // Helper to advance to the step after the current one. Uses the
+          // active step list's index so we land on the right next step in
+          // either launch mode.
+          const advanceTo = (targetKey: string) => {
+            const idx = STEPS.findIndex((s) => s.key === targetKey);
+            if (idx >= 0) setStep(idx);
+            setInPreview(false);
+          };
+          switch (key) {
+            case 'ruleset':
+              return <StepRuleset />;
+            case 'species':
+              return <StepSpecies onPreviewChange={setInPreview} onAdvance={() => advanceTo('class')} />;
+            case 'class':
+              return <StepClass onPreviewChange={setInPreview} onAdvance={() => advanceTo('background')} />;
+            case 'background':
+              return <StepBackground onPreviewChange={setInPreview} onAdvance={() => advanceTo('scores')} />;
+            case 'scores':
+              return <StepAbilityScores />;
+            case 'review':
+              return <StepReview />;
+            default:
+              return null;
+          }
+        })()}
       </View>
 
       {/* SheetSoFar summary bar */}
@@ -318,7 +416,11 @@ export default function NewCharacterScreen() {
           classDie={classDie}
           backgroundName={backgroundName}
           highestStat={highestStat}
-          onJumpTo={(target) => { setStep(target); setInPreview(false); }}
+          onJumpTo={(key) => {
+            const idx = STEPS.findIndex((s) => s.key === key);
+            if (idx >= 0) setStep(idx);
+            setInPreview(false);
+          }}
         />
       )}
 
@@ -349,6 +451,20 @@ export default function NewCharacterScreen() {
 
 const s = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.surfaceCanvas },
+
+  bootstrapWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  bootstrapText: {
+    fontSize: 14,
+    color: colors.onSurfaceVariant,
+    fontFamily: fonts.body,
+    textAlign: 'center',
+  },
 
   // Header
   header: {
