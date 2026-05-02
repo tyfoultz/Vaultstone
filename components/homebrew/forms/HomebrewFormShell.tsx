@@ -44,29 +44,37 @@ export function HomebrewFormShell({
   onClose,
   onSubmit,
 }: Props) {
+  // Layout: the panelWrapper caps height at 90vh; inside, a fixed header
+  // and footer sandwich a flex-1 ScrollView that owns the overflow. Without
+  // the explicit flex on the ScrollView the panel sized to content and
+  // long forms (Spell, Class) would exceed the viewport with no scroll.
   return (
     <Modal transparent visible animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable onPress={(e) => e.stopPropagation()} style={styles.panelWrapper}>
           <Card tier="container" padding="lg" style={styles.panel}>
-            <ScrollView>
-              <View style={styles.header}>
-                <View style={{ flex: 1 }}>
-                  <MetaLabel size="sm" tone="accent">{eyebrow}</MetaLabel>
-                  <Text
-                    variant="headline-sm"
-                    family="headline"
-                    weight="bold"
-                    style={{ marginTop: 4 }}
-                  >
-                    {title}
-                  </Text>
-                </View>
-                <Pressable onPress={onClose} style={styles.closeBtn}>
-                  <Icon name="close" size={22} color={colors.onSurfaceVariant} />
-                </Pressable>
+            <View style={styles.header}>
+              <View style={{ flex: 1 }}>
+                <MetaLabel size="sm" tone="accent">{eyebrow}</MetaLabel>
+                <Text
+                  variant="headline-sm"
+                  family="headline"
+                  weight="bold"
+                  style={{ marginTop: 4 }}
+                >
+                  {title}
+                </Text>
               </View>
+              <Pressable onPress={onClose} style={styles.closeBtn}>
+                <Icon name="close" size={22} color={colors.onSurfaceVariant} />
+              </Pressable>
+            </View>
 
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.body}>{children}</View>
 
               {error ? (
@@ -77,16 +85,16 @@ export function HomebrewFormShell({
                   {error}
                 </Text>
               ) : null}
-
-              <View style={styles.footer}>
-                <GhostButton label="Cancel" onPress={onClose} />
-                <GradientButton
-                  label={saveLabel ?? 'Save'}
-                  onPress={onSubmit}
-                  loading={submitting}
-                />
-              </View>
             </ScrollView>
+
+            <View style={styles.footer}>
+              <GhostButton label="Cancel" onPress={onClose} />
+              <GradientButton
+                label={saveLabel ?? 'Save'}
+                onPress={onSubmit}
+                loading={submitting}
+              />
+            </View>
           </Card>
         </Pressable>
       </Pressable>
@@ -105,11 +113,19 @@ const styles = StyleSheet.create({
   panelWrapper: {
     width: '100%',
     maxWidth: 640,
+    // Cap the wrapper height so the inner ScrollView has a bounded height
+    // to scroll inside. Without this, content sized to itself and overflowed
+    // the viewport.
     maxHeight: '90%',
+    // Take only as much height as needed (up to maxHeight). flex: 1 here
+    // would force-fill the parent, which we don't want for short forms.
+    flexShrink: 1,
   },
   panel: {
     borderWidth: 1,
     borderColor: colors.outlineVariant + '33',
+    // Card itself becomes the flex column: header / scroll / footer.
+    flexShrink: 1,
   },
   header: {
     flexDirection: 'row',
@@ -120,14 +136,23 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
     borderRadius: radius.full,
   },
+  // Middle band that owns scroll. flexShrink lets it consume only the
+  // remaining space inside the bounded panel; the contentContainer holds
+  // the form fields.
+  scroll: {
+    flexShrink: 1,
+  },
+  scrollContent: {
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+  },
   body: {
-    marginTop: spacing.lg,
     gap: spacing.md,
   },
   footer: {
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'flex-end',
-    marginTop: spacing.xl,
+    marginTop: spacing.md,
   },
 });
