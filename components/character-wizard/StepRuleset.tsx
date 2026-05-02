@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
-import { useCharacterDraftStore } from '@vaultstone/store';
+import { useCharacterDraftStore, type RulesetMode } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
 import { getCampaigns } from '@vaultstone/api';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
@@ -40,32 +40,34 @@ function campaignSystemToRuleset(systemId: string): Ruleset {
   return RULESETS[0];
 }
 
-// Three-state machine for the step:
-//   'choose'     — initial fork, ask whether linking or going standalone
-//   'campaign'   — campaign picker active; ruleset cards shown locked
-//   'standalone' — ruleset picker active; campaign explicitly absent
-type Mode = 'choose' | 'campaign' | 'standalone';
+// Three-state machine for the step. `null` = initial fork (user hasn't
+// committed to either path); `'campaign'` / `'standalone'` route to their
+// respective sub-screens. The store's `rulesetMode` field carries this
+// across remounts so the wizard parent can read it (it gates the Next
+// button — Next is disabled while the user is on the fork screen).
+//
+// On first mount with a clean draft, rulesetMode is `null` → fork. If the
+// user already has a campaign linked (e.g. wizard launched with
+// ?campaignId=, or they previously picked a campaign), we surface the
+// campaign mode automatically. The wizard's parent sets rulesetMode in
+// both of those flows.
 
 export function StepRuleset() {
-  const { srdVersion, setRuleset, campaignId, setCampaignId, speciesKey } =
+  const {
+    srdVersion, setRuleset,
+    campaignId, setCampaignId,
+    rulesetMode, setRulesetMode,
+  } =
     useCharacterDraftStore(
       useShallow((s) => ({
         srdVersion: s.srdVersion,
         setRuleset: s.setRuleset,
         campaignId: s.campaignId,
         setCampaignId: s.setCampaignId,
-        // speciesKey isn't read for content; it's the "have they progressed
-        // past this step" signal. If they're back-navigating from step 2+
-        // we restore the matching mode rather than dump them on the fork.
-        speciesKey: s.speciesKey,
+        rulesetMode: s.rulesetMode,
+        setRulesetMode: s.setRulesetMode,
       }))
     );
-
-  const [mode, setMode] = useState<Mode>(() => {
-    if (campaignId) return 'campaign';
-    if (speciesKey) return 'standalone';
-    return 'choose';
-  });
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
@@ -93,30 +95,37 @@ export function StepRuleset() {
 
   function startStandalone() {
     setCampaignId(null);
-    setMode('standalone');
+    setRulesetMode('standalone');
   }
 
   function startCampaign() {
-    setMode('campaign');
+    setRulesetMode('campaign');
   }
 
   function backToChoice() {
-    // Going back doesn't clear the user's prior selection — the next
-    // screen will surface it as already-selected. The campaign / standalone
-    // distinction is handled by the chosen mode.
-    setMode('choose');
+    // Going back to the fork screen doesn't clear the user's prior
+    // selection — flipping between paths preserves their state. The Next
+    // button gate uses rulesetMode === null, so backing to the fork
+    // intentionally re-disables Next until they commit again.
+    setRulesetMode(null);
   }
+
+  // Resolve the effective sub-screen. If a campaign is linked but the
+  // mode hasn't been written yet (e.g. the wizard was launched from a
+  // campaign route before the parent finished its bootstrap effect), show
+  // the campaign view.
+  const effectiveMode: RulesetMode = rulesetMode ?? (campaignId ? 'campaign' : null);
 
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
-      {mode === 'choose' ? (
+      {effectiveMode === null ? (
         <ChoiceScreen
           hasCampaigns={campaigns.length > 0}
           loading={loadingCampaigns}
           onPickCampaign={startCampaign}
           onPickStandalone={startStandalone}
         />
-      ) : mode === 'campaign' ? (
+      ) : effectiveMode === 'campaign' ? (
         <CampaignModeScreen
           campaigns={campaigns}
           loading={loadingCampaigns}

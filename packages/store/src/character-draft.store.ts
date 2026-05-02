@@ -5,6 +5,16 @@ import type { Dnd5eAbilityScores } from '@vaultstone/types';
 
 export type AbilityScoreMethod = 'roll_dice' | 'standard_array' | 'point_buy' | 'roll';
 
+/**
+ * Stage 0 of the Ruleset step asks "where will this character play?" —
+ * `null` means the user hasn't picked a path yet (we show the fork
+ * screen). Once they pick, we either route to a campaign picker
+ * (`campaign`) or a standalone ruleset picker (`standalone`). The wizard
+ * parent reads this to gate the Next button — without an explicit choice,
+ * tapping Next would silently accept the default standalone ruleset.
+ */
+export type RulesetMode = 'campaign' | 'standalone' | null;
+
 export interface CharacterDraft {
   /** Which wizard step the user last reached (0-indexed). */
   currentStep: number;
@@ -12,6 +22,8 @@ export interface CharacterDraft {
   // Step 0 — Ruleset
   system: string;
   srdVersion: 'SRD_5.1' | 'SRD_2.0';
+  /** Two-stage ruleset flow — see RulesetMode. */
+  rulesetMode: RulesetMode;
 
   // Step 1 — Species
   speciesKey: string | null;
@@ -38,6 +50,7 @@ export interface CharacterDraft {
 interface CharacterDraftActions {
   setStep: (step: number) => void;
   setRuleset: (system: string, srdVersion: 'SRD_5.1' | 'SRD_2.0') => void;
+  setRulesetMode: (mode: RulesetMode) => void;
   setSpecies: (key: string) => void;
   setClass: (key: string) => void;
   setChosenSkills: (skills: string[]) => void;
@@ -53,6 +66,7 @@ const INITIAL_DRAFT: CharacterDraft = {
   currentStep: 0,
   system: 'dnd5e',
   srdVersion: 'SRD_5.1',
+  rulesetMode: null,
   speciesKey: null,
   classKey: null,
   chosenSkills: [],
@@ -71,6 +85,8 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
       setStep: (currentStep) => set({ currentStep }),
 
       setRuleset: (system, srdVersion) => set({ system, srdVersion }),
+
+      setRulesetMode: (rulesetMode) => set({ rulesetMode }),
 
       setSpecies: (speciesKey) => set({ speciesKey }),
 

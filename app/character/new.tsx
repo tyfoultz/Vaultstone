@@ -103,6 +103,10 @@ export default function NewCharacterScreen() {
   const resetDraft = useCharacterDraftStore((s) => s.resetDraft);
   const setDraftCampaignId = useCharacterDraftStore((s) => s.setCampaignId);
   const setDraftRuleset = useCharacterDraftStore((s) => s.setRuleset);
+  const setDraftRulesetMode = useCharacterDraftStore((s) => s.setRulesetMode);
+  // Subscribed separately so the Next-button gate re-renders when the
+  // user picks a path on the fork screen.
+  const rulesetMode = useCharacterDraftStore((s) => s.rulesetMode);
 
   // Bootstrap from the campaign route parameter. We fetch the campaign's
   // system server-side, set the draft state, and pin the wizard to the
@@ -129,10 +133,17 @@ export default function NewCharacterScreen() {
       const { system, srdVersion } = systemToDraft(data.system);
       setDraftCampaignId(launchedCampaignId);
       setDraftRuleset(system, srdVersion);
+      // The user opened the wizard via a campaign route, so they've
+      // implicitly committed to campaign mode — record it in the draft
+      // so the Next-button gate doesn't see a null rulesetMode and lock
+      // them out. (For campaign-launched flows the ruleset step is
+      // skipped entirely, but the gate still reads rulesetMode for
+      // step 0 in standalone-launched flows.)
+      setDraftRulesetMode('campaign');
       setBootstrapping(false);
     })();
     return () => { cancelled = true; };
-  }, [launchedCampaignId, setDraftCampaignId, setDraftRuleset]);
+  }, [launchedCampaignId, setDraftCampaignId, setDraftRuleset, setDraftRulesetMode]);
 
   // Active step list and current step, swapped based on launch context.
   const STEPS = launchedCampaignId ? CAMPAIGN_STEPS : STANDALONE_STEPS;
@@ -202,7 +213,12 @@ export default function NewCharacterScreen() {
   function isStepComplete(index: number): boolean {
     const key = STEPS[index]?.key;
     switch (key) {
-      case 'ruleset':    return true;
+      // Ruleset is complete once the user has committed to a path —
+      // either picked a campaign (rulesetMode === 'campaign') or
+      // explicitly chosen standalone. While they're on the fork screen
+      // (rulesetMode === null) Next stays disabled so they can't
+      // accidentally inherit the default ruleset without seeing it.
+      case 'ruleset':    return rulesetMode !== null;
       case 'species':    return draft.speciesKey !== null;
       case 'class':      return draft.classKey !== null && (classSkillCount === 0 || draft.chosenSkills.length >= classSkillCount);
       case 'background': return draft.backgroundKey !== null;
