@@ -28,7 +28,10 @@ export default function NewCampaignScreen() {
 
     const { data, error: err } = await createCampaign(
       name.trim(),
-      { systemLabel, description },
+      // System is required by the RPC. Default to D&D 5e (2024) for now;
+      // Phase 2 of the campaign-system work replaces this free-text field
+      // with an explicit system picker.
+      { system: 'dnd5e_2024', systemLabel, description },
     );
 
     setLoading(false);

@@ -64,6 +64,7 @@ export interface Database {
           name: string;
           dm_user_id: string;
           join_code: string;
+          system: string;
           system_label: string | null;
           description: string | null;
           cover_image_url: string | null;
@@ -79,6 +80,7 @@ export interface Database {
           name: string;
           dm_user_id: string;
           join_code: string;
+          system: string;
           system_label?: string | null;
           description?: string | null;
           cover_image_url?: string | null;
@@ -94,6 +96,7 @@ export interface Database {
           name?: string;
           dm_user_id?: string;
           join_code?: string;
+          system?: string;
           system_label?: string | null;
           description?: string | null;
           cover_image_url?: string | null;
@@ -102,6 +105,24 @@ export interface Database {
           party_view_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;
+        };
+        Relationships: [];
+      };
+      campaign_packs: {
+        Row: {
+          campaign_id: string;
+          pack_id: string;
+          enabled: boolean;
+          added_at: string;
+        };
+        Insert: {
+          campaign_id: string;
+          pack_id: string;
+          enabled?: boolean;
+          added_at?: string;
+        };
+        Update: {
+          enabled?: boolean;
         };
         Relationships: [];
       };
@@ -827,7 +848,12 @@ export interface Database {
     Views: Record<never, never>;
     Functions: {
       create_campaign_with_gm: {
-        Args: { p_name: string; p_system_label?: string | null; p_description?: string | null };
+        Args: {
+          p_name: string;
+          p_system: string;
+          p_system_label?: string | null;
+          p_description?: string | null;
+        };
         Returns: Database['public']['Tables']['campaigns']['Row'];
       };
       get_campaign_by_join_code: {
