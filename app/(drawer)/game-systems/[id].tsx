@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   View, ScrollView, Pressable, TextInput, StyleSheet, useWindowDimensions,
 } from 'react-native';
@@ -590,11 +590,52 @@ function ClassDetailModal({
         <DetailSection id="becoming" style={styles.modalSection}>
           <DetailSectionHeading>{`Becoming a ${c.name}`}</DetailSectionHeading>
 
-          {/* Level 1 — starting equipment + level 1 features */}
+          {/* As a Level 1 Character — SRD-style bullet prose */}
+          <View style={styles.subSection}>
+            <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
+              As a Level 1 Character
+            </Text>
+            <BecomingBullet>
+              Gain all the traits in the <Text weight="bold" style={{ color: colors.onSurface }}>{`Core ${c.name} Traits`}</Text> table.
+            </BecomingBullet>
+            <BecomingBullet>
+              Gain the {c.name}'s level 1 features, which are listed in the <Text weight="bold" style={{ color: colors.onSurface }}>{`${c.name} Features`}</Text> table.
+            </BecomingBullet>
+          </View>
+
+          {/* As a Multiclass Character */}
+          {(c.multiclassPrerequisite || c.multiclassProficiencies) ? (
+            <View style={styles.subSection}>
+              <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
+                As a Multiclass Character
+              </Text>
+              {c.multiclassPrerequisite ? (
+                <Text variant="body-sm" family="body" style={[styles.bodyText, { marginBottom: spacing.xs }]}>
+                  Prerequisite: <Text weight="bold" style={{ color: colors.onSurface }}>{c.multiclassPrerequisite}</Text>
+                </Text>
+              ) : null}
+              <BecomingBullet>
+                Gain the following traits from the <Text weight="bold" style={{ color: colors.onSurface }}>{`Core ${c.name} Traits`}</Text> table: {multiclassTraitsSentence(c)}
+              </BecomingBullet>
+              <BecomingBullet>
+                Gain the {c.name}'s level 1 features, which are listed in the <Text weight="bold" style={{ color: colors.onSurface }}>{`${c.name} Features`}</Text> table.
+              </BecomingBullet>
+              {c.multiclassProficiencies?.skills?.from ? (
+                <View style={[styles.subBlock, { marginTop: spacing.xs }]}>
+                  <MetaLabel size="sm">{`Gain skills (choose ${c.multiclassProficiencies.skills.count ?? 1})`}</MetaLabel>
+                  <View style={styles.chipRow}>
+                    {c.multiclassProficiencies.skills.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* Level 1 detail — starting equipment + level 1 feature descriptions */}
           {((c.startingEquipment ?? []).length > 0 || level1Features.length > 0) ? (
             <View style={styles.subSection}>
               <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
-                Level 1
+                Level 1 Detail
               </Text>
               {Array.isArray(c.startingEquipment) && c.startingEquipment.length > 0 ? (
                 <View style={styles.subBlock}>
@@ -633,37 +674,6 @@ function ClassDetailModal({
               ) : null}
             </View>
           ) : null}
-
-          {/* Multiclass */}
-          {(c.multiclassPrerequisite || c.multiclassProficiencies) ? (
-            <View style={styles.subSection}>
-              <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
-                Multiclass
-              </Text>
-              {c.multiclassPrerequisite ? (
-                <Text variant="body-sm" family="body" style={styles.bodyText}>
-                  Prerequisite: <Text weight="bold" style={{ color: colors.onSurface }}>{c.multiclassPrerequisite}</Text>
-                </Text>
-              ) : null}
-              {c.multiclassProficiencies?.armor && c.multiclassProficiencies.armor.length > 0 ? (
-                <ProfBlock label="Gain armor" items={c.multiclassProficiencies.armor} />
-              ) : null}
-              {c.multiclassProficiencies?.weapons && c.multiclassProficiencies.weapons.length > 0 ? (
-                <ProfBlock label="Gain weapons" items={c.multiclassProficiencies.weapons} />
-              ) : null}
-              {c.multiclassProficiencies?.tools && c.multiclassProficiencies.tools.length > 0 ? (
-                <ProfBlock label="Gain tools" items={c.multiclassProficiencies.tools} />
-              ) : null}
-              {c.multiclassProficiencies?.skills?.from ? (
-                <View style={styles.subBlock}>
-                  <MetaLabel size="sm">{`Gain skills (choose ${c.multiclassProficiencies.skills.count ?? 1})`}</MetaLabel>
-                  <View style={styles.chipRow}>
-                    {c.multiclassProficiencies.skills.from.map((it) => <Chip key={it} label={it} variant="meta" />)}
-                  </View>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
         </DetailSection>
       ) : null}
 
@@ -671,6 +681,9 @@ function ClassDetailModal({
       {featureGroups.length > 0 ? (
         <DetailSection id="features" style={styles.modalSection}>
           <DetailSectionHeading>{`${c.name} Class Features`}</DetailSectionHeading>
+          <Text variant="body-sm" family="body" style={[styles.bodyText, { marginBottom: spacing.sm }]}>
+            As a {c.name}, you gain the following class features when you reach the specified {c.name} levels. These features are listed in the {c.name} Features table.
+          </Text>
 
           {/* Class table — Level → feature names per level */}
           <View style={styles.subSection}>
@@ -838,6 +851,51 @@ function groupFeaturesByLevel(
     buckets.set(f.level, list);
   }
   return [...buckets.entries()].sort((a, b) => a[0] - b[0]);
+}
+
+/** Bullet row used inside the Becoming-a-Class section. */
+function BecomingBullet({ children }: { children: ReactNode }) {
+  return (
+    <View style={styles.becomingBullet}>
+      <Text variant="body-sm" family="body" style={[styles.bodyText, styles.becomingBulletDot]}>•</Text>
+      <Text variant="body-sm" family="body" style={[styles.bodyText, styles.becomingBulletText]}>{children}</Text>
+    </View>
+  );
+}
+
+/**
+ * Build the SRD-style sentence describing what a multiclass character pulls
+ * from the Core Class Traits table. The Hit Point Die is always included
+ * (you always inherit the new class's HD); proficiencies follow as a
+ * comma-separated list with "and" before the last item, using the SRD's
+ * verbal style:
+ *   weapons → "proficiency with X"
+ *   armor   → "training with X" (2024 phrasing — was "proficiency with" in 5.1
+ *             but the 2024 SRD universally uses "training with"; we use the
+ *             newer phrasing across the board for consistency)
+ *   tools   → "proficiency with X"
+ */
+function multiclassTraitsSentence(c: ClassResult): string {
+  const phrases: string[] = ['Hit Point Die'];
+  const mc = c.multiclassProficiencies;
+  if (mc?.weapons && mc.weapons.length > 0) {
+    phrases.push(`proficiency with ${joinList(mc.weapons.map((w) => w.toLowerCase()))}`);
+  }
+  if (mc?.tools && mc.tools.length > 0) {
+    phrases.push(`proficiency with ${joinList(mc.tools.map((t) => t.toLowerCase()))}`);
+  }
+  if (mc?.armor && mc.armor.length > 0) {
+    phrases.push(`training with ${joinList(mc.armor.map((a) => a.toLowerCase()))}`);
+  }
+  return joinList(phrases) + '.';
+}
+
+/** Comma-separated list with an Oxford "and" before the final item. */
+function joinList(items: string[]): string {
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
 }
 
 function BackgroundsList({ items }: { items: BackgroundResult[] }) {
@@ -1878,6 +1936,19 @@ const styles = StyleSheet.create({
   subBlock: { gap: 6, marginTop: spacing.xs + 2 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   bullet: { gap: 2, marginTop: 4 },
+  becomingBullet: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs,
+    marginTop: 4,
+  },
+  becomingBulletDot: {
+    width: 12,
+    color: colors.outline,
+  },
+  becomingBulletText: {
+    flex: 1,
+  },
 
   emptyHit: {
     paddingVertical: spacing.xl,
