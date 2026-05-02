@@ -89,6 +89,7 @@ export function PCStubPageView({ page, worldId }: Props) {
 
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [statsCollapsed, setStatsCollapsed] = useState(false);
   const [orphanResolveOpen, setOrphanResolveOpen] = useState(false);
 
   // Character data
@@ -305,14 +306,32 @@ export function PCStubPageView({ page, worldId }: Props) {
             </View>
           ) : null}
 
-          {/* Character stats hero */}
+          {/* Character stats hero — collapsible */}
           {character && stats ? (
             <View style={styles.heroSection}>
-              <CharacterStatsHero stats={stats} resources={resources} conditions={conditions} />
+              <Pressable onPress={() => setStatsCollapsed(!statsCollapsed)} style={styles.heroToggle}>
+                <Icon name="person" size={14} color={colors.player} />
+                <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.player, letterSpacing: 1, flex: 1 }}>
+                  Character Stats
+                </Text>
+                {statsCollapsed ? (
+                  <View style={styles.heroCollapsedSummary}>
+                    <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                      HP {resources?.hpCurrent ?? 0}/{stats.hpMax} · AC {computeAC(stats, resources)} · Lv {stats.level ?? 1}
+                    </Text>
+                  </View>
+                ) : null}
+                <Icon name={statsCollapsed ? 'expand-more' : 'expand-less'} size={18} color={colors.outline} />
+              </Pressable>
+              {!statsCollapsed ? (
+                <View style={styles.heroCardWrap}>
+                  <CharacterStatsHero stats={stats} resources={resources} conditions={conditions} />
+                </View>
+              ) : null}
             </View>
           ) : !page.character_id ? (
             <View style={styles.heroSection}>
-              <Card tier="container" padding="lg" style={{ alignItems: 'center', borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: radius.xl }}>
+              <Card tier="container" padding="lg" style={{ alignItems: 'center', borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: radius.xl, maxWidth: 480 }}>
                 <Icon name="person-off" size={24} color={colors.outlineVariant} />
                 <Text variant="body-sm" tone="secondary" style={{ marginTop: spacing.xs }}>No linked character — standalone player page.</Text>
               </Card>
@@ -562,6 +581,9 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
   titleBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, borderWidth: 1, borderColor: colors.outlineVariant + '55' },
   heroSection: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  heroToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: spacing.xs, marginBottom: spacing.xs },
+  heroCollapsedSummary: { marginRight: spacing.xs },
+  heroCardWrap: { maxWidth: 480 },
   resolveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm, paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.player + '44', alignSelf: 'flex-start' },
   disabledEditor: { opacity: 0.55 },
   saveIndicator: { position: 'absolute', bottom: spacing.md, right: spacing.md, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surfaceContainerHigh + 'dd', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
