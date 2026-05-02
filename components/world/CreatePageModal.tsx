@@ -34,7 +34,7 @@ type Props = {
   onCreated?: (page: WorldPage) => void;
 };
 
-const TEMPLATE_OPTIONS: TemplateKey[] = ['locations', 'npcs', 'factions', 'lore', 'blank'];
+const TEMPLATE_OPTIONS: TemplateKey[] = ['locations', 'npcs', 'factions', 'lore', 'players', 'timeline', 'blank'];
 
 export function CreatePageModal({
   worldId,
@@ -69,10 +69,9 @@ export function CreatePageModal({
   );
 
   const sectionKey = section?.template_key ?? 'blank';
-  const isSpecialSection = sectionKey === 'players' || sectionKey === 'timeline';
 
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<TemplateKey>(
-    isSpecialSection ? sectionKey : sectionKey,
+    sectionKey,
   );
   const selectedTemplate = useMemo(
     () => getTemplate(selectedTemplateKey),
@@ -163,7 +162,7 @@ export function CreatePageModal({
                   autoFocus
                 />
 
-                {!isSpecialSection ? (
+                {templateChoices.length > 1 ? (
                   <View style={{ gap: spacing.xs }}>
                     <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
                       Page type
