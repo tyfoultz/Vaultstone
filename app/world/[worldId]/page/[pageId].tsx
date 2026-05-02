@@ -265,6 +265,15 @@ export default function PageDetailScreen() {
       if (bodyTimerRef.current) {
         clearTimeout(bodyTimerRef.current);
         bodyTimerRef.current = null;
+        const pending = pendingBodyRef.current;
+        if (pending) {
+          pendingBodyRef.current = null;
+          void updatePage(pageId, {
+            body: pending.body as Json,
+            body_text: pending.bodyText,
+            body_refs: pending.bodyRefs,
+          });
+        }
       }
       void releasePageEdit(pageId);
     };

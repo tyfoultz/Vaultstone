@@ -82,6 +82,7 @@ export function PCStubPageView({ page, worldId }: Props) {
   const updatePageInStore = usePagesStore((s) => s.updatePage);
   const removePage = usePagesStore((s) => s.removePage);
   const bodyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingBodyRef = useRef<{ body: object; bodyText: string; bodyRefs: string[] } | null>(null);
 
   const myUserId = useAuthStore((s) => s.user?.id ?? null);
   const toggleVisibility = usePageVisibilityToggle(page);
@@ -154,7 +155,12 @@ export function PCStubPageView({ page, worldId }: Props) {
     const t = setInterval(() => void tryClaim(), LOCK_HEARTBEAT_MS);
     return () => {
       clearInterval(t);
-      if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
+      if (bodyTimerRef.current) {
+        clearTimeout(bodyTimerRef.current);
+        bodyTimerRef.current = null;
+        const pending = pendingBodyRef.current;
+        if (pending) { pendingBodyRef.current = null; void updatePage(page.id, { body: pending.body as unknown as Json, body_text: pending.bodyText, body_refs: pending.bodyRefs }); }
+      }
       void releasePageEdit(page.id);
     };
   }, [page.id, tryClaim]);
@@ -162,14 +168,18 @@ export function PCStubPageView({ page, worldId }: Props) {
   // Canvas body save
   function handleCanvasChange(blocks: CanvasBlock[], plainText: string, bodyRefs?: string[]) {
     if (heldByOther) return;
+    const body = { __canvas_blocks: blocks };
+    pendingBodyRef.current = { body, bodyText: plainText, bodyRefs: bodyRefs ?? [] };
     setSaveState('saving');
     if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
     bodyTimerRef.current = setTimeout(async () => {
-      const body = { __canvas_blocks: blocks } as unknown as Json;
+      const pending = pendingBodyRef.current;
+      if (!pending) return;
+      pendingBodyRef.current = null;
       const { data, error } = await updatePage(page.id, {
-        body,
-        body_text: plainText,
-        body_refs: bodyRefs ?? [],
+        body: pending.body as unknown as Json,
+        body_text: pending.bodyText,
+        body_refs: pending.bodyRefs,
       });
       if (error || !data) { setSaveState('error'); return; }
       updatePageInStore(page.id, { body: data.body, body_text: data.body_text, body_refs: data.body_refs });

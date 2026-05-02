@@ -475,6 +475,15 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     }));
   }
 
+  function flushPendingSave() {
+    if (changeTimerRef.current) {
+      clearTimeout(changeTimerRef.current);
+      changeTimerRef.current = null;
+      const final = buildSnapshot();
+      onChangeRef.current(final, blocksToPlainText(final), extractRefsFromBlocks(final));
+    }
+  }
+
   function emitChange(next?: CanvasBlock[]) {
     if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
     changeTimerRef.current = setTimeout(() => {
@@ -1128,7 +1137,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
                   e.preventDefault(); e.stopPropagation(); return;
                 }
                 const id = chip.getAttribute('data-id');
-                if (id && onMentionClick) { e.preventDefault(); onMentionClick(id); return; }
+                if (id && onMentionClick) { e.preventDefault(); flushPendingSave(); onMentionClick(id); return; }
               }
               e.stopPropagation();
             }}

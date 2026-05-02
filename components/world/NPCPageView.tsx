@@ -571,7 +571,12 @@ export function NPCPageView({ page, worldId }: Props) {
     const t = setInterval(() => void tryClaim(), LOCK_HEARTBEAT_MS);
     return () => {
       clearInterval(t);
-      if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current);
+      if (bodyTimerRef.current) {
+        clearTimeout(bodyTimerRef.current);
+        bodyTimerRef.current = null;
+        const pending = pendingBodyRef.current;
+        if (pending) { pendingBodyRef.current = null; void updatePage(page.id, { body: pending.body as Json, body_text: pending.bodyText, body_refs: pending.bodyRefs }); }
+      }
       void releasePageEdit(page.id);
     };
   }, [page.id, tryClaim]);

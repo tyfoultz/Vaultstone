@@ -457,7 +457,16 @@ export function FactionPageView({ page, worldId }: Props) {
   useEffect(() => {
     void tryClaim();
     const t = setInterval(() => void tryClaim(), LOCK_HEARTBEAT_MS);
-    return () => { clearInterval(t); if (bodyTimerRef.current) clearTimeout(bodyTimerRef.current); void releasePageEdit(page.id); };
+    return () => {
+      clearInterval(t);
+      if (bodyTimerRef.current) {
+        clearTimeout(bodyTimerRef.current);
+        bodyTimerRef.current = null;
+        const pending = pendingBodyRef.current;
+        if (pending) { pendingBodyRef.current = null; void updatePage(page.id, { body: pending.body as Json, body_text: pending.bodyText, body_refs: pending.bodyRefs }); }
+      }
+      void releasePageEdit(page.id);
+    };
   }, [page.id, tryClaim]);
 
   const mentionablePages = useMemo(() => (allPages ?? []).filter((p) => p.id !== page.id), [allPages, page.id]);
