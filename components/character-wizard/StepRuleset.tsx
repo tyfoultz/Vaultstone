@@ -121,11 +121,15 @@ export function StepRuleset() {
     setRulesetMode(null);
   }
 
-  // Resolve the effective sub-screen. If a campaign is linked but the
-  // mode hasn't been written yet (e.g. the wizard was launched from a
-  // campaign route before the parent finished its bootstrap effect), show
-  // the campaign view.
-  const effectiveMode: RulesetMode = rulesetMode ?? (campaignId ? 'campaign' : null);
+  // The wizard parent's bootstrap effect explicitly sets rulesetMode
+  // when launching with ?campaignId=, and the bootstrapping flag keeps
+  // this component unmounted until that finishes — so we can read the
+  // store value directly. (Earlier code derived a fallback from
+  // `campaignId ? 'campaign' : null` to cover a phantom race window;
+  // that fallback also caught users with a persisted draft from an
+  // earlier session and dumped them into campaign mode without the
+  // fork screen ever showing — yanked.)
+  const effectiveMode: RulesetMode = rulesetMode;
 
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
