@@ -16,6 +16,8 @@ import { getSourcesByCampaign } from '@vaultstone/content';
 import type { LocalSource } from '@vaultstone/content';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
+import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
+import { CampaignPacksCard } from '../../../components/campaign/CampaignPacksCard';
 import type { Database } from '@vaultstone/types';
 import type { Dnd5eStats } from '@vaultstone/types';
 import CharacterPickerModal from '../../../components/campaign/CharacterPickerModal';
@@ -41,6 +43,18 @@ type Member = {
 };
 
 type ContentSource = { key: string; label: string };
+
+// Lookup table for the campaign's system id → bundled definition. Used by
+// the System card to render the proper display name + version + license
+// rather than the free-text system_label that older campaigns may carry.
+// 'dnd5e' is the legacy alias for the 2024 system (existing characters all
+// reference it); we treat it as 5e 2024 for display.
+const BUNDLED_BY_SYSTEM_ID: Record<string, typeof dnd5e2024System> = {
+  dnd5e:       dnd5e2024System,
+  dnd5e_2014:  dnd5e2014System,
+  dnd5e_2024:  dnd5e2024System,
+  custom:      customSystem,
+};
 
 const PRESETS: ContentSource[] = [
   { key: 'srd_5_1', label: 'SRD 5.1 — D&D 5e (2014)' },
@@ -415,14 +429,23 @@ export default function CampaignDetailScreen() {
         {/* ---- System card ---- */}
         {(() => {
           const src = campaign.content_sources as ContentSource | null;
-          const label = src?.label ?? campaign.system_label;
-          const isOpen = src && (src.key === 'srd_5_1' || src.key === 'srd_2_0');
+          // Prefer the explicit campaign.system FK lookup; fall back to the
+          // legacy free-text system_label for older campaigns that pre-date
+          // the FK column.
+          const bundledSystem = BUNDLED_BY_SYSTEM_ID[campaign.system];
+          const label = bundledSystem?.displayName ?? src?.label ?? campaign.system_label;
+          const versionTag = bundledSystem ? `v${bundledSystem.version}` : null;
+          const isOpen = bundledSystem
+            ? bundledSystem.license === 'CC-BY-4.0'
+            : (src && (src.key === 'srd_5_1' || src.key === 'srd_2_0'));
 
           return (
             <View style={s.infoCard}>
               <MaterialCommunityIcons name="dice-d20-outline" size={24} color={colors.brand} />
               <Text style={s.infoLabel}>System</Text>
-              <Text style={s.systemValue}>{label || 'Not set'}</Text>
+              <Text style={s.systemValue}>
+                {label || 'Not set'}{versionTag ? `  ·  ${versionTag}` : ''}
+              </Text>
               {isOpen && (
                 <Text style={s.openBadge}>Open License (CC-BY 4.0)</Text>
               )}
@@ -500,6 +523,13 @@ export default function CampaignDetailScreen() {
             </View>
           );
         })()}
+
+        {/* ---- Content Packs card ---- */}
+        <CampaignPacksCard
+          campaignId={campaign.id}
+          campaignSystem={campaign.system}
+          isDM={isDM}
+        />
 
         {/* ---- Party card ---- */}
         <View style={s.infoCard}>
