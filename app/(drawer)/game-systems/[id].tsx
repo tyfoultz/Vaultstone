@@ -11,7 +11,7 @@ import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/syst
 import { getSrdContent, SEED_ONLY_TYPES, type SrdContent } from '@vaultstone/content';
 import { DetailModal, DetailSection, DetailSectionHeading } from '../../../components/DetailModal';
 import { CreateHomebrewPackModal } from '../../../components/homebrew/CreateHomebrewPackModal';
-import { listHomebrewPacks, type HomebrewPackRow } from '@vaultstone/api';
+import { listHomebrewPacks, deleteHomebrewPack, type HomebrewPackRow } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
@@ -360,24 +360,12 @@ function SystemPacksRow({ system }: { system: GameSystemDefinition }) {
         contentContainerStyle={packStyles.row}
       >
         {packs.map((pack) => (
-          <Pressable
+          <PackCard
             key={pack.id}
-            onPress={() => router.push(`/homebrew-pack/${pack.id}` as Href)}
-            style={({ pressed }) => [packStyles.packCard, pressed && { opacity: 0.85 }]}
-          >
-            <View style={packStyles.packIcon}>
-              <Icon name="auto-fix-high" size={20} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="body-sm" family="headline" weight="bold" style={{ color: colors.onSurface }} numberOfLines={1}>
-                {pack.name}
-              </Text>
-              <MetaLabel size="sm">
-                {pack.campaign_id ? 'Campaign-scoped' : 'Personal library'}
-              </MetaLabel>
-            </View>
-            {pack.is_published ? <Chip label="Shared" variant="accent" /> : null}
-          </Pressable>
+            pack={pack}
+            onOpen={() => router.push(`/homebrew-pack/${pack.id}` as Href)}
+            onDeleted={() => setPacks((prev) => prev.filter((p) => p.id !== pack.id))}
+          />
         ))}
 
         <Pressable
@@ -404,6 +392,101 @@ function SystemPacksRow({ system }: { system: GameSystemDefinition }) {
         />
       ) : null}
     </View>
+  );
+}
+
+/**
+ * Single pack card in the system-detail packs row. Uses a two-state body:
+ * the default state shows the pack's name + scope + a small trash button;
+ * pressing the trash flips into a confirm/cancel pair (no separate modal —
+ * keeps the row's horizontal-scroll geometry stable).
+ */
+function PackCard({
+  pack,
+  onOpen,
+  onDeleted,
+}: {
+  pack: HomebrewPackRow;
+  onOpen: () => void;
+  onDeleted: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  async function handleDelete() {
+    setDeleting(true);
+    setDeleteError('');
+    const { error } = await deleteHomebrewPack(pack.id);
+    setDeleting(false);
+    if (error) {
+      setDeleteError(error.message);
+      return;
+    }
+    onDeleted();
+  }
+
+  if (confirming) {
+    return (
+      <View style={[packStyles.packCard, packStyles.packCardConfirm]}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.hpDanger }} numberOfLines={2}>
+            {deleteError || `Delete "${pack.name}"?`}
+          </Text>
+          <MetaLabel size="sm">All entries inside the pack will be deleted.</MetaLabel>
+        </View>
+        <Pressable
+          onPress={() => {
+            setConfirming(false);
+            setDeleteError('');
+          }}
+          style={[packStyles.confirmBtn, packStyles.confirmCancel]}
+        >
+          <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}>
+            Cancel
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={handleDelete}
+          disabled={deleting}
+          style={[packStyles.confirmBtn, packStyles.confirmDelete]}
+        >
+          <Text variant="label-sm" weight="semibold" uppercase style={{ color: '#fff', letterSpacing: 1 }}>
+            {deleting ? 'Deleting…' : 'Delete'}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onOpen}
+      style={({ pressed }) => [packStyles.packCard, pressed && { opacity: 0.85 }]}
+    >
+      <View style={packStyles.packIcon}>
+        <Icon name="auto-fix-high" size={20} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text variant="body-sm" family="headline" weight="bold" style={{ color: colors.onSurface }} numberOfLines={1}>
+          {pack.name}
+        </Text>
+        <MetaLabel size="sm">
+          {pack.campaign_id ? 'Campaign-scoped' : 'Personal library'}
+        </MetaLabel>
+      </View>
+      {pack.is_published ? <Chip label="Shared" variant="accent" /> : null}
+      <Pressable
+        onPress={(e) => {
+          e.stopPropagation();
+          setConfirming(true);
+        }}
+        style={packStyles.packDeleteBtn}
+        accessibilityLabel={`Delete ${pack.name}`}
+      >
+        <Icon name="delete" size={16} color={colors.onSurfaceVariant} />
+      </Pressable>
+    </Pressable>
   );
 }
 
@@ -460,6 +543,34 @@ const packStyles = StyleSheet.create({
     backgroundColor: 'transparent',
     minWidth: 140,
     justifyContent: 'center',
+  },
+  packDeleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+  },
+  packCardConfirm: {
+    minWidth: 320,
+    borderColor: colors.hpDanger + '55',
+  },
+  confirmBtn: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  confirmCancel: {
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: 'transparent',
+  },
+  confirmDelete: {
+    borderColor: colors.hpDanger,
+    backgroundColor: colors.hpDanger,
   },
 });
 

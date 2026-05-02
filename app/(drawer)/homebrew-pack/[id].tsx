@@ -11,6 +11,7 @@ import {
   getHomebrewPack,
   getHomebrewPackEntryCount,
   updateHomebrewPack,
+  deleteHomebrewPack,
   type HomebrewPackRow,
 } from '@vaultstone/api';
 import {
@@ -40,6 +41,9 @@ export default function HomebrewPackDetailScreen() {
   const [draftName, setDraftName] = useState('');
   const [draftDescription, setDraftDescription] = useState('');
   const [savingField, setSavingField] = useState<EditableField | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -84,6 +88,19 @@ export default function HomebrewPackDetailScreen() {
     if (data) setPack(data);
   }
 
+  async function handleDelete() {
+    if (!pack) return;
+    setDeleting(true);
+    setDeleteError('');
+    const { error: err } = await deleteHomebrewPack(pack.id);
+    setDeleting(false);
+    if (err) {
+      setDeleteError(err.message);
+      return;
+    }
+    router.back();
+  }
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -114,13 +131,54 @@ export default function HomebrewPackDetailScreen() {
         title={pack.name}
         subtitle={pack.campaign_id ? 'Campaign-scoped pack' : 'Personal library pack'}
         actions={
-          <GhostButton
-            label="Back"
-            icon="arrow-back"
-            onPress={() => router.back()}
-          />
+          <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+            <GhostButton
+              label="Back"
+              icon="arrow-back"
+              onPress={() => router.back()}
+            />
+            <GhostButton
+              label="Delete"
+              icon="delete"
+              onPress={() => setConfirmingDelete(true)}
+            />
+          </View>
         }
       />
+
+      {confirmingDelete ? (
+        <View style={styles.deleteBanner}>
+          <Icon name="warning" size={18} color={colors.hpDanger} />
+          <Text variant="body-sm" family="body" style={{ flex: 1, color: colors.onSurface }}>
+            {deleteError || (
+              <>
+                Delete <Text weight="bold">{pack.name}</Text>? This permanently removes the pack
+                {entryCount > 0 ? ` and its ${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}` : ''}.
+              </>
+            )}
+          </Text>
+          <Pressable
+            onPress={() => {
+              setConfirmingDelete(false);
+              setDeleteError('');
+            }}
+            style={[styles.bannerBtn, styles.bannerCancel]}
+          >
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}>
+              Cancel
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={handleDelete}
+            disabled={deleting}
+            style={[styles.bannerBtn, styles.bannerDelete]}
+          >
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: '#fff', letterSpacing: 1 }}>
+              {deleting ? 'Deleting…' : 'Delete'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.body}>
         {/* Pack info card */}
@@ -300,6 +358,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl,
     gap: spacing.lg,
+  },
+  deleteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.hpDanger + '14',
+    borderWidth: 1,
+    borderColor: colors.hpDanger + '55',
+    flexWrap: 'wrap',
+  },
+  bannerBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  bannerCancel: {
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: 'transparent',
+  },
+  bannerDelete: {
+    borderColor: colors.hpDanger,
+    backgroundColor: colors.hpDanger,
   },
   card: {
     borderWidth: 1,
