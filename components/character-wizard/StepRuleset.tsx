@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
-import { useCharacterDraftStore, type RulesetMode } from '@vaultstone/store';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { useCharacterDraftStore, useAuthStore, useCampaignStore, type RulesetMode } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
-import { getCampaigns } from '@vaultstone/api';
+import { getCampaigns, getCampaignByJoinCode, joinCampaign } from '@vaultstone/api';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
@@ -93,6 +93,17 @@ export function StepRuleset() {
     setRuleset(matching.system, matching.srdVersion);
   }
 
+  /**
+   * Called by the inline join form after a successful join. Add the new
+   * row to the visible campaigns list (so it appears under Your
+   * Campaigns) and auto-select it — the user expects the campaign they
+   * just joined to be the one they're rolling under.
+   */
+  function handleJoined(c: Campaign) {
+    setCampaigns((prev) => (prev.some((x) => x.id === c.id) ? prev : [c, ...prev]));
+    handlePickCampaign(c);
+  }
+
   function startStandalone() {
     setCampaignId(null);
     setRulesetMode('standalone');
@@ -133,6 +144,7 @@ export function StepRuleset() {
           srdVersion={srdVersion}
           onBack={backToChoice}
           onPick={handlePickCampaign}
+          onJoined={handleJoined}
         />
       ) : (
         <StandaloneModeScreen
@@ -210,6 +222,7 @@ function CampaignModeScreen({
   srdVersion,
   onBack,
   onPick,
+  onJoined,
 }: {
   campaigns: Campaign[];
   loading: boolean;
@@ -217,6 +230,7 @@ function CampaignModeScreen({
   srdVersion: 'SRD_5.1' | 'SRD_2.0';
   onBack: () => void;
   onPick: (c: Campaign) => void;
+  onJoined: (c: Campaign) => void;
 }) {
   const lockedRuleset = linkedCampaign
     ? campaignSystemToRuleset(linkedCampaign.system)
@@ -231,43 +245,65 @@ function CampaignModeScreen({
         has enabled.
       </Text>
 
-      {loading ? (
-        <View style={s.loaderRow}>
-          <ActivityIndicator color={colors.primary} size="small" />
+      {/* ── Your Campaigns ────────────────────────────────────────────── */}
+      <View style={s.section}>
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionLabel}>Your Campaigns</Text>
+          {!loading ? (
+            <Text style={s.sectionMeta}>{campaigns.length} available</Text>
+          ) : null}
         </View>
-      ) : campaigns.length === 0 ? (
-        <View style={s.emptyCard}>
-          <Text style={s.emptyText}>
-            You aren't part of any campaigns. Go back and pick "Standalone
-            character" — you can link this character to a campaign later
-            from the campaign page.
-          </Text>
-        </View>
-      ) : (
-        <View style={s.campaignList}>
-          {campaigns.map((c) => {
-            const selected = linkedCampaign?.id === c.id;
-            const ruleset = campaignSystemToRuleset(c.system);
-            return (
-              <TouchableOpacity
-                key={c.id}
-                style={[s.campaignRow, selected && s.campaignRowSelected]}
-                onPress={() => onPick(c)}
-                activeOpacity={0.85}
-              >
-                <View style={[s.campaignRadio, selected && s.campaignRadioSelected]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.campaignName}>{c.name}</Text>
-                  <Text style={s.campaignSub}>
-                    {ruleset.label} {ruleset.year} · {c.system_label ?? 'Campaign'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
 
+        {loading ? (
+          <View style={s.loaderRow}>
+            <ActivityIndicator color={colors.primary} size="small" />
+          </View>
+        ) : campaigns.length === 0 ? (
+          <View style={s.emptyCard}>
+            <Text style={s.emptyText}>
+              You aren't part of any campaigns yet. Use the join code below to
+              join one, or go back and pick "Standalone character".
+            </Text>
+          </View>
+        ) : (
+          <View style={s.campaignList}>
+            {campaigns.map((c) => {
+              const selected = linkedCampaign?.id === c.id;
+              const ruleset = campaignSystemToRuleset(c.system);
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[s.campaignRow, selected && s.campaignRowSelected]}
+                  onPress={() => onPick(c)}
+                  activeOpacity={0.85}
+                >
+                  <View style={[s.campaignRadio, selected && s.campaignRadioSelected]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.campaignName}>{c.name}</Text>
+                    <Text style={s.campaignSub}>
+                      {ruleset.label} {ruleset.year} · {c.system_label ?? 'Campaign'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
+      {/* ── Join a New Campaign ───────────────────────────────────────── */}
+      <View style={s.section}>
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionLabel}>Join a New Campaign</Text>
+        </View>
+        <Text style={s.guidance}>
+          Have a 6-character code from a DM? Join here — the campaign will be
+          added to your list and selected automatically.
+        </Text>
+        <JoinCodeForm onJoined={onJoined} alreadyIn={campaigns} />
+      </View>
+
+      {/* ── Locked ruleset preview (shows once a campaign is selected) ── */}
       {lockedRuleset ? (
         <View style={[s.section, { marginTop: spacing.lg }]}>
           <View style={s.sectionHeader}>
@@ -301,6 +337,100 @@ function CampaignModeScreen({
           </View>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+// ── Inline join-code form ────────────────────────────────────────────────
+//
+// Mirrors app/campaign/join.tsx's behavior — uses the same getCampaignByJoinCode
+// + joinCampaign API pair and the same "already in" guard — but reports back
+// to the parent via onJoined instead of routing to /campaign/[id]/pick-character.
+// The wizard handles selection + advancement itself.
+
+function JoinCodeForm({
+  onJoined,
+  alreadyIn,
+}: {
+  onJoined: (c: Campaign) => void;
+  alreadyIn: Campaign[];
+}) {
+  const user = useAuthStore((s) => s.user);
+  const addCampaign = useCampaignStore((s) => s.addCampaign);
+  const [code, setCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleJoin() {
+    const trimmed = code.trim().toUpperCase();
+    if (trimmed.length !== 6) {
+      setError('Join codes are 6 characters.');
+      return;
+    }
+    if (!user) return;
+
+    setSubmitting(true);
+    setError('');
+
+    const { data: campaign, error: lookupErr } = await getCampaignByJoinCode(trimmed);
+    if (lookupErr || !campaign) {
+      setSubmitting(false);
+      setError('Campaign not found. Check the code and try again.');
+      return;
+    }
+
+    // Already-a-member guard: DMs of the campaign or existing members
+    // skip the insert (which would fail on the unique constraint anyway).
+    const already =
+      campaign.dm_user_id === user.id ||
+      alreadyIn.some((c) => c.id === campaign.id);
+
+    if (!already) {
+      const { error: joinErr } = await joinCampaign(campaign.id, user.id);
+      if (joinErr) {
+        setSubmitting(false);
+        setError('Failed to join. Please try again.');
+        return;
+      }
+      // Mirror in the global campaign store so other surfaces (the
+      // Campaigns drawer page, etc.) reflect the new membership next
+      // time they read.
+      addCampaign(campaign);
+    }
+
+    setSubmitting(false);
+    setCode('');
+    onJoined(campaign);
+  }
+
+  return (
+    <View style={s.joinRow}>
+      <TextInput
+        style={s.joinInput}
+        placeholder="XXXXXX"
+        placeholderTextColor={colors.outlineVariant}
+        value={code}
+        onChangeText={(t) => setCode(t.toUpperCase())}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        maxLength={6}
+        returnKeyType="done"
+        onSubmitEditing={handleJoin}
+        editable={!submitting}
+      />
+      <TouchableOpacity
+        style={[s.joinBtn, (code.length !== 6 || submitting) && s.joinBtnDisabled]}
+        onPress={handleJoin}
+        disabled={code.length !== 6 || submitting}
+        activeOpacity={0.85}
+      >
+        {submitting ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={s.joinBtnText}>Join</Text>
+        )}
+      </TouchableOpacity>
+      {error ? <Text style={s.joinError}>{error}</Text> : null}
     </View>
   );
 }
@@ -548,6 +678,56 @@ const s = StyleSheet.create({
     fontFamily: fonts.body,
     color: colors.onSurfaceVariant,
     marginTop: 2,
+  },
+
+  // Join-code form
+  joinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
+  joinInput: {
+    flexGrow: 1,
+    flexBasis: 200,
+    backgroundColor: colors.surfaceContainer,
+    borderColor: colors.outlineVariant,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    color: colors.onSurface,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 6,
+    textAlign: 'center',
+    fontFamily: fonts.headline,
+  },
+  joinBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 90,
+  },
+  joinBtnDisabled: {
+    opacity: 0.45,
+  },
+  joinBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: fonts.label,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  joinError: {
+    flexBasis: '100%',
+    fontSize: 12,
+    color: colors.hpDanger,
+    fontFamily: fonts.body,
+    marginTop: 4,
   },
 
   // Locked banner

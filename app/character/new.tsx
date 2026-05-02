@@ -213,12 +213,17 @@ export default function NewCharacterScreen() {
   function isStepComplete(index: number): boolean {
     const key = STEPS[index]?.key;
     switch (key) {
-      // Ruleset is complete once the user has committed to a path —
-      // either picked a campaign (rulesetMode === 'campaign') or
-      // explicitly chosen standalone. While they're on the fork screen
-      // (rulesetMode === null) Next stays disabled so they can't
-      // accidentally inherit the default ruleset without seeing it.
-      case 'ruleset':    return rulesetMode !== null;
+      // Ruleset is complete once the user has committed AND, if they
+      // chose campaign mode, actually picked a campaign. Without the
+      // campaign-id check, a user could fork to "Link a campaign", not
+      // pick one, and still advance to Species — losing the homebrew
+      // and ruleset scoping the campaign would have provided.
+      // While on the fork screen (rulesetMode === null) Next is
+      // disabled so they can't silently inherit the default.
+      case 'ruleset':
+        if (rulesetMode === null) return false;
+        if (rulesetMode === 'campaign' && !draft.campaignId) return false;
+        return true;
       case 'species':    return draft.speciesKey !== null;
       case 'class':      return draft.classKey !== null && (classSkillCount === 0 || draft.chosenSkills.length >= classSkillCount);
       case 'background': return draft.backgroundKey !== null;
