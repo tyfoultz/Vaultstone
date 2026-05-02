@@ -10,15 +10,23 @@ type HomebrewPackUpdate = Database['public']['Tables']['homebrew_packs']['Update
  * are returned — owner's own packs always, plus published campaign-scoped
  * packs in any campaign they belong to.
  *
- * Pass `campaignId` to scope the query to a specific campaign's packs;
- * omit it for the user's full library.
+ * Filters:
+ *   `system`     — narrow to one game system (e.g. 'dnd5e_2024'). Packs
+ *                  are system-tagged at creation; cross-system mixing
+ *                  isn't supported because mechanical content can't run
+ *                  on the wrong ruleset.
+ *   `campaignId` — narrow to a specific campaign's packs. Omit for the
+ *                  user's full library across campaigns + personal.
  */
-export async function listHomebrewPacks(opts?: { campaignId?: string }) {
+export async function listHomebrewPacks(opts?: { system?: string; campaignId?: string }) {
   let query = supabase
     .from('homebrew_packs')
     .select('*')
     .order('updated_at', { ascending: false });
 
+  if (opts?.system) {
+    query = query.eq('system', opts.system);
+  }
   if (opts?.campaignId) {
     query = query.eq('campaign_id', opts.campaignId);
   }
@@ -36,16 +44,20 @@ export async function getHomebrewPack(packId: string) {
 /**
  * Create a new pack owned by the authenticated user. The caller must pass
  * `ownerUserId` (typically `useAuthStore.getState().user!.id`) so the
- * insert satisfies the RLS check `auth.uid() = owner_user_id`.
+ * insert satisfies the RLS check `auth.uid() = owner_user_id`. `system`
+ * identifies which game system the pack is compatible with — entries
+ * inside use that system's mechanical schema.
  */
 export async function createHomebrewPack(input: {
   ownerUserId: string;
+  system: string;
   name: string;
   description?: string | null;
   campaignId?: string | null;
 }) {
   const row: HomebrewPackInsert = {
     owner_user_id: input.ownerUserId,
+    system: input.system,
     name: input.name,
     description: input.description ?? null,
     campaign_id: input.campaignId ?? null,

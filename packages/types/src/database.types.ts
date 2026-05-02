@@ -306,6 +306,7 @@ export interface Database {
           id: string;
           owner_user_id: string;
           campaign_id: string | null;
+          system: string;
           name: string;
           description: string | null;
           is_published: boolean;
@@ -316,6 +317,7 @@ export interface Database {
           id?: string;
           owner_user_id: string;
           campaign_id?: string | null;
+          system: string;
           name: string;
           description?: string | null;
           is_published?: boolean;
@@ -325,6 +327,7 @@ export interface Database {
         Update: {
           owner_user_id?: string;
           campaign_id?: string | null;
+          system?: string;
           name?: string;
           description?: string | null;
           is_published?: boolean;

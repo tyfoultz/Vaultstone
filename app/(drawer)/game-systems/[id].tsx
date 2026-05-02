@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   View, ScrollView, Pressable, TextInput, StyleSheet, useWindowDimensions,
 } from 'react-native';
@@ -10,6 +10,9 @@ import {
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
 import { getSrdContent, SEED_ONLY_TYPES, type SrdContent } from '@vaultstone/content';
 import { DetailModal, DetailSection, DetailSectionHeading } from '../../../components/DetailModal';
+import { CreateHomebrewPackModal } from '../../../components/homebrew/CreateHomebrewPackModal';
+import { listHomebrewPacks, type HomebrewPackRow } from '@vaultstone/api';
+import { useAuthStore } from '@vaultstone/store';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
@@ -226,6 +229,10 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
         actions={<Chip label={sys.isBundled ? 'Bundled' : 'Custom'} variant="accent" />}
       />
 
+      {/* Homebrew packs scoped to this system. Pinned above the SRD content
+          tabs so users see their custom content first. */}
+      <SystemPacksRow system={sys} />
+
       {/* Group tabs — primary navigation (horizontal scroll on narrow screens). */}
       <ScrollView
         horizontal
@@ -308,6 +315,153 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
     </ScrollView>
   );
 }
+
+// ── Homebrew packs row ───────────────────────────────────────────────────────
+// Pinned above the SRD content tabs on the system detail page. Surfaces the
+// user's homebrew packs scoped to this system, with a "+ New pack" affordance.
+// Empty state shows a single dashed-card CTA; populated state shows a card per
+// pack plus the new-pack tile at the end.
+
+function SystemPacksRow({ system }: { system: GameSystemDefinition }) {
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const [packs, setPacks] = useState<HomebrewPackRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    listHomebrewPacks({ system: system.id }).then(({ data }) => {
+      if (cancelled) return;
+      setPacks(data ?? []);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [user, system.id]);
+
+  // While loading, render nothing — the SRD tabs immediately below are
+  // self-contained, so a brief absence here is preferable to a flash of an
+  // empty state that turns into populated content.
+  if (loading) return null;
+
+  return (
+    <View style={packStyles.section}>
+      <View style={packStyles.sectionHead}>
+        <Text variant="title-sm" family="headline" weight="bold" style={packStyles.sectionTitle}>
+          Your Homebrew Packs
+        </Text>
+        <MetaLabel size="sm">{packs.length === 0 ? 'No packs yet' : `${packs.length} pack${packs.length === 1 ? '' : 's'}`}</MetaLabel>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={packStyles.row}
+      >
+        {packs.map((pack) => (
+          <Pressable
+            key={pack.id}
+            onPress={() => router.push(`/homebrew-pack/${pack.id}` as Href)}
+            style={({ pressed }) => [packStyles.packCard, pressed && { opacity: 0.85 }]}
+          >
+            <View style={packStyles.packIcon}>
+              <Icon name="auto-fix-high" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="body-sm" family="headline" weight="bold" style={{ color: colors.onSurface }} numberOfLines={1}>
+                {pack.name}
+              </Text>
+              <MetaLabel size="sm">
+                {pack.campaign_id ? 'Campaign-scoped' : 'Personal library'}
+              </MetaLabel>
+            </View>
+            {pack.is_published ? <Chip label="Shared" variant="accent" /> : null}
+          </Pressable>
+        ))}
+
+        <Pressable
+          onPress={() => setCreateOpen(true)}
+          style={({ pressed }) => [packStyles.newPackTile, pressed && { opacity: 0.85 }]}
+        >
+          <Icon name="add" size={20} color={colors.primary} />
+          <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.primary }}>
+            New pack
+          </Text>
+        </Pressable>
+      </ScrollView>
+
+      {createOpen ? (
+        <CreateHomebrewPackModal
+          system={system.id}
+          systemDisplayName={system.displayName}
+          onClose={() => setCreateOpen(false)}
+          onCreated={(pack) => {
+            setCreateOpen(false);
+            setPacks((prev) => [pack, ...prev]);
+            router.push(`/homebrew-pack/${pack.id}` as Href);
+          }}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+const packStyles = StyleSheet.create({
+  section: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  sectionTitle: {
+    color: colors.onSurface,
+    letterSpacing: -0.3,
+  },
+  row: {
+    gap: spacing.sm,
+    paddingRight: spacing.lg,
+  },
+  packCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    minWidth: 240,
+  },
+  packIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryContainer + '44',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  newPackTile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary + '55',
+    borderStyle: 'dashed',
+    backgroundColor: 'transparent',
+    minWidth: 140,
+    justifyContent: 'center',
+  },
+});
 
 // ── Body dispatcher ──────────────────────────────────────────────────────────
 

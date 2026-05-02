@@ -24,11 +24,15 @@ import type { Database } from '@vaultstone/types';
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
 type Props = {
+  /** Game system the pack belongs to (e.g. 'dnd5e_2024'). Inherited by entries. */
+  system: string;
+  /** Optional system display name shown as context in the modal header. */
+  systemDisplayName?: string;
   onClose: () => void;
   onCreated: (pack: HomebrewPackRow) => void;
 };
 
-export function CreateHomebrewPackModal({ onClose, onCreated }: Props) {
+export function CreateHomebrewPackModal({ system, systemDisplayName, onClose, onCreated }: Props) {
   const user = useAuthStore((s) => s.user);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -60,6 +64,7 @@ export function CreateHomebrewPackModal({ onClose, onCreated }: Props) {
 
     const { data, error: err } = await createHomebrewPack({
       ownerUserId: user.id,
+      system,
       name: name.trim(),
       description: description.trim() || null,
       campaignId,
@@ -83,7 +88,7 @@ export function CreateHomebrewPackModal({ onClose, onCreated }: Props) {
               <View style={styles.header}>
                 <View style={{ flex: 1 }}>
                   <MetaLabel size="sm" tone="accent">
-                    New homebrew pack
+                    {systemDisplayName ? `New pack for ${systemDisplayName}` : 'New homebrew pack'}
                   </MetaLabel>
                   <Text
                     variant="headline-sm"
