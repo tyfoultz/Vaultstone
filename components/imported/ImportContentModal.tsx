@@ -263,9 +263,7 @@ function IntroBody() {
         <Text style={s.legalText}>
           You're responsible for the rights to any content you import.
           Imported content is saved to your Vaultstone account so it syncs
-          across your devices and can be enabled on campaigns you DM —
-          treat published packs the same way you'd treat sharing a
-          homemade rulebook with your party.
+          across your devices and can be enabled on campaigns you DM.
         </Text>
       </View>
     </>
