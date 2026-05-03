@@ -1,7 +1,9 @@
-// Game-Systems-side imported-content surface — Stage 2 placeholder.
-// Renders an empty state today; Stage 5 fleshes this out into the full
-// "list imports / re-import / remove / source-book filter" view once the
-// Stage 4 import UI exists to populate the storage layer.
+// Game-Systems-side imported-content surface — Stage 4 wiring.
+// Stage 5 will polish this further (per-source-book filter, re-import
+// diff UI). For now: an Import button drives the real ImportContentModal,
+// the existing batch list shows imports with delete + re-import actions,
+// and a __DEV__-only quick-import affordance keeps the bundled sample
+// reachable for development.
 
 import { useEffect, useState } from 'react';
 import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
@@ -14,9 +16,9 @@ import {
   listBatches, saveBatch, removeBatch, transformSubclasses,
   type ImportBatch,
 } from '@vaultstone/content';
-// Dev-only sample. Stage 4 replaces this with a real file picker. The
-// bundled file is small (~6KB) and only referenced when __DEV__ is true,
-// so production builds tree-shake it via the conditional.
+import { ImportContentModal } from '../imported/ImportContentModal';
+// Dev-only sample import. Removed once Stage 6 cleanup lands; kept for
+// quick smoke-tests during the imported-content arc.
 import sampleSubclasses from '../../vendor/5etools/subclasses-sample.json';
 
 type Props = {
@@ -28,18 +30,12 @@ type Props = {
   onChanged?: () => void;
 };
 
-function uuid(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
-
 export function SystemImportedContentList({ sys, onChanged }: Props) {
   const [loading, setLoading] = useState(true);
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [importing, setImporting] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,11 +48,10 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
   }, [sys.id, refreshTick]);
 
   const refresh = () => setRefreshTick((n) => n + 1);
+  const fanOutChange = () => { refresh(); onChanged?.(); };
 
-  // Dev-only end-to-end sanity check. Imports the bundled sample file as a
-  // batch under the active system. Removed in Stage 4 once the real file-
-  // pick + parse + ToS-gate flow lands. Production builds short-circuit on
-  // the __DEV__ check below so this never renders for end users.
+  // Dev-only quick import of the bundled sample. Doesn't run through the
+  // user-facing modal — useful for shaving seconds off the test loop.
   async function handleDevImport() {
     setImporting(true);
     try {
@@ -75,8 +70,7 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
         },
         entries,
       );
-      refresh();
-      onChanged?.();
+      fanOutChange();
     } catch (err) {
       console.warn('Dev import failed', err);
     } finally {
@@ -86,11 +80,8 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
 
   async function handleRemove(batchId: string) {
     await removeBatch(batchId).catch(() => {});
-    refresh();
-    onChanged?.();
+    fanOutChange();
   }
-  // Avoid unused-variable warning when __DEV__ is false at build time.
-  void uuid;
 
   if (loading) {
     return (
@@ -101,10 +92,11 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
   }
 
   const showDevAffordance = __DEV__;
+  const isEmpty = batches.length === 0;
 
-  if (batches.length === 0) {
-    return (
-      <View style={s.list}>
+  return (
+    <View style={s.list}>
+      {isEmpty ? (
         <Card>
           <View style={s.emptyWrap}>
             <Icon name="library-add" size={28} color={colors.outline} />
@@ -122,82 +114,74 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
               Imported content is never transmitted to Vaultstone or shared
               with other party members.
             </Text>
-            <Text variant="body-sm" style={s.emptyBody}>
-              The file-picker flow lands in a follow-up — for now this surface
-              is the home for managing imported content once you have it.
-            </Text>
-            {showDevAffordance ? (
-              <Pressable
-                onPress={handleDevImport}
-                disabled={importing}
-                style={({ pressed }) => [
-                  s.devBtn,
-                  (pressed || importing) && { opacity: 0.6 },
-                ]}
-              >
-                {importing ? (
-                  <ActivityIndicator color={colors.primary} size="small" />
-                ) : (
-                  <Icon name="science" size={16} color={colors.primary} />
-                )}
-                <Text variant="body-sm" weight="semibold" style={{ color: colors.primary }}>
-                  {importing ? 'Importing…' : 'Dev: import sample subclasses'}
+          </View>
+        </Card>
+      ) : (
+        batches.map((b) => (
+          <Card key={b.id}>
+            <View style={s.batchRow}>
+              <View style={{ flex: 1 }}>
+                <Text variant="title-sm" weight="semibold">
+                  {b.source_label ?? b.content_type}
                 </Text>
+                <Text variant="body-sm" style={s.batchMeta}>
+                  {b.entry_count} {b.content_type}{b.entry_count === 1 ? '' : 's'}
+                  {' · '}
+                  {new Date(b.imported_at).toLocaleDateString()}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => handleRemove(b.id)}
+                style={({ pressed }) => [s.removeBtn, pressed && { opacity: 0.6 }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${b.source_label ?? b.content_type}`}
+              >
+                <Icon name="delete-outline" size={18} color={colors.hpDanger} />
               </Pressable>
-            ) : null}
-          </View>
-        </Card>
-      </View>
-    );
-  }
-
-  // Stage 5 fleshes out the populated state. For now we render a minimal
-  // batch list so we can validate end-to-end storage.
-  return (
-    <View style={s.list}>
-      {batches.map((b) => (
-        <Card key={b.id}>
-          <View style={s.batchRow}>
-            <View style={{ flex: 1 }}>
-              <Text variant="title-sm" weight="semibold">
-                {b.source_label ?? b.content_type}
-              </Text>
-              <Text variant="body-sm" style={s.batchMeta}>
-                {b.entry_count} {b.content_type}{b.entry_count === 1 ? '' : 's'}
-                {' · '}
-                {new Date(b.imported_at).toLocaleDateString()}
-              </Text>
             </View>
-            <Pressable
-              onPress={() => handleRemove(b.id)}
-              style={({ pressed }) => [s.removeBtn, pressed && { opacity: 0.6 }]}
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${b.source_label ?? b.content_type}`}
-            >
-              <Icon name="delete-outline" size={18} color={colors.hpDanger} />
-            </Pressable>
-          </View>
-        </Card>
-      ))}
+          </Card>
+        ))
+      )}
+
+      {/* Primary import affordance — opens the file-picker modal. */}
+      <Pressable
+        onPress={() => setModalOpen(true)}
+        style={({ pressed }) => [s.importBtn, pressed && { opacity: 0.85 }]}
+        accessibilityRole="button"
+      >
+        <Icon name="upload-file" size={18} color={colors.primary} />
+        <Text variant="body-sm" weight="semibold" style={{ color: colors.primary }}>
+          {isEmpty ? 'Import content' : 'Import another file'}
+        </Text>
+      </Pressable>
+
+      {/* Dev quick-import — bypasses the modal so iteration is faster. */}
       {showDevAffordance ? (
         <Pressable
           onPress={handleDevImport}
           disabled={importing}
           style={({ pressed }) => [
-            s.devBtnSolo,
+            s.devBtn,
             (pressed || importing) && { opacity: 0.6 },
           ]}
         >
           {importing ? (
             <ActivityIndicator color={colors.primary} size="small" />
           ) : (
-            <Icon name="science" size={16} color={colors.primary} />
+            <Icon name="science" size={14} color={colors.outline} />
           )}
-          <Text variant="body-sm" weight="semibold" style={{ color: colors.primary }}>
-            {importing ? 'Importing…' : 'Dev: re-import sample subclasses'}
+          <Text variant="body-sm" style={{ color: colors.outline, fontSize: 11 }}>
+            {importing ? 'Importing…' : 'Dev: import bundled sample'}
           </Text>
         </Pressable>
       ) : null}
+
+      <ImportContentModal
+        visible={modalOpen}
+        systemId={sys.id}
+        onClose={() => setModalOpen(false)}
+        onImported={fanOutChange}
+      />
     </View>
   );
 }
@@ -222,28 +206,30 @@ const s = StyleSheet.create({
   },
   batchMeta: { color: colors.onSurfaceVariant, marginTop: 2 },
   removeBtn: { padding: spacing.xs },
-  devBtn: {
-    marginTop: spacing.sm,
+
+  importBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
+    justifyContent: 'center',
+    gap: spacing.xs + 2,
+    paddingVertical: spacing.sm + 4,
     paddingHorizontal: spacing.md,
-    borderRadius: 8,
+    borderRadius: 10,
+    backgroundColor: colors.primaryContainer + '22',
     borderWidth: 1,
-    borderStyle: 'dashed',
     borderColor: colors.primary + '88',
   },
-  devBtnSolo: {
+
+  devBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
-    paddingVertical: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
     paddingHorizontal: spacing.md,
-    borderRadius: 8,
-    borderWidth: 1,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
     borderStyle: 'dashed',
-    borderColor: colors.primary + '88',
+    borderColor: colors.outlineVariant + '88',
   },
 });
