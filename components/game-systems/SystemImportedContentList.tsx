@@ -21,6 +21,11 @@ import sampleSubclasses from '../../vendor/5etools/subclasses-sample.json';
 
 type Props = {
   sys: GameSystemDefinition;
+  /** Called after a successful import or remove so the parent (Game
+   *  Systems page) can re-fetch the imported tier for downstream surfaces
+   *  like the Class detail. Optional — the component still keeps its own
+   *  local refresh tick for the in-tab batch list. */
+  onChanged?: () => void;
 };
 
 function uuid(): string {
@@ -30,7 +35,7 @@ function uuid(): string {
   });
 }
 
-export function SystemImportedContentList({ sys }: Props) {
+export function SystemImportedContentList({ sys, onChanged }: Props) {
   const [loading, setLoading] = useState(true);
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [importing, setImporting] = useState(false);
@@ -71,6 +76,7 @@ export function SystemImportedContentList({ sys }: Props) {
         entries,
       );
       refresh();
+      onChanged?.();
     } catch (err) {
       console.warn('Dev import failed', err);
     } finally {
@@ -81,6 +87,7 @@ export function SystemImportedContentList({ sys }: Props) {
   async function handleRemove(batchId: string) {
     await removeBatch(batchId).catch(() => {});
     refresh();
+    onChanged?.();
   }
   // Avoid unused-variable warning when __DEV__ is false at build time.
   void uuid;

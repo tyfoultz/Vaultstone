@@ -245,7 +245,12 @@ function GameSystemDetail({
   const homebrew = useSystemHomebrewContent(sys.id);
   // Same shape but for imported (JSON-imported) content. Reads from the
   // on-device imported tier — see packages/content/src/imported/.
-  const imported = useSystemImportedContent(sys.id);
+  // The refresh tick is bumped by SystemImportedContentList after an import
+  // or delete so the rest of the page (Class detail, etc.) sees the updated
+  // tier without requiring a remount.
+  const [importedRefreshTick, setImportedRefreshTick] = useState(0);
+  const imported = useSystemImportedContent(sys.id, importedRefreshTick);
+  const refreshImported = () => setImportedRefreshTick((n) => n + 1);
 
   // Merge: spread SRD first, concat imported, concat homebrew per bucket.
   // Order matters because the existing list sorts (alphabetical, by-CR,
@@ -403,7 +408,7 @@ function GameSystemDetail({
       ) : null}
 
       <View style={styles.body}>
-        {renderSubBody(activeSub, content, sys)}
+        {renderSubBody(activeSub, content, sys, refreshImported)}
       </View>
 
       <View style={{ height: spacing.xl }} />
@@ -676,6 +681,7 @@ function renderSubBody(
   active: SubTab | undefined,
   content: SrdContent,
   sys: GameSystemDefinition,
+  onImportedChanged: () => void,
 ): React.ReactNode {
   if (!active) return null;
   // Item sub-tabs share the single `content.items` source but filter by
@@ -713,7 +719,7 @@ function renderSubBody(
     case 'cover':               return <CoverList               items={content.cover} />;
     case '__schema__':       return <SchemaPanel sys={sys} />;
     case '__rulebooks__':    return <SystemRulebooksList sys={sys} />;
-    case '__imported__':     return <SystemImportedContentList sys={sys} />;
+    case '__imported__':     return <SystemImportedContentList sys={sys} onChanged={onImportedChanged} />;
     default:                 return null;
   }
 }
