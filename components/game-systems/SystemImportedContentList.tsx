@@ -1,11 +1,21 @@
-// Game-Systems-side imported-content surface — Stage 4 wiring.
-// Stage 5 will polish this further (per-source-book filter, re-import
-// diff UI). For now: an Import button drives the real ImportContentModal,
-// the existing batch list shows imports with delete + re-import actions,
-// and a __DEV__-only quick-import affordance keeps the bundled sample
-// reachable for development.
+// Game-Systems-side imported-content surface — Stage 5 polish.
+// Two layers of organisation:
+//   1. Source files are grouped together (one card per source filename)
+//      so a single 5e.tools class.json that produces multiple batches
+//      (subclass, feat, etc. — once future transforms land) reads as
+//      one logical import unit.
+//   2. Per-content-type batch rows inside the card carry their own
+//      delete; re-import and remove-file sit at the file level since
+//      they affect every batch under that source.
+//
+// A breakdown summary at the top shows the source-book counts ("PHB:
+// 36 · XGE: 12") so users can confirm at a glance what's currently
+// loaded. The Stage 4 sketch had this as a chip-strip filter but a
+// filter that only narrows the *Imported tab itself* doesn't help much
+// — what users want is "show me only PHB content in the Class detail",
+// which lives at the resolver layer and is its own follow-up.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import {
   colors, spacing,
@@ -13,8 +23,9 @@ import {
 } from '@vaultstone/ui';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import {
-  listBatches, saveBatch, removeBatch, transformSubclasses,
-  type ImportBatch,
+  listBatches, saveBatch, removeBatch,
+  getSourceBreakdown, transformSubclasses,
+  type ImportBatch, type SourceBreakdown,
 } from '@vaultstone/content';
 import { ImportContentModal } from '../imported/ImportContentModal';
 // Dev-only sample import. Removed once Stage 6 cleanup lands; kept for
@@ -25,14 +36,14 @@ type Props = {
   sys: GameSystemDefinition;
   /** Called after a successful import or remove so the parent (Game
    *  Systems page) can re-fetch the imported tier for downstream surfaces
-   *  like the Class detail. Optional — the component still keeps its own
-   *  local refresh tick for the in-tab batch list. */
+   *  like the Class detail. */
   onChanged?: () => void;
 };
 
 export function SystemImportedContentList({ sys, onChanged }: Props) {
   const [loading, setLoading] = useState(true);
   const [batches, setBatches] = useState<ImportBatch[]>([]);
+  const [breakdown, setBreakdown] = useState<SourceBreakdown[]>([]);
   const [importing, setImporting] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
@@ -40,9 +51,17 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listBatches(sys.id)
-      .then((rows) => { if (!cancelled) setBatches(rows); })
-      .catch(() => { if (!cancelled) setBatches([]); })
+    Promise.all([listBatches(sys.id), getSourceBreakdown(sys.id)])
+      .then(([rows, srcs]) => {
+        if (cancelled) return;
+        setBatches(rows);
+        setBreakdown(srcs);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setBatches([]);
+        setBreakdown([]);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [sys.id, refreshTick]);
@@ -50,8 +69,7 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
   const refresh = () => setRefreshTick((n) => n + 1);
   const fanOutChange = () => { refresh(); onChanged?.(); };
 
-  // Dev-only quick import of the bundled sample. Doesn't run through the
-  // user-facing modal — useful for shaving seconds off the test loop.
+  // Dev-only quick import of the bundled sample.
   async function handleDevImport() {
     setImporting(true);
     try {
@@ -78,10 +96,20 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
     }
   }
 
-  async function handleRemove(batchId: string) {
+  async function handleRemoveBatch(batchId: string) {
     await removeBatch(batchId).catch(() => {});
     fanOutChange();
   }
+
+  async function handleRemoveFile(fileBatches: ImportBatch[]) {
+    await Promise.all(fileBatches.map((b) => removeBatch(b.id).catch(() => {})));
+    fanOutChange();
+  }
+
+  // Group batches by source_url so the same logical file (which may produce
+  // multiple content-type batches once future transforms land) renders as
+  // one card.
+  const groupedBatches = useMemo(() => groupBatchesByFile(batches), [batches]);
 
   if (loading) {
     return (
@@ -96,6 +124,10 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
 
   return (
     <View style={s.list}>
+      {!isEmpty && breakdown.length > 0 ? (
+        <SourceSummary breakdown={breakdown} />
+      ) : null}
+
       {isEmpty ? (
         <Card>
           <View style={s.emptyWrap}>
@@ -117,29 +149,13 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
           </View>
         </Card>
       ) : (
-        batches.map((b) => (
-          <Card key={b.id}>
-            <View style={s.batchRow}>
-              <View style={{ flex: 1 }}>
-                <Text variant="title-sm" weight="semibold">
-                  {b.source_label ?? b.content_type}
-                </Text>
-                <Text variant="body-sm" style={s.batchMeta}>
-                  {b.entry_count} {b.content_type}{b.entry_count === 1 ? '' : 's'}
-                  {' · '}
-                  {new Date(b.imported_at).toLocaleDateString()}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => handleRemove(b.id)}
-                style={({ pressed }) => [s.removeBtn, pressed && { opacity: 0.6 }]}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${b.source_label ?? b.content_type}`}
-              >
-                <Icon name="delete-outline" size={18} color={colors.hpDanger} />
-              </Pressable>
-            </View>
-          </Card>
+        groupedBatches.map((group) => (
+          <FileCard
+            key={group.sourceUrl}
+            group={group}
+            onRemoveBatch={handleRemoveBatch}
+            onRemoveFile={handleRemoveFile}
+          />
         ))
       )}
 
@@ -151,7 +167,7 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
       >
         <Icon name="upload-file" size={18} color={colors.primary} />
         <Text variant="body-sm" weight="semibold" style={{ color: colors.primary }}>
-          {isEmpty ? 'Import content' : 'Import another file'}
+          {isEmpty ? 'Import content' : 'Import or re-import a file'}
         </Text>
       </Pressable>
 
@@ -186,6 +202,117 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
   );
 }
 
+// ── Source summary ───────────────────────────────────────────────────────
+
+function SourceSummary({ breakdown }: { breakdown: SourceBreakdown[] }) {
+  return (
+    <View style={s.summaryStrip}>
+      <Text variant="body-sm" style={s.summaryLabel}>From</Text>
+      {breakdown.map((src) => (
+        <View key={src.code} style={s.summaryChip}>
+          <Text variant="body-sm" weight="semibold" style={s.summaryChipCode}>
+            {src.code === '__unknown__' ? 'Unknown' : src.code}
+          </Text>
+          <Text variant="body-sm" style={s.summaryChipCount}>{src.total}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── File card ────────────────────────────────────────────────────────────
+
+type FileGroup = {
+  sourceUrl: string;
+  sourceLabel: string;
+  importedAt: string;
+  batches: ImportBatch[];
+  totalEntries: number;
+};
+
+function groupBatchesByFile(batches: ImportBatch[]): FileGroup[] {
+  const map = new Map<string, FileGroup>();
+  for (const b of batches) {
+    const slot = map.get(b.source_url);
+    if (slot) {
+      slot.batches.push(b);
+      slot.totalEntries += b.entry_count;
+      // Latest import time wins — re-imports update the file's "imported at".
+      if (b.imported_at > slot.importedAt) slot.importedAt = b.imported_at;
+    } else {
+      map.set(b.source_url, {
+        sourceUrl: b.source_url,
+        sourceLabel: b.source_label ?? b.source_url,
+        importedAt: b.imported_at,
+        batches: [b],
+        totalEntries: b.entry_count,
+      });
+    }
+  }
+  // Sort by most-recently imported first.
+  return [...map.values()].sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+}
+
+function FileCard({
+  group, onRemoveBatch, onRemoveFile,
+}: {
+  group: FileGroup;
+  onRemoveBatch: (batchId: string) => void;
+  onRemoveFile: (batches: ImportBatch[]) => void;
+}) {
+  return (
+    <Card>
+      <View style={s.fileHeader}>
+        <View style={{ flex: 1 }}>
+          <Text variant="title-sm" weight="semibold" numberOfLines={1}>
+            {group.sourceLabel}
+          </Text>
+          <Text variant="body-sm" style={s.fileMeta}>
+            {group.totalEntries} {group.totalEntries === 1 ? 'entry' : 'entries'}
+            {' · '}
+            Imported {new Date(group.importedAt).toLocaleDateString()}
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => onRemoveFile(group.batches)}
+          style={({ pressed }) => [s.headerBtn, pressed && { opacity: 0.7 }]}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove all batches from ${group.sourceLabel}`}
+        >
+          <Icon name="delete-outline" size={18} color={colors.hpDanger} />
+        </Pressable>
+      </View>
+
+      {group.batches.length > 1 ? (
+        <View style={s.batchList}>
+          {group.batches.map((b) => (
+            <View key={b.id} style={s.batchRow}>
+              <Text variant="body-sm" style={s.batchType}>
+                {b.entry_count} {b.content_type}{b.entry_count === 1 ? '' : 's'}
+              </Text>
+              <Pressable
+                onPress={() => onRemoveBatch(b.id)}
+                style={({ pressed }) => [s.miniBtn, pressed && { opacity: 0.7 }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${b.content_type} batch`}
+              >
+                <Icon name="close" size={14} color={colors.outline} />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : (
+        // Single-batch file — show the type breakdown inline since there's
+        // no point in a sub-list of one row.
+        <Text variant="body-sm" style={s.batchTypeInline}>
+          {group.batches[0].entry_count} {group.batches[0].content_type}
+          {group.batches[0].entry_count === 1 ? '' : 's'}
+        </Text>
+      )}
+    </Card>
+  );
+}
+
 const s = StyleSheet.create({
   list: { gap: spacing.md, paddingHorizontal: spacing.lg },
   loadingWrap: { padding: spacing.xl, alignItems: 'center' },
@@ -198,14 +325,66 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.outlineVariant + '44',
   },
+
+  summaryStrip: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  summaryLabel: {
+    color: colors.outline,
+    marginRight: 2,
+  },
+  summaryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: colors.surfaceContainerHighest,
+  },
+  summaryChipCode: { color: colors.onSurfaceVariant },
+  summaryChipCount: {
+    color: colors.outline,
+    fontSize: 10,
+    fontVariant: ['tabular-nums'],
+  },
+
+  fileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    padding: spacing.xs,
+  },
+  fileMeta: { color: colors.onSurfaceVariant, marginTop: 2 },
+  headerBtn: { padding: spacing.xs },
+
+  batchList: {
+    gap: spacing.xs,
+    paddingTop: spacing.sm,
+    marginTop: spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant + '44',
+  },
   batchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.sm,
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+    paddingHorizontal: spacing.xs,
   },
-  batchMeta: { color: colors.onSurfaceVariant, marginTop: 2 },
-  removeBtn: { padding: spacing.xs },
+  batchType: { color: colors.onSurfaceVariant },
+  batchTypeInline: {
+    color: colors.onSurfaceVariant,
+    paddingTop: spacing.xs,
+    paddingHorizontal: spacing.xs,
+  },
+  miniBtn: { padding: 4 },
 
   importBtn: {
     flexDirection: 'row',

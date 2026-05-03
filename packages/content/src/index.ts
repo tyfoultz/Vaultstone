@@ -44,10 +44,17 @@ export {
   saveBatch,
   removeBatch,
   loadEntriesByBatch,
+  getSourceBreakdown,
+  loadEntriesBySource,
   transformSubclasses,
   stripMarkup,
 } from './imported/index';
-export type { ImportBatch, RawClassFile, TransformOptions } from './imported/index';
+export type {
+  ImportBatch,
+  SourceBreakdown,
+  RawClassFile,
+  TransformOptions,
+} from './imported/index';
 
 // World-builder section templates (Feature 9 Phase 2).
 export {
