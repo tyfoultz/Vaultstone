@@ -125,14 +125,20 @@ export function BodyEditor({
   // chip in the DOM whenever the set or the editor content changes.
   useEffect(() => {
     if (!editor) return;
-    const validIds = new Set((mentionablePages ?? []).map((p) => p.id));
+    const pageById = new Map((mentionablePages ?? []).map((p) => [p.id, p]));
     const el = editor.view.dom;
     el.querySelectorAll<HTMLElement>('.vaultstone-mention[data-id]').forEach((chip) => {
       const kind = chip.getAttribute('data-kind') ?? 'page';
       if (kind !== 'page') return;
       const id = chip.getAttribute('data-id')!;
-      const isDeleted = !validIds.has(id);
-      chip.classList.toggle('vaultstone-mention--deleted', isDeleted);
+      const ref = pageById.get(id);
+      chip.classList.toggle('vaultstone-mention--deleted', !ref);
+      if (ref) {
+        const expected = `@ ${ref.title}`;
+        if (chip.textContent !== expected) {
+          chip.textContent = expected;
+        }
+      }
     });
   }, [editor, mentionablePages]);
 

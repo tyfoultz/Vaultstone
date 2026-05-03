@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  cascadeMentionLabel,
   claimPageEdit,
   forceReleasePageEdit,
   getEventsForTimeline,
@@ -100,6 +101,7 @@ export default function PageDetailScreen() {
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
   const [factsOpen, setFactsOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const removePage = usePagesStore((s) => s.removePage);
 
@@ -485,29 +487,64 @@ export default function PageDetailScreen() {
           style={styles.wikiDoc}
           contentContainerStyle={isLore ? styles.wikiDocInnerWide : styles.wikiDocInner}
         >
-          <PageHead
-            icon={template.icon}
-            title={page.title}
-            meta={`${kindLabel} · ${section.name}`}
-            accentToken={template.accentToken}
-            actions={
-              <>
-                {isLore && template.fields.length > 0 ? (
-                  <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
-                    <Icon name="info-outline" size={14} color={colors.primary} />
-                    <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
-                      Facts
-                    </Text>
-                  </Pressable>
-                ) : null}
-                <VisibilityBadge
-                  visibility={page.visible_to_players ? 'player' : 'gm'}
-                  interactive={!!toggleVisibility}
-                  onPress={toggleVisibility ?? undefined}
-                />
-              </>
-            }
-          />
+          {editingTitle ? (
+            <input
+              type="text"
+              defaultValue={page.title}
+              autoFocus
+              onKeyDown={(e: any) => {
+                if (e.key === 'Enter') {
+                  const v = e.target.value.trim();
+                  if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
+                  setEditingTitle(false);
+                }
+                if (e.key === 'Escape') setEditingTitle(false);
+              }}
+              onBlur={(e: any) => {
+                const v = e.target.value.trim();
+                if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
+                setEditingTitle(false);
+              }}
+              style={{
+                background: 'transparent',
+                border: `1px solid ${colors.primary}66`,
+                borderRadius: 6,
+                color: colors.onSurface,
+                fontFamily: "'Fraunces_700Bold', 'Fraunces', Georgia, serif",
+                fontSize: 36,
+                fontWeight: 500,
+                outline: 'none',
+                padding: '4px 8px',
+                width: '100%',
+                marginBottom: 8,
+              }}
+            />
+          ) : (
+            <PageHead
+              icon={template.icon}
+              title={page.title}
+              meta={`${kindLabel} · ${section.name}`}
+              accentToken={template.accentToken}
+              onTitleDoubleClick={() => setEditingTitle(true)}
+              actions={
+                <>
+                  {isLore && template.fields.length > 0 ? (
+                    <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
+                      <Icon name="info-outline" size={14} color={colors.primary} />
+                      <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
+                        Facts
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  <VisibilityBadge
+                    visibility={page.visible_to_players ? 'player' : 'gm'}
+                    interactive={!!toggleVisibility}
+                    onPress={toggleVisibility ?? undefined}
+                  />
+                </>
+              }
+            />
+          )}
 
           <View style={{ marginTop: isLore ? spacing.md : spacing.xl, gap: spacing.lg }}>
             {isOrphan ? <OrphanBanner page={page} /> : null}

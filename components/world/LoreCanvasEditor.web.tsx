@@ -485,15 +485,22 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     return () => document.removeEventListener('selectionchange', poll);
   }, [editable]);
 
-  // Mark mention chips pointing at deleted pages.
+  // Mark mention chips pointing at deleted pages + refresh stale labels.
   useEffect(() => {
     if (!canvasRef.current) return;
-    const validIds = new Set((mentionablePages ?? []).map((p) => p.id));
+    const pageById = new Map((mentionablePages ?? []).map((p) => [p.id, p]));
     canvasRef.current.querySelectorAll<HTMLElement>('.vaultstone-mention[data-id]').forEach((chip) => {
       const kind = chip.getAttribute('data-kind') ?? 'page';
       if (kind !== 'page') return;
       const id = chip.getAttribute('data-id')!;
-      chip.classList.toggle('vaultstone-mention--deleted', !validIds.has(id));
+      const ref = pageById.get(id);
+      chip.classList.toggle('vaultstone-mention--deleted', !ref);
+      if (ref) {
+        const expected = `@ ${ref.title}`;
+        if (chip.textContent !== expected) {
+          chip.textContent = expected;
+        }
+      }
     });
   }, [mentionablePages, blocks]);
 
