@@ -8,14 +8,17 @@ import {
   Card, Chip, ContentWidth, MarkdownText, MetaLabel, SourceBadge, Text, ScreenHeader, Icon,
 } from '@vaultstone/ui';
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
-import { getSrdContent, SEED_ONLY_TYPES, type SrdContent } from '@vaultstone/content';
+import {
+  getSrdContent, SEED_ONLY_TYPES, type SrdContent,
+  listBatches, removeBatch, type ImportBatch,
+} from '@vaultstone/content';
 import { DetailModal, DetailSection, DetailSectionHeading } from '../../../components/DetailModal';
 import { CreateHomebrewPackModal } from '../../../components/homebrew/CreateHomebrewPackModal';
+import { ImportContentModal } from '../../../components/imported/ImportContentModal';
 import { listHomebrewPacks, deleteHomebrewPack, type HomebrewPackRow } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
 import { useSystemImportedContent } from '../../../components/game-systems/useSystemImportedContent';
-import { SystemImportedContentList } from '../../../components/game-systems/SystemImportedContentList';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
@@ -48,7 +51,7 @@ const BUNDLED: Record<string, GameSystemDefinition> = {
 
 // Sub-tab `contentKey === '__schema__'` is a synthetic marker — it routes to
 // the SchemaPanel rather than a SrdContent list.
-type SubTabContentKey = keyof SrdContent | '__schema__' | '__imported__';
+type SubTabContentKey = keyof SrdContent | '__schema__';
 
 type ItemCategory = ItemResult['category'];
 
@@ -66,7 +69,7 @@ type SubTab = {
 
 type GroupKey =
   | 'character' | 'spells' | 'equipment' | 'bestiary'
-  | 'rules' | 'reference' | 'imported' | 'schema';
+  | 'rules' | 'reference' | 'schema';
 
 type Group = {
   key: GroupKey;
@@ -153,17 +156,6 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    key: 'imported',
-    label: 'Imported',
-    subTabs: [
-      // Per-system imported-content surface — JSON imports from
-      // community sources like 5e.tools. Replaces the previous
-      // Rulebooks group; PDF reading still lives at /campaign/[id]/rulebook
-      // for now (cleanup deferred to a later stage).
-      { key: 'imported', label: 'Imported', contentKey: '__imported__' },
-    ],
-  },
-  {
     key: 'schema',
     label: 'Schema',
     subTabs: [
@@ -173,7 +165,7 @@ const GROUPS: Group[] = [
 ];
 
 function subTabItemCount(t: SubTab, content: SrdContent): number {
-  if (t.contentKey === '__schema__' || t.contentKey === '__imported__') return 0;
+  if (t.contentKey === '__schema__') return 0;
   if (t.itemCategories && t.contentKey === 'items') {
     const set = new Set<ItemCategory>(t.itemCategories);
     return content.items.filter((i) => set.has(i.category)).length;
@@ -182,9 +174,9 @@ function subTabItemCount(t: SubTab, content: SrdContent): number {
 }
 
 function isSubTabAvailable(t: SubTab, content: SrdContent): boolean {
-  // Schema and Imported are always available — they aren't backed by SRD
-  // content. Each renders its own empty states inside the body.
-  if (t.contentKey === '__schema__' || t.contentKey === '__imported__') return true;
+  // Schema is always available — it isn't backed by SRD content. Renders
+  // its own panel inside the body.
+  if (t.contentKey === '__schema__') return true;
   return subTabItemCount(t, content) > 0;
 }
 
@@ -231,10 +223,10 @@ function GameSystemDetail({
   // ContentResolver mapping in packages/content/src/homebrew/index.ts.
   const homebrew = useSystemHomebrewContent(sys.id);
   // Same shape but for imported (JSON-imported) content. Reads from the
-  // on-device imported tier — see packages/content/src/imported/.
-  // The refresh tick is bumped by SystemImportedContentList after an import
-  // or delete so the rest of the page (Class detail, etc.) sees the updated
-  // tier without requiring a remount.
+  // on-device imported tier — see packages/content/src/imported/. The
+  // refresh tick is bumped by SystemPacksRow after an import or delete so
+  // the rest of the page (Class detail, etc.) sees the updated tier without
+  // requiring a remount.
   const [importedRefreshTick, setImportedRefreshTick] = useState(0);
   const imported = useSystemImportedContent(sys.id, importedRefreshTick);
   const refreshImported = () => setImportedRefreshTick((n) => n + 1);
@@ -322,7 +314,7 @@ function GameSystemDetail({
 
       {/* Homebrew packs scoped to this system. Pinned above the SRD content
           tabs so users see their custom content first. */}
-      <SystemPacksRow system={sys} />
+      <SystemPacksRow system={sys} onImportedChanged={refreshImported} />
 
       {/* Group tabs — primary navigation (horizontal scroll on narrow screens). */}
       <ScrollView
@@ -395,7 +387,7 @@ function GameSystemDetail({
       ) : null}
 
       <View style={styles.body}>
-        {renderSubBody(activeSub, content, sys, refreshImported)}
+        {renderSubBody(activeSub, content, sys)}
       </View>
 
       <View style={{ height: spacing.xl }} />
@@ -404,42 +396,120 @@ function GameSystemDetail({
   );
 }
 
-// ── Homebrew packs row ───────────────────────────────────────────────────────
-// Pinned above the SRD content tabs on the system detail page. Surfaces the
-// user's homebrew packs scoped to this system, with a "+ New pack" affordance.
-// Empty state shows a single dashed-card CTA; populated state shows a card per
-// pack plus the new-pack tile at the end.
+// ── Content packs row ────────────────────────────────────────────────────────
+// Pinned above the SRD content tabs on the system detail page. Surfaces every
+// non-SRD content source the user owns for this system — both authored
+// homebrew packs (Supabase-backed, party-shareable) and imported JSON files
+// (on-device only, not shareable). Two tiles at the end let users add more of
+// either kind.
+//
+// Both kinds render as visually similar cards with kind-distinguishing icons
+// + sublabels so users can tell them apart at a glance, while the unified
+// surface keeps the mental model simple ("things that add content to my
+// system"). Tap behaviors and delete semantics diverge by kind — see PackCard.
 
-function SystemPacksRow({ system }: { system: GameSystemDefinition }) {
+type PackItem =
+  | { kind: 'homebrew'; pack: HomebrewPackRow }
+  | { kind: 'imported'; group: ImportedFileGroup };
+
+type ImportedFileGroup = {
+  /** Deterministic id so React keys stay stable across re-renders. Derived
+   *  from sourceUrl since one file → one group. */
+  id: string;
+  sourceUrl: string;
+  sourceLabel: string;
+  importedAt: string;
+  batches: ImportBatch[];
+  totalEntries: number;
+};
+
+function groupImportsByFile(batches: ImportBatch[]): ImportedFileGroup[] {
+  const map = new Map<string, ImportedFileGroup>();
+  for (const b of batches) {
+    const slot = map.get(b.source_url);
+    if (slot) {
+      slot.batches.push(b);
+      slot.totalEntries += b.entry_count;
+      if (b.imported_at > slot.importedAt) slot.importedAt = b.imported_at;
+    } else {
+      map.set(b.source_url, {
+        id: `imported:${b.source_url}`,
+        sourceUrl: b.source_url,
+        sourceLabel: b.source_label ?? b.source_url,
+        importedAt: b.imported_at,
+        batches: [b],
+        totalEntries: b.entry_count,
+      });
+    }
+  }
+  return [...map.values()].sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+}
+
+function SystemPacksRow({
+  system, onImportedChanged,
+}: {
+  system: GameSystemDefinition;
+  /** Bumped when an import lands or is removed so the page-level
+   *  imported-tier hook re-fetches and downstream surfaces (Class
+   *  detail, etc.) reflect the change without a remount. */
+  onImportedChanged?: () => void;
+}) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const [packs, setPacks] = useState<HomebrewPackRow[]>([]);
+  const [imports, setImports] = useState<ImportBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    listHomebrewPacks({ system: system.id }).then(({ data }) => {
+    Promise.all([
+      listHomebrewPacks({ system: system.id }),
+      listBatches(system.id),
+    ]).then(([{ data }, batches]) => {
       if (cancelled) return;
       setPacks(data ?? []);
+      setImports(batches ?? []);
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [user, system.id]);
+  }, [user, system.id, refreshTick]);
+
+  // Build the merged view-model. Homebrew packs first (newer-feeling because
+  // they're authored, not just dropped in), then imported files, sorted by
+  // recency within each kind.
+  const items = useMemo<PackItem[]>(() => {
+    const homebrewItems: PackItem[] = packs.map((pack) => ({ kind: 'homebrew', pack }));
+    const importItems: PackItem[] = groupImportsByFile(imports).map((group) => ({
+      kind: 'imported',
+      group,
+    }));
+    return [...homebrewItems, ...importItems];
+  }, [packs, imports]);
 
   // While loading, render nothing — the SRD tabs immediately below are
   // self-contained, so a brief absence here is preferable to a flash of an
   // empty state that turns into populated content.
   if (loading) return null;
 
+  async function handleRemoveImport(batches: ImportBatch[]) {
+    await Promise.all(batches.map((b) => removeBatch(b.id).catch(() => {})));
+    setRefreshTick((n) => n + 1);
+    onImportedChanged?.();
+  }
+
   return (
     <View style={packStyles.section}>
       <View style={packStyles.sectionHead}>
         <Text variant="title-sm" family="headline" weight="bold" style={packStyles.sectionTitle}>
-          Your Homebrew Packs
+          Your Content Packs
         </Text>
-        <MetaLabel size="sm">{packs.length === 0 ? 'No packs yet' : `${packs.length} pack${packs.length === 1 ? '' : 's'}`}</MetaLabel>
+        <MetaLabel size="sm">
+          {items.length === 0 ? 'No packs yet' : `${items.length} pack${items.length === 1 ? '' : 's'}`}
+        </MetaLabel>
       </View>
 
       <ScrollView
@@ -447,12 +517,13 @@ function SystemPacksRow({ system }: { system: GameSystemDefinition }) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={packStyles.row}
       >
-        {packs.map((pack) => (
+        {items.map((item) => (
           <PackCard
-            key={pack.id}
-            pack={pack}
-            onOpen={() => router.push(`/homebrew-pack/${pack.id}` as Href)}
-            onDeleted={() => setPacks((prev) => prev.filter((p) => p.id !== pack.id))}
+            key={item.kind === 'homebrew' ? item.pack.id : item.group.id}
+            item={item}
+            onOpenHomebrew={(pack) => router.push(`/homebrew-pack/${pack.id}` as Href)}
+            onDeletedHomebrew={(packId) => setPacks((prev) => prev.filter((p) => p.id !== packId))}
+            onDeleteImport={handleRemoveImport}
           />
         ))}
 
@@ -460,9 +531,19 @@ function SystemPacksRow({ system }: { system: GameSystemDefinition }) {
           onPress={() => setCreateOpen(true)}
           style={({ pressed }) => [packStyles.newPackTile, pressed && { opacity: 0.85 }]}
         >
-          <Icon name="add" size={20} color={colors.primary} />
+          <Icon name="auto-fix-high" size={18} color={colors.primary} />
           <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.primary }}>
             New pack
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => setImportOpen(true)}
+          style={({ pressed }) => [packStyles.newPackTile, pressed && { opacity: 0.85 }]}
+        >
+          <Icon name="upload-file" size={18} color={colors.primary} />
+          <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.primary }}>
+            Import file
           </Text>
         </Pressable>
       </ScrollView>
@@ -479,49 +560,83 @@ function SystemPacksRow({ system }: { system: GameSystemDefinition }) {
           }}
         />
       ) : null}
+
+      <ImportContentModal
+        visible={importOpen}
+        systemId={system.id}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          setRefreshTick((n) => n + 1);
+          onImportedChanged?.();
+        }}
+      />
     </View>
   );
 }
 
 /**
- * Single pack card in the system-detail packs row. Uses a two-state body:
- * the default state shows the pack's name + scope + a small trash button;
- * pressing the trash flips into a confirm/cancel pair (no separate modal —
- * keeps the row's horizontal-scroll geometry stable).
+ * Unified pack card — renders either a homebrew pack or an imported file
+ * group. Uses a two-state body: the default shows name + sublabel + trash;
+ * pressing trash flips into a confirm/cancel pair inline (no separate modal,
+ * keeps the horizontal-scroll geometry stable).
+ *
+ * Visual differentiation by kind: icon + sublabel make it obvious whether a
+ * card is a Supabase-backed homebrew pack (party-shareable, editable) or an
+ * on-device imported file (read-only, not shareable). Delete semantics
+ * diverge accordingly — homebrew delete cascades server-side, imported
+ * delete just drops local data.
  */
 function PackCard({
-  pack,
-  onOpen,
-  onDeleted,
+  item,
+  onOpenHomebrew,
+  onDeletedHomebrew,
+  onDeleteImport,
 }: {
-  pack: HomebrewPackRow;
-  onOpen: () => void;
-  onDeleted: () => void;
+  item: PackItem;
+  onOpenHomebrew: (pack: HomebrewPackRow) => void;
+  onDeletedHomebrew: (packId: string) => void;
+  onDeleteImport: (batches: ImportBatch[]) => Promise<void>;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  const isHomebrew = item.kind === 'homebrew';
+  const name = isHomebrew ? item.pack.name : item.group.sourceLabel;
+
   async function handleDelete() {
     setDeleting(true);
     setDeleteError('');
-    const { error } = await deleteHomebrewPack(pack.id);
-    setDeleting(false);
-    if (error) {
-      setDeleteError(error.message);
-      return;
+    if (item.kind === 'homebrew') {
+      const { error } = await deleteHomebrewPack(item.pack.id);
+      setDeleting(false);
+      if (error) {
+        setDeleteError(error.message);
+        return;
+      }
+      onDeletedHomebrew(item.pack.id);
+    } else {
+      try {
+        await onDeleteImport(item.group.batches);
+        setDeleting(false);
+      } catch (err) {
+        setDeleting(false);
+        setDeleteError(err instanceof Error ? err.message : 'Failed to remove import');
+      }
     }
-    onDeleted();
   }
 
   if (confirming) {
+    const confirmCopy = isHomebrew
+      ? 'All entries inside the pack will be deleted.'
+      : 'All imported entries from this file will be removed from this device.';
     return (
       <View style={[packStyles.packCard, packStyles.packCardConfirm]}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.hpDanger }} numberOfLines={2}>
-            {deleteError || `Delete "${pack.name}"?`}
+            {deleteError || `Delete "${name}"?`}
           </Text>
-          <MetaLabel size="sm">All entries inside the pack will be deleted.</MetaLabel>
+          <MetaLabel size="sm">{confirmCopy}</MetaLabel>
         </View>
         <Pressable
           onPress={() => {
@@ -547,30 +662,40 @@ function PackCard({
     );
   }
 
+  // Kind-specific affordances
+  const iconName = isHomebrew ? 'auto-fix-high' : 'upload-file';
+  const sublabel = isHomebrew
+    ? (item.pack.campaign_id ? 'Campaign-scoped' : 'Personal library')
+    : `Imported · ${item.group.totalEntries} entr${item.group.totalEntries === 1 ? 'y' : 'ies'}`;
+
+  // Imports aren't openable yet — there's no per-import detail page. Tapping
+  // an imported card no-ops; users manage them with the trash icon. A future
+  // detail screen could show per-content-type batch breakdown ("PHB.json:
+  // 36 subclasses, 12 feats") for files that produce multiple batches.
+  const handleOpen = isHomebrew ? () => onOpenHomebrew(item.pack) : undefined;
+
   return (
     <Pressable
-      onPress={onOpen}
-      style={({ pressed }) => [packStyles.packCard, pressed && { opacity: 0.85 }]}
+      onPress={handleOpen}
+      style={({ pressed }) => [packStyles.packCard, pressed && handleOpen && { opacity: 0.85 }]}
     >
       <View style={packStyles.packIcon}>
-        <Icon name="auto-fix-high" size={20} color={colors.primary} />
+        <Icon name={iconName} size={20} color={colors.primary} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="body-sm" family="headline" weight="bold" style={{ color: colors.onSurface }} numberOfLines={1}>
-          {pack.name}
+          {name}
         </Text>
-        <MetaLabel size="sm">
-          {pack.campaign_id ? 'Campaign-scoped' : 'Personal library'}
-        </MetaLabel>
+        <MetaLabel size="sm">{sublabel}</MetaLabel>
       </View>
-      {pack.is_published ? <Chip label="Shared" variant="accent" /> : null}
+      {isHomebrew && item.pack.is_published ? <Chip label="Shared" variant="accent" /> : null}
       <Pressable
         onPress={(e) => {
           e.stopPropagation();
           setConfirming(true);
         }}
         style={packStyles.packDeleteBtn}
-        accessibilityLabel={`Delete ${pack.name}`}
+        accessibilityLabel={`Delete ${name}`}
       >
         <Icon name="delete" size={16} color={colors.onSurfaceVariant} />
       </Pressable>
@@ -668,7 +793,6 @@ function renderSubBody(
   active: SubTab | undefined,
   content: SrdContent,
   sys: GameSystemDefinition,
-  onImportedChanged: () => void,
 ): React.ReactNode {
   if (!active) return null;
   // Item sub-tabs share the single `content.items` source but filter by
@@ -705,7 +829,6 @@ function renderSubBody(
     case 'magicItemCategories': return <MagicItemCategoriesList items={content.magicItemCategories} />;
     case 'cover':               return <CoverList               items={content.cover} />;
     case '__schema__':       return <SchemaPanel sys={sys} />;
-    case '__imported__':     return <SystemImportedContentList sys={sys} onChanged={onImportedChanged} />;
     default:                 return null;
   }
 }
