@@ -11,27 +11,26 @@ import type {
  *
  * Tiers (resolved in order, results merged):
  *   1. SRD       — bundled with the app, always available offline
- *   2. Local     — user-uploaded PDFs indexed in device SQLite, never transmitted
- *   3. Imported  — user-imported JSON content packs (e.g. from 5e.tools), on-device only
- *   4. Homebrew  — user-created content stored in Supabase
+ *   2. Imported  — user-imported JSON content packs (e.g. from 5e.tools), on-device only
+ *   3. Homebrew  — user-created content stored in Supabase
  *
  * When the same logical entry exists in multiple tiers, the higher-priority
  * tier wins — see TIER_PRIORITY below. Callers never need to know which tier
  * responded.
+ *
+ * The 'local' tier is preserved in the ContentTier union for the storage
+ * layer (PDF uploads still use LocalSource), but it does not contribute
+ * search results — PDF text extraction was removed in favor of structured
+ * JSON imports.
  */
 export class ContentResolver {
   static async search(query: ContentQuery): Promise<ContentResult[]> {
-    const tiers = query.tiers ?? ['srd', 'local', 'imported', 'homebrew'];
+    const tiers = query.tiers ?? ['srd', 'imported', 'homebrew'];
     const results: ContentResult[] = [];
 
     if (tiers.includes('srd')) {
       const srd = await import('./srd/index');
       results.push(...srd.search(query));
-    }
-
-    if (tiers.includes('local')) {
-      const local = await import('./local/index');
-      results.push(...(await local.search(query)));
     }
 
     if (tiers.includes('imported')) {
@@ -76,10 +75,13 @@ export class ContentResolver {
  * the imported version is typically the more complete, book-accurate one
  * (the SRD is a deliberately stripped subset). Homebrew wins overall so a
  * user's authored override always takes precedence over bundled content.
+ *
+ * The 'local' tier produces no search results (PDF storage only) but stays
+ * in the table at neutral priority so dedupe code stays type-safe.
  */
 const TIER_PRIORITY: Record<ContentTier, number> = {
   srd: 1,
-  local: 2,
+  local: 1,
   imported: 3,
   homebrew: 4,
 };

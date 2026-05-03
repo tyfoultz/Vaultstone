@@ -12,11 +12,9 @@ import { useCampaignStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import {
   getSourcesByCampaign, saveSource, deleteSourceById,
-  removeSourceFromIndex, reindexSource, getCampaignIndexStatuses,
 } from '@vaultstone/content';
-import type { LocalSource, IndexMeta } from '@vaultstone/content';
+import type { LocalSource } from '@vaultstone/content';
 import type { Database } from '@vaultstone/types';
-import { IndexStatusLine } from '../../../components/rulebook/IndexStatusLine';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type ContentSource = { key: string; label: string };
@@ -61,7 +59,6 @@ export default function RulebookScreen() {
   const [loadingLocal, setLoadingLocal] = useState(true);
   const [tosModal, setTosModal] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [indexStatuses, setIndexStatuses] = useState<Record<string, IndexMeta>>({});
   const [pendingFile, setPendingFile] = useState<{
     uri: string; name: string; mimeType?: string;
   } | null>(null);
@@ -72,60 +69,6 @@ export default function RulebookScreen() {
       .catch(() => setLocalSources([]))
       .finally(() => setLoadingLocal(false));
   }, [id]);
-
-  // Load initial index statuses whenever the source list changes.
-  useEffect(() => {
-    if (!id || localSources.length === 0) {
-      setIndexStatuses({});
-      return;
-    }
-    getCampaignIndexStatuses(id).then((metas) => {
-      const map: Record<string, IndexMeta> = {};
-      for (const m of metas) map[m.source_id] = m;
-      setIndexStatuses(map);
-    }).catch(() => {});
-  }, [id, localSources.length]);
-
-  // Poll while any source is actively indexing, so the UI reflects progress.
-  useEffect(() => {
-    const anyIndexing = Object.values(indexStatuses).some((s) => s.status === 'indexing');
-    if (!id || !anyIndexing) return;
-    const interval = setInterval(() => {
-      getCampaignIndexStatuses(id).then((metas) => {
-        const map: Record<string, IndexMeta> = {};
-        for (const m of metas) map[m.source_id] = m;
-        setIndexStatuses(map);
-      }).catch(() => {});
-    }, 500);
-    return () => clearInterval(interval);
-  }, [id, indexStatuses]);
-
-  // Kick off extraction + indexing for a source. The platform-specific PDF
-  // parser handles the source: web wants a Blob, native wants the URI string.
-  function startIndexing(sourceId: string) {
-    // Seed local state so the UI shows "indexing" immediately.
-    setIndexStatuses((prev) => ({
-      ...prev,
-      [sourceId]: {
-        source_id: sourceId,
-        status: 'indexing',
-        pages_indexed: 0,
-        total_pages: null,
-        indexed_at: null,
-        error: null,
-      },
-    }));
-    const fetchBytes =
-      Platform.OS === 'web'
-        ? async (filePath: string) => {
-            const res = await fetch(filePath);
-            return res.blob();
-          }
-        : async (filePath: string) => filePath;
-    reindexSource(sourceId, fetchBytes).catch((err) => {
-      console.warn('Indexing failed', err);
-    });
-  }
 
   async function handlePickFile() {
     const result = await DocumentPicker.getDocumentAsync({
@@ -184,8 +127,6 @@ export default function RulebookScreen() {
 
       await saveSource(record);
       setLocalSources((prev) => [...prev, record]);
-      // Fire-and-forget: parse + index in the background.
-      startIndexing(record.id);
     } catch (err) {
       console.warn('PDF upload failed', err);
       Alert.alert(
@@ -213,8 +154,6 @@ export default function RulebookScreen() {
       }
     }
     await deleteSourceById(sourceToRemove.id);
-    // Also drop any indexed page text for this source.
-    await removeSourceFromIndex(sourceToRemove.id).catch(() => {});
     setLocalSources((prev) => prev.filter((s) => s.id !== sourceToRemove.id));
   }
 
@@ -279,17 +218,12 @@ export default function RulebookScreen() {
 
               {/* PDF list */}
               {localSources.map((src) => {
-                const status = indexStatuses[src.id];
                 return (
                   <View key={src.id} style={s.pdfRow}>
                     <View style={s.pdfRowLeft}>
                       <MaterialCommunityIcons name="check-circle-outline" size={18} color={colors.hpHealthy} />
                       <View style={{ flex: 1 }}>
                         <Text style={s.pdfName} numberOfLines={1}>{src.file_name}</Text>
-                        <IndexStatusLine
-                          status={status}
-                          onRetry={() => startIndexing(src.id)}
-                        />
                       </View>
                     </View>
                     <View style={s.pdfRowActions}>
@@ -450,10 +384,6 @@ const s = StyleSheet.create({
   pdfName: { flex: 1, fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
   pdfRowActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 
-  indexRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  indexMuted: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
-  indexAction: { fontSize: 11, color: colors.brand, fontWeight: '600', marginTop: 2 },
-  indexError: { fontSize: 11, color: colors.hpDanger, fontWeight: '600', marginTop: 2 },
 
   readBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,

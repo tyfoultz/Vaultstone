@@ -4,6 +4,11 @@ export {
   SEED_ONLY_TYPES, REFERENCE_TYPES,
 } from './srd';
 export type { SrdCounts, SrdContent, ReferenceTypeKey } from './srd';
+// Per-campaign PDF source storage. Backs the in-app PDF reader at
+// app/campaign/[id]/rulebook.tsx — read/write the user's uploaded PDFs.
+// Text extraction and FTS indexing were removed in favor of structured
+// JSON imports (see imported/ below); the storage layer that records the
+// uploaded file's location stays.
 export {
   getSourcesByCampaign,
   getSourceById,
@@ -11,29 +16,6 @@ export {
   deleteSourceById,
 } from './local/db';
 export type { LocalSource } from './local/db';
-
-// Content index framework — on-device full-text search over user PDFs.
-// Actual PDF parsing is plugged in separately; this module only indexes the
-// page text it's handed. See packages/content/src/local/indexer.ts.
-export {
-  indexSource,
-  reindexSource,
-  removeSourceFromIndex,
-  searchCampaign,
-  getIndexStatus,
-  getCampaignIndexStatuses,
-} from './local/indexer';
-export type {
-  CampaignHit,
-  IndexMeta,
-  IndexStatus,
-  LocalContentHit,
-  PageText,
-} from './local/indexer';
-
-// PDF parsing — platform-split. Web is implemented; native throws until Phase 5c.
-export { extractPages } from './local/pdf-parser';
-export type { ExtractOptions, PageInput } from './local/pdf-parser.web';
 
 // Imported-tier content packs — user-imported JSON content (e.g. from
 // 5e.tools), stored on-device only. The resolver consumes this via the

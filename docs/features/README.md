@@ -14,8 +14,8 @@ Searchable spell compendium for players and GMs. Unified spell index across all 
 
 → [Full requirements](02-spellbook.md)
 
-## 3. Homebrew & Uploaded Content
-The content pipeline that powers extensibility. Two distinct flows: local parsing of user-owned PDFs (on-device only, never transmitted), and in-app authoring of original homebrew. Toggle content visibility per campaign. Feeds into the unified ContentResolver.
+## 3. Homebrew & Imported Content
+The content pipeline that powers extensibility. Two flows: in-app authoring of original homebrew (Supabase-backed, party-shareable) and on-device JSON content imports (e.g. 5e.tools community packs — never transmitted). Both feed into the unified ContentResolver alongside SRD.
 
 → [Full requirements](03-content.md)
 
@@ -39,7 +39,7 @@ Notion/OneNote-style world workspace. DM owns worlds; each world links to one or
 
 → [Full requirements](07-world-building.md)
 
-## 8. Campaign System Card — PDF Rulebook
-Allows a DM to declare the rulebook their campaign uses and for each user to upload their own local PDF copy for in-app reading. PDFs stored on-device only — never transmitted to server or shared between users. Hard legal requirement.
+## 8. PDF Reader (campaign-side)
+Each user can upload their own legally-owned PDF copy of the campaign's rulebook for in-app reading. PDFs stored on-device only — never transmitted to server or shared between users. Hard legal requirement. The original "PDF as content extension" spec was superseded by the imported content tier (Feature 3).
 
-→ [Full requirements](08-pdf-rulebook.md)
+→ [Superseded spec note](08-pdf-rulebook.md)

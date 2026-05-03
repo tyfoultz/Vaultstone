@@ -1,19 +1,19 @@
-// Game-Systems-side imported-content surface — Stage 5 polish.
+// Game-Systems-side imported-content surface.
 // Two layers of organisation:
 //   1. Source files are grouped together (one card per source filename)
 //      so a single 5e.tools class.json that produces multiple batches
 //      (subclass, feat, etc. — once future transforms land) reads as
 //      one logical import unit.
 //   2. Per-content-type batch rows inside the card carry their own
-//      delete; re-import and remove-file sit at the file level since
-//      they affect every batch under that source.
+//      delete; remove-file sits at the file level since it affects
+//      every batch under that source. Re-import is implicit — re-picking
+//      the same file through the import modal overwrites the existing
+//      batch (saveBatch's id is derived from systemId + slugified
+//      filename).
 //
 // A breakdown summary at the top shows the source-book counts ("PHB:
 // 36 · XGE: 12") so users can confirm at a glance what's currently
-// loaded. The Stage 4 sketch had this as a chip-strip filter but a
-// filter that only narrows the *Imported tab itself* doesn't help much
-// — what users want is "show me only PHB content in the Class detail",
-// which lives at the resolver layer and is its own follow-up.
+// loaded.
 
 import { useEffect, useMemo, useState } from 'react';
 import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
@@ -23,14 +23,11 @@ import {
 } from '@vaultstone/ui';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import {
-  listBatches, saveBatch, removeBatch,
-  getSourceBreakdown, transformSubclasses,
+  listBatches, removeBatch,
+  getSourceBreakdown,
   type ImportBatch, type SourceBreakdown,
 } from '@vaultstone/content';
 import { ImportContentModal } from '../imported/ImportContentModal';
-// Dev-only sample import. Removed once Stage 6 cleanup lands; kept for
-// quick smoke-tests during the imported-content arc.
-import sampleSubclasses from '../../vendor/5etools/subclasses-sample.json';
 
 type Props = {
   sys: GameSystemDefinition;
@@ -44,7 +41,6 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
   const [loading, setLoading] = useState(true);
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [breakdown, setBreakdown] = useState<SourceBreakdown[]>([]);
-  const [importing, setImporting] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -69,33 +65,6 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
   const refresh = () => setRefreshTick((n) => n + 1);
   const fanOutChange = () => { refresh(); onChanged?.(); };
 
-  // Dev-only quick import of the bundled sample.
-  async function handleDevImport() {
-    setImporting(true);
-    try {
-      const entries = transformSubclasses(sampleSubclasses as never, {
-        systemId: sys.id,
-        sourceLabel: 'Sample subclasses (dev)',
-      });
-      await saveBatch(
-        {
-          id: `dev-sample-subclasses-${sys.id}`,
-          system_id: sys.id,
-          content_type: 'subclass',
-          source_url: 'vendor/5etools/subclasses-sample.json',
-          source_label: 'Sample subclasses (dev)',
-          imported_at: new Date().toISOString(),
-        },
-        entries,
-      );
-      fanOutChange();
-    } catch (err) {
-      console.warn('Dev import failed', err);
-    } finally {
-      setImporting(false);
-    }
-  }
-
   async function handleRemoveBatch(batchId: string) {
     await removeBatch(batchId).catch(() => {});
     fanOutChange();
@@ -119,7 +88,6 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
     );
   }
 
-  const showDevAffordance = __DEV__;
   const isEmpty = batches.length === 0;
 
   return (
@@ -170,27 +138,6 @@ export function SystemImportedContentList({ sys, onChanged }: Props) {
           {isEmpty ? 'Import content' : 'Import or re-import a file'}
         </Text>
       </Pressable>
-
-      {/* Dev quick-import — bypasses the modal so iteration is faster. */}
-      {showDevAffordance ? (
-        <Pressable
-          onPress={handleDevImport}
-          disabled={importing}
-          style={({ pressed }) => [
-            s.devBtn,
-            (pressed || importing) && { opacity: 0.6 },
-          ]}
-        >
-          {importing ? (
-            <ActivityIndicator color={colors.primary} size="small" />
-          ) : (
-            <Icon name="science" size={14} color={colors.outline} />
-          )}
-          <Text variant="body-sm" style={{ color: colors.outline, fontSize: 11 }}>
-            {importing ? 'Importing…' : 'Dev: import bundled sample'}
-          </Text>
-        </Pressable>
-      ) : null}
 
       <ImportContentModal
         visible={modalOpen}
@@ -399,16 +346,4 @@ const s = StyleSheet.create({
     borderColor: colors.primary + '88',
   },
 
-  devBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.xs + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderStyle: 'dashed',
-    borderColor: colors.outlineVariant + '88',
-  },
 });

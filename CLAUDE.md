@@ -12,7 +12,7 @@ All project tracking, feature requirements, and architecture decisions live in `
 - [docs/legal.md](docs/legal.md) — content licensing rules, user-uploaded PDF constraints, party sync rules
 - [docs/build-status.md](docs/build-status.md) — phase-by-phase build checklist and current status
 - [docs/dev-workflow.md](docs/dev-workflow.md) — local verification workflow (Tier 1 typecheck + Tier 4 Playwright functional check)
-- [docs/features/](docs/features/) — full requirements for all 7 features + PDF rulebook feature
+- [docs/features/](docs/features/) — full requirements for all 7 features (PDF rulebook spec is superseded; see CLAUDE.md "Imported content tier" + "PDF reader" sections below)
 
 ---
 
@@ -41,7 +41,9 @@ Internal packages: `@vaultstone/api`, `@vaultstone/store`, `@vaultstone/types`, 
 
 **Real-time sessions** — Supabase Realtime channel `session:{session_id}`. Optimistic updates on client. Session state changes emit to `session_events` (append-only — `Update: never` in types).
 
-**Local PDF indexing** — PDF parsing happens on-device via Expo SQLite with FTS5. PDF content is NEVER transmitted to server. Hard legal constraint.
+**Imported content tier** — Users extend a Game System with structured JSON content (e.g. 5e.tools subclass exports). Imports happen on-device only — file is parsed in the browser/native runtime, transformed via `packages/content/src/imported/transform/*`, and written to a per-system on-device store (Expo SQLite native, IndexedDB web). Imported entries flow through `ContentResolver.search()` with the `imported` tier and dedupe by `(type, lowercased name)` against SRD entries — imported wins. Hard legal constraint: imported content stays on-device, never transmitted to Supabase or shared with other party members.
+
+**PDF reader** — Campaign-side PDF upload + in-app reader at `app/campaign/[id]/rulebook.tsx` and `pdf-viewer.tsx`. Uses `expo-document-picker` + `expo-file-system` (native) / IndexedDB (web) for storage; `react-native-pdf` for the viewer. Read-only — no text extraction or full-text search (those were removed when the imported-content arc shipped). Same legal posture as imports: PDFs stay on the uploader's device.
 
 ---
 

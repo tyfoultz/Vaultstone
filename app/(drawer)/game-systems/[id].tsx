@@ -15,7 +15,6 @@ import { listHomebrewPacks, deleteHomebrewPack, type HomebrewPackRow } from '@va
 import { useAuthStore } from '@vaultstone/store';
 import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
 import { useSystemImportedContent } from '../../../components/game-systems/useSystemImportedContent';
-import { SystemRulebooksList } from '../../../components/game-systems/SystemRulebooksList';
 import { SystemImportedContentList } from '../../../components/game-systems/SystemImportedContentList';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
@@ -49,7 +48,7 @@ const BUNDLED: Record<string, GameSystemDefinition> = {
 
 // Sub-tab `contentKey === '__schema__'` is a synthetic marker — it routes to
 // the SchemaPanel rather than a SrdContent list.
-type SubTabContentKey = keyof SrdContent | '__schema__' | '__rulebooks__' | '__imported__';
+type SubTabContentKey = keyof SrdContent | '__schema__' | '__imported__';
 
 type ItemCategory = ItemResult['category'];
 
@@ -67,7 +66,7 @@ type SubTab = {
 
 type GroupKey =
   | 'character' | 'spells' | 'equipment' | 'bestiary'
-  | 'rules' | 'reference' | 'rulebooks' | 'imported' | 'schema';
+  | 'rules' | 'reference' | 'imported' | 'schema';
 
 type Group = {
   key: GroupKey;
@@ -174,13 +173,7 @@ const GROUPS: Group[] = [
 ];
 
 function subTabItemCount(t: SubTab, content: SrdContent): number {
-  if (
-    t.contentKey === '__schema__' ||
-    t.contentKey === '__rulebooks__' ||
-    t.contentKey === '__imported__'
-  ) {
-    return 0;
-  }
+  if (t.contentKey === '__schema__' || t.contentKey === '__imported__') return 0;
   if (t.itemCategories && t.contentKey === 'items') {
     const set = new Set<ItemCategory>(t.itemCategories);
     return content.items.filter((i) => set.has(i.category)).length;
@@ -189,15 +182,9 @@ function subTabItemCount(t: SubTab, content: SrdContent): number {
 }
 
 function isSubTabAvailable(t: SubTab, content: SrdContent): boolean {
-  // Schema, Rulebooks, and Imported are always available — they aren't backed
-  // by SRD content. Each renders its own empty states inside the body.
-  if (
-    t.contentKey === '__schema__' ||
-    t.contentKey === '__rulebooks__' ||
-    t.contentKey === '__imported__'
-  ) {
-    return true;
-  }
+  // Schema and Imported are always available — they aren't backed by SRD
+  // content. Each renders its own empty states inside the body.
+  if (t.contentKey === '__schema__' || t.contentKey === '__imported__') return true;
   return subTabItemCount(t, content) > 0;
 }
 
@@ -718,7 +705,6 @@ function renderSubBody(
     case 'magicItemCategories': return <MagicItemCategoriesList items={content.magicItemCategories} />;
     case 'cover':               return <CoverList               items={content.cover} />;
     case '__schema__':       return <SchemaPanel sys={sys} />;
-    case '__rulebooks__':    return <SystemRulebooksList sys={sys} />;
     case '__imported__':     return <SystemImportedContentList sys={sys} onChanged={onImportedChanged} />;
     default:                 return null;
   }
