@@ -12,7 +12,7 @@
 import { useState } from 'react';
 import {
   Modal, Pressable, View, Text, TouchableOpacity,
-  ActivityIndicator, TextInput, StyleSheet,
+  ActivityIndicator, TextInput, StyleSheet, Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing } from '@vaultstone/ui';
@@ -24,7 +24,7 @@ import {
 import { useAuthStore } from '@vaultstone/store';
 import {
   pickContentJson, probeContent, hasImportableContent,
-  type PickedJson, type ImportableContent,
+  type PickedJson, type ImportableContent, type ImportDiagnostic,
 } from './importContentJson';
 
 type Props = {
@@ -220,20 +220,52 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
 // ── Phase bodies ─────────────────────────────────────────────────────────
 
 function IntroBody() {
+  const [formatsOpen, setFormatsOpen] = useState(false);
   return (
     <>
       <Text style={s.body}>
-        Pick a JSON file containing game content (e.g. a 5e community
-        content library export). Vaultstone will parse it on this device,
-        store the entries locally, and surface them across the app
-        alongside SRD content.
+        Pick a JSON file containing game content. Vaultstone will parse
+        it on this device, save the entries to your account as a content
+        pack, and surface them across the app alongside SRD content.
       </Text>
+
+      <Pressable
+        onPress={() => setFormatsOpen((v) => !v)}
+        style={s.formatsHeader}
+        accessibilityRole="button"
+      >
+        <MaterialCommunityIcons
+          name={formatsOpen ? 'chevron-down' : 'chevron-right'}
+          size={18}
+          color={colors.textSecondary}
+        />
+        <Text style={s.formatsHeaderText}>Compatible formats</Text>
+      </Pressable>
+      {formatsOpen ? (
+        <View style={s.formatsBody}>
+          <Text style={s.formatsLine}>
+            Files matching the 5e.tools <Text style={s.diagnosticCode}>class.json</Text>{' '}
+            export shape. Specifically, a top-level JSON object with a{' '}
+            <Text style={s.diagnosticCode}>subclass</Text> array (and optionally
+            a matching <Text style={s.diagnosticCode}>subclassFeature</Text> array
+            with the feature payloads).
+          </Text>
+          <Text style={s.formatsLine}>
+            Today: <Text style={{ fontWeight: '700' }}>subclasses only</Text>.
+            Support for spells, items, monsters, feats, and backgrounds is
+            coming as the matching transforms land.
+          </Text>
+        </View>
+      ) : null}
+
       <View style={s.legalCallout}>
         <MaterialCommunityIcons name="shield-account-outline" size={18} color={colors.textSecondary} />
         <Text style={s.legalText}>
           You're responsible for the rights to any content you import.
-          Vaultstone does not fetch this file on your behalf and does not
-          transmit imported content to our servers or other party members.
+          Imported content is saved to your Vaultstone account so it syncs
+          across your devices and can be enabled on campaigns you DM —
+          treat published packs the same way you'd treat sharing a
+          homemade rulebook with your party.
         </Text>
       </View>
     </>
@@ -276,13 +308,55 @@ function ConfirmBody({
         <ProbeRow label="Subclasses" count={probe.subclasses} />
       </View>
       {!hasImportableContent(probe) ? (
-        <Text style={s.warningText}>
-          No supported content types found. Vaultstone currently imports
-          subclasses; support for additional content types is coming.
-        </Text>
+        <DiagnosticHint diagnostic={probe.diagnostic} />
       ) : null}
     </>
   );
+}
+
+/**
+ * "Nothing to import" hint with shape-specific diagnostics so the user can
+ * tell whether they picked the wrong file or a file in an unsupported
+ * shape. Only renders when the probe found zero importable content.
+ */
+function DiagnosticHint({ diagnostic }: { diagnostic: ImportDiagnostic }) {
+  if (diagnostic.kind === 'not-object') {
+    return (
+      <View style={s.diagnosticBox}>
+        <Text style={s.diagnosticTitle}>Nothing to import</Text>
+        <Text style={s.diagnosticBody}>
+          The file's top level is {indefiniteArticle(diagnostic.actualType)}{' '}
+          <Text style={s.diagnosticCode}>{diagnostic.actualType}</Text>; we
+          expect a JSON object with a <Text style={s.diagnosticCode}>subclass</Text>{' '}
+          array (5e.tools class.json format).
+        </Text>
+      </View>
+    );
+  }
+  if (diagnostic.kind === 'no-recognized-keys') {
+    return (
+      <View style={s.diagnosticBox}>
+        <Text style={s.diagnosticTitle}>Nothing to import</Text>
+        <Text style={s.diagnosticBody}>
+          We looked for a <Text style={s.diagnosticCode}>subclass</Text> array
+          but didn't find one. The file's top-level keys are:{' '}
+          <Text style={s.diagnosticCode}>
+            {diagnostic.foundKeys.length === 0 ? '(empty object)' : diagnostic.foundKeys.join(', ')}
+          </Text>
+          .
+        </Text>
+        <Text style={s.diagnosticBody}>
+          Vaultstone currently imports subclasses; support for additional
+          content types is coming.
+        </Text>
+      </View>
+    );
+  }
+  return null;
+}
+
+function indefiniteArticle(word: string): string {
+  return /^[aeiou]/i.test(word) ? 'an' : 'a';
 }
 
 function ProbeRow({ label, count }: { label: string; count: number }) {
@@ -349,6 +423,22 @@ const s = StyleSheet.create({
     color: colors.textSecondary,
   },
 
+  formatsHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingVertical: spacing.xs,
+  },
+  formatsHeaderText: {
+    fontSize: 13, fontWeight: '600', color: colors.textPrimary,
+  },
+  formatsBody: {
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.sm + 2,
+    paddingBottom: spacing.xs,
+  },
+  formatsLine: {
+    fontSize: 12, color: colors.textSecondary, lineHeight: 17,
+  },
+
   filePreview: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.background, borderRadius: 8,
@@ -384,9 +474,24 @@ const s = StyleSheet.create({
 
   workingWrap: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.lg },
 
-  warningText: {
+  diagnosticBox: {
+    gap: spacing.xs,
+    padding: spacing.sm + 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  diagnosticTitle: {
+    fontSize: 13, fontWeight: '700', color: colors.textPrimary,
+  },
+  diagnosticBody: {
     fontSize: 12, color: colors.textSecondary, lineHeight: 17,
-    fontStyle: 'italic',
+  },
+  diagnosticCode: {
+    fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
+    color: colors.textPrimary,
+    fontWeight: '600',
   },
 
   errorBox: {

@@ -61,20 +61,57 @@ export async function pickContentJson(): Promise<PickedJson | null> {
  * found. Used by the import modal to show a "Found N subclasses, M feats…"
  * preview before the user commits.
  *
- * Currently only knows about subclasses (the only Stage 3 transform). New
- * transforms add their probes here as they land.
+ * Also reports a `diagnostic` describing what the payload looked like at
+ * the top level — surfaced in the modal when nothing importable was
+ * recognized so the user can tell whether they picked the wrong file or
+ * a file in an unsupported shape. Subclasses are the only supported
+ * content type today; new transforms add their checks (and update
+ * SUPPORTED_KEYS) as they land.
  */
 export type ImportableContent = {
   subclasses: number;
-  // Future: feats, backgrounds, spells, items, monsters, etc.
+  diagnostic: ImportDiagnostic;
 };
 
+/**
+ * Per-shape outcome of looking at the payload's top level. Powers the
+ * "Nothing to import — here's why" copy in the Confirm step.
+ */
+export type ImportDiagnostic =
+  | { kind: 'ok' }
+  | { kind: 'not-object'; actualType: string }
+  | { kind: 'no-recognized-keys'; foundKeys: string[] };
+
+/** Keys the importer currently recognizes. Update as transforms land. */
+export const SUPPORTED_TOP_LEVEL_KEYS = ['subclass'] as const;
+
 export function probeContent(payload: unknown): ImportableContent {
-  const probe: ImportableContent = { subclasses: 0 };
-  if (!payload || typeof payload !== 'object') return probe;
+  // Non-object payloads (arrays, primitives, null) can't carry our
+  // expected shape. Report what we did see so the user can correct.
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return {
+      subclasses: 0,
+      diagnostic: {
+        kind: 'not-object',
+        actualType: Array.isArray(payload) ? 'array' : payload === null ? 'null' : typeof payload,
+      },
+    };
+  }
   const obj = payload as Record<string, unknown>;
+  const probe: ImportableContent = {
+    subclasses: 0,
+    diagnostic: { kind: 'ok' },
+  };
   if (Array.isArray(obj.subclass)) {
     probe.subclasses = obj.subclass.length;
+  }
+
+  // If we recognized nothing, surface the top-level keys so the user
+  // can compare against what we expect. Cap the list so a wildly wrong
+  // file doesn't dump 100 keys into the modal.
+  if (probe.subclasses === 0) {
+    const foundKeys = Object.keys(obj).slice(0, 10);
+    probe.diagnostic = { kind: 'no-recognized-keys', foundKeys };
   }
   return probe;
 }
