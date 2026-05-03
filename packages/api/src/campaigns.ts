@@ -13,17 +13,34 @@ export async function getCampaigns() {
 // Delegates to the create_campaign_with_gm RPC, which atomically inserts
 // the campaign row and its GM membership row inside a single transaction
 // and generates the join code server-side with built-in collision retry.
-// See supabase/migrations/20260419000000_create_campaign_with_gm_rpc.sql.
+// See supabase/migrations/20260514000000_campaigns_system_and_packs.sql for
+// the current signature — the `system` argument is required and validated
+// against the game_systems table on the server.
 export async function createCampaign(
   name: string,
-  opts?: { systemLabel?: string; description?: string },
+  opts: { system: string; systemLabel?: string; description?: string },
 ) {
   const { data, error } = await supabase.rpc('create_campaign_with_gm', {
     p_name: name,
-    p_system_label: opts?.systemLabel?.trim() || null,
-    p_description: opts?.description?.trim() || null,
+    p_system: opts.system,
+    p_system_label: opts.systemLabel?.trim() || null,
+    p_description: opts.description?.trim() || null,
   });
   return { data, error };
+}
+
+/**
+ * Update the campaign's game system. The DM may want to switch systems
+ * before any characters are created; once characters exist the UI should
+ * lock this field (a system change would invalidate per-character system
+ * tags). The DB itself doesn't enforce that lock — it's a UX guardrail
+ * applied client-side.
+ */
+export async function updateCampaignSystem(campaignId: string, system: string) {
+  return supabase
+    .from('campaigns')
+    .update({ system })
+    .eq('id', campaignId);
 }
 
 // Uses a security-definer Postgres function so unauthenticated-to-campaign
@@ -139,19 +156,6 @@ export async function updatePartyViewSettings(
   return supabase
     .from('campaigns')
     .update({ party_view_settings: settings as never })
-    .eq('id', campaignId);
-}
-
-export async function updateCampaignContentSource(
-  campaignId: string,
-  source: { key: string; label: string } | null,
-) {
-  return supabase
-    .from('campaigns')
-    .update({
-      content_sources: source as never,
-      system_label: source?.label ?? null,
-    })
     .eq('id', campaignId);
 }
 

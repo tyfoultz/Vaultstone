@@ -28,19 +28,36 @@ interface Props {
 }
 
 export function StepBackground({ onPreviewChange, onAdvance }: Props) {
-  const { srdVersion, backgroundKey, setBackground } = useCharacterDraftStore(
-    useShallow((s) => ({ srdVersion: s.srdVersion, backgroundKey: s.backgroundKey, setBackground: s.setBackground }))
-  );
+  const { srdVersion, backgroundKey, setBackground, campaignId, selectedPackIds } =
+    useCharacterDraftStore(
+      useShallow((s) => ({
+        srdVersion: s.srdVersion,
+        backgroundKey: s.backgroundKey,
+        setBackground: s.setBackground,
+        campaignId: s.campaignId,
+        selectedPackIds: s.selectedPackIds,
+      }))
+    );
 
   const [list, setList] = useState<BackgroundResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewKey, setPreviewKey] = useState<string | null>(null);
+  const packIdsKey = selectedPackIds.join(',');
 
   useEffect(() => {
-    ContentResolver.search({ type: 'background', system: 'dnd5e', srdVersion, tiers: ['srd'] })
+    const includeHomebrew = !!campaignId || selectedPackIds.length > 0;
+    const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+    ContentResolver.search({
+      type: 'background',
+      system: 'dnd5e',
+      srdVersion,
+      tiers,
+      campaignId: campaignId ?? undefined,
+      packIds: !campaignId && selectedPackIds.length > 0 ? selectedPackIds : undefined,
+    })
       .then((r) => setList(r as BackgroundResult[]))
       .finally(() => setLoading(false));
-  }, [srdVersion]);
+  }, [srdVersion, campaignId, packIdsKey]);
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
 

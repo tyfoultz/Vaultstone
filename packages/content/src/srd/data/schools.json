@@ -1,0 +1,10 @@
+[
+  { "key": "abjuration",    "name": "Abjuration",    "type": "school", "tier": "srd", "system": "dnd5e", "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Protective magic that creates barriers, banishes intruders, removes harmful effects, and dispels other magic.", "data": {} },
+  { "key": "conjuration",   "name": "Conjuration",   "type": "school", "tier": "srd", "system": "dnd5e", "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Spells that transport creatures and objects across distances, including teleportation and summoning.", "data": {} },
+  { "key": "divination",    "name": "Divination",    "type": "school", "tier": "srd", "system": "dnd5e", "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Spells that reveal information — uncovering secrets, glimpsing the future, finding lost objects.", "data": {} },
+  { "key": "enchantment",   "name": "Enchantment",   "type": "school", "tier": "srd", "system": "dnd5e", "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Spells that affect the minds of others — controlling, manipulating, or charming them.", "data": {} },
+  { "key": "evocation",     "name": "Evocation",     "type": "school", "tier": "srd", "system": "dnd5e", "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Spells that manipulate magical energy to produce a desired effect — fire, force, healing, lightning.", "data": {} },
+  { "key": "illusion",      "name": "Illusion",      "type": "school", "tier": "srd", "system": "dnd5e", "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Spells that deceive the senses or minds of others — phantom sounds, sights, smells, or beliefs.", "data": {} },
+  { "key": "necromancy",    "name": "Necromancy",    "type": "school", "tier": "srd", "system": "dnd5e", "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Spells that manipulate the energies of life and death — raising the dead, draining vitality.", "data": {} },
+  { "key": "transmutation", "name": "Transmutation", "type": "school", "tier": "srd", "system": "dnd5e", "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Spells that change the properties of a creature, object, or environment.", "data": {} }
+]

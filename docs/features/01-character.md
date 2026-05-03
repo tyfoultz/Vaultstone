@@ -257,7 +257,9 @@ SpellbookBlock {
 
 - Accept inputs:
   - **Official PDF exports** (D&D Beyond, Roll20, the WotC fillable sheet) —
-    parsed via `pdfjs-dist` form-field extraction (see Feature 8 Phase 5b).
+    AcroForm field extraction. (Note: when this epic is picked up, the
+    `pdfjs-dist` dep was removed with the imported-content cleanup —
+    needs to be re-added or replaced with a lighter form-only parser.)
     Fillable PDFs expose AcroForm fields with reliable names; that's the
     happy path.
   - **Flat (printed/scanned) PDFs and images** — OCR pass via on-device
@@ -286,8 +288,8 @@ SpellbookBlock {
   ```ts
   resolveByName(rawName: string, type: ContentType): Promise<ContentRef | null>
   ```
-  Walks Tier 1 (SRD) → Tier 2 (user PDFs, via Feature 8 search index) →
-  Tier 3 (homebrew). First exact match wins; fuzzy match (Levenshtein) only
+  Walks SRD → imported tier (user-supplied JSON content packs) →
+  homebrew. First exact match wins; fuzzy match (Levenshtein) only
   for names with no exact hit.
 
 #### Phase 3 — Hyperlinking the rendered sheet ⬜
@@ -330,9 +332,9 @@ SpellbookBlock {
 
 | Phase | Package(s) | Notes |
 |---|---|---|
-| 1 | `pdfjs-dist` (already in tree for Feature 8), Tesseract.js (web), Vision/ML Kit (native) | OCR is the hard part; AcroForm extraction is easy. |
+| 1 | `pdfjs-dist` (would need re-adding — removed with the imported-content cleanup), Tesseract.js (web), Vision/ML Kit (native) | OCR is the hard part; AcroForm extraction is easy. |
 | 2 | *(none new)* | Pure mapping logic + reuses `ContentResolver`. |
-| 3 | *(none new)* | Reuses Feature 8's PDF viewer + `?page=N` deep-links. |
+| 3 | *(none new)* | Reuses the campaign-side PDF viewer (`?page=N` deep-links). |
 
 #### Why this is documented now (but not built)
 

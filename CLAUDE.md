@@ -12,7 +12,7 @@ All project tracking, feature requirements, and architecture decisions live in `
 - [docs/legal.md](docs/legal.md) — content licensing rules, user-uploaded PDF constraints, party sync rules
 - [docs/build-status.md](docs/build-status.md) — phase-by-phase build checklist and current status
 - [docs/dev-workflow.md](docs/dev-workflow.md) — local verification workflow (Tier 1 typecheck + Tier 4 Playwright functional check)
-- [docs/features/](docs/features/) — full requirements for all 7 features + PDF rulebook feature
+- [docs/features/](docs/features/) — full requirements for all 7 features (PDF rulebook spec is superseded; see CLAUDE.md "Imported content tier" + "PDF reader" sections below)
 
 ---
 
@@ -41,7 +41,9 @@ Internal packages: `@vaultstone/api`, `@vaultstone/store`, `@vaultstone/types`, 
 
 **Real-time sessions** — Supabase Realtime channel `session:{session_id}`. Optimistic updates on client. Session state changes emit to `session_events` (append-only — `Update: never` in types).
 
-**Local PDF indexing** — PDF parsing happens on-device via Expo SQLite with FTS5. PDF content is NEVER transmitted to server. Hard legal constraint.
+**Imported content** — Users extend a Game System with structured JSON content (e.g. 5e.tools per-content-type exports). The picked file is parsed and transformed in the browser/native runtime via `packages/content/src/imported/transform/*` (subclasses, feats, spells, backgrounds, items, species, monsters, classes — one transform per content type, all driven from a single `IMPORT_KINDS` registry in `components/imported/ImportContentModal.tsx`), then upserted into the Supabase `imported_content` table under a `homebrew_packs` row owned by the importer. Imports surface alongside authored homebrew under the unified content-pack concept; the homebrew tier reader merges both tables. Hard legal constraint: users are responsible for the rights to anything they import; the user accepts an in-app ToS callout before each import.
+
+**PDF reader** — Campaign-side PDF upload + in-app reader at `app/campaign/[id]/rulebook.tsx` and `pdf-viewer.tsx`. Uses `expo-document-picker` + `expo-file-system` (native) / IndexedDB (web) for storage; `react-native-pdf` for the viewer. Read-only — no text extraction or full-text search (those were removed when the imported-content arc shipped). Same legal posture as imports: PDFs stay on the uploader's device.
 
 ---
 
@@ -127,6 +129,43 @@ Default pre-push = Tier 1 + push + Netlify preview. Tiers 2 (`expo export` pre-p
 
 - Never chain commands with `&&` or `;` when each individual command is already allowed by `Bash(git:*)` or similar rules. Use separate parallel Bash tool calls instead — they run concurrently and don't trigger permission prompts.
 - **Never prefix git (or other project) commands with `cd <path> && ...`.** The permission system flags any `cd` + `git` compound as a potential bare-repository attack and asks for approval, even though `git:*` would otherwise allow it. Instead, use `git -C <absolute-path> <subcommand>` — it scopes git to the target repo without `cd`, so the call matches `Bash(git:*)` directly. The same pattern applies to other CLIs that accept a working-directory flag (e.g. `npm --prefix <path> ...`).
+
+---
+
+## SRD Content Import
+
+Bundled SRD content lives in `packages/content/src/srd/data/*.json` and is sourced from [Open5e v2](https://api.open5e.com/v2/) (CC-BY 4.0; see http://open5e.com/legal). The pipeline pulls from both `srd-2014` (5.1 SRD) and `srd-2024` (5.2 SRD) documents and merges them per content type.
+
+1. **Fetch snapshots** from the Open5e v2 API into `vendor/srd/open5e/`:
+   ```
+   node scripts/import-srd/fetch-open5e.js              # all types
+   node scripts/import-srd/fetch-open5e.js spells       # one type
+   ```
+   Each snapshot file contains entries from *both* documents — the `document.key` field on each entry tells the transform which edition it came from. Snapshots are checked into the repo so imports are reproducible.
+2. **Transform** the snapshot into our `*Result` shape:
+   ```
+   node scripts/import-srd/transforms/spells.js
+   ```
+   Each transform groups entries by name and unions their edition tags. `srdVersions` ends up `['SRD_5.1']`, `['SRD_2.0']`, or `['SRD_2.0', 'SRD_5.1']` depending on which documents had the entry. When descriptions diverge between editions the 2024 text is preferred; per-edition description support is a future schema extension.
+3. **Augment item flavor text** (items only) by patching from a second source:
+   ```
+   node scripts/import-srd/augment-flavor.js
+   ```
+   Open5e's `/items/` endpoint strips most descriptive prose — especially in the SRD 2024 dataset, which often reduces a paragraph to a one-liner ("A breastplate."). The augment step reads the vendored BTMorton SRD 5.1 snapshot at `vendor/srd/btmorton/{equipment,magic-items}.json` (also CC-BY 4.0), harvests `***Name.*** flavor text` entries plus magic-item leaves, and patches `items.json` for any entry with a thin/stub description. The same SRD 5.1 flavor is applied to both 5.1 and 5.2 entries — the underlying physical object is unchanged and 5.2 dropped flavor prose entirely. Run after `transforms/items.js`. Idempotent.
+4. **Drop the seed flag** from `SEED_ONLY_TYPES` (in `packages/content/src/srd/index.ts`) for any type whose bundle is now full.
+
+Coverage as of last refresh:
+- ✅ spells — 341 entries (317 in both editions, 22 new in 2024, 2 dropped from 2024)
+- ✅ conditions — 30 entries (15 conditions × 2 editions; per-edition descriptions, since 5.1 and 2024 diverge meaningfully — most notably Exhaustion's level-track redesign)
+- ✅ feats — 18 entries (1 SRD 5.1, 17 SRD 5.2; per-edition entries — Grappler is the only feat in both, with diverged text). Categories: origin (4), general (3), fighting-style (4), epic-boon (7)
+- ✅ backgrounds — 5 entries (1 SRD 5.1: Acolyte; 4 SRD 5.2: Acolyte, Criminal, Sage, Soldier). The hand-curated seed had 14 PHB-flavored entries; replaced with strict SRD coverage. Non-SRD backgrounds (Folk Hero, Charlatan, etc.) belong to a future homebrew-pack feature.
+- ✅ species — 22 entries (13 SRD 5.1 base + subspecies, 9 SRD 5.2). 5.1 ships subspecies (High Elf, Hill Dwarf, Lightfoot, Rock Gnome) as their own entries with size/speed inherited from parent; 5.2 dropped subspecies in favor of in-species choices. Half-Elf and Half-Orc are 5.1-only — folded into Human/Orc in 2024.
+- ✅ items (mundane equipment) — 295 entries (158 SRD 5.1 + 137 SRD 5.2). Per-edition entries because Open5e's /items/ data has wildly inconsistent naming across editions ("Crossbow, hand" vs "Hand Crossbow", "Half plate" vs "Half Plate Armor"). Categories: weapon (81), armor (25), shield (1), adventuring-gear (185), crafting-equipment (3). Magic-item categories (wondrous-item, potion, scroll, rod, wand, staff, ring) are intentionally excluded from `transforms/items.js` — the /items/ endpoint produces stub entries for those (just "Wand", "Rod") that collide with the proper variant-level catalog from /magicitems/. The /weapons/ and /armor/ endpoints are sub-views of /items/ — the weapon{} and armor{} sub-objects on each item entry carry the mechanical detail, so we pull only /items/.
+- ✅ magic items — 1,256 entries (499 SRD 5.1 + 757 SRD 5.2) from Open5e's /magicitems/ endpoint. Per-edition entries because 2024 rewrote magic-item rules (Bag of Holding gained Astral Plane breathing limits, etc.). Each entry carries rarity, attunement requirement, attunement_detail prose, weapon{} or armor{} sub-objects when applicable, and a `data.magicItemKind` discriminator (wand/ring/potion/scroll/wondrous-item/weapon/armor/shield/ammunition/rod/staff). Open5e quirks: the /magicitems/ document filter is broken (returns mixed sources including third-party Vault of Magic), so we drop entries whose `key` doesn't start with `srd_*` or `srd-2024_*`; same dedupe-by-key step as /items/ since fetching both editions returns each entry twice. Loaded into the same `ItemResult[]` stream as mundane items, so the existing UI sub-tabs (Weapons/Armor/Magic Items/etc.) flow them through unchanged. By rarity: 5 common, 304 uncommon, 481 rare, 294 very-rare, 170 legendary, 2 artifact. 512 require attunement.
+- ✅ creatures (monsters) — 655 entries (325 SRD 5.1 + 330 SRD 5.2). Per-edition keyed because the 2024 SRD is a full stat-block rewrite (revised action economy, restructured saves/skills, Bonus Action attacks). Includes structured ability scores, modifiers, proficient saves/skills, senses, languages, traits, actions, resistances/immunities, environments, hit dice, XP. Proficient saves are derived by comparing each ability's saving-throw bonus to its raw modifier — Open5e's `saving_throws` field is unreliable as a proficient-only subset. CR distribution: 221 CR <1, 209 CR 1-4, 130 CR 5-10, 55 CR 11-16, 40 CR 17+.
+- ✅ classes — 24 entries (12 SRD 5.1 + 12 SRD 5.2). Per-edition keyed because feature lists diverge significantly (2024 introduces Weapon Mastery, Brutal Strike, Epic Boon; 5.1 has Brutal Critical/Primal Path naming). Each entry carries hit die, primary ability, saves, armor/weapon/tool proficiencies, skill choices, full leveled feature list, and per-level progression table (Prof Bonus + class-specific columns like Rages, Sneak Attack, Spell Slots). 2024's `CORE_TRAITS_TABLE` markdown is parsed for the proficiency block; 5.1 uses a separate `PROFICIENCIES` feature with bold-labeled lines. Subclasses (`subclass_of !== null`) are filtered out and live in the separate `subclasses.json` catalog. Open5e ships `caster_type: null` for every 5.1 class (data gap upstream), so spellcasting is detected via a known-caster name list. Skill list typo fix: 2024 Wizard's "In sight" → "Insight". Multiclass prerequisites and proficiencies are hand-curated in the transform since Open5e doesn't ship that table.
+- ✅ subclasses — 24 entries (12 SRD 5.1 + 12 SRD 5.2). Pulled from the same `/classes/` snapshot, filtered to `subclass_of !== null`. Per-edition keyed because the feature levels diverge (Champion's Remarkable Athlete shifts L7→L3 in 2024, Heroic Warrior is 2024-only) and several subclasses were renamed (Wizard "School of Evocation" → "Evoker", Sorcerer "Draconic Bloodline" → "Draconic Sorcery", Monk "Way of the Open Hand" → "Warrior of the Open Hand", Warlock "The Fiend" → "Fiend Patron"). `parentClassKey` is edition-suffixed (`barbarian-srd-5-1`, `wizard-srd-2-0`) so the class detail page filter `parentClassKey === c.key` matches the right edition. 2024 standardizes subclass unlock at L3 for every class; 5.1 had Cleric/Sorcerer/Warlock at L1 and Wizard at L2.
+- ✅ rules (rules-of-play) — 283 entries (227 SRD 5.1 + 56 SRD 5.2) from Open5e's `/rules/` endpoint. Each entry is a leaf section ("Advantage and Disadvantage", "Cover", "Initiative", etc.) with a `chapter` label derived from Open5e's `ruleset` slug and an `order` field preserving per-chapter document order. Per-edition entries because 2014 and 2024 use entirely different chapter taxonomies (the 2024 SRD reorganized rules into 9 chapters: Combat, Damage and Healing, Exploration, Multiclassing, etc.; 5.1 has 29 chapters covering more ground including monsters, planes, pantheons). There is no separate `/rule-sections/` endpoint — `/rules/` already returns leaves. `RuleResult.data` carries `headerLevel` (h2/h3/h4 from the source) and `rulesetSlug` (raw chapter key) for future hierarchy rendering. Surfaced under the new "Game Rules" group on the per-system detail page, grouped by chapter and rendered through MarkdownText to handle embedded pipe tables.
 
 ---
 

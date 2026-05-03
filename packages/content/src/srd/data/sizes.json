@@ -1,0 +1,8 @@
+[
+  { "key": "tiny",       "name": "Tiny",       "type": "size", "tier": "srd", "system": "dnd5e", "space": "2.5-by-2.5 ft",   "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Imps, sprites, mice, and other diminutive creatures. Two Tiny creatures fit in a 5-foot square.", "data": {} },
+  { "key": "small",      "name": "Small",      "type": "size", "tier": "srd", "system": "dnd5e", "space": "5-by-5 ft",       "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Halflings, gnomes, and goblins. Small creatures occupy the same square as a Medium creature.", "data": {} },
+  { "key": "medium",     "name": "Medium",     "type": "size", "tier": "srd", "system": "dnd5e", "space": "5-by-5 ft",       "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Most humanoids — humans, elves, dwarves, orcs. The default size for player characters.", "data": {} },
+  { "key": "large",      "name": "Large",      "type": "size", "tier": "srd", "system": "dnd5e", "space": "10-by-10 ft",     "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Giants, ogres, owlbears, and similar oversized creatures. Occupies a 2-by-2 grid of 5-foot squares.", "data": {} },
+  { "key": "huge",       "name": "Huge",       "type": "size", "tier": "srd", "system": "dnd5e", "space": "15-by-15 ft",     "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Adult dragons, hill giants, and other towering monsters. Occupies a 3-by-3 grid.", "data": {} },
+  { "key": "gargantuan", "name": "Gargantuan", "type": "size", "tier": "srd", "system": "dnd5e", "space": "20-by-20 ft+",    "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Ancient dragons, krakens, and titanic creatures. Occupies a 4-by-4 grid or larger.", "data": {} }
+]

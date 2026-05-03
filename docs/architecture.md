@@ -171,9 +171,11 @@ All features query content through a single abstraction — the `ContentResolver
 
 | Tier | Source | Storage | Shareable? |
 |---|---|---|---|
-| SRD bundled | Ships with the app | Client bundle + backend CDN | Yes — CC-BY 4.0 |
-| User-uploaded | User's legally owned PDFs | **Local device only** (SQLite FTS5) | No — never transmitted |
+| SRD bundled | Ships with the app | Client bundle | Yes — CC-BY 4.0 |
+| Imported | User-supplied JSON content packs (e.g. 5e.tools) | **Local device only** (Expo SQLite native, IndexedDB web) | No — never transmitted |
 | Homebrew | Created in-app | Backend (Supabase) | Yes — user-owned |
+
+The legacy "user-uploaded PDF" tier was removed when the imported-content arc shipped — PDFs no longer extend the system content. The PDF reader stays as a separate per-campaign upload + viewer, but contributes nothing to ContentResolver search results.
 
 ### ContentResolver Interface
 
@@ -184,16 +186,16 @@ ContentResolver.getSpell(name, source?)       → SpellResult | null
 ContentResolver.getCreature(name, source?)    → CreatureResult | null
 ```
 
-Internally fans out to: SRD index → local PDF index (SQLite FTS5) → homebrew store. Results are merged and de-duplicated. Calling features never know which tier responded.
+Internally fans out to: SRD index → imported tier (on-device store) → homebrew store. Results are merged and de-duplicated by `(type, lowercased name)` with a tier priority table — homebrew > imported > SRD. Calling features never know which tier responded.
 
-### Local PDF Processing Pipeline
-1. User selects a PDF (no server upload)
-2. App extracts text on-device using a local PDF parser
-3. Text is chunked and stored in SQLite FTS5 with metadata
-4. Search runs as a full-text query against the local index
-5. Results surface through ContentResolver alongside SRD and homebrew
+### Imported Content Pipeline
+1. User picks a JSON file (e.g. a 5e.tools subclass export)
+2. App parses the file in-process, runs the type-specific transform from `packages/content/src/imported/transform/*`
+3. Resulting `*Result` entries are written to the on-device imported store, batched per (system × content type × source filename)
+4. Search runs against the merged tiers via ContentResolver
+5. Imported entries surface alongside SRD content in the Game Systems detail page, character wizard, etc., with their source-book code shown via `SourceBadge`
 
-**No extracted text is ever transmitted to the backend or shared with party members.**
+**No imported content is transmitted to the backend or shared with party members.**
 
 ---
 
@@ -288,7 +290,8 @@ vaultstone/
 │   │   └── src/
 │   │       ├── resolver.ts
 │   │       ├── srd/                  # Bundled SRD 5.1 + 5.2 JSON data (CC-BY 4.0)
-│   │       ├── local/                # Local PDF index — SQLite FTS5
+│   │       ├── imported/             # On-device JSON content imports (e.g. 5e.tools)
+│   │       ├── local/                # Per-campaign PDF source storage (reader only)
 │   │       └── homebrew/             # Homebrew content queries
 │   │
 │   ├── systems/                      # GameSystemDefinition schemas
@@ -401,7 +404,7 @@ Build in this order. Everything below the line is post-MVP.
 
 | Question | Resolution |
 |---|---|
-| PDF search: embedding model vs keyword | **Keyword only (FTS5).** Text extracted from PDFs stored in local SQLite FTS5. No embedding model. Revisit semantic search if quality becomes a pain point. |
+| Extending system content beyond SRD | **Imported tier — user-supplied JSON.** PDF text extraction was investigated but dropped (extraction quality + maintenance burden + legal exposure). Users import structured JSON content packs (e.g. from community 5e.tools exports) on-device; no fetching, no transmission. PDF reader still exists for in-app reading but contributes nothing to the content resolver. |
 | Offline notes conflict resolution | **Last-write-wins.** Each note stores `updated_at`; later timestamp wins on sync. Acceptable tradeoff at this stage. |
 | Multi-system support depth for MVP | **System definition layer from day one.** D&D 5e + custom at launch. PF2e post-MVP v2. Character builder fully driven by system schema — nothing hardcoded to 5e. |
 

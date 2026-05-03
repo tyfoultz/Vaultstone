@@ -1,5 +1,15 @@
 export { ContentResolver } from './resolver';
 export {
+  getSrdCounts, getSrdCountsByVersion, getSrdContent,
+  SEED_ONLY_TYPES, REFERENCE_TYPES,
+} from './srd';
+export type { SrdCounts, SrdContent, ReferenceTypeKey } from './srd';
+// Per-campaign PDF source storage. Backs the in-app PDF reader at
+// app/campaign/[id]/rulebook.tsx — read/write the user's uploaded PDFs.
+// Text extraction and FTS indexing were removed in favor of structured
+// JSON imports (see imported/ below); the storage layer that records the
+// uploaded file's location stays.
+export {
   getSourcesByCampaign,
   getSourceById,
   saveSource,
@@ -7,28 +17,34 @@ export {
 } from './local/db';
 export type { LocalSource } from './local/db';
 
-// Content index framework — on-device full-text search over user PDFs.
-// Actual PDF parsing is plugged in separately; this module only indexes the
-// page text it's handed. See packages/content/src/local/indexer.ts.
+// Imported-content transforms. Imports themselves are now Supabase-backed
+// homebrew packs (see packages/api/src/imported-content.ts and the
+// homebrew resolver in homebrew/index.ts) — the on-device store and
+// 'imported' resolver tier were retired in M1 of the imports↔homebrew
+// unification. Only the third-party-schema → *Result transforms remain
+// here, used by the import modal to shape data before upserting.
 export {
-  indexSource,
-  reindexSource,
-  removeSourceFromIndex,
-  searchCampaign,
-  getIndexStatus,
-  getCampaignIndexStatuses,
-} from './local/indexer';
+  transformSubclasses,
+  transformFeats,
+  transformSpells,
+  transformBackgrounds,
+  transformItems,
+  transformSpecies,
+  transformMonsters,
+  transformClasses,
+  stripMarkup,
+} from './imported/index';
 export type {
-  CampaignHit,
-  IndexMeta,
-  IndexStatus,
-  LocalContentHit,
-  PageText,
-} from './local/indexer';
-
-// PDF parsing — platform-split. Web is implemented; native throws until Phase 5c.
-export { extractPages } from './local/pdf-parser';
-export type { ExtractOptions, PageInput } from './local/pdf-parser.web';
+  RawClassFile,
+  RawClassesFile,
+  RawFeatsFile,
+  RawSpellsFile,
+  RawBackgroundsFile,
+  RawItemsFile,
+  RawRacesFile,
+  RawBestiaryFile,
+  TransformOptions,
+} from './imported/index';
 
 // World-builder section templates (Feature 9 Phase 2).
 export {

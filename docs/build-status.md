@@ -125,27 +125,26 @@ session via `getMostRecentSessionForCampaign`. Realtime delivery uses the
 `session-log:{id}` channel on INSERT — the earlier `session:{id}` channel
 is still used for the combat state subscriptions.
 
-### 8. PDF Rulebook 🟡 In Progress
+### 8. Imported Content + PDF Reader ✅ Shipped
 
-| Phase | Status | Summary |
+The original "PDF Rulebook" feature spec was superseded — see commit
+history on `feature/imported-content`. PDFs as a *content-extension*
+mechanism (text extraction → FTS index → typed search) was dropped in
+favor of structured JSON imports. The PDF reader stays as a separate
+in-app reading affordance.
+
+| Component | Status | Summary |
 |---|---|---|
-| 1 — Campaign source metadata | ✅ Done | `content_sources` JSONB on campaigns; System Card preset picker. |
-| 2 — Local PDF upload | ✅ Done | ToS gate, document picker, FileSystem/IndexedDB persistence. |
-| 3 — In-app PDF viewer | ✅ Done | `react-native-pdf` (native) / iframe (web). |
-| 4 — Player-facing source prompt | ✅ Done | Per-PDF rows on System Card, Read + Remove actions. |
-| 5a — Indexing scaffold | ✅ Done | FTS5 (native) + IndexedDB (web) search framework; search screen; viewer accepts `page` param. |
-| 5b — Web PDF text extraction | ✅ Done | `pdfjs-dist` in `pdf-parser.web.ts`; worker copied to `public/` via postinstall. |
-| 5c — Native PDF text extraction | ✅ Code complete · ⏳ **Native verification deferred** | `pdfjs-dist/legacy/build/pdf.mjs` in fake-worker mode; Hermes polyfills (btoa/atob via `base-64`, structuredClone fallback, no-op DOMMatrix/Path2D/OffscreenCanvas/ImageData); bytes read via `FileSystem.readAsStringAsync` (base64). **Untested on iOS/Android** — verify during Phase 6 (TestFlight) or whenever the first `expo run:ios`/`run:android` happens. See *Deferred verification* below. |
-| 5d — Wire parsing into upload | ✅ Done | Fire-and-forget `reindexSource` kicked off after `saveSource` on web. |
-| 5e — Progress UI polish | ✅ Done | Per-PDF `IndexStatusLine` with Retry; 500ms polling while indexing. |
-| 5f — ContentResolver Tier 2 | ⬜ | Route typed queries through `content_fts`. |
-| 6 — Structured extraction | ⬜ | Tag pages with content type for Spellbook / Bestiary. |
-| 7 — In-session "Look it up" panel | ⬜ Planned | Slide-over search on session screen; reuses `searchCampaign`. |
-| 8 — Bookmarks / page pins | ⬜ Planned | Local `pdf_bookmarks` table; "Pinned" section on search; pin filter. |
-| 9 — DM-shared search results | ⬜ Planned | Citation-only sharing via Realtime; new `session_lookups` table (no PDF text server-side). |
+| Campaign-side PDF reader | ✅ Done | Upload (`expo-document-picker` + `expo-file-system` / IndexedDB) + ToS gate + viewer (`react-native-pdf`). Read-only — no text extraction or indexing. |
+| Imported content tier | ✅ Done | New `'imported'` tier in `ContentResolver`; on-device store (Expo SQLite native, IndexedDB web); per-batch (system × content type × source filename) management with re-import via filename collision. |
+| 5e.tools content transforms | ✅ Done | Eight per-content-type transforms in `packages/content/src/imported/transform/` cover subclasses, feats, spells, backgrounds, items (mundane + magic), species (race + subrace), monsters, and classes. Each parses the matching 5e.tools array(s) into our `*Result` shape; shared `entries.ts` flattens `entries[]` blocks and strips inline `{@tag}` markup. |
+| Import UI | ✅ Done | Three-state file-pick + ToS + progress modal at `components/imported/ImportContentModal.tsx`. Local file pick only — no URL fetch. Driven by an `IMPORT_KINDS` registry so the disclosure list, Confirm probe rows, diagnostic copy, and upsert loop are all single-source-of-truth. |
+| Game-Systems-side surface | ✅ Done | Imported tab on per-system detail page with file-grouped batch list, per-source breakdown summary, remove-file + remove-batch actions. |
+| Source provenance | ✅ Done | `ImportSource` field on every `ContentResult`; `SourceBadge` primitive renders codes ("PHB", "SRD 2024", pack name) on every entry across the app. |
 
-**Legal:** PDFs never leave the device. See [legal.md](legal.md). Phase 9
-shares page citations only — never extracted page text.
+**Legal:** All imported content stays on-device, never transmitted to
+Vaultstone or shared with other party members. PDFs same. See
+[legal.md](legal.md).
 
 ### 9. World Builder & Campaign Knowledge Base 🟡 Polish Sprint In Progress
 
@@ -233,22 +232,6 @@ These items shipped with web-only verification and need a smoke test the
 first time we build a native dev client (likely during Phase 6 TestFlight
 prep, or sooner if any feature work needs `expo run:ios`/`run:android`).
 
-- **PDF Rulebook Phase 5c — native text extraction.** Code is in place
-  (`pdf-parser.native.ts` + Hermes polyfills) but has never run on Hermes.
-  Specific risks to watch:
-  - Metro may reject `pdfjs-dist/legacy/build/pdf.mjs` over `import.meta.url`.
-    Fallback: swap to `.../pdf.js` (non-mjs) or add a postinstall patch
-    script (mirror `scripts/patch-metro.js`).
-  - First parse may surface a missing polyfill not exercised on web.
-  - Memory on 300+ page books is unverified — may need incremental
-    indexing (file as a follow-up if it's a problem).
-  - Smoke test: upload small PDF in dev build → confirm `IndexStatusLine`
-    cycles `not_indexed → indexing N/M → ✓ Indexed` → search returns hits
-    with sensible snippets. **Expo Go cannot run this** — needs
-    `npx expo run:ios`/`run:android` for the dev client.
-  - See [features/08-pdf-rulebook.md Phase 5c](features/08-pdf-rulebook.md#phase-5c--native-pdf-text-extraction--done-2026-04-14)
-    for full polyfill list and the implementation rationale.
-
 - **World Builder Phase 5 — native map canvas + upload.** Code is in place
   (`MapCanvas.tsx` uses gesture-handler + Reanimated; `MapUploadModal.tsx`
   uses expo-image-picker + `fetch(uri).blob()` — same pattern as
@@ -284,7 +267,7 @@ Paradigm shift from warm parchment (Cinzel / Crimson Pro) to "Magical Midnight" 
 - [ ] Invite players — add testers in App Store Connect
 - [ ] Run a real session
 - [ ] **Run deferred native smoke tests** — see *Deferred verification*
-      under Phase 5 above (currently: Phase 5c PDF text extraction)
+      above (currently: World Builder Phase 5 native map canvas)
 - [ ] File bugs in GitHub Issues
 
 ---

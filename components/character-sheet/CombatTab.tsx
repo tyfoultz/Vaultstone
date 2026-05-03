@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
-import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eFeature } from '@vaultstone/types';
+import { getSrdContent } from '@vaultstone/content';
+import type {
+  Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eFeature,
+  ConditionResult, SrdVersion,
+} from '@vaultstone/types';
 import type { RollResult } from './RollToast';
 
 const ABILITY_KEYS: (keyof Dnd5eAbilityScores)[] = [
@@ -14,12 +18,22 @@ const ABILITY_SHORT: Record<keyof Dnd5eAbilityScores, string> = {
 };
 const SLOT_ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 
-const ALL_CONDITIONS = [
-  'Blinded', 'Charmed', 'Deafened', 'Frightened', 'Grappled',
-  'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned',
-  'Prone', 'Restrained', 'Stunned', 'Unconscious',
-];
 const EXHAUSTION_MAX = 6;
+
+/**
+ * Resolve the bundled condition list for a given SRD edition. Defaults to
+ * SRD 2.0 for legacy characters created before `srdVersion` became a required
+ * field.
+ *
+ * Exhaustion is intentionally filtered out: the picker injects its own
+ * "Exhaustion" pseudo-entry that routes to the level-track handler
+ * (`onSetExhaustion`), since exhaustion in our app is a 0–6 numeric level
+ * rather than a binary on/off condition like the others.
+ */
+function bundledConditionsFor(srdVersion: SrdVersion | null | undefined): ConditionResult[] {
+  const all = getSrdContent(srdVersion ?? 'SRD_2.0').conditions;
+  return all.filter((c) => c.name.toLowerCase() !== 'exhaustion');
+}
 
 // SRD full-caster level-1 default (fallback for pre-slot-init characters)
 const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
@@ -31,23 +45,40 @@ const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 
-// SRD standard actions — always available
-const SRD_ACTIONS: Dnd5eFeature[] = [
-  { id: 'attack',     name: 'Attack',           actionType: 'action',   description: 'Make one melee or ranged attack.' },
-  { id: 'dash',       name: 'Dash',             actionType: 'action',   description: 'Gain extra movement equal to your speed for this turn.' },
-  { id: 'disengage',  name: 'Disengage',        actionType: 'action',   description: 'Your movement doesn\'t provoke opportunity attacks for the rest of the turn.' },
-  { id: 'dodge',      name: 'Dodge',            actionType: 'action',   description: 'Attackers have disadvantage on attacks against you; you have advantage on DEX saves.' },
-  { id: 'help',       name: 'Help',             actionType: 'action',   description: 'Give an ally advantage on their next ability check or attack roll.' },
-  { id: 'hide',       name: 'Hide',             actionType: 'action',   description: 'Make a Stealth check to become hidden.' },
-  { id: 'ready',      name: 'Ready',            actionType: 'action',   description: 'Prepare a reaction to trigger on a specific condition before your next turn.' },
-  { id: 'search',     name: 'Search',           actionType: 'action',   description: 'Devote attention to finding something using Perception or Investigation.' },
-  { id: 'use-object', name: 'Use an Object',    actionType: 'action',   description: 'Interact with a second object or use a special item feature.' },
-];
-const SRD_SPELL_ACTION: Dnd5eFeature =
-  { id: 'cast-spell', name: 'Cast a Spell',     actionType: 'action',   description: 'Cast a spell with a casting time of 1 action.' };
-const SRD_REACTIONS: Dnd5eFeature[] = [
-  { id: 'opp-attack', name: 'Opportunity Attack', actionType: 'reaction', description: 'When a creature leaves your reach, you can make one melee attack against it.' },
-];
+/** Keys of bundled SRD standard actions — used to style the row as built-in vs custom. */
+const SRD_ACTION_KEYS = new Set([
+  'attack', 'dash', 'disengage', 'dodge', 'help', 'hide', 'ready', 'search',
+  'use-an-object', 'utilize', 'cast-a-spell', 'magic',
+  'influence', 'study', 'opportunity-attack',
+]);
+
+/**
+ * Resolve the bundled standard-action list for the character's edition and
+ * shape it into the `Dnd5eFeature` form used by the action group renderer.
+ * Replaces an earlier hardcoded SRD_ACTIONS / SRD_REACTIONS / SRD_SPELL_ACTION
+ * trio — now data-driven from `@vaultstone/content`.
+ */
+function srdActionsFor(srdVersion: SrdVersion | null | undefined, isSpellcaster: boolean): {
+  actions: Dnd5eFeature[];
+  reactions: Dnd5eFeature[];
+} {
+  const all = getSrdContent(srdVersion ?? 'SRD_2.0').standardActions;
+  const toFeature = (a: { key: string; name: string; description?: string }, slot: 'action' | 'reaction'): Dnd5eFeature => ({
+    id: a.key,
+    name: a.name,
+    description: a.description ?? '',
+    actionType: slot === 'action' ? 'action' : 'reaction',
+  });
+  const actions = all
+    .filter((a) => a.actionEconomy === 'action')
+    // Non-casters drop the Magic / Cast a Spell row. Either name maps depending on edition.
+    .filter((a) => isSpellcaster || (a.key !== 'magic' && a.key !== 'cast-a-spell'))
+    .map((a) => toFeature(a, 'action'));
+  const reactions = all
+    .filter((a) => a.actionEconomy === 'reaction')
+    .map((a) => toFeature(a, 'reaction'));
+  return { actions, reactions };
+}
 
 interface Props {
   stats: Dnd5eStats;
@@ -107,9 +138,10 @@ export function CombatTab({
   const featureReactions = allFeatures.filter((f) => f.actionType === 'reaction');
   const featureFree      = allFeatures.filter((f) => f.actionType === 'free');
 
-  const actions   = [...SRD_ACTIONS, ...(isSpellcaster ? [SRD_SPELL_ACTION] : []), ...featureActions];
-  const bonuses   = featureBonus;
-  const reactions = [...SRD_REACTIONS, ...featureReactions];
+  const { actions: srdActions, reactions: srdReactions } = srdActionsFor(stats.srdVersion, isSpellcaster);
+  const actions     = [...srdActions, ...featureActions];
+  const bonuses     = featureBonus;
+  const reactions   = [...srdReactions, ...featureReactions];
   const freeActions = featureFree;
 
   // ── Desktop: single-column flat layout ────────────────────────────────────
@@ -353,6 +385,7 @@ export function CombatTab({
         canEditAny={canEditAny}
         onToggle={onToggleCondition}
         onSetExhaustion={onSetExhaustion}
+        bundledConditions={bundledConditionsFor(stats.srdVersion)}
       />
 
       {/* Passives */}
@@ -372,20 +405,43 @@ export function CombatTab({
 
 export function ConditionsSection({
   activeConditions, exhaustionLevel, canEditAny, onToggle, onSetExhaustion,
+  bundledConditions,
 }: {
   activeConditions: string[];
   exhaustionLevel: number;
   canEditAny: boolean;
   onToggle: (c: string) => void;
   onSetExhaustion: (level: number) => void;
+  /** Bundled SRD condition catalog filtered to the character's edition. */
+  bundledConditions: ConditionResult[];
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const normalizedActive = activeConditions.map((x) => x.toLowerCase());
-  const pickable = exhaustionLevel === 0 ? ['Exhaustion', ...ALL_CONDITIONS] : ALL_CONDITIONS;
-  const available = pickable.filter((c) => !normalizedActive.includes(c.toLowerCase()));
+
+  // Pickable list: bundled SRD conditions, plus a synthetic "Exhaustion" entry
+  // (handled separately because it's a level track, not a binary condition).
+  type Pickable = { name: string; description?: string };
+  const pickable: Pickable[] = useMemo(() => {
+    const conds: Pickable[] = bundledConditions
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => ({ name: c.name, description: c.description }));
+    if (exhaustionLevel === 0) {
+      conds.unshift({
+        name: 'Exhaustion',
+        description: 'Track exhaustion as a 1–6 level. Higher levels stack penalties; level 6 is death.',
+      });
+    }
+    return conds;
+  }, [bundledConditions, exhaustionLevel]);
+
+  const available = pickable.filter((c) => !normalizedActive.includes(c.name.toLowerCase()));
   const filtered = search.trim()
-    ? available.filter((c) => c.toLowerCase().includes(search.toLowerCase()))
+    ? available.filter((c) =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        (c.description ?? '').toLowerCase().includes(search.toLowerCase())
+      )
     : available;
 
   const hasActive = activeConditions.length > 0 || exhaustionLevel > 0;
@@ -492,12 +548,17 @@ export function ConditionsSection({
             <ScrollView style={s.modalList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {filtered.length > 0 ? filtered.map((c, i) => (
                 <TouchableOpacity
-                  key={c}
+                  key={c.name}
                   style={[s.condRow, i < filtered.length - 1 && s.condRowBorder]}
-                  onPress={() => handlePick(c)}
+                  onPress={() => handlePick(c.name)}
                   activeOpacity={0.7}
                 >
-                  <Text style={s.condRowText}>{c}</Text>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={s.condRowText}>{c.name}</Text>
+                    {c.description ? (
+                      <Text style={s.condRowDesc} numberOfLines={2}>{c.description}</Text>
+                    ) : null}
+                  </View>
                   <MaterialCommunityIcons name="plus-circle-outline" size={16} color={colors.outline} />
                 </TouchableOpacity>
               )) : (
@@ -534,7 +595,7 @@ function ActionGroup({ label, items, accent }: { label: string; items: Dnd5eFeat
 }
 
 function ActionRow({ feature }: { feature: Dnd5eFeature }) {
-  const isSrd = ['attack', 'dash', 'disengage', 'dodge', 'help', 'hide', 'ready', 'search', 'use-object', 'cast-spell', 'opp-attack'].includes(feature.id);
+  const isSrd = SRD_ACTION_KEYS.has(feature.id);
   return (
     <View style={s.actionRow}>
       <View style={s.actionRowHeader}>
@@ -721,6 +782,7 @@ const s = StyleSheet.create({
   },
   condRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
   condRowText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '500', color: colors.onSurface },
+  condRowDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 15 },
 
   // Abilities (desktop right-column horizontal strip)
   hexRow: { flexDirection: 'row', gap: 6 },

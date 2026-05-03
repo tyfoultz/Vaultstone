@@ -70,7 +70,9 @@ export default function PickCharacterScreen() {
   }
 
   function handleCreateNew() {
-    router.push('/character/new');
+    // Forward the campaign id so the wizard can lock the ruleset and
+    // scope content to the campaign's enabled homebrew packs.
+    router.push(`/character/new?campaignId=${campaignId}` as never);
   }
 
   return (
