@@ -447,8 +447,10 @@ export function FactionPageView({ page, worldId }: Props) {
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
     if (error) {
-      if (ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) setLockError({ ownerId: ctx.lockOwnerId, since: ctx.lockSince });
-      else setLockError({ ownerId: ctx.lockOwnerId ?? 'unknown', since: ctx.lockSince ?? new Date().toISOString() });
+      const msg = (error as any)?.message ?? '';
+      const isLockConflict = msg.includes('locked') || msg.includes('another editor');
+      if (isLockConflict && ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) setLockError({ ownerId: ctx.lockOwnerId, since: ctx.lockSince });
+      else if (isLockConflict) setLockError({ ownerId: ctx.lockOwnerId ?? 'unknown', since: ctx.lockSince ?? new Date().toISOString() });
       return;
     }
     if (data) { ctx.updatePageInStore(data.id, { editing_user_id: data.editing_user_id, editing_since: data.editing_since }); setLockError(null); }

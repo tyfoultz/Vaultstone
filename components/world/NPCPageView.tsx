@@ -553,9 +553,11 @@ export function NPCPageView({ page, worldId }: Props) {
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
     if (error) {
-      if (ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) {
+      const msg = (error as any)?.message ?? '';
+      const isLockConflict = msg.includes('locked') || msg.includes('another editor');
+      if (isLockConflict && ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) {
         setLockError({ ownerId: ctx.lockOwnerId, since: ctx.lockSince });
-      } else {
+      } else if (isLockConflict) {
         setLockError({ ownerId: ctx.lockOwnerId ?? 'unknown', since: ctx.lockSince ?? new Date().toISOString() });
       }
       return;

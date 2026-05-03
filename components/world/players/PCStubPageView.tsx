@@ -281,7 +281,12 @@ export function PCStubPageView({ page, worldId }: Props) {
     if (!page.id) return;
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
-    if (error) { setLockError({ ownerId: ctx.lockOwnerId ?? 'unknown', since: ctx.lockSince ?? new Date().toISOString() }); return; }
+    if (error) {
+      const msg = (error as any)?.message ?? '';
+      const isLockConflict = msg.includes('locked') || msg.includes('another editor');
+      if (isLockConflict) setLockError({ ownerId: ctx.lockOwnerId ?? 'unknown', since: ctx.lockSince ?? new Date().toISOString() });
+      return;
+    }
     if (data) { ctx.updatePageInStore(data.id, { editing_user_id: data.editing_user_id, editing_since: data.editing_since }); setLockError(null); }
   }, [page.id]);
 

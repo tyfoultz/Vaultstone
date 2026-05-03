@@ -702,21 +702,14 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
     const trailing = document.createTextNode(after || ' ');
 
-    // Ensure chip is inserted as a direct child of the content element,
-    // not nested inside browser-generated wrapper spans
+    // Split the text node and insert chip + trailing text in place.
+    // Keep everything within the same parent to avoid displacing text
+    // when the node is nested inside browser-generated wrapper spans.
     node.textContent = before;
-    let insertParent: Node = node.parentNode!;
-    let insertRef: Node | null = node.nextSibling;
-    if (insertParent !== el) {
-      insertRef = insertParent as Node;
-      while (insertRef && insertRef.parentNode !== el) {
-        insertRef = insertRef.parentNode;
-      }
-      insertRef = insertRef?.nextSibling ?? null;
-      insertParent = el;
-    }
-    insertParent.insertBefore(chip, insertRef);
-    insertParent.insertBefore(trailing, chip.nextSibling);
+    const mParent = node.parentNode!;
+    const mRef = node.nextSibling;
+    mParent.insertBefore(chip, mRef);
+    mParent.insertBefore(trailing, chip.nextSibling);
 
     // Capture the chip HTML immediately — don't defer to rAF because a blur
     // event (triggered by clicking the typeahead popup) may have already
@@ -953,14 +946,16 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
   useEffect(() => {
     if (!editable) return;
+    const SHORTCUTS: Record<string, string> = {
+      b: 'bold', i: 'italic', u: 'underline',
+      s: 'strikeThrough', '.': 'insertUnorderedList', '/': 'insertOrderedList',
+    };
     function onKeyDown(e: KeyboardEvent) {
       if (!(e.ctrlKey || e.metaKey)) return;
-      let cmd: string | null = null;
-      if (e.key === 's' || e.key === 'S') { cmd = 'strikeThrough'; }
-      else if (e.key === '.') { cmd = 'insertUnorderedList'; }
-      else if (e.key === '/') { cmd = 'insertOrderedList'; }
+      const cmd = SHORTCUTS[e.key.toLowerCase()];
       if (cmd) {
         e.preventDefault();
+        e.stopPropagation();
         document.execCommand(cmd, false);
         if (focusedId) {
           const el = document.querySelector(`[data-block-id="${focusedId}"] .lore-block-content`) as HTMLElement;
@@ -968,8 +963,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
         }
       }
     }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [editable, focusedId]);
 
   function handleTableInsert(cols: number, rows: number) {
