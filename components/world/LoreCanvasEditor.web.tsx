@@ -951,6 +951,40 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   }
 
   function execCmd(cmd: string, arg?: string) {
+    if (cmd === 'insertUnorderedList' || cmd === 'insertOrderedList') {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        let node: Node | null = sel.anchorNode;
+        const targetTag = cmd === 'insertUnorderedList' ? 'UL' : 'OL';
+        const otherTag = cmd === 'insertUnorderedList' ? 'OL' : 'UL';
+        let existingList: HTMLElement | null = null;
+        while (node && !(node instanceof HTMLElement && node.classList?.contains('lore-block-content'))) {
+          if (node instanceof HTMLElement && (node.tagName === 'UL' || node.tagName === 'OL')) {
+            existingList = node;
+          }
+          node = node.parentNode;
+        }
+        if (existingList) {
+          if (existingList.tagName === targetTag) {
+            // Already in same list type — unwrap: replace list items with plain paragraphs
+            const parent = existingList.parentNode!;
+            const items = Array.from(existingList.querySelectorAll(':scope > li'));
+            for (const li of items) {
+              const p = document.createElement('p');
+              p.innerHTML = li.innerHTML;
+              parent.insertBefore(p, existingList);
+            }
+            parent.removeChild(existingList);
+          } else if (existingList.tagName === otherTag) {
+            // In other list type — switch: just change the tag
+            const replacement = document.createElement(targetTag.toLowerCase());
+            replacement.innerHTML = existingList.innerHTML;
+            existingList.parentNode!.replaceChild(replacement, existingList);
+          }
+          return;
+        }
+      }
+    }
     document.execCommand(cmd, false, arg);
   }
 
@@ -966,7 +1000,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       if (cmd) {
         e.preventDefault();
         e.stopPropagation();
-        document.execCommand(cmd, false);
+        execCmd(cmd);
         if (focusedId) {
           const el = document.querySelector(`[data-block-id="${focusedId}"] .lore-block-content`) as HTMLElement;
           if (el) { htmlRef.current[focusedId] = el.innerHTML; emitChange(); }
