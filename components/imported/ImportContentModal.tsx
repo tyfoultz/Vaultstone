@@ -1,12 +1,13 @@
 // Three-state modal that drives the JSON content import flow:
 //   1. INTRO   — legal disclaimer + "Choose file" button
 //   2. CONFIRM — picked file + probe summary ("Found 36 subclasses") + Import
-//   3. WORKING — progress UI while transform + saveBatch run
+//   3. WORKING — progress UI while transform + Supabase write run
 //
-// Imported entries flow through transformSubclasses (and future transforms
-// per content type) into the on-device imported tier — see
-// packages/content/src/imported/. The source file is read into memory, parsed,
-// and discarded; nothing leaves the device.
+// Imported entries are transformed into *Result-shaped payloads on-device,
+// then upserted into the Supabase `imported_content` table under a new (or
+// existing, on re-import) homebrew_pack named after the source file. From
+// the user's perspective the result is just another content pack — synced,
+// shareable, and managed alongside authored homebrew.
 
 import { useState } from 'react';
 import {
@@ -15,7 +16,12 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing } from '@vaultstone/ui';
-import { saveBatch, transformSubclasses } from '@vaultstone/content';
+import { transformSubclasses } from '@vaultstone/content';
+import {
+  createHomebrewPack, listHomebrewPacks,
+  upsertImportedEntries, deleteImportedEntriesInPack,
+} from '@vaultstone/api';
+import { useAuthStore } from '@vaultstone/store';
 import {
   pickContentJson, probeContent, hasImportableContent,
   type PickedJson, type ImportableContent,
@@ -32,6 +38,7 @@ type Props = {
 type Phase = 'intro' | 'confirm' | 'working';
 
 export function ImportContentModal({ visible, systemId, onClose, onImported }: Props) {
+  const userId = useAuthStore((s) => s.user?.id ?? null);
   const [phase, setPhase] = useState<Phase>('intro');
   const [picked, setPicked] = useState<PickedJson | null>(null);
   const [probe, setProbe] = useState<ImportableContent | null>(null);
@@ -65,29 +72,69 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
   }
 
   async function handleImport() {
-    if (!picked || !probe) return;
+    if (!picked || !probe || !userId) return;
     setPhase('working');
     setError(null);
     try {
-      // Today: subclasses only. As more transforms land they slot in here,
-      // each producing its own batch under the same source filename.
+      const packName = derivePackName(picked.fileName);
+
+      // Look up an existing import pack from the same source file. We use
+      // the pack name + system + owner as the lookup key — re-importing
+      // the same file finds the existing pack and replaces its entries
+      // rather than creating a duplicate pack.
+      const { data: existingPacks } = await listHomebrewPacks({ system: systemId });
+      let pack = existingPacks?.find(
+        (p) => p.owner_user_id === userId && p.name === packName,
+      ) ?? null;
+
+      if (!pack) {
+        const { data: created, error: createErr } = await createHomebrewPack({
+          ownerUserId: userId,
+          system: systemId,
+          name: packName,
+          description: `Imported from ${picked.fileName}`,
+        });
+        if (createErr || !created) {
+          throw new Error(createErr?.message ?? 'Failed to create pack');
+        }
+        pack = created;
+      }
+
+      // Wipe existing imported entries in this pack before re-importing
+      // so removed entries (renamed source-keys, deleted upstream) don't
+      // linger. Authored entries in homebrew_content stay untouched —
+      // we only delete from imported_content.
+      await deleteImportedEntriesInPack(pack.id);
+
+      // Run all available transforms and upsert their output. Today only
+      // subclasses; future transforms slot in alongside.
+      const entriesToUpsert: Parameters<typeof upsertImportedEntries>[0]['entries'] = [];
       if (probe.subclasses > 0) {
-        const entries = transformSubclasses(picked.payload as never, {
+        const subclasses = transformSubclasses(picked.payload as never, {
           systemId,
           sourceLabel: picked.fileName,
         });
-        await saveBatch(
-          {
-            id: `imported-subclass-${systemId}-${slugify(picked.fileName)}`,
-            system_id: systemId,
-            content_type: 'subclass',
-            source_url: picked.fileName,
-            source_label: picked.fileName,
-            imported_at: new Date().toISOString(),
-          },
-          entries,
-        );
+        for (const sc of subclasses) {
+          entriesToUpsert.push({
+            contentType: 'subclass',
+            name: sc.name,
+            entryKey: sc.key,
+            data: sc,
+            sourceCode: sc.importSource?.code,
+            sourceName: sc.importSource?.name,
+            sourcePage: sc.importSource?.page,
+            sourceUrl: picked.fileName,
+          });
+        }
       }
+
+      const { error: upsertErr } = await upsertImportedEntries({
+        packId: pack.id,
+        userId,
+        entries: entriesToUpsert,
+      });
+      if (upsertErr) throw new Error(upsertErr.message);
+
       onImported();
       reset();
       onClose();
@@ -225,8 +272,16 @@ function WorkingBody() {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+/**
+ * Pack name derived from a source filename. Strips common extensions and
+ * the conventional "imported from" prefix the user already sees in the
+ * description, so the pack name in the Content Packs row reads cleanly.
+ *
+ * Re-imports of the same file find the existing pack via this name +
+ * system + owner, so the function must be deterministic.
+ */
+function derivePackName(fileName: string): string {
+  return `Imported: ${fileName.replace(/\.json$/i, '')}`;
 }
 
 function formatBytes(n: number): string {

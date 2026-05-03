@@ -10,7 +10,6 @@ import {
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
 import {
   getSrdContent, SEED_ONLY_TYPES, type SrdContent,
-  listBatches, removeBatch, type ImportBatch,
 } from '@vaultstone/content';
 import { DetailModal, DetailSection, DetailSectionHeading } from '../../../components/DetailModal';
 import { CreateHomebrewPackModal } from '../../../components/homebrew/CreateHomebrewPackModal';
@@ -18,7 +17,6 @@ import { ImportContentModal } from '../../../components/imported/ImportContentMo
 import { listHomebrewPacks, deleteHomebrewPack, type HomebrewPackRow } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
-import { useSystemImportedContent } from '../../../components/game-systems/useSystemImportedContent';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
@@ -221,39 +219,33 @@ function GameSystemDetail({
   // and homebrew entries fade in once the query resolves. Each homebrew
   // entry already comes shaped as the matching `*Result` thanks to the
   // ContentResolver mapping in packages/content/src/homebrew/index.ts.
-  const homebrew = useSystemHomebrewContent(sys.id);
-  // Same shape but for imported (JSON-imported) content. Reads from the
-  // on-device imported tier — see packages/content/src/imported/. The
-  // refresh tick is bumped by SystemPacksRow after an import or delete so
-  // the rest of the page (Class detail, etc.) sees the updated tier without
-  // requiring a remount.
-  const [importedRefreshTick, setImportedRefreshTick] = useState(0);
-  const imported = useSystemImportedContent(sys.id, importedRefreshTick);
-  const refreshImported = () => setImportedRefreshTick((n) => n + 1);
+  // Both authored homebrew and imported content land in this stream —
+  // the homebrew tier reader merges them under the unified pack umbrella.
+  // refreshTick is bumped by SystemPacksRow after a pack/import lands so
+  // downstream surfaces (Class detail, etc.) re-render without a remount.
+  const [homebrewRefreshTick, setHomebrewRefreshTick] = useState(0);
+  const homebrew = useSystemHomebrewContent(sys.id, homebrewRefreshTick);
+  const refreshHomebrew = () => setHomebrewRefreshTick((n) => n + 1);
 
-  // Merge: spread SRD first, concat imported, concat homebrew per bucket.
-  // Order matters because the existing list sorts (alphabetical, by-CR,
-  // etc.) re-sort each merged array; the spread order doesn't affect final
-  // display order, but it does affect which entry "wins" when a downstream
+  // Merge: spread SRD first, concat homebrew per bucket. Order matters
+  // because the existing list sorts (alphabetical, by-CR, etc.) re-sort
+  // each merged array; the spread order doesn't affect final display
+  // order, but it does affect which entry "wins" when a downstream
   // dedupe-by-name pass collapses collisions (caller-side or future).
   // Schema and reference catalog buckets pass through untouched — those
   // aren't user-authorable.
   const content = useMemo(() => {
     const merged: typeof srdContent = { ...srdContent };
-    const concatBucket = (other: Partial<typeof srdContent>) => {
-      for (const [k, list] of Object.entries(other)) {
-        if (!list || list.length === 0) continue;
-        const key = k as keyof typeof srdContent;
-        // Cast through unknown — the per-bucket array types are heterogeneous
-        // (SpellResult[], ItemResult[], etc.) but the indexer only sees the
-        // union, so the spread is provably correct at runtime.
-        (merged[key] as unknown[]) = [...(merged[key] as unknown[]), ...list];
-      }
-    };
-    concatBucket(imported.buckets);
-    concatBucket(homebrew.buckets);
+    for (const [k, list] of Object.entries(homebrew.buckets)) {
+      if (!list || list.length === 0) continue;
+      const key = k as keyof typeof srdContent;
+      // Cast through unknown — the per-bucket array types are heterogeneous
+      // (SpellResult[], ItemResult[], etc.) but the indexer only sees the
+      // union, so the spread is provably correct at runtime.
+      (merged[key] as unknown[]) = [...(merged[key] as unknown[]), ...list];
+    }
     return merged;
-  }, [srdContent, homebrew.buckets, imported.buckets]);
+  }, [srdContent, homebrew.buckets]);
 
   // Build the visible group + sub-tab tree once per content change. A group
   // disappears entirely when none of its sub-tabs have content — except
@@ -314,7 +306,7 @@ function GameSystemDetail({
 
       {/* Homebrew packs scoped to this system. Pinned above the SRD content
           tabs so users see their custom content first. */}
-      <SystemPacksRow system={sys} onImportedChanged={refreshImported} />
+      <SystemPacksRow system={sys} onPacksChanged={refreshHomebrew} />
 
       {/* Group tabs — primary navigation (horizontal scroll on narrow screens). */}
       <ScrollView
@@ -408,56 +400,18 @@ function GameSystemDetail({
 // surface keeps the mental model simple ("things that add content to my
 // system"). Tap behaviors and delete semantics diverge by kind — see PackCard.
 
-type PackItem =
-  | { kind: 'homebrew'; pack: HomebrewPackRow }
-  | { kind: 'imported'; group: ImportedFileGroup };
-
-type ImportedFileGroup = {
-  /** Deterministic id so React keys stay stable across re-renders. Derived
-   *  from sourceUrl since one file → one group. */
-  id: string;
-  sourceUrl: string;
-  sourceLabel: string;
-  importedAt: string;
-  batches: ImportBatch[];
-  totalEntries: number;
-};
-
-function groupImportsByFile(batches: ImportBatch[]): ImportedFileGroup[] {
-  const map = new Map<string, ImportedFileGroup>();
-  for (const b of batches) {
-    const slot = map.get(b.source_url);
-    if (slot) {
-      slot.batches.push(b);
-      slot.totalEntries += b.entry_count;
-      if (b.imported_at > slot.importedAt) slot.importedAt = b.imported_at;
-    } else {
-      map.set(b.source_url, {
-        id: `imported:${b.source_url}`,
-        sourceUrl: b.source_url,
-        sourceLabel: b.source_label ?? b.source_url,
-        importedAt: b.imported_at,
-        batches: [b],
-        totalEntries: b.entry_count,
-      });
-    }
-  }
-  return [...map.values()].sort((a, b) => b.importedAt.localeCompare(a.importedAt));
-}
-
 function SystemPacksRow({
-  system, onImportedChanged,
+  system, onPacksChanged,
 }: {
   system: GameSystemDefinition;
-  /** Bumped when an import lands or is removed so the page-level
-   *  imported-tier hook re-fetches and downstream surfaces (Class
+  /** Bumped when a pack is created, deleted, or an import lands so the
+   *  page-level homebrew hook re-fetches and downstream surfaces (Class
    *  detail, etc.) reflect the change without a remount. */
-  onImportedChanged?: () => void;
+  onPacksChanged?: () => void;
 }) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const [packs, setPacks] = useState<HomebrewPackRow[]>([]);
-  const [imports, setImports] = useState<ImportBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -466,39 +420,22 @@ function SystemPacksRow({
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    Promise.all([
-      listHomebrewPacks({ system: system.id }),
-      listBatches(system.id),
-    ]).then(([{ data }, batches]) => {
+    listHomebrewPacks({ system: system.id }).then(({ data }) => {
       if (cancelled) return;
       setPacks(data ?? []);
-      setImports(batches ?? []);
       setLoading(false);
     });
     return () => { cancelled = true; };
   }, [user, system.id, refreshTick]);
-
-  // Build the merged view-model. Homebrew packs first (newer-feeling because
-  // they're authored, not just dropped in), then imported files, sorted by
-  // recency within each kind.
-  const items = useMemo<PackItem[]>(() => {
-    const homebrewItems: PackItem[] = packs.map((pack) => ({ kind: 'homebrew', pack }));
-    const importItems: PackItem[] = groupImportsByFile(imports).map((group) => ({
-      kind: 'imported',
-      group,
-    }));
-    return [...homebrewItems, ...importItems];
-  }, [packs, imports]);
 
   // While loading, render nothing — the SRD tabs immediately below are
   // self-contained, so a brief absence here is preferable to a flash of an
   // empty state that turns into populated content.
   if (loading) return null;
 
-  async function handleRemoveImport(batches: ImportBatch[]) {
-    await Promise.all(batches.map((b) => removeBatch(b.id).catch(() => {})));
+  function fanOutChange() {
     setRefreshTick((n) => n + 1);
-    onImportedChanged?.();
+    onPacksChanged?.();
   }
 
   return (
@@ -508,7 +445,7 @@ function SystemPacksRow({
           Your Content Packs
         </Text>
         <MetaLabel size="sm">
-          {items.length === 0 ? 'No packs yet' : `${items.length} pack${items.length === 1 ? '' : 's'}`}
+          {packs.length === 0 ? 'No packs yet' : `${packs.length} pack${packs.length === 1 ? '' : 's'}`}
         </MetaLabel>
       </View>
 
@@ -517,13 +454,15 @@ function SystemPacksRow({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={packStyles.row}
       >
-        {items.map((item) => (
+        {packs.map((pack) => (
           <PackCard
-            key={item.kind === 'homebrew' ? item.pack.id : item.group.id}
-            item={item}
-            onOpenHomebrew={(pack) => router.push(`/homebrew-pack/${pack.id}` as Href)}
-            onDeletedHomebrew={(packId) => setPacks((prev) => prev.filter((p) => p.id !== packId))}
-            onDeleteImport={handleRemoveImport}
+            key={pack.id}
+            pack={pack}
+            onOpen={() => router.push(`/homebrew-pack/${pack.id}` as Href)}
+            onDeleted={() => {
+              setPacks((prev) => prev.filter((p) => p.id !== pack.id));
+              onPacksChanged?.();
+            }}
           />
         ))}
 
@@ -556,6 +495,7 @@ function SystemPacksRow({
           onCreated={(pack) => {
             setCreateOpen(false);
             setPacks((prev) => [pack, ...prev]);
+            onPacksChanged?.();
             router.push(`/homebrew-pack/${pack.id}` as Href);
           }}
         />
@@ -565,78 +505,57 @@ function SystemPacksRow({
         visible={importOpen}
         systemId={system.id}
         onClose={() => setImportOpen(false)}
-        onImported={() => {
-          setRefreshTick((n) => n + 1);
-          onImportedChanged?.();
-        }}
+        onImported={fanOutChange}
       />
     </View>
   );
 }
 
 /**
- * Unified pack card — renders either a homebrew pack or an imported file
- * group. Uses a two-state body: the default shows name + sublabel + trash;
- * pressing trash flips into a confirm/cancel pair inline (no separate modal,
- * keeps the horizontal-scroll geometry stable).
+ * Single content-pack card. Two-state body: the default shows name +
+ * sublabel + trash; pressing trash flips into a confirm/cancel pair
+ * inline (no separate modal, keeps the horizontal-scroll geometry stable).
  *
- * Visual differentiation by kind: icon + sublabel make it obvious whether a
- * card is a Supabase-backed homebrew pack (party-shareable, editable) or an
- * on-device imported file (read-only, not shareable). Delete semantics
- * diverge accordingly — homebrew delete cascades server-side, imported
- * delete just drops local data.
+ * Imported packs (created via the import modal) and authored packs both
+ * surface here as homebrew_packs rows — the storage convention is that
+ * import-created packs are named "Imported: <filename>" so the user can
+ * tell them apart in the row. Both kinds open the same per-pack detail
+ * page on tap; the detail UI is responsible for rendering authored vs
+ * imported entries appropriately.
  */
 function PackCard({
-  item,
-  onOpenHomebrew,
-  onDeletedHomebrew,
-  onDeleteImport,
+  pack,
+  onOpen,
+  onDeleted,
 }: {
-  item: PackItem;
-  onOpenHomebrew: (pack: HomebrewPackRow) => void;
-  onDeletedHomebrew: (packId: string) => void;
-  onDeleteImport: (batches: ImportBatch[]) => Promise<void>;
+  pack: HomebrewPackRow;
+  onOpen: () => void;
+  onDeleted: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
-  const isHomebrew = item.kind === 'homebrew';
-  const name = isHomebrew ? item.pack.name : item.group.sourceLabel;
-
   async function handleDelete() {
     setDeleting(true);
     setDeleteError('');
-    if (item.kind === 'homebrew') {
-      const { error } = await deleteHomebrewPack(item.pack.id);
-      setDeleting(false);
-      if (error) {
-        setDeleteError(error.message);
-        return;
-      }
-      onDeletedHomebrew(item.pack.id);
-    } else {
-      try {
-        await onDeleteImport(item.group.batches);
-        setDeleting(false);
-      } catch (err) {
-        setDeleting(false);
-        setDeleteError(err instanceof Error ? err.message : 'Failed to remove import');
-      }
+    const { error } = await deleteHomebrewPack(pack.id);
+    setDeleting(false);
+    if (error) {
+      setDeleteError(error.message);
+      return;
     }
+    onDeleted();
   }
 
   if (confirming) {
-    const confirmCopy = isHomebrew
-      ? 'All entries inside the pack will be deleted.'
-      : 'All imported entries from this file will be removed from this device.';
     return (
       <View style={[packStyles.packCard, packStyles.packCardConfirm]}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.hpDanger }} numberOfLines={2}>
-            {deleteError || `Delete "${name}"?`}
+            {deleteError || `Delete "${pack.name}"?`}
           </Text>
-          <MetaLabel size="sm">{confirmCopy}</MetaLabel>
+          <MetaLabel size="sm">All entries inside the pack will be deleted.</MetaLabel>
         </View>
         <Pressable
           onPress={() => {
@@ -662,40 +581,36 @@ function PackCard({
     );
   }
 
-  // Kind-specific affordances
-  const iconName = isHomebrew ? 'auto-fix-high' : 'upload-file';
-  const sublabel = isHomebrew
-    ? (item.pack.campaign_id ? 'Campaign-scoped' : 'Personal library')
-    : `Imported · ${item.group.totalEntries} entr${item.group.totalEntries === 1 ? 'y' : 'ies'}`;
-
-  // Imports aren't openable yet — there's no per-import detail page. Tapping
-  // an imported card no-ops; users manage them with the trash icon. A future
-  // detail screen could show per-content-type batch breakdown ("PHB.json:
-  // 36 subclasses, 12 feats") for files that produce multiple batches.
-  const handleOpen = isHomebrew ? () => onOpenHomebrew(item.pack) : undefined;
+  // Imported packs are named "Imported: ..." by the import flow — surface
+  // a different icon so the user can tell them apart in the row at a glance.
+  const isImported = pack.name.startsWith('Imported: ');
+  const iconName = isImported ? 'upload-file' : 'auto-fix-high';
+  const sublabel = isImported
+    ? 'Imported pack'
+    : pack.campaign_id ? 'Campaign-scoped' : 'Personal library';
 
   return (
     <Pressable
-      onPress={handleOpen}
-      style={({ pressed }) => [packStyles.packCard, pressed && handleOpen && { opacity: 0.85 }]}
+      onPress={onOpen}
+      style={({ pressed }) => [packStyles.packCard, pressed && { opacity: 0.85 }]}
     >
       <View style={packStyles.packIcon}>
         <Icon name={iconName} size={20} color={colors.primary} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="body-sm" family="headline" weight="bold" style={{ color: colors.onSurface }} numberOfLines={1}>
-          {name}
+          {pack.name}
         </Text>
         <MetaLabel size="sm">{sublabel}</MetaLabel>
       </View>
-      {isHomebrew && item.pack.is_published ? <Chip label="Shared" variant="accent" /> : null}
+      {pack.is_published ? <Chip label="Shared" variant="accent" /> : null}
       <Pressable
         onPress={(e) => {
           e.stopPropagation();
           setConfirming(true);
         }}
         style={packStyles.packDeleteBtn}
-        accessibilityLabel={`Delete ${name}`}
+        accessibilityLabel={`Delete ${pack.name}`}
       >
         <Icon name="delete" size={16} color={colors.onSurfaceVariant} />
       </Pressable>

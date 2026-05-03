@@ -17,26 +17,14 @@ export {
 } from './local/db';
 export type { LocalSource } from './local/db';
 
-// Imported-tier content packs — user-imported JSON content (e.g. from
-// 5e.tools), stored on-device only. The resolver consumes this via the
-// 'imported' tier; callers manage batches through the listBatches /
-// saveBatch / removeBatch API.
-export {
-  listBatches,
-  saveBatch,
-  removeBatch,
-  loadEntriesByBatch,
-  getSourceBreakdown,
-  loadEntriesBySource,
-  transformSubclasses,
-  stripMarkup,
-} from './imported/index';
-export type {
-  ImportBatch,
-  SourceBreakdown,
-  RawClassFile,
-  TransformOptions,
-} from './imported/index';
+// Imported-content transforms. Imports themselves are now Supabase-backed
+// homebrew packs (see packages/api/src/imported-content.ts and the
+// homebrew resolver in homebrew/index.ts) — the on-device store and
+// 'imported' resolver tier were retired in M1 of the imports↔homebrew
+// unification. Only the third-party-schema → *Result transforms remain
+// here, used by the import modal to shape data before upserting.
+export { transformSubclasses, stripMarkup } from './imported/index';
+export type { RawClassFile, TransformOptions } from './imported/index';
 
 // World-builder section templates (Feature 9 Phase 2).
 export {

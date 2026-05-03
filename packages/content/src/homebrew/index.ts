@@ -42,6 +42,24 @@ type HomebrewContentRow = {
 };
 
 /**
+ * Imported entries — separate Supabase table from homebrew_content because
+ * the data shapes differ (imported carries the full *Result payload from
+ * the on-device transforms, authored uses the slimmer Homebrew*Data
+ * schema). Same parent pack, though, so the user-facing concept is unified.
+ */
+type ImportedContentRow = {
+  id: string;
+  user_id: string;
+  pack_id: string;
+  content_type: string;
+  name: string;
+  data: unknown;
+  source_code: string | null;
+  source_name: string | null;
+  source_page: number | null;
+};
+
+/**
  * Fetch all homebrew entries the authenticated user can read (RLS handles
  * the access check) and shape them into `*Result` records that look
  * indistinguishable from SRD content to downstream consumers. Filtering
@@ -84,26 +102,36 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
     if (allowedPackIds.size === 0) return [];
   }
 
-  // Fetch packs + entries in parallel. Both are RLS-gated; missing auth
-  // just returns 0 rows, no error.
-  const [packsRes, entriesRes] = await Promise.all([
+  // Fetch packs + both entry tables in parallel. Authored homebrew lives
+  // in homebrew_content; JSON imports live in imported_content. They share
+  // the same homebrew_packs parent. All RLS-gated.
+  const [packsRes, authoredRes, importedRes] = await Promise.all([
     supabase.from('homebrew_packs').select('id, owner_user_id, campaign_id, system, name'),
     supabase.from('homebrew_content').select('id, user_id, pack_id, content_type, name, data'),
+    supabase.from('imported_content').select('id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page'),
   ]);
 
-  if (packsRes.error || entriesRes.error) return [];
+  if (packsRes.error || authoredRes.error || importedRes.error) return [];
 
   const packs = (packsRes.data ?? []) as HomebrewPackRow[];
-  const entries = (entriesRes.data ?? []) as HomebrewContentRow[];
+  const authored = (authoredRes.data ?? []) as HomebrewContentRow[];
+  const imported = (importedRes.data ?? []) as ImportedContentRow[];
   const packById = new Map(packs.map((p) => [p.id, p]));
 
   const results: ContentResult[] = [];
-  for (const entry of entries) {
+  for (const entry of authored) {
     if (!entry.pack_id) continue; // legacy rows without a pack are skipped
     if (allowedPackIds && !allowedPackIds.has(entry.pack_id)) continue;
     const pack = packById.get(entry.pack_id);
     if (!pack) continue;
     const mapped = mapEntryToResult(entry, pack);
+    if (mapped) results.push(mapped);
+  }
+  for (const entry of imported) {
+    if (allowedPackIds && !allowedPackIds.has(entry.pack_id)) continue;
+    const pack = packById.get(entry.pack_id);
+    if (!pack) continue;
+    const mapped = mapImportedEntryToResult(entry, pack);
     if (mapped) results.push(mapped);
   }
 
@@ -267,4 +295,43 @@ function mapEntryToResult(
     default:
       return null;
   }
+}
+
+/**
+ * Imported entries come in already shaped as `*Result` (the on-device
+ * transforms produce them that way). We re-overlay tier/system/key from
+ * the parent pack so resolver consumers can't tell the difference between
+ * a bundled SRD entry and an imported one — and so the source-book badge
+ * shows the imported source (e.g. "PHB"), not the pack name.
+ */
+function mapImportedEntryToResult(
+  entry: ImportedContentRow,
+  pack: HomebrewPackRow,
+): ContentResult | null {
+  const payload = entry.data as ContentResult | null;
+  if (!payload || typeof payload !== 'object') return null;
+
+  // Source provenance: prefer the row-level columns (cheap join, indexable)
+  // over re-reading from the payload. Falls through to whatever the payload
+  // had if the columns are unset (legacy rows).
+  const importSource = entry.source_code
+    ? {
+        code: entry.source_code,
+        name: entry.source_name ?? entry.source_code,
+        page: entry.source_page ?? undefined,
+      }
+    : payload.importSource;
+
+  return {
+    ...payload,
+    // Imported content lives under the homebrew tier even though it
+    // didn't come from the authoring forms — the user-facing "content
+    // pack" concept is unified across both.
+    tier: 'homebrew',
+    // Pack metadata wins over whatever the payload was tagged with at
+    // import time (system shouldn't change, but the pack is the
+    // authoritative grouping).
+    system: pack.system,
+    importSource,
+  };
 }

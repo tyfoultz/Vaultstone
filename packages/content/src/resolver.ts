@@ -11,8 +11,7 @@ import type {
  *
  * Tiers (resolved in order, results merged):
  *   1. SRD       — bundled with the app, always available offline
- *   2. Imported  — user-imported JSON content packs (e.g. from 5e.tools), on-device only
- *   3. Homebrew  — user-created content stored in Supabase
+ *   2. Homebrew  — user-created or user-imported content stored in Supabase
  *
  * When the same logical entry exists in multiple tiers, the higher-priority
  * tier wins — see TIER_PRIORITY below. Callers never need to know which tier
@@ -20,22 +19,20 @@ import type {
  *
  * The 'local' tier is preserved in the ContentTier union for the storage
  * layer (PDF uploads still use LocalSource), but it does not contribute
- * search results — PDF text extraction was removed in favor of structured
- * JSON imports.
+ * search results. JSON imports were merged into the homebrew tier in M1
+ * of the imported-content unification — they share the homebrew_packs
+ * parent table; the homebrew resolver fetches their entries from the
+ * separate imported_content table and surfaces them under the same
+ * pack umbrella.
  */
 export class ContentResolver {
   static async search(query: ContentQuery): Promise<ContentResult[]> {
-    const tiers = query.tiers ?? ['srd', 'imported', 'homebrew'];
+    const tiers = query.tiers ?? ['srd', 'homebrew'];
     const results: ContentResult[] = [];
 
     if (tiers.includes('srd')) {
       const srd = await import('./srd/index');
       results.push(...srd.search(query));
-    }
-
-    if (tiers.includes('imported')) {
-      const imported = await import('./imported/index');
-      results.push(...(await imported.search(query)));
     }
 
     if (tiers.includes('homebrew')) {
@@ -71,10 +68,11 @@ export class ContentResolver {
 }
 
 /**
- * Higher number wins when two entries collide. Imported beats SRD because
- * the imported version is typically the more complete, book-accurate one
- * (the SRD is a deliberately stripped subset). Homebrew wins overall so a
- * user's authored override always takes precedence over bundled content.
+ * Higher number wins when two entries collide. Homebrew (which now also
+ * carries imported entries) beats SRD because the user-supplied version
+ * is typically the more complete, book-accurate one — the SRD is a
+ * deliberately stripped subset, and imported content under the homebrew
+ * tier carries the rich payload from the on-device transforms.
  *
  * The 'local' tier produces no search results (PDF storage only) but stays
  * in the table at neutral priority so dedupe code stays type-safe.
@@ -82,14 +80,18 @@ export class ContentResolver {
 const TIER_PRIORITY: Record<ContentTier, number> = {
   srd: 1,
   local: 1,
-  imported: 3,
   homebrew: 4,
+  // 'imported' is retained in the type union for now (legacy callers may
+  // still pass it in `tiers`); it's a no-op since the resolver doesn't
+  // dispatch to it. Treated at homebrew priority so any incoming
+  // imported-tier results dedupe correctly with homebrew.
+  imported: 4,
 };
 
 /**
  * Two entries are "the same" if they share `(type, lowercased name)`. Keys
- * differ across tiers (SRD uses content slugs, imported uses a different
- * scheme, homebrew prefixes with `homebrew_`), so name-based dedupe is the
+ * differ across tiers (SRD uses content slugs, homebrew prefixes with
+ * `homebrew_`, imported uses its own scheme), so name-based dedupe is the
  * only thing that lets us collapse a PHB Berserker against the SRD one.
  */
 function deduplicate(results: ContentResult[]): ContentResult[] {

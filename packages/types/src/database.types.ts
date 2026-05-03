@@ -328,6 +328,48 @@ export interface Database {
         };
         Relationships: [];
       };
+      imported_content: {
+        Row: {
+          id: string;
+          pack_id: string;
+          user_id: string;
+          content_type: string;
+          name: string;
+          data: Json;
+          entry_key: string;
+          source_code: string | null;
+          source_name: string | null;
+          source_page: number | null;
+          source_url: string | null;
+          imported_at: string;
+        };
+        Insert: {
+          id?: string;
+          pack_id: string;
+          user_id: string;
+          content_type: string;
+          name: string;
+          data: Json;
+          entry_key: string;
+          source_code?: string | null;
+          source_name?: string | null;
+          source_page?: number | null;
+          source_url?: string | null;
+          imported_at?: string;
+        };
+        Update: {
+          pack_id?: string;
+          content_type?: string;
+          name?: string;
+          data?: Json;
+          entry_key?: string;
+          source_code?: string | null;
+          source_name?: string | null;
+          source_page?: number | null;
+          source_url?: string | null;
+        };
+        Relationships: [];
+      };
       homebrew_packs: {
         Row: {
           id: string;
