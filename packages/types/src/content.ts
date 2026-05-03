@@ -1,4 +1,19 @@
-export type ContentTier = 'srd' | 'local' | 'homebrew';
+export type ContentTier = 'srd' | 'local' | 'homebrew' | 'imported';
+
+/**
+ * Where an entry came from beyond its tier. SRD entries leave this undefined;
+ * imported entries carry the source-book code their data was tagged with;
+ * homebrew entries carry their pack name.
+ *
+ * `code` is short and shown in compact rows ("PHB"). `name` is the long form
+ * shown on detail surfaces ("Player's Handbook"). `page` is included when the
+ * source provided one (imported tier almost always; homebrew never).
+ */
+export interface ImportSource {
+  code: string;
+  name: string;
+  page?: number;
+}
 
 export type ContentType =
   | 'spell'
@@ -39,6 +54,12 @@ export interface ContentResult {
   // Description text is only included for SRD and homebrew tiers.
   // Local (user-uploaded) descriptions stay on-device and are fetched separately.
   description?: string;
+  /**
+   * Provenance for non-SRD tiers — the source-book code for imported content,
+   * the pack name for homebrew. Always undefined on SRD entries (their
+   * provenance is the system itself). See `ImportSource` for the shape.
+   */
+  importSource?: ImportSource;
   data: Record<string, unknown>;
 }
 

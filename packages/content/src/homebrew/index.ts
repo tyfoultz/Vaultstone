@@ -125,6 +125,21 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
 }
 
 /**
+ * Build a short code (3-4 chars, uppercase) from a pack name for the
+ * compact source badge. "My Custom Pack" → "MCP", "PHB Extras" → "PHBE".
+ * Falls back to a truncated lowercase slug when there's no whitespace.
+ */
+function deriveCode(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return 'PACK';
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return words.map((w) => w[0]).join('').slice(0, 4).toUpperCase();
+  }
+  return trimmed.slice(0, 4).toUpperCase();
+}
+
+/**
  * Convert a raw homebrew_content row + its parent pack into the matching
  * `*Result` shape. Returns null for unknown content types so unsupported
  * payloads don't crash the resolver.
@@ -143,6 +158,13 @@ function mapEntryToResult(
     name: entry.name,
     tier: 'homebrew' as const,
     system: pack.system,
+    // Provenance: the pack the entry belongs to. The shortened code is the
+    // first letters of each word in the pack name (capped at 4 chars) — keeps
+    // the row badge tight while the full name shows in detail surfaces.
+    importSource: {
+      code: deriveCode(pack.name),
+      name: pack.name,
+    },
     // Homebrew is never tagged with an SRD version — empty array signals
     // "not SRD" cleanly, while still satisfying the *Result.srdVersions
     // shape.

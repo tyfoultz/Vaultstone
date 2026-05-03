@@ -5,7 +5,7 @@ import {
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import {
   colors, spacing, radius,
-  Card, Chip, ContentWidth, MarkdownText, MetaLabel, Text, ScreenHeader, Icon,
+  Card, Chip, ContentWidth, MarkdownText, MetaLabel, SourceBadge, Text, ScreenHeader, Icon,
 } from '@vaultstone/ui';
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
 import { getSrdContent, SEED_ONLY_TYPES, type SrdContent } from '@vaultstone/content';
@@ -24,6 +24,7 @@ import type {
   LanguageResult, ActionTypeResult, WeaponPropertyResult, WeaponMasteryResult,
   StandardActionResult, SenseResult, SpeedResult, CreatureTypeResult,
   AlignmentResult, CurrencyResult, ToolResult, MagicItemCategoryResult, CoverResult,
+  ContentTier, ImportSource,
 } from '@vaultstone/types';
 
 const EMPTY_CONTENT: SrdContent = {
@@ -715,7 +716,7 @@ function SearchBar({ value, onChange, placeholder }: { value: string; onChange: 
 }
 
 function ExpandRow({
-  title, summary, expanded, onToggle, children, badge, tier,
+  title, summary, expanded, onToggle, children, badge, tier, importSource,
 }: {
   title: string;
   summary: string;
@@ -726,7 +727,10 @@ function ExpandRow({
   badge?: React.ReactNode;
   /** When 'homebrew', adds a Homebrew chip and a left border accent so users can
    *  tell user-authored content apart from bundled SRD at a glance. */
-  tier?: 'srd' | 'local' | 'homebrew';
+  tier?: ContentTier;
+  /** Source-book provenance — surfaced as a compact badge in the row head and
+   *  the full label inside the expanded body. Undefined = no badge. */
+  importSource?: ImportSource;
 }) {
   const isHomebrew = tier === 'homebrew';
   return (
@@ -755,6 +759,7 @@ function ExpandRow({
             </Text>
           ) : null}
         </View>
+        {importSource ? <SourceBadge source={importSource} size="sm" /> : null}
         {isHomebrew ? <Chip label="Homebrew" variant="accent" /> : null}
         {badge ? <View style={styles.rowBadge}>{badge}</View> : null}
         <Icon
@@ -763,7 +768,16 @@ function ExpandRow({
           color={expanded ? colors.primary : colors.outline}
         />
       </Pressable>
-      {expanded ? <View style={[styles.rowBody, styles.rowBodyExpanded]}>{children}</View> : null}
+      {expanded ? (
+        <View style={[styles.rowBody, styles.rowBodyExpanded]}>
+          {children}
+          {importSource ? (
+            <View style={styles.sourceFooter}>
+              <SourceBadge source={importSource} size="md" />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -798,6 +812,7 @@ function SpeciesList({ items }: { items: SpeciesResult[] }) {
           expanded={exp.isOpen(s.key)}
           onToggle={() => exp.toggle(s.key)}
           tier={s.tier}
+          importSource={s.importSource}
         >
           {s.description ? <MarkdownText style={styles.bodyText}>{s.description}</MarkdownText> : null}
           {Array.isArray(s.traits) && s.traits.length > 0 ? (
@@ -1270,6 +1285,7 @@ function BackgroundsList({ items }: { items: BackgroundResult[] }) {
             expanded={exp.isOpen(b.key)}
             onToggle={() => exp.toggle(b.key)}
             tier={b.tier}
+            importSource={b.importSource}
           >
             {b.description ? <MarkdownText style={styles.bodyText}>{b.description}</MarkdownText> : null}
             <ProfBlock label="Skill proficiencies" items={skills} />
@@ -1325,6 +1341,7 @@ function SubclassesList({ items }: { items: SubclassResult[] }) {
           expanded={exp.isOpen(s.key)}
           onToggle={() => exp.toggle(s.key)}
           tier={s.tier}
+          importSource={s.importSource}
         >
           {s.description ? <MarkdownText style={styles.bodyText}>{s.description}</MarkdownText> : null}
           {Array.isArray(s.features) && s.features.length > 0 ? (
@@ -1370,6 +1387,7 @@ function SpellsList({ items }: { items: SpellResult[] }) {
             expanded={exp.isOpen(s.key)}
             onToggle={() => exp.toggle(s.key)}
             tier={s.tier}
+            importSource={s.importSource}
           >
             {s.description ? <MarkdownText style={styles.bodyText}>{s.description}</MarkdownText> : null}
             <View style={styles.subBlock}>
@@ -1414,6 +1432,7 @@ function FeatsList({ items }: { items: FeatResult[] }) {
           expanded={exp.isOpen(f.key)}
           onToggle={() => exp.toggle(f.key)}
           tier={f.tier}
+          importSource={f.importSource}
         >
           {f.description ? <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText> : null}
           {Array.isArray(f.benefits) && f.benefits.length > 0 ? (
@@ -1696,6 +1715,7 @@ function CreaturesList({ items }: { items: CreatureResult[] }) {
             onToggle={() => exp.toggle(c.key)}
             badge={typeof c.challengeRating !== 'undefined' ? <Chip label={`CR ${c.challengeRating}`} variant="meta" /> : undefined}
             tier={c.tier}
+            importSource={c.importSource}
           >
             {c.alignment ? (
               <Text variant="body-sm" family="body" style={[styles.bodyText, styles.creatureFlavorLine]}>
@@ -1806,6 +1826,7 @@ function ConditionsList({ items }: { items: ConditionResult[] }) {
           expanded={exp.isOpen(c.key)}
           onToggle={() => exp.toggle(c.key)}
           tier={c.tier}
+          importSource={c.importSource}
         >
           {Array.isArray(c.effects) && c.effects.length > 0 ? (
             <View style={styles.subBlock}>
@@ -1912,6 +1933,7 @@ function RulesList({ items }: { items: RuleResult[] }) {
                     expanded={exp.isOpen(r.key)}
                     onToggle={() => exp.toggle(r.key)}
                     tier={r.tier}
+                    importSource={r.importSource}
                   >
                     {r.description ? (
                       <MarkdownText style={styles.bodyText}>{r.description}</MarkdownText>
@@ -2445,6 +2467,12 @@ const styles = StyleSheet.create({
   rowBodyExpanded: {
     paddingHorizontal: spacing.sm + 4,
     paddingBottom: spacing.md,
+  },
+  sourceFooter: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs + 2,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant + '44',
   },
   bodyText: { color: colors.onSurfaceVariant, lineHeight: 20 },
   subBlock: { gap: 6, marginTop: spacing.xs + 2 },
