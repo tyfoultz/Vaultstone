@@ -15,6 +15,7 @@ import { listHomebrewPacks, deleteHomebrewPack, type HomebrewPackRow } from '@va
 import { useAuthStore } from '@vaultstone/store';
 import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
 import { SystemRulebooksList } from '../../../components/game-systems/SystemRulebooksList';
+import { SystemImportedContentList } from '../../../components/game-systems/SystemImportedContentList';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
@@ -47,7 +48,7 @@ const BUNDLED: Record<string, GameSystemDefinition> = {
 
 // Sub-tab `contentKey === '__schema__'` is a synthetic marker — it routes to
 // the SchemaPanel rather than a SrdContent list.
-type SubTabContentKey = keyof SrdContent | '__schema__' | '__rulebooks__';
+type SubTabContentKey = keyof SrdContent | '__schema__' | '__rulebooks__' | '__imported__';
 
 type ItemCategory = ItemResult['category'];
 
@@ -65,7 +66,7 @@ type SubTab = {
 
 type GroupKey =
   | 'character' | 'spells' | 'equipment' | 'bestiary'
-  | 'rules' | 'reference' | 'rulebooks' | 'schema';
+  | 'rules' | 'reference' | 'rulebooks' | 'imported' | 'schema';
 
 type Group = {
   key: GroupKey;
@@ -152,12 +153,14 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    key: 'rulebooks',
-    label: 'Rulebooks',
+    key: 'imported',
+    label: 'Imported',
     subTabs: [
-      // Per-system PDF rulebook surface — see
-      // docs/features/08-pdf-rulebook.md (Phase A revision).
-      { key: 'rulebooks', label: 'Rulebooks', contentKey: '__rulebooks__' },
+      // Per-system imported-content surface — JSON imports from
+      // community sources like 5e.tools. Replaces the previous
+      // Rulebooks group; PDF reading still lives at /campaign/[id]/rulebook
+      // for now (cleanup deferred to a later stage).
+      { key: 'imported', label: 'Imported', contentKey: '__imported__' },
     ],
   },
   {
@@ -170,7 +173,13 @@ const GROUPS: Group[] = [
 ];
 
 function subTabItemCount(t: SubTab, content: SrdContent): number {
-  if (t.contentKey === '__schema__' || t.contentKey === '__rulebooks__') return 0;
+  if (
+    t.contentKey === '__schema__' ||
+    t.contentKey === '__rulebooks__' ||
+    t.contentKey === '__imported__'
+  ) {
+    return 0;
+  }
   if (t.itemCategories && t.contentKey === 'items') {
     const set = new Set<ItemCategory>(t.itemCategories);
     return content.items.filter((i) => set.has(i.category)).length;
@@ -179,10 +188,15 @@ function subTabItemCount(t: SubTab, content: SrdContent): number {
 }
 
 function isSubTabAvailable(t: SubTab, content: SrdContent): boolean {
-  // Schema and Rulebooks are always available — they aren't backed by SRD
-  // content. Rulebooks renders its own empty states (no campaigns yet, no
-  // declared sources, etc.) inside the body component.
-  if (t.contentKey === '__schema__' || t.contentKey === '__rulebooks__') return true;
+  // Schema, Rulebooks, and Imported are always available — they aren't backed
+  // by SRD content. Each renders its own empty states inside the body.
+  if (
+    t.contentKey === '__schema__' ||
+    t.contentKey === '__rulebooks__' ||
+    t.contentKey === '__imported__'
+  ) {
+    return true;
+  }
   return subTabItemCount(t, content) > 0;
 }
 
@@ -689,6 +703,7 @@ function renderSubBody(
     case 'cover':               return <CoverList               items={content.cover} />;
     case '__schema__':       return <SchemaPanel sys={sys} />;
     case '__rulebooks__':    return <SystemRulebooksList sys={sys} />;
+    case '__imported__':     return <SystemImportedContentList sys={sys} />;
     default:                 return null;
   }
 }

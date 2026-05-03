@@ -35,6 +35,18 @@ export type {
 export { extractPages } from './local/pdf-parser';
 export type { ExtractOptions, PageInput } from './local/pdf-parser.web';
 
+// Imported-tier content packs — user-imported JSON content (e.g. from
+// 5e.tools), stored on-device only. The resolver consumes this via the
+// 'imported' tier; callers manage batches through the listBatches /
+// saveBatch / removeBatch API.
+export {
+  listBatches,
+  saveBatch,
+  removeBatch,
+  loadEntriesByBatch,
+} from './imported/index';
+export type { ImportBatch } from './imported/index';
+
 // World-builder section templates (Feature 9 Phase 2).
 export {
   getTemplate,
