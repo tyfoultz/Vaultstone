@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Icon, colors, radius, spacing } from '@vaultstone/ui';
 
@@ -456,6 +456,16 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   for (const b of blocks) {
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
   }
+
+  const contentHeight = useMemo(() => {
+    let maxBottom = 0;
+    for (const b of blocks) {
+      const blockEl = document.querySelector(`[data-block-id="${b.id}"]`) as HTMLElement | null;
+      const h = blockEl?.offsetHeight ?? 80;
+      maxBottom = Math.max(maxBottom, b.y + h + 40);
+    }
+    return maxBottom;
+  }, [blocks]);
 
   useEffect(() => {
     if (!editable) return;
@@ -1185,6 +1195,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
         onClick={handleCanvasClick}
         style={{ minHeight: 'calc(100vh - 160px)', position: 'relative', cursor: editable ? 'text' : 'default' }}
       >
+        <div style={{ position: 'absolute', top: 0, left: 0, width: 1, height: contentHeight, pointerEvents: 'none' }} />
         {blocks.map((block) => (
           <div
             key={block.id}
@@ -1450,7 +1461,8 @@ function CanvasStyles() {
             background: ${colors.surfaceCanvas};
             border: 1px solid ${colors.outlineVariant}22;
             border-radius: ${radius.lg}px;
-            overflow: hidden;
+            overflow: auto;
+            scroll-behavior: smooth;
           }
           .lore-canvas-empty {
             position: absolute;
