@@ -16,6 +16,7 @@ import {
 } from '@vaultstone/content';
 import type { LocalSource, IndexMeta } from '@vaultstone/content';
 import type { Database } from '@vaultstone/types';
+import { IndexStatusLine } from '../../../components/rulebook/IndexStatusLine';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type ContentSource = { key: string; label: string };
@@ -25,54 +26,6 @@ function uuid(): string {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
   });
-}
-
-function IndexStatusLine({
-  status,
-  onRetry,
-}: {
-  status: IndexMeta | undefined;
-  onRetry: () => void;
-}) {
-  if (!status || status.status === 'not_indexed') {
-    return (
-      <TouchableOpacity onPress={onRetry}>
-        <Text style={s.indexAction}>Not indexed — Index now</Text>
-      </TouchableOpacity>
-    );
-  }
-  if (status.status === 'indexing') {
-    const done = status.pages_indexed;
-    const total = status.total_pages;
-    return (
-      <View style={s.indexRow}>
-        <ActivityIndicator size="small" color={colors.brand} />
-        <Text style={s.indexMuted}>
-          Indexing… {total ? `${done}/${total}` : `${done}`}
-        </Text>
-      </View>
-    );
-  }
-  if (status.status === 'failed') {
-    return (
-      <View>
-        <TouchableOpacity onPress={onRetry}>
-          <Text style={s.indexError}>Indexing failed — Retry</Text>
-        </TouchableOpacity>
-        {status.error ? (
-          <Text style={s.indexMuted} numberOfLines={3}>
-            {status.error}
-          </Text>
-        ) : null}
-      </View>
-    );
-  }
-  // indexed
-  return (
-    <Text style={s.indexMuted}>
-      ✓ Indexed{status.total_pages ? ` · ${status.total_pages} pages` : ''}
-    </Text>
-  );
 }
 
 export default function RulebookScreen() {

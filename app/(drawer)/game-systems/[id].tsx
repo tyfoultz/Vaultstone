@@ -14,6 +14,7 @@ import { CreateHomebrewPackModal } from '../../../components/homebrew/CreateHome
 import { listHomebrewPacks, deleteHomebrewPack, type HomebrewPackRow } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
+import { SystemRulebooksList } from '../../../components/game-systems/SystemRulebooksList';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
@@ -45,7 +46,7 @@ const BUNDLED: Record<string, GameSystemDefinition> = {
 
 // Sub-tab `contentKey === '__schema__'` is a synthetic marker — it routes to
 // the SchemaPanel rather than a SrdContent list.
-type SubTabContentKey = keyof SrdContent | '__schema__';
+type SubTabContentKey = keyof SrdContent | '__schema__' | '__rulebooks__';
 
 type ItemCategory = ItemResult['category'];
 
@@ -63,7 +64,7 @@ type SubTab = {
 
 type GroupKey =
   | 'character' | 'spells' | 'equipment' | 'bestiary'
-  | 'rules' | 'reference' | 'schema';
+  | 'rules' | 'reference' | 'rulebooks' | 'schema';
 
 type Group = {
   key: GroupKey;
@@ -150,6 +151,15 @@ const GROUPS: Group[] = [
     ],
   },
   {
+    key: 'rulebooks',
+    label: 'Rulebooks',
+    subTabs: [
+      // Per-system PDF rulebook surface — see
+      // docs/features/08-pdf-rulebook.md (Phase A revision).
+      { key: 'rulebooks', label: 'Rulebooks', contentKey: '__rulebooks__' },
+    ],
+  },
+  {
     key: 'schema',
     label: 'Schema',
     subTabs: [
@@ -159,7 +169,7 @@ const GROUPS: Group[] = [
 ];
 
 function subTabItemCount(t: SubTab, content: SrdContent): number {
-  if (t.contentKey === '__schema__') return 0;
+  if (t.contentKey === '__schema__' || t.contentKey === '__rulebooks__') return 0;
   if (t.itemCategories && t.contentKey === 'items') {
     const set = new Set<ItemCategory>(t.itemCategories);
     return content.items.filter((i) => set.has(i.category)).length;
@@ -168,7 +178,10 @@ function subTabItemCount(t: SubTab, content: SrdContent): number {
 }
 
 function isSubTabAvailable(t: SubTab, content: SrdContent): boolean {
-  if (t.contentKey === '__schema__') return true;
+  // Schema and Rulebooks are always available — they aren't backed by SRD
+  // content. Rulebooks renders its own empty states (no campaigns yet, no
+  // declared sources, etc.) inside the body component.
+  if (t.contentKey === '__schema__' || t.contentKey === '__rulebooks__') return true;
   return subTabItemCount(t, content) > 0;
 }
 
@@ -178,17 +191,29 @@ function visibleSubTabs(group: Group, content: SrdContent): SubTab[] {
 
 export default function GameSystemDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, group } = useLocalSearchParams<{ id: string; group?: string }>();
   const sys = BUNDLED[id ?? ''];
 
   if (!sys) {
     return <NotFound onBack={() => router.push('/game-systems' as Href)} />;
   }
 
-  return <GameSystemDetail sys={sys} onBack={() => router.push('/game-systems' as Href)} />;
+  return (
+    <GameSystemDetail
+      sys={sys}
+      initialGroupParam={group ?? null}
+      onBack={() => router.push('/game-systems' as Href)}
+    />
+  );
 }
 
-function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: () => void }) {
+function GameSystemDetail({
+  sys, initialGroupParam, onBack,
+}: {
+  sys: GameSystemDefinition;
+  initialGroupParam: string | null;
+  onBack: () => void;
+}) {
   // Filter bundled SRD content to records tagged with this system's edition.
   // Systems without an SRD version (Custom, future homebrew systems) get nothing.
   const srdContent = useMemo(
@@ -230,8 +255,18 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
       .filter((g) => g.subTabs.length > 0);
   }, [content]);
 
-  // Default selection: first non-Schema group with content if any, else Schema.
-  const initialGroup: GroupKey = groups[0]?.key ?? 'schema';
+  // Default selection priority:
+  //   1. ?group= URL param if it points at a visible group (deep-links from
+  //      campaign cards land users straight on Rulebooks)
+  //   2. First non-Schema group with content
+  //   3. Schema
+  const initialGroup: GroupKey = useMemo(() => {
+    if (initialGroupParam) {
+      const match = groups.find((g) => g.key === initialGroupParam);
+      if (match) return match.key;
+    }
+    return groups[0]?.key ?? 'schema';
+  }, [initialGroupParam, groups]);
   const [activeGroup, setActiveGroup] = useState<GroupKey>(initialGroup);
   const currentGroup = groups.find((g) => g.key === activeGroup) ?? groups[0];
 
@@ -652,6 +687,7 @@ function renderSubBody(
     case 'magicItemCategories': return <MagicItemCategoriesList items={content.magicItemCategories} />;
     case 'cover':               return <CoverList               items={content.cover} />;
     case '__schema__':       return <SchemaPanel sys={sys} />;
+    case '__rulebooks__':    return <SystemRulebooksList sys={sys} />;
     default:                 return null;
   }
 }

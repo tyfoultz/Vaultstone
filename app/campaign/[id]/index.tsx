@@ -471,14 +471,23 @@ export default function CampaignDetailScreen() {
                     </TouchableOpacity>
                   ))}
 
-                  {/* Upload prompt when no PDFs yet */}
+                  {/* Upload prompt when no PDFs yet — routes to the new
+                      Game-Systems-side rulebook surface, where uploads now
+                      live. The legacy /campaign/[id]/rulebook screen stays
+                      mounted (link below) as a Phase A fallback. */}
                   {localSources.length === 0 && (
                     <TouchableOpacity
                       style={s.rulebookUploadRow}
-                      onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
+                      onPress={() =>
+                        router.push(
+                          `/game-systems/${campaign.system}?group=rulebooks` as never,
+                        )
+                      }
                     >
                       <MaterialCommunityIcons name="tray-arrow-up" size={15} color={colors.textSecondary} />
-                      <Text style={s.rulebookUploadText}>Upload your copy to read in-app</Text>
+                      <Text style={s.rulebookUploadText}>
+                        Upload your copy in Game Systems →
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </>
@@ -486,10 +495,12 @@ export default function CampaignDetailScreen() {
 
               <TouchableOpacity
                 style={s.manageBtn}
-                onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
+                onPress={() =>
+                  router.push(`/game-systems/${campaign.system}?group=rulebooks` as never)
+                }
               >
                 <MaterialCommunityIcons name="book-open-page-variant-outline" size={16} color={colors.brand} />
-                <Text style={s.manageBtnText}>Rulebook</Text>
+                <Text style={s.manageBtnText}>Manage rulebooks</Text>
               </TouchableOpacity>
 
               {localSources.length > 0 && (
