@@ -14,7 +14,10 @@ import {
 import { DetailModal, DetailSection, DetailSectionHeading } from '../../../components/DetailModal';
 import { CreateHomebrewPackModal } from '../../../components/homebrew/CreateHomebrewPackModal';
 import { ImportContentModal } from '../../../components/imported/ImportContentModal';
-import { listHomebrewPacks, deleteHomebrewPack, type HomebrewPackRow } from '@vaultstone/api';
+import {
+  listHomebrewPacks, deleteHomebrewPack, getPackCampaignUsage,
+  type HomebrewPackRow,
+} from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
 import type { GameSystemDefinition } from '@vaultstone/types';
@@ -412,6 +415,7 @@ function SystemPacksRow({
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const [packs, setPacks] = useState<HomebrewPackRow[]>([]);
+  const [usage, setUsage] = useState<Map<string, Array<{ campaignId: string; campaignName: string }>>>(new Map());
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -420,11 +424,18 @@ function SystemPacksRow({
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    listHomebrewPacks({ system: system.id }).then(({ data }) => {
+    (async () => {
+      const { data } = await listHomebrewPacks({ system: system.id });
       if (cancelled) return;
-      setPacks(data ?? []);
+      const list = data ?? [];
+      setPacks(list);
+      // Second round-trip for the per-pack campaign usage map. Sequential
+      // (not Promise.all) because we need the pack ids before we can ask
+      // — and a missing usage map just renders no chip, no crash.
+      const usageMap = await getPackCampaignUsage(list.map((p) => p.id));
+      if (!cancelled) setUsage(usageMap);
       setLoading(false);
-    });
+    })();
     return () => { cancelled = true; };
   }, [user, system.id, refreshTick]);
 
@@ -458,6 +469,7 @@ function SystemPacksRow({
           <PackCard
             key={pack.id}
             pack={pack}
+            usage={usage.get(pack.id) ?? []}
             onOpen={() => router.push(`/homebrew-pack/${pack.id}` as Href)}
             onDeleted={() => {
               setPacks((prev) => prev.filter((p) => p.id !== pack.id));
@@ -472,7 +484,7 @@ function SystemPacksRow({
         >
           <Icon name="auto-fix-high" size={18} color={colors.primary} />
           <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.primary }}>
-            New pack
+            Create
           </Text>
         </Pressable>
 
@@ -482,7 +494,7 @@ function SystemPacksRow({
         >
           <Icon name="upload-file" size={18} color={colors.primary} />
           <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.primary }}>
-            Import file
+            Import
           </Text>
         </Pressable>
       </ScrollView>
@@ -525,10 +537,13 @@ function SystemPacksRow({
  */
 function PackCard({
   pack,
+  usage,
   onOpen,
   onDeleted,
 }: {
   pack: HomebrewPackRow;
+  /** Campaigns the pack is currently enabled on. Empty array → no usage chip. */
+  usage: Array<{ campaignId: string; campaignName: string }>;
   onOpen: () => void;
   onDeleted: () => void;
 }) {
@@ -585,9 +600,14 @@ function PackCard({
   // a different icon so the user can tell them apart in the row at a glance.
   const isImported = pack.name.startsWith('Imported: ');
   const iconName = isImported ? 'upload-file' : 'auto-fix-high';
-  const sublabel = isImported
-    ? 'Imported pack'
-    : pack.campaign_id ? 'Campaign-scoped' : 'Personal library';
+  const sublabel = isImported ? 'Imported pack' : 'Authored pack';
+
+  // Usage chip — "Used by N campaigns". The full campaign name list goes
+  // on accessibilityLabel so screen readers announce it and (on web) it
+  // surfaces via the title attribute on hover. Visible label is just the
+  // count to keep the row tight; deep-dive lives on the per-pack detail
+  // page (future work).
+  const usageNames = usage.map((u) => u.campaignName).join(', ');
 
   return (
     <Pressable
@@ -603,7 +623,17 @@ function PackCard({
         </Text>
         <MetaLabel size="sm">{sublabel}</MetaLabel>
       </View>
-      {pack.is_published ? <Chip label="Shared" variant="accent" /> : null}
+      {usage.length > 0 ? (
+        <View
+          style={packStyles.usageChip}
+          accessibilityLabel={`Used by ${usageNames}`}
+        >
+          <Icon name="link" size={12} color={colors.onSurfaceVariant} />
+          <Text variant="label-sm" family="body" weight="semibold" style={packStyles.usageChipText}>
+            {usage.length}
+          </Text>
+        </View>
+      ) : null}
       <Pressable
         onPress={(e) => {
           e.stopPropagation();
@@ -681,6 +711,22 @@ const packStyles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '33',
+  },
+  usageChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
+  usageChipText: {
+    color: colors.onSurfaceVariant,
+    fontSize: 10,
+    fontVariant: ['tabular-nums'],
   },
   packCardConfirm: {
     minWidth: 320,

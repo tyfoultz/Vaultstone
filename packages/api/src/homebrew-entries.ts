@@ -57,18 +57,21 @@ export async function getHomebrewEntry(entryId: string) {
  *
  * `userId` must come from the auth store — the row-insert RLS policy
  * checks `auth.uid() = user_id`, so a wrong value rejects.
+ *
+ * Sharing follows from the parent pack: a campaign member can read this
+ * entry iff the pack is enabled on a campaign they're in. There is no
+ * per-entry campaign or publish flag anymore — the column was dropped
+ * along with homebrew_packs.campaign_id and is_published.
  */
 export async function createHomebrewEntry(input: {
   userId: string;
   packId: string;
-  campaignId?: string | null;
   name: string;
   payload: HomebrewEntryDataInput;
 }) {
   const row: HomebrewContentInsert = {
     user_id: input.userId,
     pack_id: input.packId,
-    campaign_id: input.campaignId ?? null,
     name: input.name,
     content_type: input.payload.contentType,
     // Cast through unknown — the Database type's `data: Json` is too loose

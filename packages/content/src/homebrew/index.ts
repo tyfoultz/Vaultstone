@@ -27,7 +27,6 @@ import type {
 type HomebrewPackRow = {
   id: string;
   owner_user_id: string;
-  campaign_id: string | null;
   system: string;
   name: string;
 };
@@ -106,7 +105,7 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   // in homebrew_content; JSON imports live in imported_content. They share
   // the same homebrew_packs parent. All RLS-gated.
   const [packsRes, authoredRes, importedRes] = await Promise.all([
-    supabase.from('homebrew_packs').select('id, owner_user_id, campaign_id, system, name'),
+    supabase.from('homebrew_packs').select('id, owner_user_id, system, name'),
     supabase.from('homebrew_content').select('id, user_id, pack_id, content_type, name, data'),
     supabase.from('imported_content').select('id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page'),
   ]);

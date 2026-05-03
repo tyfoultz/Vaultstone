@@ -103,12 +103,6 @@ export default function HomebrewPackDetailScreen() {
     setEditing(null);
   }
 
-  async function togglePublish() {
-    if (!pack) return;
-    const { data } = await updateHomebrewPack(pack.id, { is_published: !pack.is_published });
-    if (data) setPack(data);
-  }
-
   async function handleDelete() {
     if (!pack) return;
     setDeleting(true);
@@ -181,7 +175,7 @@ export default function HomebrewPackDetailScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}>
       <ScreenHeader
         title={pack.name}
-        subtitle={pack.campaign_id ? 'Campaign-scoped pack' : 'Personal library pack'}
+        subtitle={pack.name.startsWith('Imported: ') ? 'Imported pack' : 'Authored pack'}
         actions={
           <View style={{ flexDirection: 'row', gap: spacing.xs }}>
             <GhostButton
@@ -338,28 +332,6 @@ export default function HomebrewPackDetailScreen() {
             )}
           </View>
 
-          {/* Sharing */}
-          {pack.campaign_id ? (
-            <View style={styles.fieldRow}>
-              <Text variant="label-md" weight="semibold" uppercase style={styles.fieldLabel}>
-                Sharing
-              </Text>
-              <Pressable onPress={togglePublish} style={styles.fieldValue}>
-                <View style={{ flexDirection: 'row', gap: spacing.xs, alignItems: 'center', flex: 1 }}>
-                  <Chip
-                    label={pack.is_published ? 'Visible to party' : 'GM-only'}
-                    variant={pack.is_published ? 'accent' : 'meta'}
-                  />
-                  <Text variant="body-sm" tone="secondary">
-                    {pack.is_published
-                      ? 'All players in this campaign can see and use entries from this pack.'
-                      : 'Only you can see entries from this pack.'}
-                  </Text>
-                </View>
-                <Icon name="swap-horiz" size={16} color={colors.outline} />
-              </Pressable>
-            </View>
-          ) : null}
         </Card>
 
         {/* Entries section */}

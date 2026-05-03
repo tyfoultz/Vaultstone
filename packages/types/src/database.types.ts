@@ -298,33 +298,27 @@ export interface Database {
       homebrew_content: {
         Row: {
           id: string;
-          campaign_id: string | null;
           user_id: string;
           pack_id: string | null;
           content_type: string;
           name: string;
           data: Json;
-          is_published: boolean;
           created_at: string;
         };
         Insert: {
           id?: string;
-          campaign_id?: string | null;
           user_id: string;
           pack_id?: string | null;
           content_type: string;
           name: string;
           data: Json;
-          is_published?: boolean;
           created_at?: string;
         };
         Update: {
-          campaign_id?: string | null;
           pack_id?: string | null;
           content_type?: string;
           name?: string;
           data?: Json;
-          is_published?: boolean;
         };
         Relationships: [];
       };
@@ -374,32 +368,26 @@ export interface Database {
         Row: {
           id: string;
           owner_user_id: string;
-          campaign_id: string | null;
           system: string;
           name: string;
           description: string | null;
-          is_published: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
           owner_user_id: string;
-          campaign_id?: string | null;
           system: string;
           name: string;
           description?: string | null;
-          is_published?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           owner_user_id?: string;
-          campaign_id?: string | null;
           system?: string;
           name?: string;
           description?: string | null;
-          is_published?: boolean;
           updated_at?: string;
         };
         Relationships: [];

@@ -75,9 +75,47 @@ export async function removePackFromCampaign(campaignId: string, packId: string)
 }
 
 /**
- * Eligible packs the DM can add to a campaign — their own personal-library
- * packs (campaign_id IS NULL) and packs already scoped to *this* campaign
- * (campaign_id = X), filtered to ones whose system matches the campaign.
+ * For a list of pack ids, return which enabled campaigns each pack is
+ * attached to. Used by the Game Systems page to show a "Used by N
+ * campaigns" indicator per pack card.
+ *
+ * RLS scopes the campaign_packs SELECT to "DM or member" so users see
+ * only their own usages — a player can't surface a list of every campaign
+ * the pack is in across the whole system.
+ *
+ * Returns a map of packId → array of { campaignId, campaignName }.
+ */
+export async function getPackCampaignUsage(
+  packIds: string[],
+): Promise<Map<string, Array<{ campaignId: string; campaignName: string }>>> {
+  const result = new Map<string, Array<{ campaignId: string; campaignName: string }>>();
+  if (packIds.length === 0) return result;
+
+  const { data } = await supabase
+    .from('campaign_packs')
+    .select('pack_id, campaigns!inner(id, name)')
+    .in('pack_id', packIds)
+    .eq('enabled', true);
+
+  for (const row of data ?? []) {
+    // Supabase's foreign-table join via `!inner` returns the joined
+    // record on the row. The runtime shape matches `{ id, name }`; the
+    // PostgREST types model it as a possibly-array, so we narrow.
+    const c = (row as unknown as { pack_id: string; campaigns: { id: string; name: string } }).campaigns;
+    if (!c) continue;
+    const slot = result.get(row.pack_id) ?? [];
+    slot.push({ campaignId: c.id, campaignName: c.name });
+    result.set(row.pack_id, slot);
+  }
+  return result;
+}
+
+/**
+ * Eligible packs the DM can add to a campaign — every pack the DM owns
+ * for the campaign's system, minus the ones already attached. The
+ * personal-vs-campaign-scoped filter is gone with the unified sharing
+ * model; all packs live in the owner's library and become available to
+ * a campaign only when explicitly added.
  *
  * Excludes packs already in the join table so the picker doesn't show
  * duplicates. Done client-side via a follow-up filter; doing it in the
@@ -94,8 +132,7 @@ export async function listEligiblePacksForCampaign(input: {
       .from('homebrew_packs')
       .select('*')
       .eq('owner_user_id', input.ownerUserId)
-      .eq('system', input.system)
-      .or(`campaign_id.is.null,campaign_id.eq.${input.campaignId}`),
+      .eq('system', input.system),
     supabase
       .from('campaign_packs')
       .select('pack_id')

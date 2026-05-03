@@ -96,7 +96,6 @@ export function SpellFormModal({ pack, entry, onClose, onSaved }: Props) {
       const { data: row, error: err } = await createHomebrewEntry({
         userId: user.id,
         packId: pack.id,
-        campaignId: pack.campaign_id,
         name: name.trim(),
         payload: { contentType: 'spell', data },
       });

@@ -7,18 +7,16 @@ type HomebrewPackUpdate = Database['public']['Tables']['homebrew_packs']['Update
 
 /**
  * List packs the authenticated user can access. RLS determines which rows
- * are returned — owner's own packs always, plus published campaign-scoped
- * packs in any campaign they belong to.
+ * are returned — owner's own packs always, plus packs that are enabled
+ * (via campaign_packs) on a campaign the user is a member of.
  *
  * Filters:
- *   `system`     — narrow to one game system (e.g. 'dnd5e_2024'). Packs
- *                  are system-tagged at creation; cross-system mixing
- *                  isn't supported because mechanical content can't run
- *                  on the wrong ruleset.
- *   `campaignId` — narrow to a specific campaign's packs. Omit for the
- *                  user's full library across campaigns + personal.
+ *   `system` — narrow to one game system (e.g. 'dnd5e_2024'). Packs are
+ *              system-tagged at creation; cross-system mixing isn't
+ *              supported because mechanical content can't run on the
+ *              wrong ruleset.
  */
-export async function listHomebrewPacks(opts?: { system?: string; campaignId?: string }) {
+export async function listHomebrewPacks(opts?: { system?: string }) {
   let query = supabase
     .from('homebrew_packs')
     .select('*')
@@ -26,9 +24,6 @@ export async function listHomebrewPacks(opts?: { system?: string; campaignId?: s
 
   if (opts?.system) {
     query = query.eq('system', opts.system);
-  }
-  if (opts?.campaignId) {
-    query = query.eq('campaign_id', opts.campaignId);
   }
   return query;
 }
@@ -47,20 +42,22 @@ export async function getHomebrewPack(packId: string) {
  * insert satisfies the RLS check `auth.uid() = owner_user_id`. `system`
  * identifies which game system the pack is compatible with — entries
  * inside use that system's mechanical schema.
+ *
+ * Packs always start in the owner's library — they become visible to a
+ * campaign's other members only when the owner enables the pack on that
+ * campaign via campaign_packs (see `addCampaignPack`).
  */
 export async function createHomebrewPack(input: {
   ownerUserId: string;
   system: string;
   name: string;
   description?: string | null;
-  campaignId?: string | null;
 }) {
   const row: HomebrewPackInsert = {
     owner_user_id: input.ownerUserId,
     system: input.system,
     name: input.name,
     description: input.description ?? null,
-    campaign_id: input.campaignId ?? null,
   };
   return supabase
     .from('homebrew_packs')

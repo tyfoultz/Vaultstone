@@ -130,7 +130,6 @@ export function CampaignPacksCard({ campaignId, campaignSystem, isDM }: Props) {
                 ) : null}
                 <View style={styles.metaRow}>
                   {!p.enabled ? <Chip label="Disabled" variant="meta" /> : null}
-                  {p.homebrew_packs.is_published ? <Chip label="Shared" variant="accent" /> : null}
                 </View>
               </View>
 
@@ -244,7 +243,7 @@ function AddPackModal({
                         </Text>
                       ) : (
                         <MetaLabel size="sm">
-                          {p.campaign_id ? 'Campaign-scoped' : 'Personal library'}
+                          {p.name.startsWith('Imported: ') ? 'Imported pack' : 'Authored pack'}
                         </MetaLabel>
                       )}
                     </View>
