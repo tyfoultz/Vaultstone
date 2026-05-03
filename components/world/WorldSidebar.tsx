@@ -111,7 +111,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: !isWeb,
-      aspect: [3, 1],
+      aspect: [1, 1],
       quality: 0.5,
     });
     if (result.canceled || !result.assets[0]) return;
@@ -292,8 +292,14 @@ export function WorldSidebar({ world, activePageId }: Props) {
 
       <View style={styles.header}>
         <Pressable
-          onPress={isOwner && !world.thumbnail_url ? handlePickThumbnail : undefined}
-          disabled={!isOwner || !!world.thumbnail_url || uploading}
+          onPress={
+            world.thumbnail_url
+              ? () => router.push(worldHref(world.id))
+              : isOwner
+                ? handlePickThumbnail
+                : undefined
+          }
+          disabled={uploading || (!world.thumbnail_url && !isOwner)}
           style={styles.cover}
         >
           {world.thumbnail_url ? (
@@ -441,7 +447,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
         <ImageCropModal
           visible
           imageUri={cropUri}
-          aspect={[3, 1]}
+          aspect={[1, 1]}
           onConfirm={handleCropConfirm}
           onCancel={() => setCropUri(null)}
         />
@@ -836,10 +842,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
   },
   cover: {
-    width: '100%',
+    width: 80,
     height: 80,
     borderRadius: radius.xl,
     overflow: 'hidden',
