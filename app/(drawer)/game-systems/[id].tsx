@@ -13,7 +13,7 @@ import { DetailModal, DetailSection, DetailSectionHeading } from '../../../compo
 import { CreateHomebrewPackModal } from '../../../components/homebrew/CreateHomebrewPackModal';
 import { listHomebrewPacks, deleteHomebrewPack, type HomebrewPackRow } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
-import { useSystemHomebrewContent } from './useSystemHomebrewContent';
+import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
