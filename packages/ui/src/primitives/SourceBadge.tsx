@@ -10,13 +10,18 @@ type Props = ViewProps & {
 };
 
 /**
- * Provenance tag shown on content entries beyond the SRD tier. Renders
- * `code` (e.g. "PHB") in compact form, the full `name` in detail. Returns
- * null when the entry has no source — SRD content stays unbadged.
+ * Provenance tag shown on every content entry. Renders `code` in compact
+ * form (truncated at 14 chars so long pack names don't blow out row layout)
+ * and the full `name` in detail form. Returns null when the entry has no
+ * source — currently never the case post-Stage-1, but kept for future
+ * unsourced content types.
  */
 export function SourceBadge({ source, size = 'sm', style, ...rest }: Props) {
   if (!source) return null;
   const compact = size === 'sm';
+  const label = compact
+    ? truncate(source.code, 14)
+    : `${source.name}${source.page ? ` · p.${source.page}` : ''}`;
   return (
     <View
       style={[
@@ -24,27 +29,31 @@ export function SourceBadge({ source, size = 'sm', style, ...rest }: Props) {
           alignSelf: 'flex-start',
           backgroundColor: colors.surfaceContainerHighest,
           borderRadius: radius.full,
-          paddingHorizontal: compact ? 6 : 10,
-          paddingVertical: compact ? 1 : 3,
+          paddingHorizontal: compact ? 8 : 10,
+          paddingVertical: compact ? 2 : 3,
           borderWidth: 1,
           borderColor: colors.outlineVariant + '55',
         },
         style,
       ]}
+      accessibilityLabel={source.name}
       {...rest}
     >
       <Text
         variant={compact ? 'label-sm' : 'body-sm'}
         weight="semibold"
-        uppercase={compact}
         style={{
           color: colors.onSurfaceVariant,
-          letterSpacing: compact ? 0.6 : 0,
-          fontSize: compact ? 9 : 12,
+          fontSize: compact ? 10 : 12,
         }}
       >
-        {compact ? source.code : `${source.name}${source.page ? ` · p.${source.page}` : ''}`}
+        {label}
       </Text>
     </View>
   );
+}
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1) + '…';
 }

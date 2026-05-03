@@ -1,6 +1,7 @@
 import type {
   ContentResult,
   ContentQuery,
+  ImportSource,
   SpeciesResult,
   ClassResult,
   BackgroundResult,
@@ -64,40 +65,68 @@ import coverData               from './data/cover.json';
 // Attribution text: "Content from the Systems Reference Document 5.1 / 2.0 is available under
 // the Creative Commons Attribution 4.0 International License."
 
-const SPECIES               = speciesData             as unknown as SpeciesResult[];
-const CLASSES               = classesData             as unknown as ClassResult[];
-const BACKGROUNDS           = backgroundsData         as unknown as BackgroundResult[];
-const SUBCLASSES            = subclassesData          as unknown as SubclassResult[];
-const CONDITIONS            = conditionsData          as unknown as ConditionResult[];
-const RULES                 = rulesData               as unknown as RuleResult[];
-const SPELLS                = spellsData              as unknown as SpellResult[];
+/**
+ * Derive the source-badge label for an SRD entry from its srdVersions tags.
+ * Single edition → "SRD 2014" / "SRD 2024"; both editions → "SRD" (the entry
+ * is identical across editions). Year framing matches the system selector
+ * ("D&D 5e (2024)") — easier for users than "SRD 5.1" / "SRD 2.0".
+ */
+function srdSource(versions: string[] | undefined): ImportSource {
+  const has51 = !!versions?.includes('SRD_5.1');
+  const has20 = !!versions?.includes('SRD_2.0');
+  if (has51 && has20) return { code: 'SRD', name: 'Systems Reference Document' };
+  if (has20) return { code: 'SRD 2024', name: 'Systems Reference Document 2.0 (2024)' };
+  if (has51) return { code: 'SRD 2014', name: 'Systems Reference Document 5.1 (2014)' };
+  return { code: 'SRD', name: 'Systems Reference Document' };
+}
+
+/**
+ * Decorate a raw bundled entry with its derived `importSource`. We bake the
+ * field onto the cached array once at module load so repeat callers (e.g.
+ * `getSrdContent` inside React `useMemo`) get reference-stable objects and
+ * downstream memoization keeps holding.
+ */
+function withSource<T extends ContentResult & { srdVersions?: string[] }>(rows: T[]): T[] {
+  for (const row of rows) {
+    row.importSource = srdSource(row.srdVersions);
+  }
+  return rows;
+}
+
+const SPECIES               = withSource(speciesData             as unknown as SpeciesResult[]);
+const CLASSES               = withSource(classesData             as unknown as ClassResult[]);
+const BACKGROUNDS           = withSource(backgroundsData         as unknown as BackgroundResult[]);
+const SUBCLASSES            = withSource(subclassesData          as unknown as SubclassResult[]);
+const CONDITIONS            = withSource(conditionsData          as unknown as ConditionResult[]);
+const RULES                 = withSource(rulesData               as unknown as RuleResult[]);
+const SPELLS                = withSource(spellsData              as unknown as SpellResult[]);
 // Items split across two source files: items.json carries mundane equipment
 // (weapons / armor / adventuring gear / crafting equipment), magic-items.json
 // carries the variant-level magic-item catalog (~1,250 entries from Open5e
 // /magicitems/). The catalog is unioned here so consumers see one ItemResult[]
 // stream regardless of upstream source.
-const MUNDANE_ITEMS         = itemsData               as unknown as ItemResult[];
-const MAGIC_ITEMS_CATALOG   = magicItemsData          as unknown as ItemResult[];
+const MUNDANE_ITEMS         = withSource(itemsData               as unknown as ItemResult[]);
+const MAGIC_ITEMS_CATALOG   = withSource(magicItemsData          as unknown as ItemResult[]);
 const ITEMS                 = [...MUNDANE_ITEMS, ...MAGIC_ITEMS_CATALOG];
-const FEATS                 = featsData               as unknown as FeatResult[];
-const CREATURES             = creaturesData           as unknown as CreatureResult[];
-const SKILLS                = skillsData              as unknown as SkillResult[];
-const DAMAGE_TYPES          = damageTypesData         as unknown as DamageTypeResult[];
-const SCHOOLS               = schoolsData             as unknown as SchoolResult[];
-const SIZES                 = sizesData               as unknown as SizeResult[];
-const LANGUAGES             = languagesData           as unknown as LanguageResult[];
-const ACTION_TYPES          = actionTypesData         as unknown as ActionTypeResult[];
-const WEAPON_PROPERTIES     = weaponPropsData         as unknown as WeaponPropertyResult[];
-const WEAPON_MASTERIES      = weaponMasteriesData     as unknown as WeaponMasteryResult[];
-const STANDARD_ACTIONS      = standardActionsData     as unknown as StandardActionResult[];
-const SENSES                = sensesData              as unknown as SenseResult[];
-const SPEEDS                = speedsData              as unknown as SpeedResult[];
-const CREATURE_TYPES        = creatureTypesData       as unknown as CreatureTypeResult[];
-const ALIGNMENTS            = alignmentsData          as unknown as AlignmentResult[];
-const CURRENCIES            = currenciesData          as unknown as CurrencyResult[];
-const TOOLS                 = toolsData               as unknown as ToolResult[];
-const MAGIC_ITEM_CATEGORIES = magicItemCategoriesData as unknown as MagicItemCategoryResult[];
-const COVER                 = coverData               as unknown as CoverResult[];
+const FEATS                 = withSource(featsData               as unknown as FeatResult[]);
+const CREATURES             = withSource(creaturesData           as unknown as CreatureResult[]);
+const SKILLS                = withSource(skillsData              as unknown as SkillResult[]);
+const DAMAGE_TYPES          = withSource(damageTypesData         as unknown as DamageTypeResult[]);
+const SCHOOLS               = withSource(schoolsData             as unknown as SchoolResult[]);
+const SIZES                 = withSource(sizesData               as unknown as SizeResult[]);
+const LANGUAGES             = withSource(languagesData           as unknown as LanguageResult[]);
+const ACTION_TYPES          = withSource(actionTypesData         as unknown as ActionTypeResult[]);
+const WEAPON_PROPERTIES     = withSource(weaponPropsData         as unknown as WeaponPropertyResult[]);
+const WEAPON_MASTERIES      = withSource(weaponMasteriesData     as unknown as WeaponMasteryResult[]);
+const STANDARD_ACTIONS      = withSource(standardActionsData     as unknown as StandardActionResult[]);
+const SENSES                = withSource(sensesData              as unknown as SenseResult[]);
+const SPEEDS                = withSource(speedsData              as unknown as SpeedResult[]);
+const CREATURE_TYPES        = withSource(creatureTypesData       as unknown as CreatureTypeResult[]);
+const ALIGNMENTS            = withSource(alignmentsData          as unknown as AlignmentResult[]);
+const CURRENCIES            = withSource(currenciesData          as unknown as CurrencyResult[]);
+const TOOLS                 = withSource(toolsData               as unknown as ToolResult[]);
+const MAGIC_ITEM_CATEGORIES = withSource(magicItemCategoriesData as unknown as MagicItemCategoryResult[]);
+const COVER                 = withSource(coverData               as unknown as CoverResult[]);
 
 const ALL_SRD: ContentResult[] = [
   ...SPECIES, ...CLASSES, ...BACKGROUNDS, ...SUBCLASSES,
