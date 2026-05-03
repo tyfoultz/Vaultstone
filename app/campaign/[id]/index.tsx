@@ -17,6 +17,7 @@ import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
 import { CampaignPacksCard } from '../../../components/campaign/CampaignPacksCard';
+import { ManageCampaignContentModal } from '../../../components/campaign/ManageCampaignContentModal';
 import type { Database } from '@vaultstone/types';
 import type { Dnd5eStats } from '@vaultstone/types';
 import CharacterPickerModal from '../../../components/campaign/CharacterPickerModal';
@@ -734,26 +735,30 @@ export default function CampaignDetailScreen() {
         </Pressable>
       </Modal>
 
-      {/* ======== Manage Modal (M3 placeholder) ========
-          The full Manage flow lands in M3 — system picker (locked when
-          characters exist) + pack toggles. For now this opens an
-          empty-shell modal so the button does something visible. */}
-      <Modal visible={manageOpen} transparent animationType="fade">
-        <Pressable style={s.modalBackdrop} onPress={() => setManageOpen(false)}>
-          <Pressable style={s.modalCard} onPress={() => {}}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Manage Campaign Content</Text>
-              <TouchableOpacity onPress={() => setManageOpen(false)}>
-                <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            <Text style={s.systemValue}>
-              Manage flow lands in a follow-up. Use the Content Packs card
-              below for now to enable / disable packs.
-            </Text>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {/* ======== Manage Modal ========
+          DM-only. System picker (locked when characters exist) + pack
+          toggles. Bumps refreshEnabledPacks via onChanged so the System
+          Card's "N enabled" line stays in sync. */}
+      <ManageCampaignContentModal
+        visible={manageOpen}
+        campaignId={campaign.id}
+        currentSystem={campaign.system}
+        onClose={() => setManageOpen(false)}
+        onChanged={() => {
+          refreshEnabledPacks();
+          // System change won't reflect on the page until the campaign
+          // record itself updates. Refetch the row so the System Card
+          // reads the new system without a remount.
+          supabase
+            .from('campaigns')
+            .select('*')
+            .eq('id', campaign.id)
+            .single()
+            .then(({ data }) => {
+              if (data) setCampaign(data);
+            });
+        }}
+      />
 
       {/* ======== Crop Modal ======== */}
       {cropUri && (
