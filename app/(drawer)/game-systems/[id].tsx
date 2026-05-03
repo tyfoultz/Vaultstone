@@ -5,7 +5,7 @@ import {
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import {
   colors, spacing, radius,
-  Card, Chip, ContentWidth, MetaLabel, Text, ScreenHeader, Icon,
+  Card, Chip, ContentWidth, MarkdownText, MetaLabel, Text, ScreenHeader, Icon,
 } from '@vaultstone/ui';
 import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
 import { getSrdContent, SEED_ONLY_TYPES, type SrdContent } from '@vaultstone/content';
@@ -754,14 +754,14 @@ function SpeciesList({ items }: { items: SpeciesResult[] }) {
           onToggle={() => exp.toggle(s.key)}
           tier={s.tier}
         >
-          {s.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{s.description}</Text> : null}
+          {s.description ? <MarkdownText style={styles.bodyText}>{s.description}</MarkdownText> : null}
           {Array.isArray(s.traits) && s.traits.length > 0 ? (
             <View style={styles.subBlock}>
               <MetaLabel size="sm">Traits</MetaLabel>
               {s.traits.map((t: any, i: number) => (
                 <View key={i} style={styles.bullet}>
                   <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{t.name}</Text>
-                  <Text variant="body-sm" family="body" style={styles.bodyText}>{t.description}</Text>
+                  <MarkdownText style={styles.bodyText}>{t.description}</MarkdownText>
                 </View>
               ))}
             </View>
@@ -971,7 +971,7 @@ function ClassDetailModal({
                     <View key={i} style={styles.bullet}>
                       <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
                       {f.description ? (
-                        <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                        <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText>
                       ) : null}
                     </View>
                   ))}
@@ -1008,7 +1008,7 @@ function ClassDetailModal({
                   <View key={i} style={styles.bullet}>
                     <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
                     {f.description ? (
-                      <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                      <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText>
                     ) : null}
                   </View>
                 ))}
@@ -1028,9 +1028,9 @@ function ClassDetailModal({
                 {sc.name}
               </Text>
               {sc.description ? (
-                <Text variant="body-sm" family="body" style={[styles.bodyText, { marginTop: 4 }]}>
+                <MarkdownText style={[styles.bodyText, { marginTop: 4 }]}>
                   {sc.description}
-                </Text>
+                </MarkdownText>
               ) : null}
               {Array.isArray(sc.features) && sc.features.length > 0 ? (
                 <View style={[styles.subBlock, { marginTop: spacing.xs + 2 }]}>
@@ -1039,7 +1039,7 @@ function ClassDetailModal({
                       <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
                         L{f.level} · {f.name}
                       </Text>
-                      <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                      <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText>
                     </View>
                   ))}
                 </View>
@@ -1226,7 +1226,7 @@ function BackgroundsList({ items }: { items: BackgroundResult[] }) {
             onToggle={() => exp.toggle(b.key)}
             tier={b.tier}
           >
-            {b.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{b.description}</Text> : null}
+            {b.description ? <MarkdownText style={styles.bodyText}>{b.description}</MarkdownText> : null}
             <ProfBlock label="Skill proficiencies" items={skills} />
             {Array.isArray(bAny.abilityScoreOptions) && bAny.abilityScoreOptions.length > 0 ? (
               <ProfBlock label="Ability score options" items={bAny.abilityScoreOptions} />
@@ -1281,7 +1281,7 @@ function SubclassesList({ items }: { items: SubclassResult[] }) {
           onToggle={() => exp.toggle(s.key)}
           tier={s.tier}
         >
-          {s.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{s.description}</Text> : null}
+          {s.description ? <MarkdownText style={styles.bodyText}>{s.description}</MarkdownText> : null}
           {Array.isArray(s.features) && s.features.length > 0 ? (
             <View style={styles.subBlock}>
               <MetaLabel size="sm">Features</MetaLabel>
@@ -1290,7 +1290,7 @@ function SubclassesList({ items }: { items: SubclassResult[] }) {
                   <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
                     L{f.level} · {f.name}
                   </Text>
-                  <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text>
+                  <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText>
                 </View>
               ))}
             </View>
@@ -1326,7 +1326,7 @@ function SpellsList({ items }: { items: SpellResult[] }) {
             onToggle={() => exp.toggle(s.key)}
             tier={s.tier}
           >
-            {s.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{s.description}</Text> : null}
+            {s.description ? <MarkdownText style={styles.bodyText}>{s.description}</MarkdownText> : null}
             <View style={styles.subBlock}>
               <View style={styles.chipRow}>
                 {s.range ? <Chip label={`Range: ${s.range}`} variant="meta" /> : null}
@@ -1370,7 +1370,7 @@ function FeatsList({ items }: { items: FeatResult[] }) {
           onToggle={() => exp.toggle(f.key)}
           tier={f.tier}
         >
-          {f.description ? <Text variant="body-sm" family="body" style={styles.bodyText}>{f.description}</Text> : null}
+          {f.description ? <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText> : null}
           {Array.isArray(f.benefits) && f.benefits.length > 0 ? (
             <View style={styles.subBlock}>
               <MetaLabel size="sm">Benefits</MetaLabel>
@@ -1696,7 +1696,7 @@ function CreaturesList({ items }: { items: CreatureResult[] }) {
                 {c.traits.map((t, i) => (
                   <View key={i} style={styles.bullet}>
                     <Text variant="body-sm" weight="bold" family="body" style={styles.bodyText}>{t.name}.</Text>
-                    <Text variant="body-sm" family="body" style={styles.bodyText}>{t.description}</Text>
+                    <MarkdownText style={styles.bodyText}>{t.description}</MarkdownText>
                   </View>
                 ))}
               </View>
@@ -1708,7 +1708,7 @@ function CreaturesList({ items }: { items: CreatureResult[] }) {
                 {c.actions.map((a, i) => (
                   <View key={i} style={styles.bullet}>
                     <Text variant="body-sm" weight="bold" family="body" style={styles.bodyText}>{a.name}.</Text>
-                    <Text variant="body-sm" family="body" style={styles.bodyText}>{a.description}</Text>
+                    <MarkdownText style={styles.bodyText}>{a.description}</MarkdownText>
                   </View>
                 ))}
               </View>
@@ -1825,7 +1825,7 @@ function CatalogList<T extends CatalogItem>({
             ) : null}
           </View>
           {it.description ? (
-            <Text variant="body-sm" family="body" style={styles.bodyText}>{it.description}</Text>
+            <MarkdownText style={styles.bodyText}>{it.description}</MarkdownText>
           ) : null}
         </View>
       ))}
