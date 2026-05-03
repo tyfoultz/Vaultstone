@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   cascadeMentionLabel,
   claimPageEdit,
-  createPin,
   forceReleasePageEdit,
   getMap,
   getMapImageSignedUrl,
   getPagesLinkingTo,
   getPinsForPage,
   getEventsReferencingPage,
-  listMaps,
   releasePageEdit,
   trashPage,
   updatePage,
@@ -44,7 +42,7 @@ import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
 import { PAGE_KIND_LABEL, toMaterialIcon } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
-import { worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
+import { worldMapHref, worldMapIndexHref, worldPageHref, worldSectionHref } from './worldHref';
 import {
   type PillDef,
   PillEditor,
@@ -118,339 +116,6 @@ function MapPinPreview({ signedUrl, label, xPct, yPct, mapWidth, mapHeight }: {
     </div>
   );
 }
-
-function QuickPinModal({ worldId, pageId, pageTitle, onSaved, onClose }: {
-  worldId: string;
-  pageId: string;
-  pageTitle: string;
-  onSaved: (pin: MapPin, map: WorldMap, signedUrl: string) => void;
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const [maps, setMaps] = useState<WorldMap[]>([]);
-  const [selectedMap, setSelectedMap] = useState<WorldMap | null>(null);
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [placing, setPlacing] = useState(false);
-  const [pinPos, setPinPos] = useState<{ x: number; y: number } | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    void (async () => {
-      const { data } = await listMaps(worldId);
-      const available = (data ?? []) as WorldMap[];
-      setMaps(available);
-      if (available.length > 0) {
-        const first = available[0];
-        setSelectedMap(first);
-        const { data: signed } = await getMapImageSignedUrl(first.image_key);
-        if (signed) setSignedUrl(signed.signedUrl);
-      }
-      setLoading(false);
-    })();
-  }, [worldId]);
-
-  async function handleSelectMap(map: WorldMap) {
-    setSelectedMap(map);
-    setSignedUrl(null);
-    setPinPos(null);
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-    const { data: signed } = await getMapImageSignedUrl(map.image_key);
-    if (signed) setSignedUrl(signed.signedUrl);
-  }
-
-  function handleContextMenu(e: React.MouseEvent) {
-    e.preventDefault();
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const rawX = e.clientX - rect.left;
-    const rawY = e.clientY - rect.top;
-    const imgX = (rawX - pan.x) / zoom;
-    const imgY = (rawY - pan.y) / zoom;
-    const imgEl = containerRef.current.querySelector('img');
-    if (!imgEl) return;
-    const x = imgX / imgEl.naturalWidth * (imgEl.naturalWidth / imgEl.offsetWidth);
-    const xPct = imgX / imgEl.offsetWidth;
-    const yPct = imgY / imgEl.offsetHeight;
-    if (xPct >= 0 && xPct <= 1 && yPct >= 0 && yPct <= 1) {
-      setPinPos({ x: xPct, y: yPct });
-    }
-  }
-
-  function handleWheel(e: React.WheelEvent) {
-    e.stopPropagation();
-    const delta = e.deltaY > 0 ? -0.15 : 0.15;
-    setZoom((z) => Math.max(0.5, Math.min(8, z + delta * z)));
-  }
-
-  function handleMouseDown(e: React.MouseEvent) {
-    if (e.button === 1) {
-      e.preventDefault();
-      setDragging(true);
-      dragStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
-    }
-  }
-
-  useEffect(() => {
-    if (!dragging) return;
-    function onMove(e: MouseEvent) {
-      setPan({
-        x: dragStart.current.panX + (e.clientX - dragStart.current.x),
-        y: dragStart.current.panY + (e.clientY - dragStart.current.y),
-      });
-    }
-    function onUp() { setDragging(false); }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  }, [dragging]);
-
-  async function handleSave() {
-    if (!selectedMap || !pinPos) return;
-    setPlacing(true);
-    const { data: pin } = await createPin({
-      map_id: selectedMap.id,
-      world_id: worldId,
-      linked_page_id: pageId,
-      x_pct: pinPos.x,
-      y_pct: pinPos.y,
-      label: pageTitle,
-      pin_type: 'settlement',
-    });
-    setPlacing(false);
-    if (pin) onSaved(pin as MapPin, selectedMap, signedUrl!);
-  }
-
-  return (
-    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
-      <Pressable style={qpStyles.backdrop} onPress={onClose}>
-        <Pressable onPress={(e) => e.stopPropagation()} style={qpStyles.container}>
-          <View style={qpStyles.header}>
-            <Text variant="title-sm" weight="bold" style={{ color: colors.onSurface, flex: 1 }}>
-              Place Map Pin
-            </Text>
-            <Text variant="body-sm" style={{ color: colors.outline }}>
-              {Math.round(zoom * 100)}%
-            </Text>
-            <Pressable onPress={onClose} style={qpStyles.closeBtn}>
-              <Icon name="close" size={18} color={colors.onSurfaceVariant} />
-            </Pressable>
-          </View>
-
-          {loading ? (
-            <View style={qpStyles.emptyBody}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          ) : maps.length === 0 ? (
-            <View style={qpStyles.emptyBody}>
-              <Icon name="map" size={32} color={colors.outline} />
-              <Text variant="body-sm" style={{ color: colors.outline, marginTop: 8, textAlign: 'center' }}>
-                No maps uploaded yet.{'\n'}Add a world map first.
-              </Text>
-              <Pressable
-                onPress={() => { onClose(); router.push(`/world/${worldId}/map` as any); }}
-                style={qpStyles.linkBtn}
-              >
-                <Text variant="label-md" weight="semibold" style={{ color: colors.primary }}>
-                  Go to Maps
-                </Text>
-              </Pressable>
-            </View>
-          ) : (
-            <>
-              {maps.length > 1 ? (
-                <ScrollView horizontal style={qpStyles.mapTabs} contentContainerStyle={{ gap: 6, paddingHorizontal: 12 }}>
-                  {maps.map((m) => (
-                    <Pressable
-                      key={m.id}
-                      onPress={() => handleSelectMap(m)}
-                      style={[qpStyles.mapTab, selectedMap?.id === m.id && qpStyles.mapTabActive]}
-                    >
-                      <Text
-                        variant="label-sm"
-                        weight="semibold"
-                        numberOfLines={1}
-                        style={{ color: selectedMap?.id === m.id ? colors.primary : colors.onSurfaceVariant }}
-                      >
-                        {m.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              ) : null}
-
-              <div
-                ref={containerRef}
-                onWheel={handleWheel}
-                onMouseDown={handleMouseDown}
-                onContextMenu={handleContextMenu}
-                style={{
-                  overflow: 'hidden',
-                  position: 'relative',
-                  height: '60vh',
-                  margin: 12,
-                  borderRadius: 6,
-                  backgroundColor: colors.surfaceContainerHighest,
-                  cursor: dragging ? 'grabbing' : 'crosshair',
-                }}
-              >
-                {signedUrl ? (
-                  <div style={{
-                    position: 'absolute',
-                    left: pan.x,
-                    top: pan.y,
-                    transform: `scale(${zoom})`,
-                    transformOrigin: '0 0',
-                  }}>
-                    <img
-                      src={signedUrl}
-                      style={{ display: 'block', maxWidth: '100%' }}
-                      alt={selectedMap?.label}
-                      draggable={false}
-                    />
-                    {pinPos ? (
-                      <div style={{
-                        position: 'absolute',
-                        left: `${pinPos.x * 100}%`,
-                        top: `${pinPos.y * 100}%`,
-                        width: 16 / zoom,
-                        height: 16 / zoom,
-                        borderRadius: '50%',
-                        backgroundColor: colors.primary,
-                        border: `${2 / zoom}px solid ${colors.surfaceCanvas}`,
-                        marginLeft: -8 / zoom,
-                        marginTop: -8 / zoom,
-                        boxShadow: `0 0 0 ${4 / zoom}px ${colors.primary}44`,
-                        pointerEvents: 'none' as const,
-                      }} />
-                    ) : null}
-                  </div>
-                ) : (
-                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <ActivityIndicator color={colors.primary} />
-                  </View>
-                )}
-              </div>
-
-              <Text variant="body-sm" style={{ color: colors.outline, paddingHorizontal: 12, paddingBottom: 4 }}>
-                Right-click to place pin. Scroll to zoom. Middle-click drag to pan.
-              </Text>
-
-              <View style={qpStyles.footer}>
-                <Pressable onPress={onClose} style={qpStyles.cancelBtn}>
-                  <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
-                    Cancel
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleSave}
-                  disabled={!pinPos || placing}
-                  style={[qpStyles.saveBtn, (!pinPos || placing) && { opacity: 0.4 }]}
-                >
-                  {placing ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text variant="label-md" weight="bold" style={{ color: '#fff' }}>
-                      Save Pin
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
-            </>
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-const qpStyles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(12, 14, 16, 0.65)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  container: {
-    width: '100%',
-    maxWidth: 800,
-    backgroundColor: colors.surfaceContainer,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '33',
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant + '33',
-  },
-  closeBtn: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.full,
-  },
-  emptyBody: {
-    padding: spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 160,
-  },
-  linkBtn: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.primary + '44',
-  },
-  mapTabs: {
-    maxHeight: 36,
-    marginTop: spacing.sm,
-  },
-  mapTab: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceContainerHigh,
-  },
-  mapTabActive: {
-    backgroundColor: colors.primaryContainer + '44',
-  },
-  mapArea: {
-    padding: spacing.sm,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.outlineVariant + '33',
-  },
-  cancelBtn: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.lg,
-  },
-  saveBtn: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: colors.primaryContainer,
-  },
-});
-
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -675,7 +340,6 @@ export function LocationPageView({ page, worldId }: Props) {
   // Map pin data
   const [mapPin, setMapPin] = useState<MapPin | null>(null);
   const [mapData, setMapData] = useState<{ map: WorldMap; signedUrl: string } | null>(null);
-  const [quickPinOpen, setQuickPinOpen] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setMapPin(null);
@@ -971,10 +635,13 @@ export function LocationPageView({ page, worldId }: Props) {
                       </View>
                     </Pressable>
                   ) : (
-                    <Pressable onPress={() => setQuickPinOpen(true)} style={styles.mapPlaceholder}>
-                      <Icon name="add-location-alt" size={24} color={colors.outline} />
+                    <Pressable
+                      onPress={() => router.push(worldMapIndexHref(worldId))}
+                      style={styles.mapPlaceholder}
+                    >
+                      <Icon name="map" size={24} color={colors.outline} />
                       <Text variant="body-sm" style={{ color: colors.outline, marginTop: 4 }}>No map pin set</Text>
-                      <Text variant="body-sm" style={{ color: colors.primary, marginTop: 2, fontSize: 11 }}>Tap to place</Text>
+                      <Text variant="body-sm" style={{ color: colors.primary, marginTop: 2, fontSize: 11 }}>Open Maps →</Text>
                     </Pressable>
                   )}
                 </View>
@@ -1115,19 +782,6 @@ export function LocationPageView({ page, worldId }: Props) {
       </View>
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
-      {quickPinOpen ? (
-        <QuickPinModal
-          worldId={worldId}
-          pageId={page.id}
-          pageTitle={page.title}
-          onClose={() => setQuickPinOpen(false)}
-          onSaved={(pin, map, signedUrl) => {
-            setMapPin(pin);
-            setMapData({ map, signedUrl });
-            setQuickPinOpen(false);
-          }}
-        />
-      ) : null}
     </View>
   );
 }
