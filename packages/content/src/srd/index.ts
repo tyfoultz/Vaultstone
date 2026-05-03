@@ -6,6 +6,7 @@ import type {
   BackgroundResult,
   SubclassResult,
   ConditionResult,
+  RuleResult,
   SpellResult,
   ItemResult,
   FeatResult,
@@ -35,6 +36,7 @@ import classesData             from './data/classes.json';
 import backgroundsData         from './data/backgrounds.json';
 import subclassesData          from './data/subclasses.json';
 import conditionsData          from './data/conditions.json';
+import rulesData               from './data/rules.json';
 import spellsData              from './data/spells.json';
 import itemsData               from './data/items.json';
 import magicItemsData          from './data/magic-items.json';
@@ -67,6 +69,7 @@ const CLASSES               = classesData             as unknown as ClassResult[
 const BACKGROUNDS           = backgroundsData         as unknown as BackgroundResult[];
 const SUBCLASSES            = subclassesData          as unknown as SubclassResult[];
 const CONDITIONS            = conditionsData          as unknown as ConditionResult[];
+const RULES                 = rulesData               as unknown as RuleResult[];
 const SPELLS                = spellsData              as unknown as SpellResult[];
 // Items split across two source files: items.json carries mundane equipment
 // (weapons / armor / adventuring gear / crafting equipment), magic-items.json
@@ -98,7 +101,7 @@ const COVER                 = coverData               as unknown as CoverResult[
 
 const ALL_SRD: ContentResult[] = [
   ...SPECIES, ...CLASSES, ...BACKGROUNDS, ...SUBCLASSES,
-  ...CONDITIONS, ...SPELLS, ...ITEMS, ...FEATS, ...CREATURES,
+  ...CONDITIONS, ...RULES, ...SPELLS, ...ITEMS, ...FEATS, ...CREATURES,
   ...SKILLS, ...DAMAGE_TYPES, ...SCHOOLS, ...SIZES, ...LANGUAGES,
   ...ACTION_TYPES, ...WEAPON_PROPERTIES, ...WEAPON_MASTERIES,
   ...STANDARD_ACTIONS, ...SENSES, ...SPEEDS, ...CREATURE_TYPES,
@@ -140,6 +143,7 @@ export interface SrdCounts {
   subclasses: number;
   backgrounds: number;
   conditions: number;
+  rules: number;
   spells: number;
   items: number;
   feats: number;
@@ -170,6 +174,7 @@ export interface SrdContent {
   subclasses: SubclassResult[];
   backgrounds: BackgroundResult[];
   conditions: ConditionResult[];
+  rules: RuleResult[];
   spells: SpellResult[];
   items: ItemResult[];
   feats: FeatResult[];
@@ -202,8 +207,8 @@ export function getSrdContent(version?: SrdVersion): SrdContent {
   if (!version) {
     return {
       species: SPECIES, classes: CLASSES, subclasses: SUBCLASSES,
-      backgrounds: BACKGROUNDS, conditions: CONDITIONS, spells: SPELLS,
-      items: ITEMS, feats: FEATS, creatures: CREATURES,
+      backgrounds: BACKGROUNDS, conditions: CONDITIONS, rules: RULES,
+      spells: SPELLS, items: ITEMS, feats: FEATS, creatures: CREATURES,
       skills: SKILLS, damageTypes: DAMAGE_TYPES, schools: SCHOOLS,
       sizes: SIZES, languages: LANGUAGES, actionTypes: ACTION_TYPES,
       weaponProperties: WEAPON_PROPERTIES, weaponMasteries: WEAPON_MASTERIES,
@@ -223,6 +228,7 @@ export function getSrdContent(version?: SrdVersion): SrdContent {
     subclasses:          SUBCLASSES.filter(matches),
     backgrounds:         BACKGROUNDS.filter(matches),
     conditions:          CONDITIONS.filter(matches),
+    rules:               RULES.filter(matches),
     spells:              SPELLS.filter(matches),
     items:               ITEMS.filter(matches),
     feats:               FEATS.filter(matches),
@@ -267,6 +273,7 @@ function countsFromContent(c: SrdContent): SrdCounts {
     subclasses:          c.subclasses.length,
     backgrounds:         c.backgrounds.length,
     conditions:          c.conditions.length,
+    rules:               c.rules.length,
     spells:              c.spells.length,
     items:               c.items.length,
     feats:               c.feats.length,

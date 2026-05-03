@@ -11,6 +11,7 @@ export type ContentType =
   | 'background'
   | 'feat'
   | 'condition'
+  | 'rule'
   | 'skill'
   | 'damage-type'
   | 'school'
@@ -124,6 +125,15 @@ export interface ConditionResult extends ContentResult {
   type: 'condition';
   /** Mechanical effects — one bullet per rule. */
   effects: string[];
+  srdVersions: string[];
+}
+
+export interface RuleResult extends ContentResult {
+  type: 'rule';
+  /** Top-level chapter this section belongs to, e.g. "Combat", "Resting". */
+  chapter: string;
+  /** Display order within the chapter (Open5e's per-section index). */
+  order: number;
   srdVersions: string[];
 }
 

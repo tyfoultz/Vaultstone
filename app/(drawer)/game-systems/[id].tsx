@@ -17,7 +17,7 @@ import { useSystemHomebrewContent } from '../../../components/game-systems/useSy
 import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
-  SubclassResult, ConditionResult, SpellResult,
+  SubclassResult, ConditionResult, RuleResult, SpellResult,
   ItemResult, FeatResult, CreatureResult,
   SkillResult, DamageTypeResult, SchoolResult, SizeResult,
   LanguageResult, ActionTypeResult, WeaponPropertyResult, WeaponMasteryResult,
@@ -27,7 +27,7 @@ import type {
 
 const EMPTY_CONTENT: SrdContent = {
   species: [], classes: [], subclasses: [], backgrounds: [],
-  conditions: [], spells: [], items: [], feats: [], creatures: [],
+  conditions: [], rules: [], spells: [], items: [], feats: [], creatures: [],
   skills: [], damageTypes: [], schools: [], sizes: [], languages: [],
   actionTypes: [], weaponProperties: [], weaponMasteries: [],
   standardActions: [], senses: [], speeds: [], creatureTypes: [],
@@ -62,7 +62,8 @@ type SubTab = {
 };
 
 type GroupKey =
-  | 'character' | 'spells' | 'combat' | 'equipment' | 'bestiary' | 'schema';
+  | 'character' | 'spells' | 'equipment' | 'bestiary'
+  | 'rules' | 'reference' | 'schema';
 
 type Group = {
   key: GroupKey;
@@ -86,55 +87,66 @@ const GROUPS: Group[] = [
       { key: 'classes',     label: 'Classes',     contentKey: 'classes' },
       { key: 'backgrounds', label: 'Backgrounds', contentKey: 'backgrounds' },
       { key: 'feats',       label: 'Feats',       contentKey: 'feats' },
-      { key: 'skills',      label: 'Skills',      contentKey: 'skills' },
-      { key: 'languages',   label: 'Languages',   contentKey: 'languages' },
     ],
   },
   {
     key: 'spells',
     label: 'Spells & Magic',
     subTabs: [
-      { key: 'spells',  label: 'Spells',  contentKey: 'spells' },
-      { key: 'schools', label: 'Schools', contentKey: 'schools' },
-    ],
-  },
-  {
-    key: 'combat',
-    label: 'Combat',
-    subTabs: [
-      { key: 'standard-actions', label: 'Standard Actions', contentKey: 'standardActions' },
-      { key: 'action-types',     label: 'Action Types',     contentKey: 'actionTypes' },
-      { key: 'conditions',       label: 'Conditions',       contentKey: 'conditions' },
-      { key: 'damage-types',     label: 'Damage Types',     contentKey: 'damageTypes' },
-      { key: 'cover',            label: 'Cover',            contentKey: 'cover' },
+      { key: 'spells', label: 'Spells', contentKey: 'spells' },
     ],
   },
   {
     key: 'equipment',
     label: 'Equipment',
     subTabs: [
-      { key: 'weapons',               label: 'Weapons',               contentKey: 'items', itemCategories: ['weapon'] },
-      { key: 'armor',                 label: 'Armor',                 contentKey: 'items', itemCategories: ['armor', 'shield'] },
-      { key: 'adventuring-gear',      label: 'Adventuring Gear',      contentKey: 'items', itemCategories: ['adventuring-gear'] },
-      { key: 'magic-items',           label: 'Magic Items',           contentKey: 'items', itemCategories: ['magic-item'] },
-      { key: 'crafting-equipment',    label: 'Crafting Equipment',    contentKey: 'items', itemCategories: ['crafting-equipment'] },
-      { key: 'tools',                 label: 'Tools',                 contentKey: 'tools' },
-      { key: 'weapon-properties',     label: 'Weapon Properties',     contentKey: 'weaponProperties' },
-      { key: 'weapon-masteries',      label: 'Weapon Masteries',      contentKey: 'weaponMasteries' },
-      { key: 'magic-item-categories', label: 'Magic Item Categories', contentKey: 'magicItemCategories' },
-      { key: 'currencies',            label: 'Currencies',            contentKey: 'currencies' },
+      { key: 'weapons',            label: 'Weapons',            contentKey: 'items', itemCategories: ['weapon'] },
+      { key: 'armor',              label: 'Armor',              contentKey: 'items', itemCategories: ['armor', 'shield'] },
+      { key: 'adventuring-gear',   label: 'Adventuring Gear',   contentKey: 'items', itemCategories: ['adventuring-gear'] },
+      { key: 'magic-items',        label: 'Magic Items',        contentKey: 'items', itemCategories: ['magic-item'] },
+      { key: 'crafting-equipment', label: 'Crafting Equipment', contentKey: 'items', itemCategories: ['crafting-equipment'] },
+      { key: 'tools',              label: 'Tools',              contentKey: 'tools' },
     ],
   },
   {
     key: 'bestiary',
     label: 'Bestiary',
     subTabs: [
-      { key: 'creatures',      label: 'Monsters',       contentKey: 'creatures' },
-      { key: 'creature-types', label: 'Creature Types', contentKey: 'creatureTypes' },
-      { key: 'sizes',          label: 'Sizes',          contentKey: 'sizes' },
-      { key: 'senses',         label: 'Senses',         contentKey: 'senses' },
-      { key: 'speeds',         label: 'Speeds',         contentKey: 'speeds' },
-      { key: 'alignments',     label: 'Alignments',     contentKey: 'alignments' },
+      { key: 'creatures', label: 'Monsters', contentKey: 'creatures' },
+    ],
+  },
+  {
+    key: 'rules',
+    label: 'Rules',
+    subTabs: [
+      // Rules-of-play prose imported from Open5e /rules/. Sectioned by
+      // chapter inside the RulesList renderer.
+      { key: 'rules',            label: 'Rules',            contentKey: 'rules' },
+      { key: 'standard-actions', label: 'Standard Actions', contentKey: 'standardActions' },
+      { key: 'action-types',     label: 'Action Types',     contentKey: 'actionTypes' },
+      { key: 'cover',            label: 'Cover',            contentKey: 'cover' },
+    ],
+  },
+  {
+    key: 'reference',
+    label: 'Glossary',
+    subTabs: [
+      // Small enumerated catalogs — system vocabulary. Read-only lookup
+      // tables, grouped here so they don't crowd the topical tabs.
+      { key: 'conditions',            label: 'Conditions',            contentKey: 'conditions' },
+      { key: 'skills',                label: 'Skills',                contentKey: 'skills' },
+      { key: 'languages',             label: 'Languages',             contentKey: 'languages' },
+      { key: 'damage-types',          label: 'Damage Types',          contentKey: 'damageTypes' },
+      { key: 'schools',               label: 'Schools',               contentKey: 'schools' },
+      { key: 'sizes',                 label: 'Sizes',                 contentKey: 'sizes' },
+      { key: 'senses',                label: 'Senses',                contentKey: 'senses' },
+      { key: 'speeds',                label: 'Speeds',                contentKey: 'speeds' },
+      { key: 'creature-types',        label: 'Creature Types',        contentKey: 'creatureTypes' },
+      { key: 'alignments',            label: 'Alignments',            contentKey: 'alignments' },
+      { key: 'currencies',            label: 'Currencies',            contentKey: 'currencies' },
+      { key: 'weapon-properties',     label: 'Weapon Properties',     contentKey: 'weaponProperties' },
+      { key: 'weapon-masteries',      label: 'Weapon Masteries',      contentKey: 'weaponMasteries' },
+      { key: 'magic-item-categories', label: 'Magic Item Categories', contentKey: 'magicItemCategories' },
     ],
   },
   {
@@ -296,14 +308,10 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
         })}
       </ScrollView>
 
-      {/* Sub-tab strip — only when the active group has more than one sub-tab. */}
+      {/* Sub-tab strip — only when the active group has more than one sub-tab.
+          Wraps so long lists (Glossary has 14 chips) don't run off-screen. */}
       {currentGroup && currentGroup.subTabs.length > 1 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.subTabsBar}
-          style={styles.subTabsScroll}
-        >
+        <View style={styles.subTabsBar}>
           {currentGroup.subTabs.map((t) => {
             const active = activeSubKey === t.key;
             const subCount = t.contentKey === '__schema__' ? undefined : subTabItemCount(t, content);
@@ -331,7 +339,7 @@ function GameSystemDetail({ sys, onBack }: { sys: GameSystemDefinition; onBack: 
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
       ) : null}
 
       <View style={styles.body}>
@@ -625,6 +633,7 @@ function renderSubBody(
     case 'items':            return <ItemsList       items={content.items} />;
     case 'creatures':        return <CreaturesList   items={content.creatures} />;
     case 'conditions':       return <ConditionsList  items={content.conditions} />;
+    case 'rules':            return <RulesList       items={content.rules} />;
     case 'skills':           return <SkillsList           items={content.skills} />;
     case 'languages':        return <LanguagesList        items={content.languages} />;
     case 'schools':          return <SchoolsList          items={content.schools} />;
@@ -1780,6 +1789,111 @@ function ConditionsList({ items }: { items: ConditionResult[] }) {
   );
 }
 
+// Rules-of-play. Open5e ships these as a flat list with `chapter` and
+// `order` fields — group by chapter, sort within by order, and render
+// each section as an expandable row (the bodies are long-form prose,
+// often with embedded markdown tables).
+function RulesList({ items }: { items: RuleResult[] }) {
+  const [q, setQ] = useState('');
+  const exp = useExpanded();
+
+  // Per-chapter collapse state. Tracks *collapsed* keys (not expanded), so
+  // every chapter is open by default and the user opts in to hiding noise.
+  // While searching we ignore this set entirely — hits should always be
+  // visible regardless of the chapter's prior collapse state.
+  const [collapsedChapters, setCollapsedChapters] = useState<Set<string>>(() => new Set());
+  const toggleChapter = (chapter: string) => {
+    setCollapsedChapters((prev) => {
+      const next = new Set(prev);
+      if (next.has(chapter)) next.delete(chapter); else next.add(chapter);
+      return next;
+    });
+  };
+
+  const searching = q.trim().length > 0;
+
+  // Group by chapter. Sections inside a chapter follow Open5e's per-chapter
+  // order; chapters themselves sort alphabetically (the 5.1 / 2024 chapter
+  // taxonomies don't overlap, so we never see mixed editions in one chapter).
+  const grouped = useMemo(() => {
+    const filtered = filterByName(items, q);
+    const buckets = new Map<string, RuleResult[]>();
+    for (const r of filtered) {
+      const arr = buckets.get(r.chapter) ?? [];
+      arr.push(r);
+      buckets.set(r.chapter, arr);
+    }
+    for (const arr of buckets.values()) {
+      arr.sort((a, b) => a.order - b.order);
+    }
+    return [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [items, q]);
+
+  const totalHits = grouped.reduce((n, [, arr]) => n + arr.length, 0);
+
+  return (
+    <View style={styles.list}>
+      <SearchBar value={q} onChange={setQ} placeholder="Search rules…" />
+      {grouped.map(([chapter, sections]) => {
+        const collapsed = !searching && collapsedChapters.has(chapter);
+        return (
+          <View key={chapter} style={styles.rulesChapter}>
+            <Pressable
+              onPress={() => toggleChapter(chapter)}
+              style={({ pressed }) => [
+                styles.rulesChapterHeader,
+                collapsed && styles.rulesChapterHeaderCollapsed,
+                pressed && { opacity: 0.85 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`${collapsed ? 'Expand' : 'Collapse'} ${chapter} chapter`}
+            >
+              <Text
+                variant="title-md"
+                family="headline"
+                weight="bold"
+                style={styles.rulesChapterTitle}
+              >
+                {chapter}
+              </Text>
+              <View style={styles.rulesChapterCountPill}>
+                <Text variant="body-sm" family="body" weight="semibold" style={styles.rulesChapterCountText}>
+                  {sections.length}
+                </Text>
+              </View>
+              <Icon
+                name={collapsed ? 'expand-more' : 'expand-less'}
+                size={20}
+                color={colors.primary}
+              />
+            </Pressable>
+            {!collapsed
+              ? sections.map((r) => (
+                  <ExpandRow
+                    key={r.key}
+                    title={r.name}
+                    summary={r.description ?? ''}
+                    expanded={exp.isOpen(r.key)}
+                    onToggle={() => exp.toggle(r.key)}
+                    tier={r.tier}
+                  >
+                    {r.description ? (
+                      <MarkdownText style={styles.bodyText}>{r.description}</MarkdownText>
+                    ) : null}
+                    {Array.isArray(r.srdVersions) && r.srdVersions.length > 0 ? (
+                      <SrdVersionsRow versions={r.srdVersions} />
+                    ) : null}
+                  </ExpandRow>
+                ))
+              : null}
+          </View>
+        );
+      })}
+      {totalHits === 0 ? <EmptyHit q={q} /> : null}
+    </View>
+  );
+}
+
 // ── Catalog lists ────────────────────────────────────────────────────────────
 // Compact list views for short SRD lookup tables (skills, damage types, etc.).
 // They don't need ExpandRow's collapse/expand affordance — every item fits in
@@ -2196,15 +2310,14 @@ const styles = StyleSheet.create({
   tabCount: { color: colors.outline, fontSize: 11 },
 
   // Sub-tabs (secondary, chip style — appears under group tabs when the
-  // active group has more than one sub-tab).
-  subTabsScroll: {
-    flexGrow: 0,
-    marginBottom: spacing.md,
-    paddingTop: spacing.sm,
-  },
+  // active group has more than one sub-tab). Wraps to multiple rows when
+  // the chip count exceeds the row width (e.g. Glossary's 14 entries).
   subTabsBar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    marginBottom: spacing.md,
     gap: spacing.xs + 2,
   },
   subTabBtn: {
@@ -2299,6 +2412,43 @@ const styles = StyleSheet.create({
   },
   bodyText: { color: colors.onSurfaceVariant, lineHeight: 20 },
   subBlock: { gap: 6, marginTop: spacing.xs + 2 },
+
+  // Rules list — chapter accordion. Headers read as a card-like band so they
+  // stand apart from the white-on-canvas section rows below them.
+  rulesChapter: { marginTop: spacing.md },
+  rulesChapterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  rulesChapterHeaderCollapsed: {
+    marginBottom: 0,
+  },
+  rulesChapterTitle: {
+    flex: 1,
+    color: colors.onSurface,
+    letterSpacing: -0.3,
+  },
+  rulesChapterCountPill: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryContainer + '55',
+    borderWidth: 1,
+    borderColor: colors.primary + '88',
+  },
+  rulesChapterCountText: {
+    color: colors.onSurface,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
+  },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   bullet: { gap: 2, marginTop: 4 },
   becomingBullet: {
