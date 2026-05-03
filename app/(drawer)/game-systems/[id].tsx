@@ -14,6 +14,7 @@ import { CreateHomebrewPackModal } from '../../../components/homebrew/CreateHome
 import { listHomebrewPacks, deleteHomebrewPack, type HomebrewPackRow } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
+import { useSystemImportedContent } from '../../../components/game-systems/useSystemImportedContent';
 import { SystemRulebooksList } from '../../../components/game-systems/SystemRulebooksList';
 import { SystemImportedContentList } from '../../../components/game-systems/SystemImportedContentList';
 import type { GameSystemDefinition } from '@vaultstone/types';
@@ -242,24 +243,33 @@ function GameSystemDetail({
   // entry already comes shaped as the matching `*Result` thanks to the
   // ContentResolver mapping in packages/content/src/homebrew/index.ts.
   const homebrew = useSystemHomebrewContent(sys.id);
+  // Same shape but for imported (JSON-imported) content. Reads from the
+  // on-device imported tier — see packages/content/src/imported/.
+  const imported = useSystemImportedContent(sys.id);
 
-  // Merge: spread SRD first, concat homebrew per bucket. Homebrew entries
-  // sort to the bottom of each list naturally because the existing list
-  // sorts (alphabetical, by-CR, etc.) re-sort the merged array. The Schema
-  // and reference catalog buckets pass through untouched — those aren't
-  // user-authorable.
+  // Merge: spread SRD first, concat imported, concat homebrew per bucket.
+  // Order matters because the existing list sorts (alphabetical, by-CR,
+  // etc.) re-sort each merged array; the spread order doesn't affect final
+  // display order, but it does affect which entry "wins" when a downstream
+  // dedupe-by-name pass collapses collisions (caller-side or future).
+  // Schema and reference catalog buckets pass through untouched — those
+  // aren't user-authorable.
   const content = useMemo(() => {
     const merged: typeof srdContent = { ...srdContent };
-    for (const [k, hbList] of Object.entries(homebrew.buckets)) {
-      if (!hbList || hbList.length === 0) continue;
-      const key = k as keyof typeof srdContent;
-      // Cast through unknown — the per-bucket array types are heterogeneous
-      // (SpellResult[], ItemResult[], etc.) but the indexer only sees the
-      // union, so the spread is provably correct at runtime.
-      (merged[key] as unknown[]) = [...(srdContent[key] as unknown[]), ...hbList];
-    }
+    const concatBucket = (other: Partial<typeof srdContent>) => {
+      for (const [k, list] of Object.entries(other)) {
+        if (!list || list.length === 0) continue;
+        const key = k as keyof typeof srdContent;
+        // Cast through unknown — the per-bucket array types are heterogeneous
+        // (SpellResult[], ItemResult[], etc.) but the indexer only sees the
+        // union, so the spread is provably correct at runtime.
+        (merged[key] as unknown[]) = [...(merged[key] as unknown[]), ...list];
+      }
+    };
+    concatBucket(imported.buckets);
+    concatBucket(homebrew.buckets);
     return merged;
-  }, [srdContent, homebrew.buckets]);
+  }, [srdContent, homebrew.buckets, imported.buckets]);
 
   // Build the visible group + sub-tab tree once per content change. A group
   // disappears entirely when none of its sub-tabs have content — except

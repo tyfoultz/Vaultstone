@@ -1,0 +1,236 @@
+{
+  "_comment": "Hand-crafted sample matching the 5e.tools class.json schema (subclass + subclassFeature arrays). Used for Stage 3 transform development. Not a real 5e.tools file — synthesized from the public schema at github.com/TheGiddyLimit/5etools-utils/schema/brew-fast/class/class.json. Real files will have many more subclasses + features and slightly more variation in entry shapes.",
+  "subclass": [
+    {
+      "name": "Path of the Berserker",
+      "shortName": "Berserker",
+      "source": "PHB",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "page": 49,
+      "subclassFeatures": [
+        "Path of the Berserker|Barbarian||Berserker||3",
+        "Frenzy|Barbarian||Berserker||3",
+        "Mindless Rage|Barbarian||Berserker||6",
+        "Intimidating Presence|Barbarian||Berserker||10",
+        "Retaliation|Barbarian||Berserker||14"
+      ]
+    },
+    {
+      "name": "Path of the Wild Heart",
+      "shortName": "Wild Heart",
+      "source": "PHB",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "page": 50,
+      "subclassFeatures": [
+        "Path of the Wild Heart|Barbarian||Wild Heart||3",
+        "Spirit Seeker|Barbarian||Wild Heart||3",
+        "Animal Aspects|Barbarian||Wild Heart||6"
+      ]
+    },
+    {
+      "name": "College of Lore",
+      "shortName": "Lore",
+      "source": "PHB",
+      "className": "Bard",
+      "classSource": "PHB",
+      "page": 56,
+      "subclassFeatures": [
+        "College of Lore|Bard||Lore||3",
+        "Cutting Words|Bard||Lore||3",
+        "Magical Discoveries|Bard||Lore||6"
+      ]
+    },
+    {
+      "name": "Path of the Totem Warrior",
+      "shortName": "Totem Warrior",
+      "source": "XGE",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "page": 10,
+      "subclassFeatures": [
+        "Path of the Totem Warrior|Barbarian||Totem Warrior|XGE|3|XGE",
+        "Spirit Seeker|Barbarian||Totem Warrior|XGE|3|XGE",
+        "Totem Spirit|Barbarian||Totem Warrior|XGE|3|XGE"
+      ]
+    }
+  ],
+  "subclassFeature": [
+    {
+      "name": "Path of the Berserker",
+      "source": "PHB",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Berserker",
+      "subclassSource": "PHB",
+      "level": 3,
+      "entries": [
+        "For some barbarians, rage is a means to an end—that end being violence. The Path of the Berserker is a path of untrammeled fury, slick with blood. As you enter the berserker's rage, you thrill in the chaos of battle, heedless of your own health or well-being."
+      ]
+    },
+    {
+      "name": "Frenzy",
+      "source": "PHB",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Berserker",
+      "subclassSource": "PHB",
+      "level": 3,
+      "entries": [
+        "Starting when you choose this path at 3rd level, you can go into a frenzy when you rage. If you do so, for the duration of your rage you can make a single melee weapon attack as a {@action bonus action} on each of your turns after this one. When your rage ends, you suffer one level of {@condition exhaustion}."
+      ]
+    },
+    {
+      "name": "Mindless Rage",
+      "source": "PHB",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Berserker",
+      "subclassSource": "PHB",
+      "level": 6,
+      "entries": [
+        "Beginning at 6th level, you can't be {@condition charmed} or {@condition frightened} while raging. If you are charmed or frightened when you enter your rage, the effect is suspended for the duration of the rage."
+      ]
+    },
+    {
+      "name": "Intimidating Presence",
+      "source": "PHB",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Berserker",
+      "subclassSource": "PHB",
+      "level": 10,
+      "entries": [
+        "Beginning at 10th level, you can use your action to frighten someone with your menacing presence. When you do so, choose one creature that you can see within 30 feet of you. If the creature can see or hear you, it must succeed on a Wisdom saving throw (DC equal to 8 + your proficiency bonus + your Charisma modifier) or be {@condition frightened} of you until the end of your next turn.",
+        {
+          "type": "entries",
+          "name": "Continued Use",
+          "entries": [
+            "On subsequent turns, you can use your action to extend the duration of this effect on the frightened creature until the end of your next turn."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Retaliation",
+      "source": "PHB",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Berserker",
+      "subclassSource": "PHB",
+      "level": 14,
+      "entries": [
+        "Starting at 14th level, when you take damage from a creature that is within 5 feet of you, you can use your {@action reaction} to make a melee weapon attack against that creature."
+      ]
+    },
+    {
+      "name": "Path of the Wild Heart",
+      "source": "PHB",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Wild Heart",
+      "subclassSource": "PHB",
+      "level": 3,
+      "entries": [
+        "The Path of the Wild Heart calls to a barbarian who feels a deep kinship with animals and the unfettered wilderness."
+      ]
+    },
+    {
+      "name": "Spirit Seeker",
+      "source": "PHB",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Wild Heart",
+      "subclassSource": "PHB",
+      "level": 3,
+      "entries": [
+        "Yours is a path that seeks attunement with the natural world, giving you a kinship with beasts. At 3rd level when you adopt this path, you gain the ability to cast the {@spell beast sense} and {@spell speak with animals} spells, but only as rituals."
+      ]
+    },
+    {
+      "name": "Animal Aspects",
+      "source": "PHB",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Wild Heart",
+      "subclassSource": "PHB",
+      "level": 6,
+      "entries": [
+        "At 6th level, you can adopt the aspect of a beast that grants you a special benefit while you're raging."
+      ]
+    },
+    {
+      "name": "College of Lore",
+      "source": "PHB",
+      "className": "Bard",
+      "classSource": "PHB",
+      "subclassShortName": "Lore",
+      "subclassSource": "PHB",
+      "level": 3,
+      "entries": [
+        "Bards of the College of Lore know something about most things, collecting bits of knowledge from sources as diverse as scholarly tomes and peasant tales."
+      ]
+    },
+    {
+      "name": "Cutting Words",
+      "source": "PHB",
+      "className": "Bard",
+      "classSource": "PHB",
+      "subclassShortName": "Lore",
+      "subclassSource": "PHB",
+      "level": 3,
+      "entries": [
+        "Also at 3rd level, you learn how to use your wit to distract, confuse, and otherwise sap the confidence and competence of others. When a creature that you can see within 60 feet of you makes an attack roll, an ability check, or a damage roll, you can use your {@action reaction} to expend one of your uses of Bardic Inspiration."
+      ]
+    },
+    {
+      "name": "Magical Discoveries",
+      "source": "PHB",
+      "className": "Bard",
+      "classSource": "PHB",
+      "subclassShortName": "Lore",
+      "subclassSource": "PHB",
+      "level": 6,
+      "entries": [
+        "At 6th level, you learn two spells of your choice from any class. A spell you choose must be of a level you can cast, as shown on the Bard table, or a {@filter cantrip|spells|level=0|class=Bard}."
+      ]
+    },
+    {
+      "name": "Path of the Totem Warrior",
+      "source": "XGE",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Totem Warrior",
+      "subclassSource": "XGE",
+      "level": 3,
+      "entries": [
+        "The Path of the Totem Warrior is a spiritual journey, as the barbarian accepts a spirit animal as guide, protector, and inspiration."
+      ]
+    },
+    {
+      "name": "Spirit Seeker",
+      "source": "XGE",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Totem Warrior",
+      "subclassSource": "XGE",
+      "level": 3,
+      "entries": [
+        "Yours is a path that seeks attunement with the natural world, giving you a kinship with beasts. At 3rd level when you adopt this path, you gain the ability to cast {@spell beast sense} and {@spell speak with animals} spells, but only as rituals."
+      ]
+    },
+    {
+      "name": "Totem Spirit",
+      "source": "XGE",
+      "className": "Barbarian",
+      "classSource": "PHB",
+      "subclassShortName": "Totem Warrior",
+      "subclassSource": "XGE",
+      "level": 3,
+      "entries": [
+        "At 3rd level, when you adopt this path, you choose a totem spirit and gain its feature."
+      ]
+    }
+  ]
+}

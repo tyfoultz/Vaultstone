@@ -46,3 +46,9 @@ export const removeBatch = _removeBatch;
 export const loadEntriesByBatch = _loadEntriesByBatch;
 
 export type { ImportBatch };
+
+// Transforms — converters from external schemas (currently 5e.tools) to our
+// *Result shapes. Used by the import UI; safe to call on-device.
+export { transformSubclasses } from './transform/subclasses';
+export type { RawClassFile, TransformOptions } from './transform/subclasses';
+export { stripMarkup } from './transform/markup';
