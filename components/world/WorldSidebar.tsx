@@ -446,7 +446,8 @@ export function WorldSidebar({ world, activePageId }: Props) {
         <ImageCropModal
           visible
           imageUri={cropUri}
-          aspect={[1, 1]}
+          aspect={[16, 10]}
+          usageHint="This image appears as the sidebar cover (16:10) with your world name overlaid."
           onConfirm={handleCropConfirm}
           onCancel={() => setCropUri(null)}
         />
