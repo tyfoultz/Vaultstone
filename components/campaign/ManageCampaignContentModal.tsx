@@ -223,7 +223,12 @@ export function ManageCampaignContentModal({
 
               {SYSTEM_OPTIONS.map((opt) => {
                 const selected = opt.id === system;
-                const disabled = systemLocked || savingSystem;
+                // Custom system authoring isn't built yet — gate the row.
+                // Existing campaigns already on Custom can still see the
+                // selected state but can't switch elsewhere mid-thread; new
+                // campaigns can't switch INTO Custom.
+                const comingSoon = opt.id === 'custom' && !selected;
+                const disabled = systemLocked || savingSystem || comingSoon;
                 return (
                   <TouchableOpacity
                     key={opt.id}
@@ -239,6 +244,9 @@ export function ManageCampaignContentModal({
                     <Text style={[s.systemLabel, selected && s.systemLabelSelected]}>
                       {opt.label}
                     </Text>
+                    {comingSoon ? (
+                      <Text style={s.comingSoonTag}>COMING SOON</Text>
+                    ) : null}
                   </TouchableOpacity>
                 );
               })}
@@ -356,6 +364,17 @@ const s = StyleSheet.create({
   systemRowDisabled: { opacity: 0.4 },
   systemLabel: { fontSize: 14, color: colors.textSecondary },
   systemLabelSelected: { color: colors.textPrimary, fontWeight: '600' },
+  comingSoonTag: {
+    fontSize: 9,
+    color: colors.textSecondary,
+    backgroundColor: colors.background,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    letterSpacing: 0.6,
+    marginLeft: 'auto',
+    fontWeight: '600',
+  },
 
   // Packs
   loadingWrap: { padding: spacing.lg, alignItems: 'center' },

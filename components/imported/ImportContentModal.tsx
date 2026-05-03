@@ -12,7 +12,7 @@
 import { useState } from 'react';
 import {
   Modal, Pressable, View, Text, TouchableOpacity,
-  ActivityIndicator, StyleSheet,
+  ActivityIndicator, TextInput, StyleSheet,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing } from '@vaultstone/ui';
@@ -42,12 +42,19 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
   const [phase, setPhase] = useState<Phase>('intro');
   const [picked, setPicked] = useState<PickedJson | null>(null);
   const [probe, setProbe] = useState<ImportableContent | null>(null);
+  // Pack name the user can override before confirming. Defaults to the
+  // filename-derived name; per the design discussion (option b), changing
+  // it creates a new pack rather than redirecting a re-import — so a
+  // re-import of the same file with the default name still de-dupes
+  // cleanly into the existing pack.
+  const [packNameDraft, setPackNameDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   function reset() {
     setPhase('intro');
     setPicked(null);
     setProbe(null);
+    setPackNameDraft('');
     setError(null);
   }
 
@@ -65,6 +72,7 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
       const probeResult = probeContent(result.payload);
       setPicked(result);
       setProbe(probeResult);
+      setPackNameDraft(derivePackName(result.fileName));
       setPhase('confirm');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -73,15 +81,15 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
 
   async function handleImport() {
     if (!picked || !probe || !userId) return;
+    const packName = packNameDraft.trim() || derivePackName(picked.fileName);
     setPhase('working');
     setError(null);
     try {
-      const packName = derivePackName(picked.fileName);
-
-      // Look up an existing import pack from the same source file. We use
-      // the pack name + system + owner as the lookup key — re-importing
-      // the same file finds the existing pack and replaces its entries
-      // rather than creating a duplicate pack.
+      // Look up an existing import pack by exact name + system + owner.
+      // Re-importing the same file with the same name finds the existing
+      // pack and replaces its entries; renaming creates a new pack
+      // (intentional per the design call — user-named packs aren't
+      // expected to merge across renames).
       const { data: existingPacks } = await listHomebrewPacks({ system: systemId });
       let pack = existingPacks?.find(
         (p) => p.owner_user_id === userId && p.name === packName,
@@ -164,7 +172,12 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
           {phase === 'intro' ? <IntroBody /> : null}
 
           {phase === 'confirm' && picked && probe ? (
-            <ConfirmBody picked={picked} probe={probe} />
+            <ConfirmBody
+              picked={picked}
+              probe={probe}
+              packName={packNameDraft}
+              onPackNameChange={setPackNameDraft}
+            />
           ) : null}
 
           {phase === 'working' ? <WorkingBody /> : null}
@@ -227,7 +240,14 @@ function IntroBody() {
   );
 }
 
-function ConfirmBody({ picked, probe }: { picked: PickedJson; probe: ImportableContent }) {
+function ConfirmBody({
+  picked, probe, packName, onPackNameChange,
+}: {
+  picked: PickedJson;
+  probe: ImportableContent;
+  packName: string;
+  onPackNameChange: (s: string) => void;
+}) {
   return (
     <>
       <View style={s.filePreview}>
@@ -236,6 +256,20 @@ function ConfirmBody({ picked, probe }: { picked: PickedJson; probe: ImportableC
           <Text style={s.filePreviewName} numberOfLines={1}>{picked.fileName}</Text>
           <Text style={s.filePreviewMeta}>{formatBytes(picked.sizeBytes)}</Text>
         </View>
+      </View>
+      <View style={s.nameField}>
+        <Text style={s.nameFieldLabel}>Pack name</Text>
+        <TextInput
+          value={packName}
+          onChangeText={onPackNameChange}
+          style={s.nameFieldInput}
+          placeholder="Imported: phb.json"
+          placeholderTextColor={colors.textSecondary}
+        />
+        <Text style={s.nameFieldHint}>
+          Re-importing the same file with this exact name updates the
+          existing pack. Renaming creates a new one.
+        </Text>
       </View>
       <Text style={s.body}>Found in this file:</Text>
       <View style={s.probeList}>
@@ -323,6 +357,21 @@ const s = StyleSheet.create({
   },
   filePreviewName: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   filePreviewMeta: { color: colors.textSecondary, fontSize: 11, marginTop: 2 },
+
+  nameField: { gap: spacing.xs },
+  nameFieldLabel: {
+    fontSize: 11, color: colors.textSecondary, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase',
+  },
+  nameFieldInput: {
+    backgroundColor: colors.background,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    color: colors.textPrimary, fontSize: 14,
+  },
+  nameFieldHint: {
+    fontSize: 11, color: colors.textSecondary, lineHeight: 15,
+  },
 
   probeList: { gap: spacing.xs },
   probeRow: {

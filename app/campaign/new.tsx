@@ -115,29 +115,42 @@ export default function NewCampaignScreen() {
           <View style={styles.systemList}>
             {SYSTEM_OPTIONS.map(({ def, blurb }) => {
               const selected = systemId === def.id;
+              // Custom system authoring isn't built yet; render the row
+              // disabled with a Coming Soon hint instead of letting users
+              // pick a path that has no UX behind it.
+              const comingSoon = def.id === 'custom';
               return (
                 <Pressable
                   key={def.id}
-                  onPress={() => setSystemId(def.id)}
+                  onPress={comingSoon ? undefined : () => setSystemId(def.id)}
+                  disabled={comingSoon}
                   style={({ pressed }) => [
                     styles.systemRow,
                     selected && styles.systemRowSelected,
-                    pressed && { opacity: 0.85 },
+                    comingSoon && styles.systemRowDisabled,
+                    pressed && !comingSoon && { opacity: 0.85 },
                   ]}
                   accessibilityRole="radio"
-                  accessibilityState={{ selected }}
+                  accessibilityState={{ selected, disabled: comingSoon }}
                 >
                   <View style={styles.systemRadio}>
                     {selected ? <View style={styles.systemRadioFill} /> : null}
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text
-                      variant="body-md"
-                      weight="bold"
-                      style={{ color: selected ? colors.primary : colors.onSurface }}
-                    >
-                      {def.displayName}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                      <Text
+                        variant="body-md"
+                        weight="bold"
+                        style={{ color: selected ? colors.primary : colors.onSurface }}
+                      >
+                        {def.displayName}
+                      </Text>
+                      {comingSoon ? (
+                        <Text variant="label-sm" weight="semibold" uppercase style={styles.comingSoonTag}>
+                          Coming Soon
+                        </Text>
+                      ) : null}
+                    </View>
                     <Text variant="body-sm" tone="secondary">
                       v{def.version} · {blurb}
                     </Text>
@@ -224,6 +237,18 @@ const styles = StyleSheet.create({
   systemRowSelected: {
     borderColor: colors.primary + '88',
     backgroundColor: colors.primaryContainer + '22',
+  },
+  systemRowDisabled: {
+    opacity: 0.5,
+  },
+  comingSoonTag: {
+    color: colors.onSurfaceVariant,
+    backgroundColor: colors.surfaceContainerHigh,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: radius.full,
+    fontSize: 9,
+    letterSpacing: 0.6,
   },
   systemRadio: {
     width: 18,

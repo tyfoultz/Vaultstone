@@ -36,6 +36,78 @@ export default function GameSystemsScreen() {
           {BUNDLED_SYSTEMS.map((sys) => {
             const counts = sys.srdVersion ? getSrdCountsByVersion(sys.srdVersion) : null;
             const iconName = sys.id.startsWith('dnd5e') ? 'casino' : 'extension';
+            // Custom system is a planned authoring path (define your own
+            // ruleset) but the flow doesn't exist yet. Card renders in a
+            // muted "Coming Soon" state; tap is a no-op.
+            const isComingSoon = sys.id === 'custom';
+
+            const cardContent = (
+              <Card tier="container" padding="md">
+                <View style={styles.cardHead}>
+                  <View style={styles.cardHeadIcon}>
+                    <Icon name={iconName} size={22} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
+                      {sys.displayName}
+                    </Text>
+                    <MetaLabel size="sm">v{sys.version}</MetaLabel>
+                  </View>
+                  <Chip
+                    label={isComingSoon ? 'Coming Soon' : sys.isBundled ? 'Bundled' : 'Custom'}
+                    variant={isComingSoon ? 'meta' : 'accent'}
+                  />
+                  {!isComingSoon ? (
+                    <Icon name="chevron-right" size={20} color={colors.outline} />
+                  ) : null}
+                </View>
+
+                {counts ? (
+                  <View style={styles.metaList}>
+                    <Stat label="Species"     value={counts.species} />
+                    <Stat label="Classes"     value={counts.classes} />
+                    <Stat label="Subclasses"  value={counts.subclasses} />
+                    <Stat label="Backgrounds" value={counts.backgrounds} />
+                    <Stat label="Spells"      value={counts.spells} />
+                    <Stat label="Feats"       value={counts.feats} />
+                    <Stat label="Conditions"  value={counts.conditions} />
+                    <Stat label="Items"       value={counts.items} />
+                    <Stat label="Monsters"    value={counts.creatures} />
+                  </View>
+                ) : (
+                  <Text variant="body-sm" family="body" style={styles.bodyMuted}>
+                    {isComingSoon
+                      ? 'Define your own attributes, resources, and sheet sections. The Custom system authoring flow is coming in a future release.'
+                      : 'Open template — bring your own attributes, resources, and sheet sections. No bundled SRD content.'}
+                  </Text>
+                )}
+
+                <View style={styles.licenseRow}>
+                  <Icon name="info-outline" size={13} color={colors.outline} />
+                  <Text variant="body-sm" family="body" style={styles.licenseText}>
+                    {sys.license === 'CC-BY-4.0'
+                      ? 'CC-BY 4.0 — attribution required when displaying SRD content.'
+                      : 'Custom license — defined per pack.'}
+                  </Text>
+                </View>
+              </Card>
+            );
+
+            if (isComingSoon) {
+              return (
+                <View
+                  key={sys.id}
+                  style={[
+                    numColumns === 2 ? styles.gridItemHalf : styles.gridItemFull,
+                    styles.comingSoonCard,
+                  ]}
+                  accessibilityLabel={`${sys.displayName} — coming soon`}
+                >
+                  {cardContent}
+                </View>
+              );
+            }
+
             return (
               <Pressable
                 key={sys.id}
@@ -48,49 +120,7 @@ export default function GameSystemsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${sys.displayName}`}
               >
-                <Card tier="container" padding="md">
-                  <View style={styles.cardHead}>
-                    <View style={styles.cardHeadIcon}>
-                      <Icon name={iconName} size={22} color={colors.primary} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
-                        {sys.displayName}
-                      </Text>
-                      <MetaLabel size="sm">v{sys.version}</MetaLabel>
-                    </View>
-                    <Chip label={sys.isBundled ? 'Bundled' : 'Custom'} variant="accent" />
-                    <Icon name="chevron-right" size={20} color={colors.outline} />
-                  </View>
-
-                  {counts ? (
-                    <View style={styles.metaList}>
-                      <Stat label="Species"     value={counts.species} />
-                      <Stat label="Classes"     value={counts.classes} />
-                      <Stat label="Subclasses"  value={counts.subclasses} />
-                      <Stat label="Backgrounds" value={counts.backgrounds} />
-                      <Stat label="Spells"      value={counts.spells} />
-                      <Stat label="Feats"       value={counts.feats} />
-                      <Stat label="Conditions"  value={counts.conditions} />
-                      <Stat label="Items"       value={counts.items} />
-                      <Stat label="Monsters"    value={counts.creatures} />
-                    </View>
-                  ) : (
-                    <Text variant="body-sm" family="body" style={styles.bodyMuted}>
-                      Open template — bring your own attributes, resources, and sheet
-                      sections. No bundled SRD content.
-                    </Text>
-                  )}
-
-                  <View style={styles.licenseRow}>
-                    <Icon name="info-outline" size={13} color={colors.outline} />
-                    <Text variant="body-sm" family="body" style={styles.licenseText}>
-                      {sys.license === 'CC-BY-4.0'
-                        ? 'CC-BY 4.0 — attribution required when displaying SRD content.'
-                        : 'Custom license — defined per pack.'}
-                    </Text>
-                  </View>
-                </Card>
+                {cardContent}
               </Pressable>
             );
           })}
@@ -162,6 +192,9 @@ const styles = StyleSheet.create({
 
   cardHovered: {
     transform: [{ scale: 1.005 }],
+  },
+  comingSoonCard: {
+    opacity: 0.6,
   },
 
   cardHead: {
