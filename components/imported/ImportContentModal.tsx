@@ -239,22 +239,11 @@ function IntroBody() {
           size={18}
           color={colors.textSecondary}
         />
-        <Text style={s.formatsHeaderText}>Compatible formats</Text>
+        <Text style={s.formatsHeaderText}>Supported content types</Text>
       </Pressable>
       {formatsOpen ? (
         <View style={s.formatsBody}>
-          <Text style={s.formatsLine}>
-            Files matching the 5e.tools <Text style={s.diagnosticCode}>class.json</Text>{' '}
-            export shape. Specifically, a top-level JSON object with a{' '}
-            <Text style={s.diagnosticCode}>subclass</Text> array (and optionally
-            a matching <Text style={s.diagnosticCode}>subclassFeature</Text> array
-            with the feature payloads).
-          </Text>
-          <Text style={s.formatsLine}>
-            Today: <Text style={{ fontWeight: '700' }}>subclasses only</Text>.
-            Support for spells, items, monsters, feats, and backgrounds is
-            coming as the matching transforms land.
-          </Text>
+          <Text style={s.formatsLine}>• Subclasses</Text>
         </View>
       ) : null}
 
