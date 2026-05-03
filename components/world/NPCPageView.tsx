@@ -47,6 +47,7 @@ import { worldPageHref, worldSectionHref } from './worldHref';
 import {
   type PillDef,
   PillEditor,
+  CollapsibleSideSection,
   SideSectionHeader,
   RightTabBtn,
   HookInput,
@@ -1016,8 +1017,7 @@ export function NPCPageView({ page, worldId }: Props) {
               {rightTab === 'on_this_page' ? (
                 <>
                   {/* Mentioned on this page */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined} />
+                  <CollapsibleSideSection icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined}>
                     {mentionedPages.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
                     ) : (
@@ -1035,11 +1035,10 @@ export function NPCPageView({ page, worldId }: Props) {
                         );
                       })
                     )}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Locations — places that reference this NPC */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="place" title="LOCATIONS" count={npcLocations.length || undefined} />
+                  <CollapsibleSideSection icon="place" title="LOCATIONS" count={npcLocations.length || undefined}>
                     {npcLocations.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No locations linked yet.</Text>
                     ) : (
@@ -1054,11 +1053,10 @@ export function NPCPageView({ page, worldId }: Props) {
                         </Pressable>
                       ))
                     )}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Linked from */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined} />
+                  <CollapsibleSideSection icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined}>
                     {backlinksLoaded && backlinks.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
                     ) : (
@@ -1072,11 +1070,10 @@ export function NPCPageView({ page, worldId }: Props) {
                         </Pressable>
                       ))
                     )}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Seen in play */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined} />
+                  <CollapsibleSideSection icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined}>
                     {seenLoaded && seenInPlay.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
                     ) : (
@@ -1105,11 +1102,10 @@ export function NPCPageView({ page, worldId }: Props) {
                         );
                       })
                     )}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Relationships */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="people" title="RELATIONSHIPS" count={relationships.length || undefined} />
+                  <CollapsibleSideSection icon="people" title="RELATIONSHIPS" count={relationships.length || undefined}>
                     {relationships.map((rel, i) => {
                       const targetPage = (allPages ?? []).find((p) => p.id === rel.targetPageId);
                       if (!targetPage) return null;
@@ -1142,11 +1138,10 @@ export function NPCPageView({ page, worldId }: Props) {
                       <Icon name="add" size={14} color={colors.outline} />
                       <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add relationship</Text>
                     </Pressable>
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Hooks & Rumors */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
+                  <CollapsibleSideSection icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined}>
                     {hooks.map((hook, i) => (
                       <View key={i} style={sideStyles.hookRow}>
                         <Text style={sideStyles.hookBullet}>•</Text>
@@ -1160,7 +1155,7 @@ export function NPCPageView({ page, worldId }: Props) {
                       </View>
                     ))}
                     <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
-                  </View>
+                  </CollapsibleSideSection>
                 </>
               ) : null}
 

@@ -340,8 +340,6 @@ export function WorldSidebar({ world, activePageId }: Props) {
         ) : null}
       </Pressable>
 
-      <LensDropdown />
-
       <WorldSearchDrawer worldId={world.id} />
 
       <SidebarDndProvider>
@@ -405,12 +403,6 @@ export function WorldSidebar({ world, activePageId }: Props) {
             <Icon name="settings" size={18} color={colors.onSurfaceVariant} />
           </Pressable>
         </View>
-        {isOwner ? (
-          <Pressable onPress={() => setTrashOpen(true)} style={styles.trashLink}>
-            <Icon name="delete-outline" size={14} color={colors.outline} />
-            <Text variant="label-sm" style={{ color: colors.outline }}>Trash</Text>
-          </Pressable>
-        ) : null}
       </View>
 
       {settingsOpen ? (

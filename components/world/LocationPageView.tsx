@@ -46,6 +46,7 @@ import { worldMapHref, worldMapIndexHref, worldPageHref, worldSectionHref } from
 import {
   type PillDef,
   PillEditor,
+  CollapsibleSideSection,
   SideSectionHeader,
   RightTabBtn,
   HookInput,
@@ -646,8 +647,7 @@ export function LocationPageView({ page, worldId }: Props) {
                   )}
                 </View>
 
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined} />
+                <CollapsibleSideSection icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined}>
                   {mentionedPages.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
                   ) : (
@@ -665,10 +665,9 @@ export function LocationPageView({ page, worldId }: Props) {
                       );
                     })
                   )}
-                </View>
+                </CollapsibleSideSection>
 
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined} />
+                <CollapsibleSideSection icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined}>
                   {seenLoaded && seenInPlay.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
                   ) : (
@@ -697,10 +696,9 @@ export function LocationPageView({ page, worldId }: Props) {
                       );
                     })
                   )}
-                </View>
+                </CollapsibleSideSection>
 
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined} />
+                <CollapsibleSideSection icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined}>
                   {backlinksLoaded && backlinks.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
                   ) : (
@@ -714,11 +712,10 @@ export function LocationPageView({ page, worldId }: Props) {
                       </Pressable>
                     ))
                   )}
-                </View>
+                </CollapsibleSideSection>
 
                 {/* NPCs */}
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="person" title="NPCS HERE" count={locationNpcs.length || undefined} />
+                <CollapsibleSideSection icon="person" title="NPCS HERE" count={locationNpcs.length || undefined}>
                   {locationNpcs.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No NPCs linked yet. Use @mention to reference NPC pages.</Text>
                   ) : (
@@ -733,11 +730,10 @@ export function LocationPageView({ page, worldId }: Props) {
                       </Pressable>
                     ))
                   )}
-                </View>
+                </CollapsibleSideSection>
 
                 {/* Hooks & Rumors */}
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
+                <CollapsibleSideSection icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined}>
                   {hooks.map((hook, i) => (
                     <View key={i} style={sideStyles.hookRow}>
                       <Text style={sideStyles.hookBullet}>•</Text>
@@ -751,7 +747,7 @@ export function LocationPageView({ page, worldId }: Props) {
                     </View>
                   ))}
                   <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
-                </View>
+                </CollapsibleSideSection>
               </>
             ) : null}
 
