@@ -137,11 +137,10 @@ in-app reading affordance.
 |---|---|---|
 | Campaign-side PDF reader | ✅ Done | Upload (`expo-document-picker` + `expo-file-system` / IndexedDB) + ToS gate + viewer (`react-native-pdf`). Read-only — no text extraction or indexing. |
 | Imported content tier | ✅ Done | New `'imported'` tier in `ContentResolver`; on-device store (Expo SQLite native, IndexedDB web); per-batch (system × content type × source filename) management with re-import via filename collision. |
-| 5e.tools subclass transform | ✅ Done | Parses 5e.tools class.json into `SubclassResult[]`; resolves pipe-encoded `subclassFeatures` references; strips `{@tag}` inline markup. |
-| Import UI | ✅ Done | Three-state file-pick + ToS + progress modal at `components/imported/ImportContentModal.tsx`. Local file pick only — no URL fetch. |
+| 5e.tools content transforms | ✅ Done | Eight per-content-type transforms in `packages/content/src/imported/transform/` cover subclasses, feats, spells, backgrounds, items (mundane + magic), species (race + subrace), monsters, and classes. Each parses the matching 5e.tools array(s) into our `*Result` shape; shared `entries.ts` flattens `entries[]` blocks and strips inline `{@tag}` markup. |
+| Import UI | ✅ Done | Three-state file-pick + ToS + progress modal at `components/imported/ImportContentModal.tsx`. Local file pick only — no URL fetch. Driven by an `IMPORT_KINDS` registry so the disclosure list, Confirm probe rows, diagnostic copy, and upsert loop are all single-source-of-truth. |
 | Game-Systems-side surface | ✅ Done | Imported tab on per-system detail page with file-grouped batch list, per-source breakdown summary, remove-file + remove-batch actions. |
 | Source provenance | ✅ Done | `ImportSource` field on every `ContentResult`; `SourceBadge` primitive renders codes ("PHB", "SRD 2024", pack name) on every entry across the app. |
-| Future content-type transforms | ⬜ | Backgrounds, feats, spells, magic items, monsters — slot into the existing transform layer + import modal. |
 
 **Legal:** All imported content stays on-device, never transmitted to
 Vaultstone or shared with other party members. PDFs same. See

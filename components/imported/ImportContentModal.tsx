@@ -16,7 +16,11 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing } from '@vaultstone/ui';
-import { transformSubclasses } from '@vaultstone/content';
+import {
+  transformSubclasses, transformFeats, transformSpells, transformBackgrounds, transformItems,
+  transformSpecies, transformMonsters, transformClasses,
+} from '@vaultstone/content';
+import type { ContentResult, ImportSource } from '@vaultstone/types';
 import {
   createHomebrewPack, listHomebrewPacks,
   upsertImportedEntries, deleteImportedEntriesInPack,
@@ -26,6 +30,100 @@ import {
   pickContentJson, probeContent, hasImportableContent,
   type PickedJson, type ImportableContent, type ImportDiagnostic,
 } from './importContentJson';
+
+// Single source of truth for every importable content type. Each kind
+// pairs the probe's count field with its content_type code, the
+// transform that produces *Result-shaped payloads, the JSON top-level
+// key the probe reads, and human-readable labels for the UI. Adding a
+// new content type is one entry here plus a probe-counter in
+// importContentJson.ts.
+type ImportableEntry = ContentResult & {
+  importSource?: ImportSource;
+  key: string;
+  name: string;
+};
+
+type ImportKind = {
+  /** Field name in ImportableContent — count of items found in the file. */
+  countKey: keyof ImportableContent;
+  /** Top-level JSON keys on the source payload that this kind reads.
+   *  Most kinds have one (e.g. `subclass`); items have two
+   *  (`baseitem` + `item`) since 5e.tools splits mundane and magic
+   *  items across parallel arrays. */
+  topLevelKeys: string[];
+  /** Plural display label, used in the disclosure list and Confirm rows. */
+  label: string;
+  /** Lowercase singular content_type for imported_content rows. */
+  contentType: string;
+  /** Run the matching transform on the full picked payload. */
+  transform: (
+    payload: never,
+    opts: { systemId: string; sourceLabel?: string },
+  ) => ImportableEntry[];
+};
+
+const IMPORT_KINDS: ImportKind[] = [
+  {
+    countKey: 'subclasses',
+    topLevelKeys: ['subclass'],
+    label: 'Subclasses',
+    contentType: 'subclass',
+    transform: transformSubclasses,
+  },
+  {
+    countKey: 'feats',
+    topLevelKeys: ['feat'],
+    label: 'Feats',
+    contentType: 'feat',
+    transform: transformFeats,
+  },
+  {
+    countKey: 'spells',
+    topLevelKeys: ['spell'],
+    label: 'Spells',
+    contentType: 'spell',
+    transform: transformSpells,
+  },
+  {
+    countKey: 'backgrounds',
+    topLevelKeys: ['background'],
+    label: 'Backgrounds',
+    contentType: 'background',
+    transform: transformBackgrounds,
+  },
+  {
+    countKey: 'items',
+    topLevelKeys: ['baseitem', 'item'],
+    label: 'Items',
+    contentType: 'item',
+    transform: transformItems,
+  },
+  {
+    countKey: 'species',
+    topLevelKeys: ['race', 'subrace'],
+    label: 'Species',
+    contentType: 'species',
+    transform: transformSpecies,
+  },
+  {
+    countKey: 'monsters',
+    topLevelKeys: ['monster'],
+    label: 'Monsters',
+    // The homebrew authoring side uses content_type: 'creature' (see
+    // CreatureFormModal); imported monsters use the same word so a
+    // future filter or counter that groups by content_type sees both
+    // origins as the same kind.
+    contentType: 'creature',
+    transform: transformMonsters,
+  },
+  {
+    countKey: 'classes',
+    topLevelKeys: ['class'],
+    label: 'Classes',
+    contentType: 'class',
+    transform: transformClasses,
+  },
+];
 
 type Props = {
   visible: boolean;
@@ -114,23 +212,27 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
       // we only delete from imported_content.
       await deleteImportedEntriesInPack(pack.id);
 
-      // Run all available transforms and upsert their output. Today only
-      // subclasses; future transforms slot in alongside.
+      // Run every transform whose top-level key the probe found. A
+      // single file can carry multiple content types (e.g. an XPHB.json
+      // with both `subclass` and `feat` arrays); the IMPORT_KINDS table
+      // is the registry, this loop just concats their outputs.
       const entriesToUpsert: Parameters<typeof upsertImportedEntries>[0]['entries'] = [];
-      if (probe.subclasses > 0) {
-        const subclasses = transformSubclasses(picked.payload as never, {
+      for (const kind of IMPORT_KINDS) {
+        const count = probe[kind.countKey];
+        if (typeof count !== 'number' || count === 0) continue;
+        const produced = kind.transform(picked.payload as never, {
           systemId,
           sourceLabel: picked.fileName,
         });
-        for (const sc of subclasses) {
+        for (const entry of produced) {
           entriesToUpsert.push({
-            contentType: 'subclass',
-            name: sc.name,
-            entryKey: sc.key,
-            data: sc,
-            sourceCode: sc.importSource?.code,
-            sourceName: sc.importSource?.name,
-            sourcePage: sc.importSource?.page,
+            contentType: kind.contentType,
+            name: entry.name,
+            entryKey: entry.key,
+            data: entry,
+            sourceCode: entry.importSource?.code,
+            sourceName: entry.importSource?.name,
+            sourcePage: entry.importSource?.page,
             sourceUrl: picked.fileName,
           });
         }
@@ -243,7 +345,9 @@ function IntroBody() {
       </Pressable>
       {formatsOpen ? (
         <View style={s.formatsBody}>
-          <Text style={s.formatsLine}>• Subclasses</Text>
+          {IMPORT_KINDS.map((k) => (
+            <Text key={k.contentType} style={s.formatsLine}>• {k.label}</Text>
+          ))}
         </View>
       ) : null}
 
@@ -292,7 +396,13 @@ function ConfirmBody({
       </View>
       <Text style={s.body}>Found in this file:</Text>
       <View style={s.probeList}>
-        <ProbeRow label="Subclasses" count={probe.subclasses} />
+        {IMPORT_KINDS.map((k) => (
+          <ProbeRow
+            key={k.contentType}
+            label={k.label}
+            count={(probe[k.countKey] as number | undefined) ?? 0}
+          />
+        ))}
       </View>
       {!hasImportableContent(probe) ? (
         <DiagnosticHint diagnostic={probe.diagnostic} />
@@ -314,8 +424,7 @@ function DiagnosticHint({ diagnostic }: { diagnostic: ImportDiagnostic }) {
         <Text style={s.diagnosticBody}>
           The file's top level is {indefiniteArticle(diagnostic.actualType)}{' '}
           <Text style={s.diagnosticCode}>{diagnostic.actualType}</Text>; we
-          expect a JSON object with a <Text style={s.diagnosticCode}>subclass</Text>{' '}
-          array (5e.tools class.json format).
+          expect a JSON object with a {renderKeyList()} array (5e.tools format).
         </Text>
       </View>
     );
@@ -325,21 +434,45 @@ function DiagnosticHint({ diagnostic }: { diagnostic: ImportDiagnostic }) {
       <View style={s.diagnosticBox}>
         <Text style={s.diagnosticTitle}>Nothing to import</Text>
         <Text style={s.diagnosticBody}>
-          We looked for a <Text style={s.diagnosticCode}>subclass</Text> array
-          but didn't find one. The file's top-level keys are:{' '}
+          We looked for a {renderKeyList()} array but didn't find any. The
+          file's top-level keys are:{' '}
           <Text style={s.diagnosticCode}>
             {diagnostic.foundKeys.length === 0 ? '(empty object)' : diagnostic.foundKeys.join(', ')}
           </Text>
           .
         </Text>
         <Text style={s.diagnosticBody}>
-          Vaultstone currently imports subclasses; support for additional
-          content types is coming.
+          Vaultstone currently imports {renderLabelList()}; support for
+          additional content types is coming.
         </Text>
       </View>
     );
   }
   return null;
+}
+
+/**
+ * Inline-render the flat list of every supported top-level key (across
+ * all import kinds) as code spans joined with commas + an "or" before
+ * the last entry. Single source of truth for the diagnostic copy —
+ * adding to IMPORT_KINDS updates here automatically.
+ */
+function renderKeyList() {
+  const keys = IMPORT_KINDS.flatMap((k) => k.topLevelKeys);
+  return keys.map((key, i) => (
+    <Text key={key}>
+      {i > 0 ? (i === keys.length - 1 ? ', or ' : ', ') : ''}
+      <Text style={s.diagnosticCode}>{key}</Text>
+    </Text>
+  ));
+}
+
+/** Plural label list ("subclasses, feats, spells, and backgrounds"). */
+function renderLabelList(): string {
+  const labels = IMPORT_KINDS.map((k) => k.label.toLowerCase());
+  if (labels.length <= 1) return labels.join('');
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
 }
 
 function indefiniteArticle(word: string): string {

@@ -23,8 +23,28 @@ export type { LocalSource } from './local/db';
 // 'imported' resolver tier were retired in M1 of the imports↔homebrew
 // unification. Only the third-party-schema → *Result transforms remain
 // here, used by the import modal to shape data before upserting.
-export { transformSubclasses, stripMarkup } from './imported/index';
-export type { RawClassFile, TransformOptions } from './imported/index';
+export {
+  transformSubclasses,
+  transformFeats,
+  transformSpells,
+  transformBackgrounds,
+  transformItems,
+  transformSpecies,
+  transformMonsters,
+  transformClasses,
+  stripMarkup,
+} from './imported/index';
+export type {
+  RawClassFile,
+  RawClassesFile,
+  RawFeatsFile,
+  RawSpellsFile,
+  RawBackgroundsFile,
+  RawItemsFile,
+  RawRacesFile,
+  RawBestiaryFile,
+  TransformOptions,
+} from './imported/index';
 
 // World-builder section templates (Feature 9 Phase 2).
 export {

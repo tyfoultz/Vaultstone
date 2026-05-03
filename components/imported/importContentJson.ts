@@ -64,12 +64,30 @@ export async function pickContentJson(): Promise<PickedJson | null> {
  * Also reports a `diagnostic` describing what the payload looked like at
  * the top level — surfaced in the modal when nothing importable was
  * recognized so the user can tell whether they picked the wrong file or
- * a file in an unsupported shape. Subclasses are the only supported
- * content type today; new transforms add their checks (and update
- * SUPPORTED_KEYS) as they land.
+ * a file in an unsupported shape. New transforms add their per-key counts
+ * here and append to SUPPORTED_TOP_LEVEL_KEYS so the diagnostic copy
+ * stays accurate.
  */
 export type ImportableContent = {
   subclasses: number;
+  feats: number;
+  spells: number;
+  backgrounds: number;
+  /** Sum of `baseitem` + `item` arrays — 5e.tools splits mundane and
+   *  magic items across two top-level keys, both of which our items
+   *  transform handles. */
+  items: number;
+  /** Sum of `race` + `subrace` arrays. Subraces are surfaced as
+   *  standalone species (named "<Race> (<Subrace>)") to match how the
+   *  SRD bundle ships High Elf / Hill Dwarf etc. */
+  species: number;
+  /** Length of the `monster` array (5e.tools bestiary files). */
+  monsters: number;
+  /** Length of the `class` array (5e.tools class files). The same file
+   *  also carries `subclass`/`subclassFeature`/`classFeature` arrays —
+   *  the subclass transform handles its share, the class transform
+   *  handles this one. */
+  classes: number;
   diagnostic: ImportDiagnostic;
 };
 
@@ -83,7 +101,10 @@ export type ImportDiagnostic =
   | { kind: 'no-recognized-keys'; foundKeys: string[] };
 
 /** Keys the importer currently recognizes. Update as transforms land. */
-export const SUPPORTED_TOP_LEVEL_KEYS = ['subclass'] as const;
+export const SUPPORTED_TOP_LEVEL_KEYS = [
+  'subclass', 'feat', 'spell', 'background',
+  'baseitem', 'item', 'race', 'subrace', 'monster', 'class',
+] as const;
 
 export function probeContent(payload: unknown): ImportableContent {
   // Non-object payloads (arrays, primitives, null) can't carry our
@@ -91,6 +112,13 @@ export function probeContent(payload: unknown): ImportableContent {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return {
       subclasses: 0,
+      feats: 0,
+      spells: 0,
+      backgrounds: 0,
+      items: 0,
+      species: 0,
+      monsters: 0,
+      classes: 0,
       diagnostic: {
         kind: 'not-object',
         actualType: Array.isArray(payload) ? 'array' : payload === null ? 'null' : typeof payload,
@@ -100,16 +128,55 @@ export function probeContent(payload: unknown): ImportableContent {
   const obj = payload as Record<string, unknown>;
   const probe: ImportableContent = {
     subclasses: 0,
+    feats: 0,
+    spells: 0,
+    backgrounds: 0,
+    items: 0,
+    species: 0,
+    monsters: 0,
+    classes: 0,
     diagnostic: { kind: 'ok' },
   };
   if (Array.isArray(obj.subclass)) {
     probe.subclasses = obj.subclass.length;
   }
+  if (Array.isArray(obj.feat)) {
+    probe.feats = obj.feat.length;
+  }
+  if (Array.isArray(obj.spell)) {
+    probe.spells = obj.spell.length;
+  }
+  if (Array.isArray(obj.background)) {
+    probe.backgrounds = obj.background.length;
+  }
+  // Items live in two parallel arrays — `baseitem` (mundane) and `item`
+  // (magic + variants). Sum them so the probe count matches what the
+  // transform will actually emit.
+  if (Array.isArray(obj.baseitem)) {
+    probe.items += obj.baseitem.length;
+  }
+  if (Array.isArray(obj.item)) {
+    probe.items += obj.item.length;
+  }
+  // Species: same parallel-array story — `race` + `subrace` both feed
+  // the species transform, with subraces surfaced as standalone entries.
+  if (Array.isArray(obj.race)) {
+    probe.species += obj.race.length;
+  }
+  if (Array.isArray(obj.subrace)) {
+    probe.species += obj.subrace.length;
+  }
+  if (Array.isArray(obj.monster)) {
+    probe.monsters = obj.monster.length;
+  }
+  if (Array.isArray(obj.class)) {
+    probe.classes = obj.class.length;
+  }
 
   // If we recognized nothing, surface the top-level keys so the user
   // can compare against what we expect. Cap the list so a wildly wrong
   // file doesn't dump 100 keys into the modal.
-  if (probe.subclasses === 0) {
+  if (!hasImportableContent(probe)) {
     const foundKeys = Object.keys(obj).slice(0, 10);
     probe.diagnostic = { kind: 'no-recognized-keys', foundKeys };
   }
@@ -117,5 +184,14 @@ export function probeContent(payload: unknown): ImportableContent {
 }
 
 export function hasImportableContent(probe: ImportableContent): boolean {
-  return probe.subclasses > 0;
+  return (
+    probe.subclasses > 0 ||
+    probe.feats > 0 ||
+    probe.spells > 0 ||
+    probe.backgrounds > 0 ||
+    probe.items > 0 ||
+    probe.species > 0 ||
+    probe.monsters > 0 ||
+    probe.classes > 0
+  );
 }
