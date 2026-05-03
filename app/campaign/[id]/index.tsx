@@ -15,7 +15,7 @@ import {
 } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
-import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { CampaignPacksCard } from '../../../components/campaign/CampaignPacksCard';
 import { ManageCampaignContentModal } from '../../../components/campaign/ManageCampaignContentModal';
 import type { Database } from '@vaultstone/types';
@@ -42,16 +42,9 @@ type Member = {
   characters: { id: string; name: string; system: string; base_stats: unknown } | null;
 };
 
-// Lookup table for the campaign's system id → bundled definition. Used
-// by the System card to render the proper display name + version +
-// license. 'dnd5e' is the legacy alias for the 2024 system (existing
-// characters all reference it); we treat it as 5e 2024 for display.
-const BUNDLED_BY_SYSTEM_ID: Record<string, typeof dnd5e2024System> = {
-  dnd5e:       dnd5e2024System,
-  dnd5e_2014:  dnd5e2014System,
-  dnd5e_2024:  dnd5e2024System,
-  custom:      customSystem,
-};
+// Re-export the shared map under the local alias the campaign-side code
+// has been using. Single source of truth lives in @vaultstone/systems.
+const BUNDLED_BY_SYSTEM_ID = BUNDLED_SYSTEMS_BY_ID;
 
 const ROLE_LABEL: Record<string, string> = {
   gm: 'DM',

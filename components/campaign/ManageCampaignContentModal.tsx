@@ -20,6 +20,7 @@ import {
   type HomebrewPackRow,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
+import { BUNDLED_SYSTEMS_ORDER } from '@vaultstone/systems';
 import { colors, spacing } from '@vaultstone/ui';
 
 type Props = {
@@ -34,13 +35,12 @@ type Props = {
   onChanged?: () => void;
 };
 
-type SystemOption = { id: string; label: string };
-
-const SYSTEMS: SystemOption[] = [
-  { id: 'dnd5e_2024', label: 'D&D 5e (2024)' },
-  { id: 'dnd5e_2014', label: 'D&D 5e (2014)' },
-  { id: 'custom',     label: 'Custom system' },
-];
+// System options come from the bundled-systems registry so adding a
+// new system in @vaultstone/systems automatically surfaces it here.
+const SYSTEM_OPTIONS = BUNDLED_SYSTEMS_ORDER.map((s) => ({
+  id: s.id,
+  label: s.displayName,
+}));
 
 /**
  * Per-pack row state. We track which of the DM's packs are currently
@@ -221,7 +221,7 @@ export function ManageCampaignContentModal({
                 </Text>
               ) : null}
 
-              {SYSTEMS.map((opt) => {
+              {SYSTEM_OPTIONS.map((opt) => {
                 const selected = opt.id === system;
                 const disabled = systemLocked || savingSystem;
                 return (
@@ -254,7 +254,7 @@ export function ManageCampaignContentModal({
               ) : packs.length === 0 ? (
                 <Text style={s.emptyText}>
                   You don't have any content packs for this system yet. Create
-                  or import one from Game Systems → {SYSTEMS.find((opt) => opt.id === system)?.label ?? system}.
+                  or import one from Game Systems → {SYSTEM_OPTIONS.find((opt) => opt.id === system)?.label ?? system}.
                 </Text>
               ) : (
                 packs.map((row) => (

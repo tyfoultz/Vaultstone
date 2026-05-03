@@ -15,23 +15,27 @@ import {
   radius,
   spacing,
 } from '@vaultstone/ui';
-import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_ORDER } from '@vaultstone/systems';
 
-// Bundled systems offered as choices in the picker. Stays in lockstep with
-// the BUNDLED_SYSTEMS array in app/(drawer)/game-systems/index.tsx — when
-// a new system ships there it should appear here too.
-const SYSTEM_OPTIONS = [
-  { def: dnd5e2024System, blurb: 'Modern 5e ruleset (2024 SRD 5.2).' },
-  { def: dnd5e2014System, blurb: 'Classic 5e ruleset (2014 SRD 5.1).' },
-  { def: customSystem,    blurb: 'Bring-your-own — no bundled content.' },
-];
+// Bundled systems offered as choices in the picker. Order comes from the
+// registry; the per-system blurb is local to this screen since it's only
+// shown here.
+const BLURBS: Record<string, string> = {
+  dnd5e_2024: 'Modern 5e ruleset (2024 SRD 5.2).',
+  dnd5e_2014: 'Classic 5e ruleset (2014 SRD 5.1).',
+  custom:     'Bring-your-own — no bundled content.',
+};
+const SYSTEM_OPTIONS = BUNDLED_SYSTEMS_ORDER.map((def) => ({
+  def,
+  blurb: BLURBS[def.id] ?? '',
+}));
 
 export default function NewCampaignScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const addCampaign = useCampaignStore((s) => s.addCampaign);
   const [name, setName] = useState('');
-  const [systemId, setSystemId] = useState<string>(dnd5e2024System.id);
+  const [systemId, setSystemId] = useState<string>(SYSTEM_OPTIONS[0].def.id);
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

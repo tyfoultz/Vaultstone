@@ -4,12 +4,10 @@ import {
   colors, spacing, radius,
   Card, Chip, ContentWidth, MetaLabel, Text, ScreenHeader, Icon,
 } from '@vaultstone/ui';
-import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_ORDER } from '@vaultstone/systems';
 import { getSrdCountsByVersion } from '@vaultstone/content';
 
-// Stays in lockstep with the bundled `GameSystemDefinition` exports — when a
-// new system is added there, surface it here too.
-const BUNDLED_SYSTEMS = [dnd5e2024System, dnd5e2014System, customSystem];
+const BUNDLED_SYSTEMS = BUNDLED_SYSTEMS_ORDER;
 
 export default function GameSystemsScreen() {
   const router = useRouter();

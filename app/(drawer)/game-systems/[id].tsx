@@ -7,7 +7,7 @@ import {
   colors, spacing, radius,
   Card, Chip, ContentWidth, MarkdownText, MetaLabel, SourceBadge, Text, ScreenHeader, Icon,
 } from '@vaultstone/ui';
-import { dnd5e2014System, dnd5e2024System, customSystem } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import {
   getSrdContent, SEED_ONLY_TYPES, type SrdContent,
 } from '@vaultstone/content';
@@ -41,14 +41,7 @@ const EMPTY_CONTENT: SrdContent = {
   alignments: [], currencies: [], tools: [], magicItemCategories: [], cover: [],
 };
 
-const BUNDLED: Record<string, GameSystemDefinition> = {
-  dnd5e_2014: dnd5e2014System,
-  dnd5e_2024: dnd5e2024System,
-  // Legacy alias — pre-split characters / campaigns referencing `dnd5e`
-  // resolve to the 2024 edition until they migrate.
-  dnd5e: dnd5e2024System,
-  custom: customSystem,
-};
+const BUNDLED = BUNDLED_SYSTEMS_BY_ID;
 
 // Sub-tab `contentKey === '__schema__'` is a synthetic marker — it routes to
 // the SchemaPanel rather than a SrdContent list.

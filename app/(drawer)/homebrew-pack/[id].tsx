@@ -13,8 +13,10 @@ import {
   deleteHomebrewPack,
   listHomebrewEntries,
   deleteHomebrewEntry,
+  listImportedContent,
   type HomebrewPackRow,
   type HomebrewContentRow,
+  type ImportedContentRow,
 } from '@vaultstone/api';
 import type { HomebrewContentType } from '@vaultstone/types';
 import { SpellFormModal } from '../../../components/homebrew/forms/SpellFormModal';
@@ -43,7 +45,12 @@ export default function HomebrewPackDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [pack, setPack] = useState<HomebrewPackRow | null>(null);
+  // Authored entries — editable through the per-content-type form modals
+  // and live in homebrew_content.
   const [entries, setEntries] = useState<HomebrewContentRow[]>([]);
+  // Imported entries — read-only here; live in imported_content. Re-import
+  // through the JSON file picker on the system page replaces them.
+  const [importedEntries, setImportedEntries] = useState<ImportedContentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<EditableField | null>(null);
@@ -70,7 +77,8 @@ export default function HomebrewPackDetailScreen() {
     Promise.all([
       getHomebrewPack(id),
       listHomebrewEntries(id),
-    ]).then(([packRes, entriesRes]) => {
+      listImportedContent(id),
+    ]).then(([packRes, entriesRes, importedRes]) => {
       if (cancelled) return;
       if (packRes.error || !packRes.data) {
         setError('Pack not found.');
@@ -79,6 +87,7 @@ export default function HomebrewPackDetailScreen() {
       }
       setPack(packRes.data);
       setEntries(entriesRes.data ?? []);
+      setImportedEntries(importedRes.data ?? []);
       setDraftName(packRes.data.name);
       setDraftDescription(packRes.data.description ?? '');
       setLoading(false);
@@ -88,7 +97,14 @@ export default function HomebrewPackDetailScreen() {
     };
   }, [id]);
 
-  const entryCount = entries.length;
+  const entryCount = entries.length + importedEntries.length;
+  // An imported pack is one whose contents originate from a JSON file —
+  // we detect it by the presence of imported_content rows OR the legacy
+  // "Imported: " name prefix (which the import flow produces). The
+  // authoring forms don't apply to imported entries; the add-entry row
+  // is hidden when this is true.
+  const isImported = importedEntries.length > 0
+    || (pack?.name.startsWith('Imported: ') ?? false);
 
   async function commitField(field: EditableField) {
     if (!pack) return;
@@ -345,21 +361,35 @@ export default function HomebrewPackDetailScreen() {
             </Text>
           </View>
 
-          <View style={styles.addRow}>
-            {(CONTENT_TYPES).map((ct) => (
-              <Pressable
-                key={ct.key}
-                onPress={() => openCreateForm(ct.key)}
-                style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}
-                accessibilityLabel={`Add ${ct.label.toLowerCase()}`}
-              >
-                <Icon name={ct.icon} size={16} color={colors.primary} />
-                <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.primary, letterSpacing: 1 }}>
-                  Add {ct.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          {/* Add-entry row only renders for authored packs. Imported
+              packs can't accept new authored entries because the
+              authoring form schema doesn't match the rich imported
+              payload — the user would need to re-import to update. */}
+          {!isImported ? (
+            <View style={styles.addRow}>
+              {(CONTENT_TYPES).map((ct) => (
+                <Pressable
+                  key={ct.key}
+                  onPress={() => openCreateForm(ct.key)}
+                  style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}
+                  accessibilityLabel={`Add ${ct.label.toLowerCase()}`}
+                >
+                  <Icon name={ct.icon} size={16} color={colors.primary} />
+                  <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.primary, letterSpacing: 1 }}>
+                    Add {ct.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.importedNote}>
+              <Icon name="info-outline" size={16} color={colors.outline} />
+              <Text variant="body-sm" tone="secondary" style={{ flex: 1 }}>
+                This pack was generated from a JSON import. To update its
+                entries, re-import the source file from the Game Systems page.
+              </Text>
+            </View>
+          )}
 
           {entryCount === 0 ? (
             <View style={styles.placeholderBox}>
@@ -370,6 +400,7 @@ export default function HomebrewPackDetailScreen() {
             </View>
           ) : (
             <View style={styles.entriesList}>
+              {/* Authored entries — editable. */}
               {CONTENT_TYPES.map((ct) => {
                 const group = entries.filter((e) => e.content_type === ct.key);
                 if (group.length === 0) return null;
@@ -393,6 +424,20 @@ export default function HomebrewPackDetailScreen() {
                   </View>
                 );
               })}
+
+              {/* Imported entries — read-only, grouped by content_type. */}
+              {groupImportedByType(importedEntries).map(([type, group]) => (
+                <View key={`imported-${type}`} style={styles.entryGroup}>
+                  <View style={styles.entryGroupHead}>
+                    <MetaLabel size="sm">
+                      {pluralizeContentType(type)} ({group.length})
+                    </MetaLabel>
+                  </View>
+                  {group.map((entry) => (
+                    <ImportedEntryRow key={entry.id} entry={entry} />
+                  ))}
+                </View>
+              ))}
             </View>
           )}
         </Card>
@@ -465,6 +510,57 @@ const CONTENT_TYPES: Array<{
   { key: 'class',    label: 'Class',    pluralLabel: 'Classes',   icon: 'school' },
   { key: 'species',  label: 'Species',  pluralLabel: 'Species',   icon: 'public' },
 ];
+
+// Group imported entries by content_type so they render under the same
+// section-header pattern authored entries use. Sort by name within each
+// group for stable display.
+function groupImportedByType(rows: ImportedContentRow[]): Array<[string, ImportedContentRow[]]> {
+  const buckets = new Map<string, ImportedContentRow[]>();
+  for (const r of rows) {
+    const slot = buckets.get(r.content_type) ?? [];
+    slot.push(r);
+    buckets.set(r.content_type, slot);
+  }
+  for (const arr of buckets.values()) {
+    arr.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
+/**
+ * Imports use content_type strings that don't necessarily match the
+ * authoring CONTENT_TYPES list (e.g. 'subclass' isn't in the authoring
+ * union). Light pluralization fallback for headings.
+ */
+function pluralizeContentType(type: string): string {
+  const known = CONTENT_TYPES.find((ct) => ct.key === type);
+  if (known) return known.pluralLabel;
+  // Capitalize + add 's' for unknown types.
+  const cap = type.charAt(0).toUpperCase() + type.slice(1);
+  return `${cap}s`;
+}
+
+/**
+ * Read-only row for an imported entry. Shows name + source-book code
+ * (e.g. "PHB"); no edit/delete affordance — imported entries are
+ * managed by re-running or removing the import on the system page.
+ */
+function ImportedEntryRow({ entry }: { entry: ImportedContentRow }) {
+  return (
+    <View style={styles.importedEntryRow}>
+      <View style={{ flex: 1 }}>
+        <Text variant="body-md" weight="semibold" numberOfLines={1}>
+          {entry.name}
+        </Text>
+        {entry.source_code ? (
+          <MetaLabel size="sm">
+            {entry.source_code}{entry.source_page ? ` · p.${entry.source_page}` : ''}
+          </MetaLabel>
+        ) : null}
+      </View>
+    </View>
+  );
+}
 
 function EntryRow({
   entry,
@@ -639,6 +735,28 @@ const styles = StyleSheet.create({
     borderColor: colors.primary + '55',
     borderStyle: 'dashed',
     backgroundColor: 'transparent',
+  },
+  importedNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
+  importedEntryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    backgroundColor: colors.surfaceContainer,
   },
   entriesList: {
     gap: spacing.lg,
