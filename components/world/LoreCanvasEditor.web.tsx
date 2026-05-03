@@ -780,13 +780,14 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     }
   }
 
-  // Canvas-level paste: create a block from pasted images when no block is focused
+  // Canvas-level paste: create a block from pasted content when no block is focused
   useEffect(() => {
     if (!editable) return;
     function onPaste(e: ClipboardEvent) {
       if (focusedId) return;
       const items = e.clipboardData?.items;
       if (!items) return;
+
       for (const item of Array.from(items)) {
         if (item.type.startsWith('image/')) {
           e.preventDefault();
@@ -814,6 +815,19 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           reader.readAsDataURL(file);
           return;
         }
+      }
+
+      const text = e.clipboardData?.getData('text/html') || e.clipboardData?.getData('text/plain');
+      if (text) {
+        e.preventDefault();
+        const pos = pendingClick ?? { x: snap(40), y: snap(40) };
+        setPendingClick(null);
+        const newId = uid();
+        const html = e.clipboardData?.getData('text/html') || text.replace(/\n/g, '<br>');
+        htmlRef.current[newId] = html;
+        setBlocks((prev) => [...prev, { id: newId, x: pos.x, y: pos.y, width: 320, html }]);
+        setFocusedId(newId);
+        emitChange();
       }
     }
     window.addEventListener('paste', onPaste);

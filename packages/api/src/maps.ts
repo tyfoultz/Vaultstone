@@ -83,6 +83,19 @@ export async function uploadMapImage(params: {
 
 // Signed URL for a stored map image. 1-hour TTL is generous for pan/zoom
 // sessions; refetched on mount so stale sessions retry cleanly.
+const signedUrlCache = new Map<string, { signedUrl: string; expiresAt: number }>();
+
 export async function getMapImageSignedUrl(imageKey: string, expiresInSeconds = 60 * 60) {
-  return supabase.storage.from('world-maps').createSignedUrl(imageKey, expiresInSeconds);
+  const cached = signedUrlCache.get(imageKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { data: { signedUrl: cached.signedUrl }, error: null };
+  }
+  const result = await supabase.storage.from('world-maps').createSignedUrl(imageKey, expiresInSeconds);
+  if (result.data?.signedUrl) {
+    signedUrlCache.set(imageKey, {
+      signedUrl: result.data.signedUrl,
+      expiresAt: Date.now() + (expiresInSeconds - 60) * 1000,
+    });
+  }
+  return result;
 }

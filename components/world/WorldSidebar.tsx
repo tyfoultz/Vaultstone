@@ -111,7 +111,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: !isWeb,
-      aspect: [1, 1],
+      aspect: [16, 10],
       quality: 0.5,
     });
     if (result.canceled || !result.assets[0]) return;
@@ -290,70 +290,55 @@ export function WorldSidebar({ world, activePageId }: Props) {
         ) : null}
       </View>
 
-      <View style={styles.header}>
-        <Pressable
-          onPress={
-            world.thumbnail_url
-              ? () => router.push(worldHref(world.id))
-              : isOwner
-                ? handlePickThumbnail
-                : undefined
-          }
-          disabled={uploading || (!world.thumbnail_url && !isOwner)}
-          style={styles.cover}
-        >
-          {world.thumbnail_url ? (
-            <Image source={{ uri: world.thumbnail_url }} style={styles.coverImage} resizeMode="cover" />
-          ) : (
-            <LinearGradient
-              colors={[colors.primaryContainer, colors.secondaryContainer]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            >
-              <View style={styles.coverPlaceholder}>
-                {isOwner && !uploading ? (
-                  <Icon name="add-a-photo" size={24} color={colors.onPrimary} />
-                ) : (
-                  <Icon name="public" size={28} color={colors.onPrimary} />
-                )}
-              </View>
-            </LinearGradient>
-          )}
-          {uploading ? (
-            <View style={styles.coverUploadingOverlay}>
-              <ActivityIndicator size="small" color={colors.primary} />
-            </View>
-          ) : null}
-        </Pressable>
-
-        <View style={styles.titleRow}>
-          <View style={{ flex: 1 }}>
-            <MetaLabel size="sm" tone="accent">
-              Chronicle
-            </MetaLabel>
-            <Text
-              variant="title-md"
-              family="serif-display"
-              weight="bold"
-              numberOfLines={2}
-              style={{ marginTop: 2, letterSpacing: -0.25 }}
-            >
-              {world.name}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => setSettingsOpen(true)}
-            style={({ pressed }) => [
-              styles.gearBtn,
-              pressed && { backgroundColor: colors.surfaceContainerHigh },
-            ]}
-            accessibilityLabel="World settings"
+      <Pressable
+        onPress={
+          world.thumbnail_url
+            ? () => router.push(worldHref(world.id))
+            : isOwner
+              ? handlePickThumbnail
+              : undefined
+        }
+        disabled={uploading || (!world.thumbnail_url && !isOwner)}
+        style={styles.cover}
+      >
+        {world.thumbnail_url ? (
+          <Image source={{ uri: world.thumbnail_url }} style={styles.coverImage} resizeMode="cover" />
+        ) : (
+          <LinearGradient
+            colors={[colors.primaryContainer, colors.secondaryContainer]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
           >
-            <Icon name="settings" size={18} color={colors.onSurfaceVariant} />
-          </Pressable>
-        </View>
-      </View>
+            <View style={styles.coverPlaceholder}>
+              {isOwner && !uploading ? (
+                <Icon name="add-a-photo" size={24} color={colors.onPrimary} />
+              ) : (
+                <Icon name="public" size={28} color={colors.onPrimary} />
+              )}
+            </View>
+          </LinearGradient>
+        )}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.7)']}
+          style={styles.coverGradient}
+        >
+          <Text
+            variant="title-md"
+            family="serif-display"
+            weight="bold"
+            numberOfLines={2}
+            style={{ color: '#fff', letterSpacing: -0.25 }}
+          >
+            {world.name}
+          </Text>
+        </LinearGradient>
+        {uploading ? (
+          <View style={styles.coverUploadingOverlay}>
+            <ActivityIndicator size="small" color={colors.primary} />
+          </View>
+        ) : null}
+      </Pressable>
 
       <LensDropdown />
 
@@ -402,10 +387,24 @@ export function WorldSidebar({ world, activePageId }: Props) {
       </SidebarDndProvider>
 
       <View style={styles.footer}>
-        <GhostButton
-          label="+ New section"
-          onPress={() => setCreateSectionOpen(true)}
-        />
+        <View style={styles.footerRow}>
+          <View style={{ flex: 1 }}>
+            <GhostButton
+              label="+ New section"
+              onPress={() => setCreateSectionOpen(true)}
+            />
+          </View>
+          <Pressable
+            onPress={() => setSettingsOpen(true)}
+            style={({ pressed }) => [
+              styles.gearBtn,
+              pressed && { backgroundColor: colors.surfaceContainerHigh },
+            ]}
+            accessibilityLabel="World settings"
+          >
+            <Icon name="settings" size={18} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </View>
         {isOwner ? (
           <Pressable onPress={() => setTrashOpen(true)} style={styles.trashLink}>
             <Icon name="delete-outline" size={14} color={colors.outline} />
@@ -841,12 +840,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  header: {
-    gap: spacing.md,
-  },
   cover: {
-    width: 80,
-    height: 80,
+    width: '100%',
+    aspectRatio: 16 / 10,
     borderRadius: radius.xl,
     overflow: 'hidden',
     position: 'relative',
@@ -855,6 +851,14 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
+  },
+  coverGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: spacing.sm,
+    paddingTop: spacing.xl,
   },
   coverPlaceholder: {
     flex: 1,
@@ -866,11 +870,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.xs,
   },
   gearBtn: {
     width: 32,
@@ -886,6 +885,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.outlineVariant + '22',
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   trashLink: {
     flexDirection: 'row',
