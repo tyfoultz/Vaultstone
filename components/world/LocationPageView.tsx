@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
+  cascadeMentionLabel,
   claimPageEdit,
   createPin,
   forceReleasePageEdit,
@@ -132,7 +133,11 @@ function QuickPinModal({ worldId, pageId, pageTitle, onSaved, onClose }: {
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [pinPos, setPinPos] = useState<{ x: number; y: number } | null>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void (async () => {
@@ -153,16 +158,57 @@ function QuickPinModal({ worldId, pageId, pageTitle, onSaved, onClose }: {
     setSelectedMap(map);
     setSignedUrl(null);
     setPinPos(null);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
     const { data: signed } = await getMapImageSignedUrl(map.image_key);
     if (signed) setSignedUrl(signed.signedUrl);
   }
 
-  function handleMapClick(e: React.MouseEvent<HTMLImageElement>) {
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    setPinPos({ x, y });
+  function handleContextMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+    const imgX = (rawX - pan.x) / zoom;
+    const imgY = (rawY - pan.y) / zoom;
+    const imgEl = containerRef.current.querySelector('img');
+    if (!imgEl) return;
+    const x = imgX / imgEl.naturalWidth * (imgEl.naturalWidth / imgEl.offsetWidth);
+    const xPct = imgX / imgEl.offsetWidth;
+    const yPct = imgY / imgEl.offsetHeight;
+    if (xPct >= 0 && xPct <= 1 && yPct >= 0 && yPct <= 1) {
+      setPinPos({ x: xPct, y: yPct });
+    }
   }
+
+  function handleWheel(e: React.WheelEvent) {
+    e.stopPropagation();
+    const delta = e.deltaY > 0 ? -0.15 : 0.15;
+    setZoom((z) => Math.max(0.5, Math.min(8, z + delta * z)));
+  }
+
+  function handleMouseDown(e: React.MouseEvent) {
+    if (e.button === 1) {
+      e.preventDefault();
+      setDragging(true);
+      dragStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+    }
+  }
+
+  useEffect(() => {
+    if (!dragging) return;
+    function onMove(e: MouseEvent) {
+      setPan({
+        x: dragStart.current.panX + (e.clientX - dragStart.current.x),
+        y: dragStart.current.panY + (e.clientY - dragStart.current.y),
+      });
+    }
+    function onUp() { setDragging(false); }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [dragging]);
 
   async function handleSave() {
     if (!selectedMap || !pinPos) return;
@@ -187,6 +233,9 @@ function QuickPinModal({ worldId, pageId, pageTitle, onSaved, onClose }: {
           <View style={qpStyles.header}>
             <Text variant="title-sm" weight="bold" style={{ color: colors.onSurface, flex: 1 }}>
               Place Map Pin
+            </Text>
+            <Text variant="body-sm" style={{ color: colors.outline }}>
+              {Math.round(zoom * 100)}%
             </Text>
             <Pressable onPress={onClose} style={qpStyles.closeBtn}>
               <Icon name="close" size={18} color={colors.onSurfaceVariant} />
@@ -235,42 +284,61 @@ function QuickPinModal({ worldId, pageId, pageTitle, onSaved, onClose }: {
                 </ScrollView>
               ) : null}
 
-              <View style={qpStyles.mapArea}>
+              <div
+                ref={containerRef}
+                onWheel={handleWheel}
+                onMouseDown={handleMouseDown}
+                onContextMenu={handleContextMenu}
+                style={{
+                  overflow: 'hidden',
+                  position: 'relative',
+                  height: '60vh',
+                  margin: 12,
+                  borderRadius: 6,
+                  backgroundColor: colors.surfaceContainerHighest,
+                  cursor: dragging ? 'grabbing' : 'crosshair',
+                }}
+              >
                 {signedUrl ? (
-                  <div style={{ position: 'relative', cursor: 'crosshair' }}>
+                  <div style={{
+                    position: 'absolute',
+                    left: pan.x,
+                    top: pan.y,
+                    transform: `scale(${zoom})`,
+                    transformOrigin: '0 0',
+                  }}>
                     <img
-                      ref={imgRef}
                       src={signedUrl}
-                      onClick={handleMapClick}
-                      style={{ width: '100%', display: 'block', borderRadius: 6 }}
+                      style={{ display: 'block', maxWidth: '100%' }}
                       alt={selectedMap?.label}
+                      draggable={false}
                     />
                     {pinPos ? (
                       <div style={{
                         position: 'absolute',
                         left: `${pinPos.x * 100}%`,
                         top: `${pinPos.y * 100}%`,
-                        width: 16,
-                        height: 16,
-                        borderRadius: 8,
+                        width: 16 / zoom,
+                        height: 16 / zoom,
+                        borderRadius: '50%',
                         backgroundColor: colors.primary,
-                        border: `2px solid ${colors.surfaceCanvas}`,
-                        marginLeft: -8,
-                        marginTop: -8,
-                        boxShadow: `0 0 0 4px ${colors.primary}44`,
+                        border: `${2 / zoom}px solid ${colors.surfaceCanvas}`,
+                        marginLeft: -8 / zoom,
+                        marginTop: -8 / zoom,
+                        boxShadow: `0 0 0 ${4 / zoom}px ${colors.primary}44`,
                         pointerEvents: 'none' as const,
                       }} />
                     ) : null}
                   </div>
                 ) : (
-                  <View style={{ height: 200, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                     <ActivityIndicator color={colors.primary} />
                   </View>
                 )}
-              </View>
+              </div>
 
               <Text variant="body-sm" style={{ color: colors.outline, paddingHorizontal: 12, paddingBottom: 4 }}>
-                Click on the map to place the pin.
+                Right-click to place pin. Scroll to zoom. Middle-click drag to pan.
               </Text>
 
               <View style={qpStyles.footer}>
@@ -311,7 +379,7 @@ const qpStyles = StyleSheet.create({
   },
   container: {
     width: '100%',
-    maxWidth: 520,
+    maxWidth: 800,
     backgroundColor: colors.surfaceContainer,
     borderRadius: radius.lg,
     borderWidth: 1,
@@ -408,6 +476,7 @@ export function LocationPageView({ page, worldId }: Props) {
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
   const allPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [editingTitle, setEditingTitle] = useState(false);
   const updatePageInStore = usePagesStore((s) => s.updatePage);
   const removePage = usePagesStore((s) => s.removePage);
   const bodyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -703,9 +772,46 @@ export function LocationPageView({ page, worldId }: Props) {
       {/* ── Title row ── */}
       <View style={styles.titleBar}>
         <Icon name="place" size={20} color={colors.primary} />
-        <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>
-          {page.title}
-        </Text>
+        {editingTitle ? (
+          <input
+            type="text"
+            defaultValue={page.title}
+            autoFocus
+            onKeyDown={(e: any) => {
+              if (e.key === 'Enter') {
+                const v = e.target.value.trim();
+                if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
+                setEditingTitle(false);
+              }
+              if (e.key === 'Escape') setEditingTitle(false);
+            }}
+            onBlur={(e: any) => {
+              const v = e.target.value.trim();
+              if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
+              setEditingTitle(false);
+            }}
+            style={{
+              background: 'transparent',
+              border: `1px solid ${colors.primary}66`,
+              borderRadius: 6,
+              color: colors.onSurface,
+              fontFamily: "'Fraunces_700Bold', 'Fraunces', Georgia, serif",
+              fontSize: 22,
+              fontWeight: 700,
+              outline: 'none',
+              padding: '2px 6px',
+              width: '100%',
+            }}
+          />
+        ) : (
+          <Pressable onPress={() => {}} onLongPress={() => setEditingTitle(true)}>
+            <div onDoubleClick={() => setEditingTitle(true)}>
+              <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>
+                {page.title}
+              </Text>
+            </div>
+          </Pressable>
+        )}
       </View>
 
       {/* ── Property pills (editable) ── */}

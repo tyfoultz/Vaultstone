@@ -549,6 +549,28 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     setFocusedId(null);
   }, [editable]);
 
+  const handleCanvasContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!editable) return;
+    const target = e.target as HTMLElement;
+    if (target !== canvasRef.current) return;
+
+    e.preventDefault();
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const x = snap(Math.max(0, e.clientX - rect.left - 32));
+      const y = snap(Math.max(0, e.clientY - rect.top - 12));
+      const newId = uid();
+      const html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      htmlRef.current[newId] = html;
+      setBlocks((prev) => [...prev, { id: newId, x, y, width: 320, html }]);
+      setFocusedId(newId);
+      setPendingClick(null);
+      emitChange();
+    } catch { /* clipboard permission denied — let browser default */ }
+  }, [editable]);
+
   const BLOCK_PADDING = 28 + 12 + 2 + 12;
 
   function fitBlockToContent(id: string) {
@@ -1227,6 +1249,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
         ref={canvasRef}
         className="lore-canvas"
         onClick={handleCanvasClick}
+        onContextMenu={handleCanvasContextMenu as any}
         style={{ minHeight: 'calc(100vh - 160px)', position: 'relative', cursor: editable ? 'text' : 'default' }}
       >
         <div style={{ position: 'absolute', top: 0, left: 0, width: 1, height: contentHeight, pointerEvents: 'none' }} />

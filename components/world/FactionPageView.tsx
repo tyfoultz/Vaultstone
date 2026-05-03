@@ -596,9 +596,9 @@ export function FactionPageView({ page, worldId }: Props) {
               }}
             />
           ) : (
-            <Pressable onPress={() => setEditingTitle(true)}>
+            <div onDoubleClick={() => setEditingTitle(true)} style={{ cursor: 'default' }}>
               <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>{page.title}</Text>
-            </Pressable>
+            </div>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 2 }}>
             <InlinePagePicker label="Leader:" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} worldId={worldId} />
