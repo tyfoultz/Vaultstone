@@ -69,7 +69,6 @@ export interface Database {
           description: string | null;
           cover_image_url: string | null;
           is_archived: boolean;
-          content_sources: Json | null;
           party_view_settings: Json | null;
           next_session_at: string | null;
           next_session_prep_page_id: string | null;
@@ -85,7 +84,6 @@ export interface Database {
           description?: string | null;
           cover_image_url?: string | null;
           is_archived?: boolean;
-          content_sources?: Json | null;
           party_view_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;
@@ -101,7 +99,6 @@ export interface Database {
           description?: string | null;
           cover_image_url?: string | null;
           is_archived?: boolean;
-          content_sources?: Json | null;
           party_view_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;

@@ -17,7 +17,6 @@ import type { LocalSource } from '@vaultstone/content';
 import type { Database } from '@vaultstone/types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
-type ContentSource = { key: string; label: string };
 
 function uuid(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -51,9 +50,13 @@ export default function RulebookScreen() {
       });
   }, [id]);
 
-  const source = campaign?.content_sources as ContentSource | null;
-  const label = source?.label ?? campaign?.system_label ?? null;
-  const isOpenLicense = source?.key === 'srd_5_1' || source?.key === 'srd_2_0';
+  // The screen is currently unreachable from the active UI (System Card
+  // dropped its rulebook surface in M2). When it is re-surfaced as a
+  // PDF reader, the label should derive from `campaign.system` via the
+  // bundled-system display-name lookup, not from the deleted
+  // content_sources column. For now we fall back to system_label which
+  // covers the Custom-system case the column drop preserves.
+  const label = campaign?.system_label ?? null;
 
   const [localSources, setLocalSources] = useState<LocalSource[]>([]);
   const [loadingLocal, setLoadingLocal] = useState(true);
@@ -103,7 +106,7 @@ export default function RulebookScreen() {
         record = {
           id: uuid(),
           campaign_id: id,
-          source_key: source?.key ?? 'custom',
+          source_key: 'custom',
           file_name: pendingFile.name,
           file_path: pendingFile.uri,
           uploaded_at: new Date().toISOString(),
@@ -118,7 +121,7 @@ export default function RulebookScreen() {
         record = {
           id: uuid(),
           campaign_id: id,
-          source_key: source?.key ?? 'custom',
+          source_key: 'custom',
           file_name: pendingFile.name,
           file_path: destPath,
           uploaded_at: new Date().toISOString(),
@@ -168,9 +171,6 @@ export default function RulebookScreen() {
         <MaterialCommunityIcons name="book-open-page-variant-outline" size={32} color={colors.brand} />
         <View style={{ flex: 1 }}>
           <Text style={s.title}>{label ?? 'Rulebook'}</Text>
-          {isOpenLicense && (
-            <Text style={s.openBadge}>Open License — CC-BY 4.0</Text>
-          )}
         </View>
       </View>
 
@@ -288,23 +288,6 @@ export default function RulebookScreen() {
         </View>
       </View>
 
-      {/* SRD note for open-license sources */}
-      {isOpenLicense && (
-        <View style={[s.legalCard, { borderColor: colors.hpHealthy + '44' }]}>
-          <MaterialCommunityIcons name="check-circle-outline" size={20} color={colors.hpHealthy} />
-          <View style={{ flex: 1 }}>
-            <Text style={[s.legalTitle, { color: colors.hpHealthy }]}>
-              This content is already available
-            </Text>
-            <Text style={s.legalBody}>
-              {source?.key === 'srd_5_1'
-                ? 'SRD 5.1 (D&D 5e 2014 rules) is bundled in Vaultstone under the Creative Commons Attribution 4.0 License. No upload required.'
-                : 'SRD 2.0 (D&D 5e 2024 Revised rules) is bundled in Vaultstone under the Creative Commons Attribution 4.0 License. No upload required.'}
-            </Text>
-          </View>
-        </View>
-      )}
-
       {/* ToS Acknowledgment Modal */}
       <Modal visible={tosModal} transparent animationType="fade">
         <Pressable style={s.modalBackdrop} onPress={handleTosCancel}>
@@ -354,7 +337,6 @@ const s = StyleSheet.create({
     gap: spacing.md, marginBottom: spacing.sm,
   },
   title: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },
-  openBadge: { fontSize: 12, color: colors.hpHealthy, fontWeight: '600', marginTop: 2 },
 
   card: {
     backgroundColor: colors.surface, borderColor: colors.border,

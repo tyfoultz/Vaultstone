@@ -159,19 +159,6 @@ export async function updatePartyViewSettings(
     .eq('id', campaignId);
 }
 
-export async function updateCampaignContentSource(
-  campaignId: string,
-  source: { key: string; label: string } | null,
-) {
-  return supabase
-    .from('campaigns')
-    .update({
-      content_sources: source as never,
-      system_label: source?.label ?? null,
-    })
-    .eq('id', campaignId);
-}
-
 export async function updateCampaign(
   campaignId: string,
   patch: Partial<{ next_session_at: string | null; next_session_prep_page_id: string | null }>,
