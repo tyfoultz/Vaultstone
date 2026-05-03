@@ -443,6 +443,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   const [highlightOpen, setHighlightOpen] = useState(false);
   const tableButtonRef = useRef<HTMLButtonElement>(null);
   const [pendingClick, setPendingClick] = useState<{ x: number; y: number } | null>(null);
+  const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
   const savedSelRef = useRef<Range | null>(null);
   const [mentionState, setMentionState] = useState<{
     blockId: string;
@@ -455,6 +456,24 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   for (const b of blocks) {
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
   }
+
+  useEffect(() => {
+    if (!editable) return;
+    const CMDS = ['bold', 'italic', 'underline', 'strikeThrough', 'insertUnorderedList', 'insertOrderedList'];
+    function poll() {
+      const next = new Set<string>();
+      for (const cmd of CMDS) {
+        try { if (document.queryCommandState(cmd)) next.add(cmd); } catch { /* ignore */ }
+      }
+      setActiveFormats((prev) => {
+        if (prev.size !== next.size) return next;
+        for (const v of next) { if (!prev.has(v)) return next; }
+        return prev;
+      });
+    }
+    document.addEventListener('selectionchange', poll);
+    return () => document.removeEventListener('selectionchange', poll);
+  }, [editable]);
 
   // Mark mention chips pointing at deleted pages.
   useEffect(() => {
@@ -513,6 +532,9 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     const x = snap(Math.max(0, e.clientX - rect.left - 32));
     const y = snap(Math.max(0, e.clientY - rect.top - 12));
 
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setPendingClick({ x, y });
     setFocusedId(null);
   }, [editable]);
@@ -1040,17 +1062,17 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
           <div className="lore-toolbar-sep" />
 
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('bold')} data-tooltip="Bold (Ctrl+B)" data-tooltip-desc="Make your text bold." type="button">
-            <Icon name="format-bold" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('bold') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('bold')} data-tooltip="Bold (Ctrl+B)" data-tooltip-desc="Make your text bold." type="button">
+            <Icon name="format-bold" size={18} color={activeFormats.has('bold') ? colors.primary : colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('italic')} data-tooltip="Italic (Ctrl+I)" data-tooltip-desc="Italicize your text." type="button">
-            <Icon name="format-italic" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('italic') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('italic')} data-tooltip="Italic (Ctrl+I)" data-tooltip-desc="Italicize your text." type="button">
+            <Icon name="format-italic" size={18} color={activeFormats.has('italic') ? colors.primary : colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('underline')} data-tooltip="Underline (Ctrl+U)" data-tooltip-desc="Underline your text." type="button">
-            <Icon name="format-underlined" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('underline') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('underline')} data-tooltip="Underline (Ctrl+U)" data-tooltip-desc="Underline your text." type="button">
+            <Icon name="format-underlined" size={18} color={activeFormats.has('underline') ? colors.primary : colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('strikeThrough')} data-tooltip="Strikethrough (Ctrl+S)" data-tooltip-desc="Cross out your text." type="button">
-            <Icon name="strikethrough-s" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('strikeThrough') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('strikeThrough')} data-tooltip="Strikethrough (Ctrl+S)" data-tooltip-desc="Cross out your text." type="button">
+            <Icon name="strikethrough-s" size={18} color={activeFormats.has('strikeThrough') ? colors.primary : colors.onSurfaceVariant} />
           </button>
 
           {/* Text color */}
@@ -1105,11 +1127,11 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('formatBlock', 'h2')} data-tooltip="Heading" type="button">
             <Icon name="title" size={18} color={colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('insertUnorderedList')} data-tooltip="Bullet list (Ctrl+.)" data-tooltip-desc="Start an unordered list." type="button">
-            <Icon name="format-list-bulleted" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('insertUnorderedList') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('insertUnorderedList')} data-tooltip="Bullet list (Ctrl+.)" data-tooltip-desc="Start an unordered list." type="button">
+            <Icon name="format-list-bulleted" size={18} color={activeFormats.has('insertUnorderedList') ? colors.primary : colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('insertOrderedList')} data-tooltip="Numbered list (Ctrl+/)" data-tooltip-desc="Start an ordered list." type="button">
-            <Icon name="format-list-numbered" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('insertOrderedList') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('insertOrderedList')} data-tooltip="Numbered list (Ctrl+/)" data-tooltip-desc="Start an ordered list." type="button">
+            <Icon name="format-list-numbered" size={18} color={activeFormats.has('insertOrderedList') ? colors.primary : colors.onSurfaceVariant} />
           </button>
           <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('outdent')} data-tooltip="Decrease indent" type="button">
             <Icon name="format-indent-decrease" size={18} color={colors.onSurfaceVariant} />
@@ -1205,7 +1227,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
               initialHtml={block.html}
               editable={editable}
               onInput={handleBlockInput}
-              onFocus={setFocusedId}
+              onFocus={(id: string) => { setFocusedId(id); setPendingClick(null); }}
               onBlur={handleBlockBlur}
               onPaste={handleBlockPaste}
               onImageResize={handleImageResize}
@@ -1272,6 +1294,9 @@ function CanvasStyles() {
           }
           .lore-toolbar-btn:hover {
             background: ${colors.surfaceContainerHigh};
+          }
+          .lore-toolbar-btn.lore-toolbar-active {
+            background: ${colors.primaryContainer}33;
           }
           .lore-toolbar-btn[data-tooltip] {
             position: relative;
