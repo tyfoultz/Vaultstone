@@ -127,26 +127,6 @@ export default function GameSystemsScreen() {
         </View>
       </View>
 
-      {/* ── Imported Books ────────────────────────────────────────────── */}
-      <View style={styles.section}>
-        <View style={styles.sectionHead}>
-          <Text variant="title-md" family="headline" weight="bold" style={styles.sectionTitle}>
-            Imported Books
-          </Text>
-        </View>
-        <Card tier="low" padding="lg" style={styles.emptyCard}>
-          <Icon name="menu-book" size={28} color={colors.outline} />
-          <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurfaceVariant }}>
-            Books live with your campaigns today
-          </Text>
-          <Text variant="body-sm" family="body" style={[styles.bodyMuted, { textAlign: 'center', maxWidth: 520 }]}>
-            PDFs you upload to a campaign stay device-local for legal reasons. The
-            next phase moves them up to your library so you can import once and
-            reference them from any campaign.
-          </Text>
-        </Card>
-      </View>
-
       <View style={{ height: spacing.xl }} />
 
       </ContentWidth>
@@ -239,9 +219,4 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
 
-  emptyCard: {
-    alignItems: 'center',
-    gap: spacing.sm + 4,
-    paddingVertical: spacing.xl,
-  },
 });
