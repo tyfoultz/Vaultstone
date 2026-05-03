@@ -42,9 +42,13 @@ type Props = {
   campaignId: string;
   campaignSystem: string;
   isDM: boolean;
+  /** Optional callback fired after toggle / add / remove so the parent
+   *  page can refresh derived state (e.g. the System Card's "N enabled"
+   *  count). The card still owns its own list state. */
+  onChanged?: () => void;
 };
 
-export function CampaignPacksCard({ campaignId, campaignSystem, isDM }: Props) {
+export function CampaignPacksCard({ campaignId, campaignSystem, isDM, onChanged }: Props) {
   const user = useAuthStore((s) => s.user);
   const [packs, setPacks] = useState<AttachedPack[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,13 +78,16 @@ export function CampaignPacksCard({ campaignId, campaignSystem, isDM }: Props) {
       setPacks((prev) =>
         prev.map((p) => (p.pack_id === pack.pack_id ? { ...p, enabled: !newValue } : p)),
       );
+      return;
     }
+    onChanged?.();
   }
 
   async function handleRemove(pack: AttachedPack) {
     const { error: err } = await removePackFromCampaign(campaignId, pack.pack_id);
     if (err) return;
     setPacks((prev) => prev.filter((p) => p.pack_id !== pack.pack_id));
+    onChanged?.();
   }
 
   async function handleAdd(packId: string) {
@@ -91,6 +98,7 @@ export function CampaignPacksCard({ campaignId, campaignSystem, isDM }: Props) {
     const refreshed = await listCampaignPacks(campaignId);
     if (refreshed.data) setPacks(refreshed.data as unknown as AttachedPack[]);
     setAddOpen(false);
+    onChanged?.();
   }
 
   return (
