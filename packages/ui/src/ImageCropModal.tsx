@@ -73,11 +73,27 @@ export function ImageCropModal({ visible, imageUri, aspect = [16, 9], onConfirm,
               image={imageUri}
               crop={crop}
               zoom={zoom}
+              minZoom={1}
+              maxZoom={5}
+              zoomSpeed={0.05}
               aspect={aspect[0] / aspect[1]}
               onCropChange={setCrop}
               onZoomChange={setZoom}
               onCropComplete={onCropComplete}
             />
+          </View>
+          <View style={styles.zoomRow}>
+            <Text style={styles.zoomLabel}>Zoom</Text>
+            <input
+              type="range"
+              min={1}
+              max={5}
+              step={0.01}
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              style={{ flex: 1 }}
+            />
+            <Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text>
           </View>
           <View style={styles.controls}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
@@ -111,6 +127,20 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     aspectRatio: 16 / 9,
+  },
+  zoomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  } as any,
+  zoomLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    minWidth: 42,
+    textAlign: 'right' as const,
   },
   controls: {
     flexDirection: 'row',

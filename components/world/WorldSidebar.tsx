@@ -842,8 +842,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing.md,
   },
   cover: {
