@@ -211,16 +211,26 @@ export function RelationWeb({
   );
 
   const connectedToSelected = useMemo(() => {
-    if (!selectedNodeId && !hoveredNodeId) return null;
-    const activeId = selectedNodeId ?? hoveredNodeId;
+    if (!selectedNodeId) return null;
     const set = new Set<string>();
-    set.add(activeId!);
+    set.add(selectedNodeId);
     for (const e of filteredEdges) {
-      if (e.sourceId === activeId) set.add(e.targetId);
-      if (e.targetId === activeId) set.add(e.sourceId);
+      if (e.sourceId === selectedNodeId) set.add(e.targetId);
+      if (e.targetId === selectedNodeId) set.add(e.sourceId);
     }
     return set;
-  }, [selectedNodeId, hoveredNodeId, filteredEdges]);
+  }, [selectedNodeId, filteredEdges]);
+
+  const connectedToHovered = useMemo(() => {
+    if (!hoveredNodeId || selectedNodeId) return null;
+    const set = new Set<string>();
+    set.add(hoveredNodeId);
+    for (const e of filteredEdges) {
+      if (e.sourceId === hoveredNodeId) set.add(e.targetId);
+      if (e.targetId === hoveredNodeId) set.add(e.sourceId);
+    }
+    return set;
+  }, [hoveredNodeId, selectedNodeId, filteredEdges]);
 
   const forceConfigured = useRef(false);
   useEffect(() => {
@@ -230,6 +240,7 @@ export function RelationWeb({
 
     fg.d3Force('charge')?.strength(-120);
     fg.d3Force('link')?.distance(80);
+    fg.d3Force('center')?.strength(0.1);
     fg.d3Force('collision',
       forceCollide()
         .radius((node: FGNode) => {
@@ -250,6 +261,7 @@ export function RelationWeb({
       const isActive = selectedNodeId === node.id || hoveredNodeId === node.id;
       const isDimmed = connectedToSelected && !connectedToSelected.has(node.id);
       const alpha = isDimmed ? 0.15 : 1;
+      const isHighlightedByHover = connectedToHovered?.has(node.id) ?? false;
 
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -266,7 +278,7 @@ export function RelationWeb({
       ctx.fillStyle = node.color + '33';
       ctx.fill();
       ctx.strokeStyle = node.color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = isHighlightedByHover ? 3 : 2;
       ctx.stroke();
 
       drawNodeIcon(ctx, node.iconName, x, y, r * 0.7, node.color);
@@ -282,7 +294,7 @@ export function RelationWeb({
 
       ctx.restore();
     },
-    [connectionCount, selectedNodeId, hoveredNodeId, connectedToSelected],
+    [connectionCount, selectedNodeId, hoveredNodeId, connectedToSelected, connectedToHovered],
   );
 
   const drawLink = useCallback(
@@ -295,12 +307,14 @@ export function RelationWeb({
       const isDimmed =
         connectedToSelected &&
         !(connectedToSelected.has(source.id) && connectedToSelected.has(target.id));
-      const alpha = isDimmed ? 0.08 : 0.7;
+      const isHoverHighlighted = !isDimmed && connectedToHovered &&
+        connectedToHovered.has(source.id) && connectedToHovered.has(target.id);
+      const alpha = isDimmed ? 0.08 : isHoverHighlighted ? 1 : 0.5;
 
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.strokeStyle = style.color;
-      ctx.lineWidth = style.width;
+      ctx.lineWidth = isHoverHighlighted ? style.width + 1 : style.width;
 
       if (style.dash.length > 0) {
         ctx.setLineDash(style.dash);
@@ -373,7 +387,7 @@ export function RelationWeb({
 
       ctx.restore();
     },
-    [connectedToSelected, hoveredNodeId, connectionCount],
+    [connectedToSelected, connectedToHovered, hoveredNodeId, connectionCount],
   );
 
   const pinAllNodes = useCallback(() => {
