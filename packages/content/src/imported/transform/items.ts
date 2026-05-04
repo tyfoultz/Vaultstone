@@ -65,6 +65,8 @@ type RawItem = {
   weapon?: boolean;
   /** Armor flag — set on armor-shaped items including magic ones. */
   armor?: boolean;
+  /** Set on items 5e.tools tags as poisons. Drives gearKind detection. */
+  poison?: boolean;
   /** Magic-item bonus markers — presence implies magic-item categorization. */
   bonusWeapon?: string;
   bonusWeaponAttack?: string;
@@ -121,6 +123,15 @@ export function transformItems(
       const data: Record<string, unknown> = {};
       if (category === 'magic-item') {
         data.magicItemKind = magicItemKind(it);
+      }
+      // For adventuring gear, derive a sub-bucket discriminator so the
+      // UI can facet (Ammunition / Equipment Packs / Poisons / etc.)
+      // without those becoming peer top-level categories. 5e.tools
+      // doesn't carry a clean source-side category for these — we
+      // detect from `type` codes plus name patterns.
+      if (category === 'adventuring-gear') {
+        const kind = detectGearKind(it);
+        if (kind) data.gearKind = kind;
       }
 
       return {
@@ -189,6 +200,61 @@ function categorize(it: RawItem, isMagic: boolean): ItemResult['category'] {
   if (it.armor === true) return 'armor';
   return 'adventuring-gear';
 }
+
+/**
+ * Detect a gear sub-bucket for an adventuring-gear item. Returns one of
+ * 'ammunition' | 'equipment-pack' | 'poison' | 'spellcasting-focus', or
+ * null if the item is generic gear. Used by the UI to facet within the
+ * Adventuring Gear sub-tab without introducing peer top-level categories.
+ *
+ * Detection is multi-signal because 5e.tools doesn't carry a clean
+ * source-side category for these:
+ *   - 5e.tools type codes: A = ammunition, EXP = explosives (not a
+ *     bucket we surface), `$P` shows up on poisons, FCS on foci.
+ *   - Name patterns: "* Pack" for equipment packs (Burglar's Pack,
+ *     Explorer's Pack, etc.), known poison names for the XDMG named
+ *     poisons whose type code doesn't classify them.
+ *   - Item flags: `poison: true` on entries that have it.
+ */
+function detectGearKind(it: RawItem): string | null {
+  const t = stripSource(it.type);
+  if (t === 'A' || t === 'AF') return 'ammunition';
+  if (t === '$P' || it.poison === true) return 'poison';
+  if (t === 'FCS' || t === 'INS') return 'spellcasting-focus';
+  if (t === 'P' && (it as { tier?: string }).tier !== 'minor' && !it.rarity) {
+    // 5e.tools reuses 'P' for both poisons and potions — disambiguate
+    // by rarity (potions have it, poisons don't).
+    return 'poison';
+  }
+  // Name-based fallbacks for entries 5e.tools doesn't tag:
+  //   - Equipment packs always end in " Pack" (Explorer's Pack, etc.)
+  //   - XDMG named poisons follow a small known list
+  if (/\bPack$/.test(it.name)) return 'equipment-pack';
+  if (KNOWN_POISON_NAMES.has(it.name)) return 'poison';
+  return null;
+}
+
+/** Hard-coded list of poison names that 5e.tools doesn't tag with a
+ *  poison type code. Drawn from the 2024 DMG's named-poisons table.
+ *  Adding to this list won't break anything; missing entries just fall
+ *  through to generic adventuring-gear. */
+const KNOWN_POISON_NAMES = new Set<string>([
+  'Basic Poison',
+  "Assassin's Blood",
+  'Burnt Othur Fumes',
+  'Carrion Crawler Mucus',
+  'Drow Poison',
+  'Essence of Ether',
+  'Malice',
+  'Midnight Tears',
+  'Oil of Taggit',
+  'Pale Tincture',
+  'Purple Worm Poison',
+  'Serpent Venom',
+  'Torpor',
+  'Truth Serum',
+  'Wyvern Poison',
+]);
 
 /**
  * Pick the magicItemKind discriminator for a magic item. Mirrors the

@@ -98,7 +98,6 @@ const GROUPS: Group[] = [
       { key: 'armor',              label: 'Armor',              contentKey: 'items', itemCategories: ['armor', 'shield'] },
       { key: 'adventuring-gear',   label: 'Adventuring Gear',   contentKey: 'items', itemCategories: ['adventuring-gear'] },
       { key: 'magic-items',        label: 'Magic Items',        contentKey: 'items', itemCategories: ['magic-item'] },
-      { key: 'crafting-equipment', label: 'Crafting Equipment', contentKey: 'items', itemCategories: ['crafting-equipment'] },
       { key: 'tools',              label: 'Tools',              contentKey: 'tools' },
     ],
   },
@@ -2492,7 +2491,6 @@ function fallbackTypeLabel(category: ItemResult['category']): string {
     case 'armor':               return 'Armor';
     case 'shield':              return 'Shield';
     case 'adventuring-gear':    return 'Adventuring Gear';
-    case 'crafting-equipment':  return 'Crafting Equipment';
     case 'magic-item':          return 'Magic Item';
     default:                    return capitalize(category);
   }
@@ -2521,6 +2519,19 @@ function itemTypeLabel(it: ItemResult, parsedTypeText: string | null): string {
     const kind = (it.data as { magicItemKind?: string } | undefined)?.magicItemKind;
     if (kind) {
       // 'wondrous-item' → 'Wondrous Item'
+      return kind
+        .split('-')
+        .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+        .join(' ');
+    }
+  }
+  // Adventuring-gear sub-bucket: prefer the specific kind ("Poison",
+  // "Equipment Pack", "Ammunition") over the generic "Adventuring Gear"
+  // so the Type column carries real information for the ~30% of gear
+  // that has a known kind.
+  if (it.category === 'adventuring-gear') {
+    const kind = (it.data as { gearKind?: string } | undefined)?.gearKind;
+    if (kind) {
       return kind
         .split('-')
         .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
@@ -2569,9 +2580,12 @@ export function ItemsList({
         {
           key: 'cost',
           label: 'Cost',
-          cell: (it) => it.cost ? `${it.cost.amount} ${it.cost.currency}` : '—',
+          cell: (it) =>
+            it.cost ? `${it.cost.amount} ${it.cost.currency}`
+              : it.rarity ? magicItemRarityCost(it.rarity)
+              : '—',
           compare: (a, b) => itemCostInGp(a) - itemCostInGp(b),
-          width: 90,
+          width: 130,
         },
         {
           key: 'weight',
@@ -2587,6 +2601,27 @@ export function ItemsList({
           label: 'Category',
           getValues: (it) => (it.category ? [it.category] : []),
           formatValue: (v) => capitalize(v.replace('-', ' ')),
+        },
+        {
+          key: 'gearKind',
+          label: 'Gear Type',
+          // Adventuring-gear sub-bucket. SRD + imported items both stamp
+          // `data.gearKind` ('ammunition' | 'equipment-pack' | 'poison'
+          // | 'spellcasting-focus'); generic gear has no kind and groups
+          // under "Other". Non-gear categories return [] so the facet
+          // skips them entirely (the chip won't render for those rows).
+          getValues: (it) => {
+            if (it.category !== 'adventuring-gear') return [];
+            const kind = (it.data as { gearKind?: string } | undefined)?.gearKind;
+            return [kind ?? 'other'];
+          },
+          formatValue: (v) =>
+            v === 'ammunition'         ? 'Ammunition' :
+            v === 'equipment-pack'     ? 'Equipment Pack' :
+            v === 'poison'             ? 'Poison' :
+            v === 'spellcasting-focus' ? 'Spellcasting Focus' :
+            v === 'other'              ? 'Other Gear' :
+            capitalize(v.replace('-', ' ')),
         },
         {
           key: 'rarity',
@@ -2613,12 +2648,17 @@ export function ItemsList({
               {parsed.ac      ? <ItemStatRow label="AC"      value={parsed.ac} /> : null}
               {parsed.damage  ? <ItemStatRow label="Damage"  value={parsed.damage} /> : null}
               {weight         ? <ItemStatRow label="Weight"  value={weight} /> : null}
-              {cost           ? <ItemStatRow label="Cost"    value={cost} /> : null}
+              {cost           ? <ItemStatRow label="Cost"    value={cost} />
+                : it.rarity   ? <ItemStatRow label="Cost"    value={magicItemRarityCost(it.rarity)} />
+                : null}
               {parsed.strengthReq ? <ItemStatRow label="Str Req" value={parsed.strengthReq} /> : null}
               {parsed.stealthDisadvantage ? <ItemStatRow label="Stealth" value="Disadvantage" /> : null}
               {it.rarity ? <ItemStatRow label="Rarity" value={capitalize(it.rarity.replace('-', ' '))} /> : null}
               {it.requiresAttunement ? <ItemStatRow label="Attunement" value="Required" /> : null}
             </View>
+            {it.description ? (
+              <MarkdownText style={styles.bodyText}>{it.description}</MarkdownText>
+            ) : null}
             {parsed.others.length > 0 ? (
               <View style={styles.subBlock}>
                 <MetaLabel size="sm">Properties</MetaLabel>
@@ -2632,6 +2672,29 @@ export function ItemsList({
       }}
     />
   );
+}
+
+/**
+ * SRD / DMG-2024 price bands by magic-item rarity. Neither Open5e nor
+ * 5e.tools ships per-item prices for magic items because the official
+ * rules don't either — the DMG only gives a range per rarity tier. We
+ * surface that range as a fallback so the user has *some* economy
+ * anchor when haggling at the table, instead of a blank Cost row.
+ *
+ * Bands match the 2024 DMG "Magic Item Rarity" guidance (the 2014 DMG
+ * uses the same tiers). Common items have a defined low end; artifacts
+ * are intentionally priceless.
+ */
+function magicItemRarityCost(rarity: NonNullable<ItemResult['rarity']>): string {
+  switch (rarity) {
+    case 'common':    return '50–100 gp';
+    case 'uncommon':  return '101–500 gp';
+    case 'rare':      return '501–5,000 gp';
+    case 'very-rare': return '5,001–50,000 gp';
+    case 'legendary': return '50,001+ gp';
+    case 'artifact':  return 'Priceless';
+    default:          return '—';
+  }
 }
 
 /** Sort rank for rarity (Common → Artifact). Items without rarity (mundane) sort first. */
@@ -2780,6 +2843,13 @@ export function CreaturesList({
           compare: (a, b) => (a.hp ?? 0) - (b.hp ?? 0),
           width: 70,
         },
+        {
+          key: 'environment',
+          label: 'Environment',
+          cell: (c) => (c.environments?.length ? c.environments.join(', ') : '—'),
+          compare: (a, b) => (a.environments?.[0] ?? '').localeCompare(b.environments?.[0] ?? ''),
+          width: 180,
+        },
       ]}
       facets={[
         { key: 'type', label: 'Type', getValues: (c) => (c.creatureType ? [c.creatureType] : []) },
@@ -2806,13 +2876,10 @@ export function CreaturesList({
             const sensesText = sensesParts.join(', ');
             return (
               <>
-                {c.alignment ? (
-                  <Text variant="body-sm" family="body" style={[styles.bodyText, styles.creatureFlavorLine]}>
-                    {[c.size, c.creatureType, c.alignment].filter(Boolean).join(' · ')}
-                  </Text>
-                ) : null}
-
                 <View style={styles.itemStatTable}>
+                  {c.size ? <CreatureLineRow label="Size" value={c.size} /> : null}
+                  {c.creatureType ? <CreatureLineRow label="Type" value={c.creatureType} /> : null}
+                  {c.alignment ? <CreatureLineRow label="Alignment" value={c.alignment} /> : null}
                   <CreatureLineRow label="AC" value={c.armorDetail ? `${c.ac} (${c.armorDetail})` : `${c.ac}`} />
                   <CreatureLineRow label="HP" value={c.hitDice ? `${c.hp} (${c.hitDice})` : `${c.hp}`} />
                   {c.speed ? <CreatureLineRow label="Speed" value={c.speed} /> : null}
@@ -2868,13 +2935,6 @@ export function CreaturesList({
                   </View>
                 ) : null}
 
-                {c.environments?.length ? (
-                  <View style={[styles.subBlock, styles.chipRow]}>
-                    {c.environments.map((env) => (
-                      <Chip key={env} label={env} variant="meta" />
-                    ))}
-                  </View>
-                ) : null}
               </>
             );
           }}
@@ -4026,11 +4086,7 @@ const styles = StyleSheet.create({
     maxWidth: 220,
   },
 
-  // Creature stat block — six-cell ability grid + flavor line.
-  creatureFlavorLine: {
-    fontStyle: 'italic',
-    marginBottom: spacing.xs,
-  },
+  // Creature stat block — six-cell ability grid.
   creatureAbilityGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

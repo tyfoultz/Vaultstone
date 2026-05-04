@@ -117,7 +117,7 @@ export interface ItemResult extends ContentResult {
    * their own dedicated content type (`ToolResult`), so 'tool' is intentionally
    * not a valid item category.
    */
-  category: 'weapon' | 'armor' | 'shield' | 'adventuring-gear' | 'magic-item' | 'crafting-equipment';
+  category: 'weapon' | 'armor' | 'shield' | 'adventuring-gear' | 'magic-item';
   /** Canonical SRD cost. `null` for items without listed price. */
   cost?: { amount: number; currency: 'cp' | 'sp' | 'ep' | 'gp' | 'pp' } | null;
   /** Weight in pounds. */
