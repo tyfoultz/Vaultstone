@@ -14,8 +14,8 @@
 | Web renderer | React Native Web (via Expo) | Avoids a separate React codebase for web. |
 | Monorepo | Expo monorepo with shared `packages/` | Shared types, API clients, content resolver, and SRD data. |
 | State | Zustand | Lightweight, works well with RN, easy to persist slices to AsyncStorage. |
-| Local storage (mobile) | AsyncStorage + SQLite (Expo SQLite) | AsyncStorage for preferences. SQLite for local PDF content index and embedded SRD data. |
-| Local storage (web) | IndexedDB | Equivalent offline capability on web. |
+| Local storage (mobile) | AsyncStorage + Expo FileSystem | AsyncStorage persists Zustand slices (auth, character drafts pre-server-sync, preferences). FileSystem holds uploaded PDF binaries — never extracted, never indexed. Bundled SRD ships as JSON in the app bundle, not in SQLite. |
+| Local storage (web) | IndexedDB | Holds uploaded PDF binaries on web. |
 | Styling | NativeWind (Tailwind for RN) | Consistent design tokens. Dark mode via `dark:` variant. |
 
 ### Backend
@@ -45,8 +45,17 @@ id          uuid PK
 name        text
 dm_user_id  uuid FK → users
 join_code   text UNIQUE
-content_sources jsonb DEFAULT null  -- { label, key } for declared rulebook
+system      text FK → game_systems  -- which ruleset this campaign uses
 created_at  timestamptz
+```
+`content_sources` was removed when content packs landed — campaigns now reference content packs via the `campaign_packs` join table.
+
+**`campaign_packs`** — many-to-many between campaigns and homebrew_packs.
+```sql
+campaign_id uuid FK → campaigns
+pack_id     uuid FK → homebrew_packs
+attached_at timestamptz
+PRIMARY KEY (campaign_id, pack_id)
 ```
 
 **`campaign_members`**
@@ -109,16 +118,55 @@ payload      jsonb
 created_at   timestamptz
 ```
 
-**`homebrew_content`**
+**`homebrew_packs`** — parent table for the unified content-pack concept. A pack groups together its owner's authored homebrew + imported entries; campaigns attach packs via `campaign_packs`.
+```sql
+id              uuid PK
+owner_user_id   uuid FK → users
+system          text FK → game_systems
+name            text
+description     text
+created_at      timestamptz
+updated_at      timestamptz
+```
+Pack sharing is unified — there's no `campaign_id` or `is_published` column. Sharing happens by attaching a pack to a campaign via `campaign_packs`.
+
+**`homebrew_content`** — entries the owner authored in-app via the homebrew authoring forms.
 ```sql
 id            uuid PK
-campaign_id   uuid FK (nullable — global if null)
+pack_id       uuid FK → homebrew_packs
 user_id       uuid FK → users
-content_type  text    -- spell, monster, item, class, species, feature
+content_type  text    -- spell, creature, item, feat, class, species
 name          text
 data          jsonb
-is_shared     boolean
 created_at    timestamptz
+```
+
+**`imported_content`** — entries derived from a user-supplied JSON import (e.g. 5e.tools community packs). Same parent (`homebrew_packs`) as authored entries, separate table because the data shape is richer (full `*Result`-shaped payload from the on-device transforms).
+```sql
+id            uuid PK
+pack_id       uuid FK → homebrew_packs
+user_id       uuid FK → users
+content_type  text    -- spell, creature, item, feat, class, species, subclass, background
+name          text
+data          jsonb   -- full *Result payload, ready for ContentResolver
+entry_key     text    -- stable key for upsert-on-reimport
+source_code   text    -- e.g. 'PHB', 'XPHB', 'TCE'
+source_name   text    -- display form
+source_page   int
+source_url    text    -- original filename
+imported_at   timestamptz
+UNIQUE (pack_id, entry_key)
+```
+Re-imports of the same source file replace existing entries via the `(pack_id, entry_key)` unique constraint.
+
+**`character_drafts`** — server-side persistence for the character creation wizard. Replaced the old AsyncStorage-only draft state.
+```sql
+id            uuid PK
+user_id       uuid FK → users
+campaign_id   uuid FK → campaigns (nullable — drafts can be unattached)
+state         jsonb   -- the in-progress wizard state
+created_at    timestamptz
+updated_at    timestamptz
 ```
 
 **`game_systems`**
@@ -171,11 +219,12 @@ All features query content through a single abstraction — the `ContentResolver
 
 | Tier | Source | Storage | Shareable? |
 |---|---|---|---|
-| SRD bundled | Ships with the app | Client bundle | Yes — CC-BY 4.0 |
-| Imported | User-supplied JSON content packs (e.g. 5e.tools) | **Local device only** (Expo SQLite native, IndexedDB web) | No — never transmitted |
-| Homebrew | Created in-app | Backend (Supabase) | Yes — user-owned |
+| SRD bundled | Ships with the app | Client bundle (JSON in `packages/content/src/srd/data/`) | Yes — CC-BY 4.0 |
+| Homebrew (unified) | Authored in-app via homebrew forms (`homebrew_content`) **or** imported from user-supplied JSON via the eight transforms (`imported_content`) | Supabase, scoped to the importer/author's `homebrew_packs` row | Yes — pack attaches to a campaign via `campaign_packs` |
 
-The legacy "user-uploaded PDF" tier was removed when the imported-content arc shipped — PDFs no longer extend the system content. The PDF reader stays as a separate per-campaign upload + viewer, but contributes nothing to ContentResolver search results.
+Both authoring and imports surface under one tier — the homebrew tier — because they share the same `homebrew_packs` parent and the same sharing model. The `ContentResolver` reads from both tables and merges them under that tier.
+
+The legacy "user-uploaded PDF" tier was removed when the imported-content arc shipped — PDFs no longer extend the system content. The PDF reader stays as a separate per-campaign upload + viewer, but contributes nothing to ContentResolver search results. See [legal.md](legal.md) for the legal posture distinction between PDFs (local-only) and imported JSON (server-stored under the importer's pack).
 
 ### ContentResolver Interface
 
@@ -186,16 +235,17 @@ ContentResolver.getSpell(name, source?)       → SpellResult | null
 ContentResolver.getCreature(name, source?)    → CreatureResult | null
 ```
 
-Internally fans out to: SRD index → imported tier (on-device store) → homebrew store. Results are merged and de-duplicated by `(type, lowercased name)` with a tier priority table — homebrew > imported > SRD. Calling features never know which tier responded.
+Internally fans out to: SRD JSON index → homebrew tier (which itself merges `homebrew_content` + `imported_content` from Supabase). Results are merged and de-duplicated by `(type, lowercased name)` with a tier priority table — homebrew > SRD. Calling features never know which tier responded.
 
 ### Imported Content Pipeline
-1. User picks a JSON file (e.g. a 5e.tools subclass export)
-2. App parses the file in-process, runs the type-specific transform from `packages/content/src/imported/transform/*`
-3. Resulting `*Result` entries are written to the on-device imported store, batched per (system × content type × source filename)
-4. Search runs against the merged tiers via ContentResolver
-5. Imported entries surface alongside SRD content in the Game Systems detail page, character wizard, etc., with their source-book code shown via `SourceBadge`
+1. User picks a JSON file (e.g. a 5e.tools `class-fighter.json` or `spells/spells-phb.json`).
+2. The Import modal probes the payload's top-level keys and reports counts per content kind to the user — driven by the `IMPORT_KINDS` registry in [components/imported/ImportContentModal.tsx](../components/imported/ImportContentModal.tsx).
+3. User accepts a per-import Terms-of-Service callout confirming they have lawful rights to the content.
+4. The modal runs every applicable transform from [packages/content/src/imported/transform/](../packages/content/src/imported/transform/) (subclasses, feats, spells, backgrounds, items, species, monsters, classes — one transform per content type, all sharing helpers in `entries.ts`). Each transform produces `*Result`-shaped payloads ready for the resolver.
+5. Entries are upserted into the Supabase `imported_content` table under a `homebrew_packs` row owned by the importer (existing pack with the same name → upsert in place; new name → new pack). Re-imports replace via `(pack_id, entry_key)` so removed source entries don't linger.
+6. Imported entries surface to the importer alongside SRD content via ContentResolver, with their source-book code shown via `SourceBadge`. The importer can attach the pack to a campaign they DM (via `campaign_packs`) to make it available to that party.
 
-**No imported content is transmitted to the backend or shared with party members.**
+The eight-transform set is registered in `IMPORT_KINDS`; adding a new content type is one transform file plus one registry entry. The disclosure list, Confirm-step probe rows, diagnostic copy ("a `subclass`, `feat`, `spell`, … array"), and upsert loop all read from that single registry.
 
 ---
 
@@ -235,8 +285,8 @@ On reconnect, client fetches the current snapshot of `initiative_order` for the 
 |---|---|
 | SRD content | Always available — bundled in app |
 | Character sheets | Cached in AsyncStorage / IndexedDB on last sync |
-| User-uploaded PDF index | Always available — stored in local SQLite |
-| Homebrew content | Cached locally; writes queue for sync on reconnect |
+| Uploaded PDFs | Always available on the uploader's device (binary stored locally; never indexed) |
+| Homebrew + imported content | Read-cached from last fetch; writes require network (round-trip to Supabase) |
 | Live session state | Requires network — real-time feature |
 | Campaign notes | Cached locally; edits merge on reconnect (last-write-wins) |
 
@@ -258,80 +308,112 @@ On reconnect, client fetches the current snapshot of `initiative_order` for the 
 
 ```
 vaultstone/
-├── app/                              # Expo Router — file-based routing
-│   ├── _layout.tsx                   # Root layout — auth guard, nav shell
+├── app/                                # Expo Router — file-based routing
+│   ├── _layout.tsx                     # Root layout — auth guard, nav shell
 │   ├── (auth)/
 │   │   ├── login.tsx
 │   │   └── signup.tsx
-│   ├── (tabs)/
-│   │   ├── campaigns.tsx
-│   │   ├── characters.tsx
-│   │   └── settings.tsx
+│   ├── (drawer)/                       # Authenticated app — drawer nav shell
+│   │   ├── characters.tsx              # Character list
+│   │   ├── game-systems/
+│   │   │   ├── index.tsx               # Game systems hub (list)
+│   │   │   └── [id].tsx                # Per-system detail (catalog, rules, packs)
+│   │   └── homebrew-pack/
+│   │       └── [id].tsx                # Per-pack detail + entry list
 │   ├── campaign/
+│   │   ├── new.tsx
 │   │   └── [id]/
-│   │       ├── index.tsx             # Campaign detail + party view
-│   │       ├── session.tsx           # Live session mode
-│   │       └── rulebook.tsx          # Local PDF viewer stub
-│   └── character/
-│       ├── new.tsx                   # Character builder
-│       └── [id].tsx                  # Character sheet
+│   │       ├── index.tsx               # Campaign detail + party view + system/packs
+│   │       ├── pick-character.tsx
+│   │       ├── rulebook.tsx            # Read-only PDF reader
+│   │       └── pdf-viewer.tsx          # PDF viewer screen
+│   ├── character/
+│   │   ├── new.tsx                     # Character creation wizard
+│   │   └── [id].tsx                    # Character sheet
+│   └── world/
+│       └── [worldId]/
+│           ├── index.tsx               # World root (sections + nested pages)
+│           ├── page/[pageId].tsx       # Page editor (Faction/Location/NPC/Timeline/etc.)
+│           └── relations.tsx           # Relations web
+│
+├── components/
+│   ├── campaign/                       # CampaignPacksCard, CharacterPickerModal,
+│   │                                   # ManageCampaignContentModal
+│   ├── character-sheet/                # CombatTab and friends
+│   ├── character-wizard/               # SheetSoFar + Step* components
+│   ├── game-systems/                   # SystemPacksRow, useSystemHomebrewContent
+│   ├── homebrew/                       # CreateHomebrewPackModal +
+│   │   └── forms/                      #   per-content-type authoring forms (6 types)
+│   ├── imported/                       # ImportContentModal + importContentJson
+│   ├── rulebook/                       # uploadPdf + ToS modal (PDF reader only)
+│   └── world/                          # World-builder UI: sidebar, page views,
+│                                       # share modal, lock banner, recently-deleted,
+│                                       # session prep, relations web
 │
 ├── packages/
-│   ├── api/                          # Supabase client + typed query functions
+│   ├── api/                            # Supabase client + typed query functions
 │   │   └── src/
 │   │       ├── client.ts
 │   │       ├── auth.ts
 │   │       ├── campaigns.ts
+│   │       ├── campaign-packs.ts
 │   │       ├── characters.ts
-│   │       ├── sessions.ts
-│   │       └── homebrew.ts
+│   │       ├── character-drafts.ts
+│   │       ├── homebrew-packs.ts
+│   │       ├── homebrew-entries.ts
+│   │       ├── imported-content.ts
+│   │       ├── pages.ts                # World pages
+│   │       ├── trash.ts                # Recently-deleted
+│   │       └── sessions.ts
 │   │
-│   ├── content/                      # ContentResolver — unified content query layer
+│   ├── content/                        # ContentResolver — unified content query layer
 │   │   └── src/
 │   │       ├── resolver.ts
-│   │       ├── srd/                  # Bundled SRD 5.1 + 5.2 JSON data (CC-BY 4.0)
-│   │       ├── imported/             # On-device JSON content imports (e.g. 5e.tools)
-│   │       ├── local/                # Per-campaign PDF source storage (reader only)
-│   │       └── homebrew/             # Homebrew content queries
+│   │       ├── srd/                    # Bundled SRD JSON data (CC-BY 4.0)
+│   │       ├── imported/
+│   │       │   ├── transform/          # Eight 5e.tools → *Result transforms
+│   │       │   │   ├── entries.ts      # Shared helpers (entriesToText, slugify, …)
+│   │       │   │   ├── markup.ts       # `{@tag}` markup stripper
+│   │       │   │   ├── subclasses.ts
+│   │       │   │   ├── feats.ts
+│   │       │   │   ├── spells.ts
+│   │       │   │   ├── backgrounds.ts
+│   │       │   │   ├── items.ts
+│   │       │   │   ├── species.ts
+│   │       │   │   ├── monsters.ts
+│   │       │   │   └── classes.ts
+│   │       │   └── index.ts
+│   │       └── homebrew/               # Reads homebrew_content + imported_content
 │   │
-│   ├── systems/                      # GameSystemDefinition schemas
+│   ├── systems/                        # GameSystemDefinition schemas
 │   │   └── src/
-│   │       ├── types.ts              # GameSystemDefinition interface
-│   │       ├── dnd5e/                # D&D 5e reference implementation
-│   │       └── custom/              # Open-ended custom system template
+│   │       ├── registry.ts
+│   │       ├── dnd5e/                  # D&D 5e reference implementation
+│   │       └── custom/                 # Open-ended custom system template
 │   │
-│   ├── store/                        # Zustand state stores
+│   ├── store/                          # Zustand state stores
+│   ├── ui/                             # Shared NativeWind primitives
 │   │   └── src/
-│   │       ├── auth.store.ts
-│   │       ├── campaign.store.ts
-│   │       ├── character.store.ts
-│   │       ├── character-draft.store.ts
-│   │       ├── session.store.ts
-│   │       └── content.store.ts
+│   │       ├── tokens.ts
+│   │       └── primitives/             # Surface, Card, Button, MarkdownText, SourceBadge, …
 │   │
-│   ├── ui/                           # Shared NativeWind component library
-│   │   └── src/
-│   │       ├── tokens.ts             # Design tokens
-│   │       ├── primitives/
-│   │       ├── session/
-│   │       └── character/
-│   │
-│   └── types/                        # Shared TypeScript types
+│   └── types/                          # Shared TypeScript types
 │       └── src/
 │           ├── database.types.ts
 │           ├── content.ts
-│           ├── systems.ts
-│           └── session.ts
+│           ├── homebrew.ts
+│           └── systems.ts
 │
+├── scripts/
+│   └── import-srd/                     # Open5e snapshot fetch + per-type transforms
+│       ├── fetch-open5e.js
+│       ├── augment-flavor.js
+│       └── transforms/                 # spells, classes, subclasses, items, …
+│
+├── vendor/srd/                         # Vendored Open5e + BTMorton snapshots
 ├── supabase/
-│   ├── migrations/                   # Versioned SQL migrations
-│   ├── functions/                    # Edge Functions (Deno)
-│   │   ├── generate-join-code/
-│   │   ├── validate-session-event/
-│   │   └── send-invite-email/
-│   └── seed.sql
-│
-├── docs/                             # This documentation
+│   └── migrations/                     # Versioned SQL migrations
+├── docs/                               # This documentation
 ├── app.config.ts
 ├── eas.json
 ├── tailwind.config.js
@@ -356,23 +438,9 @@ No circular dependencies. `packages/types` and `packages/ui` have zero internal 
 
 ## Design Tokens
 
-All colors and fonts defined in `packages/ui/src/tokens.ts`. **Never hardcode hex values.**
+The current palette is **Vaultstone Noir — "Magical Midnight"** (dark-only, Material 3-styled void-first surface hierarchy with violet/blue accents). Full token list and Tailwind/NativeWind mapping live in [CLAUDE.md → Design Tokens](../CLAUDE.md#design-tokens) and the source of truth is `packages/ui/src/tokens.ts` (mirrored in `tailwind.config.js`). Light mode post-MVP.
 
-| Token | Value |
-|---|---|
-| Brand color | `#534AB7` (purple) |
-| App background | `#12110f` (dark slate) |
-| Surface | `#0e0d0b` |
-| Border | `#2e2b25` |
-| Primary text | `#e8e0cc` |
-| Secondary text | `#7a7568` |
-| HP healthy | `#1D9E75` (teal) |
-| HP warning | `#EF9F27` (amber) |
-| HP danger | `#E24B4A` (red) |
-| Display font | Cinzel (serif) |
-| Body/UI font | Crimson Pro |
-
-Dark mode is the primary design target. Light mode post-MVP.
+The pre-Noir palette (Cinzel + Crimson Pro on dark slate, brand `#534AB7`) was retired during the Noir overhaul; legacy `colors.surface` / `colors.brand` aliases still resolve so screens that haven't yet migrated to primitives keep rendering correctly.
 
 ---
 
@@ -388,13 +456,17 @@ Build in this order. Everything below the line is post-MVP.
 - Session mode — initiative tracker, HP management, conditions, live sync
 - Session log — append-only event feed
 
-**Post-MVP v2**
-- Spellbook reference + concentration tracker
-- GM Toolkit — encounter builder, bestiary browser
-- Campaign journal and notes manager
-- Local PDF upload and indexing pipeline
-- Homebrew authoring tools
-- World building toolkit
+**Shipped post-MVP**
+- Game Systems hub — full SRD catalog browser (classes, subclasses, items, magic items, creatures, species, feats, conditions, backgrounds, spells, rules) + per-system rulebooks page
+- Homebrew authoring — six in-app authoring forms (spells, creatures, items, feats, classes, species) writing to `homebrew_content`
+- JSON content imports — eight 5e.tools transforms (subclasses, feats, spells, backgrounds, items, species, monsters, classes) writing to `imported_content`, both surfaced under unified content packs
+- World builder — sections, nested pages, Faction/Location/NPC/Timeline page views, share modal, edit lock banner, recently-deleted, session prep, relations web
+- Read-only PDF reader — campaign-side upload + viewer (no extraction or indexing)
+- Server-side character drafts — wizard state persisted to `character_drafts`
+
+**Still post-MVP**
+- Spellbook reference + concentration tracker (catalog browser exists; sheet-side concentration tracker doesn't)
+- Encounter builder (bestiary browser shipped via Game Systems hub; encounter-builder UI doesn't exist yet)
 - Light mode
 - Push notifications
 
@@ -404,10 +476,10 @@ Build in this order. Everything below the line is post-MVP.
 
 | Question | Resolution |
 |---|---|
-| Extending system content beyond SRD | **Imported tier — user-supplied JSON.** PDF text extraction was investigated but dropped (extraction quality + maintenance burden + legal exposure). Users import structured JSON content packs (e.g. from community 5e.tools exports) on-device; no fetching, no transmission. PDF reader still exists for in-app reading but contributes nothing to the content resolver. |
+| Extending system content beyond SRD | **Imported tier merged into the homebrew tier — user-supplied JSON, server-stored.** PDF text extraction was investigated but dropped (extraction quality + maintenance burden + legal exposure). Users import structured JSON content packs (e.g. from community 5e.tools exports) via the eight transforms; entries land in `imported_content` under the importer's `homebrew_packs` row alongside any authored homebrew. The user accepts a per-import ToS callout before each import; the importer's pack is private until they attach it to a campaign they DM. PDF reader stays as a separate read-only campaign-side reader — never indexed, never synced. See [legal.md](legal.md). |
 | Offline notes conflict resolution | **Last-write-wins.** Each note stores `updated_at`; later timestamp wins on sync. Acceptable tradeoff at this stage. |
 | Multi-system support depth for MVP | **System definition layer from day one.** D&D 5e + custom at launch. PF2e post-MVP v2. Character builder fully driven by system schema — nothing hardcoded to 5e. |
 
 ---
 
-> *Last updated April 2026. Stack choices reflect a solo/small team moving toward MVP. Revisit Supabase dependency if session scale or real-time control requirements change.*
+> *Last updated May 2026 (post imported-content arc). Stack choices reflect a solo/small team moving toward MVP. Revisit Supabase dependency if session scale or real-time control requirements change.*
