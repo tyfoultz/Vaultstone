@@ -349,8 +349,6 @@ export function WorldSidebar({ world, activePageId }: Props) {
         </View>
       </View>
 
-      <LensDropdown />
-
       <WorldSearchDrawer worldId={world.id} />
 
       <SidebarDndProvider>

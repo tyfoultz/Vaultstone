@@ -14,12 +14,52 @@ export type PillDef = {
   options?: string[];
 };
 
-export function SideSectionHeader({ icon, title, count }: { icon: string; title: string; count?: number }) {
+export function SideSectionHeader({ icon, title, count, collapsible, collapsed, onToggle }: {
+  icon: string;
+  title: string;
+  count?: number;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
+}) {
+  if (collapsible) {
+    return (
+      <Pressable onPress={onToggle} style={styles.sideSectionHeader}>
+        <Icon name={icon as React.ComponentProps<typeof Icon>['name']} size={13} color={colors.outline} />
+        <Text style={[styles.sideSectionTitle, { flex: 1 }]}>{title}</Text>
+        {count != null ? <Text style={styles.sideSectionCount}>{count}</Text> : null}
+        <Icon name={collapsed ? 'chevron-right' : 'expand-more'} size={14} color={colors.outline} />
+      </Pressable>
+    );
+  }
   return (
     <View style={styles.sideSectionHeader}>
       <Icon name={icon as React.ComponentProps<typeof Icon>['name']} size={13} color={colors.outline} />
       <Text style={styles.sideSectionTitle}>{title}</Text>
       {count != null ? <Text style={styles.sideSectionCount}>{count}</Text> : null}
+    </View>
+  );
+}
+
+export function CollapsibleSideSection({ icon, title, count, children, defaultCollapsed = false }: {
+  icon: string;
+  title: string;
+  count?: number;
+  children: React.ReactNode;
+  defaultCollapsed?: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <SideSectionHeader
+        icon={icon}
+        title={title}
+        count={count}
+        collapsible
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+      />
+      {collapsed ? null : children}
     </View>
   );
 }

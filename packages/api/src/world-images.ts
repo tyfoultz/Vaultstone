@@ -30,7 +30,13 @@ export async function getWorldImageSignedUrl(imageKey: string, expiresInSeconds 
   return supabase.storage.from('world-images').createSignedUrl(imageKey, expiresInSeconds);
 }
 
+const imageSignedUrlCache = new Map<string, { signedUrl: string; expiresAt: number }>();
+
 export async function getWorldImageSignedUrlById(imageId: string, expiresInSeconds = 60 * 60) {
+  const cached = imageSignedUrlCache.get(imageId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { data: { signedUrl: cached.signedUrl }, error: null };
+  }
   const { data: row, error: rowErr } = await supabase
     .from('world_images')
     .select('image_key')
@@ -38,7 +44,14 @@ export async function getWorldImageSignedUrlById(imageId: string, expiresInSecon
     .is('deleted_at', null)
     .single();
   if (rowErr || !row) return { data: null, error: rowErr };
-  return supabase.storage.from('world-images').createSignedUrl(row.image_key, expiresInSeconds);
+  const result = await supabase.storage.from('world-images').createSignedUrl(row.image_key, expiresInSeconds);
+  if (result.data?.signedUrl) {
+    imageSignedUrlCache.set(imageId, {
+      signedUrl: result.data.signedUrl,
+      expiresAt: Date.now() + (expiresInSeconds - 60) * 1000,
+    });
+  }
+  return result;
 }
 
 export async function listImagesForPage(pageId: string) {

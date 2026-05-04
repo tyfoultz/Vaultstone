@@ -43,6 +43,7 @@ import { worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
 import {
   type PillDef,
   PillEditor,
+  CollapsibleSideSection,
   SideSectionHeader,
   RightTabBtn,
   HookInput,
@@ -676,34 +677,21 @@ export function FactionPageView({ page, worldId }: Props) {
                   <View style={sideStyles.sideSection}>
                     <SideSectionHeader icon="place" title="HEADQUARTERS" />
                     {hqPage ? (
-                      <Pressable onPress={() => hqMapData ? router.push(worldMapHref(worldId, hqMapPin!.map_id)) : router.push(worldPageHref(worldId, hqPage.id))} style={styles.hqCard}>
-                        {hqMapPin && hqMapData ? (
-                          <>
-                            <MapPinPreview signedUrl={hqMapData.signedUrl} label={hqMapData.map.label} xPct={hqMapPin.x_pct} yPct={hqMapPin.y_pct} mapWidth={hqMapData.map.image_width} mapHeight={hqMapData.map.image_height} />
-                            <View style={styles.hqMeta}>
-                              <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>{hqPage.title}</Text>
-                              <Text style={styles.hqMetaLink}>OPEN MAP →</Text>
-                            </View>
-                          </>
-                        ) : (
-                          <View style={styles.hqLinkRow}>
-                            <Icon name="place" size={14} color={colors.primary} />
-                            <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ flex: 1, color: colors.onSurface, fontSize: 13 }}>{hqPage.title}</Text>
-                            <Icon name="chevron-right" size={12} color={colors.outline} />
-                          </View>
-                        )}
+                      <Pressable onPress={() => router.push(worldPageHref(worldId, hqPage.id))} style={sideStyles.mentionRow}>
+                        <View style={[sideStyles.mentionDot, { backgroundColor: colors.primary }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{hqPage.title}</Text>
+                          <Text style={sideStyles.mentionMeta}>LOCATION</Text>
+                        </View>
+                        <Icon name="chevron-right" size={12} color={colors.outline} />
                       </Pressable>
                     ) : (
-                      <View style={styles.hqPlaceholder}>
-                        <Icon name="place" size={20} color={colors.outline} />
-                        <Text variant="body-sm" style={{ color: colors.outline, marginTop: 2 }}>No headquarters set</Text>
-                      </View>
+                      <Text variant="body-sm" style={sideStyles.emptyText}>No headquarters set. Use the HQ field in the header.</Text>
                     )}
                   </View>
 
                   {/* Members */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="person" title="MEMBERS" count={members.length || undefined} />
+                  <CollapsibleSideSection icon="person" title="MEMBERS" count={members.length || undefined}>
                     {members.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No NPCs have this faction assigned yet.</Text>
                     ) : (
@@ -720,11 +708,10 @@ export function FactionPageView({ page, worldId }: Props) {
                           </Pressable>
                         ))
                     )}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Mentioned on this page */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined} />
+                  <CollapsibleSideSection icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined}>
                     {mentionedPages.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
                     ) : mentionedPages.map((mp) => {
@@ -740,11 +727,10 @@ export function FactionPageView({ page, worldId }: Props) {
                         </Pressable>
                       );
                     })}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Linked from */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined} />
+                  <CollapsibleSideSection icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined}>
                     {backlinksLoaded && backlinks.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
                     ) : backlinks.map((bl) => (
@@ -756,11 +742,10 @@ export function FactionPageView({ page, worldId }: Props) {
                         <Icon name="chevron-right" size={12} color={colors.outline} />
                       </Pressable>
                     ))}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Seen in play */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined} />
+                  <CollapsibleSideSection icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined}>
                     {seenLoaded && seenInPlay.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
                     ) : seenInPlay.slice(0, 5).map((evt) => {
@@ -774,11 +759,10 @@ export function FactionPageView({ page, worldId }: Props) {
                         </View>
                       );
                     })}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Rivals & Allies */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="people" title="RIVALS & ALLIES" count={relationships.length || undefined} />
+                  <CollapsibleSideSection icon="people" title="RIVALS & ALLIES" count={relationships.length || undefined}>
                     {relationships.map((rel, i) => {
                       const target = (allPages ?? []).find((p) => p.id === rel.targetPageId);
                       if (!target) return null;
@@ -803,11 +787,10 @@ export function FactionPageView({ page, worldId }: Props) {
                       <Icon name="add" size={14} color={colors.outline} />
                       <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add relationship</Text>
                     </Pressable>
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Hooks & Rumors */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
+                  <CollapsibleSideSection icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined}>
                     {hooks.map((hook, i) => (
                       <View key={i} style={sideStyles.hookRow}>
                         <Text style={sideStyles.hookBullet}>•</Text>
@@ -816,7 +799,7 @@ export function FactionPageView({ page, worldId }: Props) {
                       </View>
                     ))}
                     <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
-                  </View>
+                  </CollapsibleSideSection>
                 </>
               ) : null}
 

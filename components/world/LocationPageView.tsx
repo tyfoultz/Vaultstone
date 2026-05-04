@@ -41,10 +41,11 @@ import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
 import { PAGE_KIND_LABEL, toMaterialIcon } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
-import { worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
+import { worldMapHref, worldMapIndexHref, worldPageHref, worldSectionHref } from './worldHref';
 import {
   type PillDef,
   PillEditor,
+  CollapsibleSideSection,
   SideSectionHeader,
   RightTabBtn,
   HookInput,
@@ -595,15 +596,18 @@ export function LocationPageView({ page, worldId }: Props) {
                       </View>
                     </Pressable>
                   ) : (
-                    <View style={styles.mapPlaceholder}>
+                    <Pressable
+                      onPress={() => router.push(worldMapIndexHref(worldId))}
+                      style={styles.mapPlaceholder}
+                    >
                       <Icon name="map" size={24} color={colors.outline} />
                       <Text variant="body-sm" style={{ color: colors.outline, marginTop: 4 }}>No map pin set</Text>
-                    </View>
+                      <Text variant="body-sm" style={{ color: colors.primary, marginTop: 2, fontSize: 11 }}>Open Maps →</Text>
+                    </Pressable>
                   )}
                 </View>
 
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined} />
+                <CollapsibleSideSection icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined}>
                   {mentionedPages.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
                   ) : (
@@ -621,10 +625,9 @@ export function LocationPageView({ page, worldId }: Props) {
                       );
                     })
                   )}
-                </View>
+                </CollapsibleSideSection>
 
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined} />
+                <CollapsibleSideSection icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined}>
                   {seenLoaded && seenInPlay.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
                   ) : (
@@ -653,10 +656,9 @@ export function LocationPageView({ page, worldId }: Props) {
                       );
                     })
                   )}
-                </View>
+                </CollapsibleSideSection>
 
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined} />
+                <CollapsibleSideSection icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined}>
                   {backlinksLoaded && backlinks.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
                   ) : (
@@ -670,11 +672,10 @@ export function LocationPageView({ page, worldId }: Props) {
                       </Pressable>
                     ))
                   )}
-                </View>
+                </CollapsibleSideSection>
 
                 {/* NPCs */}
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="person" title="NPCS HERE" count={locationNpcs.length || undefined} />
+                <CollapsibleSideSection icon="person" title="NPCS HERE" count={locationNpcs.length || undefined}>
                   {locationNpcs.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No NPCs linked yet. Use @mention to reference NPC pages.</Text>
                   ) : (
@@ -689,11 +690,10 @@ export function LocationPageView({ page, worldId }: Props) {
                       </Pressable>
                     ))
                   )}
-                </View>
+                </CollapsibleSideSection>
 
                 {/* Hooks & Rumors */}
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
+                <CollapsibleSideSection icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined}>
                   {hooks.map((hook, i) => (
                     <View key={i} style={sideStyles.hookRow}>
                       <Text style={sideStyles.hookBullet}>•</Text>
@@ -707,7 +707,7 @@ export function LocationPageView({ page, worldId }: Props) {
                     </View>
                   ))}
                   <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
-                </View>
+                </CollapsibleSideSection>
               </>
             ) : null}
 
