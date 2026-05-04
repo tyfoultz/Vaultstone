@@ -348,7 +348,7 @@ function normalizeRarity(raw: string | undefined, isMagic: boolean): ItemResult[
   }
 }
 
-function capitalize(s: string): string {
-  if (!s) return s;
+function capitalize(s: unknown): string {
+  if (typeof s !== 'string' || !s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }

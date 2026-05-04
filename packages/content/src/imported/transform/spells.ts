@@ -265,7 +265,7 @@ function buildDescription(entries: RawEntry[], higherLevel: RawEntry[] | undefin
   return parts.join('\n\n');
 }
 
-function capitalize(s: string): string {
-  if (!s) return s;
+function capitalize(s: unknown): string {
+  if (typeof s !== 'string' || !s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }

@@ -27,9 +27,29 @@ type RawFeat = {
   category?: string;
   /** Structured prerequisite objects. We flatten to text. */
   prerequisite?: RawPrerequisite[];
+  /** Ability score increase grants. Surfaced as a leading benefit so it's
+   *  visible alongside the other named benefits the feat provides. */
+  ability?: RawAbilityGrant[];
   /** Free-form entry list — strings + nested entry objects. */
   entries?: RawEntry[];
   [key: string]: unknown;
+};
+
+/**
+ * Each entry is either a fixed bump (`{ cha: 1 }`), or a chooser
+ * (`{ choose: { from: [...], amount?, count?, entry? }, max? }`). The
+ * `entry` field, when present, is pre-baked prose we can use verbatim.
+ */
+type RawAbilityGrant = {
+  choose?: {
+    from?: string[];
+    amount?: number;
+    count?: number;
+    entry?: string;
+  };
+  max?: number;
+  hidden?: boolean;
+  [abilityCode: string]: unknown;
 };
 
 /**
@@ -83,6 +103,13 @@ export function transformFeats(
       page: f.page,
     };
 
+    // Mirror the SRD shape: ability score increases ride at the top of the
+    // benefits list as a labeled bullet, so the detail screen renders them
+    // alongside named benefits without needing a separate field on
+    // FeatResult.
+    const asiBenefit = formatAbilityIncrease(f.ability);
+    const allBenefits = asiBenefit ? [asiBenefit, ...benefits] : benefits;
+
     return {
       key: `imported_${systemId}_feat_${slugify(f.source)}_${slugify(f.name)}`,
       name: f.name,
@@ -94,7 +121,7 @@ export function transformFeats(
       data: {},
       category: mapCategory(f.category),
       prerequisites: formatPrerequisites(f.prerequisite),
-      benefits,
+      benefits: allBenefits,
       // Imported entries don't claim an SRD edition — provenance lives
       // on importSource.
       srdVersions: [],
@@ -234,7 +261,82 @@ function formatPrerequisiteGroup(group: RawPrerequisite): string {
   return parts.join(', ');
 }
 
-function capitalize(s: string): string {
-  if (!s) return s;
+function capitalize(s: unknown): string {
+  if (typeof s !== 'string' || !s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+const ABILITY_NAMES: Record<string, string> = {
+  str: 'Strength',
+  dex: 'Dexterity',
+  con: 'Constitution',
+  int: 'Intelligence',
+  wis: 'Wisdom',
+  cha: 'Charisma',
+};
+
+/**
+ * Compose the "**Ability Score Increase.** Increase your X score by N…"
+ * benefit bullet from the 2024 `ability` array. Returns null when the
+ * field is absent or only contains hidden ASI grants (used internally by
+ * 5e.tools for repeatable feats like Ability Score Improvement, where the
+ * grant is implicit in the feat name).
+ */
+function formatAbilityIncrease(grants: RawAbilityGrant[] | undefined): string | null {
+  if (!grants || grants.length === 0) return null;
+  const visible = grants.filter((g) => g.hidden !== true);
+  if (visible.length === 0) return null;
+
+  for (const grant of visible) {
+    // Pre-baked entry wins — 5e.tools authors override the formatted
+    // text for unusual cases (e.g. Potent Dragonmark).
+    if (grant.choose?.entry) {
+      return `**Ability Score Increase.** ${grant.choose.entry}`;
+    }
+  }
+
+  const max = visible.find((g) => typeof g.max === 'number')?.max ?? 20;
+  const parts: string[] = [];
+
+  for (const grant of visible) {
+    if (grant.choose) {
+      const from = (grant.choose.from ?? []).map((c) => ABILITY_NAMES[c] ?? capitalize(c));
+      if (from.length === 0) continue;
+      const amount = grant.choose.amount ?? 1;
+      const count = grant.choose.count;
+      if (from.length === 6) {
+        // All six abilities — phrase as "one ability score of your choice".
+        if (count && count > 1) {
+          parts.push(`Increase ${count} ability scores of your choice by 1, to a maximum of ${max}`);
+        } else {
+          parts.push(`Increase one ability score of your choice by ${amount}, to a maximum of ${max}`);
+        }
+      } else {
+        // Two abilities: "Strength or Dexterity"; three or more: "X, Y, or Z"
+        // (Oxford-comma "or" list). Single-item lists fall through as-is.
+        const list = from.length === 1
+          ? from[0]
+          : from.length === 2
+            ? from.join(' or ')
+            : `${from.slice(0, -1).join(', ')}, or ${from[from.length - 1]}`;
+        if (count && count > 1) {
+          parts.push(`Increase ${count} of the following scores by 1: ${list}, to a maximum of ${max}`);
+        } else {
+          parts.push(`Increase your ${list} score by ${amount}, to a maximum of ${max}`);
+        }
+      }
+      continue;
+    }
+    // Fixed grant — first non-`max`, non-`hidden`, non-`choose` key.
+    for (const [key, value] of Object.entries(grant)) {
+      if (key === 'max' || key === 'hidden' || key === 'choose') continue;
+      if (typeof value !== 'number') continue;
+      const name = ABILITY_NAMES[key] ?? capitalize(key);
+      parts.push(`Increase your ${name} score by ${value}, to a maximum of ${max}`);
+      break;
+    }
+  }
+
+  if (parts.length === 0) return null;
+  return `**Ability Score Increase.** ${parts.join('. ')}.`;
 }

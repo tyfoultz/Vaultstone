@@ -4,9 +4,9 @@
 //
 // `entriesToText` recursively flattens 5e.tools `entries` arrays into the
 // markdown-flavored plain text our renderer (MarkdownText) consumes.
-// Tables and other structured block types stringify to a placeholder for
-// now — adding richer support is a follow-up; the placeholder lets us
-// spot unhandled types in output without crashing the import.
+// Tables become pipe-table markdown so MarkdownText renders them as
+// flex-grid tables in the UI; other structured block types we don't
+// handle (quotes, abilityDc, etc.) are skipped silently.
 
 import { stripMarkup } from './markup';
 
@@ -16,6 +16,10 @@ export type RawEntryObject = {
   type?: string;
   name?: string;
   entries?: RawEntry[];
+  /** Singular `entry` shows up on `type: 'item'` blocks in 5e.tools list
+   *  payloads (e.g. XPHB background field labels). Treated as a one-element
+   *  entries array. */
+  entry?: RawEntry;
   items?: RawEntry[];
   [key: string]: unknown;
 };
@@ -32,10 +36,18 @@ export function entriesToText(entries: RawEntry[]): string {
       out.push(stripMarkup(e));
       continue;
     }
-    if (e.type === 'entries' || e.type === 'inset' || e.type === undefined) {
-      const inner = entriesToText(e.entries ?? []);
+    if (
+      e.type === 'entries' || e.type === 'inset' || e.type === 'item' ||
+      e.type === 'section' || e.type === undefined
+    ) {
+      const sub: RawEntry[] = e.entries ?? (e.entry !== undefined ? [e.entry] : []);
+      const inner = entriesToText(sub);
       if (e.name) {
-        out.push(`**${e.name}.** ${inner}`);
+        // `type: 'item'` names already carry their own trailing punctuation
+        // (e.g. "Ability Scores:" in XPHB list payloads). Other named blocks
+        // are bare labels, so we append a period for the bold prefix.
+        const label = e.type === 'item' ? `**${e.name}**` : `**${e.name}.**`;
+        out.push(inner ? `${label} ${inner}` : label);
       } else if (inner) {
         out.push(inner);
       }
@@ -44,18 +56,62 @@ export function entriesToText(entries: RawEntry[]): string {
     if (e.type === 'list' && Array.isArray(e.items)) {
       const items = (e.items as RawEntry[])
         .map((item) => (typeof item === 'string' ? stripMarkup(item) : entriesToText([item])))
+        .filter((t) => t.length > 0)
         .map((t) => `- ${t}`)
         .join('\n');
-      out.push(items);
+      if (items) out.push(items);
       continue;
     }
-    // Tables, quotes, abilityDc, etc. — out of scope for plain-text Stage 3.
-    // Leave a marker so we can spot them in the output and decide what to
-    // handle next. Using a markdown blockquote keeps it readable in
-    // MarkdownText.
-    out.push(`> [${e.type ?? 'block'} not yet supported]`);
+    if (e.type === 'table') {
+      const md = tableToPipeMarkdown(e);
+      if (md) {
+        // Caption (if present) renders as a bold line above the table
+        // so the user can tell tables apart even without numbering.
+        const caption = typeof e.caption === 'string' ? stripMarkup(e.caption) : '';
+        out.push(caption ? `**${caption}**\n${md}` : md);
+      }
+      continue;
+    }
+    // Quotes, abilityDc, etc. — out of scope for the plain-text body
+    // renderer. Skip silently rather than inserting a placeholder.
   }
   return out.join('\n\n');
+}
+
+/**
+ * Convert a 5e.tools table block to pipe-table markdown that MarkdownText
+ * renders as a flex grid. Cell values can be strings (with {@tag} markup
+ * stripped), or nested entry shapes that we squash to a single line so
+ * the row still parses.
+ */
+function tableToPipeMarkdown(table: RawEntryObject): string {
+  const colLabels = Array.isArray(table.colLabels) ? (table.colLabels as unknown[]) : [];
+  const rows = Array.isArray(table.rows) ? (table.rows as unknown[][]) : [];
+  if (colLabels.length === 0 || rows.length === 0) return '';
+  const header = `| ${colLabels.map(cellToText).join(' | ')} |`;
+  const sep = `| ${colLabels.map(() => '---').join(' | ')} |`;
+  const body = rows
+    .map((row) => `| ${row.map(cellToText).join(' | ')} |`)
+    .join('\n');
+  return `${header}\n${sep}\n${body}`;
+}
+
+/** Render one table cell as a single-line string. Pipes inside cells
+ *  would break the row, so we replace them with slashes. Newlines also
+ *  get squashed since pipe-row parsing is single-line. */
+function cellToText(cell: unknown): string {
+  let text: string;
+  if (typeof cell === 'string') {
+    text = stripMarkup(cell);
+  } else if (cell && typeof cell === 'object') {
+    // Object cells (e.g. { type: 'cell', roll: { ... } }) and nested
+    // entry shapes — flatten via entriesToText. Most cells aren't this
+    // complex; this is the safety net.
+    text = entriesToText([cell as RawEntry]);
+  } else {
+    text = String(cell ?? '');
+  }
+  return text.replace(/\s*\n\s*/g, ' ').replace(/\|/g, '/').trim();
 }
 
 /** Map common 5e.tools source codes to display names. */

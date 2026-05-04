@@ -43,12 +43,18 @@
 //     cleanly in the UI.
 
 import type { ClassResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry } from './entries';
+import { entriesToText, slugify, sourceLongName, type RawEntry, type RawEntryObject } from './entries';
+import { stripMarkup } from './markup';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
 type RawProfList = Array<string | { name?: string }>;
-type RawSkillChoiceList = Array<{ choose?: { from?: string[]; count?: number } }>;
+type RawSkillChoiceList = Array<{
+  choose?: { from?: string[]; count?: number };
+  /** 5e.tools 2024 shape: "choose N from any skill" with no explicit
+   *  list. XPHB Bard ships `{any: 3}`. */
+  any?: number;
+}>;
 
 type RawStartingProficiencies = {
   armor?: RawProfList;
@@ -75,14 +81,33 @@ type RawClass = {
   hd?: { number?: number; faces?: number };
   /** Lowercase ability-score abbreviations granting save proficiency. */
   proficiency?: string[];
+  /** 5e.tools 2024 ships primary ability as an array of `{ <abilityCode>: true }`
+   *  objects (e.g. Barbarian → `[{str: true}]`, Ranger → `[{dex: true, wis: true}]`).
+   *  Each element is one ability; multiple keys inside one element AND
+   *  together; multiple elements OR together. 5.1 SRD doesn't ship this
+   *  field — primary ability for SRD comes from the proficiencies feature
+   *  prose. */
+  primaryAbility?: Array<Record<string, boolean>>;
   startingProficiencies?: RawStartingProficiencies;
   startingEquipment?: {
+    /** 5.1 SRD shape: pre-flattened option-A items (string per line). */
     default?: string[];
+    /** 5.1 SRD shape: free-text alt currency option ("Or 75 gp"). */
     goldAlternative?: string;
     additionalFromBackground?: boolean;
+    /** 2024 XPHB shape: pre-rendered prose lines like
+     *  "{@i Choose A or B:} (A) {@item Greataxe|XPHB}, 4 {@item Handaxe…},
+     *  and 15 GP; or (B) 75 GP". When present, used as the rendered
+     *  source — strip markup, split on the "; or " separator into
+     *  per-option entries. */
+    entries?: string[];
   };
   multiclassing?: {
     requirements?: RawMulticlassRequirements;
+    /** 5e.tools 2024 ships some prereqs as free-text overrides (e.g.
+     *  Barbarian XPHB: `"Strength 13"`). Used when the structured
+     *  `requirements` object is absent. */
+    requirementsSpecial?: string;
     proficienciesGained?: RawMulticlassProficienciesGained;
   };
   spellcastingAbility?: string;
@@ -95,11 +120,21 @@ type RawClass = {
 type RawClassTableGroup = {
   title?: string;
   colLabels?: string[];
-  /** Plain row data — array of cells per level. */
-  rows?: Array<Array<string | number>>;
+  /** Plain row data — array of cells per level. Cells may be strings,
+   *  numbers, or 5e.tools-typed objects (e.g. dice, bonuses) which need
+   *  rendering through `formatCell`. */
+  rows?: Array<Array<RawCell>>;
   /** Spell-slot row data — array of slot counts per spell level (1-9). */
   rowsSpellProgression?: number[][];
 };
+
+type RawCell =
+  | string
+  | number
+  | { type: 'dice'; toRoll?: Array<{ number?: number; faces?: number; modifier?: number }> }
+  | { type: 'bonus'; value?: number }
+  | { type: 'bonusSpeed'; value?: number }
+  | { type?: string; [k: string]: unknown };
 
 type RawClassFeature = {
   name: string;
@@ -179,29 +214,113 @@ function buildClass(
     if (!r) continue;
     if (isMarker) {
       subclassMarkers.push(r.level);
+      // 2024 XPHB ships gainSubclassFeature markers that resolve to a
+      // real, named feature ("Fighter Subclass", "Primal Path", "Bardic
+      // College") with prose. 5.1 markers are bare — no resolvable
+      // record. Surface the named entry when present so the detailed
+      // list shows the canonical text instead of just a placeholder.
+      // Heuristic: keep features with non-empty entries.
+      if (r.entries && r.entries.length > 0) {
+        resolved.push(r);
+      }
     } else {
       resolved.push(r);
     }
   }
 
-  const features: ClassResult['features'] = resolved
+  // 5e.tools class files (especially older editions) sometimes nest
+  // sub-features inside a parent feature's `entries` as
+  // `{type: 'refClassFeature', classFeature}` blocks rather than
+  // listing them in the class's top-level `classFeatures` array.
+  // Artificer's L2 Infuse Item → Infusions Known is the canonical
+  // example. Walk each resolved feature's entries recursively, resolve
+  // the refs, and surface them as standalone features so the rendered
+  // class card shows them at the right level.
+  const seenKeys = new Set(resolved.map((f) => featureKey(f)));
+  const expanded: Array<RawClassFeature & { parentName?: string }> = [];
+  // Tracks parent name during recursive descent so each expanded child
+  // gets stamped with the feature it sub-divides (e.g. Cleric Divine
+  // Order's Protector/Thaumaturge get parentName='Divine Order'). The
+  // renderer uses this to nest children under their parent in the
+  // detailed list.
+  function collectRefs(entries: RawEntry[] | undefined, parentName?: string): void {
+    if (!entries) return;
+    for (const e of entries) {
+      if (typeof e === 'string') continue;
+      if (
+        e.type === 'refClassFeature'
+        && typeof (e as { classFeature?: unknown }).classFeature === 'string'
+      ) {
+        const refStr = (e as { classFeature?: string }).classFeature!;
+        const r = resolveFeatureRef(refStr, featureIdx, c, classSource);
+        if (r && !seenKeys.has(featureKey(r))) {
+          seenKeys.add(featureKey(r));
+          expanded.push({ ...r, parentName });
+          collectRefs(r.entries, r.name);
+        }
+        continue;
+      }
+      const obj = e as RawEntryObject;
+      if (Array.isArray(obj.entries)) collectRefs(obj.entries, parentName);
+      if (Array.isArray(obj.items)) collectRefs(obj.items as RawEntry[], parentName);
+    }
+  }
+  for (const f of resolved) collectRefs(f.entries, f.name);
+  const allResolved: Array<RawClassFeature & { parentName?: string }> = [...resolved, ...expanded];
+
+  // Sort by level so expanded refs interleave correctly. Stable within
+  // a level (preserves the authored order — title first, then
+  // sub-features as encountered).
+  const sortedFeatures = allResolved
+    .map((f, i) => ({ f, i }))
+    .sort((a, b) => a.f.level - b.f.level || a.i - b.i)
+    .map(({ f }) => f);
+
+  const features: ClassResult['features'] = sortedFeatures
     // The bare class-named feature is editorial intro prose — drop it
     // for parity with how the subclass transform handles its
     // self-named feature.
     .filter((f) => f.name.toLowerCase() !== c.name.toLowerCase())
-    .map((f) => ({
-      level: f.level,
-      name: f.name,
-      description: entriesToText(f.entries ?? []).trim(),
-    }));
+    .flatMap((f) => {
+      const fullDesc = entriesToText(f.entries ?? []).trim();
+      const split = splitSubOptions(fullDesc);
+      const parent: NonNullable<ClassResult['features']>[number] = {
+        level: f.level,
+        name: f.name,
+        description: split.parentDesc,
+        // refClassFeature children inherit parentName from the original
+        // ref's collectRefs descent (e.g. Artificer's Infusions Known).
+        ...(f.parentName ? { parentName: f.parentName } : {}),
+      };
+      // Inline-bold sub-blocks (`**Cantrips.** ...`) split out as
+      // discrete children with parentName set to this feature. Mirrors
+      // the SRD transform's splitSubOptions behavior so XPHB Spellcasting
+      // shows Cantrips / Spell Slots / etc. nested under Spellcasting,
+      // not embedded in a single long paragraph.
+      const children: NonNullable<ClassResult['features']> = split.children.map((sub) => ({
+        level: f.level,
+        name: sub.name,
+        description: sub.desc,
+        parentName: f.name,
+      }));
+      return [parent, ...children];
+    });
 
   const subclassUnlockLevel = subclassMarkers.length > 0
     ? Math.min(...subclassMarkers)
     : 3; // 2024 default; classes that unlock earlier should declare it via marker
+  const subclassFeatureLevels = subclassMarkers.length > 0
+    ? [...new Set(subclassMarkers)].sort((a, b) => a - b)
+    : undefined;
 
   const { columns, table } = buildProgression(c.classTableGroups);
   const startingEquipment = buildStartingEquipment(c.startingEquipment);
-  const multiclassPrerequisite = formatMulticlassRequirements(c.multiclassing?.requirements);
+  const multiclassPrerequisite =
+    formatMulticlassRequirements(c.multiclassing?.requirements)
+    ?? (c.multiclassing?.requirementsSpecial
+        ? stripInlineMarkup(c.multiclassing.requirementsSpecial)
+        : KNOWN_MULTICLASS_PREREQS[c.name])
+    ?? undefined;
   const multiclassProficiencies = buildMulticlassProficiencies(c.multiclassing?.proficienciesGained);
 
   const sp = c.startingProficiencies;
@@ -215,7 +334,7 @@ function buildClass(
     importSource,
     data: {},
     hitDie: c.hd?.faces ?? 8,
-    primaryAbility: [],
+    primaryAbility: extractPrimaryAbility(c.primaryAbility),
     savingThrows: (c.proficiency ?? []).map(abilityFullName),
     armorProficiencies: flattenStringList(sp?.armor),
     weaponProficiencies: flattenStringList(sp?.weapons),
@@ -224,6 +343,7 @@ function buildClass(
     spellcasting: !!c.casterProgression || !!c.spellcastingAbility,
     spellcastingAbility: c.spellcastingAbility ? abilityFullName(c.spellcastingAbility) : null,
     subclassUnlockLevel,
+    subclassFeatureLevels,
     features,
     progressionColumns: columns.length > 0 ? columns : undefined,
     progressionTable: table.length > 0 ? table : undefined,
@@ -254,7 +374,7 @@ function resolveFeatureRef(
 }
 
 function featureKey(f: RawClassFeature): string {
-  return featureKeyParts(f.name, f.className, f.classSource ?? 'PHB', f.level, f.source);
+  return featureKeyParts(f.name, f.className, f.classSource ?? f.source, f.level, f.source);
 }
 
 function featureKeyParts(
@@ -291,20 +411,82 @@ function flattenStringList(
   const out: string[] = [];
   for (const entry of list) {
     if (typeof entry === 'string') {
-      out.push(titleCase(entry));
+      out.push(formatProfEntry(entry));
     } else if (entry?.name) {
-      out.push(entry.name);
+      out.push(formatProfEntry(entry.name));
     }
   }
   return out;
 }
+
+/**
+ * Class proficiency lists mix bare codes ("light", "martial", "simple")
+ * with prose entries that carry 5e.tools markup
+ * (`"{@item Thieves' Tools|XPHB}"`, `"one type of {@item Artisan's
+ * Tools|XPHB} of your choice"`). Bare single-word codes get Title-Cased so
+ * they read as labels; prose strings get their markup stripped but
+ * otherwise preserve the source's casing.
+ */
+function formatProfEntry(entry: string): string {
+  const trimmed = entry.trim();
+  if (!trimmed) return '';
+  // Single bare word with no whitespace or markup — treat as a code
+  // ("light", "martial") and Title Case it.
+  if (!/[\s{]/.test(trimmed)) return titleCase(trimmed);
+  return stripMarkup(trimmed);
+}
+
+/**
+ * Convert XPHB's `primaryAbility` shape — an array of
+ * `{ <abilityCode>: true }` objects where each element is an ability
+ * group — into the `string[]` shape the UI consumes. Within a group all
+ * keys AND together (joined with " & "); across groups they OR together
+ * (separate entries). Empty arrays surface as `[]` so callers can
+ * distinguish "not declared" from "no primary ability".
+ *
+ * Examples:
+ *   [{str: true}]                  → ['Strength']
+ *   [{dex: true}, {wis: true}]     → ['Dexterity', 'Wisdom']  (Ranger 5.1: D OR W)
+ *   [{dex: true, wis: true}]       → ['Dexterity & Wisdom']
+ */
+function extractPrimaryAbility(
+  raw: Array<Record<string, boolean>> | undefined,
+): string[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  const out: string[] = [];
+  for (const group of raw) {
+    if (!group || typeof group !== 'object') continue;
+    const keys = Object.keys(group).filter((k) => group[k] === true);
+    if (keys.length === 0) continue;
+    out.push(keys.map(abilityFullName).join(' & '));
+  }
+  return out;
+}
+
+/** Full 5e skill list, used to expand `{any: N}` skill choices into an
+ *  explicit `from` set. Stable across 5.1 and 2024 — both editions share
+ *  the same 18 skills tied to the same abilities. */
+const ALL_SKILLS = [
+  'Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception',
+  'History', 'Insight', 'Intimidation', 'Investigation', 'Medicine',
+  'Nature', 'Perception', 'Performance', 'Persuasion', 'Religion',
+  'Sleight of Hand', 'Stealth', 'Survival',
+];
 
 function extractSkillChoices(
   skills: RawSkillChoiceList | undefined,
 ): ClassResult['skillChoices'] {
   if (!skills || skills.length === 0) return { count: 0, from: [] };
   const first = skills[0];
-  const choose = first?.choose;
+  if (!first) return { count: 0, from: [] };
+  // 2024 XPHB shape: `{any: N}` — choose N from any skill. Bard, Rogue,
+  // and a few others use this. Expand to the full skill list so the UI
+  // can render the same "Choose N (Skill, Skill, …)" block as classes
+  // with explicit lists.
+  if (typeof first.any === 'number') {
+    return { count: first.any, from: [...ALL_SKILLS] };
+  }
+  const choose = first.choose;
   if (!choose) return { count: 0, from: [] };
   return {
     count: choose.count ?? 0,
@@ -324,6 +506,39 @@ function extractSkillChoices(
  * Returns levels 1-20; rows that the source omits are filled with '—'
  * so each level has a complete value set.
  */
+/**
+ * Render a single class-table cell to a string/number. 5e.tools' XPHB
+ * data ships typed cell objects ({type: 'dice', ...}, {type: 'bonus',
+ * value: 2}, etc.) for columns like Rage Damage and Martial Arts Die;
+ * without this they'd serialize as `[object Object]` in the UI.
+ * Strings and numbers pass through (with markup stripped on strings).
+ */
+function formatCell(cell: RawCell): string | number {
+  if (typeof cell === 'string') return stripInlineMarkup(cell);
+  if (typeof cell === 'number') return cell;
+  if (!cell || typeof cell !== 'object') return '—';
+  const obj = cell as { type?: string; toRoll?: Array<{ number?: number; faces?: number; modifier?: number }>; value?: number };
+  if (obj.type === 'dice' && Array.isArray(obj.toRoll)) {
+    // Render `[{number:1, faces:4}, {modifier: 1}]` as "1d4+1". 5e.tools
+    // splits dice + modifier into separate toRoll entries; concat them.
+    const parts: string[] = [];
+    for (const r of obj.toRoll) {
+      if (r.number && r.faces) parts.push(`${r.number}d${r.faces}`);
+      if (r.modifier) parts.push(`${r.modifier > 0 ? '+' : ''}${r.modifier}`);
+    }
+    return parts.join('') || '—';
+  }
+  if (obj.type === 'bonus' && typeof obj.value === 'number') {
+    return `${obj.value > 0 ? '+' : ''}${obj.value}`;
+  }
+  if (obj.type === 'bonusSpeed' && typeof obj.value === 'number') {
+    return `${obj.value > 0 ? '+' : ''}${obj.value} ft.`;
+  }
+  // Unknown cell type — surface a placeholder rather than silently
+  // showing "[object Object]". Cell types we miss can be added above.
+  return '—';
+}
+
 function buildProgression(groups: RawClassTableGroup[] | undefined): {
   columns: NonNullable<ClassResult['progressionColumns']>;
   table: NonNullable<ClassResult['progressionTable']>;
@@ -334,6 +549,16 @@ function buildProgression(groups: RawClassTableGroup[] | undefined): {
   // valuesByLevel[level][colKey] = cell value; built up across all groups.
   const valuesByLevel: Record<number, Record<string, string | number>> = {};
   for (let lvl = 1; lvl <= 20; lvl++) valuesByLevel[lvl] = {};
+
+  // Prof. Bonus is universal across every 5e class but isn't part of
+  // 5e.tools' classTableGroups (which only carries class-specific columns
+  // like Rages, Spell Slots, Sneak Attack). Prepend it manually to match
+  // the SRD transform's output and what users see on D&D Beyond.
+  columns.push({ key: 'profBonus', label: 'Prof. Bonus' });
+  for (let lvl = 1; lvl <= 20; lvl++) {
+    const pb = 2 + Math.floor((lvl - 1) / 4);
+    valuesByLevel[lvl].profBonus = `+${pb}`;
+  }
 
   let plainColIdx = 0;
   for (const group of groups) {
@@ -364,7 +589,7 @@ function buildProgression(groups: RawClassTableGroup[] | undefined): {
         if (lvl > 20) return;
         row.forEach((cell, i) => {
           if (i < colKeys.length) {
-            valuesByLevel[lvl][colKeys[i]] = typeof cell === 'string' ? stripInlineMarkup(cell) : cell;
+            valuesByLevel[lvl][colKeys[i]] = formatCell(cell);
           }
         });
       });
@@ -398,6 +623,40 @@ function buildStartingEquipment(
 ): NonNullable<ClassResult['startingEquipment']> {
   if (!se) return [];
   const out: NonNullable<ClassResult['startingEquipment']> = [];
+
+  // XPHB path — `entries` carries pre-rendered prose. Each lettered
+  // option is delimited by either "; or (X)" (Barbarian: A→B) OR a
+  // bare "; (X)" with no "or" between A and B (Fighter: A→B→C). Split
+  // on the boundary that immediately precedes a "(LETTER)" label so
+  // the form variations both work, then a final pass on "; or " catches
+  // the trailing option that doesn't have its own label. The "Choose
+  // A or B:" preamble is dropped since the option list is self-
+  // explanatory in the rendered cards.
+  if (Array.isArray(se.entries) && se.entries.length > 0) {
+    const flattened = se.entries.map(stripInlineMarkup).join(' ').replace(/\s+/g, ' ').trim();
+    const cleaned = flattened.replace(/^Choose\s+(?:.+?):\s*/i, '');
+    // Split on `;\s*(?:or\s+)?` whenever the next token starts with
+    // `(LETTER)`. Lookahead keeps the label attached to its option so
+    // the per-part match below can pull it out.
+    const parts = cleaned
+      .split(/;\s*(?:or\s+)?(?=\([A-Z]\))/i)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const part of parts) {
+      // Strip the "(A) " / "(B) " parenthesized label and use it as
+      // the column label so the modal renders "Option A" / "Option B"
+      // headings the way the SRD path does.
+      const m = part.match(/^\(([A-Z])\)\s*(.*)$/);
+      if (m) {
+        out.push({ label: m[1], items: splitEquipmentList(m[2]) });
+      } else {
+        out.push({ label: '', items: splitEquipmentList(part) });
+      }
+    }
+    return out;
+  }
+
+  // 5.1 SRD path — pre-split string list with optional gold alternative.
   if (Array.isArray(se.default) && se.default.length > 0) {
     out.push({
       label: 'A',
@@ -411,12 +670,50 @@ function buildStartingEquipment(
 }
 
 /**
+ * Split a comma-separated equipment line into per-item entries while
+ * preserving the trailing "and 15 GP" gold clause as its own entry. The
+ * "and" before the last item is dropped so list rendering doesn't show
+ * "and 15 GP" out of context.
+ */
+function splitEquipmentList(line: string): string[] {
+  return line
+    .split(/,\s*(?:and\s+)?/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
  * Flatten 5e.tools multiclassing.requirements into a free-text string
  * matching the SRD shape ("Strength 13" / "Strength 13 or Dexterity 13").
  * The `or[]` form lists alternative score sets — within a set, all
  * scores are AND'd; across sets, OR'd. Returns undefined when no
  * requirement is declared.
  */
+/**
+ * Multiclass ability-score prerequisites for the 2024 PHB. 5e.tools'
+ * per-class JSON omits `multiclassing.requirements` for XPHB classes —
+ * the prereqs live in a separate document. We recover them from the
+ * published table since they're stable across the edition.
+ *
+ * 5.1 SRD classes ship `requirements` directly, so this fallback only
+ * kicks in when the structured + free-text fields are both absent.
+ * Class names are stable across editions so a single map suffices.
+ */
+const KNOWN_MULTICLASS_PREREQS: Record<string, string> = {
+  Barbarian: 'Strength 13',
+  Bard: 'Charisma 13',
+  Cleric: 'Wisdom 13',
+  Druid: 'Wisdom 13',
+  Fighter: 'Strength 13 or Dexterity 13',
+  Monk: 'Dexterity 13 and Wisdom 13',
+  Paladin: 'Strength 13 and Charisma 13',
+  Ranger: 'Dexterity 13 and Wisdom 13',
+  Rogue: 'Dexterity 13',
+  Sorcerer: 'Charisma 13',
+  Warlock: 'Charisma 13',
+  Wizard: 'Intelligence 13',
+};
+
 function formatMulticlassRequirements(
   requirements: RawMulticlassRequirements | undefined,
 ): ClassResult['multiclassPrerequisite'] {
@@ -455,19 +752,122 @@ function buildMulticlassProficiencies(
 ): ClassResult['multiclassProficiencies'] {
   if (!gained) return undefined;
   const out: NonNullable<ClassResult['multiclassProficiencies']> = {};
-  if (Array.isArray(gained.armor)) out.armor = flattenStringList(gained.armor);
-  if (Array.isArray(gained.weapons)) out.weapons = flattenStringList(gained.weapons);
-  if (Array.isArray(gained.tools)) out.tools = flattenStringList(gained.tools);
+  if (Array.isArray(gained.armor)) out.armor = flattenStringList(gained.armor).map(formatArmorTrait);
+  if (Array.isArray(gained.weapons)) out.weapons = flattenStringList(gained.weapons).map(formatWeaponTrait);
+  if (Array.isArray(gained.tools)) out.tools = flattenStringList(gained.tools).map(formatToolTrait);
   if (Array.isArray(gained.skills) && gained.skills.length > 0) {
     const choose = gained.skills[0]?.choose;
     if (choose) {
       out.skills = {
         count: choose.count ?? 0,
-        from: (choose.from ?? []).map(titleCase),
+        // titleCase capitalizes every word ("Sleight Of Hand"); fix the
+        // lowercase joiners ("of", "the") that should stay lowercase
+        // mid-name. Keeps "Animal Handling" and other multi-word skills
+        // correct while normalizing "Sleight of Hand", "Hand of [...]"
+        // patterns.
+        from: (choose.from ?? []).map(titleCase).map(fixSkillCasing),
       };
     }
   }
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Normalize an armor proficiency entry. 5e.tools 2024 ships bare codes
+ * ("Light", "Medium", "Heavy", "Shield") while 5.1 SRD ships full names
+ * ("Light armor", "Medium armor", "Shields"). Append "Armor" to bare
+ * weight codes and pluralize "Shield" → "Shields" so both editions
+ * surface the same prose.
+ */
+function formatArmorTrait(s: string): string {
+  const trimmed = s.trim();
+  if (!trimmed) return trimmed;
+  // Bare "Shield" → "Shields" (matches SRD 5.1 phrasing).
+  if (/^shield$/i.test(trimmed)) return 'Shields';
+  // Already-formed entries pass through.
+  if (/\b(armor|shields?)\b/i.test(trimmed)) return trimmed;
+  return `${trimmed} Armor`;
+}
+
+/**
+ * Normalize a weapon proficiency entry. 5e.tools 2024 ships bare
+ * categories ("Simple", "Martial") while 5.1 SRD ships "Simple weapons"
+ * / "Martial weapons". Append " weapons" to bare-code entries so the
+ * multiclass-traits sentence reads "proficiency with martial weapons",
+ * not "proficiency with martial".
+ */
+function formatWeaponTrait(s: string): string {
+  const trimmed = s.trim();
+  if (!trimmed) return trimmed;
+  if (/\bweapons?\b/i.test(trimmed)) return trimmed;
+  return `${trimmed} Weapons`;
+}
+
+/**
+ * Normalize a tool proficiency entry. XPHB sometimes ships choice
+ * prose like "Choose one Musical Instrument", which reads awkwardly
+ * inside "proficiency with X". Rewrite "Choose one Y" → "one Y of your
+ * choice" so the sentence flows. Plain tool names ("Thieves' Tools")
+ * pass through unchanged.
+ */
+function formatToolTrait(s: string): string {
+  const trimmed = s.trim();
+  if (!trimmed) return trimmed;
+  const m = trimmed.match(/^Choose\s+(?:(\d+|one|a|an)\s+)?(.+)$/i);
+  if (m) {
+    const count = m[1]?.toLowerCase() ?? 'one';
+    const noun = m[2].trim();
+    return `${count} ${noun} of your choice`;
+  }
+  return trimmed;
+}
+
+/**
+ * Fix multi-word skill names where titleCase over-capitalizes joining
+ * words. "Sleight of Hand" is the only standard 5e skill that hits
+ * this, but the rule is general: lowercase short joiners (of, the, a,
+ * an, in, on, to, for) when they aren't the first word.
+ */
+function fixSkillCasing(s: string): string {
+  return s.replace(/\b(Of|The|A|An|In|On|To|For)\b/g, (m, p1) => p1.toLowerCase()).replace(/^[a-z]/, (c) => c.toUpperCase());
+}
+
+/**
+ * Split a feature description into a parent-level paragraph plus any
+ * `**Name.** body` sub-option blocks at its tail. Used to turn XPHB
+ * Spellcasting's embedded Cantrips / Spell Slots / Prepared Spells
+ * paragraphs (and Cleric's Divine Order → Protector / Thaumaturge
+ * inline form) into discrete child features the renderer can indent.
+ *
+ * Mirrors the SRD transform's splitter (scripts/import-srd/transforms/
+ * classes.js) so SRD and imported variants produce matching shapes.
+ *
+ * Detection rule: the description must contain ≥ 2 paragraph-leading
+ * `**Name.**` patterns. A single `**Foo.**` is more likely inline
+ * emphasis (spell name, defined term) than a real sub-feature, so we
+ * leave the description untouched in that case.
+ */
+function splitSubOptions(desc: string): {
+  parentDesc: string;
+  children: Array<{ name: string; desc: string }>;
+} {
+  if (!desc) return { parentDesc: desc, children: [] };
+  const splitMatch = desc.match(/\n\n(?=\*\*[^*\n]+?\.\*\*\s)/);
+  if (!splitMatch || typeof splitMatch.index !== 'number') {
+    return { parentDesc: desc, children: [] };
+  }
+  const head = desc.slice(0, splitMatch.index).trim();
+  const tail = desc.slice(splitMatch.index + 2);
+  const subRe = /\*\*([^*\n]+?)\.\*\*\s+([\s\S]+?)(?=\n\n\*\*[^*\n]+?\.\*\*\s|$)/g;
+  const children: Array<{ name: string; desc: string }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = subRe.exec(tail)) !== null) {
+    const name = m[1].trim();
+    const body = m[2].trim();
+    if (name && body) children.push({ name, desc: body });
+  }
+  if (children.length < 2) return { parentDesc: desc, children: [] };
+  return { parentDesc: head, children };
 }
 
 /**
@@ -487,7 +887,8 @@ function ordinal(n: number): string {
   return `${n}th`;
 }
 
-function titleCase(s: string): string {
+function titleCase(s: unknown): string {
+  if (typeof s !== 'string' || !s) return '';
   return s
     .split(/[\s_-]+/)
     .map((part) => (part.length > 0 ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part))

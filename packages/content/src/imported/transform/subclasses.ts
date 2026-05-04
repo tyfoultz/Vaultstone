@@ -8,7 +8,7 @@
 // Trailing source is optional and defaults to subclassSource.
 
 import type { SubclassResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry } from './entries';
+import { entriesToText, slugify, sourceLongName, type RawEntry, type RawEntryObject } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 // We don't import the full 5e.tools schema as a TypeScript type because the
@@ -63,23 +63,79 @@ export function transformSubclasses(
 ): SubclassResult[] {
   const { systemId } = opts;
   const subclasses = raw.subclass ?? [];
-  const features = raw.subclassFeature ?? [];
+  const allFeatures = raw.subclassFeature ?? [];
 
-  // Index features by composite key for O(1) lookup. Key matches the
+  // Strict composite-key index for O(1) lookup. Key matches the
   // pipe-encoded subclassFeatures string components.
   const featureIdx = new Map<string, RawSubclassFeature>();
-  for (const f of features) {
+  // Looser fallback index keyed by `subclass + level + featureName` so
+  // mismatched class-source casing or unusual ref shapes still resolve.
+  // 5e.tools 2024 data occasionally drops or rewrites parts of the
+  // composite key, leaving the strict lookup empty even though the
+  // feature exists in the file's `subclassFeature[]` array.
+  const fallbackIdx = new Map<string, RawSubclassFeature>();
+  for (const f of allFeatures) {
     featureIdx.set(featureKey(f), f);
+    fallbackIdx.set(fallbackFeatureKey(f), f);
   }
 
   return subclasses.map((sc) => {
     const shortName = sc.shortName ?? sc.name;
-    const classSource = sc.classSource ?? 'PHB';
+    const classSource = sc.classSource ?? sc.source;
     const myFeatures = (sc.subclassFeatures ?? [])
-      .map((ref) => resolveFeatureRef(ref, featureIdx, sc, classSource))
+      .map((ref) => resolveFeatureRef(ref, featureIdx, fallbackIdx, allFeatures, sc, classSource))
       .filter((f): f is RawSubclassFeature => f !== null);
 
-    const features: SubclassResult['features'] = myFeatures
+    // 5e.tools 2024 class files often nest sub-features inside a parent
+    // feature's `entries` as { type: 'refSubclassFeature', subclassFeature }
+    // blocks rather than listing them in the subclass's top-level
+    // `subclassFeatures` array. Walk each resolved feature's entries
+    // recursively, resolve the refs, and surface them as standalone
+    // features so the rendered subclass card shows e.g. L3 "Tools of
+    // the Trade" / "Alchemist Spells" / "Experimental Elixir" instead
+    // of just the L3 title.
+    const seenKeys = new Set(myFeatures.map((f) => featureKey(f)));
+    const expandedFeatures: RawSubclassFeature[] = [];
+    function collectRefs(entries: RawEntry[] | undefined): void {
+      if (!entries) return;
+      for (const e of entries) {
+        if (typeof e === 'string') continue;
+        if (
+          (e.type === 'refSubclassFeature' || e.type === 'refClassFeature')
+          && typeof (e as { subclassFeature?: unknown }).subclassFeature === 'string'
+        ) {
+          const refStr = (e as { subclassFeature?: string }).subclassFeature!;
+          const resolved = resolveFeatureRef(refStr, featureIdx, fallbackIdx, allFeatures, sc, classSource);
+          if (resolved && !seenKeys.has(featureKey(resolved))) {
+            seenKeys.add(featureKey(resolved));
+            expandedFeatures.push(resolved);
+            // Recurse — a resolved ref may itself contain more refs.
+            collectRefs(resolved.entries);
+          }
+          continue;
+        }
+        // Walk nested entries / items (entries[] for "entries" blocks,
+        // items[] for "list" blocks). Other shapes don't carry refs.
+        const obj = e as RawEntryObject;
+        if (Array.isArray(obj.entries)) collectRefs(obj.entries);
+        if (Array.isArray(obj.items)) collectRefs(obj.items as RawEntry[]);
+      }
+    }
+    for (const f of myFeatures) collectRefs(f.entries);
+    const allMyFeatures = [...myFeatures, ...expandedFeatures];
+
+    // Sort by level so expanded refs interleave correctly with the
+    // top-level features. Without this, refs nested inside the L3
+    // title get appended after the L5/L9/L15 features and the rendered
+    // card reads out of order. Stable within a level (preserves the
+    // original 5e.tools authored order — title first, then sub-features
+    // as encountered).
+    const sortedFeatures = allMyFeatures
+      .map((f, i) => ({ f, i }))
+      .sort((a, b) => a.f.level - b.f.level || a.i - b.i)
+      .map(({ f }) => f);
+
+    const features: SubclassResult['features'] = sortedFeatures
       .map((f) => ({
         level: f.level,
         name: f.name,
@@ -110,10 +166,15 @@ export function transformSubclasses(
       page: sc.page,
     };
 
-    // 5e.tools PHB content is the 2014 edition. Map to the Vaultstone SRD
-    // 5.1 class key so it threads under the right parent class. Future
-    // 2024-source imports (PHB.5E.2024 / XPHB) would map to -srd-2-0.
-    const parentClassKey = `${slugify(sc.className)}-srd-5-1`;
+    // Map the imported source code to the matching Vaultstone SRD edition
+    // suffix so the subclass threads under the right parent class on the
+    // system detail page. 5e.tools' "X" prefix marks 2024 sources (XPHB,
+    // XDMG, XMM); everything else is treated as the 2014 edition. The
+    // class detail modal also falls back to name-based matching, so an
+    // unrecognized source still surfaces under the matching class on
+    // either system page.
+    const editionSuffix = is2024Source(sc.source) ? 'srd-2-0' : 'srd-5-1';
+    const parentClassKey = `${slugify(sc.className)}-${editionSuffix}`;
 
     return {
       key: `imported_${systemId}_subclass_${slugify(sc.source)}_${slugify(sc.className)}_${slugify(shortName)}`,
@@ -137,9 +198,23 @@ export function transformSubclasses(
 
 // ── Internals ─────────────────────────────────────────────────────────────
 
+/**
+ * Whether a 5e.tools source code refers to the 2024 edition. 5e.tools
+ * conventionally prefixes 2024 sources with "X" (XPHB, XDMG, XMM) while
+ * older sources (PHB, DMG, MM, XGE, TCE, etc.) are 2014-era. Anything
+ * that doesn't match the known 2024 prefixes falls back to 2014.
+ */
+function is2024Source(source: string | undefined): boolean {
+  if (!source) return false;
+  const code = source.toUpperCase();
+  return code === 'XPHB' || code === 'XDMG' || code === 'XMM';
+}
+
 function resolveFeatureRef(
   ref: string | { subclassFeature?: string },
   idx: Map<string, RawSubclassFeature>,
+  fallback: Map<string, RawSubclassFeature>,
+  allFeatures: RawSubclassFeature[],
   parent: RawSubclass,
   classSource: string,
 ): RawSubclassFeature | null {
@@ -159,14 +234,60 @@ function resolveFeatureRef(
     featureName, featureClass, featureClassSrc,
     featureShortNm, featureSubSrc, featureLevel, featureSrc,
   );
-  return idx.get(key) ?? null;
+  const strict = idx.get(key);
+  if (strict) return strict;
+  // First fallback — index keyed by the most stable triple
+  // (subclassShortName + level + featureName). Catches cases where
+  // class-source or feature-source drift between the ref and the
+  // index entry.
+  const looseHit = fallback.get(fallbackFeatureKeyParts(featureShortNm, featureLevel, featureName));
+  if (looseHit) return looseHit;
+  // Final fallback — scan the full subclassFeature[] array for any
+  // entry whose (name, level) matches and whose subclass identity
+  // overlaps with the ref's parent. 5e.tools occasionally encodes the
+  // subclass's `subclassShortName` differently in the ref vs. the
+  // index entry (capitalization, "the " prefix, etc.); scanning by
+  // identity-overlap covers those cases without baking each shape into
+  // the index. n is small (~30 features per file) so the linear scan
+  // is fine for a one-shot import.
+  const refName = featureName.toLowerCase();
+  const parentShort = (parent.shortName ?? parent.name).toLowerCase();
+  const parentName = parent.name.toLowerCase();
+  const refClass = featureClass.toLowerCase();
+  for (const f of allFeatures) {
+    if (f.level !== featureLevel) continue;
+    if (f.name.toLowerCase() !== refName) continue;
+    const fShort = (f.subclassShortName ?? '').toLowerCase();
+    const fClass = (f.className ?? '').toLowerCase();
+    // Identity overlap: at least one of the subclass-side fields agrees
+    // with the parent. Prevents matching an unrelated subclass that
+    // happens to have a same-named feature at the same level.
+    if (
+      fShort === parentShort
+      || fShort === parentName
+      || fClass === refClass
+    ) {
+      return f;
+    }
+  }
+  return null;
 }
 
 function featureKey(f: RawSubclassFeature): string {
   return featureKeyParts(
-    f.name, f.className, f.classSource ?? 'PHB',
+    f.name, f.className, f.classSource ?? f.source,
     f.subclassShortName, f.subclassSource, f.level, f.source,
   );
+}
+
+function fallbackFeatureKey(f: RawSubclassFeature): string {
+  return fallbackFeatureKeyParts(f.subclassShortName, f.level, f.name);
+}
+
+function fallbackFeatureKeyParts(
+  subclassShortName: string, level: number, name: string,
+): string {
+  return [subclassShortName, level, name].map((s) => String(s).toLowerCase()).join('|');
 }
 
 function featureKeyParts(
