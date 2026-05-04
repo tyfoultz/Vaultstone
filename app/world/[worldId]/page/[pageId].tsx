@@ -230,17 +230,20 @@ export default function PageDetailScreen() {
     const { data, error } = await claimPageEdit(pageId);
     const ctx = lockCtxRef.current;
     if (error) {
-      // Server rejected the claim — someone else got in. Use the current
-      // page row to populate the banner; if the row hasn't synced yet,
-      // fall back to a generic marker.
-      if (ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) {
+      // Only show the lock banner when the server explicitly rejected the
+      // claim because another user holds it. Network / CORS errors (e.g.
+      // HTTP 520) are transient and should not trigger the lock UI.
+      const msg = (error as any)?.message ?? '';
+      const isLockConflict = msg.includes('locked') || msg.includes('another editor');
+      if (isLockConflict && ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) {
         setLockError({ ownerId: ctx.lockOwnerId, since: ctx.lockSince });
-      } else {
+      } else if (isLockConflict) {
         setLockError({
           ownerId: ctx.lockOwnerId ?? 'unknown',
           since: ctx.lockSince ?? new Date().toISOString(),
         });
       }
+      // For non-lock errors (network, CORS), silently retry on next heartbeat
       return;
     }
     if (data) {

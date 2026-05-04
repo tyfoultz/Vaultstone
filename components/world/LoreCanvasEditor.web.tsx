@@ -443,6 +443,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   const [highlightOpen, setHighlightOpen] = useState(false);
   const tableButtonRef = useRef<HTMLButtonElement>(null);
   const [pendingClick, setPendingClick] = useState<{ x: number; y: number } | null>(null);
+  const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
   const savedSelRef = useRef<Range | null>(null);
   const [mentionState, setMentionState] = useState<{
     blockId: string;
@@ -455,6 +456,24 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   for (const b of blocks) {
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
   }
+
+  useEffect(() => {
+    if (!editable) return;
+    const CMDS = ['bold', 'italic', 'underline', 'strikeThrough', 'insertUnorderedList', 'insertOrderedList'];
+    function poll() {
+      const next = new Set<string>();
+      for (const cmd of CMDS) {
+        try { if (document.queryCommandState(cmd)) next.add(cmd); } catch { /* ignore */ }
+      }
+      setActiveFormats((prev) => {
+        if (prev.size !== next.size) return next;
+        for (const v of next) { if (!prev.has(v)) return next; }
+        return prev;
+      });
+    }
+    document.addEventListener('selectionchange', poll);
+    return () => document.removeEventListener('selectionchange', poll);
+  }, [editable]);
 
   // Mark mention chips pointing at deleted pages.
   useEffect(() => {
@@ -513,6 +532,9 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     const x = snap(Math.max(0, e.clientX - rect.left - 32));
     const y = snap(Math.max(0, e.clientY - rect.top - 12));
 
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setPendingClick({ x, y });
     setFocusedId(null);
   }, [editable]);
@@ -680,21 +702,14 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
     const trailing = document.createTextNode(after || ' ');
 
-    // Ensure chip is inserted as a direct child of the content element,
-    // not nested inside browser-generated wrapper spans
+    // Split the text node and insert chip + trailing text in place.
+    // Keep everything within the same parent to avoid displacing text
+    // when the node is nested inside browser-generated wrapper spans.
     node.textContent = before;
-    let insertParent: Node = node.parentNode!;
-    let insertRef: Node | null = node.nextSibling;
-    if (insertParent !== el) {
-      insertRef = insertParent as Node;
-      while (insertRef && insertRef.parentNode !== el) {
-        insertRef = insertRef.parentNode;
-      }
-      insertRef = insertRef?.nextSibling ?? null;
-      insertParent = el;
-    }
-    insertParent.insertBefore(chip, insertRef);
-    insertParent.insertBefore(trailing, chip.nextSibling);
+    const mParent = node.parentNode!;
+    const mRef = node.nextSibling;
+    mParent.insertBefore(chip, mRef);
+    mParent.insertBefore(trailing, chip.nextSibling);
 
     // Capture the chip HTML immediately — don't defer to rAF because a blur
     // event (triggered by clicking the typeahead popup) may have already
@@ -912,8 +927,65 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   }
 
   function execCmd(cmd: string, arg?: string) {
+    if (cmd === 'insertUnorderedList' || cmd === 'insertOrderedList') {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        let node: Node | null = sel.anchorNode;
+        const targetTag = cmd === 'insertUnorderedList' ? 'UL' : 'OL';
+        const otherTag = cmd === 'insertUnorderedList' ? 'OL' : 'UL';
+        let existingList: HTMLElement | null = null;
+        while (node && !(node instanceof HTMLElement && node.classList?.contains('lore-block-content'))) {
+          if (node instanceof HTMLElement && (node.tagName === 'UL' || node.tagName === 'OL')) {
+            existingList = node;
+          }
+          node = node.parentNode;
+        }
+        if (existingList) {
+          if (existingList.tagName === targetTag) {
+            // Already in same list type — unwrap: replace list items with plain paragraphs
+            const parent = existingList.parentNode!;
+            const items = Array.from(existingList.querySelectorAll(':scope > li'));
+            for (const li of items) {
+              const p = document.createElement('p');
+              p.innerHTML = li.innerHTML;
+              parent.insertBefore(p, existingList);
+            }
+            parent.removeChild(existingList);
+          } else if (existingList.tagName === otherTag) {
+            // In other list type — switch: just change the tag
+            const replacement = document.createElement(targetTag.toLowerCase());
+            replacement.innerHTML = existingList.innerHTML;
+            existingList.parentNode!.replaceChild(replacement, existingList);
+          }
+          return;
+        }
+      }
+    }
     document.execCommand(cmd, false, arg);
   }
+
+  useEffect(() => {
+    if (!editable) return;
+    const SHORTCUTS: Record<string, string> = {
+      b: 'bold', i: 'italic', u: 'underline',
+      s: 'strikeThrough', '.': 'insertUnorderedList', '/': 'insertOrderedList',
+    };
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const cmd = SHORTCUTS[e.key.toLowerCase()];
+      if (cmd) {
+        e.preventDefault();
+        e.stopPropagation();
+        execCmd(cmd);
+        if (focusedId) {
+          const el = document.querySelector(`[data-block-id="${focusedId}"] .lore-block-content`) as HTMLElement;
+          if (el) { htmlRef.current[focusedId] = el.innerHTML; emitChange(); }
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [editable, focusedId]);
 
   function handleTableInsert(cols: number, rows: number) {
     setTablePicker(false);
@@ -947,7 +1019,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           <div style={{ position: 'relative' }}>
             <button className="lore-toolbar-btn lore-toolbar-btn-wide" onMouseDown={pd}
               onClick={() => { setFontSizeOpen(!fontSizeOpen); setTextColorOpen(false); setHighlightOpen(false); }}
-              title="Font size" type="button">
+              data-tooltip="Font size" type="button">
               <span className="lore-toolbar-label">Size</span>
               <Icon name="expand-more" size={12} color={colors.outline} />
             </button>
@@ -1005,24 +1077,24 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
           <div className="lore-toolbar-sep" />
 
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('bold')} title="Bold (Ctrl+B)" type="button">
-            <Icon name="format-bold" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('bold') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('bold')} data-tooltip="Bold (Ctrl+B)" data-tooltip-desc="Make your text bold." type="button">
+            <Icon name="format-bold" size={18} color={activeFormats.has('bold') ? colors.primary : colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('italic')} title="Italic (Ctrl+I)" type="button">
-            <Icon name="format-italic" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('italic') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('italic')} data-tooltip="Italic (Ctrl+I)" data-tooltip-desc="Italicize your text." type="button">
+            <Icon name="format-italic" size={18} color={activeFormats.has('italic') ? colors.primary : colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('underline')} title="Underline (Ctrl+U)" type="button">
-            <Icon name="format-underlined" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('underline') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('underline')} data-tooltip="Underline (Ctrl+U)" data-tooltip-desc="Underline your text." type="button">
+            <Icon name="format-underlined" size={18} color={activeFormats.has('underline') ? colors.primary : colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('strikeThrough')} title="Strikethrough" type="button">
-            <Icon name="strikethrough-s" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('strikeThrough') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('strikeThrough')} data-tooltip="Strikethrough (Ctrl+S)" data-tooltip-desc="Cross out your text." type="button">
+            <Icon name="strikethrough-s" size={18} color={activeFormats.has('strikeThrough') ? colors.primary : colors.onSurfaceVariant} />
           </button>
 
           {/* Text color */}
           <div style={{ position: 'relative' }}>
             <button className="lore-toolbar-btn" onMouseDown={pd}
               onClick={() => { setTextColorOpen(!textColorOpen); setFontSizeOpen(false); setHighlightOpen(false); }}
-              title="Text color" type="button">
+              data-tooltip="Text color" type="button">
               <Icon name="format-color-text" size={18} color={colors.onSurfaceVariant} />
             </button>
             {textColorOpen ? (
@@ -1040,7 +1112,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           <div style={{ position: 'relative' }}>
             <button className="lore-toolbar-btn" onMouseDown={pd}
               onClick={() => { setHighlightOpen(!highlightOpen); setFontSizeOpen(false); setTextColorOpen(false); }}
-              title="Highlight" type="button">
+              data-tooltip="Highlight" type="button">
               <Icon name="format-color-fill" size={18} color={colors.onSurfaceVariant} />
             </button>
             {highlightOpen ? (
@@ -1055,46 +1127,46 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
             ) : null}
           </div>
 
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('superscript')} title="Superscript" type="button">
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('superscript')} data-tooltip="Superscript" type="button">
             <span className="lore-toolbar-text-label">x<sup>2</sup></span>
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('subscript')} title="Subscript" type="button">
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('subscript')} data-tooltip="Subscript" type="button">
             <span className="lore-toolbar-text-label">x<sub>2</sub></span>
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('removeFormat')} title="Clear formatting" type="button">
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('removeFormat')} data-tooltip="Clear formatting" type="button">
             <Icon name="format-clear" size={18} color={colors.onSurfaceVariant} />
           </button>
 
           <div className="lore-toolbar-sep" />
 
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('formatBlock', 'h2')} title="Heading" type="button">
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('formatBlock', 'h2')} data-tooltip="Heading" type="button">
             <Icon name="title" size={18} color={colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('insertUnorderedList')} title="Bullet list" type="button">
-            <Icon name="format-list-bulleted" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('insertUnorderedList') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('insertUnorderedList')} data-tooltip="Bullet list (Ctrl+.)" data-tooltip-desc="Start an unordered list." type="button">
+            <Icon name="format-list-bulleted" size={18} color={activeFormats.has('insertUnorderedList') ? colors.primary : colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('insertOrderedList')} title="Numbered list" type="button">
-            <Icon name="format-list-numbered" size={18} color={colors.onSurfaceVariant} />
+          <button className={`lore-toolbar-btn${activeFormats.has('insertOrderedList') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('insertOrderedList')} data-tooltip="Numbered list (Ctrl+/)" data-tooltip-desc="Start an ordered list." type="button">
+            <Icon name="format-list-numbered" size={18} color={activeFormats.has('insertOrderedList') ? colors.primary : colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('outdent')} title="Decrease indent" type="button">
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('outdent')} data-tooltip="Decrease indent" type="button">
             <Icon name="format-indent-decrease" size={18} color={colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('indent')} title="Increase indent" type="button">
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('indent')} data-tooltip="Increase indent" type="button">
             <Icon name="format-indent-increase" size={18} color={colors.onSurfaceVariant} />
           </button>
 
           <div className="lore-toolbar-sep" />
 
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyLeft')} title="Align left" type="button">
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyLeft')} data-tooltip="Align left" type="button">
             <Icon name="format-align-left" size={18} color={colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyCenter')} title="Align center" type="button">
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyCenter')} data-tooltip="Align center" type="button">
             <Icon name="format-align-center" size={18} color={colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyRight')} title="Align right" type="button">
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyRight')} data-tooltip="Align right" type="button">
             <Icon name="format-align-right" size={18} color={colors.onSurfaceVariant} />
           </button>
-          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyFull')} title="Justify" type="button">
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('justifyFull')} data-tooltip="Justify" type="button">
             <Icon name="format-align-justify" size={18} color={colors.onSurfaceVariant} />
           </button>
 
@@ -1102,7 +1174,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
           <button ref={tableButtonRef} className="lore-toolbar-btn" onMouseDown={pd}
             onClick={() => { setTablePicker(!tablePicker); setFontSizeOpen(false); setTextColorOpen(false); setHighlightOpen(false); }}
-            title="Insert table" type="button">
+            data-tooltip="Insert table" type="button">
             <Icon name="table-chart" size={18} color={colors.onSurfaceVariant} />
           </button>
         </div>
@@ -1170,7 +1242,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
               initialHtml={block.html}
               editable={editable}
               onInput={handleBlockInput}
-              onFocus={setFocusedId}
+              onFocus={(id: string) => { setFocusedId(id); setPendingClick(null); }}
               onBlur={handleBlockBlur}
               onPaste={handleBlockPaste}
               onImageResize={handleImageResize}
@@ -1237,6 +1309,33 @@ function CanvasStyles() {
           }
           .lore-toolbar-btn:hover {
             background: ${colors.surfaceContainerHigh};
+          }
+          .lore-toolbar-btn.lore-toolbar-active {
+            background: ${colors.primaryContainer}33;
+          }
+          .lore-toolbar-btn[data-tooltip] {
+            position: relative;
+          }
+          .lore-toolbar-btn[data-tooltip]:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 6px;
+            background: ${colors.surfaceContainerHighest};
+            color: ${colors.onSurface};
+            font-family: 'Manrope_400Regular', 'Manrope', system-ui, sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.5;
+            padding: 6px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+            z-index: 50;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            border: 1px solid ${colors.outlineVariant}44;
           }
           .lore-toolbar-btn-wide {
             width: auto;
@@ -1387,7 +1486,7 @@ function CanvasStyles() {
           .lore-block {
             border: 1px solid transparent;
             border-radius: 6px;
-            padding: 8px 12px;
+            padding: 0;
             padding-left: 28px;
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
             min-height: 24px;
@@ -1426,13 +1525,14 @@ function CanvasStyles() {
           .lore-block-handle:active { cursor: grabbing; }
           .lore-block-content {
             outline: none;
-            color: ${colors.onSurfaceVariant};
+            color: #e0dae8;
             font-family: 'CormorantGaramond_400Regular', 'Cormorant Garamond', Georgia, serif;
-            font-size: 15px;
+            font-size: 16px;
             line-height: 1.7;
             min-height: 1.7em;
             white-space: pre-wrap;
             word-wrap: break-word;
+            padding: 8px 12px;
           }
           .lore-block-content p { margin: 0 0 4px 0; }
           .lore-block-content h1, .lore-block-content h2, .lore-block-content h3 {
