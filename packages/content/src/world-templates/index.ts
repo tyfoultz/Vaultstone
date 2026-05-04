@@ -44,7 +44,7 @@ export function getTemplate(key: TemplateKey, version?: number): SectionTemplate
   const target = version ?? getLatestVersion(key);
   const found = versions.find((t) => t.version === target);
   if (!found) {
-    throw new Error(`Template ${key}@v${target} not registered`);
+    return versions[versions.length - 1];
   }
   return found;
 }
