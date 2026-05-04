@@ -1542,7 +1542,7 @@ function CanvasStyles() {
           .lore-block {
             border: 1px solid transparent;
             border-radius: 6px;
-            padding: 8px 12px;
+            padding: 0;
             padding-left: 28px;
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
             min-height: 24px;
@@ -1588,6 +1588,7 @@ function CanvasStyles() {
             min-height: 1.7em;
             white-space: pre-wrap;
             word-wrap: break-word;
+            padding: 8px 12px;
           }
           .lore-block-content p { margin: 0 0 4px 0; }
           .lore-block-content h1, .lore-block-content h2, .lore-block-content h3 {
