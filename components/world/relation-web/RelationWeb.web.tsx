@@ -222,24 +222,24 @@ export function RelationWeb({
     return set;
   }, [selectedNodeId, hoveredNodeId, filteredEdges]);
 
-  const collisionRadius = useCallback(
-    (node: FGNode) => {
-      const count = connectionCount.get(node.id) ?? 0;
-      const r = BASE_NODE_RADIUS + Math.min(count * 1.5, 8);
-      const labelHalfWidth = node.title.length * 4;
-      return Math.max(r + 10, labelHalfWidth) + 20;
-    },
-    [connectionCount],
-  );
-
+  const forceConfigured = useRef(false);
   useEffect(() => {
     const fg = fgRef.current;
-    if (!fg) return;
-    fg.d3Force('charge')?.strength(-600);
-    fg.d3Force('link')?.distance(180);
-    fg.d3Force('collision', forceCollide().radius(collisionRadius).strength(1).iterations(4));
-    fg.d3ReheatSimulation();
-  }, [collisionRadius]);
+    if (!fg || forceConfigured.current) return;
+    forceConfigured.current = true;
+
+    fg.d3Force('charge')?.strength(-120);
+    fg.d3Force('link')?.distance(80);
+    fg.d3Force('collision',
+      forceCollide()
+        .radius((node: FGNode) => {
+          const labelWidth = (node.title?.length ?? 5) * 3.5;
+          return Math.max(BASE_NODE_RADIUS + 6, labelWidth / 2) + 8;
+        })
+        .strength(1)
+        .iterations(4),
+    );
+  });
 
   const drawNode = useCallback(
     (node: FGNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -381,6 +381,8 @@ export function RelationWeb({
       if (n.fx == null) n.fx = n.x;
       if (n.fy == null) n.fy = n.y;
     }
+    const fg = fgRef.current;
+    if (fg) fg.zoomToFit(400, 40);
   }, [graphData.nodes]);
 
   const handleResetView = useCallback(() => {
@@ -391,7 +393,7 @@ export function RelationWeb({
     }
     if (fg) {
       fg.d3ReheatSimulation();
-      setTimeout(() => fg.zoomToFit(400, 60), 300);
+      setTimeout(() => fg.zoomToFit(600, 40), 3000);
     }
   }, [graphData.nodes]);
 
@@ -479,7 +481,7 @@ export function RelationWeb({
           node.fy = node.y;
         }}
         onEngineStop={pinAllNodes}
-        cooldownTicks={200}
+        cooldownTicks={120}
         enableNodeDrag
         minZoom={0.3}
         maxZoom={6}
