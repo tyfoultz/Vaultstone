@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { updatePage } from '@vaultstone/api';
 import { useCurrentWorldStore, usePagesStore } from '@vaultstone/store';
 import type { PageKind, WorldPage } from '@vaultstone/types';
 import { colors, spacing } from '@vaultstone/ui';
@@ -21,7 +22,8 @@ export default function RelationsScreen() {
   const world = useCurrentWorldStore((s) => s.world);
   const worldPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] ?? EMPTY_PAGES : EMPTY_PAGES));
 
-  const { nodes, edges, nodeById } = useRelationGraph(worldId ?? '');
+  const { nodes, edges, nodeById, hiddenPages } = useRelationGraph(worldId ?? '');
+  const storeUpdatePage = usePagesStore((s) => s.updatePage);
 
   const availableKinds = useMemo(() => {
     const kindSet = new Set<PageKind>();
@@ -82,6 +84,29 @@ export default function RelationsScreen() {
     );
   }, [selectedNodeId, edges, visibleEdgeSources]);
 
+  const setPageHidden = useCallback(
+    (pageId: string, hidden: boolean) => {
+      const page = worldPages.find((p) => p.id === pageId);
+      if (!page) return;
+      const sf = ((page.structured_fields as Record<string, unknown>) ?? {});
+      const nextSf = { ...sf, __hidden_from_relation_web: hidden || undefined };
+      if (!hidden) delete nextSf.__hidden_from_relation_web;
+      storeUpdatePage(pageId, { structured_fields: nextSf as any });
+      void updatePage(pageId, { structured_fields: nextSf as any });
+    },
+    [worldPages, storeUpdatePage],
+  );
+
+  const handleHideNode = useCallback(
+    (nodeId: string) => setPageHidden(nodeId, true),
+    [setPageHidden],
+  );
+
+  const handleUnhidePage = useCallback(
+    (pageId: string) => setPageHidden(pageId, false),
+    [setPageHidden],
+  );
+
   const handleOpenPage = useCallback(
     (pageId: string) => {
       if (!worldId) return;
@@ -108,6 +133,8 @@ export default function RelationsScreen() {
         availableKinds={availableKinds}
         onToggleKind={toggleKind}
         onToggleEdgeSource={toggleEdgeSource}
+        hiddenPages={hiddenPages}
+        onUnhidePage={handleUnhidePage}
       />
 
       <View
@@ -129,6 +156,7 @@ export default function RelationsScreen() {
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
             onDoubleClickNode={handleOpenPage}
+            onHideNode={handleHideNode}
             containerWidth={containerSize.w}
             containerHeight={containerSize.h}
           />

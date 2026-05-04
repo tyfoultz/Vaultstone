@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { PageKind } from '@vaultstone/types';
-import { Text, colors, radius, spacing } from '@vaultstone/ui';
+import { Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 import { EDGE_SOURCE_LABEL, EDGE_STYLE, KIND_COLOR, KIND_LABEL, type EdgeSource } from './constants';
+import type { HiddenPage } from './useRelationGraph';
 
 type Props = {
   visibleKinds: Set<string>;
@@ -10,6 +12,8 @@ type Props = {
   availableKinds: PageKind[];
   onToggleKind: (kind: string) => void;
   onToggleEdgeSource: (source: EdgeSource) => void;
+  hiddenPages: HiddenPage[];
+  onUnhidePage: (pageId: string) => void;
 };
 
 function KindChip({ kind, active, onPress }: { kind: string; active: boolean; onPress: () => void }) {
@@ -61,8 +65,11 @@ export function RelationFilterBar({
   availableKinds,
   onToggleKind,
   onToggleEdgeSource,
+  hiddenPages,
+  onUnhidePage,
 }: Props) {
   const edgeSources: EdgeSource[] = ['manual', 'structural', 'mention'];
+  const [showHidden, setShowHidden] = useState(false);
 
   return (
     <View style={styles.bar}>
@@ -76,6 +83,17 @@ export function RelationFilterBar({
             onPress={() => onToggleKind(k)}
           />
         ))}
+        {hiddenPages.length > 0 ? (
+          <Pressable
+            onPress={() => setShowHidden((v) => !v)}
+            style={[styles.chip, showHidden ? styles.chipActive : styles.chipInactive]}
+          >
+            <Icon name="visibility-off" size={12} color={colors.outline} />
+            <Text variant="label-sm" style={{ color: colors.outline }}>
+              Hidden ({hiddenPages.length})
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
       <View style={styles.row}>
         <Text variant="label-sm" uppercase style={styles.rowLabel}>Edges</Text>
@@ -88,6 +106,24 @@ export function RelationFilterBar({
           />
         ))}
       </View>
+
+      {showHidden && hiddenPages.length > 0 ? (
+        <View style={styles.hiddenList}>
+          {hiddenPages.map((hp) => (
+            <Pressable
+              key={hp.id}
+              style={styles.hiddenRow}
+              onPress={() => onUnhidePage(hp.id)}
+            >
+              <Icon name="visibility" size={14} color={colors.outline} />
+              <Text variant="body-sm" style={{ color: colors.onSurfaceVariant, flex: 1 }} numberOfLines={1}>
+                {hp.title}
+              </Text>
+              <Text variant="label-sm" style={{ color: colors.outline }}>Restore</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -142,5 +178,19 @@ const styles = StyleSheet.create({
   },
   lineSegment: {
     width: 16,
+  },
+  hiddenList: {
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant + '22',
+    gap: 2,
+  },
+  hiddenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.lg,
   },
 });

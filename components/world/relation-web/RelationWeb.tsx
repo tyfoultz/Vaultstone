@@ -12,6 +12,7 @@ type Props = {
   selectedNodeId?: string | null;
   onSelectNode?: (nodeId: string | null) => void;
   onDoubleClickNode?: (nodeId: string) => void;
+  onHideNode?: (nodeId: string) => void;
   containerWidth?: number;
   containerHeight?: number;
 };

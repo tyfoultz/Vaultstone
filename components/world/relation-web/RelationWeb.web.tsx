@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Icon, Text, colors, spacing } from '@vaultstone/ui';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 import {
   BASE_NODE_RADIUS,
@@ -24,6 +24,7 @@ type Props = {
   selectedNodeId: string | null;
   onSelectNode: (nodeId: string | null) => void;
   onDoubleClickNode: (nodeId: string) => void;
+  onHideNode?: (nodeId: string) => void;
   containerWidth: number;
   containerHeight: number;
 };
@@ -125,6 +126,8 @@ function drawNodeIcon(ctx: CanvasRenderingContext2D, iconName: string, cx: numbe
   }
 }
 
+type ContextMenu = { x: number; y: number; nodeId: string; title: string };
+
 export function RelationWeb({
   nodes,
   edges,
@@ -133,13 +136,16 @@ export function RelationWeb({
   selectedNodeId,
   onSelectNode,
   onDoubleClickNode,
+  onHideNode,
   containerWidth,
   containerHeight,
 }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
+  const containerRef = useRef<View>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [ForceGraph2D, setForceGraph2D] = useState<ForceGraph2DComponent | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,12 +210,27 @@ export function RelationWeb({
     return set;
   }, [selectedNodeId, hoveredNodeId, filteredEdges]);
 
+  const collisionRadius = useCallback(
+    (node: FGNode) => {
+      const count = connectionCount.get(node.id) ?? 0;
+      const r = BASE_NODE_RADIUS + Math.min(count * 1.5, 8);
+      const labelHalfWidth = node.title.length * 3.5;
+      return Math.max(r, labelHalfWidth) + 12;
+    },
+    [connectionCount],
+  );
+
   useEffect(() => {
     const fg = fgRef.current;
     if (!fg) return;
-    fg.d3Force('charge')?.strength(-200);
-    fg.d3Force('link')?.distance(100);
-  }, []);
+    fg.d3Force('charge')?.strength(-400);
+    fg.d3Force('link')?.distance(140);
+
+    // @ts-expect-error d3-force is a transitive dep of react-force-graph-2d, no separate @types
+    import('d3-force').then(({ forceCollide }: { forceCollide: any }) => {
+      fg.d3Force('collision', forceCollide().radius(collisionRadius).strength(0.8).iterations(3));
+    });
+  }, [collisionRadius]);
 
   const drawNode = useCallback(
     (node: FGNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -355,7 +376,34 @@ export function RelationWeb({
 
   const handleBackgroundClick = useCallback(() => {
     onSelectNode(null);
+    setContextMenu(null);
   }, [onSelectNode]);
+
+  const handleNodeRightClick = useCallback(
+    (node: FGNode, event: MouseEvent) => {
+      event.preventDefault();
+      const el = containerRef.current as unknown as HTMLElement;
+      const rect = el?.getBoundingClientRect();
+      const x = event.clientX - (rect?.left ?? 0);
+      const y = event.clientY - (rect?.top ?? 0);
+      setContextMenu({ x, y, nodeId: node.id, title: node.title });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent && e.key !== 'Escape') return;
+      setContextMenu(null);
+    };
+    window.addEventListener('click', dismiss);
+    window.addEventListener('keydown', dismiss);
+    return () => {
+      window.removeEventListener('click', dismiss);
+      window.removeEventListener('keydown', dismiss);
+    };
+  }, [contextMenu]);
 
   if (filteredNodes.length === 0) {
     return (
@@ -374,37 +422,62 @@ export function RelationWeb({
   if (!ForceGraph2D) return null;
 
   return (
-    <ForceGraph2D
-      ref={fgRef}
-      graphData={graphData as any}
-      width={containerWidth}
-      height={containerHeight}
-      backgroundColor={colors.surfaceCanvas}
-      nodeId="id"
-      nodeCanvasObject={drawNode as any}
-      nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
-        const count = connectionCount.get(node.id) ?? 0;
-        const r = BASE_NODE_RADIUS + Math.min(count * 1.5, 8);
-        ctx.beginPath();
-        ctx.arc(node.x ?? 0, node.y ?? 0, r + 4, 0, 2 * Math.PI);
-        ctx.fillStyle = color;
-        ctx.fill();
-      }}
-      linkCanvasObject={drawLink as any}
-      linkSource="sourceId"
-      linkTarget="targetId"
-      onNodeClick={handleNodeClick as any}
-      onNodeHover={(node: any) => setHoveredNodeId(node?.id ?? null)}
-      onBackgroundClick={handleBackgroundClick}
-      onNodeDragEnd={(node: any) => {
-        node.fx = node.x;
-        node.fy = node.y;
-      }}
-      cooldownTicks={80}
-      enableNodeDrag
-      minZoom={0.3}
-      maxZoom={6}
-    />
+    <View ref={containerRef} style={{ width: containerWidth, height: containerHeight, position: 'relative' }}>
+      <ForceGraph2D
+        ref={fgRef}
+        graphData={graphData as any}
+        width={containerWidth}
+        height={containerHeight}
+        backgroundColor={colors.surfaceCanvas}
+        nodeId="id"
+        nodeCanvasObject={drawNode as any}
+        nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
+          const count = connectionCount.get(node.id) ?? 0;
+          const r = BASE_NODE_RADIUS + Math.min(count * 1.5, 8);
+          ctx.beginPath();
+          ctx.arc(node.x ?? 0, node.y ?? 0, r + 4, 0, 2 * Math.PI);
+          ctx.fillStyle = color;
+          ctx.fill();
+        }}
+        linkCanvasObject={drawLink as any}
+        linkSource="sourceId"
+        linkTarget="targetId"
+        onNodeClick={handleNodeClick as any}
+        onNodeHover={(node: any) => setHoveredNodeId(node?.id ?? null)}
+        onNodeRightClick={handleNodeRightClick as any}
+        onBackgroundClick={handleBackgroundClick}
+        onNodeDragEnd={(node: any) => {
+          node.fx = node.x;
+          node.fy = node.y;
+        }}
+        cooldownTicks={80}
+        enableNodeDrag
+        minZoom={0.3}
+        maxZoom={6}
+      />
+
+      {contextMenu && onHideNode ? (
+        <View
+          style={[
+            styles.contextMenu,
+            { left: contextMenu.x, top: contextMenu.y },
+          ]}
+        >
+          <Pressable
+            style={styles.contextMenuItem}
+            onPress={() => {
+              onHideNode(contextMenu.nodeId);
+              setContextMenu(null);
+            }}
+          >
+            <Icon name="visibility-off" size={16} color={colors.onSurfaceVariant} />
+            <Text variant="body-sm" style={{ color: colors.onSurface }}>
+              Hide from web
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -414,5 +487,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceCanvas,
+  },
+  contextMenu: {
+    position: 'absolute',
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+    paddingVertical: 4,
+    minWidth: 180,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+    zIndex: 100,
+  },
+  contextMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
   },
 });
