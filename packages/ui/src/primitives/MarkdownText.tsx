@@ -1,17 +1,25 @@
-// Lightweight markdown renderer scoped to one feature: pipe tables embedded
-// inside long-form description text from the SRD imports. Open5e's content
-// occasionally drops a markdown table inline (the Dragonborn species'
-// Draconic Ancestors table is the classic example), and rendering those as
-// raw text loses the structure entirely.
+// Lightweight markdown renderer for long-form description text. Built up
+// over time as imported content surfaced more shapes than raw passthrough
+// could handle.
 //
 // What we handle:
 //   * Pipe tables — | header1 | header2 | / |---|---| / row rows
 //   * Plain prose around tables — splits the input into prose / table
 //     segments and emits the right component for each.
+//   * Inline bold / italic — `**foo**` and `*foo*` become weight-bold and
+//     italic spans inside paragraphs. The import flow's `entriesToText`
+//     produces `**Name.**` prefixes for every named sub-entry, so this is
+//     load-bearing for readability.
+//   * Heading markers (`### foo`) — the `#` prefix is dropped and the
+//     line renders as a bold paragraph. Doesn't escalate to display
+//     typography; just stops the markers leaking through as raw text.
+//   * Blockquote markers (`> foo`) — the `> ` prefix is dropped. Carryover
+//     from older imports that emitted `> [... not yet supported]`
+//     placeholder lines for unhandled block types; those lines now drop
+//     entirely so the leftover prose looks clean even on legacy data.
 //
 // What we don't handle (intentionally):
-//   * Bold / italic / inline code / links — passthrough. Stylistic only;
-//     tables were the only segment that broke comprehension.
+//   * Inline code / links — passthrough. Rare in the imported content.
 //   * Nested tables, multi-row headers, alignment markers (:---:). The SRD
 //     content we've seen sticks to the simple pipe-table shape.
 //
@@ -57,9 +65,13 @@ export function MarkdownText({
     <>
       {segments.map((seg, i) =>
         seg.kind === 'text' ? (
-          <Text key={i} variant={variant} family={family} style={style}>
-            {seg.content}
-          </Text>
+          <ProseParagraph
+            key={i}
+            content={seg.content}
+            variant={variant}
+            family={family}
+            style={style}
+          />
         ) : (
           <MarkdownTable
             key={i}
@@ -71,6 +83,146 @@ export function MarkdownText({
       )}
     </>
   );
+}
+
+// ── Prose with inline markdown ────────────────────────────────────────────
+
+/**
+ * Render one prose segment, decoded into:
+ *   - inline `**bold**` and `*italic*` runs
+ *   - leading `### ` / `#### ` heading markers stripped (the line still
+ *     renders as a bold paragraph so the visual hierarchy survives)
+ *   - leading `> ` blockquote markers stripped (legacy imports embedded
+ *     `> [block not yet supported]` placeholders that live in old DB
+ *     rows; new imports drop them silently)
+ *
+ * Renders as one Text per *line* so leading-marker-style transforms
+ * (heading, blockquote) can be applied cleanly without bleeding across
+ * paragraphs. Native React Native nests Text-in-Text for inline runs.
+ */
+function ProseParagraph({
+  content, variant, family, style,
+}: {
+  content: string;
+  variant: TextVariant;
+  family: TextFamily;
+  style?: StyleProp<TextStyle>;
+}) {
+  const lines = content.split('\n').map(decorateLine).filter((l) => l !== null) as DecoratedLine[];
+  return (
+    <>
+      {lines.map((line, i) => {
+        // Add a bit of top margin to sub-label lines so they read as
+        // section breaks within a feature description. Skip the first
+        // line — the parent already controls leading spacing.
+        const subLabelStyle = line.subLabel && i > 0 ? { marginTop: spacing.xs } : null;
+        return (
+          <Text key={i} variant={variant} family={family} style={[style, subLabelStyle]}>
+            {line.spans.map((span, j) => renderSpan(span, j, line.heading))}
+          </Text>
+        );
+      })}
+    </>
+  );
+}
+
+type Span =
+  | { kind: 'text'; text: string }
+  | { kind: 'bold'; text: string }
+  | { kind: 'italic'; text: string };
+
+type DecoratedLine = {
+  /** Inline runs that compose the line. */
+  spans: Span[];
+  /** Whole line was originally a heading (`### foo`, `## foo`, etc.). */
+  heading: boolean;
+  /** Line opens with a `**Sub-Label.** …` prefix — the named sub-entry
+   *  shape that `entriesToText` emits for nested 5e.tools blocks. We
+   *  give these a bit of top margin so dense imported descriptions
+   *  (Artificer Spellcasting, etc.) don't read as a wall of text. */
+  subLabel: boolean;
+};
+
+/**
+ * Strip leading line-level markers and decode inline `**bold**` /
+ * `*italic*` runs. Returns null for lines that should be dropped
+ * entirely (legacy `> [... not yet supported]` placeholders).
+ */
+function decorateLine(rawLine: string): DecoratedLine | null {
+  let line = rawLine;
+  // Drop the legacy "block not yet supported" placeholder lines that
+  // older imports embedded for unhandled 5e.tools block types.
+  if (/^>\s*\[[^\]]*not yet supported[^\]]*\]\s*$/.test(line.trim())) return null;
+  // Strip a leading `> ` blockquote marker (carryover from older
+  // imports). We don't render blockquote chrome — the prose stands on
+  // its own.
+  line = line.replace(/^\s*>\s?/, '');
+  // Heading prefixes: `# `, `## `, `### `, etc. Strip and flag the line
+  // so the renderer can emphasize it.
+  let heading = false;
+  const headingMatch = /^(#{1,6})\s+(.*)$/.exec(line);
+  if (headingMatch) {
+    heading = true;
+    line = headingMatch[2];
+  }
+  // A leading `**Label.** ` (or `**Label** `) marks a named sub-entry
+  // that originated in a nested 5e.tools entries block. We flag it so
+  // the renderer can space it out from the preceding paragraph.
+  const subLabel = !heading && /^\*\*[^*\n]+?\*\*\s/.test(line);
+  return { spans: parseInlineSpans(line), heading, subLabel };
+}
+
+/**
+ * Walk the line looking for `**bold**` / `*italic*` runs. The grammar
+ * is intentionally simple: we don't support escaping or nested
+ * emphasis. Multiple runs per line are fine.
+ */
+function parseInlineSpans(line: string): Span[] {
+  const spans: Span[] = [];
+  // Match `**...**` (bold) before single-`*...*` (italic). Both must
+  // capture non-greedily so adjacent runs don't merge. The trailing
+  // marker is required to avoid swallowing stray asterisks.
+  const pattern = /\*\*([^*\n]+?)\*\*|\*([^*\n]+?)\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(line)) !== null) {
+    if (match.index > lastIndex) {
+      spans.push({ kind: 'text', text: line.slice(lastIndex, match.index) });
+    }
+    if (match[1] !== undefined) {
+      spans.push({ kind: 'bold', text: match[1] });
+    } else if (match[2] !== undefined) {
+      spans.push({ kind: 'italic', text: match[2] });
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < line.length) {
+    spans.push({ kind: 'text', text: line.slice(lastIndex) });
+  }
+  if (spans.length === 0) {
+    spans.push({ kind: 'text', text: line });
+  }
+  return spans;
+}
+
+function renderSpan(span: Span, key: number, heading: boolean): React.ReactNode {
+  // Heading lines render as bold prose. Inline `**bold**` runs inside a
+  // heading line stay bold (the merge is a no-op visually).
+  if (span.kind === 'bold' || heading) {
+    return (
+      <Text key={key} weight="bold">
+        {span.text}
+      </Text>
+    );
+  }
+  if (span.kind === 'italic') {
+    return (
+      <Text key={key} style={{ fontStyle: 'italic' }}>
+        {span.text}
+      </Text>
+    );
+  }
+  return span.text;
 }
 
 // ── Parsing ───────────────────────────────────────────────────────────────

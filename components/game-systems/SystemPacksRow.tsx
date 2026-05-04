@@ -23,7 +23,6 @@ import {
 import { useAuthStore } from '@vaultstone/store';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import { CreateHomebrewPackModal } from '../homebrew/CreateHomebrewPackModal';
-import { ImportContentModal } from '../imported/ImportContentModal';
 
 type Props = {
   system: GameSystemDefinition;
@@ -42,8 +41,6 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
   const [usage, setUsage] = useState<CampaignUsage>(new Map());
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -61,17 +58,12 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [user, system.id, refreshTick]);
+  }, [user, system.id]);
 
   // While loading, render nothing — the SRD tabs immediately below are
   // self-contained, so a brief absence here is preferable to a flash of
   // an empty state that turns into populated content.
   if (loading) return null;
-
-  function fanOutChange() {
-    setRefreshTick((n) => n + 1);
-    onPacksChanged?.();
-  }
 
   return (
     <View style={s.section}>
@@ -111,16 +103,6 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
             Create
           </Text>
         </Pressable>
-
-        <Pressable
-          onPress={() => setImportOpen(true)}
-          style={({ pressed }) => [s.newPackTile, pressed && { opacity: 0.85 }]}
-        >
-          <Icon name="upload-file" size={18} color={colors.primary} />
-          <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.primary }}>
-            Import
-          </Text>
-        </Pressable>
       </ScrollView>
 
       {createOpen ? (
@@ -136,13 +118,6 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
           }}
         />
       ) : null}
-
-      <ImportContentModal
-        visible={importOpen}
-        systemId={system.id}
-        onClose={() => setImportOpen(false)}
-        onImported={fanOutChange}
-      />
     </View>
   );
 }
