@@ -14,13 +14,14 @@ import npcsV2 from './npcs.v2.json';
 import npcsV3 from './npcs.v3.json';
 import npcsV4 from './npcs.v4.json';
 import playersV1 from './players.v1.json';
+import playersV2 from './players.v2.json';
 import timelineV1 from './timeline.v1.json';
 import timelineV2 from './timeline.v2.json';
 
 const REGISTRY: Record<TemplateKey, SectionTemplate[]> = {
   locations: [locationsV1 as SectionTemplate, locationsV2 as SectionTemplate],
   npcs: [npcsV1 as SectionTemplate, npcsV2 as SectionTemplate, npcsV3 as SectionTemplate, npcsV4 as SectionTemplate],
-  players: [playersV1 as SectionTemplate],
+  players: [playersV1 as SectionTemplate, playersV2 as SectionTemplate],
   factions: [factionsV1 as SectionTemplate, factionsV2 as SectionTemplate, factionsV3 as SectionTemplate, factionsV4 as SectionTemplate],
   lore: [loreV1 as SectionTemplate, loreV2 as SectionTemplate],
   blank: [blankV1 as SectionTemplate],
@@ -43,7 +44,7 @@ export function getTemplate(key: TemplateKey, version?: number): SectionTemplate
   const target = version ?? getLatestVersion(key);
   const found = versions.find((t) => t.version === target);
   if (!found) {
-    throw new Error(`Template ${key}@v${target} not registered`);
+    return versions[versions.length - 1];
   }
   return found;
 }
