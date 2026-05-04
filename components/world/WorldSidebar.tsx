@@ -180,7 +180,8 @@ export function WorldSidebar({ world, activePageId }: Props) {
         <Pressable
           onPress={() => router.push(worldHref(world.id))}
           style={styles.collapsedItem}
-          accessibilityLabel="World home"
+          accessibilityLabel="World Home"
+          {...{ title: 'World Home' } as any}
         >
           <Icon name="home" size={20} color={colors.onSurfaceVariant} />
         </Pressable>
@@ -188,7 +189,8 @@ export function WorldSidebar({ world, activePageId }: Props) {
         <Pressable
           onPress={() => router.push(worldMapIndexHref(world.id))}
           style={styles.collapsedItem}
-          accessibilityLabel="Map"
+          accessibilityLabel="World Map"
+          {...{ title: 'World Map' } as any}
         >
           <Icon name="map" size={20} color={colors.onSurfaceVariant} />
         </Pressable>
@@ -196,7 +198,8 @@ export function WorldSidebar({ world, activePageId }: Props) {
         <Pressable
           onPress={() => router.push(worldRelationsHref(world.id))}
           style={styles.collapsedItem}
-          accessibilityLabel="Relationship web"
+          accessibilityLabel="Relationship Web"
+          {...{ title: 'Relationship Web' } as any}
         >
           <Icon name="hub" size={20} color={colors.onSurfaceVariant} />
         </Pressable>
@@ -208,6 +211,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
             }
             style={styles.collapsedItem}
             accessibilityLabel="Timeline"
+            {...{ title: 'Timeline' } as any}
           >
             <Icon name="timeline" size={20} color={colors.onSurfaceVariant} />
           </Pressable>
@@ -259,21 +263,24 @@ export function WorldSidebar({ world, activePageId }: Props) {
         <Pressable
           onPress={() => router.push(worldHref(world.id))}
           style={styles.topBarBtn}
-          accessibilityLabel="World home"
+          accessibilityLabel="World Home"
+          {...{ title: 'World Home' } as any}
         >
           <Icon name="home" size={18} color={colors.onSurfaceVariant} />
         </Pressable>
         <Pressable
           onPress={() => router.push(worldMapIndexHref(world.id))}
           style={styles.topBarBtn}
-          accessibilityLabel="Map"
+          accessibilityLabel="World Map"
+          {...{ title: 'World Map' } as any}
         >
           <Icon name="map" size={18} color={colors.onSurfaceVariant} />
         </Pressable>
         <Pressable
           onPress={() => router.push(worldRelationsHref(world.id))}
           style={styles.topBarBtn}
-          accessibilityLabel="Relationship web"
+          accessibilityLabel="Relationship Web"
+          {...{ title: 'Relationship Web' } as any}
         >
           <Icon name="hub" size={18} color={colors.onSurfaceVariant} />
         </Pressable>
@@ -284,6 +291,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
             }
             style={styles.topBarBtn}
             accessibilityLabel="Timeline"
+            {...{ title: 'Timeline' } as any}
           >
             <Icon name="timeline" size={18} color={colors.onSurfaceVariant} />
           </Pressable>
