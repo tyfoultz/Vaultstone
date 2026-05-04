@@ -93,56 +93,75 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const filtered = search
     ? candidates.filter((p) => p.title.toLowerCase().includes(search.toLowerCase()))
     : candidates;
 
+  function handleOpen() {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left });
+    }
+    setOpen(!open);
+  }
+
   return (
-    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-      <span
-        onClick={() => setOpen(!open)}
+    <div ref={triggerRef} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <div
+        onClick={handleOpen}
         style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
           cursor: 'pointer',
+          padding: '4px 10px',
+          borderRadius: 8,
+          border: `1px solid ${value ? accentColor + '44' : colors.outlineVariant + '44'}`,
+          background: value ? accentColor + '11' : 'transparent',
+          transition: 'background 0.15s, border-color 0.15s',
+        }}
+        onMouseEnter={(e: any) => { e.currentTarget.style.background = value ? accentColor + '22' : colors.surfaceContainerHigh; }}
+        onMouseLeave={(e: any) => { e.currentTarget.style.background = value ? accentColor + '11' : 'transparent'; }}
+      >
+        <span style={{
+          fontFamily: "'Manrope', system-ui, sans-serif",
+          fontSize: 11,
+          color: colors.outline,
+          letterSpacing: 0.5,
+          textTransform: 'uppercase',
+        }}>
+          {label}
+        </span>
+        <span style={{
           fontFamily: "'Manrope', system-ui, sans-serif",
           fontSize: 13,
-          color: value ? colors.onSurfaceVariant : colors.outline,
-        }}
-      >
-        {label}{' '}
-        <span
-          style={{
-            color: value ? accentColor : colors.outline,
-            fontWeight: value ? 600 : 400,
-            textDecoration: value ? 'underline' : 'none',
-            textDecorationColor: accentColor + '44',
-            textUnderlineOffset: '2px',
-          }}
-          onClick={(e) => {
-            if (value) { e.stopPropagation(); router.push(worldPageHref(worldId, value.id)); }
-          }}
-        >
+          color: value ? accentColor : colors.outline,
+          fontWeight: value ? 600 : 400,
+        }}>
           {value?.title ?? '—'}
         </span>
-      </span>
+      </div>
 
       {open ? createPortal(
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 9000 }} onClick={() => { setOpen(false); setSearch(''); }} />
           <div style={{
             position: 'fixed',
-            top: '30%',
-            left: '50%',
-            transform: 'translateX(-50%)',
+            top: dropdownPos?.top ?? 200,
+            left: dropdownPos?.left ?? 100,
             zIndex: 9001,
             background: colors.surfaceContainerHigh,
             border: `1px solid ${colors.outlineVariant}55`,
             borderRadius: 10,
             padding: 12,
-            width: 300,
+            width: 280,
             maxHeight: 340,
             boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            boxSizing: 'border-box' as const,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               <span style={{ fontFamily: "'Manrope'", fontSize: 11, color: colors.outline, letterSpacing: 1, textTransform: 'uppercase' }}>{label}</span>
@@ -155,6 +174,7 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
               placeholder={`Search ${label.toLowerCase().replace(/:.*/,'')}…`}
               style={{
                 width: '100%',
+                boxSizing: 'border-box' as const,
                 background: colors.surfaceContainerLowest,
                 border: `1px solid ${colors.outlineVariant}44`,
                 borderRadius: 6,
@@ -170,8 +190,10 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
               <div
                 onClick={() => { onSelect(null); setOpen(false); setSearch(''); }}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', cursor: 'pointer', borderRadius: 6, marginBottom: 4 }}
+                onMouseEnter={(e: any) => { e.currentTarget.style.background = colors.surfaceContainer; }}
+                onMouseLeave={(e: any) => { e.currentTarget.style.background = 'transparent'; }}
               >
-                <span style={{ fontFamily: "'Manrope'", fontSize: 12, color: colors.outline, fontStyle: 'italic' }}>Clear</span>
+                <span style={{ fontFamily: "'Manrope'", fontSize: 12, color: colors.outline, fontStyle: 'italic' }}>Clear selection</span>
               </div>
             ) : null}
             <div style={{ maxHeight: 220, overflowY: 'auto' }}>
@@ -673,23 +695,6 @@ export function FactionPageView({ page, worldId }: Props) {
             <ScrollView contentContainerStyle={sideStyles.rightBody}>
               {rightTab === 'on_this_page' ? (
                 <>
-                  {/* Headquarters */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="place" title="HEADQUARTERS" />
-                    {hqPage ? (
-                      <Pressable onPress={() => router.push(worldPageHref(worldId, hqPage.id))} style={sideStyles.mentionRow}>
-                        <View style={[sideStyles.mentionDot, { backgroundColor: colors.primary }]} />
-                        <View style={{ flex: 1 }}>
-                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{hqPage.title}</Text>
-                          <Text style={sideStyles.mentionMeta}>LOCATION</Text>
-                        </View>
-                        <Icon name="chevron-right" size={12} color={colors.outline} />
-                      </Pressable>
-                    ) : (
-                      <Text variant="body-sm" style={sideStyles.emptyText}>No headquarters set. Use the HQ field in the header.</Text>
-                    )}
-                  </View>
-
                   {/* Members */}
                   <CollapsibleSideSection icon="person" title="MEMBERS" count={members.length || undefined}>
                     {members.length === 0 ? (
