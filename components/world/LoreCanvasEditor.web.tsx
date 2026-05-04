@@ -120,7 +120,6 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const initialRef = useRef(initialHtml);
-  const selectedMentionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (elRef.current && initialRef.current) {
@@ -128,27 +127,7 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
     }
   }, []);
 
-  // Click on a mention chip to select it for deletion
-  useEffect(() => {
-    if (!elRef.current || !editable) return;
-    const el = elRef.current;
-    function handleClick(e: MouseEvent) {
-      const chip = (e.target as HTMLElement).closest?.('.vaultstone-mention') as HTMLElement | null;
-      // Clear previous selection styling
-      el.querySelectorAll('.vaultstone-mention--selected').forEach((c) => c.classList.remove('vaultstone-mention--selected'));
-      selectedMentionRef.current = null;
-      if (chip && el.contains(chip)) {
-        chip.classList.add('vaultstone-mention--selected');
-        selectedMentionRef.current = chip;
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    }
-    el.addEventListener('click', handleClick);
-    return () => el.removeEventListener('click', handleClick);
-  }, [editable]);
-
-  // Tab navigation in tables + Delete/Backspace on selected images
+  // Tab navigation in tables + Delete/Backspace on selected images + mentions
   useEffect(() => {
     if (!elRef.current || !editable) return;
     const el = elRef.current;
@@ -166,13 +145,61 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
           return;
         }
 
-        // Delete/Backspace on a selected mention chip
-        if (selectedMentionRef.current) {
-          e.preventDefault();
-          selectedMentionRef.current.remove();
-          selectedMentionRef.current = null;
-          onInput(id, el.innerHTML);
-          return;
+        // Delete/Backspace on mention chips adjacent to the caret.
+        // contentEditable=false elements can't be deleted natively in
+        // all browsers. Walk the DOM to find the nearest mention.
+        const mentionSel = window.getSelection();
+        if (mentionSel && mentionSel.isCollapsed && mentionSel.rangeCount > 0) {
+          const r = mentionSel.getRangeAt(0);
+          const c = r.startContainer;
+          const o = r.startOffset;
+          const back = e.key === 'Backspace';
+
+          function findMention(node: Node | null, direction: 'prev' | 'next'): HTMLElement | null {
+            while (node) {
+              if (node instanceof HTMLElement && node.classList?.contains('vaultstone-mention')) return node;
+              if (node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').length > 0) return null;
+              if (node instanceof HTMLElement && node.textContent && node.textContent.length > 0
+                  && !node.classList?.contains('vaultstone-mention')) return null;
+              node = direction === 'prev' ? node.previousSibling : node.nextSibling;
+            }
+            return null;
+          }
+
+          let chip: HTMLElement | null = null;
+
+          if (c.nodeType === Node.ELEMENT_NODE) {
+            // Caret between child nodes
+            if (back && o > 0) chip = findMention((c as Element).childNodes[o - 1], 'prev');
+            if (!back) chip = findMention((c as Element).childNodes[o] ?? null, 'next');
+          }
+
+          if (!chip && c.nodeType === Node.TEXT_NODE) {
+            if (back && o === 0) {
+              // Walk up through empty wrappers to find previous sibling
+              let walk: Node | null = c;
+              while (walk && walk !== el && !chip) {
+                chip = findMention(walk.previousSibling, 'prev');
+                if (chip) break;
+                walk = walk.parentNode;
+              }
+            }
+            if (!back && o === (c.textContent?.length ?? 0)) {
+              let walk: Node | null = c;
+              while (walk && walk !== el && !chip) {
+                chip = findMention(walk.nextSibling, 'next');
+                if (chip) break;
+                walk = walk.parentNode;
+              }
+            }
+          }
+
+          if (chip && el.contains(chip)) {
+            e.preventDefault();
+            chip.remove();
+            onInput(id, el.innerHTML);
+            return;
+          }
         }
       }
 
@@ -1697,12 +1724,6 @@ function CanvasStyles() {
           .lore-block-content .vaultstone-mention:hover {
             background: ${colors.primary}26;
             border-color: ${colors.primary}55;
-          }
-          .lore-block-content .vaultstone-mention--selected {
-            background: ${colors.primary}44;
-            border-color: ${colors.primary};
-            outline: 2px solid ${colors.primary}66;
-            outline-offset: 1px;
           }
           .lore-block-content .vaultstone-mention--deleted {
             background: ${colors.outlineVariant}22;
