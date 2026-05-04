@@ -120,12 +120,33 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const initialRef = useRef(initialHtml);
+  const selectedMentionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (elRef.current && initialRef.current) {
       elRef.current.innerHTML = initialRef.current;
     }
   }, []);
+
+  // Click on a mention chip to select it for deletion
+  useEffect(() => {
+    if (!elRef.current || !editable) return;
+    const el = elRef.current;
+    function handleClick(e: MouseEvent) {
+      const chip = (e.target as HTMLElement).closest?.('.vaultstone-mention') as HTMLElement | null;
+      // Clear previous selection styling
+      el.querySelectorAll('.vaultstone-mention--selected').forEach((c) => c.classList.remove('vaultstone-mention--selected'));
+      selectedMentionRef.current = null;
+      if (chip && el.contains(chip)) {
+        chip.classList.add('vaultstone-mention--selected');
+        selectedMentionRef.current = chip;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+    el.addEventListener('click', handleClick);
+    return () => el.removeEventListener('click', handleClick);
+  }, [editable]);
 
   // Tab navigation in tables + Delete/Backspace on selected images
   useEffect(() => {
@@ -145,48 +166,13 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
           return;
         }
 
-        // Delete/Backspace on mention chips (contentEditable=false blocks cursor).
-        // Use a temporary range expansion to detect adjacent mention chips
-        // regardless of browser-generated wrapper spans.
-        const sel = window.getSelection();
-        if (sel && sel.isCollapsed && sel.rangeCount > 0) {
-          const testSel = sel.getRangeAt(0).cloneRange();
-          try {
-            if (e.key === 'Backspace') {
-              sel.modify('extend', 'backward', 'character');
-            } else {
-              sel.modify('extend', 'forward', 'character');
-            }
-          } catch { /* Firefox may throw */ }
-          if (!sel.isCollapsed && sel.rangeCount > 0) {
-            const expanded = sel.getRangeAt(0);
-            const frag = expanded.cloneContents();
-            const mention = frag.querySelector('.vaultstone-mention');
-            if (mention) {
-              // Find the actual chip in the DOM (not the cloned fragment)
-              const chips = el.querySelectorAll('.vaultstone-mention');
-              const mentionId = mention.getAttribute('data-id');
-              const mentionText = mention.textContent;
-              let target: Element | null = null;
-              for (const c of Array.from(chips)) {
-                if (c.getAttribute('data-id') === mentionId && c.textContent === mentionText) {
-                  // Verify this chip is within the expanded range
-                  if (expanded.intersectsNode(c)) { target = c; break; }
-                }
-              }
-              if (target) {
-                e.preventDefault();
-                sel.removeAllRanges();
-                sel.addRange(testSel);
-                target.remove();
-                onInput(id, el.innerHTML);
-                return;
-              }
-            }
-          }
-          // Restore collapsed caret
-          sel.removeAllRanges();
-          sel.addRange(testSel);
+        // Delete/Backspace on a selected mention chip
+        if (selectedMentionRef.current) {
+          e.preventDefault();
+          selectedMentionRef.current.remove();
+          selectedMentionRef.current = null;
+          onInput(id, el.innerHTML);
+          return;
         }
       }
 
@@ -1711,6 +1697,12 @@ function CanvasStyles() {
           .lore-block-content .vaultstone-mention:hover {
             background: ${colors.primary}26;
             border-color: ${colors.primary}55;
+          }
+          .lore-block-content .vaultstone-mention--selected {
+            background: ${colors.primary}44;
+            border-color: ${colors.primary};
+            outline: 2px solid ${colors.primary}66;
+            outline-offset: 1px;
           }
           .lore-block-content .vaultstone-mention--deleted {
             background: ${colors.outlineVariant}22;
