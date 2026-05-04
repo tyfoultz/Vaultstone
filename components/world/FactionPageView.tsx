@@ -620,26 +620,10 @@ export function FactionPageView({ page, worldId }: Props) {
               <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>{page.title}</Text>
             </Pressable>
           )}
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 2 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 4 }}>
             <InlinePagePicker label="Leader:" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} worldId={worldId} />
             <InlinePagePicker label="HQ:" icon="place" value={hqPage} candidates={hqCandidates} onSelect={(id) => updateField('headquarters', id)} accentColor={colors.primary} worldId={worldId} />
-            {doctrine ? <span style={{ fontFamily: "'Manrope'", fontSize: 13, color: colors.onSurfaceVariant, fontStyle: 'italic' }}>"{doctrine}"</span> : null}
           </div>
-          <View style={styles.statRow}>
-            {stance ? (
-              <View style={[styles.statChip, { borderColor: (STANCE_COLOR[stance] ?? colors.outline) + '44' }]}>
-                <Text style={[styles.statChipLabel, { color: STANCE_COLOR[stance] ?? colors.outline }]}>{stance.charAt(0).toUpperCase() + stance.slice(1)}</Text>
-              </View>
-            ) : null}
-            {size ? (
-              <View style={styles.statChip}><Text style={styles.statChipLabel}>{size.charAt(0).toUpperCase() + size.slice(1)}</Text></View>
-            ) : null}
-            {secrecy ? (
-              <View style={[styles.statChip, { borderColor: (SECRECY_COLOR[secrecy] ?? colors.outline) + '44' }]}>
-                <Text style={[styles.statChipLabel, { color: SECRECY_COLOR[secrecy] ?? colors.outline }]}>{secrecy.charAt(0).toUpperCase() + secrecy.slice(1)}</Text>
-              </View>
-            ) : null}
-          </View>
         </View>
       </View>
 
@@ -650,7 +634,7 @@ export function FactionPageView({ page, worldId }: Props) {
             <Pressable onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)} style={[styles.pill, pill.color ? { borderColor: pill.color + '44' } : undefined, !pill.value && styles.pillEmpty]}>
               {pill.icon ? <Icon name={pill.icon as React.ComponentProps<typeof Icon>['name']} size={12} color={pill.color ?? colors.outline} /> : null}
               <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>{pill.label}</Text>
-              {pill.value ? <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>{pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}</Text> : null}
+              {pill.value ? <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>{pill.fieldType === 'text' ? pill.value : pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}</Text> : null}
             </Pressable>
             {editingPill === pill.key ? <PillEditor pill={pill} onSelect={(v) => { updateField(pill.key, v); setEditingPill(null); }} onClose={() => setEditingPill(null)} /> : null}
           </div>

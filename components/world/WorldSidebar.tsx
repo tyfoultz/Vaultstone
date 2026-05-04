@@ -398,12 +398,6 @@ export function WorldSidebar({ world, activePageId }: Props) {
           label="+ New section"
           onPress={() => setCreateSectionOpen(true)}
         />
-        {isOwner ? (
-          <Pressable onPress={() => setTrashOpen(true)} style={styles.trashLink}>
-            <Icon name="delete-outline" size={14} color={colors.outline} />
-            <Text variant="label-sm" style={{ color: colors.outline }}>Trash</Text>
-          </Pressable>
-        ) : null}
       </View>
 
       {settingsOpen ? (
