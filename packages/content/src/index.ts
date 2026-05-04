@@ -1,4 +1,9 @@
 export { ContentResolver } from './resolver';
+// Homebrew-row → *Result mappers. Used by the homebrew tier inside
+// ContentResolver and re-used by the pack detail page to hydrate
+// fetched rows into the shape the shared content-table list components
+// expect.
+export { mapEntryToResult, mapImportedEntryToResult } from './homebrew/index';
 export {
   getSrdCounts, getSrdCountsByVersion, getSrdContent,
   SEED_ONLY_TYPES, REFERENCE_TYPES,
@@ -32,6 +37,7 @@ export {
   transformSpecies,
   transformMonsters,
   transformClasses,
+  transformClassFluff,
   stripMarkup,
 } from './imported/index';
 export type {
@@ -43,6 +49,8 @@ export type {
   RawItemsFile,
   RawRacesFile,
   RawBestiaryFile,
+  RawFluffFile,
+  FluffPatch,
   TransformOptions,
 } from './imported/index';
 

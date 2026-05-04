@@ -348,10 +348,24 @@ export interface ClassResult extends ContentResult {
   spellcastingAbility: string | null;
   subclassUnlockLevel: number;
   /**
+   * All class levels at which the chosen subclass grants a feature
+   * (sorted ascending). For 5e classes this is typically the unlock level
+   * plus a handful of follow-up levels (Barbarian: 3, 6, 10, 14;
+   * Fighter: 3, 7, 10, 15, 18). The class table renders "Subclass
+   * feature" at each of these levels so the row isn't blank when the
+   * actual feature lives in the chosen subclass.
+   */
+  subclassFeatureLevels?: number[];
+  /**
    * Class features granted at each level. May be sparse for seeds — e.g.
    * we ship level 1–5 features for some classes, just level 1 for others.
+   *
+   * `parentName` (optional) flags this feature as a sub-option of
+   * another feature at the same level (e.g. Cleric's "Protector" /
+   * "Thaumaturge" are sub-options of "Divine Order"). Renderers indent
+   * children under the parent and slot them immediately after it.
    */
-  features?: Array<{ level: number; name: string; description?: string }>;
+  features?: Array<{ level: number; name: string; description?: string; parentName?: string }>;
   /**
    * Class progression-table column definitions, paired with `progressionTable`
    * rows. Columns are class-specific (Rages / Rage Damage for Barbarian,
@@ -397,6 +411,14 @@ export interface BackgroundResult extends ContentResult {
   /** Ability keys eligible for the +2/+1 or +1/+1/+1 distribution. */
   abilityScoreOptions: string[];
   originFeat: string;
+  /**
+   * Starting equipment as a single human-readable string. 2024-edition
+   * backgrounds typically frame this as "Choose A or B: (A) … or (B) 50 GP";
+   * 2014-edition backgrounds list the gear directly. `null` when the source
+   * doesn't surface it (e.g. SRD 5.1 entries, which lack a structured
+   * equipment benefit).
+   */
+  startingEquipment: string | null;
   srdVersions: string[];
 }
 
