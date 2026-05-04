@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   View, ScrollView, Pressable, TextInput, StyleSheet, useWindowDimensions, Modal,
 } from 'react-native';
@@ -159,9 +159,30 @@ function subTabItemCount(t: SubTab, content: SrdContent): number {
   if (t.contentKey === '__schema__') return 0;
   if (t.itemCategories && t.contentKey === 'items') {
     const set = new Set<ItemCategory>(t.itemCategories);
-    return content.items.filter((i) => set.has(i.category)).length;
+    return distinctNamedCount(content.items.filter((i) => set.has(i.category)));
   }
-  return content[t.contentKey].length;
+  return distinctNamedCount(content[t.contentKey]);
+}
+
+/**
+ * Count entries by distinct lowercased name. Matches the table view's
+ * same-name grouping (an entry appearing in both SRD 5.1 and SRD 2024
+ * collapses into one row), so the tab count reflects what the user
+ * actually sees in the table rather than the raw row count.
+ *
+ * Subclasses use `${parentClassKey}::${name}` as the unique key on the
+ * table side to keep two same-named subclasses across different
+ * parent classes apart; we mirror that here so the count agrees.
+ */
+function distinctNamedCount(items: ReadonlyArray<{ name: string; parentClassKey?: string | null }>): number {
+  const seen = new Set<string>();
+  for (const it of items) {
+    const key = it.parentClassKey != null
+      ? `${it.parentClassKey}::${it.name.toLowerCase()}`
+      : it.name.toLowerCase();
+    seen.add(key);
+  }
+  return seen.size;
 }
 
 function isSubTabAvailable(t: SubTab, content: SrdContent): boolean {
@@ -375,9 +396,57 @@ function GameSystemDetail({
         {renderSubBody(activeSub, content, sys)}
       </View>
 
+      {sys.srdVersion ? (
+        <View style={styles.body}>
+          <SrdAttribution srdVersion={sys.srdVersion} />
+        </View>
+      ) : null}
+
       <View style={{ height: spacing.xl }} />
       </ContentWidth>
     </ScrollView>
+  );
+}
+
+/**
+ * Per-system attribution panel. Names the SRD document(s) bundled for
+ * this system and credits the upstream sources under CC-BY 4.0. Sits
+ * at the bottom of the system detail page so the credit travels with
+ * the content the user is browsing.
+ */
+function SrdAttribution({ srdVersion }: { srdVersion: string }) {
+  // Currently each system pins to one SRD version, but the data layer
+  // already supports cross-edition entries (`srdVersions` array per
+  // entry), so a future "all editions" system would render both lines.
+  const lines = srdVersion === 'SRD_2.0'
+    ? ['System Reference Document 5.2 (2024)']
+    : srdVersion === 'SRD_5.1'
+    ? ['System Reference Document 5.1 (2014)']
+    : [];
+  if (lines.length === 0) return null;
+  return (
+    <View style={styles.attribution}>
+      <View style={styles.attributionHead}>
+        <Icon name="info-outline" size={14} color={colors.outline} />
+        <MetaLabel size="sm">Content sources</MetaLabel>
+      </View>
+      <Text variant="body-sm" family="body" style={styles.attributionBody}>
+        SRD content bundled with Vaultstone is sourced from{' '}
+        <Text weight="semibold">{lines.join(' and ')}</Text>, distributed
+        under{' '}
+        <Text weight="semibold">CC-BY 4.0</Text>. Pulled from the{' '}
+        <Text weight="semibold">Open5e</Text> v2 API
+        (api.open5e.com), with item flavor text patched from the{' '}
+        <Text weight="semibold">BTMorton SRD 5.1</Text> dataset where
+        the Open5e payload omits prose. © Wizards of the Coast LLC, used
+        under license.
+      </Text>
+      <Text variant="body-sm" family="body" style={styles.attributionBody}>
+        Imported content (homebrew packs you create or import) is your
+        own responsibility — see the per-import notice when adding
+        sources to a pack.
+      </Text>
+    </View>
   );
 }
 
@@ -544,13 +613,22 @@ function filterByName<T extends { name: string; description?: string }>(items: T
   return items.filter((i) => i.name.toLowerCase().includes(t) || (i.description ?? '').toLowerCase().includes(t));
 }
 
-function SpeciesList({ items, srdVersion }: { items: SpeciesResult[]; srdVersion?: string }) {
+export function SpeciesList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: SpeciesResult[];
+  srdVersion?: string;
+  rowActions?: (active: SpeciesResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
   return (
     <TableShell<SpeciesResult>
       items={items}
       fingerprint={speciesFingerprint}
       searchPlaceholder="Search species…"
       activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
       columns={[
         { key: 'name', label: 'Name', cell: (s) => s.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160, defaultSort: 'asc' },
         { key: 'size', label: 'Size', cell: (s) => s.size ?? '—', compare: (a, b) => (a.size ?? '').localeCompare(b.size ?? ''), width: 100 },
@@ -589,12 +667,12 @@ function speciesFingerprint(s: SpeciesResult): string {
 }
 
 function ClassesList({ items, allSubclasses, srdVersion }: { items: ClassResult[]; allSubclasses: SubclassResult[]; srdVersion?: string }) {
-  // Tapping a row opens the detail modal with the priority-winning
-  // variant (groupVariants sorts so [0] is that variant). Detail-view
-  // tabs across editions are a deliberate non-goal this pass — the list
-  // groups, the detail modal still shows a single class.
-  const [activeKey, setActiveKey] = useState<string | null>(null);
-  const active = activeKey ? items.find((c) => c.key === activeKey) ?? null : null;
+  // Tapping a row opens the detail modal with the full variant group
+  // (groupVariants sorts so [0] is the priority winner — imported >
+  // SRD 2024 > SRD 5.1). The modal renders SourceTabs above its content
+  // when there are 2+ variants so the user can flip between editions /
+  // imported overrides without closing the modal.
+  const [activeVariants, setActiveVariants] = useState<ClassResult[] | null>(null);
 
   // Subclass counts per class name. We match by parent class *name* (lowercased)
   // rather than parentClassKey because class keys are edition-suffixed
@@ -728,10 +806,10 @@ function ClassesList({ items, allSubclasses, srdVersion }: { items: ClassResult[
             },
           },
         ]}
-        onRowTap={(g) => setActiveKey(g.variants[0].key)}
+        onRowTap={(g) => setActiveVariants(g.variants)}
       />
-      {active ? (
-        <ClassDetailModal klass={active} allSubclasses={allSubclasses} onClose={() => setActiveKey(null)} />
+      {activeVariants ? (
+        <ClassDetailModal variants={activeVariants} allSubclasses={allSubclasses} onClose={() => setActiveVariants(null)} />
       ) : null}
     </>
   );
@@ -748,23 +826,92 @@ function classFingerprint(c: ClassResult): string {
     tools: [...(((c as any).toolProficiencies) ?? [])].sort(),
     skills: (c as any).skillChoices ?? null,
     features: ((c as any).features ?? []).map((f: any) => `${f.level}|${f.name}|${f.description}`).sort(),
+    subclassFeatureLevels: [...(((c as any).subclassFeatureLevels) ?? [])].sort((a, b) => a - b),
   });
 }
 
 function ClassDetailModal({
-  klass: c, allSubclasses, onClose,
+  variants, allSubclasses, onClose,
 }: {
-  klass: ClassResult;
+  variants: ClassResult[];
   allSubclasses: SubclassResult[];
   onClose: () => void;
 }) {
-  const subclasses = allSubclasses.filter((s) => s.parentClassKey === c.key);
-  const featureGroups = groupFeaturesByLevel(c.features ?? []);
+  // SourceTabs flips between editions/imports without closing the modal.
+  // [0] is the priority winner (imported > SRD 2024 > SRD 5.1) and is
+  // shown by default. Reset the index when the variants array identity
+  // changes so a new row tap doesn't keep a stale index.
+  const [activeIdx, setActiveIdx] = useState(0);
+  useEffect(() => {
+    setActiveIdx(0);
+  }, [variants]);
+  const c = variants[Math.min(activeIdx, variants.length - 1)] ?? variants[0];
 
-  const level1Features = (c.features ?? []).filter((f) => f.level === 1);
+  // Match by parent-class key (the canonical link) and fall back to
+  // case-insensitive name match. The fallback covers imported subclasses
+  // whose source-edition mapping doesn't line up with the active class
+  // (e.g. an unrecognized source code, or a homebrew pack that stores a
+  // custom parentClassKey). Class names are stable across editions, so
+  // matching on name is a reliable safety net.
+  const classNameLower = c.name.toLowerCase();
+  const matchingSubclasses = allSubclasses.filter(
+    (s) =>
+      s.parentClassKey === c.key
+      || (s.parentClassName ?? '').toLowerCase() === classNameLower,
+  );
+  // Group same-named variants and pick the richest one to render. The
+  // SRD bundle ships a thin Life Domain (2 features); an imported XPHB
+  // pack ships a fuller Life Domain (5 features). Picking by feature
+  // count surfaces the more complete entry by default. We carry every
+  // variant's sources alongside so the card head shows badges for all
+  // editions/imports the entry exists in.
+  const subclasses = useMemo(() => {
+    const buckets = new Map<string, SubclassResult[]>();
+    for (const sc of matchingSubclasses) {
+      const k = sc.name.toLowerCase();
+      const arr = buckets.get(k) ?? [];
+      arr.push(sc);
+      buckets.set(k, arr);
+    }
+    const out: Array<{ active: SubclassResult; sources: ImportSource[] }> = [];
+    for (const variants of buckets.values()) {
+      // Prefer the variant with the most features, tiebreaking by
+      // source priority (imported > homebrew > SRD 2024 > SRD 5.1).
+      const sorted = variants.slice().sort((a, b) => {
+        const ad = a.features?.length ?? 0;
+        const bd = b.features?.length ?? 0;
+        if (ad !== bd) return bd - ad;
+        return sourcePriority(a) - sourcePriority(b);
+      });
+      const active = sorted[0];
+      const sources = collectSources(variants).slice().sort((a, b) => a.code.localeCompare(b.code));
+      out.push({ active, sources });
+    }
+    // Stable ordering: preserve the original list order using the first
+    // occurrence of each lowercased name.
+    const firstSeen = new Map<string, number>();
+    matchingSubclasses.forEach((sc, i) => {
+      const k = sc.name.toLowerCase();
+      if (!firstSeen.has(k)) firstSeen.set(k, i);
+    });
+    out.sort(
+      (a, b) =>
+        (firstSeen.get(a.active.name.toLowerCase()) ?? 0)
+        - (firstSeen.get(b.active.name.toLowerCase()) ?? 0),
+    );
+    return out;
+  }, [matchingSubclasses]);
+  const featureGroups = groupFeaturesByLevel(
+    c.features ?? [],
+    (c as { subclassFeatureLevels?: number[] }).subclassFeatureLevels ?? [],
+  );
+
+  // L1 features used to render in both Becoming and the Features
+  // detailed list; the duplicate copy was dropped from Becoming so
+  // Becoming reads as character-creation guidance (gear + multiclass)
+  // and Features owns the leveled feature list end-to-end.
   const hasBecoming =
     (c.startingEquipment ?? []).length > 0 ||
-    level1Features.length > 0 ||
     !!c.multiclassPrerequisite ||
     !!c.multiclassProficiencies;
 
@@ -785,6 +932,11 @@ function ClassDetailModal({
       title={c.name}
       subtitle={c.description}
       anchors={anchors}
+      headerExtra={
+        variants.length > 1 ? (
+          <SourceTabs variants={variants} activeIdx={activeIdx} onChange={setActiveIdx} />
+        ) : null
+      }
     >
       {/* ── Core Traits ──────────────────────────────────────────────── */}
       <DetailSection id="core" style={styles.modalSection}>
@@ -811,7 +963,7 @@ function ClassDetailModal({
         <ProfBlock label="Weapons" items={c.weaponProficiencies} />
         <ProfBlock label="Armor"   items={c.armorProficiencies} />
         {Array.isArray(c.toolProficiencies) && c.toolProficiencies.length > 0 ? (
-          <ProfBlock label="Tools" items={c.toolProficiencies} />
+          <ProfBlock label="Tools" items={c.toolProficiencies} joiner="and" />
         ) : null}
         {c.spellcasting ? (
           <ProfBlock label="Spellcasting ability" items={[c.spellcastingAbility ?? '—']} />
@@ -864,47 +1016,30 @@ function ClassDetailModal({
             </View>
           ) : null}
 
-          {/* Level 1 detail — starting equipment + level 1 feature descriptions */}
-          {((c.startingEquipment ?? []).length > 0 || level1Features.length > 0) ? (
+          {/* Starting equipment — Becoming covers character-creation
+              choices (gear + multiclass prereqs). Level 1 features
+              live exclusively in the Features section's detailed list
+              now to avoid duplication. */}
+          {Array.isArray(c.startingEquipment) && c.startingEquipment.length > 0 ? (
             <View style={styles.subSection}>
-              <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
-                Level 1 Detail
-              </Text>
-              {Array.isArray(c.startingEquipment) && c.startingEquipment.length > 0 ? (
-                <View style={styles.subBlock}>
-                  <MetaLabel size="sm">Starting equipment</MetaLabel>
-                  {c.startingEquipment.map((opt, i) => (
-                    <View key={i} style={styles.bullet}>
-                      <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
-                        Option {opt.label ?? String.fromCharCode(65 + i)}
-                      </Text>
-                      {opt.items && opt.items.length > 0 ? (
-                        <Text variant="body-sm" family="body" style={styles.bodyText}>
-                          {opt.items.join(', ')}
-                        </Text>
-                      ) : null}
-                      {opt.gold ? (
-                        <Text variant="body-sm" family="body" style={styles.bodyText}>
-                          {opt.gold.amount} {opt.gold.currency}
-                        </Text>
-                      ) : null}
-                    </View>
-                  ))}
+              <MetaLabel size="sm">Starting equipment</MetaLabel>
+              {c.startingEquipment.map((opt, i) => (
+                <View key={i} style={styles.bullet}>
+                  <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+                    Option {opt.label ?? String.fromCharCode(65 + i)}
+                  </Text>
+                  {opt.items && opt.items.length > 0 ? (
+                    <Text variant="body-sm" family="body" style={styles.bodyText}>
+                      {opt.items.join(', ')}
+                    </Text>
+                  ) : null}
+                  {opt.gold ? (
+                    <Text variant="body-sm" family="body" style={styles.bodyText}>
+                      {opt.gold.amount} {opt.gold.currency}
+                    </Text>
+                  ) : null}
                 </View>
-              ) : null}
-              {level1Features.length > 0 ? (
-                <View style={styles.subBlock}>
-                  <MetaLabel size="sm">Level 1 features</MetaLabel>
-                  {level1Features.map((f, i) => (
-                    <View key={i} style={styles.bullet}>
-                      <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
-                      {f.description ? (
-                        <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText>
-                      ) : null}
-                    </View>
-                  ))}
-                </View>
-              ) : null}
+              ))}
             </View>
           ) : null}
         </DetailSection>
@@ -924,22 +1059,37 @@ function ClassDetailModal({
             <ClassFeatureTable klass={c} groups={featureGroups} />
           </View>
 
-          {/* Detailed list — full descriptions grouped by level */}
+          {/* Detailed list — full descriptions grouped by level. Uses
+              the same heading style as DetailSection titles so it reads
+              as the dominant header inside the Features tab, not a
+              minor sub-label like the table caption above it. */}
           <View style={styles.subSection}>
-            <MetaLabel size="sm">Detailed list</MetaLabel>
+            <DetailSectionHeading>Feature Details by Level</DetailSectionHeading>
             {featureGroups.map(([level, feats]) => (
               <View key={level} style={styles.featureLevelGroup}>
                 <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
                   Level {level}
                 </Text>
-                {feats.map((f, i) => (
-                  <View key={i} style={styles.bullet}>
-                    <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
-                    {f.description ? (
-                      <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText>
-                    ) : null}
-                  </View>
-                ))}
+                {feats.map((f, i) => {
+                  const isChild = !!f.parentName;
+                  return (
+                    <View key={i} style={[styles.bullet, isChild ? styles.bulletNested : null]}>
+                      <View style={isChild ? styles.bulletNestedHeading : undefined}>
+                        {isChild ? (
+                          <Text variant="body-sm" family="body" style={styles.bulletNestedMarker}>↳</Text>
+                        ) : null}
+                        <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{f.name}</Text>
+                      </View>
+                      {f.description ? (
+                        <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText>
+                      ) : /subclass feature/i.test(f.name) ? (
+                        <Text variant="body-sm" family="body" style={[styles.bodyText, { fontStyle: 'italic', color: colors.onSurfaceVariant }]}>
+                          Gain a feature granted by your chosen subclass.
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
               </View>
             ))}
           </View>
@@ -950,11 +1100,22 @@ function ClassDetailModal({
       {subclasses.length > 0 ? (
         <DetailSection id="subclasses" style={styles.modalSection}>
           <DetailSectionHeading>{`Subclasses · unlock at L${c.subclassUnlockLevel}`}</DetailSectionHeading>
-          {subclasses.map((sc) => (
+          {subclasses.map(({ active: sc, sources }) => (
             <View key={sc.key} style={styles.subclassCard}>
-              <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.primary }}>
-                {sc.name}
-              </Text>
+              <View style={styles.subclassHeadRow}>
+                <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.primary, flex: 1 }}>
+                  {sc.name}
+                </Text>
+                {/* Source badges for every variant this subclass exists
+                    in — SRD 5.1, SRD 2024, imported pack codes (XPHB,
+                    PHB, etc.). The card body shows the richest variant
+                    selected by the dedupe logic above. */}
+                <View style={styles.subclassSourceStack}>
+                  {sources.map((src, i) => (
+                    <SourceBadge key={`${sc.key}-src-${i}`} source={src} size="sm" />
+                  ))}
+                </View>
+              </View>
               {sc.description ? (
                 <MarkdownText style={[styles.bodyText, { marginTop: 4 }]}>
                   {sc.description}
@@ -1007,6 +1168,9 @@ function ClassFeatureTable({
   // Derive the level set as the union of progressionTable levels and feature
   // groups, ascending. Lets the table show a row for any level that has data,
   // even if one source omits it.
+  // Subclass-feature levels already have a "Subclass feature" entry
+  // injected into `groups` by `groupFeaturesByLevel`, so there's no
+  // separate stitcher pass here — that would duplicate the cell text.
   const levels = new Set<number>();
   groups.forEach(([lvl]) => levels.add(lvl));
   (c.progressionTable ?? []).forEach((r) => levels.add(r.level));
@@ -1073,15 +1237,67 @@ function ClassFeatureTable({
   );
 }
 
+/**
+ * Reorder a flat feature list so parents-with-children come first,
+ * children sit immediately after their parent, and orphan children go
+ * last. Same invariant the per-level bucket uses inside
+ * groupFeaturesByLevel — extracted so the Becoming L1 list (which
+ * doesn't bucket by level since it's already filtered) can apply the
+ * same shape.
+ */
+function nestParentsAndChildren<T extends { name: string; parentName?: string }>(list: T[]): T[] {
+  const parents = list.filter((f) => !f.parentName);
+  const childrenByParent = new Map<string, T[]>();
+  for (const f of list) {
+    if (!f.parentName) continue;
+    const arr = childrenByParent.get(f.parentName) ?? [];
+    arr.push(f);
+    childrenByParent.set(f.parentName, arr);
+  }
+  const parentsWithKids = parents.filter((p) => childrenByParent.has(p.name));
+  const parentsWithoutKids = parents.filter((p) => !childrenByParent.has(p.name));
+  const out: T[] = [];
+  for (const p of parentsWithKids) {
+    out.push(p);
+    out.push(...(childrenByParent.get(p.name) ?? []));
+    childrenByParent.delete(p.name);
+  }
+  out.push(...parentsWithoutKids);
+  for (const orphans of childrenByParent.values()) out.push(...orphans);
+  return out;
+}
+
 /** Group features by level, preserving insertion order within each level. */
 function groupFeaturesByLevel(
-  features: Array<{ level: number; name: string; description?: string }>,
-): Array<[number, Array<{ name: string; description?: string }>]> {
-  const buckets = new Map<number, Array<{ name: string; description?: string }>>();
+  features: Array<{ level: number; name: string; description?: string; parentName?: string }>,
+  subclassFeatureLevels: number[] = [],
+): Array<[number, Array<{ name: string; description?: string; parentName?: string }>]> {
+  const buckets = new Map<number, Array<{ name: string; description?: string; parentName?: string }>>();
   for (const f of features) {
     const list = buckets.get(f.level) ?? [];
-    list.push({ name: f.name, description: f.description });
+    list.push({ name: f.name, description: f.description, parentName: f.parentName });
     buckets.set(f.level, list);
+  }
+  // Re-order each bucket so parents-with-children come first, children
+  // sit immediately after their parent, childless parents follow, and
+  // orphan children go last. See nestParentsAndChildren for details.
+  for (const [lvl, list] of buckets) {
+    buckets.set(lvl, nestParentsAndChildren(list));
+  }
+  // Inject a "Subclass feature" placeholder at every level the class
+  // gains one, unless a real subclass-themed feature is already in
+  // the bucket (e.g. XPHB's "Fighter Subclass" / "Primal Path" /
+  // "Bardic College" — these resolve through gainSubclassFeature
+  // markers and carry prose). 5.1 SRD markers are bare, so the
+  // placeholder is needed there. Match common subclass-feature names
+  // so we don't double up.
+  const SUBCLASS_NAME_PATTERN = /subclass feature|subclass$|^(?:fighter|barbarian|bard|cleric|druid|monk|paladin|ranger|rogue|sorcerer|warlock|wizard|primal|martial|sacred|divine|otherworldly|arcane|roguish|monastic|ranger|sorcerous|bardic)\s+(?:archetype|college|domain|circle|origin|patron|path|tradition|subclass|conclave|oath)/i;
+  for (const lvl of subclassFeatureLevels) {
+    const list = buckets.get(lvl) ?? [];
+    if (!list.some((f) => SUBCLASS_NAME_PATTERN.test(f.name))) {
+      list.push({ name: 'Subclass feature' });
+      buckets.set(lvl, list);
+    }
   }
   return [...buckets.entries()].sort((a, b) => a[0] - b[0]);
 }
@@ -1112,15 +1328,36 @@ function multiclassTraitsSentence(c: ClassResult): string {
   const phrases: string[] = ['Hit Point Die'];
   const mc = c.multiclassProficiencies;
   if (mc?.weapons && mc.weapons.length > 0) {
-    phrases.push(`proficiency with ${joinList(mc.weapons.map((w) => w.toLowerCase()))}`);
+    phrases.push(`proficiency with ${joinList(mc.weapons.map(formatTraitWord))}`);
   }
   if (mc?.tools && mc.tools.length > 0) {
-    phrases.push(`proficiency with ${joinList(mc.tools.map((t) => t.toLowerCase()))}`);
+    phrases.push(`proficiency with ${joinList(mc.tools.map(formatTraitWord))}`);
   }
   if (mc?.armor && mc.armor.length > 0) {
-    phrases.push(`training with ${joinList(mc.armor.map((a) => a.toLowerCase()))}`);
+    phrases.push(`training with ${joinList(mc.armor.map(formatTraitWord))}`);
+  }
+  // Skills: a few classes (Bard/Ranger/Rogue) grant a skill choice on
+  // multiclass. Render as "proficiency with N skills of your choice"
+  // — listing the full pool inline would balloon the sentence, and
+  // most lists are dense enough to be unhelpful (Bard lets you pick
+  // from all 18 skills).
+  if (mc?.skills && mc.skills.count > 0) {
+    const n = mc.skills.count;
+    phrases.push(`proficiency with ${n} ${n === 1 ? 'skill' : 'skills'} of your choice`);
   }
   return joinList(phrases) + '.';
+}
+
+/**
+ * Inline-trait formatter. Lowercases all entries so the multiclass
+ * sentence reads naturally ("training with light armor", "proficiency
+ * with one musical instrument of your choice"). Specific proper nouns
+ * that need to stay capitalized (e.g. "Thieves' Tools", "Vicious
+ * Mockery") are rare in the proficiency lists; if any surface, special-
+ * case them here.
+ */
+function formatTraitWord(s: string): string {
+  return s.toLowerCase();
 }
 
 /** Comma-separated list with an Oxford "and" before the final item. */
@@ -1131,13 +1368,22 @@ function joinList(items: string[]): string {
   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
 }
 
-function BackgroundsList({ items, srdVersion }: { items: BackgroundResult[]; srdVersion?: string }) {
+export function BackgroundsList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: BackgroundResult[];
+  srdVersion?: string;
+  rowActions?: (active: BackgroundResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
   return (
     <TableShell<BackgroundResult>
       items={items}
       fingerprint={backgroundFingerprint}
       searchPlaceholder="Search backgrounds…"
       activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
       columns={[
         { key: 'name', label: 'Name', cell: (b) => b.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160, defaultSort: 'asc' },
         {
@@ -1218,6 +1464,12 @@ function BackgroundsList({ items, srdVersion }: { items: BackgroundResult[]; srd
                 <Text variant="body-sm" family="body" style={styles.bodyText}>{bAny.originFeat}</Text>
               </View>
             ) : null}
+            {bAny.startingEquipment ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Starting equipment</MetaLabel>
+                <MarkdownText style={styles.bodyText}>{bAny.startingEquipment}</MarkdownText>
+              </View>
+            ) : null}
           </>
         );
       }}
@@ -1233,10 +1485,18 @@ function backgroundFingerprint(b: BackgroundResult): string {
     abilityScoreOptions: [...(bAny.abilityScoreOptions ?? [])].sort(),
     toolProficiency: bAny.toolProficiency ?? '',
     originFeat: bAny.originFeat ?? '',
+    startingEquipment: bAny.startingEquipment ?? '',
   });
 }
 
-function SubclassesList({ items, srdVersion }: { items: SubclassResult[]; srdVersion?: string }) {
+export function SubclassesList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: SubclassResult[];
+  srdVersion?: string;
+  rowActions?: (active: SubclassResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
   return (
     <TableShell<SubclassResult>
       items={items}
@@ -1247,6 +1507,8 @@ function SubclassesList({ items, srdVersion }: { items: SubclassResult[]; srdVer
       groupKey={(s) => `${s.parentClassKey ?? ''}::${s.name.toLowerCase()}`}
       searchPlaceholder="Search subclasses…"
       activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
       columns={[
         { key: 'name', label: 'Name', cell: (s) => s.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160, defaultSort: 'asc' },
         {
@@ -1302,7 +1564,14 @@ function subclassFingerprint(s: SubclassResult): string {
   });
 }
 
-function SpellsList({ items, srdVersion }: { items: SpellResult[]; srdVersion?: string }) {
+export function SpellsList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: SpellResult[];
+  srdVersion?: string;
+  rowActions?: (active: SpellResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
   return (
     <TableShell<SpellResult>
       items={items}
@@ -1310,6 +1579,8 @@ function SpellsList({ items, srdVersion }: { items: SpellResult[]; srdVersion?: 
       searchPlaceholder="Search spells…"
       banner={<SeedBanner type="spells" />}
       activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
       columns={[
         { key: 'name', label: 'Name', cell: (s) => s.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160 },
         {
@@ -1446,11 +1717,15 @@ function variantPrioritySort<T extends Variant>(a: T, b: T): number {
 }
 
 function sourcePriority(v: Variant): number {
-  if (v.importSource) return 0;
-  if (v.tier === 'homebrew') return 1;
-  if (v.srdVersions?.includes('SRD_2.0')) return 2;
-  if (v.srdVersions?.includes('SRD_5.1')) return 3;
-  return 4;
+  // Tier wins first — homebrew tier (which includes both authored
+  // homebrew and imported_content) always outranks SRD. Without this,
+  // an SRD entry that ships an `importSource` for badge rendering
+  // (e.g. "SRD 2024" provenance) would tie with a real imported entry,
+  // and the SRD one would win on insertion order.
+  if (v.tier === 'homebrew') return 0;
+  if (v.srdVersions?.includes('SRD_2.0')) return 1;
+  if (v.srdVersions?.includes('SRD_5.1')) return 2;
+  return 3;
 }
 
 /**
@@ -1644,11 +1919,23 @@ type TableShellProps<T extends Variant> = {
   /** When set, suppresses off-edition SRD badges so the 2024 system page
    *  only shows "SRD 2024" badges (and vice versa). */
   activeSrdVersion?: string;
+  /** Optional per-row action affordances rendered in the pinned right
+   *  gutter alongside the chevron — used by the homebrew pack page to
+   *  surface edit / delete buttons on authored rows. The callback runs
+   *  once per active variant; return null to skip the slot entirely
+   *  (e.g. for read-only imported variants). */
+  rowActions?: (active: T) => React.ReactNode;
+  /** Optional content rendered above the table header row (inside the
+   *  list shell, below the search bar + filter chips). The pack page
+   *  uses this to host its per-tab "+ Add" button so authoring lives
+   *  next to the entries it adds to. */
+  headerExtra?: React.ReactNode;
 };
 
 function TableShell<T extends Variant>({
   items, fingerprint, groupKey, searchPlaceholder,
   columns, facets, banner, renderBody, onRowTap, activeSrdVersion,
+  rowActions, headerExtra,
 }: TableShellProps<T>) {
   const [q, setQ] = useState('');
   // Sort state: which column key, asc or desc. Default = first column
@@ -1770,6 +2057,8 @@ function TableShell<T extends Variant>({
         </Pressable>
       </View>
 
+      {headerExtra}
+
       <TableHeader
         columns={columns}
         sortKey={sortKey}
@@ -1787,6 +2076,7 @@ function TableShell<T extends Variant>({
           renderBody={renderBody}
           showChevron={!onRowTap}
           activeSrdVersion={activeSrdVersion}
+          rowActions={rowActions}
         />
       ))}
       {groups.length === 0 ? <EmptyHit q={q} /> : null}
@@ -1888,7 +2178,7 @@ function HeaderCellLabel({ label, sorted }: { label: string; sorted: 'asc' | 'de
 /** One data row. Pinned name + scroll middle + pinned chevron/sources;
  *  expanded body renders below at full width. */
 function TableRow<T extends Variant>({
-  group, columns, expanded, onToggle, renderBody, showChevron, activeSrdVersion,
+  group, columns, expanded, onToggle, renderBody, showChevron, activeSrdVersion, rowActions,
 }: {
   group: VariantGroup<T>;
   columns: TableColumn<T>[];
@@ -1897,6 +2187,7 @@ function TableRow<T extends Variant>({
   renderBody?: (active: T) => React.ReactNode;
   showChevron: boolean;
   activeSrdVersion?: string;
+  rowActions?: (active: T) => React.ReactNode;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const active = group.variants[activeIdx] ?? group.variants[0];
@@ -1951,6 +2242,15 @@ function TableRow<T extends Variant>({
               <SourceBadge key={`src-${i}`} source={src} size="sm" />
             ))}
           </View>
+          {rowActions ? (
+            // Wrap actions in a non-tap-propagating View so the buttons
+            // inside don't double as toggle taps. Pressable children
+            // capture their own onPress and stop event propagation in
+            // RN, so this just isolates layout, not gesture routing.
+            <View style={styles.tableRowActions}>
+              {rowActions(active)}
+            </View>
+          ) : null}
           <Icon
             name={showChevron ? (expanded ? 'expand-less' : 'expand-more') : 'chevron-right'}
             size={20}
@@ -2072,13 +2372,22 @@ function PopoverModal({
   );
 }
 
-function FeatsList({ items, srdVersion }: { items: FeatResult[]; srdVersion?: string }) {
+export function FeatsList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: FeatResult[];
+  srdVersion?: string;
+  rowActions?: (active: FeatResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
   return (
     <TableShell<FeatResult>
       items={items}
       fingerprint={featFingerprint}
       searchPlaceholder="Search feats…"
       activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
       columns={[
         { key: 'name', label: 'Name', cell: (f) => f.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160, defaultSort: 'asc' },
         {
@@ -2112,13 +2421,19 @@ function FeatsList({ items, srdVersion }: { items: FeatResult[]; srdVersion?: st
       ]}
       renderBody={(f) => (
         <>
+          {f.prerequisites ? (
+            <View style={styles.subBlock}>
+              <MetaLabel size="sm">Prerequisite</MetaLabel>
+              <Text variant="body-sm" family="body" style={styles.bodyText}>{f.prerequisites}</Text>
+            </View>
+          ) : null}
           {f.description ? <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText> : null}
           {Array.isArray(f.benefits) && f.benefits.length > 0 ? (
             <View style={styles.subBlock}>
               <MetaLabel size="sm">Benefits</MetaLabel>
               {f.benefits.map((b, i) => (
                 <View key={i} style={styles.bullet}>
-                  <Text variant="body-sm" family="body" style={styles.bodyText}>• {b}</Text>
+                  <MarkdownText style={styles.bodyText}>{`• ${b}`}</MarkdownText>
                 </View>
               ))}
             </View>
@@ -2215,7 +2530,14 @@ function itemTypeLabel(it: ItemResult, parsedTypeText: string | null): string {
   return fallbackTypeLabel(it.category);
 }
 
-function ItemsList({ items, srdVersion }: { items: ItemResult[]; srdVersion?: string }) {
+export function ItemsList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: ItemResult[];
+  srdVersion?: string;
+  rowActions?: (active: ItemResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
   return (
     <TableShell<ItemResult>
       items={items}
@@ -2223,6 +2545,8 @@ function ItemsList({ items, srdVersion }: { items: ItemResult[]; srdVersion?: st
       searchPlaceholder="Search items…"
       banner={<SeedBanner type="items" />}
       activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
       columns={[
         { key: 'name', label: 'Name', cell: (it) => it.name, compare: (a, b) => a.name.localeCompare(b.name), width: 180, defaultSort: 'asc' },
         {
@@ -2402,13 +2726,22 @@ function CreatureLineRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CreaturesList({ items, srdVersion }: { items: CreatureResult[]; srdVersion?: string }) {
+export function CreaturesList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: CreatureResult[];
+  srdVersion?: string;
+  rowActions?: (active: CreatureResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
   return (
     <TableShell<CreatureResult>
       items={items}
       fingerprint={creatureFingerprint}
       searchPlaceholder="Search monsters…"
       activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
       columns={[
         { key: 'name', label: 'Name', cell: (c) => c.name, compare: (a, b) => a.name.localeCompare(b.name), width: 180 },
         {
@@ -2584,13 +2917,22 @@ function crSortValue(cr: CreatureResult['challengeRating']): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function ConditionsList({ items, srdVersion }: { items: ConditionResult[]; srdVersion?: string }) {
+export function ConditionsList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: ConditionResult[];
+  srdVersion?: string;
+  rowActions?: (active: ConditionResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
   return (
     <TableShell<ConditionResult>
       items={items}
       fingerprint={conditionFingerprint}
       searchPlaceholder="Search conditions…"
       activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
       columns={[
         { key: 'name', label: 'Name', cell: (c) => c.name, compare: (a, b) => a.name.localeCompare(b.name), width: 180, defaultSort: 'asc' },
       ]}
@@ -2959,13 +3301,32 @@ function capitalize(s: string) {
   return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
 }
 
-function ProfBlock({ label, items }: { label: string; items?: string[] | null }) {
+function ProfBlock({
+  label,
+  items,
+  joiner,
+}: {
+  label: string;
+  items?: string[] | null;
+  /** When set, renders a small label between consecutive chips so the
+   *  block reads as a conjunction (e.g. "A and B and C"). Used for
+   *  proficiency lists that are AND'd together — the bare chip row
+   *  reads ambiguously as either AND or OR otherwise. */
+  joiner?: 'and' | 'or';
+}) {
   if (!Array.isArray(items) || items.length === 0) return null;
   return (
     <View style={styles.subBlock}>
       <MetaLabel size="sm">{label}</MetaLabel>
       <View style={styles.chipRow}>
-        {items.map((it) => <Chip key={it} label={it} variant="meta" />)}
+        {items.map((it, i) => (
+          <Fragment key={`${i}-${it}`}>
+            {joiner && i > 0 ? (
+              <Text variant="body-sm" family="body" style={styles.profJoiner}>{joiner}</Text>
+            ) : null}
+            <Chip label={it} variant="meta" />
+          </Fragment>
+        ))}
       </View>
     </View>
   );
@@ -3174,6 +3535,27 @@ const styles = StyleSheet.create({
 
   body: { paddingHorizontal: spacing.lg },
 
+  // Per-system content-attribution panel at the bottom of the page.
+  // Reads as a quiet footnote — outline border, no fill, secondary text.
+  attribution: {
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    gap: spacing.xs,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: 'transparent',
+  },
+  attributionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  attributionBody: {
+    color: colors.onSurfaceVariant,
+    lineHeight: 18,
+  },
+
   // Search
   searchBox: {
     flexDirection: 'row',
@@ -3349,6 +3731,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
   },
+  tableRowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
   tableRightGutterHead: {
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
@@ -3477,8 +3864,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  bullet: { gap: 2, marginTop: 4 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
+  profJoiner: { color: colors.onSurfaceVariant, opacity: 0.7 },
+  bullet: { gap: 4, marginTop: spacing.sm },
+  /** Indented bullet for refClassFeature children (sub-options of a
+   *  parent feature, e.g. Cleric's Protector / Thaumaturge under
+   *  Divine Order). Stronger visual cue than a thin border alone:
+   *  deeper indent, a primary-color left rule, and a tinted background
+   *  so the parent/child relationship reads at a glance. */
+  bulletNested: {
+    marginLeft: spacing.lg,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary + 'aa',
+    backgroundColor: colors.primary + '0a',
+    borderRadius: 4,
+    marginTop: spacing.xs,
+  },
+  /** Heading row for a nested feature — `↳` marker + bold name. */
+  bulletNestedHeading: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  /** Subtle arrow prefix that signals "sub-option of the feature above". */
+  bulletNestedMarker: {
+    color: colors.primary,
+    opacity: 0.85,
+  },
   becomingBullet: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -3518,6 +3933,18 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.primary + 'AA',
     padding: spacing.sm + 4,
     marginTop: spacing.sm,
+  },
+  subclassHeadRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  subclassSourceStack: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    justifyContent: 'flex-end',
+    maxWidth: 180,
   },
 
   // Class progression table
