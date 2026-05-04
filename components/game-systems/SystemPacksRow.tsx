@@ -7,7 +7,9 @@
 // Both kinds render as visually similar cards with kind-distinguishing
 // icons + sublabels so users can tell them apart at a glance, while the
 // unified surface keeps the mental model simple ("things that add
-// content to my system"). Tap and delete diverge by kind — see PackCard.
+// content to my system"). Cards open the pack on tap; deletion lives
+// inside the pack detail page so destructive actions stay one click
+// deeper than browse.
 
 import { useEffect, useState } from 'react';
 import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
@@ -17,7 +19,7 @@ import {
   MetaLabel, Text, Icon,
 } from '@vaultstone/ui';
 import {
-  listHomebrewPacks, deleteHomebrewPack, getPackCampaignUsage,
+  listHomebrewPacks, getPackCampaignUsage,
   type HomebrewPackRow,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
@@ -87,10 +89,6 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
             pack={pack}
             usage={usage.get(pack.id) ?? []}
             onOpen={() => router.push(`/homebrew-pack/${pack.id}` as Href)}
-            onDeleted={() => {
-              setPacks((prev) => prev.filter((p) => p.id !== pack.id));
-              onPacksChanged?.();
-            }}
           />
         ))}
 
@@ -123,9 +121,10 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
 }
 
 /**
- * Single content-pack card. Two-state body: the default shows name +
- * sublabel + trash; pressing trash flips into a confirm/cancel pair
- * inline (no separate modal, keeps the horizontal-scroll geometry stable).
+ * Single content-pack card. Tap to open the pack detail page. Deletion
+ * lives inside that page rather than here — destructive actions stay
+ * one click deeper than browsing so a stray tap on the row can't drop
+ * a pack the user just imported.
  *
  * Packs are unified — a pack can hold authored entries, JSON imports,
  * or both. The breakdown is visible on the pack detail page; the row
@@ -135,63 +134,12 @@ function PackCard({
   pack,
   usage,
   onOpen,
-  onDeleted,
 }: {
   pack: HomebrewPackRow;
   /** Campaigns the pack is currently enabled on. Empty array → no usage chip. */
   usage: Array<{ campaignId: string; campaignName: string }>;
   onOpen: () => void;
-  onDeleted: () => void;
 }) {
-  const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
-
-  async function handleDelete() {
-    setDeleting(true);
-    setDeleteError('');
-    const { error } = await deleteHomebrewPack(pack.id);
-    setDeleting(false);
-    if (error) {
-      setDeleteError(error.message);
-      return;
-    }
-    onDeleted();
-  }
-
-  if (confirming) {
-    return (
-      <View style={[s.packCard, s.packCardConfirm]}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.hpDanger }} numberOfLines={2}>
-            {deleteError || `Delete "${pack.name}"?`}
-          </Text>
-          <MetaLabel size="sm">All entries inside the pack will be deleted.</MetaLabel>
-        </View>
-        <Pressable
-          onPress={() => {
-            setConfirming(false);
-            setDeleteError('');
-          }}
-          style={[s.confirmBtn, s.confirmCancel]}
-        >
-          <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}>
-            Cancel
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={handleDelete}
-          disabled={deleting}
-          style={[s.confirmBtn, s.confirmDelete]}
-        >
-          <Text variant="label-sm" weight="semibold" uppercase style={{ color: '#fff', letterSpacing: 1 }}>
-            {deleting ? 'Deleting…' : 'Delete'}
-          </Text>
-        </Pressable>
-      </View>
-    );
-  }
-
   const iconName = 'auto-fix-high' as const;
   const sublabel = pack.description?.trim() || 'Content pack';
 
@@ -226,16 +174,6 @@ function PackCard({
           </Text>
         </View>
       ) : null}
-      <Pressable
-        onPress={(e) => {
-          e.stopPropagation();
-          setConfirming(true);
-        }}
-        style={s.packDeleteBtn}
-        accessibilityLabel={`Delete ${pack.name}`}
-      >
-        <Icon name="delete" size={16} color={colors.onSurfaceVariant} />
-      </Pressable>
     </Pressable>
   );
 }
@@ -294,16 +232,6 @@ const s = StyleSheet.create({
     minWidth: 140,
     justifyContent: 'center',
   },
-  packDeleteBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerHigh,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '33',
-  },
   usageChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -319,23 +247,5 @@ const s = StyleSheet.create({
     color: colors.onSurfaceVariant,
     fontSize: 10,
     fontVariant: ['tabular-nums'],
-  },
-  packCardConfirm: {
-    minWidth: 320,
-    borderColor: colors.hpDanger + '55',
-  },
-  confirmBtn: {
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radius.full,
-    borderWidth: 1,
-  },
-  confirmCancel: {
-    borderColor: colors.outlineVariant + '55',
-    backgroundColor: 'transparent',
-  },
-  confirmDelete: {
-    borderColor: colors.hpDanger,
-    backgroundColor: colors.hpDanger,
   },
 });
