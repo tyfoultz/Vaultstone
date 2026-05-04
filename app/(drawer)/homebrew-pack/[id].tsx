@@ -22,7 +22,24 @@ import {
   type ImportedSourceCard,
 } from '@vaultstone/api';
 import { ImportContentModal } from '../../../components/imported/ImportContentModal';
-import type { HomebrewContentType } from '@vaultstone/types';
+import {
+  SpellsList, FeatsList, ItemsList, CreaturesList, ConditionsList,
+  SpeciesList, BackgroundsList, SubclassesList,
+} from '../../../components/content-tables/lists';
+import { mapEntryToResult, mapImportedEntryToResult } from '@vaultstone/content';
+import type {
+  HomebrewContentType,
+  ContentResult,
+  SpellResult,
+  FeatResult,
+  ItemResult,
+  CreatureResult,
+  ConditionResult,
+  SpeciesResult,
+  BackgroundResult,
+  SubclassResult,
+  ClassResult,
+} from '@vaultstone/types';
 import { SpellFormModal } from '../../../components/homebrew/forms/SpellFormModal';
 import { ItemFormModal } from '../../../components/homebrew/forms/ItemFormModal';
 import { FeatFormModal } from '../../../components/homebrew/forms/FeatFormModal';
@@ -83,6 +100,11 @@ export default function HomebrewPackDetailScreen() {
   // list. Tapping a card filters; tapping again or hitting "Show all"
   // clears.
   const [filterSourceLabel, setFilterSourceLabel] = useState<string | null>(null);
+  // Active content-type tab inside the entries section. `null` = "All",
+  // otherwise a specific content_type ('spell', 'feat', 'creature', etc.).
+  // Resets when filterSourceLabel changes so the user doesn't carry an
+  // empty tab across source filters.
+  const [activeTypeTab, setActiveTypeTab] = useState<string | null>(null);
   // Import modal state. `importMode` carries either 'append' (new card)
   // or { kind: 'reimport', sourceLabel }; null means closed.
   const [importMode, setImportMode] = useState<
@@ -140,16 +162,92 @@ export default function HomebrewPackDetailScreen() {
     };
   }, [id]);
 
-  const visibleImportedEntries = filterSourceLabel
+  // Source-filter pass: a card tap narrows the entries list to one
+  // import. Authored entries aren't tagged by source_label (different
+  // table), so when a card filter is active they hide entirely.
+  const sourceFilteredImported = filterSourceLabel
     ? importedEntries.filter((e) => e.source_label === filterSourceLabel)
     : importedEntries;
-  // The authored-entries list isn't tagged by source_label (different
-  // table). When a card filter is active we hide authored entries
-  // because the user is browsing within a single import; clearing the
-  // filter shows authored alongside imported again.
-  const visibleAuthoredEntries = filterSourceLabel ? [] : entries;
+  const sourceFilteredAuthored = filterSourceLabel ? [] : entries;
+  const sourceFilteredCount = sourceFilteredAuthored.length + sourceFilteredImported.length;
+
+  // Available content-type tabs: union of authored + imported types
+  // present in the source-filtered set, sorted alphabetically by their
+  // display label so the chip strip reads predictably.
+  const availableTypes = (() => {
+    const set = new Set<string>();
+    for (const e of sourceFilteredAuthored) set.add(e.content_type);
+    for (const e of sourceFilteredImported) set.add(e.content_type);
+    return [...set].sort((a, b) =>
+      pluralizeContentType(a).localeCompare(pluralizeContentType(b)),
+    );
+  })();
+
+  // Auto-select the first available type when the active tab isn't
+  // valid for the current source-filtered set. Covers two cases: first
+  // mount (activeTypeTab starts null) and reset cases (source filter
+  // change leaves the active type with zero entries). The All chip was
+  // removed, so there's no "no tab" state — we always need one selected.
+  useEffect(() => {
+    if (availableTypes.length === 0) {
+      if (activeTypeTab !== null) setActiveTypeTab(null);
+      return;
+    }
+    if (activeTypeTab === null || !availableTypes.includes(activeTypeTab)) {
+      setActiveTypeTab(availableTypes[0]);
+    }
+  }, [availableTypes.join('|'), activeTypeTab]);
+
+  // Type-tab pass on top of the source filter.
+  const visibleAuthoredEntries = activeTypeTab
+    ? sourceFilteredAuthored.filter((e) => e.content_type === activeTypeTab)
+    : sourceFilteredAuthored;
+  const visibleImportedEntries = activeTypeTab
+    ? sourceFilteredImported.filter((e) => e.content_type === activeTypeTab)
+    : sourceFilteredImported;
   const visibleEntryCount = visibleAuthoredEntries.length + visibleImportedEntries.length;
   const totalEntryCount = entries.length + importedEntries.length;
+
+  // Hydrate the visible authored + imported rows into ContentResult shapes
+  // bucketed by type. The shared content-table list components consume
+  // *Result[] (the same shape the system page renders for SRD content),
+  // so re-using mapEntryToResult / mapImportedEntryToResult here gives
+  // us the same row layout, sort/filter chrome, and source badges as the
+  // system page tabs without re-implementing any of it.
+  const hydrated = (() => {
+    const out: {
+      spell: SpellResult[];
+      feat: FeatResult[];
+      item: ItemResult[];
+      creature: CreatureResult[];
+      condition: ConditionResult[];
+      species: SpeciesResult[];
+      background: BackgroundResult[];
+      subclass: SubclassResult[];
+      class: ClassResult[];
+      // Maps entry-key (`homebrew_<id>` or imported entry.key) back to
+      // the original DB row so the list rowActions can hand the right
+      // record to openEditForm / handleEntryDelete.
+      authoredByKey: Map<string, HomebrewContentRow>;
+    } = {
+      spell: [], feat: [], item: [], creature: [], condition: [],
+      species: [], background: [], subclass: [], class: [],
+      authoredByKey: new Map(),
+    };
+    if (!pack) return out;
+    for (const row of visibleAuthoredEntries) {
+      const r = mapEntryToResult(row, pack);
+      if (!r) continue;
+      out.authoredByKey.set(r.key, row);
+      pushByType(out, r);
+    }
+    for (const row of visibleImportedEntries) {
+      const r = mapImportedEntryToResult(row, pack);
+      if (!r) continue;
+      pushByType(out, r);
+    }
+    return out;
+  })();
 
   async function commitField(field: EditableField) {
     if (!pack) return;
@@ -174,7 +272,10 @@ export default function HomebrewPackDetailScreen() {
       setDeleteError(err.message);
       return;
     }
-    router.back();
+    // After delete, navigate to the parent system page when there's no
+    // history to fall back to — the page we're on no longer exists.
+    if (router.canGoBack()) router.back();
+    else router.replace(`/(drawer)/game-systems/${pack.system}` as never);
   }
 
   function handleEntrySaved(saved: HomebrewContentRow) {
@@ -216,7 +317,10 @@ export default function HomebrewPackDetailScreen() {
     if (err) return;
     setConfirmCardLabel(null);
     // Clear the filter if it pointed at the card we just removed.
-    if (filterSourceLabel === sourceLabel) setFilterSourceLabel(null);
+    if (filterSourceLabel === sourceLabel) {
+      setFilterSourceLabel(null);
+      setActiveTypeTab(null);
+    }
     await refresh();
   }
 
@@ -236,7 +340,14 @@ export default function HomebrewPackDetailScreen() {
           <Text variant="title-md" family="headline" weight="bold" style={{ marginTop: spacing.md }}>
             {error || 'Pack not found.'}
           </Text>
-          <Pressable onPress={() => router.back()} style={{ marginTop: spacing.md }}>
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              // No pack in scope here — fall back to the systems list.
+              else router.replace('/(drawer)/game-systems' as never);
+            }}
+            style={{ marginTop: spacing.md }}
+          >
             <Text variant="body-md" style={{ color: colors.primary }}>Back</Text>
           </Pressable>
         </View>
@@ -254,7 +365,14 @@ export default function HomebrewPackDetailScreen() {
             <GhostButton
               label="Back"
               icon="arrow-back"
-              onPress={() => router.back()}
+              // Fall back to the parent system page when there's no
+              // navigation history (deep link, web refresh, opened from
+              // a notification). Otherwise router.back() silently
+              // becomes a no-op and the user gets stranded.
+              onPress={() => {
+                if (router.canGoBack()) router.back();
+                else router.replace(`/(drawer)/game-systems/${pack.system}` as never);
+              }}
             />
             <GhostButton
               label="Delete"
@@ -429,9 +547,12 @@ export default function HomebrewPackDetailScreen() {
                   active={filterSourceLabel === card.sourceLabel}
                   confirming={confirmCardLabel === card.sourceLabel}
                   deleting={cardDeleting === card.sourceLabel}
-                  onTapFilter={() => setFilterSourceLabel(
-                    filterSourceLabel === card.sourceLabel ? null : card.sourceLabel,
-                  )}
+                  onTapFilter={() => {
+                    setFilterSourceLabel(
+                      filterSourceLabel === card.sourceLabel ? null : card.sourceLabel,
+                    );
+                    setActiveTypeTab(null);
+                  }}
                   onReimport={() => setImportMode({ kind: 'reimport', sourceLabel: card.sourceLabel })}
                   onRequestRemove={() => setConfirmCardLabel(card.sourceLabel)}
                   onCancelRemove={() => setConfirmCardLabel(null)}
@@ -462,7 +583,7 @@ export default function HomebrewPackDetailScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               {filterSourceLabel ? (
                 <Pressable
-                  onPress={() => setFilterSourceLabel(null)}
+                  onPress={() => { setFilterSourceLabel(null); setActiveTypeTab(null); }}
                   style={styles.clearFilterBtn}
                 >
                   <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.primary, letterSpacing: 1 }}>
@@ -478,11 +599,15 @@ export default function HomebrewPackDetailScreen() {
             </View>
           </View>
 
-          {/* Authored-entry add row — always available regardless of
-              imported content. Hidden while a card filter is active so
-              the user isn't tempted to add an authored entry into what
-              looks like an imported scope. */}
-          {!filterSourceLabel ? (
+          {/* Empty-pack authoring entry point — when there are no
+              type tabs to render, surface every "+ Add X" button so
+              the user can seed the first authored entry. Once any
+              content exists, each type tab's table renders its own
+              scoped "+ Add X" via the headerExtra slot, so this row
+              hides. Hidden while a card filter is active so the
+              authoring affordance doesn't suggest writing into what
+              visually reads as imported scope. */}
+          {!filterSourceLabel && availableTypes.length === 0 ? (
             <View style={styles.addRow}>
               {(CONTENT_TYPES).map((ct) => (
                 <Pressable
@@ -500,7 +625,67 @@ export default function HomebrewPackDetailScreen() {
             </View>
           ) : null}
 
-          {visibleEntryCount === 0 ? (
+          {availableTypes.length > 1 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.typeTabsRow}
+            >
+              {availableTypes.map((type) => {
+                const count =
+                  sourceFilteredAuthored.filter((e) => e.content_type === type).length
+                  + sourceFilteredImported.filter((e) => e.content_type === type).length;
+                const active = activeTypeTab === type;
+                return (
+                  <Pressable
+                    key={type}
+                    onPress={() => setActiveTypeTab(type)}
+                    style={[styles.typeTab, active && styles.typeTabActive]}
+                  >
+                    <Text
+                      variant="label-sm"
+                      weight="bold"
+                      uppercase
+                      style={{
+                        color: active ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+                        letterSpacing: 1.25,
+                      }}
+                    >
+                      {pluralizeContentType(type)} · {count}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
+
+          {activeTypeTab !== null && visibleEntryCount > 0 ? (
+            // Specific type tab: render the matching shared list
+            // component, the same one the system page uses for SRD
+            // browsing. Authored rows get a row-action gutter slot
+            // (edit + delete); imported rows skip the slot.
+            renderTypeList({
+              type: activeTypeTab,
+              hydrated,
+              system: pack.system,
+              onEditAuthored: (key) => {
+                const row = hydrated.authoredByKey.get(key);
+                if (row) openEditForm(row);
+              },
+              onDeleteAuthored: (key) => {
+                const row = hydrated.authoredByKey.get(key);
+                if (row) {
+                  // Match the existing per-row confirm/delete UX —
+                  // re-use the row id for confirmation gating.
+                  if (confirmEntryId === row.id) handleEntryDelete(row);
+                  else setConfirmEntryId(row.id);
+                }
+              },
+              addAction: !filterSourceLabel
+                ? renderAddActionForType(activeTypeTab, openCreateForm)
+                : undefined,
+            })
+          ) : (
             <View style={styles.placeholderBox}>
               <Icon name="auto-awesome" size={28} color={colors.outline} />
               <Text variant="body-sm" tone="secondary" style={{ marginTop: spacing.xs, textAlign: 'center' }}>
@@ -508,47 +693,6 @@ export default function HomebrewPackDetailScreen() {
                   ? 'No entries in this import.'
                   : 'Add an authored entry above or import content from JSON.'}
               </Text>
-            </View>
-          ) : (
-            <View style={styles.entriesList}>
-              {/* Authored entries — editable. */}
-              {CONTENT_TYPES.map((ct) => {
-                const group = visibleAuthoredEntries.filter((e) => e.content_type === ct.key);
-                if (group.length === 0) return null;
-                return (
-                  <View key={ct.key} style={styles.entryGroup}>
-                    <View style={styles.entryGroupHead}>
-                      <MetaLabel size="sm">{ct.pluralLabel} ({group.length})</MetaLabel>
-                    </View>
-                    {group.map((entry) => (
-                      <EntryRow
-                        key={entry.id}
-                        entry={entry}
-                        confirming={confirmEntryId === entry.id}
-                        deleting={entryDeleting === entry.id}
-                        onEdit={() => openEditForm(entry)}
-                        onRequestDelete={() => setConfirmEntryId(entry.id)}
-                        onCancelDelete={() => setConfirmEntryId(null)}
-                        onConfirmDelete={() => handleEntryDelete(entry)}
-                      />
-                    ))}
-                  </View>
-                );
-              })}
-
-              {/* Imported entries — read-only, grouped by content_type. */}
-              {groupImportedByType(visibleImportedEntries).map(([type, group]) => (
-                <View key={`imported-${type}`} style={styles.entryGroup}>
-                  <View style={styles.entryGroupHead}>
-                    <MetaLabel size="sm">
-                      {pluralizeContentType(type)} ({group.length})
-                    </MetaLabel>
-                  </View>
-                  {group.map((entry) => (
-                    <ImportedEntryRow key={entry.id} entry={entry} />
-                  ))}
-                </View>
-              ))}
             </View>
           )}
         </Card>
@@ -623,6 +767,172 @@ export default function HomebrewPackDetailScreen() {
 /** Header subtitle showing the mix of content in the pack. Both authored
  *  and imported counts surface so the user can tell at a glance what the
  *  pack contains without scrolling. */
+/** Per-type list dispatcher. Picks the matching shared list component
+ *  for the active type tab and feeds it the hydrated result rows. The
+ *  component handles search, sort, filter, source-tab dedupe, etc. —
+ *  this dispatcher only owns the row-action callbacks and the optional
+ *  "+ Add" button that goes in the table's headerExtra slot. */
+function renderTypeList(args: {
+  type: string;
+  hydrated: {
+    spell: SpellResult[];
+    feat: FeatResult[];
+    item: ItemResult[];
+    creature: CreatureResult[];
+    condition: ConditionResult[];
+    species: SpeciesResult[];
+    background: BackgroundResult[];
+    subclass: SubclassResult[];
+    class: ClassResult[];
+    authoredByKey: Map<string, HomebrewContentRow>;
+  };
+  system: string;
+  onEditAuthored: (key: string) => void;
+  onDeleteAuthored: (key: string) => void;
+  addAction?: React.ReactNode;
+}): React.ReactNode {
+  const { type, hydrated, onEditAuthored, onDeleteAuthored, addAction } = args;
+  // Authored rows get edit + delete buttons in the table's row-action
+  // gutter. The shared list components consume *Result entries; we
+  // detect the authored ones by checking whether their key is in
+  // `authoredByKey` (imported keys never collide with `homebrew_` ids).
+  function rowActionsFor<T extends ContentResult>(active: T): React.ReactNode {
+    if (!hydrated.authoredByKey.has(active.key)) return null;
+    return (
+      <>
+        <Pressable
+          onPress={() => onEditAuthored(active.key)}
+          style={listActionStyles.iconBtn}
+          accessibilityLabel={`Edit ${active.name}`}
+        >
+          <Icon name="edit" size={14} color={colors.onSurfaceVariant} />
+        </Pressable>
+        <Pressable
+          onPress={() => onDeleteAuthored(active.key)}
+          style={listActionStyles.iconBtn}
+          accessibilityLabel={`Delete ${active.name}`}
+        >
+          <Icon name="delete" size={14} color={colors.onSurfaceVariant} />
+        </Pressable>
+      </>
+    );
+  }
+  switch (type) {
+    case 'spell':
+      return <SpellsList items={hydrated.spell} rowActions={rowActionsFor} headerExtra={addAction} />;
+    case 'feat':
+      return <FeatsList items={hydrated.feat} rowActions={rowActionsFor} headerExtra={addAction} />;
+    case 'item':
+      return <ItemsList items={hydrated.item} rowActions={rowActionsFor} headerExtra={addAction} />;
+    case 'creature':
+      return <CreaturesList items={hydrated.creature} rowActions={rowActionsFor} headerExtra={addAction} />;
+    case 'condition':
+      return <ConditionsList items={hydrated.condition} rowActions={rowActionsFor} headerExtra={addAction} />;
+    case 'species':
+      return <SpeciesList items={hydrated.species} rowActions={rowActionsFor} headerExtra={addAction} />;
+    case 'background':
+      return <BackgroundsList items={hydrated.background} rowActions={rowActionsFor} headerExtra={addAction} />;
+    case 'subclass':
+      return <SubclassesList items={hydrated.subclass} rowActions={rowActionsFor} headerExtra={addAction} />;
+    default:
+      // 'class' and any other types fall through; the pack page doesn't
+      // surface a class table view since classes have a separate detail
+      // modal (system-page only). Render a small placeholder so the user
+      // knows the tab is intentional.
+      return (
+        <View style={listActionStyles.placeholder}>
+          <Text variant="body-sm" tone="secondary">
+            No table view for this content type yet.
+          </Text>
+        </View>
+      );
+  }
+}
+
+/** Per-type "+ Add X" button rendered at the top of a type-tab's table
+ *  via headerExtra. Falls back to null for types with no authoring
+ *  form (e.g. 'condition', 'background', 'subclass'). */
+function renderAddActionForType(
+  type: string,
+  openCreateForm: (type: HomebrewContentType) => void,
+): React.ReactNode | undefined {
+  const ct = CONTENT_TYPES.find((c) => c.key === type);
+  if (!ct) return undefined;
+  return (
+    <Pressable
+      onPress={() => openCreateForm(ct.key)}
+      style={({ pressed }) => [listActionStyles.addBtn, pressed && { opacity: 0.85 }]}
+      accessibilityLabel={`Add ${ct.label.toLowerCase()}`}
+    >
+      <Icon name={ct.icon} size={16} color={colors.primary} />
+      <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.primary, letterSpacing: 1 }}>
+        Add {ct.label}
+      </Text>
+    </Pressable>
+  );
+}
+
+const listActionStyles = StyleSheet.create({
+  iconBtn: {
+    width: 24, height: 24,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.primary + '55',
+    borderStyle: 'dashed',
+    backgroundColor: 'transparent',
+    marginBottom: spacing.sm,
+  },
+  placeholder: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+  },
+});
+
+/** Bucket a hydrated result into the matching per-type bin. The
+ *  buckets are typed strictly so the list components below get the
+ *  narrow Result[] they expect — switching on `r.type` narrows the
+ *  union for TypeScript. */
+function pushByType(
+  out: {
+    spell: SpellResult[];
+    feat: FeatResult[];
+    item: ItemResult[];
+    creature: CreatureResult[];
+    condition: ConditionResult[];
+    species: SpeciesResult[];
+    background: BackgroundResult[];
+    subclass: SubclassResult[];
+    class: ClassResult[];
+  },
+  r: ContentResult,
+) {
+  switch (r.type) {
+    case 'spell':      out.spell.push(r as SpellResult); break;
+    case 'feat':       out.feat.push(r as FeatResult); break;
+    case 'item':       out.item.push(r as ItemResult); break;
+    case 'monster':    out.creature.push(r as CreatureResult); break;
+    case 'condition':  out.condition.push(r as ConditionResult); break;
+    case 'species':    out.species.push(r as SpeciesResult); break;
+    case 'background': out.background.push(r as BackgroundResult); break;
+    case 'subclass':   out.subclass.push(r as SubclassResult); break;
+    case 'class':      out.class.push(r as ClassResult); break;
+    // Other types (rules, reference catalogs) don't have a list view here.
+  }
+}
+
 function packSubtitle(authored: number, imports: number): string {
   if (authored === 0 && imports === 0) return 'Empty pack';
   const parts: string[] = [];
@@ -697,6 +1007,14 @@ function SourceCardView({
         <Text variant="body-sm" tone="secondary" numberOfLines={2} style={styles.sourceCardCounts}>
           {typeLine}
         </Text>
+      ) : null}
+      {card.fluffPatchCount > 0 ? (
+        <View style={styles.fluffBadge} accessibilityLabel={`Flavor prose patched onto ${card.fluffPatchCount} entries${card.fluffSourceName ? ` from ${card.fluffSourceName}` : ''}`}>
+          <Icon name="auto-awesome" size={12} color={colors.primary} />
+          <Text variant="label-sm" weight="semibold" style={styles.fluffBadgeText}>
+            Flavor · {card.fluffPatchCount}
+          </Text>
+        </View>
       ) : null}
       {confirming ? (
         <View style={styles.sourceCardActions}>
@@ -1004,6 +1322,25 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     marginTop: 2,
   },
+  /** Flavor-prose chip on the source card — visible when a fluff
+   *  import has patched description text onto entries in the card. */
+  fluffBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginTop: spacing.xs,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: colors.primary + '1a',
+    borderWidth: 1,
+    borderColor: colors.primary + '55',
+  },
+  fluffBadgeText: {
+    color: colors.primary,
+    letterSpacing: 0.4,
+  },
   sourceCardActions: {
     flexDirection: 'row',
     gap: spacing.xs,
@@ -1046,6 +1383,24 @@ const styles = StyleSheet.create({
   clearFilterBtn: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
+  },
+  typeTabsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  typeTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  typeTabActive: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primary,
   },
   importedNote: {
     flexDirection: 'row',
