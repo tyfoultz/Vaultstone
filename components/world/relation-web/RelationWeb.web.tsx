@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { GhostButton, Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 import {
   BASE_NODE_RADIUS,
@@ -131,6 +131,12 @@ function drawNodeIcon(ctx: CanvasRenderingContext2D, iconName: string, cx: numbe
 
 type ContextMenu = { x: number; y: number; nodeId: string; title: string };
 
+const LEGEND_EDGES: { src: EdgeSource; desc: string }[] = [
+  { src: 'manual', desc: 'Added on a page (ally, rival, leader, etc.)' },
+  { src: 'structural', desc: 'From page fields (NPC\'s faction, location\'s parent)' },
+  { src: 'mention', desc: 'Page @mentioned in another page\'s body' },
+];
+
 export function RelationWeb({
   nodes,
   edges,
@@ -150,9 +156,6 @@ export function RelationWeb({
   const [ForceGraph2D, setForceGraph2D] = useState<ForceGraph2DComponent | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
-
-  const dragNodeRef = useRef<string | null>(null);
-  const preDragPins = useRef<Map<string, { fx?: number; fy?: number }>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -374,70 +377,19 @@ export function RelationWeb({
     [connectedToSelected, hoveredNodeId, connectionCount],
   );
 
-  const getNeighborIds = useCallback(
-    (nodeId: string): Set<string> => {
-      const s = new Set<string>();
-      s.add(nodeId);
-      for (const e of filteredEdges) {
-        if (e.sourceId === nodeId) s.add(e.targetId);
-        if (e.targetId === nodeId) s.add(e.sourceId);
-      }
-      return s;
-    },
-    [filteredEdges],
-  );
-
-  const handleNodeDrag = useCallback(
-    (node: FGNode) => {
-      if (dragNodeRef.current === node.id) return;
-      dragNodeRef.current = node.id;
-
-      const neighbors = getNeighborIds(node.id);
-      const fg = fgRef.current;
-      if (!fg) return;
-      const liveNodes: FGNode[] = fg.graphData().nodes;
-
-      preDragPins.current.clear();
-      for (const n of liveNodes) {
-        preDragPins.current.set(n.id, { fx: n.fx, fy: n.fy });
-        if (!neighbors.has(n.id)) {
-          n.fx = n.x;
-          n.fy = n.y;
-        }
-      }
-    },
-    [getNeighborIds],
-  );
-
-  const handleNodeDragEnd = useCallback(
-    (node: FGNode) => {
-      const fg = fgRef.current;
-      if (!fg) { dragNodeRef.current = null; return; }
-      const liveNodes: FGNode[] = fg.graphData().nodes;
-
-      for (const n of liveNodes) {
-        if (n.id === node.id) {
-          n.fx = n.x;
-          n.fy = n.y;
-          continue;
-        }
-        const pre = preDragPins.current.get(n.id);
-        if (pre) {
-          n.fx = pre.fx;
-          n.fy = pre.fy;
-        }
-      }
-      preDragPins.current.clear();
-      dragNodeRef.current = null;
-    },
-    [],
-  );
+  const pinAllNodes = useCallback(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    for (const n of fg.graphData().nodes as FGNode[]) {
+      if (n.fx == null) n.fx = n.x;
+      if (n.fy == null) n.fy = n.y;
+    }
+  }, []);
 
   const handleResetView = useCallback(() => {
     const fg = fgRef.current;
     if (!fg) return;
-    const liveNodes: FGNode[] = fg.graphData().nodes;
-    for (const n of liveNodes) {
+    for (const n of fg.graphData().nodes as FGNode[]) {
       n.fx = undefined;
       n.fy = undefined;
     }
@@ -524,8 +476,11 @@ export function RelationWeb({
         onNodeHover={(node: any) => setHoveredNodeId(node?.id ?? null)}
         onNodeRightClick={handleNodeRightClick as any}
         onBackgroundClick={handleBackgroundClick}
-        onNodeDrag={handleNodeDrag as any}
-        onNodeDragEnd={handleNodeDragEnd as any}
+        onNodeDragEnd={(node: any) => {
+          node.fx = node.x;
+          node.fy = node.y;
+        }}
+        onEngineStop={pinAllNodes}
         cooldownTicks={80}
         enableNodeDrag
         minZoom={0.3}
@@ -554,14 +509,10 @@ export function RelationWeb({
         </View>
       ) : null}
 
-      {/* Reset view button */}
-      <Pressable
-        onPress={handleResetView}
-        style={styles.resetBtn}
-        {...{ title: 'Reset view' } as any}
-      >
-        <Icon name="center-focus-strong" size={18} color={colors.onSurfaceVariant} />
-      </Pressable>
+      {/* Reset view — matches map canvas pattern */}
+      <View style={styles.resetBtn} pointerEvents="box-none">
+        <GhostButton label="Reset view" onPress={handleResetView} />
+      </View>
 
       {/* Legend panel */}
       <View style={styles.legendContainer}>
@@ -594,28 +545,33 @@ export function RelationWeb({
             ))}
 
             <Text variant="label-sm" style={{ color: colors.outline, marginTop: 8, marginBottom: 4 }}>
-              EDGES
+              CONNECTIONS
             </Text>
-            {(['manual', 'structural', 'mention'] as EdgeSource[]).map((src) => {
+            {LEGEND_EDGES.map(({ src, desc }) => {
               const s = EDGE_STYLE[src];
               return (
-                <View key={src} style={styles.legendRow}>
-                  <View style={styles.legendLineBox}>
-                    <View
-                      style={[
-                        styles.legendLine,
-                        {
-                          backgroundColor: src === 'mention' ? 'transparent' : s.color,
-                          borderBottomColor: src === 'mention' ? s.color : 'transparent',
-                          borderBottomWidth: src === 'mention' ? 1.5 : 0,
-                          borderStyle: src === 'mention' ? 'dashed' : 'solid',
-                          height: src === 'mention' ? 0 : s.width,
-                        },
-                      ]}
-                    />
+                <View key={src} style={{ marginBottom: 4 }}>
+                  <View style={styles.legendRow}>
+                    <View style={styles.legendLineBox}>
+                      <View
+                        style={[
+                          styles.legendLine,
+                          {
+                            backgroundColor: src === 'mention' ? 'transparent' : s.color,
+                            borderBottomColor: src === 'mention' ? s.color : 'transparent',
+                            borderBottomWidth: src === 'mention' ? 1.5 : 0,
+                            borderStyle: src === 'mention' ? 'dashed' : 'solid',
+                            height: src === 'mention' ? 0 : s.width,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text variant="body-sm" style={{ color: colors.onSurfaceVariant }}>
+                      {EDGE_SOURCE_LABEL[src]}
+                    </Text>
                   </View>
-                  <Text variant="body-sm" style={{ color: colors.onSurfaceVariant }}>
-                    {EDGE_SOURCE_LABEL[src]}
+                  <Text variant="label-sm" style={{ color: colors.outline, paddingLeft: 26 }}>
+                    {desc}
                   </Text>
                 </View>
               );
@@ -658,22 +614,9 @@ const styles = StyleSheet.create({
   },
   resetBtn: {
     position: 'absolute',
-    bottom: spacing.lg,
-    left: spacing.lg,
-    width: 36,
-    height: 36,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceContainerHigh,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '44',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-    zIndex: 10,
+    top: spacing.md,
+    right: spacing.md,
+    zIndex: 2,
   },
   legendContainer: {
     position: 'absolute',

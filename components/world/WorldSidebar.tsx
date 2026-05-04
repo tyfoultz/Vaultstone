@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -43,6 +43,14 @@ import { WorldSettingsModal } from './WorldSettingsModal';
 import { worldHref, worldMapHref, worldMapIndexHref, worldPageHref, worldRelationsHref } from './worldHref';
 
 type World = Database['public']['Tables']['worlds']['Row'];
+
+function WebTooltip({ tip, children }: { tip: string; children: React.ReactNode }) {
+  const ref = useRef<View>(null);
+  useEffect(() => {
+    (ref.current as unknown as HTMLElement | null)?.setAttribute('title', tip);
+  }, [tip]);
+  return <View ref={ref}>{children}</View>;
+}
 
 type Props = {
   world: World;
@@ -177,44 +185,48 @@ export function WorldSidebar({ world, activePageId }: Props) {
           </LinearGradient>
         </Pressable>
 
-        <Pressable
-          onPress={() => router.push(worldHref(world.id))}
-          style={styles.collapsedItem}
-          accessibilityLabel="World Home"
-          {...{ title: 'World Home' } as any}
-        >
-          <Icon name="home" size={20} color={colors.onSurfaceVariant} />
-        </Pressable>
+        <WebTooltip tip="World Home">
+          <Pressable
+            onPress={() => router.push(worldHref(world.id))}
+            style={styles.collapsedItem}
+            accessibilityLabel="World Home"
+          >
+            <Icon name="home" size={20} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </WebTooltip>
 
-        <Pressable
-          onPress={() => router.push(worldMapIndexHref(world.id))}
-          style={styles.collapsedItem}
-          accessibilityLabel="World Map"
-          {...{ title: 'World Map' } as any}
-        >
-          <Icon name="map" size={20} color={colors.onSurfaceVariant} />
-        </Pressable>
+        <WebTooltip tip="World Map">
+          <Pressable
+            onPress={() => router.push(worldMapIndexHref(world.id))}
+            style={styles.collapsedItem}
+            accessibilityLabel="World Map"
+          >
+            <Icon name="map" size={20} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </WebTooltip>
 
-        <Pressable
-          onPress={() => router.push(worldRelationsHref(world.id))}
-          style={styles.collapsedItem}
-          accessibilityLabel="Relationship Web"
-          {...{ title: 'Relationship Web' } as any}
-        >
-          <Icon name="hub" size={20} color={colors.onSurfaceVariant} />
-        </Pressable>
+        <WebTooltip tip="Relationship Web">
+          <Pressable
+            onPress={() => router.push(worldRelationsHref(world.id))}
+            style={styles.collapsedItem}
+            accessibilityLabel="Relationship Web"
+          >
+            <Icon name="hub" size={20} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </WebTooltip>
 
         {world.primary_timeline_page_id ? (
-          <Pressable
-            onPress={() =>
-              router.push(worldPageHref(world.id, world.primary_timeline_page_id!))
-            }
-            style={styles.collapsedItem}
-            accessibilityLabel="Timeline"
-            {...{ title: 'Timeline' } as any}
-          >
-            <Icon name="timeline" size={20} color={colors.onSurfaceVariant} />
-          </Pressable>
+          <WebTooltip tip="Timeline">
+            <Pressable
+              onPress={() =>
+                router.push(worldPageHref(world.id, world.primary_timeline_page_id!))
+              }
+              style={styles.collapsedItem}
+              accessibilityLabel="Timeline"
+            >
+              <Icon name="timeline" size={20} color={colors.onSurfaceVariant} />
+            </Pressable>
+          </WebTooltip>
         ) : null}
 
         <View style={{ flex: 1 }} />
@@ -260,41 +272,45 @@ export function WorldSidebar({ world, activePageId }: Props) {
           </LinearGradient>
         </Pressable>
         <View style={{ flex: 1 }} />
-        <Pressable
-          onPress={() => router.push(worldHref(world.id))}
-          style={styles.topBarBtn}
-          accessibilityLabel="World Home"
-          {...{ title: 'World Home' } as any}
-        >
-          <Icon name="home" size={18} color={colors.onSurfaceVariant} />
-        </Pressable>
-        <Pressable
-          onPress={() => router.push(worldMapIndexHref(world.id))}
-          style={styles.topBarBtn}
-          accessibilityLabel="World Map"
-          {...{ title: 'World Map' } as any}
-        >
-          <Icon name="map" size={18} color={colors.onSurfaceVariant} />
-        </Pressable>
-        <Pressable
-          onPress={() => router.push(worldRelationsHref(world.id))}
-          style={styles.topBarBtn}
-          accessibilityLabel="Relationship Web"
-          {...{ title: 'Relationship Web' } as any}
-        >
-          <Icon name="hub" size={18} color={colors.onSurfaceVariant} />
-        </Pressable>
-        {world.primary_timeline_page_id ? (
+        <WebTooltip tip="World Home">
           <Pressable
-            onPress={() =>
-              router.push(worldPageHref(world.id, world.primary_timeline_page_id!))
-            }
+            onPress={() => router.push(worldHref(world.id))}
             style={styles.topBarBtn}
-            accessibilityLabel="Timeline"
-            {...{ title: 'Timeline' } as any}
+            accessibilityLabel="World Home"
           >
-            <Icon name="timeline" size={18} color={colors.onSurfaceVariant} />
+            <Icon name="home" size={18} color={colors.onSurfaceVariant} />
           </Pressable>
+        </WebTooltip>
+        <WebTooltip tip="World Map">
+          <Pressable
+            onPress={() => router.push(worldMapIndexHref(world.id))}
+            style={styles.topBarBtn}
+            accessibilityLabel="World Map"
+          >
+            <Icon name="map" size={18} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </WebTooltip>
+        <WebTooltip tip="Relationship Web">
+          <Pressable
+            onPress={() => router.push(worldRelationsHref(world.id))}
+            style={styles.topBarBtn}
+            accessibilityLabel="Relationship Web"
+          >
+            <Icon name="hub" size={18} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </WebTooltip>
+        {world.primary_timeline_page_id ? (
+          <WebTooltip tip="Timeline">
+            <Pressable
+              onPress={() =>
+                router.push(worldPageHref(world.id, world.primary_timeline_page_id!))
+              }
+              style={styles.topBarBtn}
+              accessibilityLabel="Timeline"
+            >
+              <Icon name="timeline" size={18} color={colors.onSurfaceVariant} />
+            </Pressable>
+          </WebTooltip>
         ) : null}
       </View>
 
