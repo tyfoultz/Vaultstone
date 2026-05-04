@@ -68,6 +68,49 @@ export async function updatePage(
   return supabase.from('world_pages').update(patch).eq('id', pageId).select().single();
 }
 
+export async function cascadeMentionLabel(worldId: string, pageId: string, newLabel: string) {
+  const { data: linking } = await supabase
+    .from('world_pages')
+    .select('id, body')
+    .eq('world_id', worldId)
+    .is('deleted_at', null)
+    .contains('body_refs', [pageId]);
+  if (!linking || linking.length === 0) return;
+
+  const mentionRe = new RegExp(
+    `(<span[^>]*class="vaultstone-mention"[^>]*data-id="${pageId}"[^>]*>)@\\s*[^<]*(</span>)`,
+    'g',
+  );
+
+  function walkTiptap(node: any) {
+    if (!node) return;
+    if (node.type === 'vaultstoneMention' && node.attrs?.id === pageId) {
+      node.attrs.label = newLabel;
+    }
+    if (Array.isArray(node.content)) node.content.forEach(walkTiptap);
+  }
+
+  for (const page of linking) {
+    const body = page.body as any;
+    if (!body) continue;
+    let updated = false;
+    if (Array.isArray(body.blocks)) {
+      for (const block of body.blocks) {
+        if (typeof block.html === 'string' && block.html.includes(pageId)) {
+          block.html = block.html.replace(mentionRe, `$1@ ${newLabel}$2`);
+          updated = true;
+        }
+      }
+    } else if (body.type === 'doc') {
+      walkTiptap(body);
+      updated = true;
+    }
+    if (updated) {
+      await supabase.from('world_pages').update({ body }).eq('id', page.id);
+    }
+  }
+}
+
 export async function trashPage(pageId: string) {
   return supabase.rpc('trash_world_page', { p_page_id: pageId });
 }

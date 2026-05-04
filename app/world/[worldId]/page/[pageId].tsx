@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  cascadeMentionLabel,
   claimPageEdit,
   forceReleasePageEdit,
   getEventsForTimeline,
@@ -100,6 +101,7 @@ export default function PageDetailScreen() {
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
   const [factsOpen, setFactsOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const removePage = usePagesStore((s) => s.removePage);
 
@@ -230,17 +232,20 @@ export default function PageDetailScreen() {
     const { data, error } = await claimPageEdit(pageId);
     const ctx = lockCtxRef.current;
     if (error) {
-      // Server rejected the claim — someone else got in. Use the current
-      // page row to populate the banner; if the row hasn't synced yet,
-      // fall back to a generic marker.
-      if (ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) {
+      // Only show the lock banner when the server explicitly rejected the
+      // claim because another user holds it. Network / CORS errors (e.g.
+      // HTTP 520) are transient and should not trigger the lock UI.
+      const msg = (error as any)?.message ?? '';
+      const isLockConflict = msg.includes('locked') || msg.includes('another editor');
+      if (isLockConflict && ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) {
         setLockError({ ownerId: ctx.lockOwnerId, since: ctx.lockSince });
-      } else {
+      } else if (isLockConflict) {
         setLockError({
           ownerId: ctx.lockOwnerId ?? 'unknown',
           since: ctx.lockSince ?? new Date().toISOString(),
         });
       }
+      // For non-lock errors (network, CORS), silently retry on next heartbeat
       return;
     }
     if (data) {
@@ -482,29 +487,64 @@ export default function PageDetailScreen() {
           style={styles.wikiDoc}
           contentContainerStyle={isLore ? styles.wikiDocInnerWide : styles.wikiDocInner}
         >
-          <PageHead
-            icon={template.icon}
-            title={page.title}
-            meta={`${kindLabel} · ${section.name}`}
-            accentToken={template.accentToken}
-            actions={
-              <>
-                {isLore && template.fields.length > 0 ? (
-                  <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
-                    <Icon name="info-outline" size={14} color={colors.primary} />
-                    <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
-                      Facts
-                    </Text>
-                  </Pressable>
-                ) : null}
-                <VisibilityBadge
-                  visibility={page.visible_to_players ? 'player' : 'gm'}
-                  interactive={!!toggleVisibility}
-                  onPress={toggleVisibility ?? undefined}
-                />
-              </>
-            }
-          />
+          {editingTitle ? (
+            <input
+              type="text"
+              defaultValue={page.title}
+              autoFocus
+              onKeyDown={(e: any) => {
+                if (e.key === 'Enter') {
+                  const v = e.target.value.trim();
+                  if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
+                  setEditingTitle(false);
+                }
+                if (e.key === 'Escape') setEditingTitle(false);
+              }}
+              onBlur={(e: any) => {
+                const v = e.target.value.trim();
+                if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
+                setEditingTitle(false);
+              }}
+              style={{
+                background: 'transparent',
+                border: `1px solid ${colors.primary}66`,
+                borderRadius: 6,
+                color: colors.onSurface,
+                fontFamily: "'Fraunces_700Bold', 'Fraunces', Georgia, serif",
+                fontSize: 36,
+                fontWeight: 500,
+                outline: 'none',
+                padding: '4px 8px',
+                width: '100%',
+                marginBottom: 8,
+              }}
+            />
+          ) : (
+            <PageHead
+              icon={template.icon}
+              title={page.title}
+              meta={`${kindLabel} · ${section.name}`}
+              accentToken={template.accentToken}
+              onTitleDoubleClick={() => setEditingTitle(true)}
+              actions={
+                <>
+                  {isLore && template.fields.length > 0 ? (
+                    <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
+                      <Icon name="info-outline" size={14} color={colors.primary} />
+                      <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
+                        Facts
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  <VisibilityBadge
+                    visibility={page.visible_to_players ? 'player' : 'gm'}
+                    interactive={!!toggleVisibility}
+                    onPress={toggleVisibility ?? undefined}
+                  />
+                </>
+              }
+            />
+          )}
 
           <View style={{ marginTop: isLore ? spacing.md : spacing.xl, gap: spacing.lg }}>
             {isOrphan ? <OrphanBanner page={page} /> : null}

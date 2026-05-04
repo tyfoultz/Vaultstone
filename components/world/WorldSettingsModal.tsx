@@ -195,7 +195,7 @@ export function WorldSettingsModal({ world, onClose }: Props) {
 
   async function pickImage(target: 'cover' | 'thumbnail') {
     const isWeb = Platform.OS === 'web';
-    const aspect: [number, number] = target === 'cover' ? [21, 7] : [3, 1];
+    const aspect: [number, number] = target === 'cover' ? [21, 7] : [16, 10];
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: !isWeb,
@@ -622,7 +622,12 @@ export function WorldSettingsModal({ world, onClose }: Props) {
         <ImageCropModal
           visible
           imageUri={cropUri}
-          aspect={cropTarget === 'cover' ? [21, 7] : [3, 1]}
+          aspect={cropTarget === 'cover' ? [21, 7] : [16, 10]}
+          usageHint={
+            cropTarget === 'cover'
+              ? 'This image appears as the world home banner (21:7).'
+              : 'This image appears as the sidebar cover (16:10) with your world name overlaid.'
+          }
           onConfirm={handleCropConfirm}
           onCancel={() => setCropUri(null)}
         />

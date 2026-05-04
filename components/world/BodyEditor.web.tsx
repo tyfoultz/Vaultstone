@@ -125,14 +125,20 @@ export function BodyEditor({
   // chip in the DOM whenever the set or the editor content changes.
   useEffect(() => {
     if (!editor) return;
-    const validIds = new Set((mentionablePages ?? []).map((p) => p.id));
+    const pageById = new Map((mentionablePages ?? []).map((p) => [p.id, p]));
     const el = editor.view.dom;
     el.querySelectorAll<HTMLElement>('.vaultstone-mention[data-id]').forEach((chip) => {
       const kind = chip.getAttribute('data-kind') ?? 'page';
       if (kind !== 'page') return;
       const id = chip.getAttribute('data-id')!;
-      const isDeleted = !validIds.has(id);
-      chip.classList.toggle('vaultstone-mention--deleted', isDeleted);
+      const ref = pageById.get(id);
+      chip.classList.toggle('vaultstone-mention--deleted', !ref);
+      if (ref) {
+        const expected = `@ ${ref.title}`;
+        if (chip.textContent !== expected) {
+          chip.textContent = expected;
+        }
+      }
     });
   }, [editor, mentionablePages]);
 
@@ -229,16 +235,16 @@ function EditorStyles() {
           .vaultstone-body-editor {
             min-height: 240px;
             outline: none;
-            color: ${colors.onSurfaceVariant};
+            color: #e0dae8;
             font-family: 'CormorantGaramond_400Regular', 'Cormorant Garamond', Georgia, serif;
-            font-size: 15px;
+            font-size: 16px;
             line-height: 1.7;
             padding: ${spacing.md}px ${spacing.lg}px;
           }
           .vaultstone-body-editor p {
             margin: 0 0 ${spacing.sm}px 0;
-            color: ${colors.onSurfaceVariant};
-            font-size: 15px;
+            color: #e0dae8;
+            font-size: 16px;
             line-height: 1.7;
           }
           .vaultstone-body-editor h1,

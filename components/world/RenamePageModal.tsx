@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import { updatePage as apiUpdatePage } from '@vaultstone/api';
+import { cascadeMentionLabel, updatePage as apiUpdatePage } from '@vaultstone/api';
 import { usePagesStore } from '@vaultstone/store';
 import type { WorldPage } from '@vaultstone/types';
 import {
@@ -36,6 +36,8 @@ export function RenamePageModal({ page, onClose }: Props) {
     const { error } = await apiUpdatePage(page.id, { title: trimmed });
     if (error) {
       storeUpdate(page.id, { title: page.title });
+    } else {
+      void cascadeMentionLabel(page.world_id, page.id, trimmed);
     }
     setSaving(false);
     onClose();

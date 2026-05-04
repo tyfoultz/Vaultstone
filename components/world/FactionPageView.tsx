@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
+  cascadeMentionLabel,
   claimPageEdit,
   forceReleasePageEdit,
   getMap,
@@ -43,6 +44,7 @@ import { worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
 import {
   type PillDef,
   PillEditor,
+  CollapsibleSideSection,
   SideSectionHeader,
   RightTabBtn,
   HookInput,
@@ -447,8 +449,10 @@ export function FactionPageView({ page, worldId }: Props) {
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
     if (error) {
-      if (ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) setLockError({ ownerId: ctx.lockOwnerId, since: ctx.lockSince });
-      else setLockError({ ownerId: ctx.lockOwnerId ?? 'unknown', since: ctx.lockSince ?? new Date().toISOString() });
+      const msg = (error as any)?.message ?? '';
+      const isLockConflict = msg.includes('locked') || msg.includes('another editor');
+      if (isLockConflict && ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) setLockError({ ownerId: ctx.lockOwnerId, since: ctx.lockSince });
+      else if (isLockConflict) setLockError({ ownerId: ctx.lockOwnerId ?? 'unknown', since: ctx.lockSince ?? new Date().toISOString() });
       return;
     }
     if (data) { ctx.updatePageInStore(data.id, { editing_user_id: data.editing_user_id, editing_since: data.editing_since }); setLockError(null); }
@@ -568,14 +572,14 @@ export function FactionPageView({ page, worldId }: Props) {
               onKeyDown={(e: any) => {
                 if (e.key === 'Enter') {
                   const v = e.target.value.trim();
-                  if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); }
+                  if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
                   setEditingTitle(false);
                 }
                 if (e.key === 'Escape') setEditingTitle(false);
               }}
               onBlur={(e: any) => {
                 const v = e.target.value.trim();
-                if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); }
+                if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
                 setEditingTitle(false);
               }}
               style={{
@@ -593,9 +597,9 @@ export function FactionPageView({ page, worldId }: Props) {
               }}
             />
           ) : (
-            <Pressable onPress={() => setEditingTitle(true)}>
+            <div onDoubleClick={() => setEditingTitle(true)} style={{ cursor: 'default' }}>
               <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>{page.title}</Text>
-            </Pressable>
+            </div>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 2 }}>
             <InlinePagePicker label="Leader:" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} worldId={worldId} />
@@ -702,8 +706,7 @@ export function FactionPageView({ page, worldId }: Props) {
                   </View>
 
                   {/* Members */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="person" title="MEMBERS" count={members.length || undefined} />
+                  <CollapsibleSideSection icon="person" title="MEMBERS" count={members.length || undefined}>
                     {members.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No NPCs have this faction assigned yet.</Text>
                     ) : (
@@ -720,11 +723,10 @@ export function FactionPageView({ page, worldId }: Props) {
                           </Pressable>
                         ))
                     )}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Mentioned on this page */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined} />
+                  <CollapsibleSideSection icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined}>
                     {mentionedPages.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
                     ) : mentionedPages.map((mp) => {
@@ -740,11 +742,10 @@ export function FactionPageView({ page, worldId }: Props) {
                         </Pressable>
                       );
                     })}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Linked from */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined} />
+                  <CollapsibleSideSection icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined}>
                     {backlinksLoaded && backlinks.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
                     ) : backlinks.map((bl) => (
@@ -756,11 +757,10 @@ export function FactionPageView({ page, worldId }: Props) {
                         <Icon name="chevron-right" size={12} color={colors.outline} />
                       </Pressable>
                     ))}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Seen in play */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined} />
+                  <CollapsibleSideSection icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined}>
                     {seenLoaded && seenInPlay.length === 0 ? (
                       <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
                     ) : seenInPlay.slice(0, 5).map((evt) => {
@@ -774,11 +774,10 @@ export function FactionPageView({ page, worldId }: Props) {
                         </View>
                       );
                     })}
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Rivals & Allies */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="people" title="RIVALS & ALLIES" count={relationships.length || undefined} />
+                  <CollapsibleSideSection icon="people" title="RIVALS & ALLIES" count={relationships.length || undefined}>
                     {relationships.map((rel, i) => {
                       const target = (allPages ?? []).find((p) => p.id === rel.targetPageId);
                       if (!target) return null;
@@ -803,11 +802,10 @@ export function FactionPageView({ page, worldId }: Props) {
                       <Icon name="add" size={14} color={colors.outline} />
                       <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add relationship</Text>
                     </Pressable>
-                  </View>
+                  </CollapsibleSideSection>
 
                   {/* Hooks & Rumors */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
+                  <CollapsibleSideSection icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined}>
                     {hooks.map((hook, i) => (
                       <View key={i} style={sideStyles.hookRow}>
                         <Text style={sideStyles.hookBullet}>•</Text>
@@ -816,7 +814,7 @@ export function FactionPageView({ page, worldId }: Props) {
                       </View>
                     ))}
                     <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
-                  </View>
+                  </CollapsibleSideSection>
                 </>
               ) : null}
 

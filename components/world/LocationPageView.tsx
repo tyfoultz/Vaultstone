@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
+  cascadeMentionLabel,
   claimPageEdit,
   forceReleasePageEdit,
   getMap,
@@ -41,10 +42,11 @@ import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
 import { PAGE_KIND_LABEL, toMaterialIcon } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
-import { worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
+import { worldMapHref, worldMapIndexHref, worldPageHref, worldSectionHref } from './worldHref';
 import {
   type PillDef,
   PillEditor,
+  CollapsibleSideSection,
   SideSectionHeader,
   RightTabBtn,
   HookInput,
@@ -116,7 +118,6 @@ function MapPinPreview({ signedUrl, label, xPct, yPct, mapWidth, mapHeight }: {
   );
 }
 
-
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 type Props = {
@@ -141,6 +142,7 @@ export function LocationPageView({ page, worldId }: Props) {
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
   const allPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [editingTitle, setEditingTitle] = useState(false);
   const updatePageInStore = usePagesStore((s) => s.updatePage);
   const removePage = usePagesStore((s) => s.removePage);
   const bodyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -218,9 +220,11 @@ export function LocationPageView({ page, worldId }: Props) {
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
     if (error) {
-      if (ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) {
+      const msg = (error as any)?.message ?? '';
+      const isLockConflict = msg.includes('locked') || msg.includes('another editor');
+      if (isLockConflict && ctx.lockOwnerId && ctx.lockOwnerId !== ctx.myUserId && ctx.lockSince) {
         setLockError({ ownerId: ctx.lockOwnerId, since: ctx.lockSince });
-      } else {
+      } else if (isLockConflict) {
         setLockError({
           ownerId: ctx.lockOwnerId ?? 'unknown',
           since: ctx.lockSince ?? new Date().toISOString(),
@@ -433,9 +437,46 @@ export function LocationPageView({ page, worldId }: Props) {
       {/* ── Title row ── */}
       <View style={styles.titleBar}>
         <Icon name="place" size={20} color={colors.primary} />
-        <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>
-          {page.title}
-        </Text>
+        {editingTitle ? (
+          <input
+            type="text"
+            defaultValue={page.title}
+            autoFocus
+            onKeyDown={(e: any) => {
+              if (e.key === 'Enter') {
+                const v = e.target.value.trim();
+                if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
+                setEditingTitle(false);
+              }
+              if (e.key === 'Escape') setEditingTitle(false);
+            }}
+            onBlur={(e: any) => {
+              const v = e.target.value.trim();
+              if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
+              setEditingTitle(false);
+            }}
+            style={{
+              background: 'transparent',
+              border: `1px solid ${colors.primary}66`,
+              borderRadius: 6,
+              color: colors.onSurface,
+              fontFamily: "'Fraunces_700Bold', 'Fraunces', Georgia, serif",
+              fontSize: 22,
+              fontWeight: 700,
+              outline: 'none',
+              padding: '2px 6px',
+              width: '100%',
+            }}
+          />
+        ) : (
+          <Pressable onPress={() => {}} onLongPress={() => setEditingTitle(true)}>
+            <div onDoubleClick={() => setEditingTitle(true)}>
+              <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>
+                {page.title}
+              </Text>
+            </div>
+          </Pressable>
+        )}
       </View>
 
       {/* ── Property pills (editable) ── */}
@@ -595,15 +636,18 @@ export function LocationPageView({ page, worldId }: Props) {
                       </View>
                     </Pressable>
                   ) : (
-                    <View style={styles.mapPlaceholder}>
+                    <Pressable
+                      onPress={() => router.push(worldMapIndexHref(worldId))}
+                      style={styles.mapPlaceholder}
+                    >
                       <Icon name="map" size={24} color={colors.outline} />
                       <Text variant="body-sm" style={{ color: colors.outline, marginTop: 4 }}>No map pin set</Text>
-                    </View>
+                      <Text variant="body-sm" style={{ color: colors.primary, marginTop: 2, fontSize: 11 }}>Open Maps →</Text>
+                    </Pressable>
                   )}
                 </View>
 
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined} />
+                <CollapsibleSideSection icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined}>
                   {mentionedPages.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
                   ) : (
@@ -621,10 +665,9 @@ export function LocationPageView({ page, worldId }: Props) {
                       );
                     })
                   )}
-                </View>
+                </CollapsibleSideSection>
 
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined} />
+                <CollapsibleSideSection icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined}>
                   {seenLoaded && seenInPlay.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
                   ) : (
@@ -653,10 +696,9 @@ export function LocationPageView({ page, worldId }: Props) {
                       );
                     })
                   )}
-                </View>
+                </CollapsibleSideSection>
 
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined} />
+                <CollapsibleSideSection icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined}>
                   {backlinksLoaded && backlinks.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
                   ) : (
@@ -670,11 +712,10 @@ export function LocationPageView({ page, worldId }: Props) {
                       </Pressable>
                     ))
                   )}
-                </View>
+                </CollapsibleSideSection>
 
                 {/* NPCs */}
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="person" title="NPCS HERE" count={locationNpcs.length || undefined} />
+                <CollapsibleSideSection icon="person" title="NPCS HERE" count={locationNpcs.length || undefined}>
                   {locationNpcs.length === 0 ? (
                     <Text variant="body-sm" style={sideStyles.emptyText}>No NPCs linked yet. Use @mention to reference NPC pages.</Text>
                   ) : (
@@ -689,11 +730,10 @@ export function LocationPageView({ page, worldId }: Props) {
                       </Pressable>
                     ))
                   )}
-                </View>
+                </CollapsibleSideSection>
 
                 {/* Hooks & Rumors */}
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
+                <CollapsibleSideSection icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined}>
                   {hooks.map((hook, i) => (
                     <View key={i} style={sideStyles.hookRow}>
                       <Text style={sideStyles.hookBullet}>•</Text>
@@ -707,7 +747,7 @@ export function LocationPageView({ page, worldId }: Props) {
                     </View>
                   ))}
                   <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
-                </View>
+                </CollapsibleSideSection>
               </>
             ) : null}
 
