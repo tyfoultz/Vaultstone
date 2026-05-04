@@ -150,9 +150,13 @@ type DecoratedLine = {
  */
 function decorateLine(rawLine: string): DecoratedLine | null {
   let line = rawLine;
-  // Drop the legacy "block not yet supported" placeholder lines that
-  // older imports embedded for unhandled 5e.tools block types.
-  if (/^>\s*\[[^\]]*not yet supported[^\]]*\]\s*$/.test(line.trim())) return null;
+  // Drop the legacy "block not yet supported" / "item not yet supported"
+  // placeholder lines that older imports embedded for unhandled
+  // 5e.tools block types. Matches both standalone (`> [block not yet
+  // supported]`) and bullet-wrapped (`- > [item not yet supported]`)
+  // forms — the wrapped form lives inside list items emitted by older
+  // entriesToText runs and falls through here as one rendered line.
+  if (/^(?:-\s+)?>\s*\[[^\]]*not yet supported[^\]]*\]\s*$/.test(line.trim())) return null;
   // Strip a leading `> ` blockquote marker (carryover from older
   // imports). We don't render blockquote chrome — the prose stands on
   // its own.

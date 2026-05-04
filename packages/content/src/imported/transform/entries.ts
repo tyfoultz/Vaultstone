@@ -5,8 +5,9 @@
 // `entriesToText` recursively flattens 5e.tools `entries` arrays into the
 // markdown-flavored plain text our renderer (MarkdownText) consumes.
 // Tables become pipe-table markdown so MarkdownText renders them as
-// flex-grid tables in the UI; other structured block types we don't
-// handle (quotes, abilityDc, etc.) are skipped silently.
+// flex-grid tables in the UI; quotes render as italic prose with an
+// em-dash attribution. Block types we don't handle (abilityDc,
+// refClassFeature in unexpected positions, etc.) are skipped silently.
 
 import { stripMarkup } from './markup';
 
@@ -72,8 +73,35 @@ export function entriesToText(entries: RawEntry[]): string {
       }
       continue;
     }
-    // Quotes, abilityDc, etc. — out of scope for the plain-text body
-    // renderer. Skip silently rather than inserting a placeholder.
+    if (e.type === 'quote') {
+      // Quotes carry in-character / sourced prose. Render the lines as
+      // italics with an em-dash attribution suffix when `by` and/or
+      // `from` are set: *"<line>"* — Author, from Work.
+      const lines = (e.entries ?? [])
+        .map((line) => (typeof line === 'string' ? stripMarkup(line) : entriesToText([line])))
+        .filter((t) => t.length > 0);
+      if (lines.length === 0) continue;
+      const body = lines.map((l) => `*"${l}"*`).join('\n\n');
+      const by = typeof e.by === 'string' ? stripMarkup(e.by) : '';
+      const from = typeof e.from === 'string' ? stripMarkup(e.from) : '';
+      const attribution = by && from ? `— ${by}, from ${from}`
+        : by ? `— ${by}`
+        : from ? `— from ${from}`
+        : '';
+      out.push(attribution ? `${body}\n${attribution}` : body);
+      continue;
+    }
+    if (e.type === 'insetReadaloud') {
+      // insetReadaloud wraps in-character flavor text — typically a
+      // quote child. Render the inner entries with no special framing,
+      // since the embedded `quote` already styles itself.
+      const inner = entriesToText(e.entries ?? []);
+      if (inner) out.push(inner);
+      continue;
+    }
+    // abilityDc, refClassFeature, etc. — out of scope for the plain-
+    // text body renderer. Skip silently rather than inserting a
+    // placeholder.
   }
   return out.join('\n\n');
 }
