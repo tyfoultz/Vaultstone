@@ -378,24 +378,23 @@ export function RelationWeb({
   );
 
   const pinAllNodes = useCallback(() => {
-    const fg = fgRef.current;
-    if (!fg) return;
-    for (const n of fg.graphData().nodes as FGNode[]) {
+    for (const n of graphData.nodes) {
       if (n.fx == null) n.fx = n.x;
       if (n.fy == null) n.fy = n.y;
     }
-  }, []);
+  }, [graphData.nodes]);
 
   const handleResetView = useCallback(() => {
     const fg = fgRef.current;
-    if (!fg) return;
-    for (const n of fg.graphData().nodes as FGNode[]) {
+    for (const n of graphData.nodes) {
       n.fx = undefined;
       n.fy = undefined;
     }
-    fg.d3ReheatSimulation();
-    setTimeout(() => fg.zoomToFit(400, 60), 300);
-  }, []);
+    if (fg) {
+      fg.d3ReheatSimulation();
+      setTimeout(() => fg.zoomToFit(400, 60), 300);
+    }
+  }, [graphData.nodes]);
 
   const handleNodeClick = useCallback(
     (node: FGNode) => {
