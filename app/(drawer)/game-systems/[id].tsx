@@ -109,21 +109,18 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    key: 'rules',
-    label: 'Rules',
-    subTabs: [
-      // Rules-of-play prose imported from Open5e /rules/. Sectioned by
-      // chapter inside the RulesList renderer.
-      { key: 'rules',            label: 'Rules',            contentKey: 'rules' },
-      { key: 'standard-actions', label: 'Standard Actions', contentKey: 'standardActions' },
-      { key: 'action-types',     label: 'Action Types',     contentKey: 'actionTypes' },
-      { key: 'cover',            label: 'Cover',            contentKey: 'cover' },
-    ],
-  },
-  {
     key: 'reference',
     label: 'Glossary',
     subTabs: [
+      // Rules-of-play prose imported from Open5e /rules/. Sectioned by
+      // chapter inside the RulesList renderer. Surfaced as the lead
+      // sub-tab under Glossary because it's the densest rules-reference
+      // surface — chapters like Combat, Damage and Healing, etc. all
+      // resolve here.
+      { key: 'rules',                 label: 'Rules',                 contentKey: 'rules' },
+      { key: 'standard-actions',      label: 'Standard Actions',      contentKey: 'standardActions' },
+      { key: 'action-types',          label: 'Action Types',          contentKey: 'actionTypes' },
+      { key: 'cover',                 label: 'Cover',                 contentKey: 'cover' },
       // Small enumerated catalogs — system vocabulary. Read-only lookup
       // tables, grouped here so they don't crowd the topical tabs.
       { key: 'conditions',            label: 'Conditions',            contentKey: 'conditions' },
@@ -2998,16 +2995,21 @@ export function ConditionsList({
       ]}
       facets={[]}
       renderBody={(c) => (
-        Array.isArray(c.effects) && c.effects.length > 0 ? (
-          <View style={styles.subBlock}>
-            <MetaLabel size="sm">Effects</MetaLabel>
-            {c.effects.map((e, i) => (
-              <View key={i} style={styles.bullet}>
-                <Text variant="body-sm" family="body" style={styles.bodyText}>• {e}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null
+        <>
+          {c.description ? (
+            <MarkdownText style={styles.bodyText}>{c.description}</MarkdownText>
+          ) : null}
+          {Array.isArray(c.effects) && c.effects.length > 0 ? (
+            <View style={styles.subBlock}>
+              <MetaLabel size="sm">Effects</MetaLabel>
+              {c.effects.map((e, i) => (
+                <View key={i} style={styles.bullet}>
+                  <Text variant="body-sm" family="body" style={styles.bodyText}>• {e}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </>
       )}
     />
   );
