@@ -144,6 +144,38 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
           if (!blockHasContent(el)) onDeleteImage(id);
           return;
         }
+
+        // Delete/Backspace on mention chips (contentEditable=false blocks cursor)
+        const sel = window.getSelection();
+        if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const container = range.startContainer;
+          const offset = range.startOffset;
+          let chip: Element | null = null;
+          if (e.key === 'Backspace') {
+            if (container.nodeType === Node.ELEMENT_NODE) {
+              const prev = (container as Element).childNodes[offset - 1];
+              if (prev instanceof HTMLElement && prev.classList?.contains('vaultstone-mention')) chip = prev;
+            } else if (container.nodeType === Node.TEXT_NODE && offset === 0) {
+              const prev = container.previousSibling;
+              if (prev instanceof HTMLElement && prev.classList?.contains('vaultstone-mention')) chip = prev;
+            }
+          } else {
+            if (container.nodeType === Node.ELEMENT_NODE) {
+              const next = (container as Element).childNodes[offset];
+              if (next instanceof HTMLElement && next.classList?.contains('vaultstone-mention')) chip = next;
+            } else if (container.nodeType === Node.TEXT_NODE && offset === (container.textContent?.length ?? 0)) {
+              const next = container.nextSibling;
+              if (next instanceof HTMLElement && next.classList?.contains('vaultstone-mention')) chip = next;
+            }
+          }
+          if (chip) {
+            e.preventDefault();
+            chip.remove();
+            onInput(id, el.innerHTML);
+            return;
+          }
+        }
       }
 
       // Tab in tables — walk all cells in the table regardless of thead/tbody
