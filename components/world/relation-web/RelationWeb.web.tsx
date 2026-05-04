@@ -224,8 +224,8 @@ export function RelationWeb({
     (node: FGNode) => {
       const count = connectionCount.get(node.id) ?? 0;
       const r = BASE_NODE_RADIUS + Math.min(count * 1.5, 8);
-      const labelHalfWidth = node.title.length * 3.5;
-      return Math.max(r, labelHalfWidth) + 12;
+      const labelHalfWidth = node.title.length * 4;
+      return Math.max(r + 10, labelHalfWidth) + 20;
     },
     [connectionCount],
   );
@@ -233,12 +233,12 @@ export function RelationWeb({
   useEffect(() => {
     const fg = fgRef.current;
     if (!fg) return;
-    fg.d3Force('charge')?.strength(-400);
-    fg.d3Force('link')?.distance(140);
+    fg.d3Force('charge')?.strength(-600);
+    fg.d3Force('link')?.distance(180);
 
     // @ts-expect-error d3-force is a transitive dep of react-force-graph-2d, no separate @types
     import('d3-force').then(({ forceCollide }: { forceCollide: any }) => {
-      fg.d3Force('collision', forceCollide().radius(collisionRadius).strength(0.8).iterations(3));
+      fg.d3Force('collision', forceCollide().radius(collisionRadius).strength(1).iterations(4));
     });
   }, [collisionRadius]);
 
@@ -384,6 +384,50 @@ export function RelationWeb({
     }
   }, [graphData.nodes]);
 
+  const dragNeighborIds = useRef<Set<string>>(new Set());
+
+  const getNeighborIds = useCallback(
+    (nodeId: string): Set<string> => {
+      const s = new Set<string>();
+      for (const e of filteredEdges) {
+        if (e.sourceId === nodeId) s.add(e.targetId);
+        if (e.targetId === nodeId) s.add(e.sourceId);
+      }
+      return s;
+    },
+    [filteredEdges],
+  );
+
+  const handleNodeDrag = useCallback(
+    (node: FGNode) => {
+      if (dragNeighborIds.current.size > 0) return;
+      const neighbors = getNeighborIds(node.id);
+      dragNeighborIds.current = neighbors;
+      for (const n of graphData.nodes) {
+        if (neighbors.has(n.id)) {
+          n.fx = undefined;
+          n.fy = undefined;
+        }
+      }
+    },
+    [getNeighborIds, graphData.nodes],
+  );
+
+  const handleNodeDragEnd = useCallback(
+    (node: FGNode) => {
+      node.fx = node.x;
+      node.fy = node.y;
+      for (const n of graphData.nodes) {
+        if (dragNeighborIds.current.has(n.id)) {
+          n.fx = n.x;
+          n.fy = n.y;
+        }
+      }
+      dragNeighborIds.current = new Set();
+    },
+    [graphData.nodes],
+  );
+
   const handleResetView = useCallback(() => {
     const fg = fgRef.current;
     for (const n of graphData.nodes) {
@@ -475,10 +519,8 @@ export function RelationWeb({
         onNodeHover={(node: any) => setHoveredNodeId(node?.id ?? null)}
         onNodeRightClick={handleNodeRightClick as any}
         onBackgroundClick={handleBackgroundClick}
-        onNodeDragEnd={(node: any) => {
-          node.fx = node.x;
-          node.fy = node.y;
-        }}
+        onNodeDrag={handleNodeDrag as any}
+        onNodeDragEnd={handleNodeDragEnd as any}
         onEngineStop={pinAllNodes}
         cooldownTicks={80}
         enableNodeDrag
