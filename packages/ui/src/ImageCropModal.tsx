@@ -20,6 +20,8 @@ interface Props {
   visible: boolean;
   imageUri: string;
   aspect?: [number, number];
+  /** Where the cropped image will appear — shown as a hint below the crop area */
+  usageHint?: string;
   onConfirm: (croppedUri: string) => void;
   onCancel: () => void;
 }
@@ -47,10 +49,12 @@ async function getCroppedBlob(imageSrc: string, crop: CropArea): Promise<string>
   });
 }
 
-export function ImageCropModal({ visible, imageUri, aspect = [16, 9], onConfirm, onCancel }: Props) {
+export function ImageCropModal({ visible, imageUri, aspect = [16, 9], usageHint, onConfirm, onCancel }: Props) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
+
+  const aspectRatio = aspect[0] / aspect[1];
 
   const onCropComplete = useCallback((_: unknown, areaPixels: CropArea) => {
     setCroppedAreaPixels(areaPixels);
@@ -68,17 +72,36 @@ export function ImageCropModal({ visible, imageUri, aspect = [16, 9], onConfirm,
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
         <View style={styles.container}>
-          <View style={styles.cropArea}>
+          <View style={[styles.cropArea, { aspectRatio }]}>
             <Cropper
               image={imageUri}
               crop={crop}
               zoom={zoom}
-              aspect={aspect[0] / aspect[1]}
+              minZoom={1}
+              maxZoom={5}
+              zoomSpeed={0.05}
+              aspect={aspectRatio}
               onCropChange={setCrop}
               onZoomChange={setZoom}
               onCropComplete={onCropComplete}
             />
           </View>
+          <View style={styles.zoomRow}>
+            <Text style={styles.zoomLabel}>Zoom</Text>
+            <input
+              type="range"
+              min={1}
+              max={5}
+              step={0.01}
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              style={{ flex: 1 }}
+            />
+            <Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text>
+          </View>
+          {usageHint ? (
+            <Text style={styles.usageHint}>{usageHint}</Text>
+          ) : null}
           <View style={styles.controls}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
               <Text style={styles.cancelText}>Cancel</Text>
@@ -110,7 +133,27 @@ const styles = StyleSheet.create({
   cropArea: {
     position: 'relative',
     width: '100%',
-    aspectRatio: 16 / 9,
+  },
+  zoomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  } as any,
+  zoomLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    minWidth: 42,
+    textAlign: 'right' as const,
+  },
+  usageHint: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    textAlign: 'center' as const,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xs,
   },
   controls: {
     flexDirection: 'row',

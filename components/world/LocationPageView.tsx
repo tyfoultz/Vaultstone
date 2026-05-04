@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
+  cascadeMentionLabel,
   claimPageEdit,
   forceReleasePageEdit,
   getMap,
@@ -117,7 +118,6 @@ function MapPinPreview({ signedUrl, label, xPct, yPct, mapWidth, mapHeight }: {
   );
 }
 
-
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 type Props = {
@@ -142,6 +142,7 @@ export function LocationPageView({ page, worldId }: Props) {
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
   const allPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [editingTitle, setEditingTitle] = useState(false);
   const updatePageInStore = usePagesStore((s) => s.updatePage);
   const removePage = usePagesStore((s) => s.removePage);
   const bodyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -436,9 +437,46 @@ export function LocationPageView({ page, worldId }: Props) {
       {/* ── Title row ── */}
       <View style={styles.titleBar}>
         <Icon name="place" size={20} color={colors.primary} />
-        <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>
-          {page.title}
-        </Text>
+        {editingTitle ? (
+          <input
+            type="text"
+            defaultValue={page.title}
+            autoFocus
+            onKeyDown={(e: any) => {
+              if (e.key === 'Enter') {
+                const v = e.target.value.trim();
+                if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
+                setEditingTitle(false);
+              }
+              if (e.key === 'Escape') setEditingTitle(false);
+            }}
+            onBlur={(e: any) => {
+              const v = e.target.value.trim();
+              if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
+              setEditingTitle(false);
+            }}
+            style={{
+              background: 'transparent',
+              border: `1px solid ${colors.primary}66`,
+              borderRadius: 6,
+              color: colors.onSurface,
+              fontFamily: "'Fraunces_700Bold', 'Fraunces', Georgia, serif",
+              fontSize: 22,
+              fontWeight: 700,
+              outline: 'none',
+              padding: '2px 6px',
+              width: '100%',
+            }}
+          />
+        ) : (
+          <Pressable onPress={() => {}} onLongPress={() => setEditingTitle(true)}>
+            <div onDoubleClick={() => setEditingTitle(true)}>
+              <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>
+                {page.title}
+              </Text>
+            </div>
+          </Pressable>
+        )}
       </View>
 
       {/* ── Property pills (editable) ── */}

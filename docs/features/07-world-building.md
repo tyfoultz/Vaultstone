@@ -14,9 +14,9 @@
 > All content is user-generated and stored per-account in Supabase.
 > Respects [Legal Constraints](../legal.md).
 
-**Status:** 🔴 Planned. Full rewrite — nothing in this doc is built. Feature 6
-(Session Notes & Campaign Notes Hub) is unaffected and continues to use its
-shipped Markdown editor.
+**Status:** 🟡 Shipped through Phase 7e + design fidelity passes; polish + a11y still in progress on `feature/world-builder-polish`. Feature 6 (Session Notes & Campaign Notes Hub) was unaffected and stays on its shipped Markdown editor.
+
+Phase-by-phase progress lives in [build-status.md → Feature 9](../build-status.md#9-world-builder--campaign-knowledge-base--polish-sprint-in-progress); this doc remains the spec / decision-record. The decisions below are all reflected in shipped code unless the build-status row marks them outstanding.
 
 ---
 

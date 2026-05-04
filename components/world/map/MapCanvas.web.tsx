@@ -132,7 +132,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
         onTransform={handleTransform}
         limitToBounds={false}
       >
-        {({ resetTransform }) => (
+        {() => (
           <>
             <div
               style={{
@@ -142,7 +142,9 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
                 zIndex: 2,
               }}
             >
-              <GhostButton label="Reset view" onPress={() => resetTransform()} />
+              <GhostButton label="Reset view" onPress={() => {
+                transformRef.current?.centerView(minScale, 200);
+              }} />
             </div>
             <TransformComponent
               wrapperStyle={{ width: '100%', height: '100%' }}

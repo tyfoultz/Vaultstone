@@ -40,8 +40,8 @@ Tracks progress from initial setup through MVP launch. Work through phases in or
 - [x] `session_events` append-only (no UPDATE policy)
 - [x] `game_systems` table seeded — `dnd5e` and `custom` rows
 - [x] Netlify web deployment — Expo web export deployed, login confirmed working (2026-04-13)
-- [ ] Enable Realtime on `initiative_order` and `session_events` in Supabase dashboard
-- [ ] Test auth flow end-to-end
+- [x] Realtime enabled on `sessions`, `initiative_order`, `characters`, `session_events` (Session Mode Phases 1–4 all rely on it; verified live in production)
+- [x] Auth flow end-to-end — sign up, log in, log out, reset password (2026-04-13)
 
 ---
 
@@ -51,7 +51,7 @@ Tracks progress from initial setup through MVP launch. Work through phases in or
 - [x] D&D 5e definition — `packages/systems/src/dnd5e/` (all 6 ability scores + modifiers, combat stats, resource pools, 6 sheet sections)
 - [x] Custom system definition — `packages/systems/src/custom/` (open-ended empty template)
 - [x] Both systems seeded to `game_systems` table
-- [ ] Peer review the schema — try expressing a second system (PF2e, CoC) in it before locking
+- [x] Schema exercised against the full SRD bundle (24 classes × 2 editions, 22 species, 1,256 magic items, 655 monsters, etc.) plus eight 5e.tools imported transforms — sufficient validation for the dnd5e + custom launch scope. Re-evaluating against PF2e remains a Post-MVP v2 task before that system lands.
 
 ---
 
@@ -70,12 +70,12 @@ Player enters 6-char join code. Campaign looked up via security-definer RPC (byp
 
 | Phase | Status | Summary |
 |---|---|---|
-| Phase 1 — Content Foundation | ✅ Done | SRD seed data + ContentResolver. 19 species, 12 classes, 14 backgrounds in `packages/content/src/srd/data/`. |
-| Phase 2 — Character Data Shape | ✅ Done | `Dnd5eStats` + `Dnd5eResources` interfaces; `getMyCharacters()` API; `useCharacterDraftStore` (persisted to AsyncStorage). |
-| Phase 3 — Creation Wizard | ✅ Done | 6-step wizard (ruleset → species → class → background → ability scores → review). Roll Dice, Standard Array, Point Buy, Manual methods. `campaign_id` nullable. Commit: `958a3b6`. |
+| Phase 1 — Content Foundation | ✅ Done | SRD seed data + ContentResolver. Full bundle in `packages/content/src/srd/data/`: 22 species, 24 classes (12×2 editions), 24 subclasses, 5 backgrounds, 18 feats, 30 conditions, 295 items, 1,256 magic items, 655 creatures, 341 spells, 283 rules, plus 13 catalog types. |
+| Phase 2 — Character Data Shape | ✅ Done | `Dnd5eStats` + `Dnd5eResources` interfaces; `getMyCharacters()` API; **server-side wizard drafts** via `character_drafts` table + API (replaced AsyncStorage-only persistence). |
+| Phase 3 — Creation Wizard | ✅ Done | 6-step wizard (ruleset → species → class → background → ability scores → review). Roll Dice, Standard Array, Point Buy, Manual methods. Campaign linking on the Ruleset step; system + content packs inherit from selected campaign. Standalone homebrew pack picker. |
 | Phase 4 — Character Sheet | ✅ Done | Tabbed sheet (Overview + Combat). Overview: identity, ability scores, saves, 18 skills. Combat: live HP block + HpModal, AC/Init/Speed/Hit Die, death saves, ConditionsPanel (14 SRD conditions + exhaustion 0–6). |
-| Phase 5 — Campaign Linking | ⬜ Up next | Character list screen + link character to `campaign_members.character_id`. |
-| Epic 7 — Sheet Import & Hyperlinking | ⬜ Planned (post-MVP) | Long-running plan: upload existing sheet (PDF/image/JSON) → extract stats → resolve content via Feature 8 index → hyperlinked sheet rendering. See [01-character.md Epic 7](features/01-character.md#epic-7--character-sheet-import--auto-population--planned-post-mvp). |
+| Phase 5 — Campaign Linking | ✅ Done | Character ↔ campaign linking landed via the wizard's Ruleset step (links the draft to a campaign and its content packs) and via the campaign-side "Create character in this campaign" entry point. Both surfaces write to `campaign_members.character_id`. |
+| Epic 7 — Sheet Import & Hyperlinking | ⬜ Planned (post-MVP) | Long-running plan: upload an existing sheet (PDF/image/JSON) → extract stats → resolve content via ContentResolver → hyperlinked sheet rendering. The original spec referenced a Feature 8 PDF text-extraction index that has since been deleted; this epic now resolves against the SRD bundle + homebrew packs (authored + imported) instead. See [01-character.md Epic 7](features/01-character.md#epic-7--character-sheet-import--auto-population--planned-post-mvp). |
 
 **MVP scope IN:** US-101–107, US-201–202, US-204, character ↔ campaign linking
 **MVP scope DEFERRED:** US-106 (equipment), US-203 (spell slots), US-205 (hit dice spending), US-206 (class resources), Epics 3–6, Epic 7 (sheet import)
@@ -136,15 +136,20 @@ in-app reading affordance.
 | Component | Status | Summary |
 |---|---|---|
 | Campaign-side PDF reader | ✅ Done | Upload (`expo-document-picker` + `expo-file-system` / IndexedDB) + ToS gate + viewer (`react-native-pdf`). Read-only — no text extraction or indexing. |
-| Imported content tier | ✅ Done | New `'imported'` tier in `ContentResolver`; on-device store (Expo SQLite native, IndexedDB web); per-batch (system × content type × source filename) management with re-import via filename collision. |
+| Imported content tier (merged into homebrew tier) | ✅ Done | Imports land in the Supabase `imported_content` table parented under the importer's `homebrew_packs` row — same parent table as authored homebrew. The `ContentResolver`'s homebrew tier reader merges both tables and surfaces them under one unified content-pack concept. Re-imports replace via the `(pack_id, entry_key)` upsert key. |
 | 5e.tools content transforms | ✅ Done | Eight per-content-type transforms in `packages/content/src/imported/transform/` cover subclasses, feats, spells, backgrounds, items (mundane + magic), species (race + subrace), monsters, and classes. Each parses the matching 5e.tools array(s) into our `*Result` shape; shared `entries.ts` flattens `entries[]` blocks and strips inline `{@tag}` markup. |
-| Import UI | ✅ Done | Three-state file-pick + ToS + progress modal at `components/imported/ImportContentModal.tsx`. Local file pick only — no URL fetch. Driven by an `IMPORT_KINDS` registry so the disclosure list, Confirm probe rows, diagnostic copy, and upsert loop are all single-source-of-truth. |
-| Game-Systems-side surface | ✅ Done | Imported tab on per-system detail page with file-grouped batch list, per-source breakdown summary, remove-file + remove-batch actions. |
+| Import UI | ✅ Done | Three-state file-pick + ToS + progress modal at `components/imported/ImportContentModal.tsx`. Local file pick only — no URL fetch. Driven by an `IMPORT_KINDS` registry so the disclosure list, Confirm probe rows, diagnostic copy, and upsert loop are all single-source-of-truth. Adding a new content type is one transform file plus one registry entry. |
+| Game-Systems-side surface | ✅ Done | Per-system detail page surfaces every authored + imported pack in a unified Content Packs row with per-pack toggles. Per-pack detail page lists entries grouped by content type. |
 | Source provenance | ✅ Done | `ImportSource` field on every `ContentResult`; `SourceBadge` primitive renders codes ("PHB", "SRD 2024", pack name) on every entry across the app. |
+| Authoring forms | ✅ Done | Six in-app authoring forms for spells, creatures, items, feats, classes, species writing to `homebrew_content` under the same `homebrew_packs` parent. |
+| PDF parsing/FTS pipeline | ⬛ Removed | The original PDF text-extraction + on-device FTS index was deleted entirely when the imported-content arc shipped. The reader stays as a separate read-only viewer. |
 
-**Legal:** All imported content stays on-device, never transmitted to
-Vaultstone or shared with other party members. PDFs same. See
-[legal.md](legal.md).
+**Legal:** Distinct posture between PDFs and imports. Uploaded PDFs stay on the
+uploader's device only and are never indexed. Imported structured JSON content
+goes to the importer's user-scoped pack on Supabase; the user accepts a
+per-import in-app ToS callout affirming they have lawful rights to the content,
+and only entries from packs the GM explicitly attaches to a campaign reach the
+party. See [legal.md](legal.md).
 
 ### 9. World Builder & Campaign Knowledge Base 🟡 Polish Sprint In Progress
 
@@ -216,6 +221,7 @@ integration (manual "Add to world timeline" button on published recaps).
 | 11 — Page type picker | ✅ | `CreatePageModal` shows template type chips (Locations, NPCs, Factions, Lore, Players, Timeline, Blank) when creating a page. Defaults to the section's own template. All new pages default to `visible_to_players = false` (DM only). |
 | 12 — Player page uplift | ✅ | `PCStubPageView` rewritten with canvas editor, portrait upload (72px circle, crop/zoom), compact character sheet link, NPC-style right sidebar (Mentioned, Locations, Linked From, Seen in Play, Relationships with reciprocal support, Goals, Hooks & Rumors), character picker from linked campaigns. |
 | 13 — Player visibility | ✅ | `ShareModal` gains "Player visibility" section: "Show to all players" toggle + per-player checkboxes grouped by campaign. Individual grants use `world_page_permissions`. |
+| 14 — World Builder UX polish | ✅ | **Sidebar:** World thumbnail redesigned as 16:10 cover with name overlaid on gradient; settings gear moved to footer; Lens dropdown and Trash button removed; crop modal now uses matching aspect ratio with usage hint and zoom slider (step 0.01, max 5x). **Canvas editor:** Keyboard shortcuts (Ctrl+B/I/U/S + Ctrl+./Ctrl+/ for lists) override browser defaults via capture-phase handler; styled CSS tooltips on toolbar buttons; active format highlighting (bold/italic/underline/strikethrough/lists track via `queryCommandState`); text color brightened to `#e0dae8`, font size 16px; list toggle fixed (unwrap instead of nesting); single cursor enforcement (blur on canvas click, clear pending on focus); clickable area extended to border; copy/paste works before text block creation (Ctrl+V and right-click); canvas scrolling (`overflow: auto` + content height spacer). **Mention system:** `cascadeMentionLabel` updates all referencing pages on rename (LoreCanvas HTML regex + Tiptap JSON walk); render-time label refresh from store; migration `20260514` backfills stale labels. **Edit lock:** phantom lock banner fixed — only shows on genuine lock conflicts, not CORS/network errors (all 6 page views). **@mention insertion:** chip inserted as sibling instead of hoisting to root, fixing mid-paragraph text displacement. **Right sidebar:** all sections (mentions, seen in play, linked from, NPCs, locations, relationships, hooks) collapsible via `CollapsibleSideSection`; MAP PIN and HEADQUARTERS stay non-collapsible. **Map:** Reset View uses `centerView(minScale)` for true fit-to-screen reset; signed URL caching (1hr TTL, in-memory). **Pages:** Double-click title rename on all page types (Location, NPC, Faction, generic/PageHead) with mention cascade; right-click paste on canvas. **Player pages:** `players.v2` template with `defaultPageKind: 'pc_stub'` + migration to fix existing pages; `getTemplate` fallback prevents crash on version mismatch. |
 
 **Verification:** per-phase Tier 1 (`npm run typecheck`) + targeted Tier 4
 Playwright smoke test. End-to-end Tier 4 run in Phase 8: create world, link 2

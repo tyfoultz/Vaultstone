@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
+  cascadeMentionLabel,
   claimPageEdit,
   forceReleasePageEdit,
   getMap,
@@ -593,14 +594,14 @@ export function FactionPageView({ page, worldId }: Props) {
               onKeyDown={(e: any) => {
                 if (e.key === 'Enter') {
                   const v = e.target.value.trim();
-                  if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); }
+                  if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
                   setEditingTitle(false);
                 }
                 if (e.key === 'Escape') setEditingTitle(false);
               }}
               onBlur={(e: any) => {
                 const v = e.target.value.trim();
-                if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); }
+                if (v && v !== page.title) { updatePageInStore(page.id, { title: v }); updatePage(page.id, { title: v }); void cascadeMentionLabel(page.world_id, page.id, v); }
                 setEditingTitle(false);
               }}
               style={{
@@ -618,9 +619,9 @@ export function FactionPageView({ page, worldId }: Props) {
               }}
             />
           ) : (
-            <Pressable onPress={() => setEditingTitle(true)}>
+            <div onDoubleClick={() => setEditingTitle(true)} style={{ cursor: 'default' }}>
               <Text variant="headline-md" family="serif-display" weight="bold" style={styles.title}>{page.title}</Text>
-            </Pressable>
+            </div>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 4 }}>
             <InlinePagePicker label="Leader:" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} worldId={worldId} />

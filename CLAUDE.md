@@ -37,13 +37,13 @@ Internal packages: `@vaultstone/api`, `@vaultstone/store`, `@vaultstone/types`, 
 
 **GameSystemDefinition** — Character builder and session mode render dynamically from the system definition. `packages/systems/src/dnd5e/` is the reference. Never hardcode D&D-specific logic in UI.
 
-**ContentResolver** — `packages/content/src/resolver.ts` is the single query interface for all content. Never query SQLite or homebrew table directly from UI.
+**ContentResolver** — `packages/content/src/resolver.ts` is the single query interface for all content. Never query the `homebrew_content` / `imported_content` tables directly from UI; go through ContentResolver so SRD + authored homebrew + imports merge with consistent tier priority and dedupe.
 
 **Real-time sessions** — Supabase Realtime channel `session:{session_id}`. Optimistic updates on client. Session state changes emit to `session_events` (append-only — `Update: never` in types).
 
 **Imported content** — Users extend a Game System with structured JSON content (e.g. 5e.tools per-content-type exports). The picked file is parsed and transformed in the browser/native runtime via `packages/content/src/imported/transform/*` (subclasses, feats, spells, backgrounds, items, species, monsters, classes — one transform per content type, all driven from a single `IMPORT_KINDS` registry in `components/imported/ImportContentModal.tsx`), then upserted into the Supabase `imported_content` table under a `homebrew_packs` row owned by the importer. Imports surface alongside authored homebrew under the unified content-pack concept; the homebrew tier reader merges both tables. Hard legal constraint: users are responsible for the rights to anything they import; the user accepts an in-app ToS callout before each import.
 
-**PDF reader** — Campaign-side PDF upload + in-app reader at `app/campaign/[id]/rulebook.tsx` and `pdf-viewer.tsx`. Uses `expo-document-picker` + `expo-file-system` (native) / IndexedDB (web) for storage; `react-native-pdf` for the viewer. Read-only — no text extraction or full-text search (those were removed when the imported-content arc shipped). Same legal posture as imports: PDFs stay on the uploader's device.
+**PDF reader** — Campaign-side PDF upload + in-app reader at `app/campaign/[id]/rulebook.tsx` and `pdf-viewer.tsx`. Uses `expo-document-picker` + `expo-file-system` (native) / IndexedDB (web) for storage; `react-native-pdf` for the viewer. Read-only — no text extraction or full-text search (those were removed when the imported-content arc shipped). Distinct legal posture from imports: PDFs stay on the uploader's device and never reach Supabase, while imported JSON is server-stored under the importer's pack. See [docs/legal.md](docs/legal.md).
 
 ---
 
@@ -102,7 +102,7 @@ Legacy aliases (brand, background, border, textPrimary, textSecondary) remap ont
 
 Full procedure in [docs/dev-workflow.md](docs/dev-workflow.md).
 
-1. **Tier 1 — `npm run typecheck`.** Run on every push. Goal is "no net new errors," not "zero errors." The repo has a known baseline of ~13 errors (stale `.expo/types/router.d.ts` + Supabase join typings); track the count before and after your changes.
+1. **Tier 1 — `npm run typecheck`.** Run on every push. Goal is "no net new errors," not "zero errors." The repo has a known baseline of 6 error lines across 3 files (`app/campaign/[id]/index.tsx`, `app/character/[id].tsx`, `packages/api/src/characters.ts` — Supabase join typings + a `Dnd5eStats` null-narrowing case + an unmodeled `avatar_url` column); track the count before and after your changes.
 2. **Tier 4 — Playwright against `npm run web`.** **Run only when Tyler explicitly asks.** Playwright MCP opens a visible Chromium window that steals desktop focus, so running it unprompted is disruptive. When asked: sign in as the test user (`.env.test` → `TEST_USER_EMAIL`/`TEST_USER_PASSWORD`), drive the 1–2 golden-path interactions, confirm the expected DOM / screenshot, then stop the dev server you started.
 
 Default pre-push = Tier 1 + push + Netlify preview. Tiers 2 (`expo export` pre-push) and 3 (Netlify deploy watch) were intentionally excluded — Netlify itself is the backstop for bundler-only regressions.
@@ -172,6 +172,7 @@ Coverage as of last refresh:
 ## Legal Constraints
 
 - Bundle SRD 5.1 + SRD 2.0 only (CC-BY 4.0 — attribution required in app)
-- User-uploaded PDFs: local device only, never transmitted to server or other users
-- Party sync: character state + homebrew only — no source text from any publisher
-- ToS must state users are responsible for lawful rights to uploaded content
+- **User-uploaded PDFs**: local device only, never transmitted, never indexed. Reader is private to the uploader.
+- **User-imported structured JSON content** (e.g. 5e.tools): stored on Supabase under the importer's `homebrew_packs` row. Distinct posture from PDFs because the user can choose to attach the pack to a campaign they DM and share its entries with that party. **The user must accept a per-import in-app ToS callout** before each import affirming they have lawful rights to the content.
+- Party sync: character state + homebrew (authored or imported via attached pack) — never raw publisher source text or PDF contents.
+- The full posture, including the rationale for why imports leave the device while PDFs do not, lives in [docs/legal.md](docs/legal.md). Update both in lockstep when policy changes.

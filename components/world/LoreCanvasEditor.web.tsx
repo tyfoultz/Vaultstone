@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Icon, colors, radius, spacing } from '@vaultstone/ui';
 
@@ -514,6 +514,16 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
   }
 
+  const contentHeight = useMemo(() => {
+    let maxBottom = 0;
+    for (const b of blocks) {
+      const blockEl = document.querySelector(`[data-block-id="${b.id}"]`) as HTMLElement | null;
+      const h = blockEl?.offsetHeight ?? 80;
+      maxBottom = Math.max(maxBottom, b.y + h + 40);
+    }
+    return maxBottom;
+  }, [blocks]);
+
   useEffect(() => {
     if (!editable) return;
     const CMDS = ['bold', 'italic', 'underline', 'strikeThrough', 'insertUnorderedList', 'insertOrderedList'];
@@ -532,15 +542,22 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     return () => document.removeEventListener('selectionchange', poll);
   }, [editable]);
 
-  // Mark mention chips pointing at deleted pages.
+  // Mark mention chips pointing at deleted pages + refresh stale labels.
   useEffect(() => {
     if (!canvasRef.current) return;
-    const validIds = new Set((mentionablePages ?? []).map((p) => p.id));
+    const pageById = new Map((mentionablePages ?? []).map((p) => [p.id, p]));
     canvasRef.current.querySelectorAll<HTMLElement>('.vaultstone-mention[data-id]').forEach((chip) => {
       const kind = chip.getAttribute('data-kind') ?? 'page';
       if (kind !== 'page') return;
       const id = chip.getAttribute('data-id')!;
-      chip.classList.toggle('vaultstone-mention--deleted', !validIds.has(id));
+      const ref = pageById.get(id);
+      chip.classList.toggle('vaultstone-mention--deleted', !ref);
+      if (ref) {
+        const expected = `@ ${ref.title}`;
+        if (chip.textContent !== expected) {
+          chip.textContent = expected;
+        }
+      }
     });
   }, [mentionablePages, blocks]);
 
@@ -594,6 +611,28 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     }
     setPendingClick({ x, y });
     setFocusedId(null);
+  }, [editable]);
+
+  const handleCanvasContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!editable) return;
+    const target = e.target as HTMLElement;
+    if (target !== canvasRef.current) return;
+
+    e.preventDefault();
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const x = snap(Math.max(0, e.clientX - rect.left - 32));
+      const y = snap(Math.max(0, e.clientY - rect.top - 12));
+      const newId = uid();
+      const html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      htmlRef.current[newId] = html;
+      setBlocks((prev) => [...prev, { id: newId, x, y, width: 320, html }]);
+      setFocusedId(newId);
+      setPendingClick(null);
+      emitChange();
+    } catch { /* clipboard permission denied — let browser default */ }
   }, [editable]);
 
   const BLOCK_PADDING = 28 + 12 + 2 + 12;
@@ -767,7 +806,6 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     const mRef = node.nextSibling;
     mParent.insertBefore(chip, mRef);
     mParent.insertBefore(trailing, chip.nextSibling);
-
     // Capture the chip HTML immediately — don't defer to rAF because a blur
     // event (triggered by clicking the typeahead popup) may have already
     // captured stale HTML without the chip.
@@ -852,13 +890,14 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     }
   }
 
-  // Canvas-level paste: create a block from pasted images when no block is focused
+  // Canvas-level paste: create a block from pasted content when no block is focused
   useEffect(() => {
     if (!editable) return;
     function onPaste(e: ClipboardEvent) {
       if (focusedId) return;
       const items = e.clipboardData?.items;
       if (!items) return;
+
       for (const item of Array.from(items)) {
         if (item.type.startsWith('image/')) {
           e.preventDefault();
@@ -886,6 +925,19 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           reader.readAsDataURL(file);
           return;
         }
+      }
+
+      const text = e.clipboardData?.getData('text/html') || e.clipboardData?.getData('text/plain');
+      if (text) {
+        e.preventDefault();
+        const pos = pendingClick ?? { x: snap(40), y: snap(40) };
+        setPendingClick(null);
+        const newId = uid();
+        const html = e.clipboardData?.getData('text/html') || text.replace(/\n/g, '<br>');
+        htmlRef.current[newId] = html;
+        setBlocks((prev) => [...prev, { id: newId, x: pos.x, y: pos.y, width: 320, html }]);
+        setFocusedId(newId);
+        emitChange();
       }
     }
     window.addEventListener('paste', onPaste);
@@ -1260,8 +1312,10 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
         ref={canvasRef}
         className="lore-canvas"
         onClick={handleCanvasClick}
+        onContextMenu={handleCanvasContextMenu as any}
         style={{ minHeight: 'calc(100vh - 160px)', position: 'relative', cursor: editable ? 'text' : 'default' }}
       >
+        <div style={{ position: 'absolute', top: 0, left: 0, width: 1, height: contentHeight, pointerEvents: 'none' }} />
         {blocks.map((block) => (
           <div
             key={block.id}
@@ -1527,7 +1581,8 @@ function CanvasStyles() {
             background: ${colors.surfaceCanvas};
             border: 1px solid ${colors.outlineVariant}22;
             border-radius: ${radius.lg}px;
-            overflow: hidden;
+            overflow: auto;
+            scroll-behavior: smooth;
           }
           .lore-canvas-empty {
             position: absolute;

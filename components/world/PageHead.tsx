@@ -30,6 +30,7 @@ type Props = {
   metaPills?: MetaPill[];
   actions?: ReactNode;
   onIconPress?: () => void;
+  onTitleDoubleClick?: () => void;
 };
 
 // Matches handoff `.wiki-head`: a 76×76 gradient tile tinted by the template
@@ -37,7 +38,7 @@ type Props = {
 // icon+label pills (one per pill — kind / scope / visibility / sub-page
 // count). The old `meta` string prop was a single accent kicker; it's
 // replaced by `metaPills` so the row can mirror the handoff exactly.
-export function PageHead({ icon, title, accentToken, meta, metaPills, actions, onIconPress }: Props) {
+export function PageHead({ icon, title, accentToken, meta, metaPills, actions, onIconPress, onTitleDoubleClick }: Props) {
   const swatch = ACCENT_SWATCH[accentToken];
   const materialName = toMaterialIcon(icon);
 
@@ -65,14 +66,16 @@ export function PageHead({ icon, title, accentToken, meta, metaPills, actions, o
       ) : tileContent}
 
       <View style={styles.text}>
-        <Text
-          variant="display-md"
-          family="serif-display"
-          weight="medium"
-          style={styles.title}
-        >
-          {title}
-        </Text>
+        <div onDoubleClick={onTitleDoubleClick} style={{ cursor: onTitleDoubleClick ? 'default' : undefined }}>
+          <Text
+            variant="display-md"
+            family="serif-display"
+            weight="medium"
+            style={styles.title}
+          >
+            {title}
+          </Text>
+        </div>
         {metaPills && metaPills.length > 0 ? (
           <View style={styles.metaRow}>
             {metaPills.map((p) => (

@@ -38,13 +38,6 @@ export function LensDropdown() {
         ]}
         disabled={linked.length === 0}
       >
-        <View style={styles.crown}>
-          <Icon
-            name="workspace-premium"
-            size={14}
-            color={selectedCampaign ? colors.gm : colors.primary}
-          />
-        </View>
         <View style={{ flex: 1 }}>
           <MetaLabel size="sm">{kicker}</MetaLabel>
           <Text
@@ -164,14 +157,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.outlineVariant + '33',
     backgroundColor: colors.surfaceContainer,
-  },
-  crown: {
-    width: 22,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceContainerHigh,
   },
   backdrop: {
     flex: 1,
