@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, Image, TouchableOpacity, Clipboard, ScrollView,
-  ActivityIndicator, Platform, Modal, Pressable, TextInput, StyleSheet,
+  ActivityIndicator, Platform, Modal, Pressable, StyleSheet,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -9,13 +9,15 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   supabase, regenerateJoinCode, getCampaignMembers,
   removeCampaignMember, uploadCampaignCover,
-  updateCampaignContentSource, getActiveSession, startSession,
+  getActiveSession, startSession,
   endSession, getSessionParticipants,
+  listCampaignPacks, type HomebrewPackRow,
 } from '@vaultstone/api';
-import { getSourcesByCampaign } from '@vaultstone/content';
-import type { LocalSource } from '@vaultstone/content';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
+import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
+import { CampaignPacksCard } from '../../../components/campaign/CampaignPacksCard';
+import { ManageCampaignContentModal } from '../../../components/campaign/ManageCampaignContentModal';
 import type { Database } from '@vaultstone/types';
 import type { Dnd5eStats } from '@vaultstone/types';
 import CharacterPickerModal from '../../../components/campaign/CharacterPickerModal';
@@ -40,13 +42,9 @@ type Member = {
   characters: { id: string; name: string; system: string; base_stats: unknown } | null;
 };
 
-type ContentSource = { key: string; label: string };
-
-const PRESETS: ContentSource[] = [
-  { key: 'srd_5_1', label: 'SRD 5.1 — D&D 5e (2014)' },
-  { key: 'srd_2_0', label: 'SRD 2.0 — D&D 5e (2024 Revised)' },
-  { key: 'custom', label: 'Custom' },
-];
+// Re-export the shared map under the local alias the campaign-side code
+// has been using. Single source of truth lives in @vaultstone/systems.
+const BUNDLED_BY_SYSTEM_ID = BUNDLED_SYSTEMS_BY_ID;
 
 const ROLE_LABEL: Record<string, string> = {
   gm: 'DM',
@@ -80,10 +78,13 @@ export default function CampaignDetailScreen() {
   const [uploading, setUploading] = useState(false);
   const [cropUri, setCropUri] = useState<string | null>(null);
   const [membersModal, setMembersModal] = useState(false);
-  const [systemModal, setSystemModal] = useState(false);
-  const [selectedKey, setSelectedKey] = useState('srd_5_1');
-  const [customLabel, setCustomLabel] = useState('');
-  const [localSources, setLocalSources] = useState<LocalSource[]>([]);
+  // Enabled packs for this campaign — drives the System Card's "N packs
+  // enabled" line and the View Content Packs modal. Refreshed when the
+  // CampaignPacksCard fires its onChanged callback (still populated from
+  // that card's own list query for the management UI).
+  const [enabledPacks, setEnabledPacks] = useState<HomebrewPackRow[]>([]);
+  const [packsDetailOpen, setPacksDetailOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
   const [worldLookupOpen, setWorldLookupOpen] = useState(false);
@@ -204,24 +205,6 @@ export default function CampaignDetailScreen() {
     }
   }
 
-  async function handleSaveSystem() {
-    if (!campaign) return;
-    let source: ContentSource | null = null;
-    if (selectedKey === 'custom') {
-      const label = customLabel.trim();
-      if (label) source = { key: 'custom', label };
-    } else {
-      source = PRESETS.find((p) => p.key === selectedKey) ?? null;
-    }
-    const { error } = await updateCampaignContentSource(campaign.id, source);
-    if (!error) {
-      const patch = { content_sources: source, system_label: source?.label ?? null };
-      updateCampaign(campaign.id, patch);
-      setCampaign((prev) => (prev ? { ...prev, ...patch } : prev));
-      setSystemModal(false);
-    }
-  }
-
   // --- data loading ---
 
   useEffect(() => {
@@ -242,10 +225,21 @@ export default function CampaignDetailScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
+  // Enabled-packs fetch drives the System Card's "N packs enabled" line
+  // and the View Content Packs modal. Refreshed when CampaignPacksCard
+  // signals a change (toggle on/off, add/remove pack).
+  const refreshEnabledPacks = useCallback(async () => {
     if (!id) return;
-    getSourcesByCampaign(id).then(setLocalSources).catch(() => {});
+    const { data } = await listCampaignPacks(id);
+    const packs = (data ?? [])
+      .filter((row) => row.enabled)
+      .map((row) => row.homebrew_packs as unknown as HomebrewPackRow);
+    setEnabledPacks(packs);
   }, [id]);
+
+  useEffect(() => {
+    refreshEnabledPacks();
+  }, [refreshEnabledPacks]);
 
   // Refresh active-session state every time the screen is focused — so that
   // bailing out of the session screen back here reflects an End Session.
@@ -412,94 +406,72 @@ export default function CampaignDetailScreen() {
           </View>
         </View>
 
-        {/* ---- System card ---- */}
+        {/* ---- System card ----
+            Read-only summary of the campaign's content stack: which game
+            system + how many content packs are currently enabled. Three
+            actions: jump to the system library, view the campaign's enabled
+            packs in detail, or (DM-only) manage the system + pack selection. */}
         {(() => {
-          const src = campaign.content_sources as ContentSource | null;
-          const label = src?.label ?? campaign.system_label;
-          const isOpen = src && (src.key === 'srd_5_1' || src.key === 'srd_2_0');
+          const bundledSystem = BUNDLED_BY_SYSTEM_ID[campaign.system];
+          const label = bundledSystem?.displayName ?? campaign.system;
+          const versionTag = bundledSystem ? `v${bundledSystem.version}` : null;
+          const isOpen = bundledSystem?.license === 'CC-BY-4.0';
+          const packCount = enabledPacks.length;
 
           return (
             <View style={s.infoCard}>
               <MaterialCommunityIcons name="dice-d20-outline" size={24} color={colors.brand} />
               <Text style={s.infoLabel}>System</Text>
-              <Text style={s.systemValue}>{label || 'Not set'}</Text>
+              <Text style={s.systemValue}>
+                {label}{versionTag ? `  ·  ${versionTag}` : ''}
+              </Text>
               {isOpen && (
                 <Text style={s.openBadge}>Open License (CC-BY 4.0)</Text>
               )}
 
-              {/* Per-PDF rows — visible to all members */}
-              {label && (
-                <>
-                  {localSources.map((src) => (
-                    <TouchableOpacity
-                      key={src.id}
-                      style={s.rulebookPdfRow}
-                      onPress={() =>
-                        router.push(
-                          `/campaign/${id}/pdf-viewer?sourceId=${src.id}` as never,
-                        )
-                      }
-                    >
-                      <MaterialCommunityIcons name="file-pdf-box" size={16} color={colors.brand} />
-                      <Text style={s.rulebookPdfName} numberOfLines={1}>{src.file_name}</Text>
-                      <View style={s.rulebookReadBtn}>
-                        <Text style={s.rulebookReadBtnText}>Read</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+              <Text style={s.infoLabel}>Content packs</Text>
+              <Text style={s.systemValue}>
+                {packCount === 0
+                  ? 'None enabled'
+                  : `${packCount} pack${packCount === 1 ? '' : 's'} enabled`}
+              </Text>
 
-                  {/* Upload prompt when no PDFs yet */}
-                  {localSources.length === 0 && (
-                    <TouchableOpacity
-                      style={s.rulebookUploadRow}
-                      onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
-                    >
-                      <MaterialCommunityIcons name="tray-arrow-up" size={15} color={colors.textSecondary} />
-                      <Text style={s.rulebookUploadText}>Upload your copy to read in-app</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
-
-              <TouchableOpacity
-                style={s.manageBtn}
-                onPress={() => router.push(`/campaign/${id}/rulebook` as never)}
-              >
-                <MaterialCommunityIcons name="book-open-page-variant-outline" size={16} color={colors.brand} />
-                <Text style={s.manageBtnText}>Rulebook</Text>
-              </TouchableOpacity>
-
-              {localSources.length > 0 && (
+              <View style={s.systemActionRow}>
                 <TouchableOpacity
-                  style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
-                  onPress={() => router.push(`/campaign/${id}/search` as never)}
+                  style={s.systemActionBtn}
+                  onPress={() => router.push(`/game-systems/${campaign.system}` as never)}
                 >
-                  <MaterialCommunityIcons name="magnify" size={16} color={colors.brand} />
-                  <Text style={s.manageBtnText}>Search Content</Text>
+                  <MaterialCommunityIcons name="dice-d20-outline" size={14} color={colors.brand} />
+                  <Text style={s.systemActionBtnText}>View Game System</Text>
                 </TouchableOpacity>
-              )}
-
-              {isDM && (
                 <TouchableOpacity
-                  style={[s.manageBtn, { borderTopWidth: 0, paddingTop: spacing.sm }]}
-                  onPress={() => {
-                    if (src) {
-                      setSelectedKey(src.key);
-                      setCustomLabel(src.key === 'custom' ? src.label : '');
-                    } else {
-                      setSelectedKey('srd_5_1');
-                      setCustomLabel('');
-                    }
-                    setSystemModal(true);
-                  }}
+                  style={s.systemActionBtn}
+                  onPress={() => setPacksDetailOpen(true)}
                 >
-                  <MaterialCommunityIcons name="cog-outline" size={16} color={colors.brand} />
-                  <Text style={s.manageBtnText}>Manage System</Text>
+                  <MaterialCommunityIcons name="package-variant-closed" size={14} color={colors.brand} />
+                  <Text style={s.systemActionBtnText}>View Content Packs</Text>
                 </TouchableOpacity>
-              )}
+                {isDM && (
+                  <TouchableOpacity
+                    style={s.systemActionBtn}
+                    onPress={() => setManageOpen(true)}
+                  >
+                    <MaterialCommunityIcons name="cog-outline" size={14} color={colors.brand} />
+                    <Text style={s.systemActionBtnText}>Manage</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           );
         })()}
+
+        {/* ---- Content Packs card ---- */}
+        <CampaignPacksCard
+          campaignId={campaign.id}
+          campaignSystem={campaign.system}
+          isDM={isDM}
+          onChanged={refreshEnabledPacks}
+        />
 
         {/* ---- Party card ---- */}
         <View style={s.infoCard}>
@@ -706,63 +678,80 @@ export default function CampaignDetailScreen() {
         </Pressable>
       </Modal>
 
-      {/* ======== Manage System Modal ======== */}
-      <Modal visible={systemModal} transparent animationType="fade">
-        <Pressable style={s.modalBackdrop} onPress={() => setSystemModal(false)}>
+      {/* ======== View Content Packs Modal ========
+          Read-only list of the campaign's enabled packs. Each row routes
+          to the per-pack detail page so players can browse the content
+          their campaign uses without going through Game Systems. */}
+      <Modal visible={packsDetailOpen} transparent animationType="fade">
+        <Pressable style={s.modalBackdrop} onPress={() => setPacksDetailOpen(false)}>
           <Pressable style={s.modalCard} onPress={() => {}}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Manage System</Text>
-              <TouchableOpacity onPress={() => setSystemModal(false)}>
+              <Text style={s.modalTitle}>Content Packs in this campaign</Text>
+              <TouchableOpacity onPress={() => setPacksDetailOpen(false)}>
                 <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={s.modalSection}>
-              <Text style={s.infoLabel}>Rulebook Source</Text>
-              {PRESETS.map((preset) => (
-                <TouchableOpacity
-                  key={preset.key}
-                  style={s.presetRow}
-                  onPress={() => setSelectedKey(preset.key)}
-                >
-                  <MaterialCommunityIcons
-                    name={selectedKey === preset.key ? 'radiobox-marked' : 'radiobox-blank'}
-                    size={20}
-                    color={selectedKey === preset.key ? colors.brand : colors.textSecondary}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.presetLabel, selectedKey === preset.key && s.presetLabelActive]}>
-                      {preset.key === 'custom' ? 'Custom / Other' : preset.label}
-                    </Text>
-                    {(preset.key === 'srd_5_1' || preset.key === 'srd_2_0') && (
-                      <Text style={s.presetSub}>Bundled · Open License (CC-BY 4.0)</Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-
-              {selectedKey === 'custom' && (
-                <TextInput
-                  style={[s.modalInput, { marginTop: spacing.sm }]}
-                  value={customLabel}
-                  onChangeText={setCustomLabel}
-                  placeholder="e.g. Pathfinder 2e, Call of Cthulhu"
-                  placeholderTextColor={colors.textSecondary}
-                  autoFocus
-                />
+              {enabledPacks.length === 0 ? (
+                <Text style={s.systemValue}>
+                  No packs are enabled for this campaign yet.
+                  {isDM ? ' Use Manage to add some.' : ''}
+                </Text>
+              ) : (
+                enabledPacks.map((pack) => (
+                  <TouchableOpacity
+                    key={pack.id}
+                    style={s.packDetailRow}
+                    onPress={() => {
+                      setPacksDetailOpen(false);
+                      router.push(`/homebrew-pack/${pack.id}` as never);
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name={pack.name.startsWith('Imported: ') ? 'tray-arrow-down' : 'auto-fix'}
+                      size={18}
+                      color={colors.brand}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.packDetailName} numberOfLines={1}>{pack.name}</Text>
+                      {pack.description ? (
+                        <Text style={s.packDetailDesc} numberOfLines={2}>{pack.description}</Text>
+                      ) : null}
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                ))
               )}
             </View>
-
-            <TouchableOpacity
-              style={[s.modalSaveBtn, selectedKey === 'custom' && !customLabel.trim() && s.modalSaveBtnDisabled]}
-              onPress={handleSaveSystem}
-              disabled={selectedKey === 'custom' && !customLabel.trim()}
-            >
-              <Text style={s.modalSaveBtnText}>Save</Text>
-            </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* ======== Manage Modal ========
+          DM-only. System picker (locked when characters exist) + pack
+          toggles. Bumps refreshEnabledPacks via onChanged so the System
+          Card's "N enabled" line stays in sync. */}
+      <ManageCampaignContentModal
+        visible={manageOpen}
+        campaignId={campaign.id}
+        currentSystem={campaign.system}
+        onClose={() => setManageOpen(false)}
+        onChanged={() => {
+          refreshEnabledPacks();
+          // System change won't reflect on the page until the campaign
+          // record itself updates. Refetch the row so the System Card
+          // reads the new system without a remount.
+          supabase
+            .from('campaigns')
+            .select('*')
+            .eq('id', campaign.id)
+            .single()
+            .then(({ data }) => {
+              if (data) setCampaign(data);
+            });
+        }}
+      />
 
       {/* ======== Crop Modal ======== */}
       {cropUri && (
@@ -913,13 +902,37 @@ const s = StyleSheet.create({
   openBadge: {
     fontSize: 11, color: colors.hpHealthy, fontWeight: '600', marginTop: 2,
   },
-  presetRow: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,
-    paddingVertical: 10, borderBottomColor: colors.border, borderBottomWidth: 1,
+  // System card actions
+  systemActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+    marginTop: spacing.md,
   },
-  presetLabel: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
-  presetLabelActive: { color: colors.textPrimary, fontWeight: '600' },
-  presetSub: { fontSize: 11, color: colors.hpHealthy, marginTop: 1 },
+  systemActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.brand + '55',
+    backgroundColor: colors.brand + '11',
+  },
+  systemActionBtnText: { fontSize: 12, color: colors.brand, fontWeight: '600' },
+
+  // Content Packs detail modal — pack rows route to per-pack detail page.
+  packDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  packDetailName: { fontSize: 14, color: colors.textPrimary, fontWeight: '600' },
+  packDetailDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
 
   // Member card
   memberHeaderRow: {
@@ -949,31 +962,6 @@ const s = StyleSheet.create({
     borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1,
   },
   removeText: { fontSize: 12, color: colors.hpDanger },
-
-  // Per-PDF rows (inside system card)
-  rulebookPdfRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.background, borderRadius: 8,
-    paddingHorizontal: spacing.sm, paddingVertical: 7,
-  },
-  rulebookPdfName: {
-    flex: 1, fontSize: 12, color: colors.textPrimary, fontWeight: '500',
-  },
-  rulebookReadBtn: {
-    backgroundColor: colors.brand, borderRadius: 5,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  rulebookReadBtnText: {
-    fontSize: 11, color: '#fff', fontWeight: '700',
-  },
-  rulebookUploadRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.background, borderRadius: 8,
-    paddingHorizontal: spacing.sm, paddingVertical: 7,
-  },
-  rulebookUploadText: {
-    flex: 1, fontSize: 12, color: colors.textSecondary,
-  },
 
   // Manage button (bottom of cards)
   manageBtn: {
@@ -1060,18 +1048,6 @@ const s = StyleSheet.create({
   },
   modalTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
   modalSection: { marginBottom: spacing.lg },
-  modalInput: {
-    backgroundColor: colors.background, borderColor: colors.border,
-    borderWidth: 1, borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 10,
-    color: colors.textPrimary, fontSize: 15, marginTop: spacing.sm,
-  },
-  modalSaveBtn: {
-    backgroundColor: colors.brand, borderRadius: 8,
-    paddingVertical: 12, alignItems: 'center',
-  },
-  modalSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  modalSaveBtnDisabled: { opacity: 0.4 },
 
   textSecondary: { color: colors.textSecondary },
 });

@@ -3,7 +3,7 @@ export { useProfileStore } from './profile.store';
 export { useCampaignStore } from './campaign.store';
 export { useCharacterStore } from './character.store';
 export { useCharacterDraftStore } from './character-draft.store';
-export type { CharacterDraft, AbilityScoreMethod } from './character-draft.store';
+export type { CharacterDraft, AbilityScoreMethod, RulesetMode } from './character-draft.store';
 export { useRecapDraftStore } from './recap-draft.store';
 export type { RecapDraftState } from './recap-draft.store';
 export { useRecapLayoutStore, DEFAULT_RECAP_LAYOUT } from './recap-layout.store';

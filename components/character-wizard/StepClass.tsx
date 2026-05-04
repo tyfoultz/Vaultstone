@@ -30,24 +30,41 @@ interface Props {
 }
 
 export function StepClass({ onPreviewChange, onAdvance }: Props) {
-  const { srdVersion, classKey, chosenSkills, setClass: selectClass, setChosenSkills } =
-    useCharacterDraftStore(
-      useShallow((s) => ({
-        srdVersion: s.srdVersion, classKey: s.classKey,
-        chosenSkills: s.chosenSkills, setClass: s.setClass, setChosenSkills: s.setChosenSkills,
-      }))
-    );
+  const {
+    srdVersion, classKey, chosenSkills,
+    setClass: selectClass, setChosenSkills,
+    campaignId, selectedPackIds,
+  } = useCharacterDraftStore(
+    useShallow((s) => ({
+      srdVersion: s.srdVersion, classKey: s.classKey,
+      chosenSkills: s.chosenSkills, setClass: s.setClass, setChosenSkills: s.setChosenSkills,
+      campaignId: s.campaignId,
+      selectedPackIds: s.selectedPackIds,
+    }))
+  );
 
   const [classes, setClasses] = useState<ClassResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewKey, setPreviewKey] = useState<string | null>(null);
   const [filter, setFilter] = useState('All');
+  const packIdsKey = selectedPackIds.join(',');
 
   useEffect(() => {
-    ContentResolver.search({ type: 'class', system: 'dnd5e', srdVersion, tiers: ['srd'] })
+    // Mirrors StepSpecies: campaign or explicit pack picks include
+    // homebrew; otherwise SRD-only.
+    const includeHomebrew = !!campaignId || selectedPackIds.length > 0;
+    const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+    ContentResolver.search({
+      type: 'class',
+      system: 'dnd5e',
+      srdVersion,
+      tiers,
+      campaignId: campaignId ?? undefined,
+      packIds: !campaignId && selectedPackIds.length > 0 ? selectedPackIds : undefined,
+    })
       .then((r) => setClasses(r as ClassResult[]))
       .finally(() => setLoading(false));
-  }, [srdVersion]);
+  }, [srdVersion, campaignId, packIdsKey]);
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
 
@@ -97,11 +114,11 @@ export function StepClass({ onPreviewChange, onAdvance }: Props) {
           <DetailRow label="Saving Throws" value={preview.savingThrows.join(', ')} />
         </View>
 
-        {preview.level1Features.length > 0 && (
+        {(preview.features ?? []).filter((f) => f.level === 1).length > 0 && (
           <>
             <Text style={s.sectionLabel}>LEVEL 1 FEATURES</Text>
             <View style={s.traitList}>
-              {preview.level1Features.map((f) => (
+              {(preview.features ?? []).filter((f) => f.level === 1).map((f) => (
                 <Text key={f.name} style={s.traitItem}>
                   <Text style={s.traitName}>{f.name}. </Text>
                   <Text style={s.traitDesc}>{f.description}</Text>

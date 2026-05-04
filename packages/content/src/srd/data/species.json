@@ -1,82 +1,99 @@
 [
   {
-    "key": "aasimar",
-    "name": "Aasimar",
-    "type": "species",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Aasimar are mortals touched by celestial power, bearing a spark of the divine that manifests as radiant beauty or unearthly grace.",
-    "size": "Medium",
-    "speed": 30,
-    "traits": [
-      {
-        "name": "Celestial Resistance",
-        "description": "You have resistance to Necrotic and Radiant damage."
-      },
-      {
-        "name": "Darkvision",
-        "description": "You have Darkvision with a range of 60 feet."
-      },
-      {
-        "name": "Healing Hands",
-        "description": "As a Magic action, you touch a creature and roll a number of d8s equal to your Proficiency Bonus. The creature regains Hit Points equal to the total rolled. Once used, you can't use this trait again until you finish a Long Rest."
-      },
-      {
-        "name": "Light Bearer",
-        "description": "You know the Light cantrip. Charisma is your spellcasting ability for it."
-      },
-      {
-        "name": "Celestial Revelation",
-        "description": "When you reach character level 3, you can transform as a Bonus Action (lasts 1 minute; once per Long Rest). Choose one form: Necrotic Shroud (frighten nearby creatures, deal extra Necrotic damage), Radiant Consumption (shed bright light, deal extra Radiant damage), or Radiant Soul (gain a Fly Speed equal to your Speed)."
-      }
-    ],
-    "abilityScoreIncreases": [],
-    "data": {}
-  },
-  {
-    "key": "dragonborn",
+    "key": "dragonborn-srd-2-0",
     "name": "Dragonborn",
     "type": "species",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Dragonborn are humanoids with draconic heritage, bearing the power of dragons in their blood and breath.",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "size": "Medium",
     "speed": 30,
     "traits": [
       {
         "name": "Draconic Ancestry",
-        "description": "Choose a dragon type (Black, Blue, Brass, Bronze, Copper, Gold, Green, Red, Silver, or White). This choice determines your Breath Weapon damage type and Damage Resistance."
+        "description": "Your lineage stems from a dragon progenitor. Choose the kind of dragon from the Draconic Ancestors table. Your choice affects your Breath Weapon and Damage Resistance traits as well as your appearance.\n\nTable: Draconic Ancestors\n\n| Dragon | Damage Type |\n|---|---|\n| Black | Acid |\n| Blue | Lightning |\n| Brass |Fire |\n| Bronze | Lightning |\n| Copper | Acid|\n|Gold|Fire|\n|Green|Poison|\n|Red|Fire|\n|Silver|Cold|\n|White|Cold|"
       },
       {
         "name": "Breath Weapon",
-        "description": "As a Bonus Action, exhale destructive energy in a 15-foot cone or 30-foot line (your choice at character creation). Each creature in the area makes a Dexterity saving throw (DC = 8 + CON modifier + Proficiency Bonus) or takes 1d10 damage of your ancestry's type (increases at levels 5, 11, and 17). Usable Proficiency Bonus times per Long Rest."
+        "description": "When you take the Attack action on your turn, you can replace one of your attacks with an exhalation of magical energy in either a 15-foot Cone or a 30-foot Line that is 5 feet wide (choose the shape each time). Each creature in that area must make a Dexterity saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus). On a failed save, a creature takes 1d10 damage of the type determined by your Draconic Ancestry trait. On a successful save, a creature takes half as much damage. This damage increases by 1d10 when you reach character levels 5 (2d10), 11 (3d10), and 17 (4d10).\n\nYou can use this Breath Weapon a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
       },
       {
         "name": "Damage Resistance",
-        "description": "You have resistance to the damage type associated with your Draconic Ancestry."
+        "description": "You have Resistance to the damage type determined by your Draconic Ancestry trait."
       },
       {
         "name": "Darkvision",
-        "description": "You have Darkvision with a range of 60 feet."
+        "description": "You have Darkvision with a range of 60 feet"
       },
       {
         "name": "Draconic Flight",
-        "description": "When you reach character level 5, you can use a Bonus Action to manifest spectral wings and gain a Fly Speed equal to your Speed for 10 minutes. Usable Proficiency Bonus times per Long Rest."
+        "description": "When you reach character level 5, you can channel draconic magic to give yourself temporary flight. As a Bonus Action, you sprout spectral wings on your back that last for 10 minutes or until you retract the wings (no action required) or have the Incapacitated condition. During that time, you have a Fly Speed equal to your Speed. Your wings appear to be made of the same energy as your Breath Weapon. Once you use this trait, you can't use it again until you finish a Long Rest."
       }
     ],
     "abilityScoreIncreases": [],
+    "description": "",
     "data": {}
   },
   {
-    "key": "dwarf",
+    "key": "dragonborn-srd-5-1",
+    "name": "Dragonborn",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "size": "Medium",
+    "speed": 30,
+    "traits": [
+      {
+        "name": "Ability Score Increase",
+        "description": "Your Strength score increases by 2, and your Charisma score increases by 1."
+      },
+      {
+        "name": "Age",
+        "description": "Young dragonborn grow quickly. They walk hours after hatching, attain the size and development of a 10-year-old human child by the age of 3, and reach adulthood by 15. They live to be around 80."
+      },
+      {
+        "name": "Alignment",
+        "description": "Dragonborn tend to extremes, making a conscious choice for one side or the other in the cosmic war between good and evil. Most dragonborn are good, but those who side with evil can be terrible villains."
+      },
+      {
+        "name": "Languages",
+        "description": "You can speak, read, and write Common and Draconic. Draconic is thought to be one of the oldest languages and is often used in the study of magic. The language sounds harsh to most other creatures and includes numerous hard consonants and sibilants."
+      },
+      {
+        "name": "Draconic Ancestry table",
+        "description": "| Dragon       | Damage Type       | Breath Weapon                |\n|--------------|-------------------|------------------------------|\n| Black        | Acid              | 5 by 30 ft. line (Dex. save) |\n| Blue         | Lightning         | 5 by 30 ft. line (Dex. save) |\n| Brass        | Fire              | 5 by 30 ft. line (Dex. save) |\n| Bronze       | Lightning         | 5 by 30 ft. line (Dex. save) |\n| Copper       | Acid              | 5 by 30 ft. line (Dex. save) |\n| Gold         | Fire              | 15 ft. cone (Dex. save)      |\n| Green        | Poison            | 15 ft. cone (Con. save)      |\n| Red          | Fire              | 15 ft. cone (Dex. save)      |\n| Silver       | Cold              | 15 ft. cone (Con. save)      |\n| White        | Cold              | 15 ft. cone (Con. save)      |"
+      },
+      {
+        "name": "Draconic Ancestry",
+        "description": "You have draconic ancestry. Choose one type of dragon from the Draconic Ancestry table. Your breath weapon and damage resistance are determined by the dragon type, as shown in the table."
+      },
+      {
+        "name": "Breath Weapon",
+        "description": "You can use your action to exhale destructive energy. Your draconic ancestry determines the size, shape, and damage type of the exhalation.\nWhen you use your breath weapon, each creature in the area of the exhalation must make a saving throw, the type of which is determined by your draconic ancestry. The DC for this saving throw equals 8 + your Constitution modifier + your proficiency bonus. A creature takes 2d6 damage on a failed save, and half as much damage on a successful one. The damage increases to 3d6 at 6th level, 4d6 at 11th level, and 5d6 at 16th level."
+      },
+      {
+        "name": "Damage Resistance",
+        "description": "You have resistance to the damage type associated with your draconic ancestry."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "Your draconic heritage manifests in a variety of traits you share with other dragonborn.",
+    "data": {}
+  },
+  {
+    "key": "dwarf-srd-2-0",
     "name": "Dwarf",
     "type": "species",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Dwarves are solid and enduring as the mountains they love, weathering centuries with iron will and dry humor.",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "size": "Medium",
     "speed": 30,
     "traits": [
@@ -86,235 +103,52 @@
       },
       {
         "name": "Dwarven Resilience",
-        "description": "You have resistance to Poison damage and Advantage on saving throws you make to avoid or end the Poisoned condition."
+        "description": "You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition."
       },
       {
         "name": "Dwarven Toughness",
-        "description": "Your Hit Point maximum increases by 1, and it increases by 1 again at each subsequent level."
+        "description": "Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level."
       },
       {
         "name": "Stonecunning",
-        "description": "As a Bonus Action, you gain Tremorsense with a range of 60 feet for 10 minutes. You must be on a stone surface or touching one to use this trait. Usable Proficiency Bonus times per Long Rest."
+        "description": "As a Bonus Action, you gain Tremorsense with a range of 60 feet for 10 minutes. You must be on a stone surface or touching a stone surface to use this Tremorsense. The stone can be natural or worked.\n\nYou can use this Bonus Action a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
       }
     ],
     "abilityScoreIncreases": [],
+    "description": "",
     "data": {}
   },
   {
-    "key": "elf",
-    "name": "Elf",
-    "type": "species",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Elves are a magical people of otherworldly grace, living in the world but not entirely part of it.",
-    "size": "Medium",
-    "speed": 30,
-    "traits": [
-      {
-        "name": "Darkvision",
-        "description": "You have Darkvision with a range of 60 feet."
-      },
-      {
-        "name": "Elven Lineage",
-        "description": "Choose a lineage: Drow (Darkvision 120 ft, Dancing Lights cantrip, Faerie Fire at level 3, Darkness at level 5), High Elf (Detect Magic cantrip, Misty Step at level 3, Arcane Eye at level 5), or Wood Elf (Speed 35 ft, Druidcraft cantrip, Longstrider at level 3, Pass without Trace at level 5). CHA or INT is your spellcasting ability for these spells."
-      },
-      {
-        "name": "Fey Ancestry",
-        "description": "You have Advantage on saving throws you make to avoid or end the Charmed condition. Magic can't put you to sleep."
-      },
-      {
-        "name": "Keen Senses",
-        "description": "You have proficiency in the Perception skill."
-      },
-      {
-        "name": "Trance",
-        "description": "You don't need to sleep. Instead you meditate deeply for 4 hours a day, gaining the same benefit a human does from 8 hours of sleep."
-      }
-    ],
-    "abilityScoreIncreases": [],
-    "data": {}
-  },
-  {
-    "key": "gnome",
-    "name": "Gnome",
-    "type": "species",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Gnomes are small, curious, and energetic, with a delight in discovery that makes them natural tinkerers and explorers.",
-    "size": "Small",
-    "speed": 30,
-    "traits": [
-      {
-        "name": "Darkvision",
-        "description": "You have Darkvision with a range of 60 feet."
-      },
-      {
-        "name": "Gnomish Cunning",
-        "description": "You have Advantage on Intelligence, Wisdom, and Charisma saving throws."
-      },
-      {
-        "name": "Gnomish Lineage",
-        "description": "Choose a lineage: Forest Gnome (Minor Illusion cantrip, Speak with Animals once per Long Rest using INT) or Rock Gnome (proficiency with Tinker's Tools, can craft Tiny clockwork devices that produce sounds, light, or simple effects)."
-      }
-    ],
-    "abilityScoreIncreases": [],
-    "data": {}
-  },
-  {
-    "key": "goliath",
-    "name": "Goliath",
-    "type": "species",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Goliaths are massive, strong, and competitive, having descended from giants or blessed by their power.",
-    "size": "Medium",
-    "speed": 35,
-    "traits": [
-      {
-        "name": "Giant Ancestry",
-        "description": "Choose a giant type and gain the associated benefit: Cloud (Misty Step once per LR), Fire (resistance to Fire damage), Frost (resistance to Cold damage), Hill (Advantage on saves vs. Poison; resistance to Poison damage), Stone (60 ft Tremorsense as Bonus Action, 10 min, PB times per LR), or Storm (resistance to Lightning and Thunder damage)."
-      },
-      {
-        "name": "Large Form",
-        "description": "When you reach character level 5, you can use a Bonus Action to become Large for 10 minutes (once per Long Rest). While Large, you have Advantage on Strength checks and your Speed increases by 10 feet."
-      },
-      {
-        "name": "Powerful Build",
-        "description": "You count as one size larger when determining your carrying capacity and the weight you can push or drag."
-      }
-    ],
-    "abilityScoreIncreases": [],
-    "data": {}
-  },
-  {
-    "key": "halfling",
-    "name": "Halfling",
-    "type": "species",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Halflings are small, nimble folk with an extraordinary capacity for luck and a talent for going unnoticed.",
-    "size": "Small",
-    "speed": 30,
-    "traits": [
-      {
-        "name": "Brave",
-        "description": "You have Advantage on saving throws you make to avoid or end the Frightened condition."
-      },
-      {
-        "name": "Halfling Nimbleness",
-        "description": "You can move through the space of any creature that is a size larger than you, though you can't stop there."
-      },
-      {
-        "name": "Luck",
-        "description": "When you roll a 1 on the d20 of a D20 Test, you can reroll the die, and you must use the new roll."
-      },
-      {
-        "name": "Naturally Stealthy",
-        "description": "You can take the Hide action even when you are obscured only by a creature that is at least one size larger than you."
-      }
-    ],
-    "abilityScoreIncreases": [],
-    "data": {}
-  },
-  {
-    "key": "human",
-    "name": "Human",
-    "type": "species",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Humans are the most adaptable and ambitious people in the world, with a diversity of cultures and a drive that shapes history.",
-    "size": "Medium",
-    "speed": 30,
-    "traits": [
-      {
-        "name": "Resourceful",
-        "description": "You gain Heroic Inspiration whenever you finish a Long Rest."
-      },
-      {
-        "name": "Skillful",
-        "description": "You gain proficiency in one skill of your choice."
-      },
-      {
-        "name": "Versatile",
-        "description": "You gain an Origin feat of your choice (see the list of Origin feats in the rules)."
-      }
-    ],
-    "abilityScoreIncreases": [],
-    "data": {}
-  },
-  {
-    "key": "orc",
-    "name": "Orc",
-    "type": "species",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Orcs are mighty warriors with a fierce competitive drive and a resilience that carries them through the hardest of battles.",
-    "size": "Medium",
-    "speed": 30,
-    "traits": [
-      {
-        "name": "Adrenaline Rush",
-        "description": "You can take the Dash action as a Bonus Action. When you do, you gain a number of Temporary Hit Points equal to your Proficiency Bonus. Usable Proficiency Bonus times per Long Rest."
-      },
-      {
-        "name": "Darkvision",
-        "description": "You have Darkvision with a range of 120 feet."
-      },
-      {
-        "name": "Relentless Endurance",
-        "description": "When you are reduced to 0 Hit Points but not killed outright, you can drop to 1 Hit Point instead. Once used, you can't use this trait again until you finish a Long Rest."
-      }
-    ],
-    "abilityScoreIncreases": [],
-    "data": {}
-  },
-  {
-    "key": "tiefling",
-    "name": "Tiefling",
-    "type": "species",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_2.0"],
-    "description": "Tieflings carry the legacy of a fiendish pact or possession, bearing infernal features and otherworldly power.",
-    "size": "Medium",
-    "speed": 30,
-    "traits": [
-      {
-        "name": "Darkvision",
-        "description": "You have Darkvision with a range of 60 feet."
-      },
-      {
-        "name": "Fiendish Legacy",
-        "description": "Choose a legacy: Abyssal (resistance to Poison, Poison damage trait, Darkness and Fly spells at L3/L5), Chthonic (resistance to Necrotic, False Life trait, Ray of Enfeeblement and Darkness spells at L3/L5), or Infernal (resistance to Fire, Hellish Rebuke trait, Darkness at L5). CHA is your spellcasting ability for these spells."
-      },
-      {
-        "name": "Otherworldly Presence",
-        "description": "You know the Thaumaturgy cantrip. Charisma is your spellcasting ability for it."
-      }
-    ],
-    "abilityScoreIncreases": [],
-    "data": {}
-  },
-  {
-    "key": "dwarf_5e",
+    "key": "dwarf-srd-5-1",
     "name": "Dwarf",
     "type": "species",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
-    "description": "Dwarves are solid and enduring as the mountains they love, weathering centuries with iron will and dry humor.",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
     "size": "Medium",
     "speed": 25,
     "traits": [
       {
+        "name": "Ability Score Increase",
+        "description": "Your Constitution score increases by 2."
+      },
+      {
         "name": "Darkvision",
-        "description": "Accustomed to life underground, you have superior vision in dark and dim conditions. You have Darkvision with a range of 60 feet."
+        "description": "Accustomed to life underground, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light. You can't discern color in darkness, only shades of gray."
+      },
+      {
+        "name": "Age",
+        "description": "Dwarves mature at the same rate as humans, but they're considered young until they reach the age of 50. On average, they live about 350 years."
+      },
+      {
+        "name": "Alignment",
+        "description": "Most dwarves are lawful, believing firmly in the benefits of a well-ordered society. They tend toward good as well, with a strong sense of fair play and a belief that everyone deserves to share in the benefits of a just order."
+      },
+      {
+        "name": "Languages",
+        "description": "You can speak, read, and write Common and Dwarvish. Dwarvish is full of hard consonants and guttural sounds, and those characteristics spill over into whatever other language a dwarf might speak."
       },
       {
         "name": "Dwarven Resilience",
@@ -330,34 +164,81 @@
       },
       {
         "name": "Stonecunning",
-        "description": "Whenever you make an Intelligence (History) check related to the origin of stonework, you are considered proficient in the History skill and add double your proficiency bonus to the check."
-      },
-      {
-        "name": "Subrace — Hill Dwarf",
-        "description": "+1 WIS. Dwarven Toughness: your HP maximum increases by 1 and increases by 1 again at each subsequent level."
-      },
-      {
-        "name": "Subrace — Mountain Dwarf",
-        "description": "+2 STR. You have proficiency with light and medium armor."
+        "description": "Whenever you make an Intelligence (History) check related to the origin of stonework, you are considered proficient in the History skill and add double your proficiency bonus to the check, instead of your normal proficiency bonus."
       }
     ],
-    "abilityScoreIncreases": [{ "ability": "constitution", "amount": 2 }],
+    "abilityScoreIncreases": [],
+    "description": "Your dwarf character has an assortment of inborn abilities, part and parcel of dwarven nature.",
     "data": {}
   },
   {
-    "key": "elf_5e",
+    "key": "elf-srd-2-0",
     "name": "Elf",
     "type": "species",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
-    "description": "Elves are a magical people of otherworldly grace, living in the world but not entirely part of it.",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "size": "Medium",
     "speed": 30,
     "traits": [
       {
         "name": "Darkvision",
         "description": "You have Darkvision with a range of 60 feet."
+      },
+      {
+        "name": "Elven Lineage",
+        "description": "You are part of a lineage that grants you supernatural abilities. Choose a lineage from the Elven Lineages table. You gain the level 1 benefit of that lineage.\n\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\n\nTable: Elven Lineages\n\n|Lineage|Level 1|Level 3|Level 5|\n|---|---|---|---|\n|Drow|The range of your Darkvision increases to 120 feet. You also know the Dancing Lights cantrip.|Faerie Fire|Darkness|\n|High Elf|You know the Prestidigitation cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list.|Detect Magic|Misty Step|\n|Wood Elf|Your Speed increases to 35 feet. You also know the Druidcraft cantrip.|Longstrider|Pass without Trace|\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage)."
+      },
+      {
+        "name": "Fey Ancestry",
+        "description": "You have Advantage on saving throws you make to avoid or end the Charmed condition."
+      },
+      {
+        "name": "Keen Senses",
+        "description": "You have proficiency in the Insight, Perception, or Survival skill."
+      },
+      {
+        "name": "Trance",
+        "description": "You don't need to sleep, and magic can't put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "",
+    "data": {}
+  },
+  {
+    "key": "elf-srd-5-1",
+    "name": "Elf",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "size": "Medium",
+    "speed": 30,
+    "traits": [
+      {
+        "name": "Ability Score Increase",
+        "description": "Your Dexterity score increases by 2."
+      },
+      {
+        "name": "Darkvision",
+        "description": "Accustomed to twilit forests and the night sky, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light. You can't discern color in darkness, only shades of gray."
+      },
+      {
+        "name": "Age",
+        "description": "Although elves reach physical maturity at about the same age as humans, the elven understanding of adulthood goes beyond physical growth to encompass worldly experience. An elf typically claims adulthood and an adult name around the age of 100 and can live to be 750 years old."
+      },
+      {
+        "name": "Alignment",
+        "description": "Elves love freedom, variety, and self-­expression, so they lean strongly toward the gentler aspects of chaos. They value and protect others’ freedom as well as their own, and they are more often good than not."
+      },
+      {
+        "name": "Languages",
+        "description": "You can speak, read, and write Common and Elvish. Elvish is fluid, with subtle intonations and intricate grammar. Elven literature is rich and varied, and their songs and poems are famous among other races. Many bards learn their language so they can add Elvish ballads to their repertoires."
       },
       {
         "name": "Keen Senses",
@@ -369,31 +250,267 @@
       },
       {
         "name": "Trance",
-        "description": "Elves don't need to sleep. Instead, they meditate deeply for 4 hours a day."
-      },
-      {
-        "name": "Subrace — High Elf",
-        "description": "+1 INT. You know one cantrip of your choice from the wizard spell list (INT-based). You gain one extra language of your choice."
-      },
-      {
-        "name": "Subrace — Wood Elf",
-        "description": "+1 WIS. Speed increases to 35 ft. Mask of the Wild: you can attempt to hide even when only lightly obscured by natural phenomena."
+        "description": "Elves don't need to sleep. Instead, they meditate deeply, remaining semiconscious, for 4 hours a day. (The Common word for such meditation is “trance.”) While meditating, you can dream after a fashion; such dreams are actually mental exercises that have become reflexive through years of practice. After resting in this way, you gain the same benefit that a human does from 8 hours of sleep."
       }
     ],
-    "abilityScoreIncreases": [{ "ability": "dexterity", "amount": 2 }],
+    "abilityScoreIncreases": [],
+    "description": "Your elf character has a variety of natural abilities, the result of thousands of years of elven refinement.",
     "data": {}
   },
   {
-    "key": "halfling_5e",
+    "key": "gnome-srd-2-0",
+    "name": "Gnome",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "size": "Small",
+    "speed": 30,
+    "traits": [
+      {
+        "name": "Darkvision",
+        "description": "You have Darkvision with a range of 60 feet."
+      },
+      {
+        "name": "Gnomish Cunning",
+        "description": "You have Advantage on Intelligence, Wisdom, and Charisma saving throws."
+      },
+      {
+        "name": "Gnomish Lineage",
+        "description": "You are part of a lineage that grants you supernatural abilities. Choose one of the following options; whichever one you choose, Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage):\n\n**Forest Gnome.** You know the *Minor Illusion* cantrip. You also always have the *Speak with Animals* spell prepared. You can cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. You can also use any spell slots you have to cast the spell.\n\n**Rock Gnome.** You know the *Mending* and *Prestidigitation* cantrips. In addition, you can spend 10 minutes casting *Prestidigitation* to create a Tiny clockwork device (AC 5, 1 HP), such as a toy, fire starter, or music box. When you create the device, you determine its function by choosing one effect from *Prestidigitation*; the device produces that effect whenever you or another creature takes a Bonus Action to activate it with a touch. If the chosen effect has options within it, you choose one of those options for the device when you create it. For example, if you choose the spell's ignite-extinguish effect, you determine whether the device ignites or extinguishes fire; the device doesn't do both. You can have three such devices in existence at a time, and each falls apart 8 hours after its creation or when you dismantle it with a touch as a Utilize action."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "",
+    "data": {}
+  },
+  {
+    "key": "gnome-srd-5-1",
+    "name": "Gnome",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "size": "Small",
+    "speed": 25,
+    "traits": [
+      {
+        "name": "Ability Score Increase",
+        "description": "Your Intelligence score increases by 2."
+      },
+      {
+        "name": "Darkvision",
+        "description": "Accustomed to life underground, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light. You can't discern color in darkness, only shades of gray."
+      },
+      {
+        "name": "Age",
+        "description": "Gnomes mature at the same rate humans do, and most are expected to settle down into an adult life by around age 40. They can live 350 to almost 500 years."
+      },
+      {
+        "name": "Alignment",
+        "description": "Gnomes are most often good. Those who tend toward law are sages, engineers, researchers, scholars, investigators, or inventors. Those who tend toward chaos are minstrels, tricksters, wanderers, or fanciful jewelers. Gnomes are good-hearted, and even the tricksters among them are more playful than vicious."
+      },
+      {
+        "name": "Languages",
+        "description": "You can speak, read, and write Common and Gnomish. The Gnomish language, which uses the Dwarvish script, is renowned for its technical treatises and its catalogs of knowledge about the natural world."
+      },
+      {
+        "name": "Gnome Cunning",
+        "description": "You have advantage on all Intelligence, Wisdom, and Charisma saving throws against magic."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "Your gnome character has certain characteristics in common with all other gnomes.",
+    "data": {}
+  },
+  {
+    "key": "goliath-srd-2-0",
+    "name": "Goliath",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "size": "Medium",
+    "speed": 35,
+    "traits": [
+      {
+        "name": "Giant Ancestry",
+        "description": "You are descended from Giants. Choose one of the following benefits—a supernatural boon from your ancestry; you can use the chosen benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest:\n\n• **Cloud's Jaunt (Cloud Giant)**. As a Bonus Action, you magically teleport up to 30 feet to an unoccupied space you can see.\n• **Fire's Burn (Fire Giant)**. When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target.\n• **Frost's Chill (Frost Giant)**. When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn.\n• **Hill's Tumble (Hill Giant)**. When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition.\n• **Stone's Endurance (Stone Giant)**. When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total.\n• **Storm's Thunder (Storm Giant)**. When you take damage from a creature within 60 feet of you, you can take a Reaction to deal 1d8 Thunder damage to that creature."
+      },
+      {
+        "name": "Large Form",
+        "description": "Starting at character level 5, you can change your size to Large as a Bonus Action if you're in a big enough space. This transformation lasts for 10 minutes or until you end it (no action required). For that duration, you have Advantage on Strength checks, and your Speed increases by 10 feet. Once you use this trait, you can't use it again until you finish a Long Rest."
+      },
+      {
+        "name": "Powerful Build",
+        "description": "You have Advantage on any ability check you make to end the Grappled condition. You also count as one size larger when determining your carrying capacity."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "",
+    "data": {}
+  },
+  {
+    "key": "half-elf-srd-5-1",
+    "name": "Half-Elf",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "size": "Medium",
+    "speed": 30,
+    "traits": [
+      {
+        "name": "Ability Score Increase",
+        "description": "Your Charisma score increases by 2, and two other ability scores of your choice increase by 1."
+      },
+      {
+        "name": "Darkvision",
+        "description": "Thanks to your elf blood, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light. You can't discern color in darkness, only shades of gray."
+      },
+      {
+        "name": "Age",
+        "description": "Half-elves mature at the same rate humans do and reach adulthood around the age of 20. They live much longer than humans, however, often exceeding 180 years."
+      },
+      {
+        "name": "Alignment",
+        "description": "Half-elves share the chaotic bent of their elven heritage. They value both personal freedom and creative expression, demonstrating neither love of leaders nor desire for followers. They chafe at rules, resent others' demands, and sometimes prove unreliable, or at least unpredictable."
+      },
+      {
+        "name": "Languages",
+        "description": "You can speak, read, and write Common, Elvish, and one extra language of your choice."
+      },
+      {
+        "name": "Fey Ancestry",
+        "description": "You have advantage on saving throws against being charmed, and magic can't put you to sleep."
+      },
+      {
+        "name": "Skill Versatility",
+        "description": "You gain proficiency in two skills of your choice."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "Your half-elf character has some qualities in common with elves and some that are unique to half-elves.",
+    "data": {}
+  },
+  {
+    "key": "half-orc-srd-5-1",
+    "name": "Half-Orc",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "size": "Medium",
+    "speed": 30,
+    "traits": [
+      {
+        "name": "Ability Score Increase",
+        "description": "Your Strength score increases by 2, and your Constitution score increases by 1."
+      },
+      {
+        "name": "Darkvision",
+        "description": "Thanks to your orc blood, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light. You can't discern color in darkness, only shades of gray."
+      },
+      {
+        "name": "Age",
+        "description": "Half-orcs mature a little faster than humans, reaching adulthood around age 14. They age noticeably faster and rarely live longer than 75 years."
+      },
+      {
+        "name": "Alignment",
+        "description": "Half-orcs inherit a tendency toward chaos from their orc parents and are not strongly inclined toward good. Half-orcs raised among orcs and willing to live out their lives among them are usually evil."
+      },
+      {
+        "name": "Languages",
+        "description": "You can speak, read, and write Common and Orc. Orc is a harsh, grating language with hard consonants. It has no script of its own but is written in the Dwarvish script."
+      },
+      {
+        "name": "Menacing",
+        "description": "You gain proficiency in the Intimidation skill."
+      },
+      {
+        "name": "Relentless Endurance",
+        "description": "When you are reduced to 0 hit points but not killed outright, you can drop to 1 hit point instead. You can't use this feature again until you finish a long rest."
+      },
+      {
+        "name": "Savage Attacks",
+        "description": "When you score a critical hit with a melee weapon attack, you can roll one of the weapon's damage dice one additional time and add it to the extra damage of the critical hit."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "Your half-orc character has certain traits deriving from your orc ancestry.",
+    "data": {}
+  },
+  {
+    "key": "halfling-srd-2-0",
     "name": "Halfling",
     "type": "species",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
-    "description": "Halflings are small, nimble folk with an extraordinary capacity for luck.",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "size": "Small",
+    "speed": 30,
+    "traits": [
+      {
+        "name": "Brave",
+        "description": "You have Advantage on saving throws you make to avoid or end the Frightened condition."
+      },
+      {
+        "name": "Halfling Nimbleness",
+        "description": "You can move through the space of any creature that is a size larger than you, but you can't stop in the same space."
+      },
+      {
+        "name": "Luck",
+        "description": "When you roll a 1 on the d20 of a D20 Test, you can reroll the die, and you must use the new roll."
+      },
+      {
+        "name": "Naturally Stealthy",
+        "description": "You can take the Hide action even when you are obscured only by a creature that is at least one size larger than you."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "",
+    "data": {}
+  },
+  {
+    "key": "halfling-srd-5-1",
+    "name": "Halfling",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
     "size": "Small",
     "speed": 25,
     "traits": [
+      {
+        "name": "Ability Score Increase",
+        "description": "Your Dexterity score increases by 2."
+      },
+      {
+        "name": "Age",
+        "description": "A halfling reaches adulthood at the age of 20 and generally lives into the middle of his or her second century."
+      },
+      {
+        "name": "Alignment",
+        "description": "Most halflings are lawful good. As a rule, they are good-hearted and kind, hate to see others in pain, and have no tolerance for oppression. They are also very orderly and traditional, leaning heavily on the support of their community and the comfort of their old ways."
+      },
+      {
+        "name": "Languages",
+        "description": "You can speak, read, and write Common and Halfling. The Halfling language isn't secret, but halflings are loath to share it with others. They write very little, so they don't have a rich body of literature. Their oral tradition, however, is very strong. Almost all halflings speak Common to converse with the people in whose lands they dwell or through which they are traveling."
+      },
       {
         "name": "Lucky",
         "description": "When you roll a 1 on the d20 for an attack roll, ability check, or saving throw, you can reroll the die and must use the new roll."
@@ -405,27 +522,108 @@
       {
         "name": "Halfling Nimbleness",
         "description": "You can move through the space of any creature that is of a size larger than yours."
-      },
-      {
-        "name": "Subrace — Lightfoot",
-        "description": "+1 CHA. Naturally Stealthy: you can attempt to hide even when obscured only by a creature larger than you."
-      },
-      {
-        "name": "Subrace — Stout",
-        "description": "+1 CON. Stout Resilience: advantage on saving throws against poison, and resistance to poison damage."
       }
     ],
-    "abilityScoreIncreases": [{ "ability": "dexterity", "amount": 2 }],
+    "abilityScoreIncreases": [],
+    "description": "Your halfling character has a number of traits in common with all other halflings.",
     "data": {}
   },
   {
-    "key": "human_5e",
+    "key": "high-elf-srd-5-1",
+    "name": "High Elf",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "size": "Medium",
+    "speed": 30,
+    "traits": [
+      {
+        "name": "Ability Score Increase",
+        "description": "Your Intelligence score increases by 1."
+      },
+      {
+        "name": "Elf Weapon Training",
+        "description": "You have proficiency with the longsword, shortsword, shortbow, and longbow."
+      },
+      {
+        "name": "Cantrip",
+        "description": "You know one cantrip of your choice from the wizard spell list. Intelligence is your spellcasting ability for it."
+      },
+      {
+        "name": "Extra Language",
+        "description": "You can speak, read, and write one extra language of your choice."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "As a high elf, you have a keen mind and a mastery of at least the basics of magic. In many fantasy gaming worlds, there are two kinds of high elves. One type is haughty and reclusive, believing themselves to be superior to non-elves and even other elves. The other type is more common and more friendly, and often encountered among humans and other races.",
+    "data": {}
+  },
+  {
+    "key": "hill-dwarf-srd-5-1",
+    "name": "Hill Dwarf",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "size": "Medium",
+    "speed": 25,
+    "traits": [
+      {
+        "name": "Ability Score Increase",
+        "description": "Your Wisdom score increases by 1."
+      },
+      {
+        "name": "Dwarven Toughness",
+        "description": "Your hit point maximum increases by 1, and it increases by 1 every time you gain a level."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "As a hill dwarf, you have keen senses, deep intuition, and remarkable resilience.",
+    "data": {}
+  },
+  {
+    "key": "human-srd-2-0",
     "name": "Human",
     "type": "species",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
-    "description": "Humans are the most adaptable and ambitious people, diverse and driven.",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "size": "Medium",
+    "speed": 30,
+    "traits": [
+      {
+        "name": "Resourceful",
+        "description": "You gain Heroic Inspiration whenever you finish a Long Rest."
+      },
+      {
+        "name": "Skillful",
+        "description": "You gain proficiency in one skill of your choice."
+      },
+      {
+        "name": "Versatile",
+        "description": "You gain an Origin feat of your choice (see \"Feats\"). Skilled is recommended."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "",
+    "data": {}
+  },
+  {
+    "key": "human-srd-5-1",
+    "name": "Human",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
     "size": "Medium",
     "speed": 30,
     "traits": [
@@ -434,168 +632,165 @@
         "description": "Your ability scores each increase by 1."
       },
       {
-        "name": "Extra Language",
-        "description": "You can speak, read, and write one extra language of your choice."
+        "name": "Age",
+        "description": "Humans reach adulthood in their late teens and live less than a century."
       },
       {
-        "name": "Extra Skill",
-        "description": "You gain proficiency in one additional skill of your choice."
+        "name": "Alignment",
+        "description": "Humans tend toward no particular alignment. The best and the worst are found among them."
+      },
+      {
+        "name": "Languages",
+        "description": "You can speak, read, and write Common and one extra language of your choice. Humans typically learn the languages of other peoples they deal with, including obscure dialects. They are fond of sprinkling their speech with words borrowed from other tongues: Orc curses, Elvish musical expressions, Dwarvish military phrases, and so on."
       }
     ],
-    "abilityScoreIncreases": [
-      { "ability": "strength", "amount": 1 },
-      { "ability": "dexterity", "amount": 1 },
-      { "ability": "constitution", "amount": 1 },
-      { "ability": "intelligence", "amount": 1 },
-      { "ability": "wisdom", "amount": 1 },
-      { "ability": "charisma", "amount": 1 }
-    ],
+    "abilityScoreIncreases": [],
+    "description": "It’s hard to make generalizations about humans, but your human character has these traits.",
     "data": {}
   },
   {
-    "key": "dragonborn_5e",
-    "name": "Dragonborn",
+    "key": "lightfoot-srd-5-1",
+    "name": "Lightfoot",
     "type": "species",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
-    "description": "Dragonborn are humanoids with draconic heritage, bearing the power of dragons in their blood and breath.",
-    "size": "Medium",
-    "speed": 30,
-    "traits": [
-      {
-        "name": "Draconic Ancestry",
-        "description": "Choose a dragon type (Black, Blue, Brass, Bronze, Copper, Gold, Green, Red, Silver, or White). This sets your Breath Weapon damage type and Damage Resistance."
-      },
-      {
-        "name": "Breath Weapon",
-        "description": "Use an action to exhale destructive energy. Creatures in the area make a Dexterity saving throw (DC = 8 + CON modifier + Proficiency Bonus) or take 2d6 damage (scales with level). Usable once per short or long rest."
-      },
-      {
-        "name": "Damage Resistance",
-        "description": "You have resistance to the damage type associated with your Draconic Ancestry."
-      }
+    "srdVersions": [
+      "SRD_5.1"
     ],
-    "abilityScoreIncreases": [
-      { "ability": "strength", "amount": 2 },
-      { "ability": "charisma", "amount": 1 }
-    ],
-    "data": {}
-  },
-  {
-    "key": "gnome_5e",
-    "name": "Gnome",
-    "type": "species",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
-    "description": "Gnomes are small, curious, and energetic, with a talent for tinkering and magic.",
     "size": "Small",
     "speed": 25,
     "traits": [
       {
-        "name": "Darkvision",
-        "description": "You have Darkvision with a range of 60 feet."
+        "name": "Ability Score Increase",
+        "description": "Your Charisma score increases by 1."
       },
       {
-        "name": "Gnome Cunning",
-        "description": "You have advantage on Intelligence, Wisdom, and Charisma saving throws against magic."
-      },
-      {
-        "name": "Subrace — Forest Gnome",
-        "description": "+1 DEX. Natural Illusionist: you know the Minor Illusion cantrip (INT-based). Speak with Small Beasts: communicate simple ideas with Small or smaller beasts."
-      },
-      {
-        "name": "Subrace — Rock Gnome",
-        "description": "+1 CON. Artificer's Lore: add twice your proficiency bonus to History checks related to magic items, alchemical objects, or technological devices. Tinker: proficiency with Tinker's Tools; craft tiny clockwork devices."
+        "name": "Naturally Stealthy",
+        "description": "You can attempt to hide even when you are obscured only by a creature that is at least one size larger than you."
       }
     ],
-    "abilityScoreIncreases": [{ "ability": "intelligence", "amount": 2 }],
+    "abilityScoreIncreases": [],
+    "description": "As a lightfoot halfling, you can easily hide from notice, even using other people as cover. You're inclined to be affable and get along well with others. Lightfoots are more prone to wanderlust than other halflings, and often dwell alongside other races or take up a nomadic life.",
     "data": {}
   },
   {
-    "key": "half_elf",
-    "name": "Half-Elf",
+    "key": "orc-srd-2-0",
+    "name": "Orc",
     "type": "species",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
-    "description": "Half-elves blend the best of human ambition and elven grace, at home in two worlds yet fully belonging to neither.",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "size": "Medium",
     "speed": 30,
     "traits": [
       {
-        "name": "Darkvision",
-        "description": "You have Darkvision with a range of 60 feet."
+        "name": "Adrenaline Rush",
+        "description": "You can take the Dash action as a Bonus Action. When you do so, you gain a number of Temporary Hit Points equal to your Proficiency Bonus.\n\nYou can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Short or Long Rest."
       },
-      {
-        "name": "Fey Ancestry",
-        "description": "You have advantage on saving throws against being charmed, and magic can't put you to sleep."
-      },
-      {
-        "name": "Skill Versatility",
-        "description": "You gain proficiency in two skills of your choice."
-      },
-      {
-        "name": "Extra Language",
-        "description": "You can speak, read, and write one extra language of your choice."
-      }
-    ],
-    "abilityScoreIncreases": [
-      { "ability": "charisma", "amount": 2 },
-      { "ability": "choice_1", "amount": 1 },
-      { "ability": "choice_2", "amount": 1 }
-    ],
-    "data": {}
-  },
-  {
-    "key": "half_orc",
-    "name": "Half-Orc",
-    "type": "species",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
-    "description": "Half-orcs carry the ferocity of orcs and the tenacity of humans, proving themselves through strength and sheer will.",
-    "size": "Medium",
-    "speed": 30,
-    "traits": [
       {
         "name": "Darkvision",
-        "description": "You have Darkvision with a range of 60 feet."
-      },
-      {
-        "name": "Menacing",
-        "description": "You gain proficiency in the Intimidation skill."
+        "description": "You have Darkvision with a range of 120 feet."
       },
       {
         "name": "Relentless Endurance",
-        "description": "When you are reduced to 0 hit points but not killed outright, you can drop to 1 hit point instead. Once used, you can't use this trait again until you finish a long rest."
-      },
-      {
-        "name": "Savage Attacks",
-        "description": "When you score a critical hit with a melee weapon attack, you can roll one of the weapon's damage dice one additional time and add it to the extra damage of the critical hit."
+        "description": "When you are reduced to 0 Hit Points but not killed outright, you can drop to 1 Hit Point instead. Once you use this trait, you can't do so again until you finish a Long Rest."
       }
     ],
-    "abilityScoreIncreases": [
-      { "ability": "strength", "amount": 2 },
-      { "ability": "constitution", "amount": 1 }
-    ],
+    "abilityScoreIncreases": [],
+    "description": "",
     "data": {}
   },
   {
-    "key": "tiefling_5e",
+    "key": "rock-gnome-srd-5-1",
+    "name": "Rock Gnome",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "size": "Small",
+    "speed": 25,
+    "traits": [
+      {
+        "name": "Ability Score Increase",
+        "description": "Your Constitution score increases by 1."
+      },
+      {
+        "name": "Artificer's Lore",
+        "description": "Whenever you make an Intelligence (History) check related to magic items, alchemical objects, or technological devices, you can add twice your proficiency bonus, instead of any proficiency bonus you normally apply."
+      },
+      {
+        "name": "Tinker",
+        "description": "You have proficiency with artisan's tools (tinker's tools). Using those tools, you can spend 1 hour and 10 gp worth of materials to construct a Tiny clockwork device (AC 5, 1 hp). The device ceases to function after 24 hours (unless you spend 1 hour repairing it to keep the device functioning), or when you use your action to dismantle it; at that time, you can reclaim the materials used to create it. You can have up to three such devices active at a time.\n\nWhen you create a device, choose one of the following options:\n• _Clockwork Toy._ This toy is a clockwork animal, monster, or person, such as a frog, mouse, bird, dragon, or soldier. When placed on the ground, the toy moves 5 feet across the ground on each of your turns in a random direction. It makes noises as appropriate to the creature it represents.\n• _Fire Starter._ The device produces a miniature flame, which you can use to light a candle, torch, or campfire. Using the device requires your action.\n• _Music Box._ When opened, this music box plays a single song at a moderate volume. The box stops playing when it reaches the song's end or when it is closed."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "As a rock gnome, you have a natural inventiveness and hardiness beyond that of other gnomes.",
+    "data": {}
+  },
+  {
+    "key": "tiefling-srd-2-0",
     "name": "Tiefling",
     "type": "species",
     "tier": "srd",
     "system": "dnd5e",
-    "srdVersions": ["SRD_5.1"],
-    "description": "Tieflings carry the legacy of an infernal pact, bearing fiendish features and hellish power.",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
     "size": "Medium",
     "speed": 30,
     "traits": [
       {
         "name": "Darkvision",
         "description": "You have Darkvision with a range of 60 feet."
+      },
+      {
+        "name": "Fiendish Legacy",
+        "description": "You are the recipient of a legacy that grants you supernatural abilities. Choose a legacy from the Fiendish Legacies table. You gain the level 1 benefit of the chosen legacy.\n\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the legacy).\n\n**Table: Fiendish Legacies**\n\n|Legacy|Level 1|Level 3|Level 5|\n|---|---|---|---|\n|Abyssal|You have Resistance to Poison damage. You also know the Poison Spray cantrip.|Ray of Sickness|Hold Person|\n|Chthonic|You have Resistance to Necrotic damage. You also know the Chill Touch cantrip.|False Life|Ray of Enfeeblement|\n|Infernal|You have Resistance to Fire damage. You also know the Fire Bolt cantrip.|Hellish Rebuke|Darkness|"
+      },
+      {
+        "name": "Otherworldly Presence",
+        "description": "You know the *Thaumaturgy* cantrip. When you cast it with this trait, the spell uses the same spellcasting ability you use for your Fiendish Legacy trait."
+      }
+    ],
+    "abilityScoreIncreases": [],
+    "description": "",
+    "data": {}
+  },
+  {
+    "key": "tiefling-srd-5-1",
+    "name": "Tiefling",
+    "type": "species",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "size": "Medium",
+    "speed": 30,
+    "traits": [
+      {
+        "name": "Ability Score Increase",
+        "description": "Your Intelligence score increases by 1, and your Charisma score increases by 2."
+      },
+      {
+        "name": "Darkvision",
+        "description": "Thanks to your infernal heritage, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light. You can't discern color in darkness, only shades of gray."
+      },
+      {
+        "name": "Age",
+        "description": "Tieflings mature at the same rate as humans but live a few years longer."
+      },
+      {
+        "name": "Alignment",
+        "description": "Tieflings might not have an innate tendency toward evil, but many of them end up there. Evil or not, an independent nature inclines many tieflings toward a chaotic alignment."
+      },
+      {
+        "name": "Languages",
+        "description": "You can speak, read, and write Common and Infernal."
       },
       {
         "name": "Hellish Resistance",
@@ -603,13 +798,11 @@
       },
       {
         "name": "Infernal Legacy",
-        "description": "You know the Thaumaturgy cantrip. At level 3, you can cast Hellish Rebuke as a 2nd-level spell once per long rest. At level 5, you can cast Darkness once per long rest. Charisma is your spellcasting ability for these spells."
+        "description": "You know the thaumaturgy cantrip. When you reach 3rd level, you can cast the hellish rebuke spell as a 2nd-level spell once with this trait and regain the ability to do so when you finish a long rest. When you reach 5th level, you can cast the darkness spell once with this trait and regain the ability to do so when you finish a long rest. Charisma is your spellcasting ability for these spells."
       }
     ],
-    "abilityScoreIncreases": [
-      { "ability": "intelligence", "amount": 1 },
-      { "ability": "charisma", "amount": 2 }
-    ],
+    "abilityScoreIncreases": [],
+    "description": "Tieflings share certain racial traits as a result of their infernal descent.",
     "data": {}
   }
 ]

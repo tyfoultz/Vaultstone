@@ -1,0 +1,46 @@
+[
+  {
+    "key": "blindsight",
+    "name": "Blindsight",
+    "type": "sense",
+    "tier": "srd",
+    "system": "dnd5e",
+    "defaultRange": 30,
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Perceive surroundings within a specific radius without relying on sight. The creature can effectively see in that area even in magical darkness.",
+    "data": {}
+  },
+  {
+    "key": "darkvision",
+    "name": "Darkvision",
+    "type": "sense",
+    "tier": "srd",
+    "system": "dnd5e",
+    "defaultRange": 60,
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "See in dim light within a specified radius as if it were bright light, and in darkness as if it were dim light. You can't discern color in darkness — only shades of gray.",
+    "data": {}
+  },
+  {
+    "key": "tremorsense",
+    "name": "Tremorsense",
+    "type": "sense",
+    "tier": "srd",
+    "system": "dnd5e",
+    "defaultRange": 60,
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Detect and pinpoint the origin of vibrations within a specific radius, provided both the creature and the source of vibrations are in contact with the same ground or substance.",
+    "data": {}
+  },
+  {
+    "key": "truesight",
+    "name": "Truesight",
+    "type": "sense",
+    "tier": "srd",
+    "system": "dnd5e",
+    "defaultRange": 120,
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "See in normal and magical darkness, see invisible creatures and objects, automatically detect visual illusions, succeed on saving throws against them, and perceive the original form of a shapechanger or a creature transformed by magic. Also see into the Ethereal Plane.",
+    "data": {}
+  }
+]

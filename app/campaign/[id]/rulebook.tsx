@@ -12,67 +12,17 @@ import { useCampaignStore } from '@vaultstone/store';
 import { colors, spacing } from '@vaultstone/ui';
 import {
   getSourcesByCampaign, saveSource, deleteSourceById,
-  removeSourceFromIndex, reindexSource, getCampaignIndexStatuses,
 } from '@vaultstone/content';
-import type { LocalSource, IndexMeta } from '@vaultstone/content';
+import type { LocalSource } from '@vaultstone/content';
 import type { Database } from '@vaultstone/types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
-type ContentSource = { key: string; label: string };
 
 function uuid(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
   });
-}
-
-function IndexStatusLine({
-  status,
-  onRetry,
-}: {
-  status: IndexMeta | undefined;
-  onRetry: () => void;
-}) {
-  if (!status || status.status === 'not_indexed') {
-    return (
-      <TouchableOpacity onPress={onRetry}>
-        <Text style={s.indexAction}>Not indexed — Index now</Text>
-      </TouchableOpacity>
-    );
-  }
-  if (status.status === 'indexing') {
-    const done = status.pages_indexed;
-    const total = status.total_pages;
-    return (
-      <View style={s.indexRow}>
-        <ActivityIndicator size="small" color={colors.brand} />
-        <Text style={s.indexMuted}>
-          Indexing… {total ? `${done}/${total}` : `${done}`}
-        </Text>
-      </View>
-    );
-  }
-  if (status.status === 'failed') {
-    return (
-      <View>
-        <TouchableOpacity onPress={onRetry}>
-          <Text style={s.indexError}>Indexing failed — Retry</Text>
-        </TouchableOpacity>
-        {status.error ? (
-          <Text style={s.indexMuted} numberOfLines={3}>
-            {status.error}
-          </Text>
-        ) : null}
-      </View>
-    );
-  }
-  // indexed
-  return (
-    <Text style={s.indexMuted}>
-      ✓ Indexed{status.total_pages ? ` · ${status.total_pages} pages` : ''}
-    </Text>
-  );
 }
 
 export default function RulebookScreen() {
@@ -100,15 +50,18 @@ export default function RulebookScreen() {
       });
   }, [id]);
 
-  const source = campaign?.content_sources as ContentSource | null;
-  const label = source?.label ?? campaign?.system_label ?? null;
-  const isOpenLicense = source?.key === 'srd_5_1' || source?.key === 'srd_2_0';
+  // The screen is currently unreachable from the active UI (System Card
+  // dropped its rulebook surface in M2). When it is re-surfaced as a
+  // PDF reader, the label should derive from `campaign.system` via the
+  // bundled-system display-name lookup, not from the deleted
+  // content_sources column. For now we fall back to system_label which
+  // covers the Custom-system case the column drop preserves.
+  const label = campaign?.system_label ?? null;
 
   const [localSources, setLocalSources] = useState<LocalSource[]>([]);
   const [loadingLocal, setLoadingLocal] = useState(true);
   const [tosModal, setTosModal] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [indexStatuses, setIndexStatuses] = useState<Record<string, IndexMeta>>({});
   const [pendingFile, setPendingFile] = useState<{
     uri: string; name: string; mimeType?: string;
   } | null>(null);
@@ -119,60 +72,6 @@ export default function RulebookScreen() {
       .catch(() => setLocalSources([]))
       .finally(() => setLoadingLocal(false));
   }, [id]);
-
-  // Load initial index statuses whenever the source list changes.
-  useEffect(() => {
-    if (!id || localSources.length === 0) {
-      setIndexStatuses({});
-      return;
-    }
-    getCampaignIndexStatuses(id).then((metas) => {
-      const map: Record<string, IndexMeta> = {};
-      for (const m of metas) map[m.source_id] = m;
-      setIndexStatuses(map);
-    }).catch(() => {});
-  }, [id, localSources.length]);
-
-  // Poll while any source is actively indexing, so the UI reflects progress.
-  useEffect(() => {
-    const anyIndexing = Object.values(indexStatuses).some((s) => s.status === 'indexing');
-    if (!id || !anyIndexing) return;
-    const interval = setInterval(() => {
-      getCampaignIndexStatuses(id).then((metas) => {
-        const map: Record<string, IndexMeta> = {};
-        for (const m of metas) map[m.source_id] = m;
-        setIndexStatuses(map);
-      }).catch(() => {});
-    }, 500);
-    return () => clearInterval(interval);
-  }, [id, indexStatuses]);
-
-  // Kick off extraction + indexing for a source. The platform-specific PDF
-  // parser handles the source: web wants a Blob, native wants the URI string.
-  function startIndexing(sourceId: string) {
-    // Seed local state so the UI shows "indexing" immediately.
-    setIndexStatuses((prev) => ({
-      ...prev,
-      [sourceId]: {
-        source_id: sourceId,
-        status: 'indexing',
-        pages_indexed: 0,
-        total_pages: null,
-        indexed_at: null,
-        error: null,
-      },
-    }));
-    const fetchBytes =
-      Platform.OS === 'web'
-        ? async (filePath: string) => {
-            const res = await fetch(filePath);
-            return res.blob();
-          }
-        : async (filePath: string) => filePath;
-    reindexSource(sourceId, fetchBytes).catch((err) => {
-      console.warn('Indexing failed', err);
-    });
-  }
 
   async function handlePickFile() {
     const result = await DocumentPicker.getDocumentAsync({
@@ -207,7 +106,7 @@ export default function RulebookScreen() {
         record = {
           id: uuid(),
           campaign_id: id,
-          source_key: source?.key ?? 'custom',
+          source_key: 'custom',
           file_name: pendingFile.name,
           file_path: pendingFile.uri,
           uploaded_at: new Date().toISOString(),
@@ -222,7 +121,7 @@ export default function RulebookScreen() {
         record = {
           id: uuid(),
           campaign_id: id,
-          source_key: source?.key ?? 'custom',
+          source_key: 'custom',
           file_name: pendingFile.name,
           file_path: destPath,
           uploaded_at: new Date().toISOString(),
@@ -231,8 +130,6 @@ export default function RulebookScreen() {
 
       await saveSource(record);
       setLocalSources((prev) => [...prev, record]);
-      // Fire-and-forget: parse + index in the background.
-      startIndexing(record.id);
     } catch (err) {
       console.warn('PDF upload failed', err);
       Alert.alert(
@@ -260,8 +157,6 @@ export default function RulebookScreen() {
       }
     }
     await deleteSourceById(sourceToRemove.id);
-    // Also drop any indexed page text for this source.
-    await removeSourceFromIndex(sourceToRemove.id).catch(() => {});
     setLocalSources((prev) => prev.filter((s) => s.id !== sourceToRemove.id));
   }
 
@@ -276,9 +171,6 @@ export default function RulebookScreen() {
         <MaterialCommunityIcons name="book-open-page-variant-outline" size={32} color={colors.brand} />
         <View style={{ flex: 1 }}>
           <Text style={s.title}>{label ?? 'Rulebook'}</Text>
-          {isOpenLicense && (
-            <Text style={s.openBadge}>Open License — CC-BY 4.0</Text>
-          )}
         </View>
       </View>
 
@@ -326,17 +218,12 @@ export default function RulebookScreen() {
 
               {/* PDF list */}
               {localSources.map((src) => {
-                const status = indexStatuses[src.id];
                 return (
                   <View key={src.id} style={s.pdfRow}>
                     <View style={s.pdfRowLeft}>
                       <MaterialCommunityIcons name="check-circle-outline" size={18} color={colors.hpHealthy} />
                       <View style={{ flex: 1 }}>
                         <Text style={s.pdfName} numberOfLines={1}>{src.file_name}</Text>
-                        <IndexStatusLine
-                          status={status}
-                          onRetry={() => startIndexing(src.id)}
-                        />
                       </View>
                     </View>
                     <View style={s.pdfRowActions}>
@@ -401,23 +288,6 @@ export default function RulebookScreen() {
         </View>
       </View>
 
-      {/* SRD note for open-license sources */}
-      {isOpenLicense && (
-        <View style={[s.legalCard, { borderColor: colors.hpHealthy + '44' }]}>
-          <MaterialCommunityIcons name="check-circle-outline" size={20} color={colors.hpHealthy} />
-          <View style={{ flex: 1 }}>
-            <Text style={[s.legalTitle, { color: colors.hpHealthy }]}>
-              This content is already available
-            </Text>
-            <Text style={s.legalBody}>
-              {source?.key === 'srd_5_1'
-                ? 'SRD 5.1 (D&D 5e 2014 rules) is bundled in Vaultstone under the Creative Commons Attribution 4.0 License. No upload required.'
-                : 'SRD 2.0 (D&D 5e 2024 Revised rules) is bundled in Vaultstone under the Creative Commons Attribution 4.0 License. No upload required.'}
-            </Text>
-          </View>
-        </View>
-      )}
-
       {/* ToS Acknowledgment Modal */}
       <Modal visible={tosModal} transparent animationType="fade">
         <Pressable style={s.modalBackdrop} onPress={handleTosCancel}>
@@ -467,7 +337,6 @@ const s = StyleSheet.create({
     gap: spacing.md, marginBottom: spacing.sm,
   },
   title: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },
-  openBadge: { fontSize: 12, color: colors.hpHealthy, fontWeight: '600', marginTop: 2 },
 
   card: {
     backgroundColor: colors.surface, borderColor: colors.border,
@@ -497,10 +366,6 @@ const s = StyleSheet.create({
   pdfName: { flex: 1, fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
   pdfRowActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 
-  indexRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  indexMuted: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
-  indexAction: { fontSize: 11, color: colors.brand, fontWeight: '600', marginTop: 2 },
-  indexError: { fontSize: 11, color: colors.hpDanger, fontWeight: '600', marginTop: 2 },
 
   readBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { getMyCharacters, updateCampaignMember } from '@vaultstone/api';
 import { colors } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
@@ -24,9 +25,15 @@ export default function CharacterPickerModal({
   onClose,
   onLinked,
 }: Props) {
+  const router = useRouter();
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  function handleCreateNew() {
+    onClose();
+    router.push(`/character/new?campaignId=${campaignId}` as never);
+  }
 
   useEffect(() => {
     if (!visible) return;
@@ -74,17 +81,34 @@ export default function CharacterPickerModal({
               data={characters}
               keyExtractor={(c) => c.id}
               ListHeaderComponent={
-                <TouchableOpacity
-                  style={[styles.row, currentCharacterId === null && styles.rowSelected]}
-                  onPress={() => handleSelect(null)}
-                  disabled={saving}
-                >
-                  <View style={styles.rowInner}>
-                    <Text style={styles.characterName}>None</Text>
-                    <Text style={styles.characterSub}>Remove character link</Text>
-                  </View>
-                  {currentCharacterId === null && <Text style={styles.check}>✓</Text>}
-                </TouchableOpacity>
+                <View>
+                  {/* "Create new" tops the list — players who land here
+                      without an existing character can roll one in this
+                      campaign's ruleset directly. */}
+                  <TouchableOpacity
+                    style={[styles.row, styles.createRow]}
+                    onPress={handleCreateNew}
+                    disabled={saving}
+                  >
+                    <View style={styles.rowInner}>
+                      <Text style={[styles.characterName, { color: colors.brand }]}>
+                        + Create new character
+                      </Text>
+                      <Text style={styles.characterSub}>Use this campaign's ruleset and content packs</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.row, currentCharacterId === null && styles.rowSelected]}
+                    onPress={() => handleSelect(null)}
+                    disabled={saving}
+                  >
+                    <View style={styles.rowInner}>
+                      <Text style={styles.characterName}>None</Text>
+                      <Text style={styles.characterSub}>Remove character link</Text>
+                    </View>
+                    {currentCharacterId === null && <Text style={styles.check}>✓</Text>}
+                  </TouchableOpacity>
+                </View>
               }
               renderItem={({ item }) => (
                 <TouchableOpacity
@@ -168,6 +192,11 @@ const styles = StyleSheet.create({
   },
   rowSelected: {
     opacity: 1,
+  },
+  createRow: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
   },
   rowInner: {
     flex: 1,

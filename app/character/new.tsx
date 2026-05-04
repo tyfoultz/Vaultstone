@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useCharacterDraftStore, useAuthStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
-import { createCharacter } from '@vaultstone/api';
-import { colors, fonts, spacing, radius } from '@vaultstone/ui';
+import {
+  createCharacter,
+  supabase,
+  getCharacterDraft,
+  createCharacterDraft,
+  updateCharacterDraft,
+  deleteCharacterDraft,
+} from '@vaultstone/api';
+import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
 import { StepSpecies } from '../../components/character-wizard/StepSpecies';
@@ -49,7 +56,9 @@ function initSpellSlots(level: number): Dnd5eResources['spellSlots'] {
   };
 }
 
-const STEPS = [
+// Step list when the wizard is launched without a campaign — user picks
+// the ruleset themselves at step 0.
+const STANDALONE_STEPS = [
   { key: 'ruleset', label: 'Ruleset' },
   { key: 'species', label: 'Species' },
   { key: 'class', label: 'Class' },
@@ -58,8 +67,33 @@ const STEPS = [
   { key: 'review', label: 'Review' },
 ];
 
+// When launched from inside a campaign the ruleset is locked to the
+// campaign's system, so we skip the picker entirely.
+const CAMPAIGN_STEPS = [
+  { key: 'species', label: 'Species' },
+  { key: 'class', label: 'Class' },
+  { key: 'background', label: 'Background' },
+  { key: 'scores', label: 'Ability Scores' },
+  { key: 'review', label: 'Review' },
+];
+
+// Translate a campaigns.system id (dnd5e_2014 / dnd5e_2024 / dnd5e legacy
+// alias) into the wizard's draft shape (system + srdVersion). The draft's
+// `system` is left at the legacy 'dnd5e' alias because SRD content rows
+// are keyed under 'dnd5e' uniformly — switching to the explicit edition id
+// would break content filtering. The campaign edition is conveyed through
+// `srdVersion`, which the content bundles already filter on.
+function systemToDraft(systemId: string): { system: string; srdVersion: 'SRD_5.1' | 'SRD_2.0' } {
+  if (systemId === 'dnd5e_2014') return { system: 'dnd5e', srdVersion: 'SRD_5.1' };
+  // dnd5e_2024 / legacy dnd5e / Custom all fall through to the 2024 SRD.
+  return { system: 'dnd5e', srdVersion: 'SRD_2.0' };
+}
+
 export default function NewCharacterScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ campaignId?: string; draftId?: string }>();
+  const launchedCampaignId = params.campaignId ?? null;
+  const launchedDraftId = params.draftId ?? null;
   const user = useAuthStore((s) => s.user);
   const draft = useCharacterDraftStore(
     useShallow((s) => ({
@@ -72,9 +106,101 @@ export default function NewCharacterScreen() {
       srdVersion: s.srdVersion,
       system: s.system,
       campaignId: s.campaignId,
+      selectedPackIds: s.selectedPackIds,
     }))
   );
   const resetDraft = useCharacterDraftStore((s) => s.resetDraft);
+  const hydrateFromSnapshot = useCharacterDraftStore((s) => s.hydrateFromSnapshot);
+  const setDraftCampaignId = useCharacterDraftStore((s) => s.setCampaignId);
+  const setDraftRuleset = useCharacterDraftStore((s) => s.setRuleset);
+  const setDraftRulesetMode = useCharacterDraftStore((s) => s.setRulesetMode);
+  // Subscribed separately so the Next-button gate re-renders when the
+  // user picks a path on the fork screen.
+  const rulesetMode = useCharacterDraftStore((s) => s.rulesetMode);
+
+  // Track which saved draft (if any) the wizard is currently editing.
+  // Set when launched with ?draftId=, or when the user taps "Save draft"
+  // on a fresh wizard (so subsequent saves update the same row).
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(launchedDraftId);
+
+  // Bootstrap orchestration:
+  //   - launched with ?campaignId= → fetch campaign system, set draft
+  //   - launched with ?draftId=     → fetch saved draft, hydrate store
+  //   - neither                     → reset working store so the user
+  //     always sees a fresh fork screen, untouched by prior sessions
+  //
+  // The bootstrapping flag keeps the rest of the wizard unmounted until
+  // the bootstrap completes; otherwise the steps would render briefly
+  // with stale state from the persisted store.
+  const [bootstrapping, setBootstrapping] = useState(
+    !!launchedCampaignId || !!launchedDraftId
+  );
+  const [bootstrapError, setBootstrapError] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // Fresh wizard — wipe persisted working state so the user starts
+      // at the fork. Drafts they wanted to keep live in character_drafts.
+      if (!launchedCampaignId && !launchedDraftId) {
+        resetDraft();
+        return;
+      }
+
+      // Resume a saved draft.
+      if (launchedDraftId) {
+        const { data, error } = await getCharacterDraft(launchedDraftId);
+        if (cancelled) return;
+        if (error || !data) {
+          setBootstrapError('Could not load draft.');
+          setBootstrapping(false);
+          return;
+        }
+        const snapshot = (data.data as Record<string, unknown>) ?? {};
+        // Rehydrate over a clean baseline so any field missing from the
+        // snapshot lands at its INITIAL_DRAFT default.
+        hydrateFromSnapshot(snapshot as never);
+        setBootstrapping(false);
+        return;
+      }
+
+      // Launched from a campaign — fetch its system + lock the wizard.
+      if (launchedCampaignId) {
+        // Reset first so we don't carry stale species/class from a
+        // prior session into this campaign-locked flow.
+        resetDraft();
+        const { data, error } = await supabase
+          .from('campaigns')
+          .select('id, system')
+          .eq('id', launchedCampaignId)
+          .single();
+        if (cancelled) return;
+        if (error || !data) {
+          setBootstrapError('Could not load campaign context.');
+          setBootstrapping(false);
+          return;
+        }
+        const { system, srdVersion } = systemToDraft(data.system);
+        setDraftCampaignId(launchedCampaignId);
+        setDraftRuleset(system, srdVersion);
+        // Implicit commit to campaign mode (ruleset step is skipped in
+        // this flow, but the gate still reads rulesetMode).
+        setDraftRulesetMode('campaign');
+        setBootstrapping(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [
+    launchedCampaignId,
+    launchedDraftId,
+    resetDraft,
+    hydrateFromSnapshot,
+    setDraftCampaignId,
+    setDraftRuleset,
+    setDraftRulesetMode,
+  ]);
+
+  // Active step list and current step, swapped based on launch context.
+  const STEPS = launchedCampaignId ? CAMPAIGN_STEPS : STANDALONE_STEPS;
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -139,14 +265,25 @@ export default function NewCharacterScreen() {
     : null;
 
   function isStepComplete(index: number): boolean {
-    switch (index) {
-      case 0: return true;
-      case 1: return draft.speciesKey !== null;
-      case 2: return draft.classKey !== null && (classSkillCount === 0 || draft.chosenSkills.length >= classSkillCount);
-      case 3: return draft.backgroundKey !== null;
-      case 4: return draft.abilityScores !== null;
-      case 5: return (draft.characterName ?? '').trim().length > 0;
-      default: return false;
+    const key = STEPS[index]?.key;
+    switch (key) {
+      // Ruleset is complete once the user has committed AND, if they
+      // chose campaign mode, actually picked a campaign. Without the
+      // campaign-id check, a user could fork to "Link a campaign", not
+      // pick one, and still advance to Species — losing the homebrew
+      // and ruleset scoping the campaign would have provided.
+      // While on the fork screen (rulesetMode === null) Next is
+      // disabled so they can't silently inherit the default.
+      case 'ruleset':
+        if (rulesetMode === null) return false;
+        if (rulesetMode === 'campaign' && !draft.campaignId) return false;
+        return true;
+      case 'species':    return draft.speciesKey !== null;
+      case 'class':      return draft.classKey !== null && (classSkillCount === 0 || draft.chosenSkills.length >= classSkillCount);
+      case 'background': return draft.backgroundKey !== null;
+      case 'scores':     return draft.abilityScores !== null;
+      case 'review':     return (draft.characterName ?? '').trim().length > 0;
+      default:           return false;
     }
   }
 
@@ -157,6 +294,79 @@ export default function NewCharacterScreen() {
       setStep(step - 1);
       setInPreview(false);
     }
+  }
+
+  // Save Draft state. Distinct from `saving` (which is for finishing
+  // the character) so a save-draft mid-wizard doesn't disable Next.
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSaveError, setDraftSaveError] = useState('');
+
+  /**
+   * Snapshot the full working draft to a server-side row. First save on a
+   * fresh wizard creates a new row; subsequent saves update it in place
+   * (tracked via `currentDraftId`). On success we route back to the
+   * Characters drawer page where the draft now appears with its badge.
+   */
+  async function handleSaveDraft() {
+    if (!user) return;
+    setSavingDraft(true);
+    setDraftSaveError('');
+
+    // Pull the entire CharacterDraft (not just the destructured `draft`
+    // we use for rendering) so every wizard field round-trips.
+    const snapshot = useCharacterDraftStore.getState();
+    const data = {
+      currentStep: snapshot.currentStep,
+      system: snapshot.system,
+      srdVersion: snapshot.srdVersion,
+      rulesetMode: snapshot.rulesetMode,
+      speciesKey: snapshot.speciesKey,
+      classKey: snapshot.classKey,
+      chosenSkills: snapshot.chosenSkills,
+      backgroundKey: snapshot.backgroundKey,
+      abilityScoreMethod: snapshot.abilityScoreMethod,
+      abilityScores: snapshot.abilityScores,
+      characterName: snapshot.characterName,
+      campaignId: snapshot.campaignId,
+    };
+    // Display name fallback for the Characters list. characterName takes
+    // precedence; otherwise show the most-specific identifier the user
+    // has so far.
+    const name =
+      snapshot.characterName?.trim() ||
+      snapshot.classKey ||
+      snapshot.speciesKey ||
+      null;
+
+    if (currentDraftId) {
+      const { error } = await updateCharacterDraft(currentDraftId, {
+        name,
+        data: data as never,
+      });
+      setSavingDraft(false);
+      if (error) {
+        setDraftSaveError('Failed to save draft.');
+        return;
+      }
+    } else {
+      const { data: row, error } = await createCharacterDraft({
+        userId: user.id,
+        name,
+        data: data as never,
+      });
+      setSavingDraft(false);
+      if (error || !row) {
+        setDraftSaveError('Failed to save draft.');
+        return;
+      }
+      setCurrentDraftId(row.id);
+    }
+
+    // Send the user back to the characters list where the draft now
+    // surfaces. The wizard's working state stays in the store but
+    // nothing's reading it once we navigate; resetDraft fires next
+    // time the user taps "+ New".
+    router.replace('/(drawer)/characters');
   }
 
   async function handleFinish() {
@@ -224,12 +434,22 @@ export default function NewCharacterScreen() {
         system: draft.system,
         base_stats: base_stats as unknown as import('@vaultstone/types').Json,
         resources: resources as unknown as import('@vaultstone/types').Json,
+        // Standalone characters persist their pack opt-in here; campaign
+        // characters get [] because they inherit packs from campaign_packs.
+        pack_ids: draft.campaignId ? [] : draft.selectedPackIds,
       });
 
       if (error) {
         setSaveError(error.message);
         setSaving(false);
         return;
+      }
+
+      // Promotion to a real character; the draft (if any) has fulfilled
+      // its purpose. Best-effort delete — failure here doesn't roll back
+      // the character, just leaves an orphan draft the user can clean up.
+      if (currentDraftId) {
+        await deleteCharacterDraft(currentDraftId).catch(() => undefined);
       }
 
       resetDraft();
@@ -242,16 +462,47 @@ export default function NewCharacterScreen() {
 
   const isLast = step === STEPS.length - 1;
   const canAdvance = isStepComplete(step);
+  const activeKey = STEPS[step]?.key;
 
   // Class skills hint: class chosen but skills not yet all picked
-  const showSkillHint = step === 2 && draft.classKey !== null && classSkillCount > 0 && draft.chosenSkills.length < classSkillCount;
+  const showSkillHint = activeKey === 'class' && draft.classKey !== null && classSkillCount > 0 && draft.chosenSkills.length < classSkillCount;
 
   // SheetSoFar visible between steps 1-4, not when in a detail preview, not on last step
-  const showSheetSoFar = step >= 1 && step <= 4 && !inPreview;
+  // Sheet summary visible on species → scores, hidden on the ruleset
+  // picker (when present) and the final review step. Key-based so it's
+  // correct under both step-list orderings.
+  const showSheetSoFar =
+    !inPreview &&
+    activeKey != null &&
+    activeKey !== 'ruleset' &&
+    activeKey !== 'review';
+
+  // While we're loading the campaign context, show a minimal placeholder.
+  // The wizard mounts the steps as soon as the system + campaignId are
+  // pinned in the draft so the picker queries can fire with the right
+  // filters from the first render.
+  if (bootstrapping) {
+    const loadingLabel = launchedDraftId ? 'Loading draft…' : 'Loading campaign…';
+    return (
+      <SafeAreaView style={s.safeArea}>
+        <View style={s.bootstrapWrap}>
+          <Text style={s.bootstrapText}>
+            {bootstrapError || loadingLabel}
+          </Text>
+          {bootstrapError ? (
+            <TouchableOpacity onPress={() => router.back()} style={[s.nextBtn, { marginTop: spacing.md }]}>
+              <Text style={s.nextBtnText}>Back</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.safeArea}>
       {/* Header */}
+      <ContentWidth size="reading">
       <View style={s.header}>
         <TouchableOpacity onPress={handleBack} style={s.headerSide} hitSlop={8}>
           <Text style={s.headerAction}>{step === 0 ? 'Cancel' : '← Back'}</Text>
@@ -260,88 +511,124 @@ export default function NewCharacterScreen() {
           <Text style={s.stepCounter}>STEP {String(step + 1).padStart(2, '0')}/{String(STEPS.length).padStart(2, '0')}</Text>
           <Text style={s.stepLabel}>{STEPS[step].label}</Text>
         </View>
-        <View style={s.headerSide} />
+        <TouchableOpacity
+          onPress={handleSaveDraft}
+          style={[s.headerSide, s.headerSideRight]}
+          disabled={savingDraft}
+          hitSlop={8}
+        >
+          <Text style={s.headerAction}>
+            {savingDraft ? 'Saving…' : 'Save draft'}
+          </Text>
+        </TouchableOpacity>
       </View>
+      {draftSaveError ? (
+        <Text style={s.draftSaveError}>{draftSaveError}</Text>
+      ) : null}
+      </ContentWidth>
 
       {/* Constellation progress */}
-      <View style={s.constellation}>
-        {STEPS.map((st, i) => {
-          const done = i < step;
-          const active = i === step;
-          return (
-            <View key={st.key} style={s.constellationItem}>
-              {i > 0 && (
-                <View style={[s.constellationLine, (done || active) && s.constellationLineActive]} />
-              )}
-              <View style={[s.constellationNode, done && s.constellationNodeDone, active && s.constellationNodeActive]}>
-                {done ? (
-                  <Text style={s.constellationCheck}>✓</Text>
-                ) : (
-                  <Text style={[s.constellationNum, active && s.constellationNumActive]}>{i + 1}</Text>
+      <ContentWidth size="reading">
+        <View style={s.constellation}>
+          {STEPS.map((st, i) => {
+            const done = i < step;
+            const active = i === step;
+            return (
+              <View key={st.key} style={s.constellationItem}>
+                {i > 0 && (
+                  <View style={[s.constellationLine, (done || active) && s.constellationLineActive]} />
                 )}
+                <View style={[s.constellationNode, done && s.constellationNodeDone, active && s.constellationNodeActive]}>
+                  {done ? (
+                    <Text style={s.constellationCheck}>✓</Text>
+                  ) : (
+                    <Text style={[s.constellationNum, active && s.constellationNumActive]}>{i + 1}</Text>
+                  )}
+                </View>
               </View>
-            </View>
-          );
-        })}
-      </View>
+            );
+          })}
+        </View>
+      </ContentWidth>
 
-      {/* Step content */}
-      <View style={s.content}>
-        {step === 0 && <StepRuleset />}
-        {step === 1 && (
-          <StepSpecies
-            onPreviewChange={setInPreview}
-            onAdvance={() => { setStep(2); setInPreview(false); }}
-          />
-        )}
-        {step === 2 && (
-          <StepClass
-            onPreviewChange={setInPreview}
-            onAdvance={() => { setStep(3); setInPreview(false); }}
-          />
-        )}
-        {step === 3 && (
-          <StepBackground
-            onPreviewChange={setInPreview}
-            onAdvance={() => { setStep(4); setInPreview(false); }}
-          />
-        )}
-        {step === 4 && <StepAbilityScores />}
-        {step === 5 && <StepReview />}
-      </View>
+      {/* Step content. Keyed off the active step's `key` so the indices
+          line up across the standalone-vs-campaign step lists. The
+          ContentWidth wrapper takes the flex:1 so it absorbs the
+          remaining vertical space the way the original View did, while
+          capping horizontal width so long-form steps (Ruleset, Review)
+          don't span the full screen on widescreens. */}
+      <ContentWidth size="reading" style={{ flex: 1 }}>
+        <View style={s.content}>
+          {(() => {
+            const key = STEPS[step]?.key;
+            // Helper to advance to the step after the current one. Uses the
+            // active step list's index so we land on the right next step in
+            // either launch mode.
+            const advanceTo = (targetKey: string) => {
+              const idx = STEPS.findIndex((s) => s.key === targetKey);
+              if (idx >= 0) setStep(idx);
+              setInPreview(false);
+            };
+            switch (key) {
+              case 'ruleset':
+                return <StepRuleset />;
+              case 'species':
+                return <StepSpecies onPreviewChange={setInPreview} onAdvance={() => advanceTo('class')} />;
+              case 'class':
+                return <StepClass onPreviewChange={setInPreview} onAdvance={() => advanceTo('background')} />;
+              case 'background':
+                return <StepBackground onPreviewChange={setInPreview} onAdvance={() => advanceTo('scores')} />;
+              case 'scores':
+                return <StepAbilityScores />;
+              case 'review':
+                return <StepReview />;
+              default:
+                return null;
+            }
+          })()}
+        </View>
+      </ContentWidth>
 
       {/* SheetSoFar summary bar */}
       {showSheetSoFar && (
-        <SheetSoFar
-          speciesName={speciesName}
-          className={className}
-          classDie={classDie}
-          backgroundName={backgroundName}
-          highestStat={highestStat}
-          onJumpTo={(target) => { setStep(target); setInPreview(false); }}
-        />
+        <ContentWidth size="reading">
+          <SheetSoFar
+            speciesName={speciesName}
+            className={className}
+            classDie={classDie}
+            backgroundName={backgroundName}
+            highestStat={highestStat}
+            onJumpTo={(key) => {
+              const idx = STEPS.findIndex((s) => s.key === key);
+              if (idx >= 0) setStep(idx);
+              setInPreview(false);
+            }}
+          />
+        </ContentWidth>
       )}
 
       {/* Footer */}
       {!inPreview && (
-        <View style={s.footer}>
-          {showSkillHint && (
-            <Text style={s.footerHint}>
-              Pick {classSkillCount - draft.chosenSkills.length} more skill{classSkillCount - draft.chosenSkills.length !== 1 ? 's' : ''} to continue
-            </Text>
-          )}
-          {saveError ? <Text style={s.saveError}>{saveError}</Text> : null}
-          <TouchableOpacity
-            style={[s.nextBtn, !canAdvance && s.nextBtnDisabled]}
-            disabled={!canAdvance || saving}
-            onPress={isLast ? handleFinish : () => { setStep(step + 1); setInPreview(false); }}
-            activeOpacity={0.85}
-          >
-            <Text style={[s.nextBtnText, !canAdvance && s.nextBtnTextDisabled]}>
-              {saving ? 'Creating…' : isLast ? 'Create Character' : 'Continue →'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <ContentWidth size="reading">
+          <View style={s.footer}>
+            {showSkillHint && (
+              <Text style={s.footerHint}>
+                Pick {classSkillCount - draft.chosenSkills.length} more skill{classSkillCount - draft.chosenSkills.length !== 1 ? 's' : ''} to continue
+              </Text>
+            )}
+            {saveError ? <Text style={s.saveError}>{saveError}</Text> : null}
+            <TouchableOpacity
+              style={[s.nextBtn, !canAdvance && s.nextBtnDisabled]}
+              disabled={!canAdvance || saving}
+              onPress={isLast ? handleFinish : () => { setStep(step + 1); setInPreview(false); }}
+              activeOpacity={0.85}
+            >
+              <Text style={[s.nextBtnText, !canAdvance && s.nextBtnTextDisabled]}>
+                {saving ? 'Creating…' : isLast ? 'Create Character' : 'Continue →'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ContentWidth>
       )}
     </SafeAreaView>
   );
@@ -349,6 +636,20 @@ export default function NewCharacterScreen() {
 
 const s = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.surfaceCanvas },
+
+  bootstrapWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  bootstrapText: {
+    fontSize: 14,
+    color: colors.onSurfaceVariant,
+    fontFamily: fonts.body,
+    textAlign: 'center',
+  },
 
   // Header
   header: {
@@ -359,11 +660,19 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
   },
-  headerSide: { width: 70 },
+  headerSide: { width: 90 },
+  headerSideRight: { alignItems: 'flex-end' },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerAction: {
     fontSize: 13, fontFamily: fonts.label, fontWeight: '600',
     color: colors.primary, letterSpacing: 0.3,
+  },
+  draftSaveError: {
+    fontSize: 12,
+    color: colors.hpDanger,
+    fontFamily: fonts.body,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
   },
   stepCounter: {
     fontSize: 9, fontFamily: fonts.label, fontWeight: '600',

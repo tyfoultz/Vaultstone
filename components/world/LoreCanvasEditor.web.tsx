@@ -755,6 +755,11 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     // captured stale HTML without the chip.
     htmlRef.current[blockId] = el.innerHTML;
 
+    // Capture the chip HTML immediately — don't defer to rAF because a blur
+    // event (triggered by clicking the typeahead popup) may have already
+    // captured stale HTML without the chip.
+    htmlRef.current[blockId] = el.innerHTML;
+
     // Place cursor at the start of the trailing text node
     requestAnimationFrame(() => {
       const r = document.createRange();

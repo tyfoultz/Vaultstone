@@ -23,7 +23,7 @@ GitHub: https://github.com/tyfoultz/Vaultstone
 - [5. GM Toolkit](features/05-gm-toolkit.md)
 - [6. Session Notes & Campaign Notes Hub](features/06-notes.md) ✅
 - [7. World Building & Campaign Knowledge Base](features/07-world-building.md)
-- [8. Campaign System Card — PDF Rulebook](features/08-pdf-rulebook.md)
+- [8. PDF Reader (campaign-side)](features/08-pdf-rulebook.md) — superseded as content extension; reader-only now
 
 ### Active Plans
 - [World Builder Rewrite](plans/world-builder-rewrite.md) — Feature 7 full-rewrite plan (8 phases). Plan only; no build yet.

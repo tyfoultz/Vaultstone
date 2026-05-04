@@ -1,0 +1,167 @@
+[
+  {
+    "key": "attack",
+    "name": "Attack",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Make one melee or ranged attack with a weapon or unarmed strike. Class features and feats may grant additional attacks (Extra Attack at fighter level 5, etc.).",
+    "data": {}
+  },
+  {
+    "key": "dash",
+    "name": "Dash",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Gain extra movement equal to your Speed for the turn. Any increases or decreases to Speed (e.g. difficult terrain) apply to this extra movement.",
+    "data": {}
+  },
+  {
+    "key": "disengage",
+    "name": "Disengage",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Your movement doesn't provoke Opportunity Attacks for the rest of the turn.",
+    "data": {}
+  },
+  {
+    "key": "dodge",
+    "name": "Dodge",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Until the start of your next turn, attack rolls against you have Disadvantage if you can see the attacker, and you have Advantage on Dexterity saving throws. Lost if you become Incapacitated or your Speed becomes 0.",
+    "data": {}
+  },
+  {
+    "key": "help",
+    "name": "Help",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Either aid an ally with their next ability check (you grant Advantage if it's an ability check made within 1 minute) or aid an ally's first attack against a target within 5 feet of you (Advantage before the start of your next turn).",
+    "data": {}
+  },
+  {
+    "key": "hide",
+    "name": "Hide",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Make a Dexterity (Stealth) check while you have full cover or are heavily obscured. On a success, you have the Invisible condition until you make noise, attack, or are otherwise revealed.",
+    "data": {}
+  },
+  {
+    "key": "magic",
+    "name": "Magic",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_2.0"],
+    "description": "Cast a spell with a casting time of an Action, or activate a magic item that requires a Magic action. (Renamed from 'Cast a Spell' in the 2024 SRD, but conceptually identical.)",
+    "data": {}
+  },
+  {
+    "key": "cast-a-spell",
+    "name": "Cast a Spell",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_5.1"],
+    "description": "Cast a spell with a casting time of 1 action. Different casting times (Bonus Action, Reaction, longer rituals) use their respective slots.",
+    "data": {}
+  },
+  {
+    "key": "ready",
+    "name": "Ready",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Prepare a single action (or readied movement) and a trigger. When the trigger occurs before the start of your next turn, you can spend your Reaction to take the readied action.",
+    "data": {}
+  },
+  {
+    "key": "search",
+    "name": "Search",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "Make a Wisdom (Perception), Intelligence (Investigation), or Wisdom (Insight) check to find or notice something hidden in your immediate surroundings.",
+    "data": {}
+  },
+  {
+    "key": "influence",
+    "name": "Influence",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_2.0"],
+    "description": "2024-only: Make a Charisma check (Persuasion, Intimidation, Deception, or Performance) to convince a creature within 30 feet to do something. Doesn't work on creatures hostile to you in combat.",
+    "data": {}
+  },
+  {
+    "key": "study",
+    "name": "Study",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_2.0"],
+    "description": "2024-only: Make an Intelligence check (Arcana, History, Investigation, Nature, or Religion) to recall lore about something you can perceive within 10 feet.",
+    "data": {}
+  },
+  {
+    "key": "utilize",
+    "name": "Utilize",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_2.0"],
+    "description": "2024-only: Use a non-magical object that requires more than the free Object Interaction (e.g. tying knots, pouring liquid carefully). The 5.1 equivalent was 'Use an Object'.",
+    "data": {}
+  },
+  {
+    "key": "use-an-object",
+    "name": "Use an Object",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "action",
+    "srdVersions": ["SRD_5.1"],
+    "description": "Use a non-magical object that requires action — e.g. open a heavy door, tie knots, smash a vial. The 2024 successor is 'Utilize'.",
+    "data": {}
+  },
+  {
+    "key": "opportunity-attack",
+    "name": "Opportunity Attack",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "reaction",
+    "srdVersions": ["SRD_5.1", "SRD_2.0"],
+    "description": "When a creature you can see leaves your reach, you can spend your Reaction to make one melee attack against it (with the weapon you have in hand or an unarmed strike).",
+    "data": {}
+  }
+]

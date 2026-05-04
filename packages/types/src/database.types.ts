@@ -64,11 +64,11 @@ export interface Database {
           name: string;
           dm_user_id: string;
           join_code: string;
+          system: string;
           system_label: string | null;
           description: string | null;
           cover_image_url: string | null;
           is_archived: boolean;
-          content_sources: Json | null;
           party_view_settings: Json | null;
           next_session_at: string | null;
           next_session_prep_page_id: string | null;
@@ -79,11 +79,11 @@ export interface Database {
           name: string;
           dm_user_id: string;
           join_code: string;
+          system: string;
           system_label?: string | null;
           description?: string | null;
           cover_image_url?: string | null;
           is_archived?: boolean;
-          content_sources?: Json | null;
           party_view_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;
@@ -94,14 +94,32 @@ export interface Database {
           name?: string;
           dm_user_id?: string;
           join_code?: string;
+          system?: string;
           system_label?: string | null;
           description?: string | null;
           cover_image_url?: string | null;
           is_archived?: boolean;
-          content_sources?: Json | null;
           party_view_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;
+        };
+        Relationships: [];
+      };
+      campaign_packs: {
+        Row: {
+          campaign_id: string;
+          pack_id: string;
+          enabled: boolean;
+          added_at: string;
+        };
+        Insert: {
+          campaign_id: string;
+          pack_id: string;
+          enabled?: boolean;
+          added_at?: string;
+        };
+        Update: {
+          enabled?: boolean;
         };
         Relationships: [];
       };
@@ -115,6 +133,10 @@ export interface Database {
           base_stats: Json;
           resources: Json;
           conditions: string[];
+          /** Homebrew pack ids the character opted into at creation. Empty
+           *  for campaign-linked characters (those inherit packs from
+           *  campaign_packs) and for SRD-only standalone characters. */
+          pack_ids: string[];
           created_at: string;
           updated_at: string;
         };
@@ -127,6 +149,7 @@ export interface Database {
           base_stats: Json;
           resources: Json;
           conditions?: string[];
+          pack_ids?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -139,6 +162,7 @@ export interface Database {
           base_stats?: Json;
           resources?: Json;
           conditions?: string[];
+          pack_ids?: string[];
           updated_at?: string;
         };
         Relationships: [];
@@ -271,30 +295,120 @@ export interface Database {
       homebrew_content: {
         Row: {
           id: string;
-          campaign_id: string | null;
           user_id: string;
+          pack_id: string | null;
           content_type: string;
           name: string;
           data: Json;
-          is_published: boolean;
           created_at: string;
         };
         Insert: {
           id?: string;
-          campaign_id?: string | null;
+          user_id: string;
+          pack_id?: string | null;
+          content_type: string;
+          name: string;
+          data: Json;
+          created_at?: string;
+        };
+        Update: {
+          pack_id?: string | null;
+          content_type?: string;
+          name?: string;
+          data?: Json;
+        };
+        Relationships: [];
+      };
+      imported_content: {
+        Row: {
+          id: string;
+          pack_id: string;
           user_id: string;
           content_type: string;
           name: string;
           data: Json;
-          is_published?: boolean;
-          created_at?: string;
+          entry_key: string;
+          source_code: string | null;
+          source_name: string | null;
+          source_page: number | null;
+          source_url: string | null;
+          imported_at: string;
+        };
+        Insert: {
+          id?: string;
+          pack_id: string;
+          user_id: string;
+          content_type: string;
+          name: string;
+          data: Json;
+          entry_key: string;
+          source_code?: string | null;
+          source_name?: string | null;
+          source_page?: number | null;
+          source_url?: string | null;
+          imported_at?: string;
         };
         Update: {
-          campaign_id?: string | null;
+          pack_id?: string;
           content_type?: string;
           name?: string;
           data?: Json;
-          is_published?: boolean;
+          entry_key?: string;
+          source_code?: string | null;
+          source_name?: string | null;
+          source_page?: number | null;
+          source_url?: string | null;
+        };
+        Relationships: [];
+      };
+      homebrew_packs: {
+        Row: {
+          id: string;
+          owner_user_id: string;
+          system: string;
+          name: string;
+          description: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_user_id: string;
+          system: string;
+          name: string;
+          description?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          owner_user_id?: string;
+          system?: string;
+          name?: string;
+          description?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      character_drafts: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string | null;
+          data: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name?: string | null;
+          data?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string | null;
+          data?: Json;
         };
         Relationships: [];
       };
@@ -790,7 +904,12 @@ export interface Database {
     Views: Record<never, never>;
     Functions: {
       create_campaign_with_gm: {
-        Args: { p_name: string; p_system_label?: string | null; p_description?: string | null };
+        Args: {
+          p_name: string;
+          p_system: string;
+          p_system_label?: string | null;
+          p_description?: string | null;
+        };
         Returns: Database['public']['Tables']['campaigns']['Row'];
       };
       get_campaign_by_join_code: {
