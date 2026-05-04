@@ -152,11 +152,9 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
  * sublabel + trash; pressing trash flips into a confirm/cancel pair
  * inline (no separate modal, keeps the horizontal-scroll geometry stable).
  *
- * Imported packs (created via the import modal) and authored packs both
- * surface here as homebrew_packs rows — the storage convention is that
- * import-created packs are named "Imported: <filename>" so the user can
- * tell them apart in the row. Both kinds open the same per-pack detail
- * page on tap; the detail UI handles the authored-vs-imported rendering.
+ * Packs are unified — a pack can hold authored entries, JSON imports,
+ * or both. The breakdown is visible on the pack detail page; the row
+ * card just identifies the pack.
  */
 function PackCard({
   pack,
@@ -219,11 +217,8 @@ function PackCard({
     );
   }
 
-  // Imported packs are named "Imported: ..." by the import flow — surface
-  // a different icon so the user can tell them apart in the row at a glance.
-  const isImported = pack.name.startsWith('Imported: ');
-  const iconName = isImported ? 'upload-file' : 'auto-fix-high';
-  const sublabel = isImported ? 'Imported pack' : 'Authored pack';
+  const iconName = 'auto-fix-high' as const;
+  const sublabel = pack.description?.trim() || 'Content pack';
 
   // Usage chip — "Used by N campaigns". The full campaign name list goes
   // on accessibilityLabel so screen readers announce it and (on web) it

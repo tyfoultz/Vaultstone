@@ -23,7 +23,7 @@ import {
 import type { ContentResult, ImportSource } from '@vaultstone/types';
 import {
   createHomebrewPack, listHomebrewPacks,
-  upsertImportedEntries, deleteImportedEntriesInPack,
+  upsertImportedEntries, deleteImportedEntriesBySourceLabel,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import {
@@ -131,21 +131,33 @@ type Props = {
   onClose: () => void;
   /** Fires after a successful import so the caller can refresh state. */
   onImported: () => void;
+  /** When set, the import targets this existing pack instead of creating
+   *  a new one. The pack-name field is hidden; only "Source label" shows. */
+  packId?: string;
+  /** When set, pre-fills the source label and (in re-import mode) targets
+   *  that exact card to refresh. Combined with `packId`, this is the
+   *  "Re-import this card" flow from the pack detail page. */
+  initialSourceLabel?: string;
 };
 
 type Phase = 'intro' | 'confirm' | 'working';
 
-export function ImportContentModal({ visible, systemId, onClose, onImported }: Props) {
+export function ImportContentModal({
+  visible, systemId, onClose, onImported, packId, initialSourceLabel,
+}: Props) {
   const userId = useAuthStore((s) => s.user?.id ?? null);
+  const targetPackId = packId ?? null;
   const [phase, setPhase] = useState<Phase>('intro');
   const [picked, setPicked] = useState<PickedJson | null>(null);
   const [probe, setProbe] = useState<ImportableContent | null>(null);
-  // Pack name the user can override before confirming. Defaults to the
-  // filename-derived name; per the design discussion (option b), changing
-  // it creates a new pack rather than redirecting a re-import — so a
-  // re-import of the same file with the default name still de-dupes
-  // cleanly into the existing pack.
+  // Pack name draft — only used in "create new pack" mode (no packId).
+  // When importing into an existing pack, the user names the *card*
+  // (source label) instead.
   const [packNameDraft, setPackNameDraft] = useState('');
+  // Source label draft — the per-card name. Defaults to filename-derived.
+  // Used as the dedupe key alongside packId; same label re-imported with
+  // a fresh file refreshes the card, different label creates a new card.
+  const [sourceLabelDraft, setSourceLabelDraft] = useState(initialSourceLabel ?? '');
   const [error, setError] = useState<string | null>(null);
 
   function reset() {
@@ -153,6 +165,7 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
     setPicked(null);
     setProbe(null);
     setPackNameDraft('');
+    setSourceLabelDraft(initialSourceLabel ?? '');
     setError(null);
   }
 
@@ -170,7 +183,15 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
       const probeResult = probeContent(result.payload);
       setPicked(result);
       setProbe(probeResult);
-      setPackNameDraft(derivePackName(result.fileName));
+      // In create-pack mode, default both fields from the filename. In
+      // existing-pack mode, only the source label is editable; default
+      // to filename if the caller didn't pre-fill (re-import would have).
+      if (!targetPackId) {
+        setPackNameDraft(deriveDefaultName(result.fileName));
+      }
+      if (!sourceLabelDraft) {
+        setSourceLabelDraft(deriveDefaultName(result.fileName));
+      }
       setPhase('confirm');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -179,38 +200,45 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
 
   async function handleImport() {
     if (!picked || !probe || !userId) return;
-    const packName = packNameDraft.trim() || derivePackName(picked.fileName);
+    const sourceLabel = sourceLabelDraft.trim() || deriveDefaultName(picked.fileName);
     setPhase('working');
     setError(null);
     try {
-      // Look up an existing import pack by exact name + system + owner.
-      // Re-importing the same file with the same name finds the existing
-      // pack and replaces its entries; renaming creates a new pack
-      // (intentional per the design call — user-named packs aren't
-      // expected to merge across renames).
-      const { data: existingPacks } = await listHomebrewPacks({ system: systemId });
-      let pack = existingPacks?.find(
-        (p) => p.owner_user_id === userId && p.name === packName,
-      ) ?? null;
+      let packIdResolved = targetPackId;
 
-      if (!pack) {
-        const { data: created, error: createErr } = await createHomebrewPack({
-          ownerUserId: userId,
-          system: systemId,
-          name: packName,
-          description: `Imported from ${picked.fileName}`,
-        });
-        if (createErr || !created) {
-          throw new Error(createErr?.message ?? 'Failed to create pack');
+      // Top-level entry point: create a new pack named by the user.
+      // In-pack entry point: targetPackId is set, skip creation.
+      if (!packIdResolved) {
+        const packName = packNameDraft.trim() || deriveDefaultName(picked.fileName);
+        // Look up an existing pack by exact name + system + owner so a
+        // user re-running the top-level "Import" with the same pack
+        // name lands in the existing pack instead of duplicating it.
+        // Renaming creates a new pack.
+        const { data: existingPacks } = await listHomebrewPacks({ system: systemId });
+        let pack = existingPacks?.find(
+          (p) => p.owner_user_id === userId && p.name === packName,
+        ) ?? null;
+
+        if (!pack) {
+          const { data: created, error: createErr } = await createHomebrewPack({
+            ownerUserId: userId,
+            system: systemId,
+            name: packName,
+            description: null,
+          });
+          if (createErr || !created) {
+            throw new Error(createErr?.message ?? 'Failed to create pack');
+          }
+          pack = created;
         }
-        pack = created;
+        packIdResolved = pack.id;
       }
 
-      // Wipe existing imported entries in this pack before re-importing
+      // Wipe entries under this (pack, source_label) before re-importing
       // so removed entries (renamed source-keys, deleted upstream) don't
-      // linger. Authored entries in homebrew_content stay untouched —
-      // we only delete from imported_content.
-      await deleteImportedEntriesInPack(pack.id);
+      // linger. Authored entries and other cards in the same pack are
+      // untouched — the wipe is scoped to this card only.
+      await deleteImportedEntriesBySourceLabel(packIdResolved, sourceLabel);
 
       // Run every transform whose top-level key the probe found. A
       // single file can carry multiple content types (e.g. an XPHB.json
@@ -239,8 +267,9 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
       }
 
       const { error: upsertErr } = await upsertImportedEntries({
-        packId: pack.id,
+        packId: packIdResolved,
         userId,
+        sourceLabel,
         entries: entriesToUpsert,
       });
       if (upsertErr) throw new Error(upsertErr.message);
@@ -279,6 +308,9 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
               probe={probe}
               packName={packNameDraft}
               onPackNameChange={setPackNameDraft}
+              sourceLabel={sourceLabelDraft}
+              onSourceLabelChange={setSourceLabelDraft}
+              showPackNameField={!targetPackId}
             />
           ) : null}
 
@@ -364,12 +396,15 @@ function IntroBody() {
 }
 
 function ConfirmBody({
-  picked, probe, packName, onPackNameChange,
+  picked, probe, packName, onPackNameChange, sourceLabel, onSourceLabelChange, showPackNameField,
 }: {
   picked: PickedJson;
   probe: ImportableContent;
   packName: string;
   onPackNameChange: (s: string) => void;
+  sourceLabel: string;
+  onSourceLabelChange: (s: string) => void;
+  showPackNameField: boolean;
 }) {
   return (
     <>
@@ -380,18 +415,35 @@ function ConfirmBody({
           <Text style={s.filePreviewMeta}>{formatBytes(picked.sizeBytes)}</Text>
         </View>
       </View>
+      {showPackNameField ? (
+        <View style={s.nameField}>
+          <Text style={s.nameFieldLabel}>Pack name</Text>
+          <TextInput
+            value={packName}
+            onChangeText={onPackNameChange}
+            style={s.nameFieldInput}
+            placeholder="My PHB pack"
+            placeholderTextColor={colors.textSecondary}
+          />
+          <Text style={s.nameFieldHint}>
+            A new pack with this name will be created (or reused if you
+            already own one).
+          </Text>
+        </View>
+      ) : null}
       <View style={s.nameField}>
-        <Text style={s.nameFieldLabel}>Pack name</Text>
+        <Text style={s.nameFieldLabel}>Source label</Text>
         <TextInput
-          value={packName}
-          onChangeText={onPackNameChange}
+          value={sourceLabel}
+          onChangeText={onSourceLabelChange}
           style={s.nameFieldInput}
-          placeholder="Imported: phb.json"
+          placeholder="PHB"
           placeholderTextColor={colors.textSecondary}
         />
         <Text style={s.nameFieldHint}>
-          Re-importing the same file with this exact name updates the
-          existing pack. Renaming creates a new one.
+          Each import inside a pack is a separate "card". Re-importing
+          with the same label refreshes that card; a new label adds
+          another card.
         </Text>
       </View>
       <Text style={s.body}>Found in this file:</Text>
@@ -501,15 +553,13 @@ function WorkingBody() {
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /**
- * Pack name derived from a source filename. Strips common extensions and
- * the conventional "imported from" prefix the user already sees in the
- * description, so the pack name in the Content Packs row reads cleanly.
- *
- * Re-imports of the same file find the existing pack via this name +
- * system + owner, so the function must be deterministic.
+ * Default name (pack name + source label) derived from a source filename.
+ * Strips the .json extension. Used for both first-time pack creation and
+ * card-label defaults so the user has a sensible starting point. They're
+ * free to edit either.
  */
-function derivePackName(fileName: string): string {
-  return `Imported: ${fileName.replace(/\.json$/i, '')}`;
+function deriveDefaultName(fileName: string): string {
+  return fileName.replace(/\.json$/i, '');
 }
 
 function formatBytes(n: number): string {
@@ -521,12 +571,13 @@ function formatBytes(n: number): string {
 const s = StyleSheet.create({
   backdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center', padding: spacing.lg,
+    justifyContent: 'center', alignItems: 'center', padding: spacing.lg,
   },
   card: {
     backgroundColor: colors.surface, borderRadius: 16,
     padding: spacing.lg, gap: spacing.md,
     borderWidth: 1, borderColor: colors.border,
+    width: '100%', maxWidth: 560,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   title: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },

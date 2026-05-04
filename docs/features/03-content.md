@@ -80,6 +80,10 @@ All six share the `HomebrewFormShell` for consistent header/save/cancel chrome. 
 
 User picks a JSON file (typically a 5e.tools per-content-type export). The import modal probes the payload's top-level keys and reports counts to the user. The user accepts a per-import in-app ToS callout. The transforms run, produce `*Result`-shaped entries, and the modal upserts them into `imported_content` under the importer's pack.
 
+A single pack can hold any number of imports alongside authored entries. Each import inside a pack is a "card" identified by a user-given `source_label` (defaults to the filename minus extension; user can edit). Re-importing with the same label refreshes that card's entries; a new label adds another card. The unique constraint `(pack_id, source_label, entry_key)` is what makes that work. The pack detail page renders one card per source with tap-to-filter, Re-import, and Remove actions.
+
+The top-level Import button on a system page creates a new pack and adds the first card to it. The "Add imported content from JSON" button inside an existing pack adds a card to that pack instead.
+
 | Transform | Source key(s) | Output |
 |---|---|---|
 | Subclasses | `subclass[]` + `subclassFeature[]` | `SubclassResult[]` with leveled features resolved from pipe-encoded refs |
@@ -115,7 +119,7 @@ Authored entries and imported entries flow through the same attach mechanism —
 | Eight 5e.tools import transforms | ✅ Shipped |
 | Per-system pack list + per-pack detail page | ✅ Shipped |
 | Source provenance (`ImportSource` + `SourceBadge`) | ✅ Shipped |
-| Re-import upsert (`(pack_id, entry_key)`) | ✅ Shipped |
+| Re-import upsert (`(pack_id, source_label, entry_key)`) | ✅ Shipped — multiple imports per pack as cards |
 | Per-import ToS gate | ✅ Shipped |
 | ~~Tag and categorize entries (`HomebrewEntry.tags`)~~ | ⬜ Deferred — the original spec called for freeform tags; pack name + content type cover most needs today, revisit if users ask |
 | Bulk actions (multi-select delete / assign tag) | ⬜ Deferred — single-entry actions in the per-pack detail page are sufficient for v1 |

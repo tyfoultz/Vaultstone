@@ -14,10 +14,14 @@ import {
   listHomebrewEntries,
   deleteHomebrewEntry,
   listImportedContent,
+  listImportedSourceCards,
+  deleteImportedEntriesBySourceLabel,
   type HomebrewPackRow,
   type HomebrewContentRow,
   type ImportedContentRow,
+  type ImportedSourceCard,
 } from '@vaultstone/api';
+import { ImportContentModal } from '../../../components/imported/ImportContentModal';
 import type { HomebrewContentType } from '@vaultstone/types';
 import { SpellFormModal } from '../../../components/homebrew/forms/SpellFormModal';
 import { ItemFormModal } from '../../../components/homebrew/forms/ItemFormModal';
@@ -71,6 +75,43 @@ export default function HomebrewPackDetailScreen() {
   const [confirmEntryId, setConfirmEntryId] = useState<string | null>(null);
   const [entryDeleting, setEntryDeleting] = useState<string | null>(null);
 
+  // Imported source cards — one per (pack, source_label). The user names
+  // each import inside the pack, so a single pack can hold multiple
+  // imports (e.g. "PHB", "Tasha's") rendered as cards.
+  const [sourceCards, setSourceCards] = useState<ImportedSourceCard[]>([]);
+  // When set, only entries with this source_label render in the entries
+  // list. Tapping a card filters; tapping again or hitting "Show all"
+  // clears.
+  const [filterSourceLabel, setFilterSourceLabel] = useState<string | null>(null);
+  // Import modal state. `importMode` carries either 'append' (new card)
+  // or { kind: 'reimport', sourceLabel }; null means closed.
+  const [importMode, setImportMode] = useState<
+    | null
+    | { kind: 'append' }
+    | { kind: 'reimport'; sourceLabel: string }
+  >(null);
+  // Per-card delete confirmation.
+  const [confirmCardLabel, setConfirmCardLabel] = useState<string | null>(null);
+  const [cardDeleting, setCardDeleting] = useState<string | null>(null);
+
+  // Reload helper — runs the same Promise.all as the initial mount.
+  // Used after import / re-import / card-remove so the page reflects
+  // the new database state without remounting.
+  async function refresh() {
+    if (!id) return;
+    const [packRes, entriesRes, importedRes, cardsRes] = await Promise.all([
+      getHomebrewPack(id),
+      listHomebrewEntries(id),
+      listImportedContent(id),
+      listImportedSourceCards(id),
+    ]);
+    if (packRes.error || !packRes.data) return;
+    setPack(packRes.data);
+    setEntries(entriesRes.data ?? []);
+    setImportedEntries(importedRes.data ?? []);
+    setSourceCards(cardsRes.data ?? []);
+  }
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -78,7 +119,8 @@ export default function HomebrewPackDetailScreen() {
       getHomebrewPack(id),
       listHomebrewEntries(id),
       listImportedContent(id),
-    ]).then(([packRes, entriesRes, importedRes]) => {
+      listImportedSourceCards(id),
+    ]).then(([packRes, entriesRes, importedRes, cardsRes]) => {
       if (cancelled) return;
       if (packRes.error || !packRes.data) {
         setError('Pack not found.');
@@ -88,6 +130,7 @@ export default function HomebrewPackDetailScreen() {
       setPack(packRes.data);
       setEntries(entriesRes.data ?? []);
       setImportedEntries(importedRes.data ?? []);
+      setSourceCards(cardsRes.data ?? []);
       setDraftName(packRes.data.name);
       setDraftDescription(packRes.data.description ?? '');
       setLoading(false);
@@ -97,14 +140,16 @@ export default function HomebrewPackDetailScreen() {
     };
   }, [id]);
 
-  const entryCount = entries.length + importedEntries.length;
-  // An imported pack is one whose contents originate from a JSON file —
-  // we detect it by the presence of imported_content rows OR the legacy
-  // "Imported: " name prefix (which the import flow produces). The
-  // authoring forms don't apply to imported entries; the add-entry row
-  // is hidden when this is true.
-  const isImported = importedEntries.length > 0
-    || (pack?.name.startsWith('Imported: ') ?? false);
+  const visibleImportedEntries = filterSourceLabel
+    ? importedEntries.filter((e) => e.source_label === filterSourceLabel)
+    : importedEntries;
+  // The authored-entries list isn't tagged by source_label (different
+  // table). When a card filter is active we hide authored entries
+  // because the user is browsing within a single import; clearing the
+  // filter shows authored alongside imported again.
+  const visibleAuthoredEntries = filterSourceLabel ? [] : entries;
+  const visibleEntryCount = visibleAuthoredEntries.length + visibleImportedEntries.length;
+  const totalEntryCount = entries.length + importedEntries.length;
 
   async function commitField(field: EditableField) {
     if (!pack) return;
@@ -163,6 +208,18 @@ export default function HomebrewPackDetailScreen() {
     setConfirmEntryId(null);
   }
 
+  async function handleCardDelete(sourceLabel: string) {
+    if (!pack) return;
+    setCardDeleting(sourceLabel);
+    const { error: err } = await deleteImportedEntriesBySourceLabel(pack.id, sourceLabel);
+    setCardDeleting(null);
+    if (err) return;
+    setConfirmCardLabel(null);
+    // Clear the filter if it pointed at the card we just removed.
+    if (filterSourceLabel === sourceLabel) setFilterSourceLabel(null);
+    await refresh();
+  }
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -191,7 +248,7 @@ export default function HomebrewPackDetailScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}>
       <ScreenHeader
         title={pack.name}
-        subtitle={pack.name.startsWith('Imported: ') ? 'Imported pack' : 'Authored pack'}
+        subtitle={packSubtitle(entries.length, sourceCards.length)}
         actions={
           <View style={{ flexDirection: 'row', gap: spacing.xs }}>
             <GhostButton
@@ -215,7 +272,7 @@ export default function HomebrewPackDetailScreen() {
             {deleteError || (
               <>
                 Delete <Text weight="bold">{pack.name}</Text>? This permanently removes the pack
-                {entryCount > 0 ? ` and its ${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}` : ''}.
+                {totalEntryCount > 0 ? ` and its ${totalEntryCount} ${totalEntryCount === 1 ? 'entry' : 'entries'}` : ''}.
               </>
             )}
           </Text>
@@ -350,22 +407,82 @@ export default function HomebrewPackDetailScreen() {
 
         </Card>
 
-        {/* Entries section */}
+        {/* Imported sources card grid. One card per (pack, source_label).
+            Tap to filter the entries list to just that import; long
+            press the card actions to re-import or remove. */}
         <Card tier="container" padding="lg" style={styles.card}>
           <View style={styles.cardSectionHeader}>
-            <MetaLabel size="sm">Contents</MetaLabel>
+            <MetaLabel size="sm">Imported sources</MetaLabel>
             <Text variant="body-sm" tone="secondary">
-              {entryCount === 0
-                ? 'No entries yet'
-                : `${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}`}
+              {sourceCards.length === 0
+                ? 'No imports yet'
+                : `${sourceCards.length} ${sourceCards.length === 1 ? 'import' : 'imports'}`}
             </Text>
           </View>
 
-          {/* Add-entry row only renders for authored packs. Imported
-              packs can't accept new authored entries because the
-              authoring form schema doesn't match the rich imported
-              payload — the user would need to re-import to update. */}
-          {!isImported ? (
+          {sourceCards.length === 0 ? null : (
+            <View style={styles.cardGrid}>
+              {sourceCards.map((card) => (
+                <SourceCardView
+                  key={card.sourceLabel}
+                  card={card}
+                  active={filterSourceLabel === card.sourceLabel}
+                  confirming={confirmCardLabel === card.sourceLabel}
+                  deleting={cardDeleting === card.sourceLabel}
+                  onTapFilter={() => setFilterSourceLabel(
+                    filterSourceLabel === card.sourceLabel ? null : card.sourceLabel,
+                  )}
+                  onReimport={() => setImportMode({ kind: 'reimport', sourceLabel: card.sourceLabel })}
+                  onRequestRemove={() => setConfirmCardLabel(card.sourceLabel)}
+                  onCancelRemove={() => setConfirmCardLabel(null)}
+                  onConfirmRemove={() => handleCardDelete(card.sourceLabel)}
+                />
+              ))}
+            </View>
+          )}
+
+          <Pressable
+            onPress={() => setImportMode({ kind: 'append' })}
+            style={({ pressed }) => [styles.addImportBtn, pressed && { opacity: 0.85 }]}
+            accessibilityLabel="Add imported content from JSON"
+          >
+            <Icon name="add" size={16} color={colors.primary} />
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.primary, letterSpacing: 1 }}>
+              Add imported content from JSON
+            </Text>
+          </Pressable>
+        </Card>
+
+        {/* Entries section */}
+        <Card tier="container" padding="lg" style={styles.card}>
+          <View style={styles.cardSectionHeader}>
+            <MetaLabel size="sm">
+              {filterSourceLabel ? `Entries · ${filterSourceLabel}` : 'Contents'}
+            </MetaLabel>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              {filterSourceLabel ? (
+                <Pressable
+                  onPress={() => setFilterSourceLabel(null)}
+                  style={styles.clearFilterBtn}
+                >
+                  <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.primary, letterSpacing: 1 }}>
+                    Show all
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Text variant="body-sm" tone="secondary">
+                {visibleEntryCount === 0
+                  ? 'No entries'
+                  : `${visibleEntryCount} of ${totalEntryCount}`}
+              </Text>
+            </View>
+          </View>
+
+          {/* Authored-entry add row — always available regardless of
+              imported content. Hidden while a card filter is active so
+              the user isn't tempted to add an authored entry into what
+              looks like an imported scope. */}
+          {!filterSourceLabel ? (
             <View style={styles.addRow}>
               {(CONTENT_TYPES).map((ct) => (
                 <Pressable
@@ -381,28 +498,22 @@ export default function HomebrewPackDetailScreen() {
                 </Pressable>
               ))}
             </View>
-          ) : (
-            <View style={styles.importedNote}>
-              <Icon name="info-outline" size={16} color={colors.outline} />
-              <Text variant="body-sm" tone="secondary" style={{ flex: 1 }}>
-                This pack was generated from a JSON import. To update its
-                entries, re-import the source file from the Game Systems page.
-              </Text>
-            </View>
-          )}
+          ) : null}
 
-          {entryCount === 0 ? (
+          {visibleEntryCount === 0 ? (
             <View style={styles.placeholderBox}>
               <Icon name="auto-awesome" size={28} color={colors.outline} />
               <Text variant="body-sm" tone="secondary" style={{ marginTop: spacing.xs, textAlign: 'center' }}>
-                Choose a content type above to create your first entry.
+                {filterSourceLabel
+                  ? 'No entries in this import.'
+                  : 'Add an authored entry above or import content from JSON.'}
               </Text>
             </View>
           ) : (
             <View style={styles.entriesList}>
               {/* Authored entries — editable. */}
               {CONTENT_TYPES.map((ct) => {
-                const group = entries.filter((e) => e.content_type === ct.key);
+                const group = visibleAuthoredEntries.filter((e) => e.content_type === ct.key);
                 if (group.length === 0) return null;
                 return (
                   <View key={ct.key} style={styles.entryGroup}>
@@ -426,7 +537,7 @@ export default function HomebrewPackDetailScreen() {
               })}
 
               {/* Imported entries — read-only, grouped by content_type. */}
-              {groupImportedByType(importedEntries).map(([type, group]) => (
+              {groupImportedByType(visibleImportedEntries).map(([type, group]) => (
                 <View key={`imported-${type}`} style={styles.entryGroup}>
                   <View style={styles.entryGroupHead}>
                     <MetaLabel size="sm">
@@ -442,6 +553,20 @@ export default function HomebrewPackDetailScreen() {
           )}
         </Card>
       </View>
+
+      {/* Import modal — drives both "append a new card" and "re-import
+          this card" flows. The modal targets the current pack via
+          packId, so it never creates a new pack from this entry point. */}
+      {importMode && pack ? (
+        <ImportContentModal
+          visible
+          systemId={pack.system}
+          packId={pack.id}
+          initialSourceLabel={importMode.kind === 'reimport' ? importMode.sourceLabel : undefined}
+          onClose={() => setImportMode(null)}
+          onImported={() => { setImportMode(null); refresh(); }}
+        />
+      ) : null}
 
       {pack && formOpen === 'spell' ? (
         <SpellFormModal
@@ -492,6 +617,117 @@ export default function HomebrewPackDetailScreen() {
         />
       ) : null}
     </ScrollView>
+  );
+}
+
+/** Header subtitle showing the mix of content in the pack. Both authored
+ *  and imported counts surface so the user can tell at a glance what the
+ *  pack contains without scrolling. */
+function packSubtitle(authored: number, imports: number): string {
+  if (authored === 0 && imports === 0) return 'Empty pack';
+  const parts: string[] = [];
+  if (authored > 0) parts.push(`${authored} authored ${authored === 1 ? 'entry' : 'entries'}`);
+  if (imports > 0) parts.push(`${imports} ${imports === 1 ? 'import' : 'imports'}`);
+  return parts.join(' · ');
+}
+
+function formatRelativeTime(isoTs: string): string {
+  const ts = Date.parse(isoTs);
+  if (!Number.isFinite(ts)) return '';
+  const ms = Date.now() - ts;
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hr ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day} day${day === 1 ? '' : 's'} ago`;
+  const mo = Math.floor(day / 30);
+  if (mo < 12) return `${mo} mo ago`;
+  const yr = Math.floor(mo / 12);
+  return `${yr} yr ago`;
+}
+
+/** Card view for one imported source. Shows label, filename, import age,
+ *  and per-content-type counts. Tap toggles the entries-list filter;
+ *  separate buttons handle re-import and remove. */
+function SourceCardView({
+  card, active, confirming, deleting,
+  onTapFilter, onReimport, onRequestRemove, onCancelRemove, onConfirmRemove,
+}: {
+  card: ImportedSourceCard;
+  active: boolean;
+  confirming: boolean;
+  deleting: boolean;
+  onTapFilter: () => void;
+  onReimport: () => void;
+  onRequestRemove: () => void;
+  onCancelRemove: () => void;
+  onConfirmRemove: () => void;
+}) {
+  const typeLine = Object.entries(card.contentTypeCounts)
+    .map(([type, count]) => `${count} ${pluralizeContentType(type).toLowerCase()}`)
+    .join(' · ');
+  return (
+    <Pressable
+      onPress={onTapFilter}
+      style={({ pressed }) => [
+        styles.sourceCard,
+        active && styles.sourceCardActive,
+        pressed && { opacity: 0.85 },
+      ]}
+    >
+      <View style={styles.sourceCardHead}>
+        <Text variant="title-sm" family="headline" weight="bold" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>
+          {card.sourceLabel}
+        </Text>
+        {active ? <Icon name="filter-list" size={16} color={colors.primary} /> : null}
+      </View>
+      {card.sourceUrl ? (
+        <Text variant="body-sm" tone="secondary" numberOfLines={1} style={styles.sourceCardSub}>
+          {card.sourceUrl} · {formatRelativeTime(card.importedAt)}
+        </Text>
+      ) : (
+        <Text variant="body-sm" tone="secondary" style={styles.sourceCardSub}>
+          {formatRelativeTime(card.importedAt)}
+        </Text>
+      )}
+      {typeLine ? (
+        <Text variant="body-sm" tone="secondary" numberOfLines={2} style={styles.sourceCardCounts}>
+          {typeLine}
+        </Text>
+      ) : null}
+      {confirming ? (
+        <View style={styles.sourceCardActions}>
+          <Pressable onPress={onCancelRemove} style={[styles.sourceCardBtn, styles.sourceCardCancel]}>
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}>
+              Cancel
+            </Text>
+          </Pressable>
+          <Pressable onPress={onConfirmRemove} disabled={deleting} style={[styles.sourceCardBtn, styles.sourceCardDelete]}>
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: '#fff', letterSpacing: 1 }}>
+              {deleting ? 'Removing…' : 'Remove'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.sourceCardActions}>
+          <Pressable onPress={onReimport} style={[styles.sourceCardBtn, styles.sourceCardSecondary]}>
+            <Icon name="refresh" size={14} color={colors.primary} />
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.primary, letterSpacing: 1 }}>
+              Re-import
+            </Text>
+          </Pressable>
+          <Pressable onPress={onRequestRemove} style={[styles.sourceCardBtn, styles.sourceCardSecondary]}>
+            <Icon name="delete-outline" size={14} color={colors.onSurfaceVariant} />
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}>
+              Remove
+            </Text>
+          </Pressable>
+        </View>
+      )}
+    </Pressable>
   );
 }
 
@@ -735,6 +971,81 @@ const styles = StyleSheet.create({
     borderColor: colors.primary + '55',
     borderStyle: 'dashed',
     backgroundColor: 'transparent',
+  },
+  cardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  sourceCard: {
+    flexBasis: 240,
+    flexGrow: 1,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+    gap: spacing.xs,
+  },
+  sourceCardActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryContainer + '22',
+  },
+  sourceCardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  sourceCardSub: {
+    color: colors.onSurfaceVariant,
+  },
+  sourceCardCounts: {
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
+  },
+  sourceCardActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  sourceCardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  sourceCardSecondary: {
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: 'transparent',
+  },
+  sourceCardCancel: {
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: 'transparent',
+  },
+  sourceCardDelete: {
+    borderColor: colors.hpDanger,
+    backgroundColor: colors.hpDanger,
+  },
+  addImportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.primary + '55',
+    backgroundColor: 'transparent',
+  },
+  clearFilterBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
   },
   importedNote: {
     flexDirection: 'row',

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  View, ScrollView, Pressable, TextInput, StyleSheet, useWindowDimensions,
+  View, ScrollView, Pressable, TextInput, StyleSheet, useWindowDimensions, Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import {
@@ -393,17 +393,18 @@ function renderSubBody(
   // category (Weapons, Armor, Adventuring Gear, Magic Items, Crafting).
   if (active.contentKey === 'items' && active.itemCategories) {
     const set = new Set<ItemCategory>(active.itemCategories);
-    return <ItemsList items={content.items.filter((i) => set.has(i.category))} />;
+    return <ItemsList items={content.items.filter((i) => set.has(i.category))} srdVersion={sys.srdVersion ?? undefined} />;
   }
+  const srdVersion = sys.srdVersion ?? undefined;
   switch (active.contentKey) {
-    case 'species':          return <SpeciesList     items={content.species} />;
-    case 'classes':          return <ClassesList     items={content.classes} allSubclasses={content.subclasses} />;
-    case 'backgrounds':      return <BackgroundsList items={content.backgrounds} />;
-    case 'spells':           return <SpellsList      items={content.spells} />;
-    case 'feats':            return <FeatsList       items={content.feats} />;
-    case 'items':            return <ItemsList       items={content.items} />;
-    case 'creatures':        return <CreaturesList   items={content.creatures} />;
-    case 'conditions':       return <ConditionsList  items={content.conditions} />;
+    case 'species':          return <SpeciesList     items={content.species}     srdVersion={srdVersion} />;
+    case 'classes':          return <ClassesList     items={content.classes} allSubclasses={content.subclasses} srdVersion={srdVersion} />;
+    case 'backgrounds':      return <BackgroundsList items={content.backgrounds} srdVersion={srdVersion} />;
+    case 'spells':           return <SpellsList      items={content.spells}      srdVersion={srdVersion} />;
+    case 'feats':            return <FeatsList       items={content.feats}       srdVersion={srdVersion} />;
+    case 'items':            return <ItemsList       items={content.items}       srdVersion={srdVersion} />;
+    case 'creatures':        return <CreaturesList   items={content.creatures}   srdVersion={srdVersion} />;
+    case 'conditions':       return <ConditionsList  items={content.conditions}  srdVersion={srdVersion} />;
     case 'rules':            return <RulesList       items={content.rules} />;
     case 'skills':           return <SkillsList           items={content.skills} />;
     case 'languages':        return <LanguagesList        items={content.languages} />;
@@ -450,7 +451,7 @@ function SearchBar({ value, onChange, placeholder }: { value: string; onChange: 
 }
 
 function ExpandRow({
-  title, summary, expanded, onToggle, children, badge, tier, importSource,
+  title, summary, expanded, onToggle, children, badge, tier, importSource, extraSources, footSource,
 }: {
   title: string;
   summary: string;
@@ -465,6 +466,16 @@ function ExpandRow({
   /** Source-book provenance — surfaced as a compact badge in the row head and
    *  the full label inside the expanded body. Undefined = no badge. */
   importSource?: ImportSource;
+  /** Additional source badges rendered to the left of the primary one, for
+   *  entries that exist in multiple sources (e.g. SRD 2014 + SRD 2024 + an
+   *  imported PHB version, all collapsed into one row by groupSpellVariants).
+   *  Only the primary `importSource` gets the full-label foot in the body. */
+  extraSources?: ImportSource[];
+  /** Override for the body-foot full-name source label. When set, replaces
+   *  `importSource` for the foot only — used when the head needs a sorted
+   *  multi-source row but the foot should still reflect a single "active"
+   *  variant. Defaults to `importSource` when unset. */
+  footSource?: ImportSource;
 }) {
   const isHomebrew = tier === 'homebrew';
   return (
@@ -493,8 +504,11 @@ function ExpandRow({
             </Text>
           ) : null}
         </View>
+        {extraSources?.map((src, i) => (
+          <SourceBadge key={`extra-${i}`} source={src} size="sm" />
+        ))}
         {importSource ? <SourceBadge source={importSource} size="sm" /> : null}
-        {isHomebrew ? <Chip label="Homebrew" variant="accent" /> : null}
+        {isHomebrew && !importSource && !(extraSources && extraSources.length > 0) ? <Chip label="Homebrew" variant="accent" /> : null}
         {badge ? <View style={styles.rowBadge}>{badge}</View> : null}
         <Icon
           name={expanded ? 'expand-less' : 'expand-more'}
@@ -505,9 +519,9 @@ function ExpandRow({
       {expanded ? (
         <View style={[styles.rowBody, styles.rowBodyExpanded]}>
           {children}
-          {importSource ? (
+          {(footSource ?? importSource) ? (
             <View style={styles.sourceFooter}>
-              <SourceBadge source={importSource} size="md" />
+              <SourceBadge source={footSource ?? importSource} size="md" />
             </View>
           ) : null}
         </View>
@@ -530,24 +544,23 @@ function filterByName<T extends { name: string; description?: string }>(items: T
   return items.filter((i) => i.name.toLowerCase().includes(t) || (i.description ?? '').toLowerCase().includes(t));
 }
 
-function SpeciesList({ items }: { items: SpeciesResult[] }) {
-  const [q, setQ] = useState('');
-  const exp = useExpanded();
-  const filtered = useMemo(() => filterByName(items, q).slice().sort((a, b) => a.name.localeCompare(b.name)), [items, q]);
-
+function SpeciesList({ items, srdVersion }: { items: SpeciesResult[]; srdVersion?: string }) {
   return (
-    <View style={styles.list}>
-      <SearchBar value={q} onChange={setQ} placeholder="Search species…" />
-      {filtered.map((s) => (
-        <ExpandRow
-          key={s.key}
-          title={s.name}
-          summary={`${s.size ?? '—'} · ${s.speed ?? '—'} ft`}
-          expanded={exp.isOpen(s.key)}
-          onToggle={() => exp.toggle(s.key)}
-          tier={s.tier}
-          importSource={s.importSource}
-        >
+    <TableShell<SpeciesResult>
+      items={items}
+      fingerprint={speciesFingerprint}
+      searchPlaceholder="Search species…"
+      activeSrdVersion={srdVersion}
+      columns={[
+        { key: 'name', label: 'Name', cell: (s) => s.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160, defaultSort: 'asc' },
+        { key: 'size', label: 'Size', cell: (s) => s.size ?? '—', compare: (a, b) => (a.size ?? '').localeCompare(b.size ?? ''), width: 100 },
+        { key: 'speed', label: 'Speed', cell: (s) => (typeof s.speed === 'number' ? `${s.speed} ft` : '—'), compare: (a, b) => (a.speed ?? 0) - (b.speed ?? 0), width: 90 },
+      ]}
+      facets={[
+        { key: 'size', label: 'Size', getValues: (s) => (s.size ? [s.size] : []) },
+      ]}
+      renderBody={(s) => (
+        <>
           {s.description ? <MarkdownText style={styles.bodyText}>{s.description}</MarkdownText> : null}
           {Array.isArray(s.traits) && s.traits.length > 0 ? (
             <View style={styles.subBlock}>
@@ -560,61 +573,182 @@ function SpeciesList({ items }: { items: SpeciesResult[] }) {
               ))}
             </View>
           ) : null}
-          {Array.isArray(s.srdVersions) && s.srdVersions.length > 0 ? (
-            <SrdVersionsRow versions={s.srdVersions} />
-          ) : null}
-        </ExpandRow>
-      ))}
-      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
-    </View>
+        </>
+      )}
+    />
   );
 }
 
-function ClassesList({ items, allSubclasses }: { items: ClassResult[]; allSubclasses: SubclassResult[] }) {
-  const [q, setQ] = useState('');
+function speciesFingerprint(s: SpeciesResult): string {
+  return JSON.stringify({
+    description: s.description ?? '',
+    size: s.size ?? '',
+    speed: s.speed ?? '',
+    traits: (s.traits ?? []).map((t: any) => `${t.name}|${t.description}`).sort(),
+  });
+}
+
+function ClassesList({ items, allSubclasses, srdVersion }: { items: ClassResult[]; allSubclasses: SubclassResult[]; srdVersion?: string }) {
+  // Tapping a row opens the detail modal with the priority-winning
+  // variant (groupVariants sorts so [0] is that variant). Detail-view
+  // tabs across editions are a deliberate non-goal this pass — the list
+  // groups, the detail modal still shows a single class.
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const filtered = useMemo(
-    () => filterByName(items, q).slice().sort((a, b) => a.name.localeCompare(b.name)),
-    [items, q],
-  );
   const active = activeKey ? items.find((c) => c.key === activeKey) ?? null : null;
 
+  // Subclass counts per class name. We match by parent class *name* (lowercased)
+  // rather than parentClassKey because class keys are edition-suffixed
+  // (`barbarian-srd-5-1` vs. `barbarian-srd-2-0`); name-based counting
+  // collapses across editions so the column shows a single total per class.
+  // Subclasses themselves are also edition-keyed, so dedupe by name within
+  // a parent so e.g. Champion (5.1) + Champion (2024) only counts once.
+  const subclassCountByClassName = useMemo(() => {
+    const buckets = new Map<string, Set<string>>();
+    for (const sc of allSubclasses) {
+      const parentName = sc.parentClassName ?? sc.parentClassKey;
+      if (!parentName) continue;
+      const k = parentName.toLowerCase().replace(/-srd-\d.*$/, '');
+      const set = buckets.get(k) ?? new Set<string>();
+      set.add(sc.name.toLowerCase());
+      buckets.set(k, set);
+    }
+    const out = new Map<string, number>();
+    for (const [k, set] of buckets) out.set(k, set.size);
+    return out;
+  }, [allSubclasses]);
+
+  function subclassCount(c: ClassResult): number {
+    return subclassCountByClassName.get(c.name.toLowerCase()) ?? 0;
+  }
+
   return (
-    <View style={styles.list}>
-      <SearchBar value={q} onChange={setQ} placeholder="Search classes…" />
-      {filtered.map((c) => (
-        <Pressable
-          key={c.key}
-          onPress={() => setActiveKey(c.key)}
-          style={({ pressed }) => [
-            styles.row,
-            styles.rowHead,
-            c.tier === 'homebrew' && styles.rowHomebrew,
-            pressed && { opacity: 0.85 },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={`Open ${c.name}`}
-        >
-          <View style={{ flex: 1 }}>
-            <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
-              {c.name}
-            </Text>
-            {c.description ? (
-              <Text variant="body-sm" family="body" style={styles.rowMeta} numberOfLines={2}>
-                {c.description.split(/\n\s*\n/)[0]}
-              </Text>
-            ) : null}
-          </View>
-          {c.tier === 'homebrew' ? <Chip label="Homebrew" variant="accent" /> : null}
-          <Icon name="chevron-right" size={20} color={colors.outline} />
-        </Pressable>
-      ))}
-      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
+    <>
+      <TableShell<ClassResult>
+        items={items}
+        fingerprint={classFingerprint}
+        searchPlaceholder="Search classes…"
+        activeSrdVersion={srdVersion}
+        columns={[
+          { key: 'name', label: 'Name', cell: (c) => c.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160, defaultSort: 'asc' },
+          {
+            key: 'hit-die',
+            label: 'Hit die',
+            cell: (c) => {
+              const hd = (c as any).hitDie;
+              return typeof hd === 'number' ? `d${hd}` : '—';
+            },
+            compare: (a, b) => ((a as any).hitDie ?? 99) - ((b as any).hitDie ?? 99),
+            width: 80,
+          },
+          {
+            key: 'primary',
+            label: 'Primary',
+            cell: (c) => {
+              const pa = (c as any).primaryAbility;
+              return pa ? (Array.isArray(pa) ? pa.join('/') : String(pa)) : '—';
+            },
+            compare: (a, b) => {
+              const ap = (a as any).primaryAbility;
+              const bp = (b as any).primaryAbility;
+              return String(Array.isArray(ap) ? ap.join('/') : ap ?? '').localeCompare(
+                String(Array.isArray(bp) ? bp.join('/') : bp ?? '')
+              );
+            },
+            width: 110,
+          },
+          {
+            key: 'weapons',
+            label: 'Weapons',
+            cell: (c) => {
+              const wp = (c as any).weaponProficiencies as string[] | undefined;
+              return wp?.length ? wp.join(', ') : '—';
+            },
+            compare: (a, b) => {
+              const aw = ((a as any).weaponProficiencies ?? []).join(',');
+              const bw = ((b as any).weaponProficiencies ?? []).join(',');
+              return aw.localeCompare(bw);
+            },
+            width: 180,
+          },
+          {
+            key: 'armor',
+            label: 'Armor',
+            cell: (c) => {
+              const ap = (c as any).armorProficiencies as string[] | undefined;
+              return ap?.length ? ap.join(', ') : '—';
+            },
+            compare: (a, b) => {
+              const aa = ((a as any).armorProficiencies ?? []).join(',');
+              const ba = ((b as any).armorProficiencies ?? []).join(',');
+              return aa.localeCompare(ba);
+            },
+            width: 160,
+          },
+          {
+            key: 'spellcaster',
+            label: 'Spellcaster',
+            cell: (c) => {
+              const cAny = c as any;
+              if (!cAny.spellcasting) return 'No';
+              return cAny.spellcastingAbility
+                ? `Yes (${capitalize(cAny.spellcastingAbility)})`
+                : 'Yes';
+            },
+            compare: (a, b) => Number((b as any).spellcasting ?? 0) - Number((a as any).spellcasting ?? 0),
+            width: 130,
+          },
+          {
+            key: 'subclass-count',
+            label: 'Subclasses',
+            cell: (c) => {
+              const n = subclassCount(c);
+              return n === 0 ? '—' : `${n}`;
+            },
+            compare: (a, b) => subclassCount(a) - subclassCount(b),
+            width: 110,
+          },
+        ]}
+        facets={[
+          {
+            key: 'hit-die',
+            label: 'Hit die',
+            getValues: (c) => {
+              const hd = (c as any).hitDie;
+              return typeof hd === 'number' ? [`d${hd}`] : [];
+            },
+            staticOptions: ['d6', 'd8', 'd10', 'd12'],
+          },
+          {
+            key: 'primary',
+            label: 'Primary ability',
+            getValues: (c) => {
+              const pa = (c as any).primaryAbility;
+              if (!pa) return [];
+              return Array.isArray(pa) ? pa : [pa];
+            },
+          },
+        ]}
+        onRowTap={(g) => setActiveKey(g.variants[0].key)}
+      />
       {active ? (
         <ClassDetailModal klass={active} allSubclasses={allSubclasses} onClose={() => setActiveKey(null)} />
       ) : null}
-    </View>
+    </>
   );
+}
+
+function classFingerprint(c: ClassResult): string {
+  return JSON.stringify({
+    description: c.description ?? '',
+    hitDie: (c as any).hitDie ?? null,
+    primaryAbility: (c as any).primaryAbility ?? null,
+    saves: [...(((c as any).savingThrows) ?? [])].sort(),
+    armor: [...(((c as any).armorProficiencies) ?? [])].sort(),
+    weapons: [...(((c as any).weaponProficiencies) ?? [])].sort(),
+    tools: [...(((c as any).toolProficiencies) ?? [])].sort(),
+    skills: (c as any).skillChoices ?? null,
+    features: ((c as any).features ?? []).map((f: any) => `${f.level}|${f.name}|${f.description}`).sort(),
+  });
 }
 
 function ClassDetailModal({
@@ -997,30 +1131,76 @@ function joinList(items: string[]): string {
   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
 }
 
-function BackgroundsList({ items }: { items: BackgroundResult[] }) {
-  const [q, setQ] = useState('');
-  const exp = useExpanded();
-  const filtered = useMemo(() => filterByName(items, q).slice().sort((a, b) => a.name.localeCompare(b.name)), [items, q]);
-
+function BackgroundsList({ items, srdVersion }: { items: BackgroundResult[]; srdVersion?: string }) {
   return (
-    <View style={styles.list}>
-      <SearchBar value={q} onChange={setQ} placeholder="Search backgrounds…" />
-      {filtered.map((b) => {
+    <TableShell<BackgroundResult>
+      items={items}
+      fingerprint={backgroundFingerprint}
+      searchPlaceholder="Search backgrounds…"
+      activeSrdVersion={srdVersion}
+      columns={[
+        { key: 'name', label: 'Name', cell: (b) => b.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160, defaultSort: 'asc' },
+        {
+          key: 'skills',
+          label: 'Skills',
+          cell: (b) => {
+            const skills: string[] = (b as any).skillProficiencies ?? [];
+            return skills.length > 0 ? skills.join(', ') : '—';
+          },
+          compare: (a, b) => {
+            const aS = ((a as any).skillProficiencies ?? []).join(',');
+            const bS = ((b as any).skillProficiencies ?? []).join(',');
+            return aS.localeCompare(bS);
+          },
+          width: 200,
+        },
+        {
+          key: 'ability-options',
+          label: 'Ability options',
+          cell: (b) => {
+            const opts: string[] = (b as any).abilityScoreOptions ?? [];
+            return opts.length > 0 ? opts.join(', ') : '—';
+          },
+          compare: (a, b) => {
+            const aO = ((a as any).abilityScoreOptions ?? []).join(',');
+            const bO = ((b as any).abilityScoreOptions ?? []).join(',');
+            return aO.localeCompare(bO);
+          },
+          width: 160,
+        },
+        {
+          key: 'tool',
+          label: 'Tool',
+          cell: (b) => (b as any).toolProficiency ?? '—',
+          compare: (a, b) => ((a as any).toolProficiency ?? '').localeCompare((b as any).toolProficiency ?? ''),
+          width: 140,
+        },
+        {
+          key: 'origin-feat',
+          label: 'Origin feat',
+          cell: (b) => (b as any).originFeat ?? '—',
+          compare: (a, b) => ((a as any).originFeat ?? '').localeCompare((b as any).originFeat ?? ''),
+          width: 140,
+        },
+      ]}
+      facets={[
+        {
+          key: 'skill',
+          label: 'Skill',
+          getValues: (b) => ((b as any).skillProficiencies ?? []) as string[],
+        },
+        {
+          key: 'origin-feat',
+          label: 'Origin feat',
+          getValues: (b) => ((b as any).originFeat ? ['Has origin feat'] : ['No origin feat']),
+          staticOptions: ['Has origin feat', 'No origin feat'],
+        },
+      ]}
+      renderBody={(b) => {
         const bAny = b as any;
         const skills: string[] = bAny.skillProficiencies ?? [];
         return (
-          <ExpandRow
-            key={b.key}
-            title={b.name}
-            summary={[
-              skills.length > 0 ? skills.join(', ') : null,
-              bAny.originFeat ? `feat: ${bAny.originFeat}` : null,
-            ].filter(Boolean).join(' · ')}
-            expanded={exp.isOpen(b.key)}
-            onToggle={() => exp.toggle(b.key)}
-            tier={b.tier}
-            importSource={b.importSource}
-          >
+          <>
             {b.description ? <MarkdownText style={styles.bodyText}>{b.description}</MarkdownText> : null}
             <ProfBlock label="Skill proficiencies" items={skills} />
             {Array.isArray(bAny.abilityScoreOptions) && bAny.abilityScoreOptions.length > 0 ? (
@@ -1038,45 +1218,61 @@ function BackgroundsList({ items }: { items: BackgroundResult[] }) {
                 <Text variant="body-sm" family="body" style={styles.bodyText}>{bAny.originFeat}</Text>
               </View>
             ) : null}
-            {Array.isArray(bAny.srdVersions) && bAny.srdVersions.length > 0 ? (
-              <SrdVersionsRow versions={bAny.srdVersions} />
-            ) : null}
-          </ExpandRow>
+          </>
         );
-      })}
-      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
-    </View>
+      }}
+    />
   );
 }
 
-function SubclassesList({ items }: { items: SubclassResult[] }) {
-  const [q, setQ] = useState('');
-  const exp = useExpanded();
-  const filtered = useMemo(
-    () => filterByName(items, q).slice().sort((a, b) =>
-      (a.parentClassName ?? a.parentClassKey ?? '').localeCompare(b.parentClassName ?? b.parentClassKey ?? '') ||
-      a.name.localeCompare(b.name) ||
-      (a.srdVersions?.[0] ?? '').localeCompare(b.srdVersions?.[0] ?? '')
-    ),
-    [items, q],
-  );
+function backgroundFingerprint(b: BackgroundResult): string {
+  const bAny = b as any;
+  return JSON.stringify({
+    description: b.description ?? '',
+    skillProficiencies: [...(bAny.skillProficiencies ?? [])].sort(),
+    abilityScoreOptions: [...(bAny.abilityScoreOptions ?? [])].sort(),
+    toolProficiency: bAny.toolProficiency ?? '',
+    originFeat: bAny.originFeat ?? '',
+  });
+}
 
+function SubclassesList({ items, srdVersion }: { items: SubclassResult[]; srdVersion?: string }) {
   return (
-    <View style={styles.list}>
-      <SearchBar value={q} onChange={setQ} placeholder="Search subclasses…" />
-      {filtered.map((s) => (
-        <ExpandRow
-          key={s.key}
-          title={s.name}
-          summary={[
-            s.parentClassName ?? (s.parentClassKey ? capitalize(s.parentClassKey) : null),
-            typeof s.unlockLevel === 'number' ? `unlocks at L${s.unlockLevel}` : null,
-          ].filter(Boolean).join(' · ')}
-          expanded={exp.isOpen(s.key)}
-          onToggle={() => exp.toggle(s.key)}
-          tier={s.tier}
-          importSource={s.importSource}
-        >
+    <TableShell<SubclassResult>
+      items={items}
+      fingerprint={subclassFingerprint}
+      // Group by `<parentClass>::<name>` so a subclass renamed across editions
+      // (Evocation → Evoker) doesn't collide, and same-named subclasses
+      // across different parent classes don't merge.
+      groupKey={(s) => `${s.parentClassKey ?? ''}::${s.name.toLowerCase()}`}
+      searchPlaceholder="Search subclasses…"
+      activeSrdVersion={srdVersion}
+      columns={[
+        { key: 'name', label: 'Name', cell: (s) => s.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160, defaultSort: 'asc' },
+        {
+          key: 'parent',
+          label: 'Class',
+          cell: (s) => s.parentClassName ?? (s.parentClassKey ? capitalize(s.parentClassKey) : '—'),
+          compare: (a, b) => (a.parentClassName ?? a.parentClassKey ?? '').localeCompare(b.parentClassName ?? b.parentClassKey ?? ''),
+          width: 130,
+        },
+        {
+          key: 'unlock',
+          label: 'Unlock',
+          cell: (s) => typeof s.unlockLevel === 'number' ? `L${s.unlockLevel}` : '—',
+          compare: (a, b) => (typeof a.unlockLevel === 'number' ? a.unlockLevel : 99) - (typeof b.unlockLevel === 'number' ? b.unlockLevel : 99),
+          width: 80,
+        },
+      ]}
+      facets={[
+        {
+          key: 'parent',
+          label: 'Class',
+          getValues: (s) => (s.parentClassName ? [s.parentClassName] : (s.parentClassKey ? [capitalize(s.parentClassKey)] : [])),
+        },
+      ]}
+      renderBody={(s) => (
+        <>
           {s.description ? <MarkdownText style={styles.bodyText}>{s.description}</MarkdownText> : null}
           {Array.isArray(s.features) && s.features.length > 0 ? (
             <View style={styles.subBlock}>
@@ -1091,83 +1287,831 @@ function SubclassesList({ items }: { items: SubclassResult[] }) {
               ))}
             </View>
           ) : null}
-          {Array.isArray(s.srdVersions) && s.srdVersions.length > 0 ? <SrdVersionsRow versions={s.srdVersions} /> : null}
-        </ExpandRow>
-      ))}
-      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
-    </View>
+        </>
+      )}
+    />
   );
 }
 
-function SpellsList({ items }: { items: SpellResult[] }) {
-  const [q, setQ] = useState('');
-  const exp = useExpanded();
-  const filtered = useMemo(
-    () => filterByName(items, q).slice().sort((a, b) => (a.level - b.level) || a.name.localeCompare(b.name)),
-    [items, q],
-  );
+function subclassFingerprint(s: SubclassResult): string {
+  return JSON.stringify({
+    description: s.description ?? '',
+    parentClassKey: s.parentClassKey ?? '',
+    unlockLevel: s.unlockLevel ?? null,
+    features: (s.features ?? []).map((f) => `${f.level}|${f.name}|${f.description}`).sort(),
+  });
+}
 
+function SpellsList({ items, srdVersion }: { items: SpellResult[]; srdVersion?: string }) {
   return (
-    <View style={styles.list}>
-      <SeedBanner type="spells" />
-      <SearchBar value={q} onChange={setQ} placeholder="Search spells…" />
-      {filtered.map((s) => {
-        const lvl = s.level === 0 ? 'Cantrip' : `Level ${s.level}`;
-        return (
-          <ExpandRow
-            key={s.key}
-            title={s.name}
-            summary={[lvl, s.school, s.castingTime].filter(Boolean).join(' · ')}
-            expanded={exp.isOpen(s.key)}
-            onToggle={() => exp.toggle(s.key)}
-            tier={s.tier}
-            importSource={s.importSource}
-          >
-            {s.description ? <MarkdownText style={styles.bodyText}>{s.description}</MarkdownText> : null}
-            <View style={styles.subBlock}>
-              <View style={styles.chipRow}>
-                {s.range ? <Chip label={`Range: ${s.range}`} variant="meta" /> : null}
-                {s.duration ? <Chip label={`Duration: ${s.duration}`} variant="meta" /> : null}
-                {s.concentration ? <Chip label="Concentration" variant="accent" /> : null}
-              </View>
+    <TableShell<SpellResult>
+      items={items}
+      fingerprint={spellFingerprint}
+      searchPlaceholder="Search spells…"
+      banner={<SeedBanner type="spells" />}
+      activeSrdVersion={srdVersion}
+      columns={[
+        { key: 'name', label: 'Name', cell: (s) => s.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160 },
+        {
+          key: 'level',
+          label: 'Level',
+          cell: (s) => s.level === 0 ? 'Cantrip' : `${s.level}`,
+          compare: (a, b) => a.level - b.level,
+          width: 70,
+          defaultSort: 'asc',
+        },
+        { key: 'school', label: 'School', cell: (s) => s.school ?? '—', compare: (a, b) => (a.school ?? '').localeCompare(b.school ?? ''), width: 120 },
+        { key: 'casting-time', label: 'Casting', cell: (s) => s.castingTime ?? '—', compare: (a, b) => (a.castingTime ?? '').localeCompare(b.castingTime ?? ''), width: 110 },
+        { key: 'range', label: 'Range', cell: (s) => s.range ?? '—', compare: (a, b) => (a.range ?? '').localeCompare(b.range ?? ''), width: 110 },
+        { key: 'duration', label: 'Duration', cell: (s) => s.duration ?? '—', compare: (a, b) => (a.duration ?? '').localeCompare(b.duration ?? ''), width: 130 },
+        {
+          key: 'classes',
+          label: 'Classes',
+          cell: (s) => (s.classes?.length ? s.classes.join(', ') : '—'),
+          compare: (a, b) => (a.classes?.[0] ?? '').localeCompare(b.classes?.[0] ?? ''),
+          width: 180,
+        },
+      ]}
+      facets={[
+        {
+          key: 'level',
+          label: 'Level',
+          getValues: (s) => [s.level === 0 ? 'Cantrip' : `Level ${s.level}`],
+          staticOptions: ['Cantrip', 'Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 'Level 7', 'Level 8', 'Level 9'],
+        },
+        { key: 'school', label: 'School', getValues: (s) => (s.school ? [s.school] : []) },
+        { key: 'casting-time', label: 'Casting time', getValues: (s) => (s.castingTime ? [s.castingTime] : []) },
+        {
+          key: 'concentration',
+          label: 'Concentration',
+          getValues: (s) => [s.concentration ? 'Concentration' : 'No concentration'],
+          staticOptions: ['Concentration', 'No concentration'],
+        },
+        { key: 'class', label: 'Class', getValues: (s) => s.classes ?? [] },
+      ]}
+      renderBody={(s) => (
+        <>
+          {s.description ? <MarkdownText style={styles.bodyText}>{s.description}</MarkdownText> : null}
+          <View style={styles.subBlock}>
+            <View style={styles.chipRow}>
+              {s.range ? <Chip label={`Range: ${s.range}`} variant="meta" /> : null}
+              {s.duration ? <Chip label={`Duration: ${s.duration}`} variant="meta" /> : null}
+              {s.concentration ? <Chip label="Concentration" variant="accent" /> : null}
             </View>
-            {Array.isArray(s.components) && s.components.length > 0 ? <ProfBlock label="Components" items={s.components} /> : null}
-            {Array.isArray(s.classes) && s.classes.length > 0 ? <ProfBlock label="Classes" items={s.classes} /> : null}
-            {Array.isArray(s.srdVersions) && s.srdVersions.length > 0 ? <SrdVersionsRow versions={s.srdVersions} /> : null}
-          </ExpandRow>
+          </View>
+          {Array.isArray(s.components) && s.components.length > 0 ? <ProfBlock label="Components" items={s.components} /> : null}
+          {Array.isArray(s.classes) && s.classes.length > 0 ? <ProfBlock label="Classes" items={s.classes} /> : null}
+        </>
+      )}
+    />
+  );
+}
+
+function spellFingerprint(s: SpellResult): string {
+  return JSON.stringify({
+    description: s.description ?? '',
+    level: s.level,
+    school: s.school,
+    castingTime: s.castingTime,
+    range: s.range,
+    duration: s.duration,
+    concentration: !!s.concentration,
+    ritual: !!s.ritual,
+    components: [...(s.components ?? [])].sort(),
+    classes: [...(s.classes ?? [])].sort(),
+  });
+}
+
+// ── Generic source-grouping infrastructure ─────────────────────────────────
+//
+// Lists with multiple-source content (SRD 5.1 + SRD 2024 + imported
+// pack books) collapse same-named entries into one row, with a tab strip
+// inside the expanded body to switch between non-identical variants and
+// alphabetically-sorted source badges in the row head. `groupVariants`
+// + `<TableShell>` factor the boilerplate out of every list.
+
+/** Anything that can flow through groupVariants — name + provenance fields. */
+type Variant = {
+  name: string;
+  tier?: ContentTier;
+  importSource?: ImportSource;
+  srdVersions?: string[];
+};
+
+type VariantGroup<T extends Variant> = {
+  /** Stable list-key — lowercased name so React preserves expand state across filter changes. */
+  id: string;
+  variants: T[];
+};
+
+/**
+ * Group same-named entries into one row. Variants are deduped by the
+ * caller-supplied `fingerprint` (rendered fields only, never provenance)
+ * and sorted by source priority: imported > homebrew > SRD 2024 > SRD 5.1.
+ *
+ * `groupKey` defaults to lowercased name. Lists with non-unique names per
+ * sub-scope (e.g. same-named subclasses across different parent classes)
+ * pass a custom key — typically `${scope}::${name.toLowerCase()}`.
+ */
+function groupVariants<T extends Variant>(
+  items: T[],
+  fingerprint: (v: T) => string,
+  groupKey: (v: T) => string = (v) => v.name.toLowerCase(),
+): VariantGroup<T>[] {
+  const buckets = new Map<string, T[]>();
+  for (const it of items) {
+    const k = groupKey(it);
+    const arr = buckets.get(k) ?? [];
+    arr.push(it);
+    buckets.set(k, arr);
+  }
+  const out: VariantGroup<T>[] = [];
+  for (const [id, list] of buckets) {
+    out.push({ id, variants: dedupeIdenticalVariants(list, fingerprint).sort(variantPrioritySort) });
+  }
+  return out;
+}
+
+function dedupeIdenticalVariants<T extends Variant>(list: T[], fingerprint: (v: T) => string): T[] {
+  const seen = new Map<string, T>();
+  for (const v of list) {
+    const fp = fingerprint(v);
+    if (!seen.has(fp)) seen.set(fp, v);
+  }
+  return [...seen.values()];
+}
+
+function variantPrioritySort<T extends Variant>(a: T, b: T): number {
+  return sourcePriority(a) - sourcePriority(b);
+}
+
+function sourcePriority(v: Variant): number {
+  if (v.importSource) return 0;
+  if (v.tier === 'homebrew') return 1;
+  if (v.srdVersions?.includes('SRD_2.0')) return 2;
+  if (v.srdVersions?.includes('SRD_5.1')) return 3;
+  return 4;
+}
+
+/**
+ * Build the full source set across a group's variants, splitting SRD
+ * entries by srdVersions so a 5.1 + 2.0 entry shows two badges instead
+ * of the collapsed "SRD" code from srdSource().
+ *
+ * `activeSrdVersion` (when set) suppresses off-edition SRD badges — on
+ * the 2024 system page, an SRD entry tagged with both 5.1 and 2.0 only
+ * shows the SRD 2024 badge; the 5.1 badge would be redundant context.
+ * Imported sources (PHB etc.) are unaffected.
+ */
+function collectSources(variants: Variant[], activeSrdVersion?: string): ImportSource[] {
+  const out: ImportSource[] = [];
+  const seen = new Set<string>();
+  for (const v of variants) {
+    if (v.tier === 'srd' && v.srdVersions && v.srdVersions.length > 0) {
+      for (const ver of v.srdVersions) {
+        if (activeSrdVersion && ver !== activeSrdVersion) continue;
+        const src = srdVersionSource(ver);
+        const k = sourceKey(src);
+        if (!seen.has(k)) { seen.add(k); out.push(src); }
+      }
+    } else if (v.importSource) {
+      const k = sourceKey(v.importSource);
+      if (!seen.has(k)) { seen.add(k); out.push(v.importSource); }
+    }
+  }
+  return out;
+}
+
+/**
+ * Primary source for the active variant. SRD variants synthesize a
+ * per-edition source (preferring 2024) instead of using the collapsed
+ * "SRD" code, so the head badge matches the alphabetical extras list.
+ *
+ * `activeSrdVersion` pins the choice to that edition when the variant
+ * is in it, so the foot label on the 2024 system page reads "SRD 2024"
+ * even if the variant is also in 5.1.
+ */
+function activeVariantPrimarySource(v: Variant, activeSrdVersion?: string): ImportSource | null {
+  if (v.tier !== 'srd') return v.importSource ?? null;
+  if (activeSrdVersion && v.srdVersions?.includes(activeSrdVersion)) {
+    return srdVersionSource(activeSrdVersion);
+  }
+  if (v.srdVersions?.includes('SRD_2.0')) return srdVersionSource('SRD_2.0');
+  if (v.srdVersions?.includes('SRD_5.1')) return srdVersionSource('SRD_5.1');
+  return v.importSource ?? null;
+}
+
+function srdVersionSource(version: string): ImportSource {
+  if (version === 'SRD_2.0') return { code: 'SRD 2024', name: 'Systems Reference Document 2.0 (2024)' };
+  if (version === 'SRD_5.1') return { code: 'SRD 2014', name: 'Systems Reference Document 5.1 (2014)' };
+  return { code: 'SRD', name: 'Systems Reference Document' };
+}
+
+function sourceKey(s: ImportSource): string {
+  return `${s.code}|${s.page ?? ''}`;
+}
+
+function variantLabel(v: Variant): string {
+  if (v.importSource?.code) return v.importSource.code;
+  if (v.tier === 'homebrew') return 'Homebrew';
+  if (v.srdVersions?.includes('SRD_2.0')) return 'SRD 2024';
+  if (v.srdVersions?.includes('SRD_5.1')) return 'SRD 2014';
+  return 'Source';
+}
+
+function SourceTabs<T extends Variant>({
+  variants, activeIdx, onChange,
+}: {
+  variants: T[];
+  activeIdx: number;
+  onChange: (i: number) => void;
+}) {
+  return (
+    <View style={styles.sourceTabs}>
+      {variants.map((v, i) => {
+        const active = i === activeIdx;
+        return (
+          <Pressable
+            key={i}
+            onPress={() => onChange(i)}
+            style={[styles.sourceTab, active && styles.sourceTabActive]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+          >
+            <Text
+              variant="label-sm"
+              weight="bold"
+              uppercase
+              style={{
+                color: active ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+                letterSpacing: 1.25,
+              }}
+            >
+              {variantLabel(v)}
+            </Text>
+          </Pressable>
         );
       })}
-      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
     </View>
   );
 }
 
-function FeatsList({ items }: { items: FeatResult[] }) {
+// ── Compact-table shell ────────────────────────────────────────────────────
+//
+// Lists with multi-source content can run into thousands of entries
+// (items 1500+, monsters 655, spells 341). The shell renders a compact
+// table with a Name column pinned left, a chevron + alphabetical source
+// badges pinned right, and a horizontally scrollable middle region for
+// the type-specific columns. Tapping a column header sorts the list;
+// tapping the row expands it inline. Filters live in a separate sheet
+// reachable from a button next to the search bar.
+//
+// State is per-mount (resets on sub-tab change) — persisting filters
+// across navigation is more state than the feature warrants.
+
+/**
+ * Column spec for the table. Each column contributes:
+ * - a header label that tap-sorts the list (toggles asc/desc)
+ * - a per-row cell renderer that returns a compact string
+ *   (the table renders cells as Text; multi-line content goes in the
+ *   expanded body, not a column)
+ *
+ * `compare` runs against the *head* variant of each group
+ * (groupVariants already sorts within a group by source priority, so [0]
+ * is the canonical entry).
+ */
+type TableColumn<T extends Variant> = {
+  /** Stable key. */
+  key: string;
+  /** Header label. */
+  label: string;
+  /** Cell text for a single entry. */
+  cell: (v: T) => string;
+  /** Comparator for sort. */
+  compare: (a: T, b: T) => number;
+  /** Fixed cell width. Required because the middle region is
+   *  horizontally scrollable — flex sizing has nothing to flex within. */
+  width: number;
+  /** Default column for first-mount sort. Only one column should set this. */
+  defaultSort?: 'asc' | 'desc';
+};
+
+/**
+ * Filter facet — one column / category that can be filtered. Values are
+ * derived from the data unless `staticOptions` is supplied (used for
+ * boolean facets like "Concentration" or "Has prerequisites" where we
+ * want the option list fixed regardless of which entries are loaded).
+ *
+ * `predicate` runs once per group; a group passes if *any* of its
+ * variants satisfies the predicate for *all* selected values within the
+ * facet (OR within facet, AND across facets — the standard filter UX).
+ */
+type FilterFacet<T extends Variant> = {
+  /** Stable key. */
+  key: string;
+  /** User-facing label ("School", "Source", "Class"). */
+  label: string;
+  /**
+   * Pull the values this entry contributes to the facet. An entry can
+   * contribute multiple values (e.g. a spell's classes). Returning [] is
+   * fine — that entry just won't match this facet.
+   */
+  getValues: (v: T) => string[];
+  /** Optional fixed option list. Falls back to dynamic discovery. */
+  staticOptions?: string[];
+  /** Optional display transform (e.g. lowercase → Title Case). */
+  formatValue?: (v: string) => string;
+};
+
+type TableShellProps<T extends Variant> = {
+  items: T[];
+  fingerprint: (v: T) => string;
+  /** Optional custom group-key (defaults to lowercased name). */
+  groupKey?: (v: T) => string;
+  searchPlaceholder: string;
+  /** Column specs. Tap-sort headers, fixed widths, scrollable middle region. */
+  columns: TableColumn<T>[];
+  /** Filter facets shown in the Filters sheet. Source is auto-included. */
+  facets: FilterFacet<T>[];
+  /** Optional banner above the search bar (e.g. SeedBanner). */
+  banner?: React.ReactNode;
+  /** Render the expanded body for a single active variant. Required unless
+   *  `onRowTap` is supplied — that mode disables inline expand. */
+  renderBody?: (active: T) => React.ReactNode;
+  /** When set, tapping a row calls this instead of toggling expand.
+   *  Used by classes, which open a separate detail modal. */
+  onRowTap?: (group: VariantGroup<T>) => void;
+  /** When set, suppresses off-edition SRD badges so the 2024 system page
+   *  only shows "SRD 2024" badges (and vice versa). */
+  activeSrdVersion?: string;
+};
+
+function TableShell<T extends Variant>({
+  items, fingerprint, groupKey, searchPlaceholder,
+  columns, facets, banner, renderBody, onRowTap, activeSrdVersion,
+}: TableShellProps<T>) {
   const [q, setQ] = useState('');
+  // Sort state: which column key, asc or desc. Default = first column
+  // with `defaultSort` set, else first column ascending.
+  const defaultCol = columns.find((c) => c.defaultSort) ?? columns[0];
+  const [sortKey, setSortKey] = useState(defaultCol?.key ?? '');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultCol?.defaultSort ?? 'asc');
+  const [filters, setFilters] = useState<Record<string, Set<string>>>({});
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const exp = useExpanded();
-  const filtered = useMemo(
-    () => filterByName(items, q).slice().sort((a, b) =>
-      (a.category ?? '').localeCompare(b.category ?? '') || a.name.localeCompare(b.name)
-    ),
-    [items, q],
-  );
+
+  const activeColumn = columns.find((c) => c.key === sortKey) ?? columns[0];
+
+  // Always include Source as the universal facet (every list can be
+  // filtered by which book / pack the entry came from). Built from the
+  // collected sources across the entire item set so the picker shows
+  // every value the user could plausibly select, even if a search query
+  // narrows the visible rows below.
+  const allFacets = useMemo<FilterFacet<T>[]>(() => {
+    return [
+      ...facets,
+      {
+        key: 'source',
+        label: 'Source',
+        getValues: (v) => collectSources([v], activeSrdVersion).map((s) => s.code),
+      },
+    ];
+  }, [facets, activeSrdVersion]);
+
+  // Discover dynamic option lists across the full item set.
+  const facetOptions = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    for (const f of allFacets) {
+      if (f.staticOptions) { out[f.key] = f.staticOptions; continue; }
+      const seen = new Set<string>();
+      for (const it of items) {
+        for (const val of f.getValues(it)) {
+          if (val) seen.add(val);
+        }
+      }
+      out[f.key] = [...seen].sort();
+    }
+    return out;
+  }, [allFacets, items]);
+
+  const groups = useMemo(() => {
+    const filteredByText = filterByName(items, q);
+    const filteredByFacets = filteredByText.filter((it) => {
+      for (const f of allFacets) {
+        const sel = filters[f.key];
+        if (!sel || sel.size === 0) continue;
+        const vals = f.getValues(it);
+        const hit = vals.some((v) => sel.has(v));
+        if (!hit) return false;
+      }
+      return true;
+    });
+    const grouped = groupVariants(filteredByFacets, fingerprint, groupKey);
+    if (activeColumn) {
+      const sign = sortDir === 'asc' ? 1 : -1;
+      grouped.sort((a, b) => sign * activeColumn.compare(a.variants[0], b.variants[0]));
+    }
+    return grouped;
+  }, [items, q, filters, allFacets, fingerprint, groupKey, activeColumn, sortDir]);
+
+  function onColumnTap(colKey: string) {
+    if (sortKey === colKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(colKey);
+      setSortDir('asc');
+    }
+  }
+
+  function toggleFacetValue(facetKey: string, value: string) {
+    setFilters((prev) => {
+      const next = { ...prev };
+      const existing = new Set(next[facetKey] ?? []);
+      if (existing.has(value)) existing.delete(value);
+      else existing.add(value);
+      next[facetKey] = existing;
+      return next;
+    });
+  }
+
+  function clearAllFilters() { setFilters({}); }
+
+  const activeFilterCount = Object.values(filters).reduce((n, s) => n + s.size, 0);
 
   return (
     <View style={styles.list}>
-      <SearchBar value={q} onChange={setQ} placeholder="Search feats…" />
-      {filtered.map((f) => (
-        <ExpandRow
-          key={f.key}
-          title={f.name}
-          summary={[
-            f.category ? capitalize(f.category.replace('-', ' ')) : null,
-            f.prerequisites ? `req: ${f.prerequisites}` : null,
-          ].filter(Boolean).join(' · ')}
-          expanded={exp.isOpen(f.key)}
-          onToggle={() => exp.toggle(f.key)}
-          tier={f.tier}
-          importSource={f.importSource}
+      {banner}
+      <View style={styles.shellTopRow}>
+        <View style={{ flex: 1 }}>
+          <SearchBar value={q} onChange={setQ} placeholder={searchPlaceholder} />
+        </View>
+        <Pressable
+          onPress={() => setFilterSheetOpen(true)}
+          style={[styles.filtersBtn, activeFilterCount > 0 && styles.filtersBtnActive]}
+          accessibilityRole="button"
+          accessibilityLabel={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ''}`}
         >
+          <Icon
+            name="filter-list"
+            size={16}
+            color={activeFilterCount > 0 ? colors.onPrimaryContainer : colors.onSurfaceVariant}
+          />
+          <Text
+            variant="label-sm"
+            weight="bold"
+            uppercase
+            style={{
+              color: activeFilterCount > 0 ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+              letterSpacing: 1.25,
+            }}
+          >
+            Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
+          </Text>
+        </Pressable>
+      </View>
+
+      <TableHeader
+        columns={columns}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onColumnTap={onColumnTap}
+      />
+
+      {groups.map((g) => (
+        <TableRow
+          key={g.id}
+          group={g}
+          columns={columns}
+          expanded={!onRowTap && exp.isOpen(g.id)}
+          onToggle={() => onRowTap ? onRowTap(g) : exp.toggle(g.id)}
+          renderBody={renderBody}
+          showChevron={!onRowTap}
+          activeSrdVersion={activeSrdVersion}
+        />
+      ))}
+      {groups.length === 0 ? <EmptyHit q={q} /> : null}
+
+      {filterSheetOpen ? (
+        <FiltersSheet
+          facets={allFacets}
+          options={facetOptions}
+          selected={filters}
+          onToggle={toggleFacetValue}
+          onClearAll={clearAllFilters}
+          onClose={() => setFilterSheetOpen(false)}
+          activeCount={activeFilterCount}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/** Header row. Pinned-name + horizontal-scroll middle + pinned chevron gutter. */
+function TableHeader<T extends Variant>({
+  columns, sortKey, sortDir, onColumnTap,
+}: {
+  columns: TableColumn<T>[];
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  onColumnTap: (key: string) => void;
+}) {
+  const [nameCol, ...restCols] = columns;
+  if (!nameCol) return null;
+  return (
+    <View style={styles.tableRow}>
+      <Pressable
+        onPress={() => onColumnTap(nameCol.key)}
+        style={[styles.tableHeadCell, styles.tableNameCol, { width: nameCol.width }]}
+      >
+        <HeaderCellLabel label={nameCol.label} sorted={sortKey === nameCol.key ? sortDir : null} />
+      </Pressable>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tableScrollContent}
+        style={{ flex: 1 }}
+      >
+        {restCols.map((c) => (
+          <Pressable
+            key={c.key}
+            onPress={() => onColumnTap(c.key)}
+            style={[styles.tableHeadCell, { width: c.width }]}
+          >
+            <HeaderCellLabel label={c.label} sorted={sortKey === c.key ? sortDir : null} />
+          </Pressable>
+        ))}
+      </ScrollView>
+      {/* Right gutter mirrors TableRow's chevron + sources area. The
+          "Sources" label sits over the badge stack; the chevron column
+          stays unlabelled. */}
+      <View style={styles.tableRightGutterHead}>
+        <Text
+          variant="label-sm"
+          weight="bold"
+          uppercase
+          style={{ color: colors.onSurfaceVariant, letterSpacing: 1.25 }}
+          numberOfLines={1}
+        >
+          Sources
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function HeaderCellLabel({ label, sorted }: { label: string; sorted: 'asc' | 'desc' | null }) {
+  return (
+    <View style={styles.headerCellInner}>
+      <Text
+        variant="label-sm"
+        weight="bold"
+        uppercase
+        style={{
+          color: sorted ? colors.primary : colors.onSurfaceVariant,
+          letterSpacing: 1.25,
+        }}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+      {sorted ? (
+        <Icon
+          name={sorted === 'asc' ? 'arrow-upward' : 'arrow-downward'}
+          size={12}
+          color={colors.primary}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/** One data row. Pinned name + scroll middle + pinned chevron/sources;
+ *  expanded body renders below at full width. */
+function TableRow<T extends Variant>({
+  group, columns, expanded, onToggle, renderBody, showChevron, activeSrdVersion,
+}: {
+  group: VariantGroup<T>;
+  columns: TableColumn<T>[];
+  expanded: boolean;
+  onToggle: () => void;
+  renderBody?: (active: T) => React.ReactNode;
+  showChevron: boolean;
+  activeSrdVersion?: string;
+}) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const active = group.variants[activeIdx] ?? group.variants[0];
+  const allSources = collectSources(group.variants, activeSrdVersion)
+    .slice()
+    .sort((a, b) => a.code.localeCompare(b.code));
+  const footSource = activeVariantPrimarySource(active, activeSrdVersion);
+  const isHomebrew = active.tier === 'homebrew';
+  const [nameCol, ...restCols] = columns;
+  if (!nameCol) return null;
+
+  return (
+    <View style={[styles.tableRowOuter, isHomebrew && styles.rowHomebrew, expanded && styles.tableRowExpanded]}>
+      <View style={styles.tableRow}>
+        <Pressable
+          onPress={onToggle}
+          style={[styles.tableNameCol, { width: nameCol.width }]}
+          accessibilityRole="button"
+        >
+          <Text
+            variant="body-sm"
+            family="body"
+            weight="bold"
+            style={{ color: expanded ? colors.primary : colors.onSurface }}
+            numberOfLines={2}
+          >
+            {nameCol.cell(active)}
+          </Text>
+        </Pressable>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tableScrollContent}
+          style={{ flex: 1 }}
+        >
+          {restCols.map((c) => (
+            <Pressable
+              key={c.key}
+              onPress={onToggle}
+              style={[styles.tableCell, { width: c.width }]}
+              accessibilityRole="button"
+            >
+              <Text variant="body-sm" family="body" style={styles.tableCellText} numberOfLines={2}>
+                {c.cell(active)}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <Pressable onPress={onToggle} style={styles.tableRightGutter} accessibilityRole="button">
+          <View style={styles.tableSourceStack}>
+            {allSources.map((src, i) => (
+              <SourceBadge key={`src-${i}`} source={src} size="sm" />
+            ))}
+          </View>
+          <Icon
+            name={showChevron ? (expanded ? 'expand-less' : 'expand-more') : 'chevron-right'}
+            size={20}
+            color={expanded ? colors.primary : colors.outline}
+          />
+        </Pressable>
+      </View>
+
+      {expanded && renderBody ? (
+        <View style={styles.tableRowBody}>
+          {group.variants.length > 1 ? (
+            <SourceTabs variants={group.variants} activeIdx={activeIdx} onChange={setActiveIdx} />
+          ) : null}
+          {renderBody(active)}
+          {footSource ? (
+            <View style={styles.sourceFooter}>
+              <SourceBadge source={footSource} size="md" />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** Filter sheet — modal containing every facet with its option list. */
+function FiltersSheet<T extends Variant>({
+  facets, options, selected, onToggle, onClearAll, onClose, activeCount,
+}: {
+  facets: FilterFacet<T>[];
+  options: Record<string, string[]>;
+  selected: Record<string, Set<string>>;
+  onToggle: (facetKey: string, value: string) => void;
+  onClearAll: () => void;
+  onClose: () => void;
+  activeCount: number;
+}) {
+  return (
+    <PopoverModal
+      onClose={onClose}
+      title="Filters"
+      rightAction={activeCount > 0 ? { label: 'Clear all', onPress: () => { onClearAll(); onClose(); } } : undefined}
+    >
+      {facets.map((f) => {
+        const opts = options[f.key] ?? [];
+        const sel = selected[f.key] ?? new Set<string>();
+        return (
+          <View key={f.key} style={styles.filterFacetSection}>
+            <Text variant="label-sm" weight="bold" uppercase style={styles.filterFacetHeader}>
+              {f.label}{sel.size > 0 ? ` · ${sel.size}` : ''}
+            </Text>
+            {opts.length === 0 ? (
+              <Text variant="body-sm" family="body" style={styles.filterFacetEmpty}>
+                No values
+              </Text>
+            ) : (
+              <View style={styles.filterFacetChips}>
+                {opts.map((opt) => {
+                  const isSel = sel.has(opt);
+                  return (
+                    <Pressable
+                      key={opt}
+                      onPress={() => onToggle(f.key, opt)}
+                      style={[styles.filterValueChip, isSel && styles.filterValueChipActive]}
+                    >
+                      <Text
+                        variant="label-sm"
+                        weight="bold"
+                        uppercase
+                        style={{
+                          color: isSel ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+                          letterSpacing: 1.25,
+                        }}
+                      >
+                        {f.formatValue ? f.formatValue(opt) : opt}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </PopoverModal>
+  );
+}
+
+function PopoverModal({
+  onClose, title, rightAction, children,
+}: {
+  onClose: () => void;
+  title: string;
+  rightAction?: { label: string; onPress: () => void };
+  children: React.ReactNode;
+}) {
+  return (
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.popoverBackdrop} onPress={onClose}>
+        <Pressable style={styles.popoverCard} onPress={() => {}}>
+          <View style={styles.popoverHeader}>
+            <Text variant="label-sm" weight="bold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1.25 }}>
+              {title}
+            </Text>
+            {rightAction ? (
+              <Pressable onPress={rightAction.onPress}>
+                <Text variant="label-sm" weight="bold" uppercase style={{ color: colors.primary, letterSpacing: 1.25 }}>
+                  {rightAction.label}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+          <ScrollView style={styles.popoverScroll}>
+            {children}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function FeatsList({ items, srdVersion }: { items: FeatResult[]; srdVersion?: string }) {
+  return (
+    <TableShell<FeatResult>
+      items={items}
+      fingerprint={featFingerprint}
+      searchPlaceholder="Search feats…"
+      activeSrdVersion={srdVersion}
+      columns={[
+        { key: 'name', label: 'Name', cell: (f) => f.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160, defaultSort: 'asc' },
+        {
+          key: 'category',
+          label: 'Category',
+          cell: (f) => f.category ? capitalize(f.category.replace('-', ' ')) : '—',
+          compare: (a, b) => (a.category ?? '').localeCompare(b.category ?? ''),
+          width: 130,
+        },
+        {
+          key: 'prereq',
+          label: 'Prerequisites',
+          cell: (f) => f.prerequisites || '—',
+          compare: (a, b) => (a.prerequisites ?? '').localeCompare(b.prerequisites ?? ''),
+          width: 180,
+        },
+      ]}
+      facets={[
+        {
+          key: 'category',
+          label: 'Category',
+          getValues: (f) => (f.category ? [f.category] : []),
+          formatValue: (v) => capitalize(v.replace('-', ' ')),
+        },
+        {
+          key: 'prereq',
+          label: 'Prerequisites',
+          getValues: (f) => [f.prerequisites ? 'Has prerequisites' : 'No prerequisites'],
+          staticOptions: ['Has prerequisites', 'No prerequisites'],
+        },
+      ]}
+      renderBody={(f) => (
+        <>
           {f.description ? <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText> : null}
           {Array.isArray(f.benefits) && f.benefits.length > 0 ? (
             <View style={styles.subBlock}>
@@ -1179,12 +2123,19 @@ function FeatsList({ items }: { items: FeatResult[] }) {
               ))}
             </View>
           ) : null}
-          {Array.isArray(f.srdVersions) && f.srdVersions.length > 0 ? <SrdVersionsRow versions={f.srdVersions} /> : null}
-        </ExpandRow>
-      ))}
-      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
-    </View>
+        </>
+      )}
+    />
   );
+}
+
+function featFingerprint(f: FeatResult): string {
+  return JSON.stringify({
+    description: f.description ?? '',
+    category: f.category ?? '',
+    prerequisites: f.prerequisites ?? '',
+    benefits: [...(f.benefits ?? [])].sort(),
+  });
 }
 
 /**
@@ -1217,16 +2168,6 @@ function parseItemProperties(props: string[]): {
     others.push(p);
   }
   return { typeText, ac, damage, strengthReq, stealthDisadvantage, others };
-}
-
-/** Resolve item.srdVersions to a published source label. */
-function srdSourceLabel(versions: string[]): string {
-  if (versions?.includes('SRD_2.0') && versions?.includes('SRD_5.1')) {
-    return 'System Reference Document 5.1 + 5.2';
-  }
-  if (versions?.includes('SRD_2.0')) return 'System Reference Document 5.2';
-  if (versions?.includes('SRD_5.1')) return 'System Reference Document 5.1';
-  return 'System Reference Document';
 }
 
 /** Fall-back human-readable type label when properties don't supply one. */
@@ -1274,46 +2215,75 @@ function itemTypeLabel(it: ItemResult, parsedTypeText: string | null): string {
   return fallbackTypeLabel(it.category);
 }
 
-function ItemsList({ items }: { items: ItemResult[] }) {
-  const [q, setQ] = useState('');
-  const exp = useExpanded();
-  const filtered = useMemo(
-    () => filterByName(items, q).slice().sort((a, b) =>
-      (a.category ?? '').localeCompare(b.category ?? '') || a.name.localeCompare(b.name)
-    ),
-    [items, q],
-  );
-
+function ItemsList({ items, srdVersion }: { items: ItemResult[]; srdVersion?: string }) {
   return (
-    <View style={styles.list}>
-      <SeedBanner type="items" />
-      <SearchBar value={q} onChange={setQ} placeholder="Search items…" />
-      {filtered.map((it) => {
+    <TableShell<ItemResult>
+      items={items}
+      fingerprint={itemFingerprint}
+      searchPlaceholder="Search items…"
+      banner={<SeedBanner type="items" />}
+      activeSrdVersion={srdVersion}
+      columns={[
+        { key: 'name', label: 'Name', cell: (it) => it.name, compare: (a, b) => a.name.localeCompare(b.name), width: 180, defaultSort: 'asc' },
+        {
+          key: 'type',
+          label: 'Type',
+          cell: (it) => {
+            const parsed = parseItemProperties(it.properties ?? []);
+            return itemTypeLabel(it, parsed.typeText ?? null);
+          },
+          compare: (a, b) => (a.category ?? '').localeCompare(b.category ?? ''),
+          width: 130,
+        },
+        {
+          key: 'rarity',
+          label: 'Rarity',
+          cell: (it) => it.rarity ? capitalize(it.rarity.replace('-', ' ')) : '—',
+          compare: (a, b) => itemRarityRank(a.rarity) - itemRarityRank(b.rarity),
+          width: 110,
+        },
+        {
+          key: 'cost',
+          label: 'Cost',
+          cell: (it) => it.cost ? `${it.cost.amount} ${it.cost.currency}` : '—',
+          compare: (a, b) => itemCostInGp(a) - itemCostInGp(b),
+          width: 90,
+        },
+        {
+          key: 'weight',
+          label: 'Weight',
+          cell: (it) => typeof it.weight === 'number' ? `${it.weight} lb` : '—',
+          compare: (a, b) => (a.weight ?? 0) - (b.weight ?? 0),
+          width: 90,
+        },
+      ]}
+      facets={[
+        {
+          key: 'category',
+          label: 'Category',
+          getValues: (it) => (it.category ? [it.category] : []),
+          formatValue: (v) => capitalize(v.replace('-', ' ')),
+        },
+        {
+          key: 'rarity',
+          label: 'Rarity',
+          getValues: (it) => (it.rarity ? [it.rarity] : []),
+          formatValue: (v) => capitalize(v.replace('-', ' ')),
+        },
+        {
+          key: 'attunement',
+          label: 'Attunement',
+          getValues: (it) => [it.requiresAttunement ? 'Requires attunement' : 'No attunement'],
+          staticOptions: ['Requires attunement', 'No attunement'],
+        },
+      ]}
+      renderBody={(it) => {
         const parsed = parseItemProperties(it.properties ?? []);
         const typeText = itemTypeLabel(it, parsed.typeText ?? null);
         const cost = it.cost ? `${it.cost.amount} ${it.cost.currency}` : null;
         const weight = typeof it.weight === 'number' ? `${it.weight} lb` : null;
-        const rarityLabel = it.rarity ? capitalize(it.rarity.replace('-', ' ')) : null;
-        // For magic items, surface the rarity chip alongside the type chip
-        // so legendary/artifact stand out at a glance while browsing 1k+
-        // entries. Mundane items keep the single type chip.
-        const badge = (
-          <View style={styles.itemBadgeStack}>
-            {rarityLabel ? <Chip label={rarityLabel} variant={rarityVariant(it.rarity)} /> : null}
-            <Chip label={typeText} variant="meta" />
-            {it.requiresAttunement ? <Chip label="Attunement" variant="meta" /> : null}
-          </View>
-        );
         return (
-          <ExpandRow
-            key={it.key}
-            title={it.name}
-            summary={it.description ?? ''}
-            expanded={exp.isOpen(it.key)}
-            onToggle={() => exp.toggle(it.key)}
-            badge={badge}
-            tier={it.tier}
-          >
+          <>
             <View style={styles.itemStatTable}>
               <ItemStatRow label="Type"     value={typeText} />
               {parsed.ac      ? <ItemStatRow label="AC"      value={parsed.ac} /> : null}
@@ -1325,7 +2295,6 @@ function ItemsList({ items }: { items: ItemResult[] }) {
               {it.rarity ? <ItemStatRow label="Rarity" value={capitalize(it.rarity.replace('-', ' '))} /> : null}
               {it.requiresAttunement ? <ItemStatRow label="Attunement" value="Required" /> : null}
             </View>
-
             {parsed.others.length > 0 ? (
               <View style={styles.subBlock}>
                 <MetaLabel size="sm">Properties</MetaLabel>
@@ -1334,19 +2303,51 @@ function ItemsList({ items }: { items: ItemResult[] }) {
                 ))}
               </View>
             ) : null}
-
-            <View style={styles.itemSourceRow}>
-              <Text variant="label-sm" weight="bold" uppercase style={styles.itemStatLabel}>Source</Text>
-              <Text variant="body-sm" family="body" style={styles.itemStatValue}>
-                {srdSourceLabel(it.srdVersions ?? [])}
-              </Text>
-            </View>
-          </ExpandRow>
+          </>
         );
-      })}
-      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
-    </View>
+      }}
+    />
   );
+}
+
+/** Sort rank for rarity (Common → Artifact). Items without rarity (mundane) sort first. */
+function itemRarityRank(rarity: ItemResult['rarity']): number {
+  switch (rarity) {
+    case undefined: return 0;
+    case 'common': return 1;
+    case 'uncommon': return 2;
+    case 'rare': return 3;
+    case 'very-rare': return 4;
+    case 'legendary': return 5;
+    case 'artifact': return 6;
+    default: return 99;
+  }
+}
+
+/** Convert an item's cost to gold-piece equivalent for sorting. */
+function itemCostInGp(it: ItemResult): number {
+  if (!it.cost) return 0;
+  const amt = it.cost.amount ?? 0;
+  switch (it.cost.currency) {
+    case 'cp': return amt / 100;
+    case 'sp': return amt / 10;
+    case 'ep': return amt / 2;
+    case 'gp': return amt;
+    case 'pp': return amt * 10;
+    default: return amt;
+  }
+}
+
+function itemFingerprint(it: ItemResult): string {
+  return JSON.stringify({
+    description: it.description ?? '',
+    category: it.category ?? '',
+    rarity: it.rarity ?? '',
+    requiresAttunement: !!it.requiresAttunement,
+    weight: typeof it.weight === 'number' ? it.weight : null,
+    cost: it.cost ? `${it.cost.amount}|${it.cost.currency}` : '',
+    properties: [...(it.properties ?? [])].sort(),
+  });
 }
 
 function ItemStatRow({ label, value }: { label: string; value: string }) {
@@ -1401,138 +2402,177 @@ function CreatureLineRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CreaturesList({ items }: { items: CreatureResult[] }) {
-  const [q, setQ] = useState('');
-  const exp = useExpanded();
-  const filtered = useMemo(
-    () => filterByName(items, q).slice().sort((a, b) => {
-      const acr = crSortValue(a.challengeRating);
-      const bcr = crSortValue(b.challengeRating);
-      return acr - bcr || a.name.localeCompare(b.name);
-    }),
-    [items, q],
-  );
-
+function CreaturesList({ items, srdVersion }: { items: CreatureResult[]; srdVersion?: string }) {
   return (
-    <View style={styles.list}>
-      <SearchBar value={q} onChange={setQ} placeholder="Search monsters…" />
-      {filtered.map((c) => {
-        const savesText = c.savingThrows
-          ? Object.entries(c.savingThrows)
-              .map(([ab, v]) => `${ab.toUpperCase()} ${fmtSigned(v as number)}`)
-              .join(', ')
-          : '';
-        const skillsText = c.skills
-          ? Object.entries(c.skills)
-              .map(([k, v]) => `${skillLabel(k)} ${fmtSigned(v as number)}`)
-              .join(', ')
-          : '';
-        const sensesParts: string[] = [];
-        if (c.senses?.darkvision) sensesParts.push(`darkvision ${c.senses.darkvision} ft.`);
-        if (c.senses?.blindsight) sensesParts.push(`blindsight ${c.senses.blindsight} ft.`);
-        if (c.senses?.tremorsense) sensesParts.push(`tremorsense ${c.senses.tremorsense} ft.`);
-        if (c.senses?.truesight) sensesParts.push(`truesight ${c.senses.truesight} ft.`);
-        if (typeof c.senses?.passivePerception === 'number') sensesParts.push(`passive Perception ${c.senses.passivePerception}`);
-        const sensesText = sensesParts.join(', ');
+    <TableShell<CreatureResult>
+      items={items}
+      fingerprint={creatureFingerprint}
+      searchPlaceholder="Search monsters…"
+      activeSrdVersion={srdVersion}
+      columns={[
+        { key: 'name', label: 'Name', cell: (c) => c.name, compare: (a, b) => a.name.localeCompare(b.name), width: 180 },
+        {
+          key: 'cr',
+          label: 'CR',
+          cell: (c) => `${c.challengeRating}`,
+          compare: (a, b) => crSortValue(a.challengeRating) - crSortValue(b.challengeRating),
+          width: 70,
+          defaultSort: 'asc',
+        },
+        {
+          key: 'type',
+          label: 'Type',
+          cell: (c) => c.creatureType ?? '—',
+          compare: (a, b) => (a.creatureType ?? '').localeCompare(b.creatureType ?? ''),
+          width: 130,
+        },
+        {
+          key: 'size',
+          label: 'Size',
+          cell: (c) => c.size ?? '—',
+          compare: (a, b) => (a.size ?? '').localeCompare(b.size ?? ''),
+          width: 100,
+        },
+        {
+          key: 'ac',
+          label: 'AC',
+          cell: (c) => `${c.ac}`,
+          compare: (a, b) => (a.ac ?? 0) - (b.ac ?? 0),
+          width: 60,
+        },
+        {
+          key: 'hp',
+          label: 'HP',
+          cell: (c) => `${c.hp}`,
+          compare: (a, b) => (a.hp ?? 0) - (b.hp ?? 0),
+          width: 70,
+        },
+      ]}
+      facets={[
+        { key: 'type', label: 'Type', getValues: (c) => (c.creatureType ? [c.creatureType] : []) },
+        { key: 'size', label: 'Size', getValues: (c) => (c.size ? [c.size] : []) },
+        { key: 'environment', label: 'Environment', getValues: (c) => c.environments ?? [] },
+      ]}
+      renderBody={(c) => {
+            const savesText = c.savingThrows
+              ? Object.entries(c.savingThrows)
+                  .map(([ab, v]) => `${ab.toUpperCase()} ${fmtSigned(v as number)}`)
+                  .join(', ')
+              : '';
+            const skillsText = c.skills
+              ? Object.entries(c.skills)
+                  .map(([k, v]) => `${skillLabel(k)} ${fmtSigned(v as number)}`)
+                  .join(', ')
+              : '';
+            const sensesParts: string[] = [];
+            if (c.senses?.darkvision) sensesParts.push(`darkvision ${c.senses.darkvision} ft.`);
+            if (c.senses?.blindsight) sensesParts.push(`blindsight ${c.senses.blindsight} ft.`);
+            if (c.senses?.tremorsense) sensesParts.push(`tremorsense ${c.senses.tremorsense} ft.`);
+            if (c.senses?.truesight) sensesParts.push(`truesight ${c.senses.truesight} ft.`);
+            if (typeof c.senses?.passivePerception === 'number') sensesParts.push(`passive Perception ${c.senses.passivePerception}`);
+            const sensesText = sensesParts.join(', ');
+            return (
+              <>
+                {c.alignment ? (
+                  <Text variant="body-sm" family="body" style={[styles.bodyText, styles.creatureFlavorLine]}>
+                    {[c.size, c.creatureType, c.alignment].filter(Boolean).join(' · ')}
+                  </Text>
+                ) : null}
 
-        return (
-          <ExpandRow
-            key={c.key}
-            title={c.name}
-            summary={[
-              `CR ${c.challengeRating}`,
-              [c.size, c.creatureType].filter(Boolean).join(' '),
-              `AC ${c.ac}`,
-              `${c.hp} HP`,
-            ].filter(Boolean).join(' · ')}
-            expanded={exp.isOpen(c.key)}
-            onToggle={() => exp.toggle(c.key)}
-            badge={typeof c.challengeRating !== 'undefined' ? <Chip label={`CR ${c.challengeRating}`} variant="meta" /> : undefined}
-            tier={c.tier}
-            importSource={c.importSource}
-          >
-            {c.alignment ? (
-              <Text variant="body-sm" family="body" style={[styles.bodyText, styles.creatureFlavorLine]}>
-                {[c.size, c.creatureType, c.alignment].filter(Boolean).join(' · ')}
-              </Text>
-            ) : null}
+                <View style={styles.itemStatTable}>
+                  <CreatureLineRow label="AC" value={c.armorDetail ? `${c.ac} (${c.armorDetail})` : `${c.ac}`} />
+                  <CreatureLineRow label="HP" value={c.hitDice ? `${c.hp} (${c.hitDice})` : `${c.hp}`} />
+                  {c.speed ? <CreatureLineRow label="Speed" value={c.speed} /> : null}
+                  {typeof c.proficiencyBonus === 'number' ? <CreatureLineRow label="Prof" value={fmtSigned(c.proficiencyBonus)} /> : null}
+                  {typeof c.xp === 'number' ? <CreatureLineRow label="XP" value={c.xp.toLocaleString()} /> : null}
+                </View>
 
-            <View style={styles.itemStatTable}>
-              <CreatureLineRow label="AC" value={c.armorDetail ? `${c.ac} (${c.armorDetail})` : `${c.ac}`} />
-              <CreatureLineRow label="HP" value={c.hitDice ? `${c.hp} (${c.hitDice})` : `${c.hp}`} />
-              {c.speed ? <CreatureLineRow label="Speed" value={c.speed} /> : null}
-              {typeof c.proficiencyBonus === 'number' ? <CreatureLineRow label="Prof" value={fmtSigned(c.proficiencyBonus)} /> : null}
-              {typeof c.xp === 'number' ? <CreatureLineRow label="XP" value={c.xp.toLocaleString()} /> : null}
-            </View>
-
-            {c.abilityScores && c.abilityModifiers ? (
-              <View style={styles.subBlock}>
-                <CreatureAbilityBlock scores={c.abilityScores} mods={c.abilityModifiers} />
-              </View>
-            ) : null}
-
-            {(savesText || skillsText || sensesText || c.languages) ? (
-              <View style={styles.itemStatTable}>
-                {savesText ? <CreatureLineRow label="Saves"  value={savesText} /> : null}
-                {skillsText ? <CreatureLineRow label="Skills" value={skillsText} /> : null}
-                {sensesText ? <CreatureLineRow label="Senses" value={sensesText} /> : null}
-                {c.languages ? <CreatureLineRow label="Languages" value={c.languages} /> : null}
-              </View>
-            ) : null}
-
-            {(c.damageResistances?.length || c.damageImmunities?.length || c.damageVulnerabilities?.length || c.conditionImmunities?.length) ? (
-              <View style={styles.itemStatTable}>
-                {c.damageResistances?.length ? <CreatureLineRow label="Resist"   value={c.damageResistances.join(', ')} /> : null}
-                {c.damageImmunities?.length ? <CreatureLineRow label="Immune"   value={c.damageImmunities.join(', ')} /> : null}
-                {c.damageVulnerabilities?.length ? <CreatureLineRow label="Vuln"     value={c.damageVulnerabilities.join(', ')} /> : null}
-                {c.conditionImmunities?.length ? <CreatureLineRow label="Cond Imm" value={c.conditionImmunities.join(', ')} /> : null}
-              </View>
-            ) : null}
-
-            {c.traits?.length ? (
-              <View style={styles.subBlock}>
-                <MetaLabel size="sm">Traits</MetaLabel>
-                {c.traits.map((t, i) => (
-                  <View key={i} style={styles.bullet}>
-                    <Text variant="body-sm" weight="bold" family="body" style={styles.bodyText}>{t.name}.</Text>
-                    <MarkdownText style={styles.bodyText}>{t.description}</MarkdownText>
+                {c.abilityScores && c.abilityModifiers ? (
+                  <View style={styles.subBlock}>
+                    <CreatureAbilityBlock scores={c.abilityScores} mods={c.abilityModifiers} />
                   </View>
-                ))}
-              </View>
-            ) : null}
+                ) : null}
 
-            {c.actions?.length ? (
-              <View style={styles.subBlock}>
-                <MetaLabel size="sm">Actions</MetaLabel>
-                {c.actions.map((a, i) => (
-                  <View key={i} style={styles.bullet}>
-                    <Text variant="body-sm" weight="bold" family="body" style={styles.bodyText}>{a.name}.</Text>
-                    <MarkdownText style={styles.bodyText}>{a.description}</MarkdownText>
+                {(savesText || skillsText || sensesText || c.languages) ? (
+                  <View style={styles.itemStatTable}>
+                    {savesText ? <CreatureLineRow label="Saves"  value={savesText} /> : null}
+                    {skillsText ? <CreatureLineRow label="Skills" value={skillsText} /> : null}
+                    {sensesText ? <CreatureLineRow label="Senses" value={sensesText} /> : null}
+                    {c.languages ? <CreatureLineRow label="Languages" value={c.languages} /> : null}
                   </View>
-                ))}
-              </View>
-            ) : null}
+                ) : null}
 
-            {c.environments?.length ? (
-              <View style={[styles.subBlock, styles.chipRow]}>
-                {c.environments.map((env) => (
-                  <Chip key={env} label={env} variant="meta" />
-                ))}
-              </View>
-            ) : null}
+                {(c.damageResistances?.length || c.damageImmunities?.length || c.damageVulnerabilities?.length || c.conditionImmunities?.length) ? (
+                  <View style={styles.itemStatTable}>
+                    {c.damageResistances?.length ? <CreatureLineRow label="Resist"   value={c.damageResistances.join(', ')} /> : null}
+                    {c.damageImmunities?.length ? <CreatureLineRow label="Immune"   value={c.damageImmunities.join(', ')} /> : null}
+                    {c.damageVulnerabilities?.length ? <CreatureLineRow label="Vuln"     value={c.damageVulnerabilities.join(', ')} /> : null}
+                    {c.conditionImmunities?.length ? <CreatureLineRow label="Cond Imm" value={c.conditionImmunities.join(', ')} /> : null}
+                  </View>
+                ) : null}
 
-            <View style={styles.itemSourceRow}>
-              <Text variant="label-sm" weight="bold" uppercase style={styles.itemStatLabel}>Source</Text>
-              <Text variant="body-sm" family="body" style={styles.itemStatValue}>
-                {srdSourceLabel(c.srdVersions ?? [])}
-              </Text>
-            </View>
-          </ExpandRow>
-        );
-      })}
-      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
-    </View>
+                {c.traits?.length ? (
+                  <View style={styles.subBlock}>
+                    <MetaLabel size="sm">Traits</MetaLabel>
+                    {c.traits.map((t, i) => (
+                      <View key={i} style={styles.bullet}>
+                        <Text variant="body-sm" weight="bold" family="body" style={styles.bodyText}>{t.name}.</Text>
+                        <MarkdownText style={styles.bodyText}>{t.description}</MarkdownText>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {c.actions?.length ? (
+                  <View style={styles.subBlock}>
+                    <MetaLabel size="sm">Actions</MetaLabel>
+                    {c.actions.map((a, i) => (
+                      <View key={i} style={styles.bullet}>
+                        <Text variant="body-sm" weight="bold" family="body" style={styles.bodyText}>{a.name}.</Text>
+                        <MarkdownText style={styles.bodyText}>{a.description}</MarkdownText>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {c.environments?.length ? (
+                  <View style={[styles.subBlock, styles.chipRow]}>
+                    {c.environments.map((env) => (
+                      <Chip key={env} label={env} variant="meta" />
+                    ))}
+                  </View>
+                ) : null}
+              </>
+            );
+          }}
+    />
   );
+}
+
+function creatureFingerprint(c: CreatureResult): string {
+  return JSON.stringify({
+    cr: c.challengeRating,
+    size: c.size ?? '',
+    type: c.creatureType ?? '',
+    ac: c.ac,
+    hp: c.hp,
+    speed: c.speed ?? '',
+    pb: c.proficiencyBonus ?? null,
+    xp: c.xp ?? null,
+    abilityScores: c.abilityScores ?? null,
+    saves: c.savingThrows ?? null,
+    skills: c.skills ?? null,
+    senses: c.senses ?? null,
+    languages: c.languages ?? '',
+    res: [...(c.damageResistances ?? [])].sort(),
+    imm: [...(c.damageImmunities ?? [])].sort(),
+    vuln: [...(c.damageVulnerabilities ?? [])].sort(),
+    condImm: [...(c.conditionImmunities ?? [])].sort(),
+    traits: (c.traits ?? []).map((t) => `${t.name}|${t.description}`).sort(),
+    actions: (c.actions ?? []).map((a) => `${a.name}|${a.description}`).sort(),
+    environments: [...(c.environments ?? [])].sort(),
+    alignment: c.alignment ?? '',
+  });
 }
 
 /** Numeric sort key for CR — accepts number, "1/2", "10", etc. */
@@ -1544,40 +2584,38 @@ function crSortValue(cr: CreatureResult['challengeRating']): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function ConditionsList({ items }: { items: ConditionResult[] }) {
-  const [q, setQ] = useState('');
-  const exp = useExpanded();
-  const filtered = useMemo(() => filterByName(items, q).slice().sort((a, b) => a.name.localeCompare(b.name)), [items, q]);
-
+function ConditionsList({ items, srdVersion }: { items: ConditionResult[]; srdVersion?: string }) {
   return (
-    <View style={styles.list}>
-      <SearchBar value={q} onChange={setQ} placeholder="Search conditions…" />
-      {filtered.map((c) => (
-        <ExpandRow
-          key={c.key}
-          title={c.name}
-          summary={c.description ?? ''}
-          expanded={exp.isOpen(c.key)}
-          onToggle={() => exp.toggle(c.key)}
-          tier={c.tier}
-          importSource={c.importSource}
-        >
-          {Array.isArray(c.effects) && c.effects.length > 0 ? (
-            <View style={styles.subBlock}>
-              <MetaLabel size="sm">Effects</MetaLabel>
-              {c.effects.map((e, i) => (
-                <View key={i} style={styles.bullet}>
-                  <Text variant="body-sm" family="body" style={styles.bodyText}>• {e}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-          {Array.isArray(c.srdVersions) && c.srdVersions.length > 0 ? <SrdVersionsRow versions={c.srdVersions} /> : null}
-        </ExpandRow>
-      ))}
-      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
-    </View>
+    <TableShell<ConditionResult>
+      items={items}
+      fingerprint={conditionFingerprint}
+      searchPlaceholder="Search conditions…"
+      activeSrdVersion={srdVersion}
+      columns={[
+        { key: 'name', label: 'Name', cell: (c) => c.name, compare: (a, b) => a.name.localeCompare(b.name), width: 180, defaultSort: 'asc' },
+      ]}
+      facets={[]}
+      renderBody={(c) => (
+        Array.isArray(c.effects) && c.effects.length > 0 ? (
+          <View style={styles.subBlock}>
+            <MetaLabel size="sm">Effects</MetaLabel>
+            {c.effects.map((e, i) => (
+              <View key={i} style={styles.bullet}>
+                <Text variant="body-sm" family="body" style={styles.bodyText}>• {e}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null
+      )}
+    />
   );
+}
+
+function conditionFingerprint(c: ConditionResult): string {
+  return JSON.stringify({
+    description: c.description ?? '',
+    effects: [...(c.effects ?? [])].sort(),
+  });
 }
 
 // Rules-of-play. Open5e ships these as a flat list with `chapter` and
@@ -1671,9 +2709,6 @@ function RulesList({ items }: { items: RuleResult[] }) {
                   >
                     {r.description ? (
                       <MarkdownText style={styles.bodyText}>{r.description}</MarkdownText>
-                    ) : null}
-                    {Array.isArray(r.srdVersions) && r.srdVersions.length > 0 ? (
-                      <SrdVersionsRow versions={r.srdVersions} />
                     ) : null}
                   </ExpandRow>
                 ))
@@ -1941,10 +2976,18 @@ function SrdVersionsRow({ versions }: { versions: string[] }) {
     <View style={[styles.subBlock, { marginTop: spacing.sm }]}>
       <MetaLabel size="sm">SRD versions</MetaLabel>
       <View style={styles.chipRow}>
-        {versions.map((v) => <Chip key={v} label={v.replace('_', ' ')} variant="category" />)}
+        {versions.map((v) => <Chip key={v} label={srdVersionDisplay(v)} variant="category" />)}
       </View>
     </View>
   );
+}
+
+/** User-facing label for an `srdVersions` tag — year-shorthand to match
+ *  the source-badge convention from packages/content/src/srd/index.ts. */
+function srdVersionDisplay(v: string): string {
+  if (v === 'SRD_2.0') return 'SRD 2024';
+  if (v === 'SRD_5.1') return 'SRD 2014';
+  return v.replace('_', ' ');
 }
 
 function EmptyHit({ q }: { q: string }) {
@@ -2210,6 +3253,193 @@ const styles = StyleSheet.create({
   },
   bodyText: { color: colors.onSurfaceVariant, lineHeight: 20 },
   subBlock: { gap: 6, marginTop: spacing.xs + 2 },
+
+  sourceTabs: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: spacing.sm,
+  },
+  sourceTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  sourceTabActive: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primary,
+  },
+
+  // Compact-table chrome above each list.
+  shellTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  filtersBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filtersBtnActive: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primary,
+  },
+
+  // Table layout. Rows are flex-row with a fixed-width name column on the
+  // left, a horizontally-scrolling middle, and a fixed-width right gutter
+  // (chevron + source badges).
+  tableRowOuter: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant + '55',
+  },
+  tableRowExpanded: {
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+    borderBottomWidth: 0,
+    marginVertical: spacing.xs + 2,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 44,
+  },
+  tableNameCol: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    justifyContent: 'center',
+  },
+  tableScrollContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+  },
+  tableHeadCell: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    justifyContent: 'center',
+  },
+  headerCellInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  tableCell: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    justifyContent: 'center',
+  },
+  tableCellText: {
+    color: colors.onSurfaceVariant,
+  },
+  tableRightGutter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  tableRightGutterHead: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    minWidth: 100,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  tableSourceStack: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    maxWidth: 180,
+    justifyContent: 'flex-end',
+  },
+  tableRowBody: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.sm,
+  },
+
+  // Filter sheet — facet sections stacked inside a PopoverModal.
+  filterFacetSection: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant + '33',
+  },
+  filterFacetHeader: {
+    color: colors.onSurfaceVariant,
+    letterSpacing: 1.25,
+  },
+  filterFacetEmpty: {
+    color: colors.onSurfaceVariant,
+    fontStyle: 'italic',
+  },
+  filterFacetChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  filterValueChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filterValueChipActive: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primary,
+  },
+  popoverBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  popoverCard: {
+    width: '100%',
+    maxWidth: 360,
+    maxHeight: '70%',
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    overflow: 'hidden',
+  },
+  popoverHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant + '55',
+  },
+  popoverScroll: {
+    maxHeight: 360,
+  },
+  popoverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  popoverRowActive: {
+    backgroundColor: colors.primaryContainer + '33',
+  },
 
   // Rules list — chapter accordion. Headers read as a card-like band so they
   // stand apart from the white-on-canvas section rows below them.
