@@ -127,7 +127,7 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
     }
   }, []);
 
-  // Tab navigation in tables + Delete/Backspace on selected images
+  // Tab navigation in tables + Delete/Backspace on selected images + mentions
   useEffect(() => {
     if (!elRef.current || !editable) return;
     const el = elRef.current;
@@ -143,6 +143,63 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
           onInput(id, el.innerHTML);
           if (!blockHasContent(el)) onDeleteImage(id);
           return;
+        }
+
+        // Delete/Backspace on mention chips adjacent to the caret.
+        // contentEditable=false elements can't be deleted natively in
+        // all browsers. Walk the DOM to find the nearest mention.
+        const mentionSel = window.getSelection();
+        if (mentionSel && mentionSel.isCollapsed && mentionSel.rangeCount > 0) {
+          const r = mentionSel.getRangeAt(0);
+          const c = r.startContainer;
+          const o = r.startOffset;
+          const back = e.key === 'Backspace';
+
+          function findMention(node: Node | null, direction: 'prev' | 'next'): HTMLElement | null {
+            while (node) {
+              if (node instanceof HTMLElement && node.classList?.contains('vaultstone-mention')) return node;
+              if (node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').length > 0) return null;
+              if (node instanceof HTMLElement && node.textContent && node.textContent.length > 0
+                  && !node.classList?.contains('vaultstone-mention')) return null;
+              node = direction === 'prev' ? node.previousSibling : node.nextSibling;
+            }
+            return null;
+          }
+
+          let chip: HTMLElement | null = null;
+
+          if (c.nodeType === Node.ELEMENT_NODE) {
+            // Caret between child nodes
+            if (back && o > 0) chip = findMention((c as Element).childNodes[o - 1], 'prev');
+            if (!back) chip = findMention((c as Element).childNodes[o] ?? null, 'next');
+          }
+
+          if (!chip && c.nodeType === Node.TEXT_NODE) {
+            if (back && o === 0) {
+              // Walk up through empty wrappers to find previous sibling
+              let walk: Node | null = c;
+              while (walk && walk !== el && !chip) {
+                chip = findMention(walk.previousSibling, 'prev');
+                if (chip) break;
+                walk = walk.parentNode;
+              }
+            }
+            if (!back && o === (c.textContent?.length ?? 0)) {
+              let walk: Node | null = c;
+              while (walk && walk !== el && !chip) {
+                chip = findMention(walk.nextSibling, 'next');
+                if (chip) break;
+                walk = walk.parentNode;
+              }
+            }
+          }
+
+          if (chip && el.contains(chip)) {
+            e.preventDefault();
+            chip.remove();
+            onInput(id, el.innerHTML);
+            return;
+          }
         }
       }
 
@@ -749,12 +806,6 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     const mRef = node.nextSibling;
     mParent.insertBefore(chip, mRef);
     mParent.insertBefore(trailing, chip.nextSibling);
-
-    // Capture the chip HTML immediately — don't defer to rAF because a blur
-    // event (triggered by clicking the typeahead popup) may have already
-    // captured stale HTML without the chip.
-    htmlRef.current[blockId] = el.innerHTML;
-
     // Capture the chip HTML immediately — don't defer to rAF because a blur
     // event (triggered by clicking the typeahead popup) may have already
     // captured stale HTML without the chip.
