@@ -38,6 +38,8 @@ export {
   transformMonsters,
   transformClasses,
   transformClassFluff,
+  transformFluff,
+  transformSpellSourceLookup,
   stripMarkup,
 } from './imported/index';
 export type {
@@ -51,6 +53,9 @@ export type {
   RawBestiaryFile,
   RawFluffFile,
   FluffPatch,
+  FluffContentType,
+  RawSpellSourceLookupFile,
+  SpellClassesPatch,
   TransformOptions,
 } from './imported/index';
 

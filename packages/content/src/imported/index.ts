@@ -24,8 +24,10 @@ export { transformMonsters } from './transform/monsters';
 export type { RawBestiaryFile } from './transform/monsters';
 export { transformClasses } from './transform/classes';
 export type { RawClassesFile } from './transform/classes';
-export { transformClassFluff } from './transform/fluff';
-export type { RawFluffFile, FluffPatch } from './transform/fluff';
+export { transformClassFluff, transformFluff } from './transform/fluff';
+export type { RawFluffFile, FluffPatch, FluffContentType } from './transform/fluff';
+export { transformSpellSourceLookup } from './transform/spellSourceLookup';
+export type { RawSpellSourceLookupFile, SpellClassesPatch } from './transform/spellSourceLookup';
 // All transforms share TransformOptions; export one since they're
 // structurally identical.
 export type { TransformOptions } from './transform/feats';

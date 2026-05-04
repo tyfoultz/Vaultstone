@@ -18,13 +18,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing } from '@vaultstone/ui';
 import {
   transformSubclasses, transformFeats, transformSpells, transformBackgrounds, transformItems,
-  transformSpecies, transformMonsters, transformClasses, transformClassFluff,
+  transformSpecies, transformMonsters, transformClasses, transformFluff,
+  transformSpellSourceLookup,
 } from '@vaultstone/content';
 import type { ContentResult, ImportSource } from '@vaultstone/types';
 import {
   createHomebrewPack, listHomebrewPacks,
   upsertImportedEntries, deleteImportedEntriesBySourceLabel,
-  patchImportedDescriptions,
+  patchImportedDescriptions, patchImportedSpellClasses,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import {
@@ -49,7 +50,10 @@ type ImportableEntry = ContentResult & {
  *  IMPORT_KINDS never references. */
 type ImportableCountKey =
   | 'subclasses' | 'feats' | 'spells' | 'backgrounds'
-  | 'items' | 'species' | 'monsters' | 'classes' | 'classFluff';
+  | 'items' | 'species' | 'monsters' | 'classes'
+  | 'classFluff' | 'backgroundFluff' | 'featFluff' | 'itemFluff'
+  | 'speciesFluff' | 'creatureFluff'
+  | 'spellClasses';
 
 type ImportKind = {
   /** Field name in ImportableContent — count of items found in the file. */
@@ -133,15 +137,33 @@ const IMPORT_KINDS: ImportKind[] = [
   },
 ];
 
-// Class flavor (fluff) is intentionally NOT in IMPORT_KINDS — it doesn't
-// produce *Result entries, it produces description patches that merge
-// into existing class/subclass rows. The Confirm row, source filter,
-// and upsert loop each special-case it. Lives here so the disclosure
-// list and label list still mention it.
-const FLUFF_KIND = {
-  countKey: 'classFluff' as const,
-  topLevelKeys: ['classFluff', 'subclassFluff'],
-  label: 'Class flavor',
+// Fluff kinds are intentionally NOT in IMPORT_KINDS — they don't
+// produce *Result entries, they produce description patches that merge
+// into existing rows. The Confirm rows, source filter, and patch path
+// each special-case them. Listed here so the disclosure list and
+// label list still mention every supported flavor kind.
+type FluffKind = {
+  countKey: ImportableCountKey;
+  topLevelKeys: string[];
+  label: string;
+};
+const FLUFF_KINDS: FluffKind[] = [
+  { countKey: 'classFluff',      topLevelKeys: ['classFluff', 'subclassFluff'], label: 'Class flavor' },
+  { countKey: 'backgroundFluff', topLevelKeys: ['backgroundFluff'],             label: 'Background flavor' },
+  { countKey: 'featFluff',       topLevelKeys: ['featFluff'],                   label: 'Feat flavor' },
+  { countKey: 'itemFluff',       topLevelKeys: ['itemFluff'],                   label: 'Item flavor' },
+  { countKey: 'speciesFluff',    topLevelKeys: ['raceFluff', 'subraceFluff'],   label: 'Species flavor' },
+  { countKey: 'creatureFluff',   topLevelKeys: ['monsterFluff'],                label: 'Creature flavor' },
+];
+
+// Spell-source-lookup is its own kind — neither an entry producer nor a
+// fluff-style description patch. It merges class lists onto existing
+// imported spell rows so class-detail spell tables surface them. Kept
+// in its own constant (singular) since the file shape is one-of and
+// the disclosure / probe rows render it once.
+const SPELL_CLASSES_KIND = {
+  countKey: 'spellClasses' as const,
+  label: 'Spell class lists',
 };
 
 type Props = {
@@ -200,7 +222,12 @@ export function ImportContentModal({
   // appears in confirm phase, so this is safe.
   const filteredCounts = probe
     ? applySourceFilter(probe, selectedSources)
-    : { subclasses: 0, feats: 0, spells: 0, backgrounds: 0, items: 0, species: 0, monsters: 0, classes: 0, classFluff: 0 };
+    : {
+        subclasses: 0, feats: 0, spells: 0, backgrounds: 0, items: 0,
+        species: 0, monsters: 0, classes: 0,
+        classFluff: 0, backgroundFluff: 0, featFluff: 0, itemFluff: 0,
+        speciesFluff: 0, creatureFluff: 0, spellClasses: 0,
+      };
   const hasFilteredContent = Object.values(filteredCounts).some((n) => n > 0);
 
   function handleClose() {
@@ -280,9 +307,10 @@ export function ImportContentModal({
       // so removed entries (renamed source-keys, deleted upstream) don't
       // linger. Authored entries and other cards in the same pack are
       // untouched — the wipe is scoped to this card only. Only run the
-      // wipe when this import will actually write entries — fluff-only
-      // imports produce patches, not entries, and would otherwise wipe
-      // a same-named card the user actually wants to keep.
+      // wipe when this import will actually write entries — patch-only
+      // imports (fluff, spell-source-lookup) produce row updates, not
+      // new rows, and would otherwise wipe a same-named card the user
+      // actually wants to keep.
       const hasEntryProducingKind = IMPORT_KINDS.some(
         (k) => probe[k.countKey] > 0,
       );
@@ -334,15 +362,20 @@ export function ImportContentModal({
       });
       if (upsertErr) throw new Error(upsertErr.message);
 
-      // Class flavor — separate path. Fluff files carry description
-      // prose for already-imported class/subclass rows; they get merged
-      // into the existing row's `data.description` rather than creating
-      // new entries. Pack-scoped, so the user can import fluff under
-      // any source_label (typically a different filename than the
-      // class file) — patch matching ignores source_label and keys
-      // only on entry_key.
-      if (probe.classFluff > 0) {
-        const patches = transformClassFluff(transformPayload as never, {
+      // Flavor / fluff — separate path. Fluff files carry description
+      // prose for already-imported rows (class, subclass, background,
+      // feat, item, species, creature); they get merged into the
+      // existing row's `data.description` rather than creating new
+      // entries. Pack-scoped, so the user can import fluff under any
+      // source_label (typically a different filename than the
+      // structured file) — patch matching ignores source_label and
+      // keys only on entry_key.
+      const totalFluffProbe = FLUFF_KINDS.reduce(
+        (n, k) => n + (probe[k.countKey] ?? 0),
+        0,
+      );
+      if (totalFluffProbe > 0) {
+        const patches = transformFluff(transformPayload as never, {
           systemId,
           sourceLabel: picked.fileName,
         });
@@ -352,17 +385,55 @@ export function ImportContentModal({
             patches: patches.map((p) => ({
               entryKey: p.entryKey,
               description: p.description,
+              // Forward name + contentType so the API can fall back to
+              // a (name, content_type) lookup when the source-coded
+              // entry_key doesn't match. This bridges fluff entries
+              // sourced under the 2014 code (e.g. DMG) onto rows the
+              // user imported under the 2024 code (e.g. XDMG).
+              name: p.name,
+              contentType: p.contentType,
             })),
             fluffSource: { fileName: picked.fileName, sourceLabel },
           });
           if (patchErr) throw new Error(patchErr.message);
-          // No matching class/subclass rows in the pack — the user
-          // imported the fluff before the structured class file.
-          // Surface it instead of silently no-opping so they can
-          // correct the ordering.
+          // No matching rows in the pack — the user imported the
+          // fluff before the structured file. Surface it instead of
+          // silently no-opping so they can correct the ordering.
           if (patched === 0) {
             throw new Error(
-              `Fluff produced ${patches.length} patches but matched 0 class/subclass rows. Import the matching class file first, then re-import the fluff.`,
+              `Fluff produced ${patches.length} patches but matched 0 rows. Import the matching structured file first, then re-import the fluff.`,
+            );
+          }
+        }
+      }
+
+      // Spell-source-lookup — third path. Same model as fluff: the
+      // file doesn't carry structured spell entries, it carries class-
+      // assignment metadata that gets merged onto existing imported
+      // spell rows. Source filter is irrelevant for this file (it's
+      // single-purpose), so we transform the original payload.
+      if (probe.spellClasses > 0) {
+        const classPatches = transformSpellSourceLookup(
+          picked.payload as Parameters<typeof transformSpellSourceLookup>[0],
+          { systemId },
+        );
+        if (classPatches.length > 0) {
+          const { patched, error: patchErr } = await patchImportedSpellClasses({
+            packId: packIdResolved,
+            patches: classPatches.map((p) => ({
+              entryKey: p.entryKey,
+              classes: p.classes,
+              // Name fallback bridges the 2014/2024 source-code split
+              // when the lookup file groups spells under their original
+              // source but the user imported the 2024 sibling.
+              name: p.name,
+            })),
+            classesSource: { fileName: picked.fileName, sourceLabel },
+          });
+          if (patchErr) throw new Error(patchErr.message);
+          if (patched === 0) {
+            throw new Error(
+              `Spell class lookup produced ${classPatches.length} patches but matched 0 rows. Import the matching spells file first, then re-import the lookup.`,
             );
           }
         }
@@ -489,7 +560,10 @@ function IntroBody() {
           {IMPORT_KINDS.map((k) => (
             <Text key={k.contentType} style={s.formatsLine}>• {k.label}</Text>
           ))}
-          <Text style={s.formatsLine}>• {FLUFF_KIND.label}</Text>
+          {FLUFF_KINDS.map((k) => (
+            <Text key={k.countKey} style={s.formatsLine}>• {k.label}</Text>
+          ))}
+          <Text style={s.formatsLine}>• {SPELL_CLASSES_KIND.label}</Text>
         </View>
       ) : null}
 
@@ -587,9 +661,17 @@ function ConfirmBody({
             count={filteredCounts[k.countKey] ?? 0}
           />
         ))}
+        {FLUFF_KINDS.map((k) => (
+          <ProbeRow
+            key={k.countKey}
+            label={k.label}
+            count={filteredCounts[k.countKey] ?? 0}
+          />
+        ))}
         <ProbeRow
-          label={FLUFF_KIND.label}
-          count={filteredCounts[FLUFF_KIND.countKey] ?? 0}
+          key={SPELL_CLASSES_KIND.countKey}
+          label={SPELL_CLASSES_KIND.label}
+          count={filteredCounts[SPELL_CLASSES_KIND.countKey] ?? 0}
         />
       </View>
       {!hasImportableContent(probe) ? (
@@ -698,7 +780,10 @@ function DiagnosticHint({ diagnostic }: { diagnostic: ImportDiagnostic }) {
  * adding to IMPORT_KINDS updates here automatically.
  */
 function renderKeyList() {
-  const keys = [...IMPORT_KINDS.flatMap((k) => k.topLevelKeys), ...FLUFF_KIND.topLevelKeys];
+  const keys = [
+    ...IMPORT_KINDS.flatMap((k) => k.topLevelKeys),
+    ...FLUFF_KINDS.flatMap((k) => k.topLevelKeys),
+  ];
   return keys.map((key, i) => (
     <Text key={key}>
       {i > 0 ? (i === keys.length - 1 ? ', or ' : ', ') : ''}
@@ -709,7 +794,11 @@ function renderKeyList() {
 
 /** Plural label list ("subclasses, feats, spells, and backgrounds"). */
 function renderLabelList(): string {
-  const labels = [...IMPORT_KINDS.map((k) => k.label.toLowerCase()), FLUFF_KIND.label.toLowerCase()];
+  const labels = [
+    ...IMPORT_KINDS.map((k) => k.label.toLowerCase()),
+    ...FLUFF_KINDS.map((k) => k.label.toLowerCase()),
+    SPELL_CLASSES_KIND.label.toLowerCase(),
+  ];
   if (labels.length <= 1) return labels.join('');
   if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
   return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
@@ -761,14 +850,16 @@ function deriveDefaultName(fileName: string): string {
 function filterPayloadBySource(payload: unknown, selectedSources: Set<string>): unknown {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
   const obj = payload as Record<string, unknown>;
-  // NOTE: fluff arrays (`classFluff`, `subclassFluff`) are intentionally
-  // NOT filtered. Fluff entries commonly use `_copy` to inherit prose
-  // from another fluff entry inside the same file (e.g. XPHB Barbarian
-  // fluff `_copy`s the PHB Barbarian fluff). If we filter the array
-  // before the transform runs, the `_copy` target gets stripped and the
-  // resolution silently dead-ends. The transform itself only emits
-  // patches keyed to entry_keys that exist in the pack, so unselected-
-  // source fluff has no effect downstream.
+  // NOTE: every fluff array (`classFluff`, `subclassFluff`,
+  // `backgroundFluff`, `featFluff`, `itemFluff`, `raceFluff`,
+  // `subraceFluff`, `monsterFluff`) is intentionally NOT filtered.
+  // Fluff entries commonly use `_copy` to inherit prose from another
+  // fluff entry inside the same file (e.g. XPHB Barbarian fluff
+  // `_copy`s the PHB Barbarian fluff). If we filter the array before
+  // the transform runs, the `_copy` target gets stripped and resolution
+  // silently dead-ends. The transform itself only emits patches keyed
+  // to entry_keys that exist in the pack, so unselected-source fluff
+  // has no effect downstream.
   const KEYS = ['subclass', 'feat', 'spell', 'background', 'baseitem', 'item', 'race', 'subrace', 'monster', 'class'];
   const out: Record<string, unknown> = { ...obj };
   for (const key of KEYS) {

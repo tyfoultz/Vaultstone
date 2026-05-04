@@ -149,10 +149,27 @@ export async function upsertImportedEntries(args: {
  * fluff file is typically a separate filename from the class file
  * the user already imported, so we deliberately ignore source_label
  * when matching.
+ *
+ * **Name-based fallback** — if a patch's `entry_key` doesn't match any
+ * row but the patch carries `name` + `contentType`, we look up the row
+ * by (content_type, name) within the pack and apply the patch to that
+ * row instead. This bridges 5e.tools' edition-source split: many fluff
+ * entries are sourced under the 2014 code (e.g. `DMG`) while the
+ * structured items the user imported are under the 2024 code (e.g.
+ * `XDMG`). Without the fallback, ~zero of those patches land. The
+ * fallback is keyed on (name, content_type) which is unique enough for
+ * imports — a pack rarely holds the same item under two source codes.
  */
 export async function patchImportedDescriptions(args: {
   packId: string;
-  patches: Array<{ entryKey: string; description: string }>;
+  patches: Array<{
+    entryKey: string;
+    description: string;
+    /** Optional — enables name-based fallback when entry_key doesn't match. */
+    name?: string;
+    /** Optional — required alongside `name` for the fallback lookup. */
+    contentType?: string;
+  }>;
   /** Optional provenance stamped into each patched row's `data.fluffSource`.
    *  Surfaced in pack source-card grids so users can see which cards
    *  have flavor prose layered on top of their structured imports. */
@@ -163,24 +180,62 @@ export async function patchImportedDescriptions(args: {
 
   // Fetch existing rows so we can merge into the JSON `data` blob.
   // Supabase doesn't have a native "set one nested JSON field" op, so
-  // we read-modify-write per entry. Volume is small (one fluff file =
-  // tens of entries), so the round-trip cost is acceptable.
-  const entryKeys = patches.map((p) => p.entryKey);
-  const { data: rows, error: readErr } = await supabase
-    .from('imported_content')
-    .select('id, entry_key, data')
-    .eq('pack_id', packId)
-    .in('entry_key', entryKeys);
-  if (readErr) return { patched: 0, error: readErr };
-
+  // we read-modify-write per entry. Chunk the read in batches of 50
+  // entry_keys to stay under PostgREST's URL length limit — large
+  // bestiary fluff files can carry 300+ patches, which would 400 if
+  // sent as a single `.in(...)` query.
+  const READ_CHUNK = 50;
   const byKey = new Map<string, { id: string; data: unknown }>();
-  for (const row of rows ?? []) {
-    byKey.set(row.entry_key, { id: row.id, data: row.data });
+  for (let i = 0; i < patches.length; i += READ_CHUNK) {
+    const slice = patches.slice(i, i + READ_CHUNK).map((p) => p.entryKey);
+    const { data: rows, error: readErr } = await supabase
+      .from('imported_content')
+      .select('id, entry_key, data')
+      .eq('pack_id', packId)
+      .in('entry_key', slice);
+    if (readErr) return { patched: 0, error: readErr };
+    for (const row of rows ?? []) {
+      byKey.set(row.entry_key, { id: row.id, data: row.data });
+    }
+  }
+
+  // Build a name-based fallback map for patches whose entry_key didn't
+  // match. Only fetched when fallbacks are actually needed — saves a
+  // round-trip on the common case where every key matched.
+  const unmatched = patches.filter((p) => !byKey.has(p.entryKey) && p.name && p.contentType);
+  // Map content_type → Map(lowercased name → row). Lowercased so we
+  // tolerate casing drift between fluff and structured entries.
+  const byNameByType = new Map<string, Map<string, { id: string; data: unknown; entryKey: string }>>();
+  if (unmatched.length > 0) {
+    // Group missing patches by content_type so we can do one query per
+    // type rather than per row. Distinct content_types are bounded
+    // (class, subclass, item, …) so this stays small.
+    const typesNeeded = new Set(unmatched.map((p) => p.contentType!));
+    for (const ct of typesNeeded) {
+      const { data: rows, error: readErr } = await supabase
+        .from('imported_content')
+        .select('id, entry_key, name, data')
+        .eq('pack_id', packId)
+        .eq('content_type', ct);
+      if (readErr) return { patched: 0, error: readErr };
+      const map = new Map<string, { id: string; data: unknown; entryKey: string }>();
+      for (const row of rows ?? []) {
+        map.set(row.name.toLowerCase(), {
+          id: row.id,
+          data: row.data,
+          entryKey: row.entry_key,
+        });
+      }
+      byNameByType.set(ct, map);
+    }
   }
 
   let patched = 0;
   for (const patch of patches) {
-    const row = byKey.get(patch.entryKey);
+    let row: { id: string; data: unknown } | undefined = byKey.get(patch.entryKey);
+    if (!row && patch.name && patch.contentType) {
+      row = byNameByType.get(patch.contentType)?.get(patch.name.toLowerCase());
+    }
     if (!row) continue; // no matching entry; user imported fluff before class
     const merged: Record<string, unknown> = {
       ...(row.data as Record<string, unknown>),
@@ -188,6 +243,98 @@ export async function patchImportedDescriptions(args: {
     };
     if (fluffSource) {
       merged.fluffSource = fluffSource;
+    }
+    const { error } = await supabase
+      .from('imported_content')
+      .update({ data: merged as Database['public']['Tables']['imported_content']['Update']['data'] })
+      .eq('id', row.id);
+    if (error) return { patched, error };
+    patched++;
+  }
+  return { patched, error: null };
+}
+
+/**
+ * Patch the `classes` field on existing imported spell entries within a
+ * pack, keyed by `entry_key`. Used by the spell-source-lookup import
+ * path: 5e.tools doesn't put class lists on individual spells (they
+ * live in a separate generated index), so a vanilla spells-*.json
+ * import produces rows with `classes: []`. This patch merges class
+ * names into the existing `data` JSON blob in place, leaving every
+ * other field on the spell row unchanged.
+ *
+ * Patches rows belonging to any source_label inside the pack, mirroring
+ * patchImportedDescriptions — the lookup file is its own card and
+ * shouldn't be required to share a label with the structured spells.
+ */
+export async function patchImportedSpellClasses(args: {
+  packId: string;
+  patches: Array<{
+    entryKey: string;
+    classes: string[];
+    /** Spell name — enables (content_type='spell', name) fallback when
+     *  the source-coded entry_key doesn't match. The lookup file
+     *  groups spells by their 2014 source ("phb"), but the user may
+     *  have imported the 2024 sibling ("xphb"); fallback bridges. */
+    name?: string;
+  }>;
+  /** Optional provenance stamped into each patched row's `data.classesSource`.
+   *  Mirrors fluff's `data.fluffSource` shape so the pack source-card
+   *  grid can surface a "Class lists" badge for cards that contributed
+   *  spell↔class wiring. */
+  classesSource?: { fileName: string; sourceLabel: string };
+}): Promise<{ patched: number; error: { message: string } | null }> {
+  const { packId, patches, classesSource } = args;
+  if (patches.length === 0) return { patched: 0, error: null };
+
+  // Same chunking pattern as patchImportedDescriptions — the lookup
+  // file routinely covers 300+ spells, well past PostgREST's URL
+  // length cap on a single .in() query.
+  const READ_CHUNK = 50;
+  const byKey = new Map<string, { id: string; data: unknown }>();
+  for (let i = 0; i < patches.length; i += READ_CHUNK) {
+    const slice = patches.slice(i, i + READ_CHUNK).map((p) => p.entryKey);
+    const { data: rows, error: readErr } = await supabase
+      .from('imported_content')
+      .select('id, entry_key, data')
+      .eq('pack_id', packId)
+      .eq('content_type', 'spell')
+      .in('entry_key', slice);
+    if (readErr) return { patched: 0, error: readErr };
+    for (const row of rows ?? []) {
+      byKey.set(row.entry_key, { id: row.id, data: row.data });
+    }
+  }
+
+  // Name-based fallback — same pattern as patchImportedDescriptions.
+  // Pull every spell row in the pack once if any patch missed by key.
+  const unmatched = patches.filter((p) => !byKey.has(p.entryKey) && p.name);
+  const byName = new Map<string, { id: string; data: unknown }>();
+  if (unmatched.length > 0) {
+    const { data: rows, error: readErr } = await supabase
+      .from('imported_content')
+      .select('id, entry_key, name, data')
+      .eq('pack_id', packId)
+      .eq('content_type', 'spell');
+    if (readErr) return { patched: 0, error: readErr };
+    for (const row of rows ?? []) {
+      byName.set(row.name.toLowerCase(), { id: row.id, data: row.data });
+    }
+  }
+
+  let patched = 0;
+  for (const patch of patches) {
+    let row: { id: string; data: unknown } | undefined = byKey.get(patch.entryKey);
+    if (!row && patch.name) {
+      row = byName.get(patch.name.toLowerCase());
+    }
+    if (!row) continue; // user imported the lookup before the spells file
+    const merged: Record<string, unknown> = {
+      ...(row.data as Record<string, unknown>),
+      classes: patch.classes,
+    };
+    if (classesSource) {
+      merged.classesSource = classesSource;
     }
     const { error } = await supabase
       .from('imported_content')

@@ -93,6 +93,29 @@ export type ImportableContent = {
    *  file. These entries don't carry structured data — they patch
    *  descriptions onto already-imported class/subclass rows. */
   classFluff: number;
+  /** `backgroundFluff` array length — patches imported_content
+   *  background rows with flavor prose from `fluff-backgrounds.json`. */
+  backgroundFluff: number;
+  /** `featFluff` array length — patches feat rows from
+   *  `fluff-feats.json`. */
+  featFluff: number;
+  /** `itemFluff` array length — patches item rows from
+   *  `fluff-items.json`. */
+  itemFluff: number;
+  /** Combined `raceFluff` + `subraceFluff` length — patches species
+   *  rows (including `<Race> (<Subrace>)` keyed entries) from
+   *  `fluff-races.json`. */
+  speciesFluff: number;
+  /** `monsterFluff` array length — patches creature rows from
+   *  bestiary fluff files. */
+  creatureFluff: number;
+  /** Total spell entries inside a 5e.tools `gendata-spell-source-lookup.json`
+   *  file (sum across every spell-source bucket). Detected by shape, not
+   *  by top-level key — the file has no fixed wrapper key, just lowercase
+   *  source codes at the root with `class`/`classVariant`/`subclass`
+   *  bodies under each spell. Patches the `classes` array on existing
+   *  imported spell rows so class-detail spell lists surface them. */
+  spellClasses: number;
   /**
    * Per-source breakdown of every entry the probe found, keyed by the
    * top-level array name (subclass / feat / spell / etc.). Each map's
@@ -125,7 +148,14 @@ export const SUPPORTED_TOP_LEVEL_KEYS = [
   'subclass', 'feat', 'spell', 'background',
   'baseitem', 'item', 'race', 'subrace', 'monster', 'class',
   'classFluff', 'subclassFluff',
+  'backgroundFluff', 'featFluff', 'itemFluff',
+  'raceFluff', 'subraceFluff', 'monsterFluff',
 ] as const;
+
+/** Sentinel source code surfaced for the spell-source-lookup file in
+ *  the source picker — the file is single-purpose and the per-source
+ *  picker isn't meaningful for it. */
+const SPELL_CLASSES_SOURCE = '__spell_classes__';
 
 function emptyProbe(): ImportableContent {
   return {
@@ -138,6 +168,12 @@ function emptyProbe(): ImportableContent {
     monsters: 0,
     classes: 0,
     classFluff: 0,
+    backgroundFluff: 0,
+    featFluff: 0,
+    itemFluff: 0,
+    speciesFluff: 0,
+    creatureFluff: 0,
+    spellClasses: 0,
     sourcesByKind: {},
     allSources: [],
     diagnostic: { kind: 'ok' },
@@ -202,12 +238,39 @@ export function probeContent(payload: unknown): ImportableContent {
   // disclosure list shows a single "Class flavor" row.
   probe.classFluff  = tallyArray(obj, 'classFluff',    sourcesByKind)
                     + tallyArray(obj, 'subclassFluff', sourcesByKind);
+  // Background / feat / item / species / creature flavor — same shape
+  // as class flavor but for their respective rows. 5e.tools ships each
+  // in its own fluff file (`fluff-backgrounds.json`, `fluff-feats.json`,
+  // `fluff-items.json`, `fluff-races.json`, `fluff-bestiary-*.json`).
+  probe.backgroundFluff = tallyArray(obj, 'backgroundFluff', sourcesByKind);
+  probe.featFluff       = tallyArray(obj, 'featFluff',       sourcesByKind);
+  probe.itemFluff       = tallyArray(obj, 'itemFluff',       sourcesByKind);
+  probe.speciesFluff    = tallyArray(obj, 'raceFluff',    sourcesByKind)
+                        + tallyArray(obj, 'subraceFluff', sourcesByKind);
+  probe.creatureFluff   = tallyArray(obj, 'monsterFluff', sourcesByKind);
+
+  // Spell-source-lookup file: only probe-detected when none of the
+  // array-based shapes matched, since this file's signature is a top-
+  // level object whose values are themselves objects (no `spell` array,
+  // etc.). Counts the total spell entries across every source bucket so
+  // the user sees "Spell class lists: 341" before committing.
+  if (!hasArrayBackedContent(probe)) {
+    probe.spellClasses = countSpellSourceLookup(obj);
+    if (probe.spellClasses > 0) {
+      sourcesByKind[SPELL_CLASSES_SOURCE] = { [SPELL_CLASSES_SOURCE]: probe.spellClasses };
+    }
+  }
 
   // Flat union for the picker — distinct source codes across every
-  // recognized array, sorted alphabetically (UNKNOWN_SOURCE last).
+  // recognized array, sorted alphabetically (UNKNOWN_SOURCE last). The
+  // spell-source-lookup sentinel is excluded from the picker since the
+  // file is single-purpose; its count flows through unfiltered.
   const all = new Set<string>();
   for (const counts of Object.values(sourcesByKind)) {
-    for (const src of Object.keys(counts)) all.add(src);
+    for (const src of Object.keys(counts)) {
+      if (src === SPELL_CLASSES_SOURCE) continue;
+      all.add(src);
+    }
   }
   probe.allSources = [...all].sort((a, b) => {
     if (a === UNKNOWN_SOURCE) return 1;
@@ -226,6 +289,13 @@ export function probeContent(payload: unknown): ImportableContent {
 }
 
 export function hasImportableContent(probe: ImportableContent): boolean {
+  return hasArrayBackedContent(probe) || probe.spellClasses > 0;
+}
+
+/** Whether any array-shaped (entries or fluff) content was found.
+ *  Used by the lookup-file probe to gate detection — if we already
+ *  matched a regular shape we don't try the lookup heuristic. */
+function hasArrayBackedContent(probe: ImportableContent): boolean {
   return (
     probe.subclasses > 0 ||
     probe.feats > 0 ||
@@ -235,8 +305,43 @@ export function hasImportableContent(probe: ImportableContent): boolean {
     probe.species > 0 ||
     probe.monsters > 0 ||
     probe.classes > 0 ||
-    probe.classFluff > 0
+    probe.classFluff > 0 ||
+    probe.backgroundFluff > 0 ||
+    probe.featFluff > 0 ||
+    probe.itemFluff > 0 ||
+    probe.speciesFluff > 0 ||
+    probe.creatureFluff > 0
   );
+}
+
+/**
+ * Count spells in a 5e.tools `gendata-spell-source-lookup.json`-shaped
+ * object. The file's signature: every top-level key (excluding `_meta`
+ * and similar underscore-prefixed metadata) maps to a non-array object
+ * whose values are themselves objects with at least one of `class` /
+ * `classVariant` / `subclass` (we accept any of these as confirming
+ * the spell-entry shape). Returns 0 if nothing matches the pattern, so
+ * it's safe to call on arbitrary payloads.
+ */
+function countSpellSourceLookup(obj: Record<string, unknown>): number {
+  const keys = Object.keys(obj).filter((k) => !k.startsWith('_'));
+  if (keys.length === 0) return 0;
+  let total = 0;
+  let matchedSpellShape = false;
+  for (const key of keys) {
+    const bucket = obj[key];
+    if (!bucket || typeof bucket !== 'object' || Array.isArray(bucket)) return 0;
+    const spells = bucket as Record<string, unknown>;
+    for (const body of Object.values(spells)) {
+      if (!body || typeof body !== 'object' || Array.isArray(body)) return 0;
+      const spell = body as Record<string, unknown>;
+      if ('class' in spell || 'classVariant' in spell || 'subclass' in spell) {
+        matchedSpellShape = true;
+      }
+      total++;
+    }
+  }
+  return matchedSpellShape ? total : 0;
 }
 
 /**
@@ -249,18 +354,29 @@ export function hasImportableContent(probe: ImportableContent): boolean {
 export function applySourceFilter(
   probe: ImportableContent,
   selectedSources: Set<string> | null,
-): Pick<ImportableContent, 'subclasses' | 'feats' | 'spells' | 'backgrounds' | 'items' | 'species' | 'monsters' | 'classes' | 'classFluff'> {
+): Pick<ImportableContent,
+  | 'subclasses' | 'feats' | 'spells' | 'backgrounds' | 'items'
+  | 'species' | 'monsters' | 'classes' | 'classFluff'
+  | 'backgroundFluff' | 'featFluff' | 'itemFluff' | 'speciesFluff' | 'creatureFluff'
+  | 'spellClasses'
+> {
   if (!selectedSources) {
     return {
-      subclasses:  probe.subclasses,
-      feats:       probe.feats,
-      spells:      probe.spells,
-      backgrounds: probe.backgrounds,
-      items:       probe.items,
-      species:     probe.species,
-      monsters:    probe.monsters,
-      classes:     probe.classes,
-      classFluff:  probe.classFluff,
+      subclasses:      probe.subclasses,
+      feats:           probe.feats,
+      spells:          probe.spells,
+      backgrounds:     probe.backgrounds,
+      items:           probe.items,
+      species:         probe.species,
+      monsters:        probe.monsters,
+      classes:         probe.classes,
+      classFluff:      probe.classFluff,
+      backgroundFluff: probe.backgroundFluff,
+      featFluff:       probe.featFluff,
+      itemFluff:       probe.itemFluff,
+      speciesFluff:    probe.speciesFluff,
+      creatureFluff:   probe.creatureFluff,
+      spellClasses:    probe.spellClasses,
     };
   }
   const sumKind = (...keys: string[]) => keys.reduce((n, key) => {
@@ -272,14 +388,23 @@ export function applySourceFilter(
     return n + s;
   }, 0);
   return {
-    subclasses:  sumKind('subclass'),
-    feats:       sumKind('feat'),
-    spells:      sumKind('spell'),
-    backgrounds: sumKind('background'),
-    items:       sumKind('baseitem', 'item'),
-    species:     sumKind('race', 'subrace'),
-    monsters:    sumKind('monster'),
-    classes:     sumKind('class'),
-    classFluff:  sumKind('classFluff', 'subclassFluff'),
+    subclasses:      sumKind('subclass'),
+    feats:           sumKind('feat'),
+    spells:          sumKind('spell'),
+    backgrounds:     sumKind('background'),
+    items:           sumKind('baseitem', 'item'),
+    species:         sumKind('race', 'subrace'),
+    monsters:        sumKind('monster'),
+    classes:         sumKind('class'),
+    classFluff:      sumKind('classFluff', 'subclassFluff'),
+    backgroundFluff: sumKind('backgroundFluff'),
+    featFluff:       sumKind('featFluff'),
+    itemFluff:       sumKind('itemFluff'),
+    speciesFluff:    sumKind('raceFluff', 'subraceFluff'),
+    creatureFluff:   sumKind('monsterFluff'),
+    // Lookup-file content isn't bucketed by spell source for filter
+    // purposes — its sentinel source lives outside the picker (see
+    // probeContent). Pass the full count through unchanged.
+    spellClasses:    probe.spellClasses,
   };
 }
