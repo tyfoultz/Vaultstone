@@ -18,7 +18,7 @@ import type { GameSystemDefinition } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
   SubclassResult, ConditionResult, RuleResult, SpellResult,
-  ItemResult, FeatResult, CreatureResult,
+  ItemResult, FeatResult, OptionalFeatureResult, OptionalFeatureKind, DeityResult, VariantRuleResult, CreatureResult,
   SkillResult, DamageTypeResult, SchoolResult, SizeResult,
   LanguageResult, ActionTypeResult, WeaponPropertyResult, WeaponMasteryResult,
   StandardActionResult, SenseResult, SpeedResult, CreatureTypeResult,
@@ -28,7 +28,7 @@ import type {
 
 const EMPTY_CONTENT: SrdContent = {
   species: [], classes: [], subclasses: [], backgrounds: [],
-  conditions: [], rules: [], spells: [], items: [], feats: [], creatures: [],
+  conditions: [], rules: [], spells: [], items: [], feats: [], optionalFeatures: [], deities: [], variantRules: [], creatures: [],
   skills: [], damageTypes: [], schools: [], sizes: [], languages: [],
   actionTypes: [], weaponProperties: [], weaponMasteries: [],
   standardActions: [], senses: [], speeds: [], creatureTypes: [],
@@ -77,10 +77,21 @@ const GROUPS: Group[] = [
     subTabs: [
       // Subclasses are folded into the Classes view (rendered alongside the
       // class they branch from) rather than a separate sub-tab.
-      { key: 'species',     label: 'Species',     contentKey: 'species' },
-      { key: 'classes',     label: 'Classes',     contentKey: 'classes' },
-      { key: 'backgrounds', label: 'Backgrounds', contentKey: 'backgrounds' },
-      { key: 'feats',       label: 'Feats',       contentKey: 'feats' },
+      { key: 'species',           label: 'Species',           contentKey: 'species' },
+      { key: 'classes',           label: 'Classes',           contentKey: 'classes' },
+      { key: 'backgrounds',       label: 'Backgrounds',       contentKey: 'backgrounds' },
+      { key: 'feats',             label: 'Feats',             contentKey: 'feats' },
+      // Class-feature choices made during levelling — Eldritch Invocations,
+      // Metamagic, Maneuvers, Fighting Styles, etc. The list filters by
+      // kind so per-class pickers (eventually) can narrow without a
+      // separate sub-tab per kind.
+      { key: 'optional-features', label: 'Optional Features', contentKey: 'optionalFeatures' },
+      // Cleric / Paladin patron deities. The 2024 SRD ships 27 Greyhawk
+      // deities under XDMG; older sources (PHB, SCAG, MTF) carry the
+      // legacy 2014 alignment + domain fields. Lives under Character
+      // Options because patron choice is a creation-time decision, not
+      // a reference lookup.
+      { key: 'deities',           label: 'Deities',           contentKey: 'deities' },
     ],
   },
   {
@@ -118,6 +129,12 @@ const GROUPS: Group[] = [
       // surface — chapters like Combat, Damage and Healing, etc. all
       // resolve here.
       { key: 'rules',                 label: 'Rules',                 contentKey: 'rules' },
+      // Variant rules + the XPHB compendium glossary share one sub-tab
+      // — both come out of 5e.tools' `variantrule` array. The list
+      // exposes a Kind chip facet so the user can narrow to just
+      // glossary entries (XPHB compendium) or just DM-side variants
+      // (Flanking, Hero Points, Cleaving).
+      { key: 'variant-rules',         label: 'Variant Rules',         contentKey: 'variantRules' },
       { key: 'standard-actions',      label: 'Standard Actions',      contentKey: 'standardActions' },
       { key: 'action-types',          label: 'Action Types',          contentKey: 'actionTypes' },
       { key: 'cover',                 label: 'Cover',                 contentKey: 'cover' },
@@ -467,6 +484,9 @@ function renderSubBody(
     case 'backgrounds':      return <BackgroundsList items={content.backgrounds} srdVersion={srdVersion} />;
     case 'spells':           return <SpellsList      items={content.spells}      srdVersion={srdVersion} />;
     case 'feats':            return <FeatsList       items={content.feats}       srdVersion={srdVersion} />;
+    case 'optionalFeatures': return <OptionalFeaturesList items={content.optionalFeatures} srdVersion={srdVersion} />;
+    case 'deities':          return <DeitiesList         items={content.deities}          srdVersion={srdVersion} />;
+    case 'variantRules':     return <VariantRulesList    items={content.variantRules}     srdVersion={srdVersion} />;
     case 'items':            return <ItemsList       items={content.items}       srdVersion={srdVersion} />;
     case 'creatures':        return <CreaturesList   items={content.creatures}   srdVersion={srdVersion} />;
     case 'conditions':       return <ConditionsList  items={content.conditions}  srdVersion={srdVersion} />;
@@ -1684,6 +1704,7 @@ function groupVariants<T extends Variant>(
   items: T[],
   fingerprint: (v: T) => string,
   groupKey: (v: T) => string = (v) => v.name.toLowerCase(),
+  variantSort: (a: T, b: T) => number = variantPrioritySort,
 ): VariantGroup<T>[] {
   const buckets = new Map<string, T[]>();
   for (const it of items) {
@@ -1694,7 +1715,7 @@ function groupVariants<T extends Variant>(
   }
   const out: VariantGroup<T>[] = [];
   for (const [id, list] of buckets) {
-    out.push({ id, variants: dedupeIdenticalVariants(list, fingerprint).sort(variantPrioritySort) });
+    out.push({ id, variants: dedupeIdenticalVariants(list, fingerprint).sort(variantSort) });
   }
   return out;
 }
@@ -1782,7 +1803,19 @@ function sourceKey(s: ImportSource): string {
   return `${s.code}|${s.page ?? ''}`;
 }
 
-function variantLabel(v: Variant): string {
+function variantLabel(v: Variant, groupIsItemVariantSet?: boolean): string {
+  // Magic-item variants stamp a `data.variantLabel` ("+1", "Adamantine",
+  // …) at transform time. When the group contains at least one such
+  // variant, the tab UI flips into "variant picker" mode — every tab
+  // reads as a variant label and the base item (no label) gets "Base".
+  // For groups without that signal we fall back to source-tab labels.
+  if (groupIsItemVariantSet) {
+    const itemVariantLabel = (v as { data?: { variantLabel?: unknown } }).data?.variantLabel;
+    if (typeof itemVariantLabel === 'string' && itemVariantLabel.length > 0) {
+      return itemVariantLabel;
+    }
+    return 'Base';
+  }
   if (v.importSource?.code) return v.importSource.code;
   if (v.tier === 'homebrew') return 'Homebrew';
   if (v.srdVersions?.includes('SRD_2.0')) return 'SRD 2024';
@@ -1797,6 +1830,16 @@ function SourceTabs<T extends Variant>({
   activeIdx: number;
   onChange: (i: number) => void;
 }) {
+  // Detect "magic-item variant" mode by checking whether any sibling in
+  // the group carries a `data.variantLabel`. When at least one does,
+  // the tabs flip into variant-picker mode (Base / +1 / +2 / Adamantine
+  // / …) instead of source-picker mode (XPHB / SRD 2024 / …). The two
+  // modes never mix — magic-item variants always carry their base's
+  // source provenance, so the source-tab story is uniform within the
+  // group.
+  const isItemVariantSet = variants.some((v) =>
+    typeof (v as { data?: { variantLabel?: unknown } }).data?.variantLabel === 'string',
+  );
   return (
     <View style={styles.sourceTabs}>
       {variants.map((v, i) => {
@@ -1818,7 +1861,7 @@ function SourceTabs<T extends Variant>({
                 letterSpacing: 1.25,
               }}
             >
-              {variantLabel(v)}
+              {variantLabel(v, isItemVariantSet)}
             </Text>
           </Pressable>
         );
@@ -1899,6 +1942,12 @@ type TableShellProps<T extends Variant> = {
   fingerprint: (v: T) => string;
   /** Optional custom group-key (defaults to lowercased name). */
   groupKey?: (v: T) => string;
+  /** Optional comparator that orders the variants[] inside each group.
+   *  Defaults to `variantPrioritySort` (homebrew/imported tier first,
+   *  then SRD 2024, then SRD 5.1). Items override this so base rows
+   *  sort ahead of their magic variants — the row should display
+   *  "Greatsword" rather than "+1 Greatsword" by default. */
+  variantSort?: (a: T, b: T) => number;
   searchPlaceholder: string;
   /** Column specs. Tap-sort headers, fixed widths, scrollable middle region. */
   columns: TableColumn<T>[];
@@ -1929,7 +1978,7 @@ type TableShellProps<T extends Variant> = {
 };
 
 function TableShell<T extends Variant>({
-  items, fingerprint, groupKey, searchPlaceholder,
+  items, fingerprint, groupKey, variantSort, searchPlaceholder,
   columns, facets, banner, renderBody, onRowTap, activeSrdVersion,
   rowActions, headerExtra,
 }: TableShellProps<T>) {
@@ -1989,13 +2038,13 @@ function TableShell<T extends Variant>({
       }
       return true;
     });
-    const grouped = groupVariants(filteredByFacets, fingerprint, groupKey);
+    const grouped = groupVariants(filteredByFacets, fingerprint, groupKey, variantSort);
     if (activeColumn) {
       const sign = sortDir === 'asc' ? 1 : -1;
       grouped.sort((a, b) => sign * activeColumn.compare(a.variants[0], b.variants[0]));
     }
     return grouped;
-  }, [items, q, filters, allFacets, fingerprint, groupKey, activeColumn, sortDir]);
+  }, [items, q, filters, allFacets, fingerprint, groupKey, variantSort, activeColumn, sortDir]);
 
   function onColumnTap(colKey: string) {
     if (sortKey === colKey) {
@@ -2449,6 +2498,300 @@ function featFingerprint(f: FeatResult): string {
   });
 }
 
+/** Display label for an OptionalFeatureKind. Used by both the Kind
+ *  column cell and the Kind facet chip — keep them in lockstep so the
+ *  filter chip and the row text never disagree. */
+const OPTIONAL_FEATURE_KIND_LABELS: Record<OptionalFeatureKind, string> = {
+  invocation:             'Invocation',
+  metamagic:              'Metamagic',
+  maneuver:               'Maneuver',
+  'fighting-style':       'Fighting Style',
+  'pact-boon':            'Pact Boon',
+  'artificer-infusion':   'Artificer Infusion',
+  'arcane-shot':          'Arcane Shot',
+  'elemental-discipline': 'Elemental Discipline',
+  rune:                   'Rune',
+  other:                  'Other',
+};
+
+function formatOptionalFeatureKinds(kinds: OptionalFeatureKind[] | undefined): string {
+  if (!kinds || kinds.length === 0) return '—';
+  return kinds.map((k) => OPTIONAL_FEATURE_KIND_LABELS[k] ?? k).join(', ');
+}
+
+export function OptionalFeaturesList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: OptionalFeatureResult[];
+  srdVersion?: string;
+  rowActions?: (active: OptionalFeatureResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
+  return (
+    <TableShell<OptionalFeatureResult>
+      items={items}
+      fingerprint={optionalFeatureFingerprint}
+      searchPlaceholder="Search optional features…"
+      activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
+      columns={[
+        { key: 'name', label: 'Name', cell: (f) => f.name, compare: (a, b) => a.name.localeCompare(b.name), width: 200, defaultSort: 'asc' },
+        {
+          key: 'kind',
+          label: 'Kind',
+          cell: (f) => formatOptionalFeatureKinds(f.kinds),
+          compare: (a, b) => (a.kinds?.[0] ?? '').localeCompare(b.kinds?.[0] ?? ''),
+          width: 160,
+        },
+        {
+          key: 'prereq',
+          label: 'Prerequisites',
+          cell: (f) => f.prerequisites || '—',
+          compare: (a, b) => (a.prerequisites ?? '').localeCompare(b.prerequisites ?? ''),
+          width: 200,
+        },
+        {
+          key: 'consumes',
+          label: 'Cost',
+          cell: (f) => f.consumes || '—',
+          compare: (a, b) => (a.consumes ?? '').localeCompare(b.consumes ?? ''),
+          width: 130,
+        },
+      ]}
+      facets={[
+        {
+          // Multi-value facet — Fighting Styles list every class they're
+          // available to (e.g. Defense → fighter, paladin, ranger), so a
+          // user filtering "Fighting Style" gets every row that includes
+          // it regardless of which classes share it.
+          key: 'kind',
+          label: 'Kind',
+          getValues: (f) => (f.kinds ?? []),
+          formatValue: (v) => OPTIONAL_FEATURE_KIND_LABELS[v as OptionalFeatureKind] ?? v,
+        },
+        {
+          key: 'prereq',
+          label: 'Prerequisites',
+          getValues: (f) => [f.prerequisites ? 'Has prerequisites' : 'No prerequisites'],
+          staticOptions: ['Has prerequisites', 'No prerequisites'],
+        },
+        {
+          key: 'consumes',
+          label: 'Resource',
+          getValues: (f) => (f.consumes ? [f.consumes] : ['At-will']),
+        },
+      ]}
+      renderBody={(f) => (
+        <>
+          {f.prerequisites ? (
+            <View style={styles.subBlock}>
+              <MetaLabel size="sm">Prerequisite</MetaLabel>
+              <Text variant="body-sm" family="body" style={styles.bodyText}>{f.prerequisites}</Text>
+            </View>
+          ) : null}
+          {f.consumes ? (
+            <View style={styles.subBlock}>
+              <MetaLabel size="sm">Cost</MetaLabel>
+              <Text variant="body-sm" family="body" style={styles.bodyText}>1 {f.consumes}</Text>
+            </View>
+          ) : null}
+          {f.description ? <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText> : null}
+        </>
+      )}
+    />
+  );
+}
+
+function optionalFeatureFingerprint(f: OptionalFeatureResult): string {
+  return JSON.stringify({
+    description: f.description ?? '',
+    kinds: [...(f.kinds ?? [])].sort(),
+    prerequisites: f.prerequisites ?? '',
+    consumes: f.consumes ?? '',
+  });
+}
+
+/** Expand 5e.tools alignment codes ("LG", "N", "CE") into prose. The
+ *  2024 SRD dropped alignment-as-mechanic, so XDMG entries omit this
+ *  field — when they do carry it, we render it for the legacy 2014
+ *  audience. Unknown codes (multi-letter combos beyond LG/CE/etc.)
+ *  pass through verbatim. */
+function formatAlignment(codes: string[] | undefined): string {
+  if (!codes || codes.length === 0) return '';
+  const labels: Record<string, string> = {
+    L: 'Lawful', N: 'Neutral', C: 'Chaotic',
+    G: 'Good',   E: 'Evil',
+    LG: 'Lawful Good',     NG: 'Neutral Good',     CG: 'Chaotic Good',
+    LN: 'Lawful Neutral',  CN: 'Chaotic Neutral',
+    LE: 'Lawful Evil',     NE: 'Neutral Evil',     CE: 'Chaotic Evil',
+    A: 'Any',  U: 'Unaligned',
+  };
+  return codes.map((c) => labels[c] ?? c).join(' ');
+}
+
+export function DeitiesList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: DeityResult[];
+  srdVersion?: string;
+  rowActions?: (active: DeityResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
+  return (
+    <TableShell<DeityResult>
+      items={items}
+      fingerprint={deityFingerprint}
+      searchPlaceholder="Search deities…"
+      activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
+      columns={[
+        { key: 'name', label: 'Name', cell: (d) => d.name, compare: (a, b) => a.name.localeCompare(b.name), width: 160, defaultSort: 'asc' },
+        {
+          key: 'pantheon',
+          label: 'Pantheon',
+          cell: (d) => d.pantheon || '—',
+          compare: (a, b) => (a.pantheon ?? '').localeCompare(b.pantheon ?? ''),
+          width: 130,
+        },
+        {
+          key: 'title',
+          label: 'Title',
+          cell: (d) => d.title || '—',
+          compare: (a, b) => (a.title ?? '').localeCompare(b.title ?? ''),
+          width: 220,
+        },
+        {
+          key: 'domains',
+          label: 'Domains',
+          cell: (d) => Array.isArray(d.domains) && d.domains.length > 0 ? d.domains.join(', ') : '—',
+          compare: (a, b) => (a.domains?.join(',') ?? '').localeCompare(b.domains?.join(',') ?? ''),
+          width: 180,
+        },
+      ]}
+      facets={[
+        {
+          key: 'pantheon',
+          label: 'Pantheon',
+          getValues: (d) => (d.pantheon ? [d.pantheon] : []),
+        },
+        {
+          key: 'domain',
+          label: 'Domain',
+          // Multi-value — a deity granting multiple domains shows up
+          // under each one, so a player filtering "Light" sees every
+          // god offering it regardless of their other domains.
+          getValues: (d) => d.domains ?? [],
+        },
+        {
+          key: 'alignment',
+          label: 'Alignment',
+          getValues: (d) => (Array.isArray(d.alignment) && d.alignment.length > 0 ? [formatAlignment(d.alignment)] : []),
+        },
+      ]}
+      renderBody={(d) => {
+        const alignment = formatAlignment(d.alignment);
+        return (
+          <>
+            <View style={styles.itemStatTable}>
+              <ItemStatRow label="Pantheon" value={d.pantheon} />
+              {d.title ? <ItemStatRow label="Title" value={d.title} /> : null}
+              {alignment ? <ItemStatRow label="Alignment" value={alignment} /> : null}
+              {Array.isArray(d.domains) && d.domains.length > 0
+                ? <ItemStatRow label="Domains" value={d.domains.join(', ')} />
+                : null}
+              {d.symbol ? <ItemStatRow label="Symbol" value={d.symbol} /> : null}
+              {d.plane ? <ItemStatRow label="Plane" value={d.plane} /> : null}
+              {d.worshipers ? <ItemStatRow label="Worshipers" value={d.worshipers} /> : null}
+            </View>
+            {d.description ? (
+              <MarkdownText style={styles.bodyText}>{d.description}</MarkdownText>
+            ) : null}
+          </>
+        );
+      }}
+    />
+  );
+}
+
+function deityFingerprint(d: DeityResult): string {
+  return JSON.stringify({
+    description: d.description ?? '',
+    pantheon: d.pantheon ?? '',
+    title: d.title ?? '',
+    alignment: [...(d.alignment ?? [])].sort(),
+    domains: [...(d.domains ?? [])].sort(),
+    symbol: d.symbol ?? '',
+    plane: d.plane ?? '',
+    worshipers: d.worshipers ?? '',
+  });
+}
+
+const VARIANT_RULE_KIND_LABELS: Record<VariantRuleResult['kind'], string> = {
+  glossary: 'Glossary',
+  variant:  'Variant',
+  optional: 'Optional',
+  other:    'Other',
+};
+
+export function VariantRulesList({
+  items, srdVersion, rowActions, headerExtra,
+}: {
+  items: VariantRuleResult[];
+  srdVersion?: string;
+  rowActions?: (active: VariantRuleResult) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
+  return (
+    <TableShell<VariantRuleResult>
+      items={items}
+      fingerprint={variantRuleFingerprint}
+      searchPlaceholder="Search rules…"
+      activeSrdVersion={srdVersion}
+      rowActions={rowActions}
+      headerExtra={headerExtra}
+      columns={[
+        { key: 'name', label: 'Name', cell: (r) => r.name, compare: (a, b) => a.name.localeCompare(b.name), width: 220, defaultSort: 'asc' },
+        {
+          key: 'kind',
+          label: 'Kind',
+          cell: (r) => VARIANT_RULE_KIND_LABELS[r.kind] ?? r.kind,
+          compare: (a, b) => a.kind.localeCompare(b.kind),
+          width: 120,
+        },
+      ]}
+      facets={[
+        {
+          // Kind facet is the primary affordance — XPHB compendium
+          // glossary entries (Ability Check, Cover, …) live alongside
+          // DM-side variant/optional toggles (Flanking, Hero Points)
+          // in the same source array. Most users want one or the
+          // other, not both at once.
+          key: 'kind',
+          label: 'Kind',
+          getValues: (r) => [r.kind],
+          formatValue: (v) => VARIANT_RULE_KIND_LABELS[v as VariantRuleResult['kind']] ?? v,
+        },
+      ]}
+      renderBody={(r) => (
+        <>
+          {r.description ? (
+            <MarkdownText style={styles.bodyText}>{r.description}</MarkdownText>
+          ) : null}
+        </>
+      )}
+    />
+  );
+}
+
+function variantRuleFingerprint(r: VariantRuleResult): string {
+  return JSON.stringify({
+    description: r.description ?? '',
+    kind: r.kind,
+  });
+}
+
 /**
  * Pull recognized fields out of an item's flat `properties` string array
  * so we can render them as a structured stat table. Anything that doesn't
@@ -2550,6 +2893,16 @@ export function ItemsList({
     <TableShell<ItemResult>
       items={items}
       fingerprint={itemFingerprint}
+      // Magic-item variants ("+1 Greatsword", "Adamantine Greatsword",
+      // …) collapse under their base item via `data.baseItemRef.name`.
+      // The base row's `name` matches the variants' `baseItemRef.name`
+      // so all rows for one base item share a group key, render as one
+      // expandable row, and surface their variants as detail tabs.
+      // Items without a baseItemRef (mundane gear, named magic items
+      // like Vorpal Sword) fall through to the default name-based key
+      // and behave unchanged.
+      groupKey={itemGroupKey}
+      variantSort={itemVariantSort}
       searchPlaceholder="Search items…"
       banner={<SeedBanner type="items" />}
       activeSrdVersion={srdVersion}
@@ -2653,6 +3006,16 @@ export function ItemsList({
               {it.rarity ? <ItemStatRow label="Rarity" value={capitalize(it.rarity.replace('-', ' '))} /> : null}
               {it.requiresAttunement ? <ItemStatRow label="Attunement" value="Required" /> : null}
             </View>
+            {Array.isArray(it.packContents) && it.packContents.length > 0 ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Contents</MetaLabel>
+                {it.packContents.map((p, i) => (
+                  <Text key={i} variant="body-sm" family="body" style={styles.bodyText}>
+                    • {p.quantity > 1 ? `${p.quantity}× ` : ''}{p.name}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
             {it.description ? (
               <MarkdownText style={styles.bodyText}>{it.description}</MarkdownText>
             ) : null}
@@ -2722,6 +3085,71 @@ function itemCostInGp(it: ItemResult): number {
   }
 }
 
+/**
+ * Read the magic-variant base-item pointer (`data.baseItemRef`) on an
+ * item result. Returns null for items that aren't magic variants.
+ */
+function readBaseItemRef(it: ItemResult): { name: string; source?: string } | null {
+  const ref = (it.data as { baseItemRef?: unknown } | undefined)?.baseItemRef;
+  if (!ref || typeof ref !== 'object') return null;
+  const r = ref as { name?: unknown; source?: unknown };
+  if (typeof r.name !== 'string') return null;
+  return { name: r.name, source: typeof r.source === 'string' ? r.source : undefined };
+}
+
+/**
+ * Read the variant tab label (`data.variantLabel`) on a magic-variant
+ * row. Falls back to the row's own name when the field is absent —
+ * which happens on legacy variants imported before the field was
+ * added.
+ */
+function readVariantLabel(it: ItemResult): string {
+  const label = (it.data as { variantLabel?: unknown } | undefined)?.variantLabel;
+  return typeof label === 'string' && label.length > 0 ? label : it.name;
+}
+
+/**
+ * Group key for the items table. Magic variants collapse under their
+ * base item via `baseItemRef.name`; everything else uses the standard
+ * lowercased-name key. The base row and its variants share the same
+ * key, so they render as one expandable row whose detail then exposes
+ * the variants as tabs.
+ */
+function itemGroupKey(it: ItemResult): string {
+  const ref = readBaseItemRef(it);
+  return (ref?.name ?? it.name).toLowerCase();
+}
+
+/**
+ * Variant sort for the items table. Base items (no `baseItemRef`) sort
+ * ahead of their variants so the table row's display values come from
+ * the base — "Greatsword" rather than "+1 Greatsword". Within the
+ * variants, +N forms sort numerically before non-numeric labels
+ * (Adamantine, Silvered) so the detail tabs read +1 / +2 / +3 /
+ * Adamantine / Silvered in that order.
+ */
+function itemVariantSort(a: ItemResult, b: ItemResult): number {
+  const aIsBase = !readBaseItemRef(a);
+  const bIsBase = !readBaseItemRef(b);
+  if (aIsBase !== bIsBase) return aIsBase ? -1 : 1;
+  if (aIsBase) return variantPrioritySort(a, b);
+  // Both variants — pull the +N number out of the label and sort by
+  // that first; non-numeric labels fall back to alphabetical.
+  const ax = bonusVariantNumber(readVariantLabel(a));
+  const bx = bonusVariantNumber(readVariantLabel(b));
+  if (ax !== null && bx !== null) return ax - bx;
+  if (ax !== null) return -1;
+  if (bx !== null) return 1;
+  return readVariantLabel(a).localeCompare(readVariantLabel(b));
+}
+
+/** Extract the numeric bonus from a variant label like "+1" or "+2".
+ *  Returns null for non-numeric labels (Adamantine, Silvered, etc.). */
+function bonusVariantNumber(label: string): number | null {
+  const m = label.trim().match(/^\+(\d+)$/);
+  return m ? Number(m[1]) : null;
+}
+
 function itemFingerprint(it: ItemResult): string {
   return JSON.stringify({
     description: it.description ?? '',
@@ -2731,6 +3159,11 @@ function itemFingerprint(it: ItemResult): string {
     weight: typeof it.weight === 'number' ? it.weight : null,
     cost: it.cost ? `${it.cost.amount}|${it.cost.currency}` : '',
     properties: [...(it.properties ?? [])].sort(),
+    // Variant grouping fields — fingerprint independently so two rows
+    // for the same (name, base) but different variant labels stay
+    // distinct in the dedupe pass.
+    baseItemRef: readBaseItemRef(it)?.name ?? '',
+    variantLabel: readVariantLabel(it),
   });
 }
 
@@ -3300,20 +3733,71 @@ function CurrenciesList({ items }: { items: CurrencyResult[] }) {
   );
 }
 
+/**
+ * Tools list — rich renderer (not the shared CatalogList) since the
+ * 2024 SRD ships structured Ability / Utilize / Craft fields per tool
+ * and those drive character-creation pickers downstream. Falls back
+ * cleanly when a tool only has prose (5.1 entries don't carry the
+ * structured fields).
+ */
 function ToolsList({ items }: { items: ToolResult[] }) {
+  const [q, setQ] = useState('');
+  const filtered = useMemo(() => {
+    const ordered = items.slice().sort(
+      (a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name),
+    );
+    if (!q.trim()) return ordered;
+    const t = q.toLowerCase();
+    return ordered.filter((it) =>
+      it.name.toLowerCase().includes(t) ||
+      (it.description ?? '').toLowerCase().includes(t) ||
+      (it.ability ?? '').toLowerCase().includes(t) ||
+      (it.utilize ?? []).some((u) => u.toLowerCase().includes(t)) ||
+      (it.craft ?? []).some((c) => c.toLowerCase().includes(t)),
+    );
+  }, [items, q]);
+
   return (
-    <CatalogList
-      items={items}
-      placeholder="Search tools…"
-      sub={(t) => {
-        const cat = t.category.replace('-', ' ');
-        const cost = t.cost ? `${t.cost.amount} ${t.cost.currency}` : null;
-        return [capitalize(cat), cost].filter(Boolean).join(' · ');
-      }}
-      sort={(a, b) =>
-        a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
-      }
-    />
+    <View style={styles.list}>
+      <SearchBar value={q} onChange={setQ} placeholder="Search tools…" />
+      {filtered.map((it) => {
+        const cat = capitalize(it.category.replace('-', ' '));
+        const cost = it.cost ? `${it.cost.amount} ${it.cost.currency}` : null;
+        const subLine = [cat, cost].filter(Boolean).join(' · ');
+        return (
+          <View key={it.key} style={styles.refRow}>
+            <View style={styles.refRowHead}>
+              <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+                {it.name}
+              </Text>
+              <Text variant="body-sm" family="body" style={styles.refRowSub}>{subLine}</Text>
+            </View>
+            {it.ability ? (
+              <Text variant="body-sm" family="body" style={styles.bodyText}>
+                <Text weight="bold">Ability: </Text>{it.ability}
+              </Text>
+            ) : null}
+            {Array.isArray(it.utilize) && it.utilize.length > 0 ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Utilize</MetaLabel>
+                {it.utilize.map((u, i) => (
+                  <Text key={i} variant="body-sm" family="body" style={styles.bodyText}>• {u}</Text>
+                ))}
+              </View>
+            ) : null}
+            {Array.isArray(it.craft) && it.craft.length > 0 ? (
+              <Text variant="body-sm" family="body" style={styles.bodyText}>
+                <Text weight="bold">Craft: </Text>{it.craft.join(', ')}
+              </Text>
+            ) : null}
+            {it.description ? (
+              <MarkdownText style={styles.bodyText}>{it.description}</MarkdownText>
+            ) : null}
+          </View>
+        );
+      })}
+      {filtered.length === 0 ? <EmptyHit q={q} /> : null}
+    </View>
   );
 }
 

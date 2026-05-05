@@ -88,6 +88,32 @@ export type ImportableContent = {
    *  the subclass transform handles its share, the class transform
    *  handles this one. */
   classes: number;
+  /** Length of the `optionalfeature` array (5e.tools
+   *  `optionalfeatures-*.json`). Eldritch Invocations, Metamagic
+   *  Options, Battle Master Maneuvers, Fighting Styles, etc. */
+  optionalFeatures: number;
+  /** Length of the `deity` array (5e.tools `deities.json`). Cleric /
+   *  Paladin patron choices for character creation. The 2024 SRD
+   *  ships 27 Greyhawk deities under XDMG; older entries from PHB,
+   *  SCAG, MTF, etc. carry the legacy 2014 alignment + domains
+   *  fields. */
+  deities: number;
+  /** Length of the `variantrule` array (5e.tools
+   *  `variantrules.json`). Conflates two concepts: the XPHB Compendium
+   *  glossary (`ruleType: 'C'`, 114 entries — Ability Check, Cover,
+   *  etc.) and DM-side variant/optional rules (`V`/`O`/`VO` —
+   *  Flanking, Hero Points, Cleaving, Firearms). The transform
+   *  produces a single content type with a `kind` discriminator;
+   *  the system page splits the presentation. */
+  variantRules: number;
+  /** Length of the `magicvariant` array (5e.tools
+   *  `magicvariants.json`). Each variant is a *template* (e.g. "+1
+   *  Weapon", "Adamantine Armor") that expands at transform time
+   *  against a bundled XPHB base-item registry to produce many
+   *  derived magic items. The probe count is the number of templates;
+   *  the actual upserted-row count is much higher (one variant
+   *  template typically produces 30+ rows after expansion). */
+  magicVariants: number;
   /** Combined `classFluff` + `subclassFluff` array length. 5e.tools
    *  splits class flavor prose into a separate `fluff-class-*.json`
    *  file. These entries don't carry structured data — they patch
@@ -147,6 +173,7 @@ export type ImportDiagnostic =
 export const SUPPORTED_TOP_LEVEL_KEYS = [
   'subclass', 'feat', 'spell', 'background',
   'baseitem', 'item', 'race', 'subrace', 'monster', 'class',
+  'optionalfeature', 'deity', 'variantrule', 'magicvariant',
   'classFluff', 'subclassFluff',
   'backgroundFluff', 'featFluff', 'itemFluff',
   'raceFluff', 'subraceFluff', 'monsterFluff',
@@ -167,6 +194,10 @@ function emptyProbe(): ImportableContent {
     species: 0,
     monsters: 0,
     classes: 0,
+    optionalFeatures: 0,
+    deities: 0,
+    variantRules: 0,
+    magicVariants: 0,
     classFluff: 0,
     backgroundFluff: 0,
     featFluff: 0,
@@ -178,6 +209,24 @@ function emptyProbe(): ImportableContent {
     allSources: [],
     diagnostic: { kind: 'ok' },
   };
+}
+
+/** Source resolution for probe + filter. Most arrays carry a top-level
+ *  `source` field; `magicvariant` is the exception — its source lives
+ *  inside `inherits.source` since each entry is a template that
+ *  inherits metadata from a publication's variant chapter. Falling
+ *  back to `UNKNOWN_SOURCE` keeps single-source files invisible to
+ *  the picker (correct behavior — picker only renders for multi-source
+ *  payloads). */
+function readEntrySource(entry: unknown, key: string): string {
+  if (!entry || typeof entry !== 'object') return UNKNOWN_SOURCE;
+  const e = entry as { source?: unknown; inherits?: { source?: unknown } };
+  const direct = typeof e.source === 'string' ? e.source : '';
+  if (direct) return direct;
+  if (key === 'magicvariant' && typeof e.inherits?.source === 'string') {
+    return e.inherits.source;
+  }
+  return UNKNOWN_SOURCE;
 }
 
 /**
@@ -194,9 +243,7 @@ function tallyArray(
   if (!Array.isArray(arr)) return 0;
   const counts: Record<string, number> = {};
   for (const entry of arr) {
-    const source = (entry && typeof entry === 'object' && 'source' in entry
-      ? String((entry as { source?: unknown }).source ?? '')
-      : '') || UNKNOWN_SOURCE;
+    const source = readEntrySource(entry, key);
     counts[source] = (counts[source] ?? 0) + 1;
   }
   sourcesByKind[key] = counts;
@@ -233,6 +280,10 @@ export function probeContent(payload: unknown): ImportableContent {
                     + tallyArray(obj, 'subrace',    sourcesByKind);
   probe.monsters    = tallyArray(obj, 'monster',    sourcesByKind);
   probe.classes     = tallyArray(obj, 'class',      sourcesByKind);
+  probe.optionalFeatures = tallyArray(obj, 'optionalfeature', sourcesByKind);
+  probe.deities          = tallyArray(obj, 'deity',           sourcesByKind);
+  probe.variantRules     = tallyArray(obj, 'variantrule',     sourcesByKind);
+  probe.magicVariants    = tallyArray(obj, 'magicvariant',    sourcesByKind);
   // Class flavor: a separate `fluff-class-*.json` file carries prose
   // for already-imported class/subclass rows. Counted together so the
   // disclosure list shows a single "Class flavor" row.
@@ -305,6 +356,10 @@ function hasArrayBackedContent(probe: ImportableContent): boolean {
     probe.species > 0 ||
     probe.monsters > 0 ||
     probe.classes > 0 ||
+    probe.optionalFeatures > 0 ||
+    probe.deities > 0 ||
+    probe.variantRules > 0 ||
+    probe.magicVariants > 0 ||
     probe.classFluff > 0 ||
     probe.backgroundFluff > 0 ||
     probe.featFluff > 0 ||
@@ -356,27 +411,33 @@ export function applySourceFilter(
   selectedSources: Set<string> | null,
 ): Pick<ImportableContent,
   | 'subclasses' | 'feats' | 'spells' | 'backgrounds' | 'items'
-  | 'species' | 'monsters' | 'classes' | 'classFluff'
-  | 'backgroundFluff' | 'featFluff' | 'itemFluff' | 'speciesFluff' | 'creatureFluff'
+  | 'species' | 'monsters' | 'classes' | 'optionalFeatures'
+  | 'deities' | 'variantRules' | 'magicVariants'
+  | 'classFluff' | 'backgroundFluff' | 'featFluff' | 'itemFluff'
+  | 'speciesFluff' | 'creatureFluff'
   | 'spellClasses'
 > {
   if (!selectedSources) {
     return {
-      subclasses:      probe.subclasses,
-      feats:           probe.feats,
-      spells:          probe.spells,
-      backgrounds:     probe.backgrounds,
-      items:           probe.items,
-      species:         probe.species,
-      monsters:        probe.monsters,
-      classes:         probe.classes,
-      classFluff:      probe.classFluff,
-      backgroundFluff: probe.backgroundFluff,
-      featFluff:       probe.featFluff,
-      itemFluff:       probe.itemFluff,
-      speciesFluff:    probe.speciesFluff,
-      creatureFluff:   probe.creatureFluff,
-      spellClasses:    probe.spellClasses,
+      subclasses:       probe.subclasses,
+      feats:            probe.feats,
+      spells:           probe.spells,
+      backgrounds:      probe.backgrounds,
+      items:            probe.items,
+      species:          probe.species,
+      monsters:         probe.monsters,
+      classes:          probe.classes,
+      optionalFeatures: probe.optionalFeatures,
+      deities:          probe.deities,
+      variantRules:     probe.variantRules,
+      magicVariants:    probe.magicVariants,
+      classFluff:       probe.classFluff,
+      backgroundFluff:  probe.backgroundFluff,
+      featFluff:        probe.featFluff,
+      itemFluff:        probe.itemFluff,
+      speciesFluff:     probe.speciesFluff,
+      creatureFluff:    probe.creatureFluff,
+      spellClasses:     probe.spellClasses,
     };
   }
   const sumKind = (...keys: string[]) => keys.reduce((n, key) => {
@@ -388,23 +449,27 @@ export function applySourceFilter(
     return n + s;
   }, 0);
   return {
-    subclasses:      sumKind('subclass'),
-    feats:           sumKind('feat'),
-    spells:          sumKind('spell'),
-    backgrounds:     sumKind('background'),
-    items:           sumKind('baseitem', 'item'),
-    species:         sumKind('race', 'subrace'),
-    monsters:        sumKind('monster'),
-    classes:         sumKind('class'),
-    classFluff:      sumKind('classFluff', 'subclassFluff'),
-    backgroundFluff: sumKind('backgroundFluff'),
-    featFluff:       sumKind('featFluff'),
-    itemFluff:       sumKind('itemFluff'),
-    speciesFluff:    sumKind('raceFluff', 'subraceFluff'),
-    creatureFluff:   sumKind('monsterFluff'),
+    subclasses:       sumKind('subclass'),
+    feats:            sumKind('feat'),
+    spells:           sumKind('spell'),
+    backgrounds:      sumKind('background'),
+    items:            sumKind('baseitem', 'item'),
+    species:          sumKind('race', 'subrace'),
+    monsters:         sumKind('monster'),
+    classes:          sumKind('class'),
+    optionalFeatures: sumKind('optionalfeature'),
+    deities:          sumKind('deity'),
+    variantRules:     sumKind('variantrule'),
+    magicVariants:    sumKind('magicvariant'),
+    classFluff:       sumKind('classFluff', 'subclassFluff'),
+    backgroundFluff:  sumKind('backgroundFluff'),
+    featFluff:        sumKind('featFluff'),
+    itemFluff:        sumKind('itemFluff'),
+    speciesFluff:     sumKind('raceFluff', 'subraceFluff'),
+    creatureFluff:    sumKind('monsterFluff'),
     // Lookup-file content isn't bucketed by spell source for filter
     // purposes — its sentinel source lives outside the picker (see
     // probeContent). Pass the full count through unchanged.
-    spellClasses:    probe.spellClasses,
+    spellClasses:     probe.spellClasses,
   };
 }

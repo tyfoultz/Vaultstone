@@ -19,7 +19,8 @@ import { colors, spacing } from '@vaultstone/ui';
 import {
   transformSubclasses, transformFeats, transformSpells, transformBackgrounds, transformItems,
   transformSpecies, transformMonsters, transformClasses, transformFluff,
-  transformSpellSourceLookup,
+  transformSpellSourceLookup, transformOptionalFeatures, transformDeities,
+  transformVariantRules, transformMagicVariants,
 } from '@vaultstone/content';
 import type { ContentResult, ImportSource } from '@vaultstone/types';
 import {
@@ -50,7 +51,8 @@ type ImportableEntry = ContentResult & {
  *  IMPORT_KINDS never references. */
 type ImportableCountKey =
   | 'subclasses' | 'feats' | 'spells' | 'backgrounds'
-  | 'items' | 'species' | 'monsters' | 'classes'
+  | 'items' | 'species' | 'monsters' | 'classes' | 'optionalFeatures'
+  | 'deities' | 'variantRules' | 'magicVariants'
   | 'classFluff' | 'backgroundFluff' | 'featFluff' | 'itemFluff'
   | 'speciesFluff' | 'creatureFluff'
   | 'spellClasses';
@@ -134,6 +136,41 @@ const IMPORT_KINDS: ImportKind[] = [
     label: 'Classes',
     contentType: 'class',
     transform: transformClasses,
+  },
+  {
+    countKey: 'optionalFeatures',
+    topLevelKeys: ['optionalfeature'],
+    label: 'Optional Features',
+    // Match the OptionalFeatureResult.type literal so future filters
+    // that group by content_type see authored + imported under one
+    // bucket if/when authored optional features land.
+    contentType: 'optional-feature',
+    transform: transformOptionalFeatures,
+  },
+  {
+    countKey: 'deities',
+    topLevelKeys: ['deity'],
+    label: 'Deities',
+    contentType: 'deity',
+    transform: transformDeities,
+  },
+  {
+    countKey: 'variantRules',
+    topLevelKeys: ['variantrule'],
+    label: 'Variant Rules',
+    contentType: 'variant-rule',
+    transform: transformVariantRules,
+  },
+  {
+    countKey: 'magicVariants',
+    topLevelKeys: ['magicvariant'],
+    // Display label is the user-facing concept ("variant magic items")
+    // — the underlying content_type is 'item' since each derived row
+    // is a magic item that lands in the same Items catalog as
+    // hand-imported magic items.
+    label: 'Magic Item Variants',
+    contentType: 'item',
+    transform: transformMagicVariants,
   },
 ];
 
@@ -224,7 +261,8 @@ export function ImportContentModal({
     ? applySourceFilter(probe, selectedSources)
     : {
         subclasses: 0, feats: 0, spells: 0, backgrounds: 0, items: 0,
-        species: 0, monsters: 0, classes: 0,
+        species: 0, monsters: 0, classes: 0, optionalFeatures: 0,
+        deities: 0, variantRules: 0, magicVariants: 0,
         classFluff: 0, backgroundFluff: 0, featFluff: 0, itemFluff: 0,
         speciesFluff: 0, creatureFluff: 0, spellClasses: 0,
       };
@@ -860,19 +898,32 @@ function filterPayloadBySource(payload: unknown, selectedSources: Set<string>): 
   // silently dead-ends. The transform itself only emits patches keyed
   // to entry_keys that exist in the pack, so unselected-source fluff
   // has no effect downstream.
-  const KEYS = ['subclass', 'feat', 'spell', 'background', 'baseitem', 'item', 'race', 'subrace', 'monster', 'class'];
+  const KEYS = ['subclass', 'feat', 'spell', 'background', 'baseitem', 'item', 'race', 'subrace', 'monster', 'class', 'optionalfeature', 'deity', 'variantrule', 'magicvariant'];
   const out: Record<string, unknown> = { ...obj };
   for (const key of KEYS) {
     const arr = obj[key];
     if (!Array.isArray(arr)) continue;
     out[key] = arr.filter((entry) => {
-      const src = (entry && typeof entry === 'object' && 'source' in entry
-        ? String((entry as { source?: unknown }).source ?? '')
-        : '') || UNKNOWN_SOURCE;
+      const src = readEntrySource(entry, key);
       return selectedSources.has(src);
     });
   }
   return out;
+}
+
+/** Source resolution for filter purposes. Most arrays ship a top-level
+ *  `source` field; magicvariant is the exception — its source lives
+ *  inside `inherits.source` since the entries are templates that
+ *  inherit metadata from a publication's variant chapter. */
+function readEntrySource(entry: unknown, key: string): string {
+  if (!entry || typeof entry !== 'object') return UNKNOWN_SOURCE;
+  const e = entry as { source?: unknown; inherits?: { source?: unknown } };
+  const direct = typeof e.source === 'string' ? e.source : '';
+  if (direct) return direct;
+  if (key === 'magicvariant' && typeof e.inherits?.source === 'string') {
+    return e.inherits.source;
+  }
+  return UNKNOWN_SOURCE;
 }
 
 function formatBytes(n: number): string {

@@ -23,7 +23,8 @@ import {
 } from '@vaultstone/api';
 import { ImportContentModal } from '../../../components/imported/ImportContentModal';
 import {
-  SpellsList, FeatsList, ItemsList, CreaturesList, ConditionsList,
+  SpellsList, FeatsList, OptionalFeaturesList, DeitiesList, VariantRulesList,
+  ItemsList, CreaturesList, ConditionsList,
   SpeciesList, BackgroundsList, SubclassesList,
 } from '../../../components/content-tables/lists';
 import { mapEntryToResult, mapImportedEntryToResult } from '@vaultstone/content';
@@ -32,6 +33,9 @@ import type {
   ContentResult,
   SpellResult,
   FeatResult,
+  OptionalFeatureResult,
+  DeityResult,
+  VariantRuleResult,
   ItemResult,
   CreatureResult,
   ConditionResult,
@@ -218,6 +222,9 @@ export default function HomebrewPackDetailScreen() {
     const out: {
       spell: SpellResult[];
       feat: FeatResult[];
+      'optional-feature': OptionalFeatureResult[];
+      deity: DeityResult[];
+      'variant-rule': VariantRuleResult[];
       item: ItemResult[];
       creature: CreatureResult[];
       condition: ConditionResult[];
@@ -230,7 +237,8 @@ export default function HomebrewPackDetailScreen() {
       // record to openEditForm / handleEntryDelete.
       authoredByKey: Map<string, HomebrewContentRow>;
     } = {
-      spell: [], feat: [], item: [], creature: [], condition: [],
+      spell: [], feat: [], 'optional-feature': [], deity: [], 'variant-rule': [],
+      item: [], creature: [], condition: [],
       species: [], background: [], subclass: [], class: [],
       authoredByKey: new Map(),
     };
@@ -777,6 +785,9 @@ function renderTypeList(args: {
   hydrated: {
     spell: SpellResult[];
     feat: FeatResult[];
+    'optional-feature': OptionalFeatureResult[];
+    deity: DeityResult[];
+    'variant-rule': VariantRuleResult[];
     item: ItemResult[];
     creature: CreatureResult[];
     condition: ConditionResult[];
@@ -822,6 +833,12 @@ function renderTypeList(args: {
       return <SpellsList items={hydrated.spell} rowActions={rowActionsFor} headerExtra={addAction} />;
     case 'feat':
       return <FeatsList items={hydrated.feat} rowActions={rowActionsFor} headerExtra={addAction} />;
+    case 'optional-feature':
+      return <OptionalFeaturesList items={hydrated['optional-feature']} rowActions={rowActionsFor} headerExtra={addAction} />;
+    case 'deity':
+      return <DeitiesList items={hydrated.deity} rowActions={rowActionsFor} headerExtra={addAction} />;
+    case 'variant-rule':
+      return <VariantRulesList items={hydrated['variant-rule']} rowActions={rowActionsFor} headerExtra={addAction} />;
     case 'item':
       return <ItemsList items={hydrated.item} rowActions={rowActionsFor} headerExtra={addAction} />;
     case 'creature':
@@ -909,6 +926,9 @@ function pushByType(
   out: {
     spell: SpellResult[];
     feat: FeatResult[];
+    'optional-feature': OptionalFeatureResult[];
+    deity: DeityResult[];
+    'variant-rule': VariantRuleResult[];
     item: ItemResult[];
     creature: CreatureResult[];
     condition: ConditionResult[];
@@ -920,16 +940,19 @@ function pushByType(
   r: ContentResult,
 ) {
   switch (r.type) {
-    case 'spell':      out.spell.push(r as SpellResult); break;
-    case 'feat':       out.feat.push(r as FeatResult); break;
-    case 'item':       out.item.push(r as ItemResult); break;
-    case 'monster':    out.creature.push(r as CreatureResult); break;
-    case 'condition':  out.condition.push(r as ConditionResult); break;
-    case 'species':    out.species.push(r as SpeciesResult); break;
-    case 'background': out.background.push(r as BackgroundResult); break;
-    case 'subclass':   out.subclass.push(r as SubclassResult); break;
-    case 'class':      out.class.push(r as ClassResult); break;
-    // Other types (rules, reference catalogs) don't have a list view here.
+    case 'spell':            out.spell.push(r as SpellResult); break;
+    case 'feat':             out.feat.push(r as FeatResult); break;
+    case 'optional-feature': out['optional-feature'].push(r as OptionalFeatureResult); break;
+    case 'deity':            out.deity.push(r as DeityResult); break;
+    case 'variant-rule':     out['variant-rule'].push(r as VariantRuleResult); break;
+    case 'item':             out.item.push(r as ItemResult); break;
+    case 'monster':          out.creature.push(r as CreatureResult); break;
+    case 'condition':        out.condition.push(r as ConditionResult); break;
+    case 'species':          out.species.push(r as SpeciesResult); break;
+    case 'background':       out.background.push(r as BackgroundResult); break;
+    case 'subclass':         out.subclass.push(r as SubclassResult); break;
+    case 'class':            out.class.push(r as ClassResult); break;
+    // Other types (rules-of-play prose, reference catalogs) don't have a list view here.
   }
 }
 

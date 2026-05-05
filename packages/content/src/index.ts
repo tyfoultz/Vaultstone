@@ -40,6 +40,10 @@ export {
   transformClassFluff,
   transformFluff,
   transformSpellSourceLookup,
+  transformOptionalFeatures,
+  transformDeities,
+  transformVariantRules,
+  transformMagicVariants,
   stripMarkup,
 } from './imported/index';
 export type {
@@ -56,6 +60,10 @@ export type {
   FluffContentType,
   RawSpellSourceLookupFile,
   SpellClassesPatch,
+  RawOptionalFeaturesFile,
+  RawDeitiesFile,
+  RawVariantRulesFile,
+  RawMagicVariantsFile,
   TransformOptions,
 } from './imported/index';
 

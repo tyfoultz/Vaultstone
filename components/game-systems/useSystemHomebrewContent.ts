@@ -24,6 +24,9 @@ import type {
   SubclassResult,
   SpeciesResult,
   BackgroundResult,
+  OptionalFeatureResult,
+  DeityResult,
+  VariantRuleResult,
 } from '@vaultstone/types';
 
 export type SystemHomebrewState = {
@@ -57,6 +60,12 @@ export function useSystemHomebrewContent(
           case 'monster':     (buckets.creatures    ??= []).push(r as CreatureResult); break;
           case 'item':        (buckets.items        ??= []).push(r as ItemResult); break;
           case 'feat':        (buckets.feats        ??= []).push(r as FeatResult); break;
+          case 'optional-feature':
+            (buckets.optionalFeatures ??= []).push(r as OptionalFeatureResult); break;
+          case 'deity':
+            (buckets.deities ??= []).push(r as DeityResult); break;
+          case 'variant-rule':
+            (buckets.variantRules ??= []).push(r as VariantRuleResult); break;
           case 'class':       (buckets.classes      ??= []).push(r as ClassResult); break;
           case 'subclass':    (buckets.subclasses   ??= []).push(r as SubclassResult); break;
           case 'species':     (buckets.species      ??= []).push(r as SpeciesResult); break;

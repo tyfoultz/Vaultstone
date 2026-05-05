@@ -44,8 +44,14 @@ type RawItem = {
   rarity?: string;
   /** Boolean true OR a "by a wizard"-style detail string. */
   reqAttune?: boolean | string;
-  /** Pipe-delimited weapon property codes ("V|XPHB", "L|XPHB"). */
-  property?: string[];
+  /** Pipe-delimited weapon property codes ("V|XPHB", "L|XPHB"). Some
+   *  entries (e.g. Lance's "2H" with "unless mounted") ship as an
+   *  `{ uid, note }` object instead of a bare string. */
+  property?: Array<string | { uid: string; note?: string }>;
+  /** 2024 Weapon Mastery property — pipe-delimited like properties.
+   *  Examples: "Graze|XPHB", "Sap|XPHB", "Vex|XPHB", "Cleave|XPHB".
+   *  Same string-or-object union as `property`. */
+  mastery?: Array<string | { uid: string; note?: string }>;
   weaponCategory?: 'simple' | 'martial';
   /** Primary damage die (e.g. "1d8"). */
   dmg1?: string;
@@ -78,6 +84,14 @@ type RawItem = {
   entries?: RawEntry[];
   /** Variant-of pointer — we skip these for v1. */
   _copy?: { name?: string; source?: string };
+  /**
+   * Structured pack contents on equipment packs (Burglar's Pack,
+   * Explorer's Pack, etc.). Entries are either a slug-with-source
+   * string ("backpack|xphb", quantity 1 implicit) or an object with
+   * an explicit quantity. We resolve the slug to a display name on
+   * import so the consumer doesn't need a cross-file lookup.
+   */
+  packContents?: Array<string | { item: string; quantity?: number }>;
   [key: string]: unknown;
 };
 
@@ -134,6 +148,8 @@ export function transformItems(
         if (kind) data.gearKind = kind;
       }
 
+      const packContents = parsePackContents(it.packContents);
+
       return {
         key: `imported_${systemId}_item_${slugify(it.source)}_${slugify(it.name)}`,
         name: it.name,
@@ -149,9 +165,54 @@ export function transformItems(
         properties: properties.length > 0 ? properties : undefined,
         requiresAttunement: !!it.reqAttune,
         rarity: normalizeRarity(it.rarity, isMagic),
+        packContents: packContents.length > 0 ? packContents : undefined,
         srdVersions: [],
       };
     });
+}
+
+/**
+ * Resolve 5e.tools `packContents` references into our flat
+ * `{ name, quantity }[]` shape. Each upstream entry is either:
+ *   - a string `"backpack|xphb"` → quantity 1, slug part is the name
+ *   - an object `{ item: "candle|xphb", quantity: 10 }`
+ *
+ * We strip the source suffix and titlecase the slug to get a display
+ * name. The character builder wires actual ItemResult lookup later;
+ * for now the user sees the resolved name verbatim, which matches how
+ * the upstream prose reads ("10 Candles, Crowbar, …").
+ */
+function parsePackContents(
+  raw: Array<string | { item: string; quantity?: number }> | undefined,
+): Array<{ name: string; quantity: number }> {
+  if (!raw || !Array.isArray(raw)) return [];
+  const out: Array<{ name: string; quantity: number }> = [];
+  for (const entry of raw) {
+    let ref: string;
+    let quantity = 1;
+    if (typeof entry === 'string') {
+      ref = entry;
+    } else if (entry && typeof entry === 'object' && typeof entry.item === 'string') {
+      ref = entry.item;
+      if (typeof entry.quantity === 'number') quantity = entry.quantity;
+    } else {
+      continue;
+    }
+    // Slug shape: "name|source". The source suffix is informational —
+    // we only need the name for display.
+    const namePart = ref.split('|')[0]?.trim();
+    if (!namePart) continue;
+    out.push({ name: titleCase(namePart), quantity });
+  }
+  return out;
+}
+
+/** Titlecase a 5e.tools slug ("ball bearings" → "Ball Bearings"). */
+function titleCase(s: string): string {
+  return s
+    .split(/\s+/)
+    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
 }
 
 // ── Internals ─────────────────────────────────────────────────────────────
@@ -164,6 +225,18 @@ function stripSource(code: string | undefined): string | null {
   if (!code) return null;
   const head = code.split('|')[0]?.trim().toUpperCase();
   return head || null;
+}
+
+/**
+ * Normalize a 5e.tools pipe-delimited reference to `{uid, note}`. The
+ * source ships these as either bare strings ("V|XPHB") or objects
+ * (`{uid: "2H|XPHB", note: "unless mounted"}`) — Lance's two-handed
+ * property uses the object form to carry the contextual qualifier,
+ * and we surface that note in the rendered property line.
+ */
+function readPipeRef(entry: string | { uid: string; note?: string }): { uid: string; note?: string } {
+  if (typeof entry === 'string') return { uid: entry };
+  return { uid: entry.uid, note: entry.note };
 }
 
 /**
@@ -314,17 +387,19 @@ function collectProperties(it: RawItem): string[] {
 
   // Weapon properties: codes like "V|XPHB" → "Versatile (1d10)".
   if (Array.isArray(it.property)) {
-    for (const code of it.property) {
-      const stripped = stripSource(code);
+    for (const entry of it.property) {
+      const { uid, note } = readPipeRef(entry);
+      const stripped = stripSource(uid);
       if (!stripped) continue;
       const name = WEAPON_PROPERTY_NAMES[stripped] ?? stripped;
       // Versatile gets the alt damage die in parens, matching how the
       // SRD weapons table renders it.
-      if (stripped === 'V' && it.dmg2) {
-        out.push(`Versatile (${it.dmg2})`);
-      } else {
-        out.push(name);
-      }
+      let display: string;
+      if (stripped === 'V' && it.dmg2) display = `Versatile (${it.dmg2})`;
+      else display = name;
+      // Append the contextual note when present (e.g. Lance's
+      // "Two-handed (unless mounted)").
+      out.push(note ? `${display} (${note})` : display);
     }
   }
 
@@ -337,6 +412,18 @@ function collectProperties(it: RawItem): string[] {
   // Weapon category (simple / martial).
   if (it.weaponCategory) {
     out.push(`${capitalize(it.weaponCategory)} weapon`);
+  }
+
+  // Weapon Mastery (2024) — pipe-delimited like properties. Only one
+  // mastery is typical, but we join with " · " to handle the rare
+  // multi-mastery case without an awkward bare comma list.
+  if (Array.isArray(it.mastery) && it.mastery.length > 0) {
+    const names = it.mastery
+      .map((entry) => stripSource(readPipeRef(entry).uid))
+      .filter((s): s is string => !!s);
+    if (names.length > 0) {
+      out.push(`Mastery: ${names.join(' · ')}`);
+    }
   }
 
   // Armor base AC + stealth + strength prereq.
