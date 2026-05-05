@@ -184,6 +184,9 @@ type GetSectionLabel = (sectionId: string) => string;
 
 const MAX_ITEMS = 8;
 
+const normalize = (s: string) =>
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
 export function createMentionSuggestion(
   getPages: GetPages,
   getSectionLabel: GetSectionLabel,
@@ -194,18 +197,18 @@ export function createMentionSuggestion(
     char: '@',
     allowSpaces: false,
     items: ({ query }) => {
-      const q = query.trim().toLowerCase();
+      const q = normalize(query.trim());
       const pages = getPages();
       const pins = getPins ? getPins() : [];
       const events = getEvents ? getEvents() : [];
       const pageMatches = q
-        ? pages.filter((p) => p.title.toLowerCase().includes(q))
+        ? pages.filter((p) => normalize(p.title).includes(q))
         : pages;
       const pinMatches = q
-        ? pins.filter((p) => p.label.toLowerCase().includes(q))
+        ? pins.filter((p) => normalize(p.label).includes(q))
         : pins;
       const eventMatches = q
-        ? events.filter((e) => e.label.toLowerCase().includes(q))
+        ? events.filter((e) => normalize(e.label).includes(q))
         : events;
       const pageItems = pageMatches
         .slice(0, MAX_ITEMS)

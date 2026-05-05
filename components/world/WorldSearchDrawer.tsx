@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { searchWorld, type SearchResult } from '@vaultstone/api';
 import {
@@ -22,18 +22,39 @@ import type { PageKind } from '@vaultstone/types';
 const PAGE_SIZE_FIRST = 10;
 const PAGE_SIZE_MORE = 20;
 
+const isMac =
+  Platform.OS === 'web' && typeof navigator !== 'undefined'
+    ? /Mac|iPhone|iPad|iPod/.test(navigator.userAgent)
+    : Platform.OS === 'ios';
+const SHORTCUT_LABEL = isMac ? '⌘K' : 'Ctrl+K';
+
 type Props = {
   worldId: string;
 };
 
 export function WorldSearchDrawer({ worldId }: Props) {
   const router = useRouter();
+  const rootRef = useRef<View>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [open, setOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const el = rootRef.current as unknown as HTMLElement | null;
+        const input = el?.querySelector('input');
+        input?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const doSearch = useCallback(
     async (q: string, offset = 0) => {
@@ -84,11 +105,11 @@ export function WorldSearchDrawer({ worldId }: Props) {
   }
 
   return (
-    <View style={styles.root}>
+    <View ref={rootRef} style={styles.root}>
       <Input
         value={query}
         onChangeText={setQuery}
-        placeholder="Search…  ⌘K"
+        placeholder={`Search…  ${SHORTCUT_LABEL}`}
         onFocus={() => { if (query.trim()) setOpen(true); }}
       />
 
