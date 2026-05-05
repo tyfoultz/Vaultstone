@@ -208,14 +208,14 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
 
 const styles = StyleSheet.create({
   root: {
-    gap: spacing.xs,
+    gap: 2,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: 2,
     paddingRight: spacing.xs,
-    height: 32,
+    height: 28,
     gap: 2,
   },
   headerText: {

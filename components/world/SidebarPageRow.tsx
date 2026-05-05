@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     paddingRight: spacing.sm,
-    paddingVertical: 6,
+    paddingVertical: 3,
     borderRadius: radius.lg,
   },
   chevronBtn: {

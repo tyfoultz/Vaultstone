@@ -367,7 +367,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
       <WorldSearchDrawer worldId={world.id} />
 
       <SidebarDndProvider>
-      <ScrollView style={styles.tree} contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}>
+      <ScrollView style={styles.tree} contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.lg }}>
         {visibleSections.length === 0 ? (
           <Text
             variant="body-sm"
@@ -745,7 +745,7 @@ const mapSectionStyles = StyleSheet.create({
     alignItems: 'center',
     paddingLeft: 2,
     paddingRight: spacing.xs,
-    height: 32,
+    height: 28,
     gap: 2,
   },
   chevronBtn: {
@@ -777,7 +777,7 @@ const mapSectionStyles = StyleSheet.create({
     gap: 8,
     paddingLeft: 28,
     paddingRight: spacing.xs,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: radius.lg,
   },
   mapRowActive: {
