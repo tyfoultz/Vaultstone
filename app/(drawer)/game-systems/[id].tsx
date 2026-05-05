@@ -41,18 +41,10 @@ const BUNDLED = BUNDLED_SYSTEMS_BY_ID;
 // the SchemaPanel rather than a SrdContent list.
 type SubTabContentKey = keyof SrdContent | '__schema__';
 
-type ItemCategory = ItemResult['category'];
-
 type SubTab = {
   key: string;
   label: string;
   contentKey: SubTabContentKey;
-  /**
-   * Optional filter when contentKey === 'items'. Used to split the single
-   * items list into per-category sub-tabs (Weapons / Armor / etc.) without
-   * duplicating the underlying data.
-   */
-  itemCategories?: ItemCategory[];
 };
 
 type GroupKey =
@@ -104,12 +96,15 @@ const GROUPS: Group[] = [
   {
     key: 'equipment',
     label: 'Equipment',
+    // Single unified items table — category is a filter facet, not a
+    // sub-tab. Tools merge in too — they're equipment from a player's
+    // POV (the Equipment chapter shipped them alongside weapons /
+    // armor / gear in every edition), and "is this thing under Items
+    // or Tools?" is a friction the unified table eliminates. The
+    // table dispatches on `result.type` to render tool-specific
+    // body fields (Ability / Utilize / Craft) on tool rows.
     subTabs: [
-      { key: 'weapons',            label: 'Weapons',            contentKey: 'items', itemCategories: ['weapon'] },
-      { key: 'armor',              label: 'Armor',              contentKey: 'items', itemCategories: ['armor', 'shield'] },
-      { key: 'adventuring-gear',   label: 'Adventuring Gear',   contentKey: 'items', itemCategories: ['adventuring-gear'] },
-      { key: 'magic-items',        label: 'Magic Items',        contentKey: 'items', itemCategories: ['magic-item'] },
-      { key: 'tools',              label: 'Tools',              contentKey: 'tools' },
+      { key: 'items', label: 'Items', contentKey: 'items' },
     ],
   },
   {
@@ -170,10 +165,6 @@ const GROUPS: Group[] = [
 
 function subTabItemCount(t: SubTab, content: SrdContent): number {
   if (t.contentKey === '__schema__') return 0;
-  if (t.itemCategories && t.contentKey === 'items') {
-    const set = new Set<ItemCategory>(t.itemCategories);
-    return distinctNamedCount(content.items.filter((i) => set.has(i.category)));
-  }
   return distinctNamedCount(content[t.contentKey]);
 }
 
@@ -471,12 +462,10 @@ function renderSubBody(
   sys: GameSystemDefinition,
 ): React.ReactNode {
   if (!active) return null;
-  // Item sub-tabs share the single `content.items` source but filter by
-  // category (Weapons, Armor, Adventuring Gear, Magic Items, Crafting).
-  if (active.contentKey === 'items' && active.itemCategories) {
-    const set = new Set<ItemCategory>(active.itemCategories);
-    return <ItemsList items={content.items.filter((i) => set.has(i.category))} srdVersion={sys.srdVersion ?? undefined} />;
-  }
+  // (No per-category item sub-tabs anymore — the single Equipment →
+  // Items table holds every category and uses the Category facet for
+  // filtering. The cross-category routing logic that used to live
+  // here is no longer needed.)
   const srdVersion = sys.srdVersion ?? undefined;
   switch (active.contentKey) {
     case 'species':          return <SpeciesList     items={content.species}     srdVersion={srdVersion} />;
@@ -487,7 +476,15 @@ function renderSubBody(
     case 'optionalFeatures': return <OptionalFeaturesList items={content.optionalFeatures} srdVersion={srdVersion} />;
     case 'deities':          return <DeitiesList         items={content.deities}          srdVersion={srdVersion} />;
     case 'variantRules':     return <VariantRulesList    items={content.variantRules}     srdVersion={srdVersion} />;
-    case 'items':            return <ItemsList       items={content.items}       srdVersion={srdVersion} />;
+    case 'items': {
+      // Tools merge into the items table as adapter-shaped rows. The
+      // adapter maps ToolResult fields onto ItemResult fields and
+      // stashes the tool-specific bits (ability / utilize / craft) on
+      // `data` so the body renderer can pull them back out. Category
+      // is preserved on `data.toolCategory` for the Category facet.
+      const merged = [...content.items, ...content.tools.map(toolAsItemResult)];
+      return <ItemsList items={merged} srdVersion={srdVersion} />;
+    }
     case 'creatures':        return <CreaturesList   items={content.creatures}   srdVersion={srdVersion} />;
     case 'conditions':       return <ConditionsList  items={content.conditions}  srdVersion={srdVersion} />;
     case 'rules':            return <RulesList       items={content.rules} />;
@@ -1800,7 +1797,12 @@ function srdVersionSource(version: string): ImportSource {
 }
 
 function sourceKey(s: ImportSource): string {
-  return `${s.code}|${s.page ?? ''}`;
+  // Dedupe on the source code only — variants of the same item across
+  // different pages of the same book (e.g. "+1 Arrow" on p.228, "+2
+  // Arrow" on p.229, "+3 Arrow" on p.230 — all in XDMG) should collapse
+  // to a single XDMG badge on the row, not render three identical
+  // badges side-by-side.
+  return s.code;
 }
 
 function variantLabel(v: Variant, groupIsItemVariantSet?: boolean): string {
@@ -2236,11 +2238,18 @@ function TableRow<T extends Variant>({
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const active = group.variants[activeIdx] ?? group.variants[0];
+  // Row columns always render from the *first* variant (base /
+  // primary source) regardless of which tab the body is showing.
+  // Tab switching swaps the detail body, not the row stats — so a
+  // "+1 Greatsword" tab keeps showing "Greatsword" as the row name
+  // and "Mundane" as the magic indicator, since the row identifies
+  // the base item. Only the body re-renders with the variant's data.
+  const head = group.variants[0];
   const allSources = collectSources(group.variants, activeSrdVersion)
     .slice()
     .sort((a, b) => a.code.localeCompare(b.code));
   const footSource = activeVariantPrimarySource(active, activeSrdVersion);
-  const isHomebrew = active.tier === 'homebrew';
+  const isHomebrew = head.tier === 'homebrew';
   const [nameCol, ...restCols] = columns;
   if (!nameCol) return null;
 
@@ -2259,7 +2268,7 @@ function TableRow<T extends Variant>({
             style={{ color: expanded ? colors.primary : colors.onSurface }}
             numberOfLines={2}
           >
-            {nameCol.cell(active)}
+            {nameCol.cell(head)}
           </Text>
         </Pressable>
         <ScrollView
@@ -2276,7 +2285,7 @@ function TableRow<T extends Variant>({
               accessibilityRole="button"
             >
               <Text variant="body-sm" family="body" style={styles.tableCellText} numberOfLines={2}>
-                {c.cell(active)}
+                {c.cell(head)}
               </Text>
             </Pressable>
           ))}
@@ -2854,6 +2863,17 @@ function rarityVariant(rarity: ItemResult['rarity']): 'category' | 'meta' | 'acc
  * browsing the catalog is more informative.
  */
 function itemTypeLabel(it: ItemResult, parsedTypeText: string | null): string {
+  // Tool-adapter rows: prefer the tool category over the synthetic
+  // 'adventuring-gear' the adapter set, so the Type column reads
+  // "Artisan's Tools" / "Musical Instrument" instead of the generic
+  // gear label.
+  if (readIsTool(it)) {
+    const tc = readToolCategory(it);
+    if (tc === 'artisan')             return "Artisan's Tools";
+    if (tc === 'gaming-set')          return 'Gaming Set';
+    if (tc === 'musical-instrument')  return 'Musical Instrument';
+    return 'Tool';
+  }
   if (parsedTypeText) return parsedTypeText;
   if (it.category === 'magic-item') {
     const kind = (it.data as { magicItemKind?: string } | undefined)?.magicItemKind;
@@ -2911,6 +2931,22 @@ export function ItemsList({
       columns={[
         { key: 'name', label: 'Name', cell: (it) => it.name, compare: (a, b) => a.name.localeCompare(b.name), width: 180, defaultSort: 'asc' },
         {
+          // Magic / Mundane indicator. Reflects the *active* variant
+          // on grouped rows — a Greatsword group with Base active
+          // reads "Mundane"; switch to the +1 tab and it reads
+          // "✦ Magic". Sort order puts magic items first so users
+          // sorting on this column see the magical entries together.
+          key: 'magic',
+          label: 'Magic',
+          cell: (it) => (it.category === 'magic-item' ? '✦ Magic' : 'Mundane'),
+          compare: (a, b) => {
+            const am = a.category === 'magic-item' ? 0 : 1;
+            const bm = b.category === 'magic-item' ? 0 : 1;
+            return am - bm;
+          },
+          width: 90,
+        },
+        {
           key: 'type',
           label: 'Type',
           cell: (it) => {
@@ -2947,10 +2983,48 @@ export function ItemsList({
       ]}
       facets={[
         {
+          // Category facet is the primary nav affordance now that the
+          // Equipment group is one unified table. Magic-item variants
+          // contribute *both* their own category (`magic-item`) and
+          // their base item's category — so filtering by "weapon"
+          // surfaces "+1 Arrow" alongside the mundane "Arrow",
+          // preserving the variant-grouping detail tabs that would
+          // otherwise be hidden when the variant rows get filtered out.
           key: 'category',
           label: 'Category',
-          getValues: (it) => (it.category ? [it.category] : []),
-          formatValue: (v) => capitalize(v.replace('-', ' ')),
+          getValues: (it) => {
+            // Tool-adapter rows expose their tool category (Artisan,
+            // Gaming Set, Musical Instrument, Other) instead of the
+            // synthetic 'adventuring-gear' the adapter set so the
+            // gearKind/magic-item plumbing keeps working.
+            if (readIsTool(it)) {
+              const tc = readToolCategory(it);
+              return tc ? [`tool:${tc}`] : ['tool:other'];
+            }
+            const out = it.category ? [it.category] : [];
+            const ref = readBaseItemRef(it);
+            if (ref) {
+              const base = items.find((b) => !readBaseItemRef(b) && b.name === ref.name);
+              if (base && base.category && !out.includes(base.category)) {
+                out.push(base.category);
+              }
+            }
+            return out;
+          },
+          formatValue: (v) => {
+            // Tool categories are namespaced with `tool:` so they
+            // don't collide with item categories (an item category
+            // 'artisan' would be confusing).
+            if (v.startsWith('tool:')) {
+              const inner = v.slice(5);
+              if (inner === 'artisan') return "Artisan's Tools";
+              if (inner === 'gaming-set') return 'Gaming Set';
+              if (inner === 'musical-instrument') return 'Musical Instrument';
+              if (inner === 'other') return 'Other Tool';
+              return capitalize(inner.replace('-', ' '));
+            }
+            return capitalize(v.replace('-', ' '));
+          },
         },
         {
           key: 'gearKind',
@@ -2987,6 +3061,11 @@ export function ItemsList({
         },
       ]}
       renderBody={(it) => {
+        // Tool rows use a dedicated body renderer — they don't have
+        // weapon properties / armor AC / weight + cost in the same
+        // shape, but they do have Ability / Utilize / Craft fields
+        // the regular item body doesn't surface.
+        if (readIsTool(it)) return <ToolItemBody it={it} />;
         const parsed = parseItemProperties(it.properties ?? []);
         const typeText = itemTypeLabel(it, parsed.typeText ?? null);
         const cost = it.cost ? `${it.cost.amount} ${it.cost.currency}` : null;
@@ -3083,6 +3162,115 @@ function itemCostInGp(it: ItemResult): number {
     case 'pp': return amt * 10;
     default: return amt;
   }
+}
+
+/** Sentinel check — true when the row was synthesized from a
+ *  ToolResult by `toolAsItemResult`. Drives the dedicated tool body
+ *  renderer and the tool-category facet branch. */
+function readIsTool(it: ItemResult): boolean {
+  return (it.data as { isTool?: unknown } | undefined)?.isTool === true;
+}
+
+function readToolCategory(it: ItemResult): string | null {
+  const v = (it.data as { toolCategory?: unknown } | undefined)?.toolCategory;
+  return typeof v === 'string' ? v : null;
+}
+
+function readToolFields(it: ItemResult): {
+  ability?: string;
+  utilize?: string[];
+  craft?: string[];
+} {
+  const d = (it.data as Record<string, unknown> | undefined) ?? {};
+  return {
+    ability: typeof d.ability === 'string' ? d.ability : undefined,
+    utilize: Array.isArray(d.utilize) ? (d.utilize as string[]) : undefined,
+    craft: Array.isArray(d.craft) ? (d.craft as string[]) : undefined,
+  };
+}
+
+/** Body renderer for tool-adapter rows. Mirrors the dedicated
+ *  ToolsList layout (Ability line / Utilize bullets / Craft list)
+ *  inside the items detail body. */
+function ToolItemBody({ it }: { it: ItemResult }) {
+  const { ability, utilize, craft } = readToolFields(it);
+  const toolCat = readToolCategory(it);
+  const cost = it.cost ? `${it.cost.amount} ${it.cost.currency}` : null;
+  const weight = typeof it.weight === 'number' ? `${it.weight} lb` : null;
+  const typeLabel =
+    toolCat === 'artisan' ? "Artisan's Tools" :
+    toolCat === 'gaming-set' ? 'Gaming Set' :
+    toolCat === 'musical-instrument' ? 'Musical Instrument' :
+    'Tool';
+  return (
+    <>
+      <View style={styles.itemStatTable}>
+        <ItemStatRow label="Type"   value={typeLabel} />
+        {weight ? <ItemStatRow label="Weight" value={weight} /> : null}
+        {cost ? <ItemStatRow label="Cost"   value={cost} /> : null}
+      </View>
+      {ability ? (
+        <Text variant="body-sm" family="body" style={styles.bodyText}>
+          <Text weight="bold">Ability: </Text>{ability}
+        </Text>
+      ) : null}
+      {Array.isArray(utilize) && utilize.length > 0 ? (
+        <View style={styles.subBlock}>
+          <MetaLabel size="sm">Utilize</MetaLabel>
+          {utilize.map((u, i) => (
+            <Text key={i} variant="body-sm" family="body" style={styles.bodyText}>• {u}</Text>
+          ))}
+        </View>
+      ) : null}
+      {Array.isArray(craft) && craft.length > 0 ? (
+        <Text variant="body-sm" family="body" style={styles.bodyText}>
+          <Text weight="bold">Craft: </Text>{craft.join(', ')}
+        </Text>
+      ) : null}
+      {it.description ? (
+        <MarkdownText style={styles.bodyText}>{it.description}</MarkdownText>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Adapt a ToolResult into an ItemResult-shaped row so tools can flow
+ * through the unified items table. Tool-specific fields (ability /
+ * utilize / craft) ride along on `data` for the body renderer to pull
+ * back out; tool category lives on `data.toolCategory` so the Category
+ * facet can surface it as a distinct facet value (Artisan / Gaming
+ * Set / Musical Instrument / Other Tool) without polluting the
+ * ItemResult.category enum.
+ *
+ * The synthesized row's `category` field is set to 'adventuring-gear'
+ * so the rest of the items pipeline (gearKind facet, magic-item
+ * detection, etc.) treats tools as gear by default. The tool-category
+ * facet override below exposes the real category for filtering.
+ */
+function toolAsItemResult(t: ToolResult): ItemResult {
+  return {
+    key: t.key,
+    name: t.name,
+    type: 'item',
+    tier: t.tier,
+    system: t.system,
+    description: t.description,
+    importSource: t.importSource,
+    data: {
+      // Sentinel field — the items renderer checks for this to switch
+      // into tool body mode (Ability / Utilize / Craft layout).
+      isTool: true,
+      toolCategory: t.category,
+      ability: t.ability,
+      utilize: t.utilize,
+      craft: t.craft,
+    },
+    category: 'adventuring-gear',
+    cost: t.cost,
+    weight: t.weight,
+    srdVersions: t.srdVersions,
+  };
 }
 
 /**
@@ -3977,6 +4165,29 @@ function SchemaPanel({ sys }: { sys: GameSystemDefinition }) {
               </Text>
             </View>
           ))
+        )}
+      </Card>
+      <Card>
+        <CardTitle icon="tune" label="Optional rules" count={sys.optionalRules.length} />
+        {sys.optionalRules.length === 0 ? (
+          <Text variant="body-sm" family="body" style={styles.bodyText}>None defined.</Text>
+        ) : (
+          sys.optionalRules.map((r) => {
+            const defaultLabel = r.type === 'choice'
+              ? r.choices?.find((c) => c.key === r.default)?.label ?? String(r.default)
+              : r.default ? 'On' : 'Off';
+            return (
+              <View key={r.key} style={styles.kv}>
+                <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{r.label}</Text>
+                <Text variant="body-sm" family="body" style={styles.bodyText}>
+                  {r.scope} · {r.type} · default: {defaultLabel}
+                </Text>
+                <Text variant="body-sm" family="body" style={styles.bodyText}>
+                  {r.description}
+                </Text>
+              </View>
+            );
+          })
         )}
       </Card>
     </View>
