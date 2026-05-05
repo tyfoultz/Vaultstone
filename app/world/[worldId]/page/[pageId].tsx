@@ -259,13 +259,13 @@ export default function PageDetailScreen() {
 
   useEffect(() => {
     if (!pageId) return;
-    // Claim on mount; re-claim every heartbeat to refresh editing_since so
-    // the server's 90s TTL doesn't expire under us.
+    let released = false;
     void tryClaim();
     const t = setInterval(() => {
-      void tryClaim();
+      if (!released) void tryClaim();
     }, LOCK_HEARTBEAT_MS);
     return () => {
+      released = true;
       clearInterval(t);
       if (bodyTimerRef.current) {
         clearTimeout(bodyTimerRef.current);
