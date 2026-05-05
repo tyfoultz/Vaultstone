@@ -562,8 +562,6 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
   return (
     <View style={splitMode ? styles.rootSplit : styles.root}>
       {!splitMode ? (
-        <>
-      {/* ── Top bar ── */}
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
           <View style={{ marginRight: 6 }}><Icon name="shield" size={18} color={colors.hpWarning} /></View>
@@ -583,6 +581,7 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
           ) : null}
         </View>
       </View>
+      ) : null}
 
       {/* ── Title row ── */}
       <View style={styles.factionHead}>
@@ -645,8 +644,6 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
           </div>
         ))}
       </div>
-        </>
-      ) : null}
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>

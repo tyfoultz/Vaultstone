@@ -248,7 +248,7 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {/* Page head with event stats */}
-        {!splitMode ? <View style={styles.headRow}>
+        <View style={styles.headRow}>
           <View style={{ flex: 1 }}>
             <PageHead
               icon={template.icon}
@@ -274,7 +274,7 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
               </Pressable>
             </View>
           ) : null}
-        </View> : null}
+        </View>
 
         {bannerLock ? (
           <EditLockBanner

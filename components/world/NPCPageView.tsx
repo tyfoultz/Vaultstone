@@ -702,8 +702,6 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
   return (
     <View style={splitMode ? styles.rootSplit : styles.root}>
       {!splitMode ? (
-        <>
-      {/* ── Top bar: breadcrumbs + actions ── */}
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
           <View style={{ marginRight: 6 }}>
@@ -725,6 +723,7 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
           ) : null}
         </View>
       </View>
+      ) : null}
 
       {/* ── Portrait + Title row ── */}
       <View style={styles.npcHead}>
@@ -893,55 +892,6 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
         </View>
       </View>
 
-      {/* ── Property pills ── */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: 6,
-        paddingLeft: spacing.lg,
-        paddingRight: spacing.lg,
-        paddingBottom: spacing.xs,
-      }}>
-        {propertyPills.map((pill) => (
-          <div key={pill.key} style={{ position: 'relative' }}>
-            <Pressable
-              onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)}
-              style={[
-                styles.pill,
-                pill.color ? { borderColor: pill.color + '44' } : undefined,
-                !pill.value && styles.pillEmpty,
-              ]}
-            >
-              {pill.icon ? (
-                <Icon
-                  name={pill.icon as React.ComponentProps<typeof Icon>['name']}
-                  size={12}
-                  color={pill.color ?? colors.outline}
-                />
-              ) : null}
-              <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>
-                {pill.label}
-              </Text>
-              {pill.value ? (
-                <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>
-                  {pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}
-                </Text>
-              ) : null}
-            </Pressable>
-            {editingPill === pill.key ? (
-              <PillEditor
-                pill={pill}
-                onSelect={(v) => { updateField(pill.key, v); setEditingPill(null); }}
-                onClose={() => setEditingPill(null)}
-              />
-            ) : null}
-          </div>
-        ))}
-      </div>
-        </>
-      ) : null}
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>

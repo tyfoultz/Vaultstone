@@ -406,7 +406,6 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
     <View style={splitMode ? styles.rootSplit : styles.root}>
       {/* ── Compact top bar: breadcrumbs + title + actions ── */}
       {!splitMode ? (
-        <>
         <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
           <View style={{ marginRight: 6 }}>
@@ -436,6 +435,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
           ) : null}
         </View>
       </View>
+      ) : null}
 
       {/* ── Title row ── */}
       <View style={styles.titleBar}>
@@ -535,8 +535,6 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
           </View>
         ))}
       </div>
-        </>
-      ) : null}
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>

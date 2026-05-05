@@ -78,6 +78,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
   const [mapUploadOpen, setMapUploadOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const pathname = usePathname();
+  const routePageId = activePageId ?? pathname.match(/\/world\/[^/]+\/page\/([^/]+)/)?.[1] ?? null;
 
   const isOwner = !!(user && user.id === world.owner_user_id);
   const linkedCampaigns = useCurrentWorldStore((s) => s.linkedCampaigns);
@@ -382,7 +383,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
               key={section.id}
               section={section}
               worldId={world.id}
-              activePageId={activePageId}
+              activePageId={routePageId}
               onAddPage={() => setCreatePageTarget({ sectionId: section.id })}
               onAddSubPage={(sectionId, parentPageId) =>
                 setCreatePageTarget({ sectionId, parentPageId })

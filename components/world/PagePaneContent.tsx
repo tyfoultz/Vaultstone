@@ -494,8 +494,7 @@ export function PagePaneContent({
           style={styles.wikiDoc}
           contentContainerStyle={isLore ? styles.wikiDocInnerWide : styles.wikiDocInner}
         >
-          {!splitMode && (
-            editingTitle ? (
+          {editingTitle ? (
               <input
                 type="text"
                 defaultValue={page.title}
@@ -553,7 +552,7 @@ export function PagePaneContent({
                 }
               />
             )
-          )}
+          }
 
           <View style={{ marginTop: splitMode ? spacing.sm : (isLore ? spacing.md : spacing.xl), gap: spacing.lg }}>
             {isOrphan ? <OrphanBanner page={page} /> : null}
