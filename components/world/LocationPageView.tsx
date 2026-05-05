@@ -790,7 +790,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
-  headerWrap: { height: 100, overflow: 'hidden' as const },
+  headerWrap: { height: 120, overflow: 'hidden' as const },
 
   // Top bar — compact breadcrumbs
   topBar: {

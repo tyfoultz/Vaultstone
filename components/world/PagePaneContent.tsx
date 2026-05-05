@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surfaceCanvas,
   },
-  headerWrap: { height: 100, overflow: 'hidden' as const },
+  headerWrap: { height: 120, overflow: 'hidden' as const },
   wikiWrap: {
     flex: 1,
     flexDirection: 'row',

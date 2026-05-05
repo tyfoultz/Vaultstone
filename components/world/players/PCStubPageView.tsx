@@ -479,6 +479,34 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
                   ) : null}
                 </View>
               )}
+              {/* Character link — inline with name */}
+              {character && stats ? (
+                <Pressable onPress={() => router.push(`/character/${page.character_id}`)} style={styles.charLink}>
+                  <Icon name="person" size={14} color={colors.player} />
+                  <Text variant="label-sm" weight="semibold" style={{ color: colors.player }}>
+                    {character.name}
+                  </Text>
+                  <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
+                  <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                    {[stats.speciesKey?.replace(/-/g, ' '), stats.classKey?.replace(/-/g, ' '), `Lv ${stats.level ?? 1}`].filter(Boolean).join(' · ')}
+                  </Text>
+                  <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
+                  <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                    HP {resources?.hpCurrent ?? 0}/{stats.hpMax}
+                  </Text>
+                  <Icon name="open-in-new" size={12} color={colors.outline} />
+                </Pressable>
+              ) : isWorldOwner && linkedCampaigns.length > 0 && !page.character_id ? (
+                <Pressable onPress={() => setCharacterPickerOpen(true)} style={styles.linkCharBtn}>
+                  <Icon name="person-add" size={14} color={colors.player} />
+                  <Text variant="body-sm" weight="semibold" style={{ color: colors.player }}>Link a character</Text>
+                </Pressable>
+              ) : !page.character_id ? (
+                <View style={styles.linkCharBtn}>
+                  <Icon name="person-off" size={14} color={colors.outline} />
+                  <Text variant="body-sm" style={{ color: colors.outline }}>No linked character</Text>
+                </View>
+              ) : null}
             </View>
             {isWorldOwner && !editingTitle && !heldByOther ? (
               <View style={{ flexDirection: 'row', gap: spacing.xs }}>
@@ -512,37 +540,6 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
               <EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} onForceUnlock={isWorldOwner ? async () => { await forceReleasePageEdit(page.id); updatePageInStore(page.id, { editing_user_id: null, editing_since: null }); void tryClaim(); } : undefined} />
             </View>
           ) : null}
-
-          {/* Character link */}
-          <View style={styles.charSection}>
-            {character && stats ? (
-              <Pressable onPress={() => router.push(`/character/${page.character_id}`)} style={styles.charLink}>
-                <Icon name="person" size={14} color={colors.player} />
-                <Text variant="label-sm" weight="semibold" style={{ color: colors.player }}>
-                  {character.name}
-                </Text>
-                <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
-                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                  {[stats.speciesKey?.replace(/-/g, ' '), stats.classKey?.replace(/-/g, ' '), `Lv ${stats.level ?? 1}`].filter(Boolean).join(' · ')}
-                </Text>
-                <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
-                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                  HP {resources?.hpCurrent ?? 0}/{stats.hpMax}
-                </Text>
-                <Icon name="open-in-new" size={12} color={colors.outline} />
-              </Pressable>
-            ) : isWorldOwner && linkedCampaigns.length > 0 && !page.character_id ? (
-              <Pressable onPress={() => setCharacterPickerOpen(true)} style={styles.linkCharBtn}>
-                <Icon name="person-add" size={16} color={colors.player} />
-                <Text variant="body-sm" weight="semibold" style={{ color: colors.player }}>Link a character from campaign</Text>
-              </Pressable>
-            ) : !page.character_id ? (
-              <View style={styles.linkCharBtn}>
-                <Icon name="person-off" size={16} color={colors.outline} />
-                <Text variant="body-sm" style={{ color: colors.outline }}>No linked character</Text>
-              </View>
-            ) : null}
-          </View>
 
           {/* Canvas editor */}
           <View style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]} pointerEvents={heldByOther ? 'none' : 'auto'}>
@@ -1021,7 +1018,7 @@ const pickerStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
-  headerWrap: { height: 100, overflow: 'hidden' as const },
+  headerWrap: { height: 120, overflow: 'hidden' as const },
   topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '22' },
   topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
