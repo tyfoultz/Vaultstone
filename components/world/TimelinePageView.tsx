@@ -248,6 +248,7 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {/* Page head with event stats */}
+        <View style={styles.headerWrap}>
         <View style={styles.headRow}>
           <View style={{ flex: 1 }}>
             <PageHead
@@ -274,6 +275,7 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
               </Pressable>
             </View>
           ) : null}
+        </View>
         </View>
 
         {bannerLock ? (
@@ -382,6 +384,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceCanvas,
     minHeight: 0,
   },
+  headerWrap: { height: 100, overflow: 'hidden' as const },
   scrollView: {
     flex: 1,
   },

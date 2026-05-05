@@ -409,6 +409,7 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
       <View style={styles.mainWrap}>
         <View style={styles.editorCol}>
           {/* Title row */}
+          <View style={styles.headerWrap}>
           <View style={styles.titleRow}>
             <div style={{ position: 'relative' }}>
               <div
@@ -491,6 +492,7 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
                 ) : null}
               </View>
             ) : null}
+          </View>
           </View>
 
           {isOrphan ? (
@@ -1019,6 +1021,7 @@ const pickerStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
+  headerWrap: { height: 100, overflow: 'hidden' as const },
   topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '22' },
   topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

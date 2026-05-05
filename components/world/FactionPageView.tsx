@@ -583,6 +583,7 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
       </View>
       ) : null}
 
+      <View style={styles.headerWrap}>
       {/* ── Title row ── */}
       <View style={styles.factionHead}>
         <View style={{ marginRight: 4 }}><Icon name="shield" size={28} color={colors.hpWarning} /></View>
@@ -644,6 +645,7 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
           </div>
         ))}
       </div>
+      </View>
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
@@ -821,6 +823,7 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
+  headerWrap: { height: 100, overflow: 'hidden' as const },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '22' },
   topBarLeft: { flexDirection: 'row', alignItems: 'center' },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

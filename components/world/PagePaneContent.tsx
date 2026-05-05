@@ -494,6 +494,7 @@ export function PagePaneContent({
           style={styles.wikiDoc}
           contentContainerStyle={isLore ? styles.wikiDocInnerWide : styles.wikiDocInner}
         >
+          <View style={styles.headerWrap}>
           {editingTitle ? (
               <input
                 type="text"
@@ -553,6 +554,7 @@ export function PagePaneContent({
               />
             )
           }
+          </View>
 
           <View style={{ marginTop: splitMode ? spacing.sm : (isLore ? spacing.md : spacing.xl), gap: spacing.lg }}>
             {isOrphan ? <OrphanBanner page={page} /> : null}
@@ -648,6 +650,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surfaceCanvas,
   },
+  headerWrap: { height: 100, overflow: 'hidden' as const },
   wikiWrap: {
     flex: 1,
     flexDirection: 'row',

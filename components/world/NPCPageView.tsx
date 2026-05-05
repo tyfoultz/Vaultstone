@@ -725,7 +725,8 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
       </View>
       ) : null}
 
-      {/* ── Portrait + Title row ── */}
+      {/* ── Portrait + Title + pills (fixed height for cross-template alignment) ── */}
+      <View style={styles.headerWrap}>
       <View style={styles.npcHead}>
         <div style={{ position: 'relative' }}>
           <div
@@ -819,37 +820,6 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
               </Text>
             </div>
           )}
-          {role ? (
-            <Text variant="body-md" family="serif-body" style={styles.npcSubtitle}>
-              {role}{species ? ` · ${species}` : ''}
-            </Text>
-          ) : species ? (
-            <Text variant="body-md" family="serif-body" style={styles.npcSubtitle}>
-              {species}
-            </Text>
-          ) : null}
-          <View style={styles.npcStatRow}>
-            {status ? (
-              <View style={[styles.npcStatChip, { borderColor: (STATUS_COLOR[status] ?? colors.outline) + '44' }]}>
-                <View style={[styles.statusDot, { backgroundColor: STATUS_COLOR[status] ?? colors.outline }]} />
-                <Text style={[styles.npcStatChipLabel, { color: STATUS_COLOR[status] ?? colors.outline }]}>
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </Text>
-              </View>
-            ) : null}
-            {disposition ? (
-              <View style={[styles.npcStatChip, { borderColor: (DISPOSITION_COLOR[disposition] ?? colors.outline) + '44' }]}>
-                <Text style={[styles.npcStatChipLabel, { color: DISPOSITION_COLOR[disposition] ?? colors.outline }]}>
-                  {disposition.charAt(0).toUpperCase() + disposition.slice(1)}
-                </Text>
-              </View>
-            ) : null}
-            <VisibilityBadge
-              visibility={page.visible_to_players ? 'player' : 'gm'}
-              interactive={!!toggleVisibility}
-              onPress={toggleVisibility ?? undefined}
-            />
-          </View>
 
           {/* Voice / personality cue */}
           {editingVoice ? (
@@ -892,6 +862,54 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
         </View>
       </View>
 
+      {/* ── Property pills (editable) ── */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 6,
+        paddingLeft: spacing.lg,
+        paddingRight: spacing.lg,
+        paddingBottom: spacing.xs,
+      }}>
+        {propertyPills.map((pill) => (
+          <div key={pill.key} style={{ position: 'relative' }}>
+            <Pressable
+              onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)}
+              style={[
+                styles.pill,
+                pill.color ? { borderColor: pill.color + '44' } : undefined,
+                !pill.value && styles.pillEmpty,
+              ]}
+            >
+              {pill.icon ? (
+                <Icon
+                  name={pill.icon as React.ComponentProps<typeof Icon>['name']}
+                  size={12}
+                  color={pill.color ?? colors.outline}
+                />
+              ) : null}
+              <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>
+                {pill.label}
+              </Text>
+              {pill.value ? (
+                <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>
+                  {pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}
+                </Text>
+              ) : null}
+            </Pressable>
+            {editingPill === pill.key ? (
+              <PillEditor
+                pill={pill}
+                onSelect={(v) => { updateField(pill.key, v); setEditingPill(null); }}
+                onClose={() => setEditingPill(null)}
+              />
+            ) : null}
+          </div>
+        ))}
+      </div>
+      </View>
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
@@ -1258,6 +1276,7 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
+  headerWrap: { height: 100, overflow: 'hidden' as const },
 
   // Top bar
   topBar: {
