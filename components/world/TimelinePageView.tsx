@@ -52,7 +52,7 @@ type Props = {
   splitMode?: boolean;
 };
 
-export function TimelinePageView({ page, worldId }: Props) {
+export function TimelinePageView({ page, worldId, splitMode }: Props) {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
@@ -191,43 +191,45 @@ export function TimelinePageView({ page, worldId }: Props) {
   if (!world || !section) return null;
 
   return (
-    <View style={styles.root}>
-      <WorldTopBar
-        crumbs={[
-          { key: 'world', label: world.name },
-          { key: 'section', label: section.name },
-          { key: 'page', label: page.title },
-        ]}
-        saveState={saveState}
-        actions={
-          <>
-            <PlayerViewToggle />
-            {isWorldOwner ? (
-              <>
-                <Pressable
-                  onPress={() => setShareOpen(true)}
-                  style={styles.shareBtn}
-                  accessibilityLabel="Share page"
-                >
-                  <Icon name="share" size={14} color={colors.onSurfaceVariant} />
-                  <Text
-                    variant="label-md"
-                    uppercase
-                    weight="semibold"
-                    style={{ color: colors.onSurfaceVariant, letterSpacing: 1, fontSize: 11 }}
+    <View style={splitMode ? styles.rootSplit : styles.root}>
+      {!splitMode ? (
+        <WorldTopBar
+          crumbs={[
+            { key: 'world', label: world.name },
+            { key: 'section', label: section.name },
+            { key: 'page', label: page.title },
+          ]}
+          saveState={saveState}
+          actions={
+            <>
+              <PlayerViewToggle />
+              {isWorldOwner ? (
+                <>
+                  <Pressable
+                    onPress={() => setShareOpen(true)}
+                    style={styles.shareBtn}
+                    accessibilityLabel="Share page"
                   >
-                    Share
-                  </Text>
-                </Pressable>
-                <Pressable onPress={handleDeletePage} accessibilityLabel="Delete page" hitSlop={8}>
-                  <Icon name="delete-outline" size={18} color={confirmDelete ? colors.hpDanger : colors.outlineVariant} />
-                </Pressable>
-              </>
-            ) : null}
-            <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
-          </>
-        }
-      />
+                    <Icon name="share" size={14} color={colors.onSurfaceVariant} />
+                    <Text
+                      variant="label-md"
+                      uppercase
+                      weight="semibold"
+                      style={{ color: colors.onSurfaceVariant, letterSpacing: 1, fontSize: 11 }}
+                    >
+                      Share
+                    </Text>
+                  </Pressable>
+                  <Pressable onPress={handleDeletePage} accessibilityLabel="Delete page" hitSlop={8}>
+                    <Icon name="delete-outline" size={18} color={confirmDelete ? colors.hpDanger : colors.outlineVariant} />
+                  </Pressable>
+                </>
+              ) : null}
+              <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
+            </>
+          }
+        />
+      ) : null}
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
@@ -246,7 +248,7 @@ export function TimelinePageView({ page, worldId }: Props) {
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {/* Page head with event stats */}
-        <View style={styles.headRow}>
+        {!splitMode ? <View style={styles.headRow}>
           <View style={{ flex: 1 }}>
             <PageHead
               icon={template.icon}
@@ -272,7 +274,7 @@ export function TimelinePageView({ page, worldId }: Props) {
               </Pressable>
             </View>
           ) : null}
-        </View>
+        </View> : null}
 
         {bannerLock ? (
           <EditLockBanner
@@ -374,6 +376,11 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.surfaceCanvas,
+  },
+  rootSplit: {
+    flex: 1,
+    backgroundColor: colors.surfaceCanvas,
+    minHeight: 0,
   },
   scrollView: {
     flex: 1,

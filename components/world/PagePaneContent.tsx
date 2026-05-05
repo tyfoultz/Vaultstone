@@ -365,20 +365,41 @@ export function PagePaneContent({
   }
 
   // Specialized page-kind views
-  if (page.page_kind === 'timeline') {
-    return <TimelinePageView page={page} worldId={worldId} splitMode={splitMode} />;
-  }
-  if (page.page_kind === 'pc_stub' || page.page_kind === 'player_character') {
-    return <PCStubPageView page={page} worldId={worldId} splitMode={splitMode} />;
-  }
-  if (page.page_kind === 'npc') {
-    return <NPCPageView page={page} worldId={worldId} splitMode={splitMode} />;
-  }
-  if (page.page_kind === 'faction' || page.page_kind === 'organization' || page.page_kind === 'religion') {
-    return <FactionPageView page={page} worldId={worldId} splitMode={splitMode} />;
-  }
-  if (page.page_kind === 'location') {
-    return <LocationPageView page={page} worldId={worldId} splitMode={splitMode} />;
+  const specializedView = (() => {
+    if (page.page_kind === 'timeline')
+      return <TimelinePageView page={page} worldId={worldId} splitMode={splitMode} />;
+    if (page.page_kind === 'pc_stub' || page.page_kind === 'player_character')
+      return <PCStubPageView page={page} worldId={worldId} splitMode={splitMode} />;
+    if (page.page_kind === 'npc')
+      return <NPCPageView page={page} worldId={worldId} splitMode={splitMode} />;
+    if (page.page_kind === 'faction' || page.page_kind === 'organization' || page.page_kind === 'religion')
+      return <FactionPageView page={page} worldId={worldId} splitMode={splitMode} />;
+    if (page.page_kind === 'location')
+      return <LocationPageView page={page} worldId={worldId} splitMode={splitMode} />;
+    return null;
+  })();
+
+  if (specializedView) {
+    if (splitMode) {
+      const tpl = getTemplate(page.template_key as TemplateKey, page.template_version);
+      const kl = PAGE_KIND_LABEL[page.page_kind] ?? 'Page';
+      return (
+        <View style={styles.root} onPointerDown={onFocus}>
+          <SplitPaneTitle
+            icon={tpl.icon}
+            title={page.title}
+            accentToken={tpl.accentToken}
+            kindLabel={kl}
+            saveState={saveState}
+            focused={focused}
+            onPress={onFocus}
+            onClose={onClose}
+          />
+          {specializedView}
+        </View>
+      );
+    }
+    return specializedView;
   }
 
   // Default generic wiki view

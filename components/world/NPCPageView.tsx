@@ -389,7 +389,7 @@ const DISPOSITION_COLOR: Record<string, string> = {
 
 type CanvasBlock = { id: string; x: number; y: number; width: number; height?: number; html: string };
 
-export function NPCPageView({ page, worldId }: Props) {
+export function NPCPageView({ page, worldId, splitMode }: Props) {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
@@ -407,7 +407,7 @@ export function NPCPageView({ page, worldId }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode);
   const [editingPill, setEditingPill] = useState<string | null>(null);
 
   const section = useMemo(
@@ -700,7 +700,9 @@ export function NPCPageView({ page, worldId }: Props) {
     saveState === 'error' ? 'Save failed' : '';
 
   return (
-    <View style={styles.root}>
+    <View style={splitMode ? styles.rootSplit : styles.root}>
+      {!splitMode ? (
+        <>
       {/* ── Top bar: breadcrumbs + actions ── */}
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
@@ -938,6 +940,8 @@ export function NPCPageView({ page, worldId }: Props) {
           </div>
         ))}
       </div>
+        </>
+      ) : null}
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
@@ -1303,6 +1307,7 @@ export function NPCPageView({ page, worldId }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
+  rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
 
   // Top bar
   topBar: {

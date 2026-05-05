@@ -366,7 +366,7 @@ const relStyles = StyleSheet.create({
 
 type CanvasBlock = { id: string; x: number; y: number; width: number; height?: number; html: string };
 
-export function FactionPageView({ page, worldId }: Props) {
+export function FactionPageView({ page, worldId, splitMode }: Props) {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
@@ -382,7 +382,7 @@ export function FactionPageView({ page, worldId }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode);
   const [editingPill, setEditingPill] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [addingRelationship, setAddingRelationship] = useState(false);
@@ -560,7 +560,9 @@ export function FactionPageView({ page, worldId }: Props) {
   const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved · just now' : saveState === 'error' ? 'Save failed' : '';
 
   return (
-    <View style={styles.root}>
+    <View style={splitMode ? styles.rootSplit : styles.root}>
+      {!splitMode ? (
+        <>
       {/* ── Top bar ── */}
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
@@ -643,6 +645,8 @@ export function FactionPageView({ page, worldId }: Props) {
           </div>
         ))}
       </div>
+        </>
+      ) : null}
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
@@ -819,6 +823,7 @@ export function FactionPageView({ page, worldId }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
+  rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '22' },
   topBarLeft: { flexDirection: 'row', alignItems: 'center' },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

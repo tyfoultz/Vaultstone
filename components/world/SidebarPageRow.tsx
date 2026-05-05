@@ -121,8 +121,8 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
       style={({ pressed }) => [
         styles.row,
         { paddingLeft: spacing.xs + indent },
-        (pressed || active) && { backgroundColor: colors.surfaceContainerHigh },
-        isSplitTarget && styles.splitHighlight,
+        (pressed || active || isSplitTarget) && { backgroundColor: colors.surfaceContainerHigh },
+        (active || isSplitTarget) && styles.activeHighlight,
         isDragging && { opacity: 0.4 },
         isOver && dropPosition === 'child' && styles.dropChild,
       ]}
@@ -272,10 +272,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  splitHighlight: {
+  activeHighlight: {
     borderLeftWidth: 2,
     borderLeftColor: colors.primary,
-    backgroundColor: colors.primaryContainer + '18',
   },
   dropChild: {
     backgroundColor: colors.primaryContainer + '33',

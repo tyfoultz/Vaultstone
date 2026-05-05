@@ -96,7 +96,7 @@ function removeReciprocalRelationship(targetPage: WorldPage, sourcePageId: strin
   void updatePage(targetPage.id, { structured_fields: next as Json });
 }
 
-export function PCStubPageView({ page, worldId }: Props) {
+export function PCStubPageView({ page, worldId, splitMode }: Props) {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
   const linkedCampaigns = useCurrentWorldStore((s) => s.linkedCampaigns);
@@ -340,7 +340,7 @@ export function PCStubPageView({ page, worldId }: Props) {
 
   // Right sidebar data
   const [rightTab, setRightTab] = useState<'info' | 'sub'>('info');
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(!!splitMode);
   const subpages = useMemo(() => (allPages ?? []).filter((p) => p.parent_page_id === page.id).sort((a, b) => a.sort_order - b.sort_order), [allPages, page.id]);
   const [backlinks, setBacklinks] = useState<WorldPage[]>([]);
   const [backlinksLoaded, setBacklinksLoaded] = useState(false);
@@ -363,8 +363,8 @@ export function PCStubPageView({ page, worldId }: Props) {
   const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'error' ? 'Error' : null;
 
   return (
-    <View style={styles.root}>
-      {/* Breadcrumb bar */}
+    <View style={splitMode ? styles.rootSplit : styles.root}>
+      {!splitMode ? (
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
           <Icon name="person" size={18} color={colors.player} />
@@ -390,6 +390,7 @@ export function PCStubPageView({ page, worldId }: Props) {
           <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} interactive={!!toggleVisibility} onPress={toggleVisibility ?? undefined} />
         </View>
       </View>
+      ) : null}
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
@@ -1017,6 +1018,7 @@ const pickerStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
+  rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
   topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '22' },
   topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
