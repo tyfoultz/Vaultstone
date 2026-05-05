@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { usePagesStore, useSidebarCollapseStore } from '@vaultstone/store';
+import { usePagesStore, useSidebarCollapseStore, useSplitPaneStore } from '@vaultstone/store';
 import { movePage } from '@vaultstone/api';
 import { Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 import type { WorldPage, WorldPageTreeNode } from '@vaultstone/types';
@@ -43,6 +43,7 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
   const router = useRouter();
   const icon = MATERIAL_ICON[node.page.page_kind] ?? 'article';
   const active = activePageId === node.page.id;
+  const isSplitTarget = useSplitPaneStore((s) => s.splitPageId === node.page.id);
   const indent = node.depth * 12;
   const hasChildren = node.children.length > 0;
   const [hovered, setHovered] = useState(false);
@@ -121,6 +122,7 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
         styles.row,
         { paddingLeft: spacing.xs + indent },
         (pressed || active) && { backgroundColor: colors.surfaceContainerHigh },
+        isSplitTarget && styles.splitHighlight,
         isDragging && { opacity: 0.4 },
         isOver && dropPosition === 'child' && styles.dropChild,
       ]}
@@ -204,6 +206,7 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
           page={node.page}
           worldId={worldId}
           node={node}
+          activePageId={activePageId}
           onClose={() => setMenuAnchor(null)}
           onAddSubPage={() =>
             onAddSubPage?.(node.page.section_id, node.page.id)
@@ -268,6 +271,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  splitHighlight: {
+    borderLeftWidth: 2,
+    borderLeftColor: colors.primary,
+    backgroundColor: colors.primaryContainer + '18',
   },
   dropChild: {
     backgroundColor: colors.primaryContainer + '33',

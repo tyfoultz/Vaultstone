@@ -123,6 +123,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type Props = {
   page: WorldPage;
   worldId: string;
+  splitMode?: boolean;
 };
 
 const DANGER_COLOR: Record<string, string> = {

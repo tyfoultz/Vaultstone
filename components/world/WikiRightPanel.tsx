@@ -13,13 +13,15 @@ import { worldPageHref } from './worldHref';
 type Props = {
   pageId: string;
   worldId: string;
+  defaultCollapsed?: boolean;
 };
 
 type Tab = 'subpages' | 'backlinks' | 'history';
 
-export function WikiRightPanel({ pageId, worldId }: Props) {
+export function WikiRightPanel({ pageId, worldId, defaultCollapsed }: Props) {
   const [tab, setTab] = useState<Tab>('subpages');
   const [expanded, setExpanded] = useState(false);
+  const [forceCollapsed, setForceCollapsed] = useState(!!defaultCollapsed);
   const allPages = usePagesStore((s) => s.byWorldId[worldId]);
   const sections = useSectionsStore((s) => s.byWorldId[worldId]);
 
@@ -53,15 +55,16 @@ export function WikiRightPanel({ pageId, worldId }: Props) {
 
   useEffect(() => {
     setExpanded(false);
-  }, [pageId]);
+    setForceCollapsed(!!defaultCollapsed);
+  }, [pageId, defaultCollapsed]);
 
   const sectionName = (id: string) => sections?.find((s) => s.id === id)?.name ?? '';
 
-  if (isEmpty && !expanded) {
+  if ((isEmpty && !expanded) || forceCollapsed) {
     return (
       <View style={styles.collapsedRoot}>
         <Pressable
-          onPress={() => setExpanded(true)}
+          onPress={() => { setExpanded(true); setForceCollapsed(false); }}
           style={styles.expandPill}
           accessibilityLabel="Show right panel"
         >
@@ -81,15 +84,13 @@ export function WikiRightPanel({ pageId, worldId }: Props) {
           onPress={() => setTab('backlinks')}
         />
         <TabButton label="History" active={tab === 'history'} onPress={() => setTab('history')} />
-        {isEmpty ? (
-          <Pressable
-            onPress={() => setExpanded(false)}
-            style={styles.collapseBtn}
-            accessibilityLabel="Collapse panel"
-          >
-            <Icon name="chevron-right" size={14} color={colors.outline} />
-          </Pressable>
-        ) : null}
+        <Pressable
+          onPress={() => { setExpanded(false); setForceCollapsed(true); }}
+          style={styles.collapseBtn}
+          accessibilityLabel="Collapse panel"
+        >
+          <Icon name="chevron-right" size={14} color={colors.outline} />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>

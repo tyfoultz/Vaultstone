@@ -58,7 +58,7 @@ const MAP_PREVIEW_H = 120;
 const MAP_ZOOM = 3;
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-type Props = { page: WorldPage; worldId: string };
+type Props = { page: WorldPage; worldId: string; splitMode?: boolean };
 type RightTab = 'on_this_page' | 'sub_pages';
 type Relationship = { targetPageId: string; type: string; note?: string };
 

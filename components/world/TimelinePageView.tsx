@@ -49,6 +49,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type Props = {
   page: WorldPage;
   worldId: string;
+  splitMode?: boolean;
 };
 
 export function TimelinePageView({ page, worldId }: Props) {

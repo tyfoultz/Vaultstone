@@ -32,3 +32,4 @@ export {
   useTimelineEventsStore,
   selectEventsForPage,
 } from './timeline-events.store';
+export { useSplitPaneStore } from './split-pane.store';

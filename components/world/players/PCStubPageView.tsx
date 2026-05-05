@@ -70,7 +70,7 @@ const RELATIONSHIP_TYPES = ['ally', 'rival', 'enemy', 'friend', 'family', 'lover
 const RECIPROCAL_MAP: Record<string, string> = { ally: 'ally', rival: 'rival', enemy: 'enemy', friend: 'friend', family: 'family', lover: 'lover', employer: 'servant', servant: 'employer', mentor: 'student', student: 'mentor' };
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-type Props = { page: WorldPage; worldId: string };
+type Props = { page: WorldPage; worldId: string; splitMode?: boolean };
 
 function getInitials(name: string): string {
   return name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
