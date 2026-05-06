@@ -1,6 +1,6 @@
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { movePage, trashPage } from '@vaultstone/api';
-import { usePagesStore } from '@vaultstone/store';
+import { usePagesStore, useSplitPaneStore } from '@vaultstone/store';
 import type { WorldPage, WorldPageTreeNode } from '@vaultstone/types';
 import { Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
 
@@ -19,6 +19,7 @@ type Props = {
   page: WorldPage;
   worldId: string;
   node: WorldPageTreeNode;
+  activePageId?: string | null;
   onClose: () => void;
   onAddSubPage: () => void;
   onRename: () => void;
@@ -40,6 +41,7 @@ export function PageContextMenu({
   page,
   worldId,
   node,
+  activePageId,
   onClose,
   onAddSubPage,
   onRename,
@@ -101,13 +103,25 @@ export function PageContextMenu({
     }
   }
 
+  const splitPageId = useSplitPaneStore.getState().splitPageId;
+  const isSplitActive = !!splitPageId;
+  const canSplit = Platform.OS === 'web' && page.id !== activePageId;
+
   const items: (MenuItem | 'divider')[] = [
     {
       label: 'Add sub-page',
       icon: 'add',
       onPress: () => { onClose(); onAddSubPage(); },
     },
-    'divider',
+    ...(canSplit ? [{
+      label: isSplitActive ? 'Open in other pane' : 'Open in split view',
+      icon: 'vertical-split',
+      onPress: () => {
+        onClose();
+        useSplitPaneStore.getState().openSplit(page.id);
+      },
+    } as MenuItem] : []),
+    'divider' as const,
     {
       label: 'Make sub-page',
       icon: 'format-indent-increase',

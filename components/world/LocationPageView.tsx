@@ -123,6 +123,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type Props = {
   page: WorldPage;
   worldId: string;
+  splitMode?: boolean;
 };
 
 const DANGER_COLOR: Record<string, string> = {
@@ -136,7 +137,7 @@ const DANGER_COLOR: Record<string, string> = {
 
 type RightTab = 'on_this_page' | 'sub_locations';
 
-export function LocationPageView({ page, worldId }: Props) {
+export function LocationPageView({ page, worldId, splitMode }: Props) {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
@@ -154,7 +155,7 @@ export function LocationPageView({ page, worldId }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode);
 
   const section = useMemo(
     () => sections.find((s) => s.id === page.section_id) ?? null,
@@ -402,9 +403,10 @@ export function LocationPageView({ page, worldId }: Props) {
     saveState === 'error' ? 'Save failed' : '';
 
   return (
-    <View style={styles.root}>
+    <View style={splitMode ? styles.rootSplit : styles.root}>
       {/* ── Compact top bar: breadcrumbs + title + actions ── */}
-      <View style={styles.topBar}>
+      {!splitMode ? (
+        <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
           <View style={{ marginRight: 6 }}>
             <Icon name="place" size={18} color={colors.primary} />
@@ -433,8 +435,10 @@ export function LocationPageView({ page, worldId }: Props) {
           ) : null}
         </View>
       </View>
+      ) : null}
 
-      {/* ── Title row ── */}
+      {/* ── Title row + pills (fixed height for cross-template alignment) ── */}
+      <View style={styles.headerWrap}>
       <View style={styles.titleBar}>
         <Icon name="place" size={20} color={colors.primary} />
         {editingTitle ? (
@@ -532,6 +536,7 @@ export function LocationPageView({ page, worldId }: Props) {
           </View>
         ))}
       </div>
+      </View>
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
@@ -784,6 +789,8 @@ export function LocationPageView({ page, worldId }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
+  rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
+  headerWrap: { height: 120, overflow: 'hidden' as const },
 
   // Top bar — compact breadcrumbs
   topBar: {

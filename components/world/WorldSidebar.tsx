@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -44,6 +44,14 @@ import { worldHref, worldMapHref, worldMapIndexHref, worldPageHref, worldRelatio
 
 type World = Database['public']['Tables']['worlds']['Row'];
 
+function WebTooltip({ tip, children }: { tip: string; children: React.ReactNode }) {
+  const ref = useRef<View>(null);
+  useEffect(() => {
+    (ref.current as unknown as HTMLElement | null)?.setAttribute('title', tip);
+  }, [tip]);
+  return <View ref={ref}>{children}</View>;
+}
+
 type Props = {
   world: World;
   activePageId?: string | null;
@@ -70,6 +78,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
   const [mapUploadOpen, setMapUploadOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const pathname = usePathname();
+  const routePageId = activePageId ?? pathname.match(/\/world\/[^/]+\/page\/([^/]+)/)?.[1] ?? null;
 
   const isOwner = !!(user && user.id === world.owner_user_id);
   const linkedCampaigns = useCurrentWorldStore((s) => s.linkedCampaigns);
@@ -177,40 +186,48 @@ export function WorldSidebar({ world, activePageId }: Props) {
           </LinearGradient>
         </Pressable>
 
-        <Pressable
-          onPress={() => router.push(worldHref(world.id))}
-          style={styles.collapsedItem}
-          accessibilityLabel="World home"
-        >
-          <Icon name="home" size={20} color={colors.onSurfaceVariant} />
-        </Pressable>
+        <WebTooltip tip="World Home">
+          <Pressable
+            onPress={() => router.push(worldHref(world.id))}
+            style={styles.collapsedItem}
+            accessibilityLabel="World Home"
+          >
+            <Icon name="home" size={20} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </WebTooltip>
 
-        <Pressable
-          onPress={() => router.push(worldMapIndexHref(world.id))}
-          style={styles.collapsedItem}
-          accessibilityLabel="Map"
-        >
-          <Icon name="map" size={20} color={colors.onSurfaceVariant} />
-        </Pressable>
+        <WebTooltip tip="World Map">
+          <Pressable
+            onPress={() => router.push(worldMapIndexHref(world.id))}
+            style={styles.collapsedItem}
+            accessibilityLabel="World Map"
+          >
+            <Icon name="map" size={20} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </WebTooltip>
 
-        <Pressable
-          onPress={() => router.push(worldRelationsHref(world.id))}
-          style={styles.collapsedItem}
-          accessibilityLabel="Relationship web"
-        >
-          <Icon name="hub" size={20} color={colors.onSurfaceVariant} />
-        </Pressable>
+        <WebTooltip tip="Relationship Web">
+          <Pressable
+            onPress={() => router.push(worldRelationsHref(world.id))}
+            style={styles.collapsedItem}
+            accessibilityLabel="Relationship Web"
+          >
+            <Icon name="hub" size={20} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </WebTooltip>
 
         {world.primary_timeline_page_id ? (
-          <Pressable
-            onPress={() =>
-              router.push(worldPageHref(world.id, world.primary_timeline_page_id!))
-            }
-            style={styles.collapsedItem}
-            accessibilityLabel="Timeline"
-          >
-            <Icon name="timeline" size={20} color={colors.onSurfaceVariant} />
-          </Pressable>
+          <WebTooltip tip="Timeline">
+            <Pressable
+              onPress={() =>
+                router.push(worldPageHref(world.id, world.primary_timeline_page_id!))
+              }
+              style={styles.collapsedItem}
+              accessibilityLabel="Timeline"
+            >
+              <Icon name="timeline" size={20} color={colors.onSurfaceVariant} />
+            </Pressable>
+          </WebTooltip>
         ) : null}
 
         <View style={{ flex: 1 }} />
@@ -256,37 +273,45 @@ export function WorldSidebar({ world, activePageId }: Props) {
           </LinearGradient>
         </Pressable>
         <View style={{ flex: 1 }} />
-        <Pressable
-          onPress={() => router.push(worldHref(world.id))}
-          style={styles.topBarBtn}
-          accessibilityLabel="World home"
-        >
-          <Icon name="home" size={18} color={colors.onSurfaceVariant} />
-        </Pressable>
-        <Pressable
-          onPress={() => router.push(worldMapIndexHref(world.id))}
-          style={styles.topBarBtn}
-          accessibilityLabel="Map"
-        >
-          <Icon name="map" size={18} color={colors.onSurfaceVariant} />
-        </Pressable>
-        <Pressable
-          onPress={() => router.push(worldRelationsHref(world.id))}
-          style={styles.topBarBtn}
-          accessibilityLabel="Relationship web"
-        >
-          <Icon name="hub" size={18} color={colors.onSurfaceVariant} />
-        </Pressable>
-        {world.primary_timeline_page_id ? (
+        <WebTooltip tip="World Home">
           <Pressable
-            onPress={() =>
-              router.push(worldPageHref(world.id, world.primary_timeline_page_id!))
-            }
+            onPress={() => router.push(worldHref(world.id))}
             style={styles.topBarBtn}
-            accessibilityLabel="Timeline"
+            accessibilityLabel="World Home"
           >
-            <Icon name="timeline" size={18} color={colors.onSurfaceVariant} />
+            <Icon name="home" size={18} color={colors.onSurfaceVariant} />
           </Pressable>
+        </WebTooltip>
+        <WebTooltip tip="World Map">
+          <Pressable
+            onPress={() => router.push(worldMapIndexHref(world.id))}
+            style={styles.topBarBtn}
+            accessibilityLabel="World Map"
+          >
+            <Icon name="map" size={18} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </WebTooltip>
+        <WebTooltip tip="Relationship Web">
+          <Pressable
+            onPress={() => router.push(worldRelationsHref(world.id))}
+            style={styles.topBarBtn}
+            accessibilityLabel="Relationship Web"
+          >
+            <Icon name="hub" size={18} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </WebTooltip>
+        {world.primary_timeline_page_id ? (
+          <WebTooltip tip="Timeline">
+            <Pressable
+              onPress={() =>
+                router.push(worldPageHref(world.id, world.primary_timeline_page_id!))
+              }
+              style={styles.topBarBtn}
+              accessibilityLabel="Timeline"
+            >
+              <Icon name="timeline" size={18} color={colors.onSurfaceVariant} />
+            </Pressable>
+          </WebTooltip>
         ) : null}
       </View>
 
@@ -343,7 +368,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
       <WorldSearchDrawer worldId={world.id} />
 
       <SidebarDndProvider>
-      <ScrollView style={styles.tree} contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}>
+      <ScrollView style={styles.tree} contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.lg }}>
         {visibleSections.length === 0 ? (
           <Text
             variant="body-sm"
@@ -358,7 +383,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
               key={section.id}
               section={section}
               worldId={world.id}
-              activePageId={activePageId}
+              activePageId={routePageId}
               onAddPage={() => setCreatePageTarget({ sectionId: section.id })}
               onAddSubPage={(sectionId, parentPageId) =>
                 setCreatePageTarget({ sectionId, parentPageId })
@@ -721,7 +746,7 @@ const mapSectionStyles = StyleSheet.create({
     alignItems: 'center',
     paddingLeft: 2,
     paddingRight: spacing.xs,
-    height: 32,
+    height: 28,
     gap: 2,
   },
   chevronBtn: {
@@ -753,7 +778,7 @@ const mapSectionStyles = StyleSheet.create({
     gap: 8,
     paddingLeft: 28,
     paddingRight: spacing.xs,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: radius.lg,
   },
   mapRowActive: {

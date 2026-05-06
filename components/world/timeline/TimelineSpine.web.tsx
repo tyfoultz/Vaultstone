@@ -1,4 +1,7 @@
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { updateTimelineEvent } from '@vaultstone/api';
+import { useTimelineEventsStore } from '@vaultstone/store';
 import type { EraDefinition, TimelineCalendarSchema, TimelineEvent } from '@vaultstone/types';
 import { Icon, Text, colors, spacing } from '@vaultstone/ui';
 
@@ -30,6 +33,60 @@ export function TimelineSpine({
   const filtered = activeEra
     ? groups.filter((g) => g.era?.key === activeEra)
     : groups;
+
+  const updateStoreEvent = useTimelineEventsStore((s) => s.updateEvent);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; position: 'before' | 'after' } | null>(null);
+
+  const handleDragStart = useCallback((e: React.DragEvent, eventId: string) => {
+    setDragId(eventId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', eventId);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, targetId: string) => {
+    if (!dragId || dragId === targetId) { setDropTarget(null); return; }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    setDropTarget({ id: targetId, position: e.clientY < midY ? 'before' : 'after' });
+  }, [dragId]);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, groupEvents: TimelineEvent[]) => {
+      e.preventDefault();
+      if (!dragId || !dropTarget) return;
+
+      const oldIdx = groupEvents.findIndex((ev) => ev.id === dragId);
+      let newIdx = groupEvents.findIndex((ev) => ev.id === dropTarget.id);
+      if (oldIdx < 0 || newIdx < 0) return;
+      if (dropTarget.position === 'after') newIdx += 1;
+      if (oldIdx < newIdx) newIdx -= 1;
+      if (oldIdx === newIdx) return;
+
+      const reordered = [...groupEvents];
+      const [moved] = reordered.splice(oldIdx, 1);
+      reordered.splice(newIdx, 0, moved);
+
+      for (let i = 0; i < reordered.length; i++) {
+        const ev = reordered[i];
+        if (ev.tie_breaker !== i) {
+          updateStoreEvent(ev.id, { tie_breaker: i });
+          void updateTimelineEvent(ev.id, { tie_breaker: i });
+        }
+      }
+
+      setDragId(null);
+      setDropTarget(null);
+    },
+    [dragId, dropTarget, updateStoreEvent],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDragId(null);
+    setDropTarget(null);
+  }, []);
 
   if (filtered.length === 0 && events.length === 0) {
     return (
@@ -72,36 +129,52 @@ export function TimelineSpine({
 
           {group.events.map((event, idx) => {
             const isLeft = idx % 2 === 0;
+            const isDragging = dragId === event.id;
+            const isDropBefore = dropTarget?.id === event.id && dropTarget.position === 'before';
+            const isDropAfter = dropTarget?.id === event.id && dropTarget.position === 'after';
+
             return (
-              <View key={event.id} style={styles.eventRow}>
-                <View style={[styles.eventSide, isLeft ? styles.eventLeft : styles.eventRight]}>
-                  {isLeft ? (
-                    <TimelineEventCard
-                      event={event}
-                      era={group.era}
-                      isOwner={isOwner}
-                      onEdit={() => onEditEvent(event)}
-                    />
-                  ) : null}
-                </View>
+              <div
+                key={event.id}
+                draggable={isOwner}
+                onDragStart={(e) => handleDragStart(e as any, event.id)}
+                onDragOver={(e) => handleDragOver(e as any, event.id)}
+                onDrop={(e) => handleDrop(e as any, group.events)}
+                onDragEnd={handleDragEnd}
+                style={{ opacity: isDragging ? 0.4 : 1, position: 'relative' }}
+              >
+                {isDropBefore ? <div style={dropLineStyle} /> : null}
+                <View style={styles.eventRow}>
+                  <View style={[styles.eventSide, isLeft ? styles.eventLeft : styles.eventRight]}>
+                    {isLeft ? (
+                      <TimelineEventCard
+                        event={event}
+                        era={group.era}
+                        isOwner={isOwner}
+                        onEdit={() => onEditEvent(event)}
+                      />
+                    ) : null}
+                  </View>
 
-                <View style={styles.connectorCol}>
-                  <View style={styles.connectorLine} />
-                  <View style={styles.spineDot} />
-                  <View style={styles.connectorLine} />
-                </View>
+                  <View style={styles.connectorCol}>
+                    <View style={styles.connectorLine} />
+                    <View style={styles.spineDot} />
+                    <View style={styles.connectorLine} />
+                  </View>
 
-                <View style={[styles.eventSide, isLeft ? styles.eventRight : styles.eventLeft]}>
-                  {!isLeft ? (
-                    <TimelineEventCard
-                      event={event}
-                      era={group.era}
-                      isOwner={isOwner}
-                      onEdit={() => onEditEvent(event)}
-                    />
-                  ) : null}
+                  <View style={[styles.eventSide, isLeft ? styles.eventRight : styles.eventLeft]}>
+                    {!isLeft ? (
+                      <TimelineEventCard
+                        event={event}
+                        era={group.era}
+                        isOwner={isOwner}
+                        onEdit={() => onEditEvent(event)}
+                      />
+                    ) : null}
+                  </View>
                 </View>
-              </View>
+                {isDropAfter ? <div style={dropLineStyle} /> : null}
+              </div>
             );
           })}
         </View>
@@ -109,6 +182,13 @@ export function TimelineSpine({
     </View>
   );
 }
+
+const dropLineStyle: React.CSSProperties = {
+  height: 3,
+  backgroundColor: colors.cosmic,
+  borderRadius: 2,
+  margin: '2px 0',
+};
 
 function groupByEra(
   events: TimelineEvent[],

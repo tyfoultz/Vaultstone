@@ -63,6 +63,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type Props = {
   page: WorldPage;
   worldId: string;
+  splitMode?: boolean;
 };
 
 type RightTab = 'on_this_page' | 'sub_npcs';
@@ -388,7 +389,7 @@ const DISPOSITION_COLOR: Record<string, string> = {
 
 type CanvasBlock = { id: string; x: number; y: number; width: number; height?: number; html: string };
 
-export function NPCPageView({ page, worldId }: Props) {
+export function NPCPageView({ page, worldId, splitMode }: Props) {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
@@ -406,7 +407,7 @@ export function NPCPageView({ page, worldId }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode);
   const [editingPill, setEditingPill] = useState<string | null>(null);
 
   const section = useMemo(
@@ -699,8 +700,8 @@ export function NPCPageView({ page, worldId }: Props) {
     saveState === 'error' ? 'Save failed' : '';
 
   return (
-    <View style={styles.root}>
-      {/* ── Top bar: breadcrumbs + actions ── */}
+    <View style={splitMode ? styles.rootSplit : styles.root}>
+      {!splitMode ? (
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
           <View style={{ marginRight: 6 }}>
@@ -722,8 +723,10 @@ export function NPCPageView({ page, worldId }: Props) {
           ) : null}
         </View>
       </View>
+      ) : null}
 
-      {/* ── Portrait + Title row ── */}
+      {/* ── Portrait + Title + pills (fixed height for cross-template alignment) ── */}
+      <View style={styles.headerWrap}>
       <View style={styles.npcHead}>
         <div style={{ position: 'relative' }}>
           <div
@@ -817,37 +820,6 @@ export function NPCPageView({ page, worldId }: Props) {
               </Text>
             </div>
           )}
-          {role ? (
-            <Text variant="body-md" family="serif-body" style={styles.npcSubtitle}>
-              {role}{species ? ` · ${species}` : ''}
-            </Text>
-          ) : species ? (
-            <Text variant="body-md" family="serif-body" style={styles.npcSubtitle}>
-              {species}
-            </Text>
-          ) : null}
-          <View style={styles.npcStatRow}>
-            {status ? (
-              <View style={[styles.npcStatChip, { borderColor: (STATUS_COLOR[status] ?? colors.outline) + '44' }]}>
-                <View style={[styles.statusDot, { backgroundColor: STATUS_COLOR[status] ?? colors.outline }]} />
-                <Text style={[styles.npcStatChipLabel, { color: STATUS_COLOR[status] ?? colors.outline }]}>
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </Text>
-              </View>
-            ) : null}
-            {disposition ? (
-              <View style={[styles.npcStatChip, { borderColor: (DISPOSITION_COLOR[disposition] ?? colors.outline) + '44' }]}>
-                <Text style={[styles.npcStatChipLabel, { color: DISPOSITION_COLOR[disposition] ?? colors.outline }]}>
-                  {disposition.charAt(0).toUpperCase() + disposition.slice(1)}
-                </Text>
-              </View>
-            ) : null}
-            <VisibilityBadge
-              visibility={page.visible_to_players ? 'player' : 'gm'}
-              interactive={!!toggleVisibility}
-              onPress={toggleVisibility ?? undefined}
-            />
-          </View>
 
           {/* Voice / personality cue */}
           {editingVoice ? (
@@ -890,7 +862,7 @@ export function NPCPageView({ page, worldId }: Props) {
         </View>
       </View>
 
-      {/* ── Property pills ── */}
+      {/* ── Property pills (editable) ── */}
       <div style={{
         display: 'flex',
         flexDirection: 'row',
@@ -937,6 +909,7 @@ export function NPCPageView({ page, worldId }: Props) {
           </div>
         ))}
       </div>
+      </View>
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
@@ -1302,6 +1275,8 @@ export function NPCPageView({ page, worldId }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
+  rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
+  headerWrap: { height: 120, overflow: 'hidden' as const },
 
   // Top bar
   topBar: {

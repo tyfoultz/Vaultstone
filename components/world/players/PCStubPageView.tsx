@@ -70,7 +70,7 @@ const RELATIONSHIP_TYPES = ['ally', 'rival', 'enemy', 'friend', 'family', 'lover
 const RECIPROCAL_MAP: Record<string, string> = { ally: 'ally', rival: 'rival', enemy: 'enemy', friend: 'friend', family: 'family', lover: 'lover', employer: 'servant', servant: 'employer', mentor: 'student', student: 'mentor' };
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-type Props = { page: WorldPage; worldId: string };
+type Props = { page: WorldPage; worldId: string; splitMode?: boolean };
 
 function getInitials(name: string): string {
   return name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -96,7 +96,7 @@ function removeReciprocalRelationship(targetPage: WorldPage, sourcePageId: strin
   void updatePage(targetPage.id, { structured_fields: next as Json });
 }
 
-export function PCStubPageView({ page, worldId }: Props) {
+export function PCStubPageView({ page, worldId, splitMode }: Props) {
   const router = useRouter();
   const world = useCurrentWorldStore((s) => s.world);
   const linkedCampaigns = useCurrentWorldStore((s) => s.linkedCampaigns);
@@ -340,7 +340,7 @@ export function PCStubPageView({ page, worldId }: Props) {
 
   // Right sidebar data
   const [rightTab, setRightTab] = useState<'info' | 'sub'>('info');
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(!!splitMode);
   const subpages = useMemo(() => (allPages ?? []).filter((p) => p.parent_page_id === page.id).sort((a, b) => a.sort_order - b.sort_order), [allPages, page.id]);
   const [backlinks, setBacklinks] = useState<WorldPage[]>([]);
   const [backlinksLoaded, setBacklinksLoaded] = useState(false);
@@ -363,8 +363,8 @@ export function PCStubPageView({ page, worldId }: Props) {
   const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'error' ? 'Error' : null;
 
   return (
-    <View style={styles.root}>
-      {/* Breadcrumb bar */}
+    <View style={splitMode ? styles.rootSplit : styles.root}>
+      {!splitMode ? (
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
           <Icon name="person" size={18} color={colors.player} />
@@ -390,6 +390,7 @@ export function PCStubPageView({ page, worldId }: Props) {
           <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} interactive={!!toggleVisibility} onPress={toggleVisibility ?? undefined} />
         </View>
       </View>
+      ) : null}
 
       {confirmDelete ? (
         <View style={styles.deleteBanner}>
@@ -408,6 +409,7 @@ export function PCStubPageView({ page, worldId }: Props) {
       <View style={styles.mainWrap}>
         <View style={styles.editorCol}>
           {/* Title row */}
+          <View style={styles.headerWrap}>
           <View style={styles.titleRow}>
             <div style={{ position: 'relative' }}>
               <div
@@ -477,6 +479,34 @@ export function PCStubPageView({ page, worldId }: Props) {
                   ) : null}
                 </View>
               )}
+              {/* Character link — inline with name */}
+              {character && stats ? (
+                <Pressable onPress={() => router.push(`/character/${page.character_id}`)} style={styles.charLink}>
+                  <Icon name="person" size={14} color={colors.player} />
+                  <Text variant="label-sm" weight="semibold" style={{ color: colors.player }}>
+                    {character.name}
+                  </Text>
+                  <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
+                  <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                    {[stats.speciesKey?.replace(/-/g, ' '), stats.classKey?.replace(/-/g, ' '), `Lv ${stats.level ?? 1}`].filter(Boolean).join(' · ')}
+                  </Text>
+                  <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
+                  <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                    HP {resources?.hpCurrent ?? 0}/{stats.hpMax}
+                  </Text>
+                  <Icon name="open-in-new" size={12} color={colors.outline} />
+                </Pressable>
+              ) : isWorldOwner && linkedCampaigns.length > 0 && !page.character_id ? (
+                <Pressable onPress={() => setCharacterPickerOpen(true)} style={styles.linkCharBtn}>
+                  <Icon name="person-add" size={14} color={colors.player} />
+                  <Text variant="body-sm" weight="semibold" style={{ color: colors.player }}>Link a character</Text>
+                </Pressable>
+              ) : !page.character_id ? (
+                <View style={styles.linkCharBtn}>
+                  <Icon name="person-off" size={14} color={colors.outline} />
+                  <Text variant="body-sm" style={{ color: colors.outline }}>No linked character</Text>
+                </View>
+              ) : null}
             </View>
             {isWorldOwner && !editingTitle && !heldByOther ? (
               <View style={{ flexDirection: 'row', gap: spacing.xs }}>
@@ -490,6 +520,7 @@ export function PCStubPageView({ page, worldId }: Props) {
                 ) : null}
               </View>
             ) : null}
+          </View>
           </View>
 
           {isOrphan ? (
@@ -509,37 +540,6 @@ export function PCStubPageView({ page, worldId }: Props) {
               <EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} onForceUnlock={isWorldOwner ? async () => { await forceReleasePageEdit(page.id); updatePageInStore(page.id, { editing_user_id: null, editing_since: null }); void tryClaim(); } : undefined} />
             </View>
           ) : null}
-
-          {/* Character link */}
-          <View style={styles.charSection}>
-            {character && stats ? (
-              <Pressable onPress={() => router.push(`/character/${page.character_id}`)} style={styles.charLink}>
-                <Icon name="person" size={14} color={colors.player} />
-                <Text variant="label-sm" weight="semibold" style={{ color: colors.player }}>
-                  {character.name}
-                </Text>
-                <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
-                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                  {[stats.speciesKey?.replace(/-/g, ' '), stats.classKey?.replace(/-/g, ' '), `Lv ${stats.level ?? 1}`].filter(Boolean).join(' · ')}
-                </Text>
-                <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
-                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                  HP {resources?.hpCurrent ?? 0}/{stats.hpMax}
-                </Text>
-                <Icon name="open-in-new" size={12} color={colors.outline} />
-              </Pressable>
-            ) : isWorldOwner && linkedCampaigns.length > 0 && !page.character_id ? (
-              <Pressable onPress={() => setCharacterPickerOpen(true)} style={styles.linkCharBtn}>
-                <Icon name="person-add" size={16} color={colors.player} />
-                <Text variant="body-sm" weight="semibold" style={{ color: colors.player }}>Link a character from campaign</Text>
-              </Pressable>
-            ) : !page.character_id ? (
-              <View style={styles.linkCharBtn}>
-                <Icon name="person-off" size={16} color={colors.outline} />
-                <Text variant="body-sm" style={{ color: colors.outline }}>No linked character</Text>
-              </View>
-            ) : null}
-          </View>
 
           {/* Canvas editor */}
           <View style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]} pointerEvents={heldByOther ? 'none' : 'auto'}>
@@ -1017,6 +1017,8 @@ const pickerStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
+  rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
+  headerWrap: { height: 120, overflow: 'hidden' as const },
   topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '22' },
   topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

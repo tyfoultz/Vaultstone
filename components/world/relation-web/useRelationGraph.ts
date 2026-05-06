@@ -41,20 +41,34 @@ function isSymmetricRelType(type: string): boolean {
   return RECIPROCAL_MAP[type] === type;
 }
 
+export type HiddenPage = { id: string; title: string };
+
 export type RelationGraph = {
   nodes: GraphNode[];
   edges: RelationEdge[];
   nodeById: Map<string, GraphNode>;
+  hiddenPages: HiddenPage[];
 };
 
 export function useRelationGraph(worldId: string): RelationGraph {
   const allPages = usePagesStore((s) => s.byWorldId[worldId] ?? EMPTY_PAGES);
 
   return useMemo(() => {
-    const pageMap = new Map<string, WorldPage>();
-    for (const p of allPages) pageMap.set(p.id, p);
+    const hiddenPages: HiddenPage[] = [];
+    const visiblePages: WorldPage[] = [];
+    for (const p of allPages) {
+      const sf = (p.structured_fields as Record<string, unknown>) ?? {};
+      if (sf.__hidden_from_relation_web) {
+        hiddenPages.push({ id: p.id, title: p.title });
+      } else {
+        visiblePages.push(p);
+      }
+    }
 
-    const nodes: GraphNode[] = allPages.map((p) => ({
+    const pageMap = new Map<string, WorldPage>();
+    for (const p of visiblePages) pageMap.set(p.id, p);
+
+    const nodes: GraphNode[] = visiblePages.map((p) => ({
       id: p.id,
       title: p.title,
       pageKind: p.page_kind,
@@ -71,7 +85,7 @@ export function useRelationGraph(worldId: string): RelationGraph {
     const pairSourceSeen = new Set<string>();
 
     // Layer 1: Manual __relationships
-    for (const page of allPages) {
+    for (const page of visiblePages) {
       const fields = (page.structured_fields as Record<string, unknown>) ?? {};
       const rels: Relationship[] = Array.isArray(fields.__relationships)
         ? (fields.__relationships as Relationship[])
@@ -107,7 +121,7 @@ export function useRelationGraph(worldId: string): RelationGraph {
     }
 
     // Layer 2: Structural page_ref fields
-    for (const page of allPages) {
+    for (const page of visiblePages) {
       const fields = (page.structured_fields as Record<string, unknown>) ?? {};
 
       for (const def of STRUCTURAL_FIELD_EDGES) {
@@ -135,7 +149,7 @@ export function useRelationGraph(worldId: string): RelationGraph {
     }
 
     // Layer 3: body_refs mentions
-    for (const page of allPages) {
+    for (const page of visiblePages) {
       const refs = page.body_refs ?? [];
       for (const targetId of refs) {
         if (!nodeById.has(targetId)) continue;
@@ -158,6 +172,6 @@ export function useRelationGraph(worldId: string): RelationGraph {
       }
     }
 
-    return { nodes, edges, nodeById };
+    return { nodes, edges, nodeById, hiddenPages };
   }, [allPages]);
 }

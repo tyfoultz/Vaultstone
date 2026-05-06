@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Icon, Text, colors, spacing } from '@vaultstone/ui';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { GhostButton, Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
+// @ts-expect-error d3-force has no bundled types; installed as direct dep for Metro
+import { forceCollide } from 'd3-force';
 
 import {
   BASE_NODE_RADIUS,
+  EDGE_SOURCE_LABEL,
   EDGE_STYLE,
+  KIND_COLOR,
+  KIND_LABEL,
   type EdgeSource,
   type GraphNode,
   type RelationEdge,
@@ -24,6 +29,7 @@ type Props = {
   selectedNodeId: string | null;
   onSelectNode: (nodeId: string | null) => void;
   onDoubleClickNode: (nodeId: string) => void;
+  onHideNode?: (nodeId: string) => void;
   containerWidth: number;
   containerHeight: number;
 };
@@ -125,6 +131,14 @@ function drawNodeIcon(ctx: CanvasRenderingContext2D, iconName: string, cx: numbe
   }
 }
 
+type ContextMenu = { x: number; y: number; nodeId: string; title: string };
+
+const LEGEND_EDGES: { src: EdgeSource; desc: string }[] = [
+  { src: 'manual', desc: 'Added on a page (ally, rival, leader, etc.)' },
+  { src: 'structural', desc: 'From page fields (NPC\'s faction, location\'s parent)' },
+  { src: 'mention', desc: 'Page @mentioned in another page\'s body' },
+];
+
 export function RelationWeb({
   nodes,
   edges,
@@ -133,13 +147,17 @@ export function RelationWeb({
   selectedNodeId,
   onSelectNode,
   onDoubleClickNode,
+  onHideNode,
   containerWidth,
   containerHeight,
 }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
+  const containerRef = useRef<View>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [ForceGraph2D, setForceGraph2D] = useState<ForceGraph2DComponent | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,23 +211,46 @@ export function RelationWeb({
   );
 
   const connectedToSelected = useMemo(() => {
-    if (!selectedNodeId && !hoveredNodeId) return null;
-    const activeId = selectedNodeId ?? hoveredNodeId;
+    if (!selectedNodeId) return null;
     const set = new Set<string>();
-    set.add(activeId!);
+    set.add(selectedNodeId);
     for (const e of filteredEdges) {
-      if (e.sourceId === activeId) set.add(e.targetId);
-      if (e.targetId === activeId) set.add(e.sourceId);
+      if (e.sourceId === selectedNodeId) set.add(e.targetId);
+      if (e.targetId === selectedNodeId) set.add(e.sourceId);
     }
     return set;
-  }, [selectedNodeId, hoveredNodeId, filteredEdges]);
+  }, [selectedNodeId, filteredEdges]);
 
+  const connectedToHovered = useMemo(() => {
+    if (!hoveredNodeId || selectedNodeId) return null;
+    const set = new Set<string>();
+    set.add(hoveredNodeId);
+    for (const e of filteredEdges) {
+      if (e.sourceId === hoveredNodeId) set.add(e.targetId);
+      if (e.targetId === hoveredNodeId) set.add(e.sourceId);
+    }
+    return set;
+  }, [hoveredNodeId, selectedNodeId, filteredEdges]);
+
+  const forceConfigured = useRef(false);
   useEffect(() => {
     const fg = fgRef.current;
-    if (!fg) return;
-    fg.d3Force('charge')?.strength(-200);
-    fg.d3Force('link')?.distance(100);
-  }, []);
+    if (!fg || forceConfigured.current) return;
+    forceConfigured.current = true;
+
+    fg.d3Force('charge')?.strength(-120);
+    fg.d3Force('link')?.distance(80);
+    fg.d3Force('center')?.strength(0.1);
+    fg.d3Force('collision',
+      forceCollide()
+        .radius((node: FGNode) => {
+          const labelWidth = (node.title?.length ?? 5) * 3.5;
+          return Math.max(BASE_NODE_RADIUS + 6, labelWidth / 2) + 8;
+        })
+        .strength(1)
+        .iterations(4),
+    );
+  });
 
   const drawNode = useCallback(
     (node: FGNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -220,6 +261,7 @@ export function RelationWeb({
       const isActive = selectedNodeId === node.id || hoveredNodeId === node.id;
       const isDimmed = connectedToSelected && !connectedToSelected.has(node.id);
       const alpha = isDimmed ? 0.15 : 1;
+      const isHighlightedByHover = connectedToHovered?.has(node.id) ?? false;
 
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -236,7 +278,7 @@ export function RelationWeb({
       ctx.fillStyle = node.color + '33';
       ctx.fill();
       ctx.strokeStyle = node.color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = isHighlightedByHover ? 3 : 2;
       ctx.stroke();
 
       drawNodeIcon(ctx, node.iconName, x, y, r * 0.7, node.color);
@@ -252,7 +294,7 @@ export function RelationWeb({
 
       ctx.restore();
     },
-    [connectionCount, selectedNodeId, hoveredNodeId, connectedToSelected],
+    [connectionCount, selectedNodeId, hoveredNodeId, connectedToSelected, connectedToHovered],
   );
 
   const drawLink = useCallback(
@@ -265,12 +307,14 @@ export function RelationWeb({
       const isDimmed =
         connectedToSelected &&
         !(connectedToSelected.has(source.id) && connectedToSelected.has(target.id));
-      const alpha = isDimmed ? 0.08 : 0.7;
+      const isHoverHighlighted = !isDimmed && connectedToHovered &&
+        connectedToHovered.has(source.id) && connectedToHovered.has(target.id);
+      const alpha = isDimmed ? 0.08 : isHoverHighlighted ? 1 : 0.5;
 
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.strokeStyle = style.color;
-      ctx.lineWidth = style.width;
+      ctx.lineWidth = isHoverHighlighted ? style.width + 1 : style.width;
 
       if (style.dash.length > 0) {
         ctx.setLineDash(style.dash);
@@ -343,8 +387,29 @@ export function RelationWeb({
 
       ctx.restore();
     },
-    [connectedToSelected, hoveredNodeId, connectionCount],
+    [connectedToSelected, connectedToHovered, hoveredNodeId, connectionCount],
   );
+
+  const pinAllNodes = useCallback(() => {
+    for (const n of graphData.nodes) {
+      if (n.fx == null) n.fx = n.x;
+      if (n.fy == null) n.fy = n.y;
+    }
+    const fg = fgRef.current;
+    if (fg) fg.zoomToFit(400, 40);
+  }, [graphData.nodes]);
+
+  const handleResetView = useCallback(() => {
+    const fg = fgRef.current;
+    for (const n of graphData.nodes) {
+      n.fx = undefined;
+      n.fy = undefined;
+    }
+    if (fg) {
+      fg.d3ReheatSimulation();
+      setTimeout(() => fg.zoomToFit(600, 40), 3000);
+    }
+  }, [graphData.nodes]);
 
   const handleNodeClick = useCallback(
     (node: FGNode) => {
@@ -355,7 +420,34 @@ export function RelationWeb({
 
   const handleBackgroundClick = useCallback(() => {
     onSelectNode(null);
+    setContextMenu(null);
   }, [onSelectNode]);
+
+  const handleNodeRightClick = useCallback(
+    (node: FGNode, event: MouseEvent) => {
+      event.preventDefault();
+      const el = containerRef.current as unknown as HTMLElement;
+      const rect = el?.getBoundingClientRect();
+      const x = event.clientX - (rect?.left ?? 0);
+      const y = event.clientY - (rect?.top ?? 0);
+      setContextMenu({ x, y, nodeId: node.id, title: node.title });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent && e.key !== 'Escape') return;
+      setContextMenu(null);
+    };
+    window.addEventListener('click', dismiss);
+    window.addEventListener('keydown', dismiss);
+    return () => {
+      window.removeEventListener('click', dismiss);
+      window.removeEventListener('keydown', dismiss);
+    };
+  }, [contextMenu]);
 
   if (filteredNodes.length === 0) {
     return (
@@ -374,37 +466,134 @@ export function RelationWeb({
   if (!ForceGraph2D) return null;
 
   return (
-    <ForceGraph2D
-      ref={fgRef}
-      graphData={graphData as any}
-      width={containerWidth}
-      height={containerHeight}
-      backgroundColor={colors.surfaceCanvas}
-      nodeId="id"
-      nodeCanvasObject={drawNode as any}
-      nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
-        const count = connectionCount.get(node.id) ?? 0;
-        const r = BASE_NODE_RADIUS + Math.min(count * 1.5, 8);
-        ctx.beginPath();
-        ctx.arc(node.x ?? 0, node.y ?? 0, r + 4, 0, 2 * Math.PI);
-        ctx.fillStyle = color;
-        ctx.fill();
-      }}
-      linkCanvasObject={drawLink as any}
-      linkSource="sourceId"
-      linkTarget="targetId"
-      onNodeClick={handleNodeClick as any}
-      onNodeHover={(node: any) => setHoveredNodeId(node?.id ?? null)}
-      onBackgroundClick={handleBackgroundClick}
-      onNodeDragEnd={(node: any) => {
-        node.fx = node.x;
-        node.fy = node.y;
-      }}
-      cooldownTicks={80}
-      enableNodeDrag
-      minZoom={0.3}
-      maxZoom={6}
-    />
+    <View ref={containerRef} style={{ width: containerWidth, height: containerHeight, position: 'relative' }}>
+      <ForceGraph2D
+        ref={fgRef}
+        graphData={graphData as any}
+        width={containerWidth}
+        height={containerHeight}
+        backgroundColor={colors.surfaceCanvas}
+        nodeId="id"
+        nodeCanvasObject={drawNode as any}
+        nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
+          const count = connectionCount.get(node.id) ?? 0;
+          const r = BASE_NODE_RADIUS + Math.min(count * 1.5, 8);
+          ctx.beginPath();
+          ctx.arc(node.x ?? 0, node.y ?? 0, r + 4, 0, 2 * Math.PI);
+          ctx.fillStyle = color;
+          ctx.fill();
+        }}
+        linkCanvasObject={drawLink as any}
+        linkSource="sourceId"
+        linkTarget="targetId"
+        onNodeClick={handleNodeClick as any}
+        onNodeHover={(node: any) => setHoveredNodeId(node?.id ?? null)}
+        onNodeRightClick={handleNodeRightClick as any}
+        onBackgroundClick={handleBackgroundClick}
+        onNodeDragEnd={(node: any) => {
+          node.fx = node.x;
+          node.fy = node.y;
+        }}
+        onEngineStop={pinAllNodes}
+        cooldownTicks={120}
+        enableNodeDrag
+        minZoom={0.3}
+        maxZoom={6}
+      />
+
+      {contextMenu && onHideNode ? (
+        <View
+          style={[
+            styles.contextMenu,
+            { left: contextMenu.x, top: contextMenu.y },
+          ]}
+        >
+          <Pressable
+            style={styles.contextMenuItem}
+            onPress={() => {
+              onHideNode(contextMenu.nodeId);
+              setContextMenu(null);
+            }}
+          >
+            <Icon name="visibility-off" size={16} color={colors.onSurfaceVariant} />
+            <Text variant="body-sm" style={{ color: colors.onSurface }}>
+              Hide from web
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* Reset view — matches map canvas pattern */}
+      <View style={styles.resetBtn} pointerEvents="box-none">
+        <GhostButton label="Reset view" onPress={handleResetView} />
+      </View>
+
+      {/* Legend panel */}
+      <View style={styles.legendContainer}>
+        <Pressable
+          onPress={() => setLegendOpen((v) => !v)}
+          style={styles.legendToggle}
+        >
+          <Icon name="info" size={14} color={colors.onSurfaceVariant} />
+          <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+            {legendOpen ? 'Legend' : 'Legend'}
+          </Text>
+          <Icon
+            name={legendOpen ? 'expand-more' : 'chevron-right'}
+            size={14}
+            color={colors.outline}
+          />
+        </Pressable>
+        {legendOpen ? (
+          <View style={styles.legendBody}>
+            <Text variant="label-sm" style={{ color: colors.outline, marginBottom: 4 }}>
+              NODES
+            </Text>
+            {Object.entries(KIND_COLOR).filter(([k]) => !['organization', 'religion', 'player_character'].includes(k)).map(([kind, clr]) => (
+              <View key={kind} style={styles.legendRow}>
+                <View style={[styles.legendDot, { backgroundColor: clr }]} />
+                <Text variant="body-sm" style={{ color: colors.onSurfaceVariant }}>
+                  {KIND_LABEL[kind] ?? kind}
+                </Text>
+              </View>
+            ))}
+
+            <Text variant="label-sm" style={{ color: colors.outline, marginTop: 8, marginBottom: 4 }}>
+              CONNECTIONS
+            </Text>
+            {LEGEND_EDGES.map(({ src, desc }) => {
+              const s = EDGE_STYLE[src];
+              return (
+                <View key={src} style={{ marginBottom: 4 }}>
+                  <View style={styles.legendRow}>
+                    <View style={styles.legendLineBox}>
+                      <View
+                        style={[
+                          styles.legendLine,
+                          {
+                            backgroundColor: src === 'mention' ? 'transparent' : s.color,
+                            borderBottomColor: src === 'mention' ? s.color : 'transparent',
+                            borderBottomWidth: src === 'mention' ? 1.5 : 0,
+                            borderStyle: src === 'mention' ? 'dashed' : 'solid',
+                            height: src === 'mention' ? 0 : s.width,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text variant="body-sm" style={{ color: colors.onSurfaceVariant }}>
+                      {EDGE_SOURCE_LABEL[src]}
+                    </Text>
+                  </View>
+                  <Text variant="label-sm" style={{ color: colors.outline, paddingLeft: 26 }}>
+                    {desc}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -414,5 +603,82 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceCanvas,
+  },
+  contextMenu: {
+    position: 'absolute',
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+    paddingVertical: 4,
+    minWidth: 180,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+    zIndex: 100,
+  },
+  contextMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  resetBtn: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    zIndex: 2,
+  },
+  legendContainer: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    right: spacing.lg,
+    zIndex: 10,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    overflow: 'hidden',
+  },
+  legendToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  legendBody: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant + '22',
+    paddingTop: 8,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendLineBox: {
+    width: 18,
+    height: 10,
+    justifyContent: 'center',
+  },
+  legendLine: {
+    width: 18,
   },
 });

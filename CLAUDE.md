@@ -45,6 +45,8 @@ Internal packages: `@vaultstone/api`, `@vaultstone/store`, `@vaultstone/types`, 
 
 **PDF reader** — Campaign-side PDF upload + in-app reader at `app/campaign/[id]/rulebook.tsx` and `pdf-viewer.tsx`. Uses `expo-document-picker` + `expo-file-system` (native) / IndexedDB (web) for storage; `react-native-pdf` for the viewer. Read-only — no text extraction or full-text search (those were removed when the imported-content arc shipped). Distinct legal posture from imports: PDFs stay on the uploader's device and never reach Supabase, while imported JSON is server-stored under the importer's pack. See [docs/legal.md](docs/legal.md).
 
+**Split-screen page view** — Web-only. `useSplitPaneStore` (non-persisted Zustand) holds `splitPageId | null`, `splitRatio` (0.2–0.8), and `focusedPane`. The URL-driven `[pageId].tsx` route reads the store and renders `SplitPaneShell.web.tsx` (draggable divider) wrapping two `PagePaneContent` instances when split is active. `PagePaneContent` is the extracted page-kind dispatcher that both panes render — it owns edit locks, mention data, save state, and delegates to the specialized view (Location/NPC/Faction/Timeline/PCStub) or the default generic wiki view. Each pane runs its own heartbeat independently. Entry: right-click sidebar page → "Open in split view".
+
 ---
 
 ## RLS Gotchas (hard-won)
