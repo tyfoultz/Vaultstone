@@ -101,7 +101,7 @@ function insertTableHtmlAtBlock(blockId: string, cols: number, rows: number) {
 }
 
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48];
-const TEXT_COLORS = ['#e2e2e5', '#d3bbff', '#adc6ff', '#1D9E75', '#EF9F27', '#E24B4A', '#f472b6', '#ffffff'];
+const TEXT_COLORS = ['#ffffff', '#d3bbff', '#adc6ff', '#1D9E75', '#EF9F27', '#E24B4A', '#f472b6', '#e2e2e5'];
 const HIGHLIGHT_COLORS = ['transparent', '#6d28d9', '#0566d9', '#1D9E75', '#EF9F27', '#E24B4A', '#713f12', '#334155'];
 
 // ── BlockContent ────────────────────────────────────────────────────────
@@ -514,14 +514,30 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
   }
 
-  const contentHeight = useMemo(() => {
-    let maxBottom = 0;
-    for (const b of blocks) {
-      const blockEl = document.querySelector(`[data-block-id="${b.id}"]`) as HTMLElement | null;
-      const h = blockEl?.offsetHeight ?? 80;
-      maxBottom = Math.max(maxBottom, b.y + h + 40);
+  const [contentHeight, setContentHeight] = useState(0);
+
+  useEffect(() => {
+    function measure() {
+      let maxBottom = 0;
+      for (const b of blocksRef.current) {
+        const blockEl = document.querySelector(`[data-block-id="${b.id}"]`) as HTMLElement | null;
+        const h = blockEl?.offsetHeight ?? 80;
+        maxBottom = Math.max(maxBottom, b.y + h);
+      }
+      setContentHeight(maxBottom + 120);
     }
-    return maxBottom;
+    measure();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ro = new ResizeObserver(measure);
+    canvas.querySelectorAll('.lore-block').forEach((el) => ro.observe(el));
+    const mo = new MutationObserver(() => {
+      ro.disconnect();
+      canvas.querySelectorAll('.lore-block').forEach((el) => ro.observe(el));
+      measure();
+    });
+    mo.observe(canvas, { childList: true });
+    return () => { ro.disconnect(); mo.disconnect(); };
   }, [blocks]);
 
   useEffect(() => {
@@ -1326,6 +1342,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
               left: block.x,
               top: block.y,
               width: block.width,
+              zIndex: draggingId === block.id ? 3 : focusedId === block.id ? 2 : 1,
             }}
             onClick={(e) => {
               const chip = (e.target as HTMLElement).closest?.('.vaultstone-mention') as HTMLElement | null;
@@ -1637,7 +1654,7 @@ function CanvasStyles() {
           .lore-block-handle:active { cursor: grabbing; }
           .lore-block-content {
             outline: none;
-            color: #e0dae8;
+            color: #ffffff;
             font-family: 'CormorantGaramond_400Regular', 'Cormorant Garamond', Georgia, serif;
             font-size: 16px;
             line-height: 1.7;
