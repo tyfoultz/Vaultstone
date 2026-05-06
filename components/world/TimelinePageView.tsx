@@ -203,6 +203,11 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
           actions={
             <>
               <PlayerViewToggle />
+              <VisibilityBadge
+                visibility={page.visible_to_players ? 'player' : 'gm'}
+                interactive={!!toggleVisibility}
+                onPress={toggleVisibility ?? undefined}
+              />
               {isWorldOwner ? (
                 <>
                   <Pressable
@@ -225,7 +230,6 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
                   </Pressable>
                 </>
               ) : null}
-              <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
             </>
           }
         />

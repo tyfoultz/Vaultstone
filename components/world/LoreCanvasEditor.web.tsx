@@ -335,13 +335,25 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
         addResizeHandle(wrapper, img, edge);
       }
 
-      // Drag image via the image itself
-      img.addEventListener('mousedown', (me) => {
+      // Drag image via the image itself (left-button only, with movement threshold)
+      const dragImg = img;
+      dragImg.addEventListener('mousedown', (me) => {
+        if (me.button !== 0) return;
         if ((me.target as HTMLElement).closest('.lore-img-handle')) return;
-        me.preventDefault();
-        me.stopPropagation();
-        onImageDrag(id, img, me.clientX, me.clientY);
-      }, { once: true });
+        const sx = me.clientX, sy = me.clientY;
+        function onMove(mv: MouseEvent) {
+          if (Math.hypot(mv.clientX - sx, mv.clientY - sy) < 4) return;
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          onImageDrag(id, dragImg, mv.clientX, mv.clientY);
+        }
+        function onUp() {
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        }
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      });
     }
 
     el.addEventListener('click', handleImgClick);

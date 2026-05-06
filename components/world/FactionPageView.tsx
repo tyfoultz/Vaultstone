@@ -29,6 +29,7 @@ import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 import {
   Icon,
   Text,
+  VisibilityBadge,
   colors,
   fonts,
   radius,
@@ -40,6 +41,7 @@ import { LoreCanvasEditor } from './LoreCanvasEditor.web';
 import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
 import { PAGE_KIND_LABEL } from './helpers';
+import { usePageVisibilityToggle } from './usePageVisibilityToggle';
 import { worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
 import {
   type PillDef,
@@ -378,6 +380,7 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
   const pendingBodyRef = useRef<{ body: object; bodyText: string; bodyRefs: string[] } | null>(null);
 
   const myUserId = useAuthStore((s) => s.user?.id ?? null);
+  const toggleVisibility = usePageVisibilityToggle(page);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -573,6 +576,11 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
         </View>
         <View style={styles.topBarRight}>
           <PlayerViewToggle />
+          <VisibilityBadge
+            visibility={page.visible_to_players ? 'player' : 'gm'}
+            interactive={!!toggleVisibility}
+            onPress={toggleVisibility ?? undefined}
+          />
           {isWorldOwner ? (
             <Pressable onPress={() => setShareOpen(true)} style={styles.shareBtn}>
               <Icon name="share" size={14} color={colors.onSurfaceVariant} />
