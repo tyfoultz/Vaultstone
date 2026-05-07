@@ -22,6 +22,28 @@ create index if not exists world_members_user_idx
   on world_members(user_id);
 
 -- ─────────────────────────────────────────────────────────────────────────
+-- Security-definer helper — breaks RLS recursion between worlds ↔ world_members.
+-- Only queries world_members (never worlds), so it's safe for policies on
+-- both tables to call.
+-- ─────────────────────────────────────────────────────────────────────────
+
+create or replace function public.is_world_member(p_world_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from world_members wm
+    where wm.world_id = p_world_id
+      and wm.user_id = auth.uid()
+  );
+$$;
+
+grant execute on function public.is_world_member(uuid) to authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────
 -- RLS
 -- ─────────────────────────────────────────────────────────────────────────
 
@@ -50,29 +72,17 @@ create policy world_members_owner_all on world_members
 drop policy if exists world_members_member_select on world_members;
 create policy world_members_member_select on world_members
   for select
-  using (
-    exists (
-      select 1 from world_members wm2
-      where wm2.world_id = world_members.world_id
-        and wm2.user_id = auth.uid()
-    )
-  );
+  using (is_world_member(world_id));
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- Extend worlds SELECT policy to include direct members.
--- Must inline the check (no helper function) to avoid RLS recursion.
+-- Uses the security-definer helper to avoid RLS recursion.
 -- ─────────────────────────────────────────────────────────────────────────
 
 drop policy if exists worlds_member_select on worlds;
 create policy worlds_member_select on worlds
   for select
-  using (
-    exists (
-      select 1 from world_members wm
-      where wm.world_id = worlds.id
-        and wm.user_id = auth.uid()
-    )
-  );
+  using (is_world_member(id));
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- Extend world_sections SELECT to include direct members.
@@ -85,11 +95,7 @@ create policy world_sections_member_select on world_sections
   using (
     deleted_at is null
     and force_hidden_from_players = false
-    and exists (
-      select 1 from world_members wm
-      where wm.world_id = world_sections.world_id
-        and wm.user_id = auth.uid()
-    )
+    and is_world_member(world_id)
   );
 
 -- ─────────────────────────────────────────────────────────────────────────
