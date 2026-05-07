@@ -655,7 +655,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
           <Text style={styles.crumbActive}>{page.title.toUpperCase()}</Text>
         </View>
         <View style={styles.topBarRight}>
-          <PlayerViewToggle />
+          {!isMobile ? <PlayerViewToggle /> : null}
           <VisibilityBadge
             visibility={page.visible_to_players ? 'player' : 'gm'}
             interactive={isWorldOwner}
@@ -664,7 +664,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
           {isWorldOwner ? (
             <Pressable onPress={() => setShareOpen(true)} style={styles.shareBtn}>
               <Icon name="share" size={14} color={colors.onSurfaceVariant} />
-              <Text variant="label-md" uppercase weight="semibold" style={{ color: colors.onSurfaceVariant, letterSpacing: 1, fontSize: 11 }}>Share</Text>
+              {!isMobile ? <Text variant="label-md" uppercase weight="semibold" style={{ color: colors.onSurfaceVariant, letterSpacing: 1, fontSize: 11 }}>Share</Text> : null}
             </Pressable>
           ) : null}
         </View>
