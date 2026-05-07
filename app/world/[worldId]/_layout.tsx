@@ -110,7 +110,26 @@ export default function WorldLayout() {
       setLoading(false);
     });
 
-    const channel = supabase.channel(`world-perms:${worldId}`)
+    return () => {
+      cancelled = true;
+      clearActiveWorld();
+    };
+  }, [
+    session,
+    worldId,
+    lens,
+    setActiveWorld,
+    clearActiveWorld,
+    setLens,
+    setLinkedCampaigns,
+    setSections,
+    setPages,
+  ]);
+
+  useEffect(() => {
+    if (!session || !worldId) return;
+    const name = `world-perms:${worldId}:${Date.now()}`;
+    const channel = supabase.channel(name)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -130,23 +149,8 @@ export default function WorldLayout() {
         usePagesStore.getState().updatePage(row.id, row);
       })
       .subscribe();
-
-    return () => {
-      cancelled = true;
-      supabase.removeChannel(channel);
-      clearActiveWorld();
-    };
-  }, [
-    session,
-    worldId,
-    lens,
-    setActiveWorld,
-    clearActiveWorld,
-    setLens,
-    setLinkedCampaigns,
-    setSections,
-    setPages,
-  ]);
+    return () => { supabase.removeChannel(channel); };
+  }, [session, worldId, setPages]);
 
   if (!session) return null;
 
