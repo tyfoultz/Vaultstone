@@ -57,12 +57,23 @@ export interface OptionalRule {
    *   - 'boolean' — a simple on/off toggle. `default` is true/false.
    *   - 'choice'  — pick one from `choices[]`. `default` is one of
    *                 the choice keys.
+   *   - 'number'  — bounded integer. `default` is a number; `min`
+   *                 and `max` define the inclusive range; `step`
+   *                 controls increments (defaults to 1). Used for
+   *                 things like "starting level" where the value
+   *                 is a count, not a category.
    */
-  type: 'boolean' | 'choice';
+  type: 'boolean' | 'choice' | 'number';
   /** Default state when the campaign / character hasn't set the rule. */
-  default: boolean | string;
+  default: boolean | string | number;
   /** Required when type === 'choice'. Each entry is { key, label }. */
   choices?: Array<{ key: string; label: string }>;
+  /** Required when type === 'number'. Inclusive lower bound. */
+  min?: number;
+  /** Required when type === 'number'. Inclusive upper bound. */
+  max?: number;
+  /** Optional when type === 'number'. Increment step (default 1). */
+  step?: number;
 }
 
 export interface SheetSection {

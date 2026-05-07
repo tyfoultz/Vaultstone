@@ -18,6 +18,17 @@ import type { OptionalRule } from '@vaultstone/types';
 export const optionalRules: OptionalRule[] = [
   // ── Campaign-scoped rules — DM picks once for the whole table ───────────
   {
+    key: 'starting_level',
+    label: 'Starting Level',
+    description:
+      'Level new characters begin at when joining this campaign. Most campaigns start at 1; higher values are useful for one-shots or campaigns continuing an existing arc.',
+    scope: 'campaign',
+    type: 'number',
+    default: 1,
+    min: 1,
+    max: 20,
+  },
+  {
     key: 'customize_origin',
     label: 'Customize Your Origin',
     description:

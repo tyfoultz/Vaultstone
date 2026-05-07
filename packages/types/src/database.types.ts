@@ -78,6 +78,10 @@ export interface Database {
           /** DM-pinned subject image overlaid on the scene. FK to
            *  world_images.id. Null = no subject overlay. */
           subject_image_id: string | null;
+          /** Bag of optional-rule values keyed by rule.key. Read with
+           *  the system's optionalRules definition to know how to
+           *  interpret each value (boolean / choice / number). */
+          character_creation_rules: Json;
           created_at: string;
         };
         Insert: {
@@ -95,6 +99,7 @@ export interface Database {
           next_session_prep_page_id?: string | null;
           scene_image_id?: string | null;
           subject_image_id?: string | null;
+          character_creation_rules?: Json;
           created_at?: string;
         };
         Update: {
@@ -112,6 +117,7 @@ export interface Database {
           next_session_prep_page_id?: string | null;
           scene_image_id?: string | null;
           subject_image_id?: string | null;
+          character_creation_rules?: Json;
         };
         Relationships: [];
       };

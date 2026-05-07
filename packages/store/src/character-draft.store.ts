@@ -40,6 +40,15 @@ export interface CharacterDraft {
   abilityScoreMethod: AbilityScoreMethod;
   abilityScores: Dnd5eAbilityScores | null;
 
+  /**
+   * Level the character starts at. Defaults to 1, but campaign-linked
+   * characters inherit the DM's `starting_level` rule when the wizard
+   * bootstraps (one-shots, mid-campaign joins, etc.). Standalone
+   * characters always start at 1; the wizard doesn't surface a level
+   * picker for those.
+   */
+  startingLevel: number;
+
   // Step 5 — Review & Finalize
   characterName: string;
 
@@ -65,6 +74,7 @@ interface CharacterDraftActions {
   setBackground: (key: string) => void;
   setAbilityScoreMethod: (method: AbilityScoreMethod) => void;
   setAbilityScores: (scores: Dnd5eAbilityScores) => void;
+  setStartingLevel: (level: number) => void;
   setCharacterName: (name: string) => void;
   setCampaignId: (id: string | null) => void;
   setSelectedPackIds: (ids: string[]) => void;
@@ -88,6 +98,7 @@ const INITIAL_DRAFT: CharacterDraft = {
   backgroundKey: null,
   abilityScoreMethod: 'standard_array',
   abilityScores: null,
+  startingLevel: 1,
   characterName: '',
   campaignId: null,
   selectedPackIds: [],
@@ -116,6 +127,8 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
         set({ abilityScoreMethod, abilityScores: null }),
 
       setAbilityScores: (abilityScores) => set({ abilityScores }),
+
+      setStartingLevel: (startingLevel) => set({ startingLevel }),
 
       setCharacterName: (characterName) => set({ characterName }),
 

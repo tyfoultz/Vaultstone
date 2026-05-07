@@ -19,10 +19,14 @@ import {
 import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import {
   supabase, getCampaignMembers, listCampaignPacks,
-  getActiveSession, getSessionParticipants,
+  getActiveSession,
   getWorldsForCampaign,
+  getCampaignCharacterRules,
+  resolveRuleValues,
   type HomebrewPackRow,
 } from '@vaultstone/api';
+import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
+import { CharacterCreationRulesModal } from './CharacterCreationRulesModal';
 import { useAuthStore } from '@vaultstone/store';
 import {
   colors, spacing, radius,
@@ -56,7 +60,14 @@ export function CampaignPageV2({ campaignId }: Props) {
   const [packs, setPacks] = useState<HomebrewPackRow[]>([]);
   const [linkedWorld, setLinkedWorld] = useState<{ id: string; name: string } | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [loadingFlags, setLoadingFlags] = useState({ campaign: true, world: true, members: true });
+  /** Whether the DM has saved character-creation rules at least once.
+   *  The DB column defaults to `{}`, so we treat "any keys present"
+   *  as the explicit-acknowledge gate. The modal saves the full
+   *  resolved set on commit, so post-save the bag always has every
+   *  rule key. */
+  const [rulesSet, setRulesSet] = useState(false);
+  const [rulesModalOpen, setRulesModalOpen] = useState(false);
+  const [loadingFlags, setLoadingFlags] = useState({ campaign: true, world: true, members: true, rules: true });
   // Bumped to refresh derived surfaces (window pane, party list) after
   // a write that affects them (e.g. clear scene, add member).
   const [refreshTick, setRefreshTick] = useState(0);
@@ -119,6 +130,21 @@ export function CampaignPageV2({ campaignId }: Props) {
     return () => { cancelled = true; };
   }, [campaignId, refreshTick]);
 
+  // Read the rules bag — empty object means the DM hasn't saved
+  // yet (the migration default), any keys means they have. Bumped
+  // by `refreshTick` so the modal's Save callback can re-trigger
+  // the read instead of needing to mirror state up.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await getCampaignCharacterRules(campaignId);
+      if (cancelled) return;
+      setRulesSet(!!data && Object.keys(data).length > 0);
+      setLoadingFlags((f) => ({ ...f, rules: false }));
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId, refreshTick]);
+
   // Active-session state — refresh on focus so navigating back from
   // /combat or /sessions reflects an end-session correctly.
   useFocusEffect(
@@ -134,17 +160,16 @@ export function CampaignPageV2({ campaignId }: Props) {
   );
 
   // ── Phase derivation ─────────────────────────────────────────────
-  // Setup is complete when: world linked, character-creation rules
-  // set. Packs are optional. Until the rules feature ships, treat
-  // "rules set" as always true so packed-but-no-rules campaigns
-  // don't get stuck in Setup forever.
-  const charRulesSet = true; // TODO: wire when char-creation rules land
-  const setupComplete = !!linkedWorld && charRulesSet;
+  // Setup is complete when world is linked AND the DM has saved
+  // character-creation rules at least once. Packs are optional —
+  // SRD-only campaigns are valid.
+  const setupComplete = !!linkedWorld && rulesSet;
   const phase: Phase = !setupComplete ? 'setup'
     : activeSessionId ? 'in-session'
     : 'open';
 
-  const stillLoading = loadingFlags.campaign || loadingFlags.world || loadingFlags.members;
+  const stillLoading =
+    loadingFlags.campaign || loadingFlags.world || loadingFlags.members || loadingFlags.rules;
 
   if (stillLoading || !campaign) {
     return (
@@ -190,8 +215,9 @@ export function CampaignPageV2({ campaignId }: Props) {
             isDM={isDM}
             world={linkedWorld}
             packCount={packs.length}
-            charRulesSet={charRulesSet}
+            rulesSet={rulesSet}
             campaignId={campaign.id}
+            onConfigureRules={() => setRulesModalOpen(true)}
           />
         ) : null}
 
@@ -225,10 +251,29 @@ export function CampaignPageV2({ campaignId }: Props) {
             <ReferencesCard
               world={linkedWorld}
               packs={packs}
+              rulesSet={rulesSet}
+              onConfigureRules={() => setRulesModalOpen(true)}
             />
           </>
         ) : null}
       </View>
+
+      {/* DM-only rules editor. Mounted at the page level so both
+          the setup checklist and the references row can open it
+          via the same callback. Wraps refreshTick++ on save so
+          the page re-reads the bag and the gate flips. */}
+      {isDM && rulesModalOpen ? (() => {
+        const sys = BUNDLED_SYSTEMS_BY_ID[campaign.system];
+        if (!sys) return null;
+        return (
+          <CharacterCreationRulesModal
+            campaignId={campaign.id}
+            system={sys}
+            onClose={() => setRulesModalOpen(false)}
+            onSaved={() => setRefreshTick((n) => n + 1)}
+          />
+        );
+      })() : null}
     </ScrollView>
   );
 }
@@ -286,14 +331,16 @@ function SetupChecklist({
   isDM,
   world,
   packCount,
-  charRulesSet,
+  rulesSet,
   campaignId,
+  onConfigureRules,
 }: {
   isDM: boolean;
   world: { id: string; name: string } | null;
   packCount: number;
-  charRulesSet: boolean;
+  rulesSet: boolean;
   campaignId: string;
+  onConfigureRules: () => void;
 }) {
   const router = useRouter();
   if (!isDM) {
@@ -340,17 +387,15 @@ function SetupChecklist({
         onPress={() => router.push(`/campaign/${campaignId}` as Href)}
       />
       <ChecklistItem
-        done={charRulesSet}
+        done={rulesSet}
         title="Set character creation rules"
         body={
-          charRulesSet
-            ? 'Defaults applied. You can edit anytime.'
-            : 'Decide starting level, ability score method, allowed sources.'
+          rulesSet
+            ? 'Saved — players will use these settings during character creation.'
+            : 'Decide starting level, ability score method, multiclassing, and other knobs.'
         }
-        cta={charRulesSet ? 'Edit rules' : 'Configure'}
-        onPress={() => {
-          // TODO: route to character-rules editor when that lands
-        }}
+        cta={rulesSet ? 'Edit rules' : 'Configure'}
+        onPress={onConfigureRules}
       />
     </Card>
   );
@@ -603,9 +648,13 @@ function RecentActivityCard({ campaignId }: { campaignId: string }) {
 function ReferencesCard({
   world,
   packs,
+  rulesSet,
+  onConfigureRules,
 }: {
   world: { id: string; name: string } | null;
   packs: HomebrewPackRow[];
+  rulesSet: boolean;
+  onConfigureRules: () => void;
 }) {
   const router = useRouter();
   return (
@@ -631,11 +680,9 @@ function ReferencesCard({
         />
         <ReferenceRow
           label="Character rules"
-          value="Defaults"
+          value={rulesSet ? 'Configured' : 'Not set'}
           ctaIcon="tune"
-          onPress={() => {
-            // TODO: routes to character rules editor when that lands
-          }}
+          onPress={onConfigureRules}
         />
       </View>
     </Card>
