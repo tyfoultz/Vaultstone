@@ -104,17 +104,27 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   // Fetch packs + both entry tables in parallel. Authored homebrew lives
   // in homebrew_content; JSON imports live in imported_content. They share
   // the same homebrew_packs parent. All RLS-gated.
-  const [packsRes, authoredRes, importedRes] = await Promise.all([
+  //
+  // Both entry tables paginate because Supabase's default `.select()`
+  // caps responses at 1000 rows. A full 2024 PHB import (bestiary +
+  // items + spells + classes + ...) easily exceeds 1700 rows, so without
+  // pagination the resolver silently dropped imported entries and the
+  // system tabs / character wizard saw a truncated catalog.
+  const [packsRes, authored, imported] = await Promise.all([
     supabase.from('homebrew_packs').select('id, owner_user_id, system, name'),
-    supabase.from('homebrew_content').select('id, user_id, pack_id, content_type, name, data'),
-    supabase.from('imported_content').select('id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page'),
+    fetchAllPaginated<HomebrewContentRow>(
+      'homebrew_content',
+      'id, user_id, pack_id, content_type, name, data',
+    ),
+    fetchAllPaginated<ImportedContentRow>(
+      'imported_content',
+      'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
+    ),
   ]);
 
-  if (packsRes.error || authoredRes.error || importedRes.error) return [];
+  if (packsRes.error || authored === null || imported === null) return [];
 
   const packs = (packsRes.data ?? []) as HomebrewPackRow[];
-  const authored = (authoredRes.data ?? []) as HomebrewContentRow[];
-  const imported = (importedRes.data ?? []) as ImportedContentRow[];
   const packById = new Map(packs.map((p) => [p.id, p]));
 
   const results: ContentResult[] = [];
@@ -152,11 +162,42 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
 }
 
 /**
+ * Fetch every row from a Supabase table the caller can read, paginating
+ * past the default 1000-row response cap. Returns `null` on any error
+ * so the caller can short-circuit to "no homebrew" rather than render a
+ * partial catalog. The select shape is caller-supplied because the two
+ * entry tables we read (homebrew_content, imported_content) project
+ * different columns.
+ */
+async function fetchAllPaginated<T>(
+  table: 'homebrew_content' | 'imported_content',
+  select: string,
+): Promise<T[] | null> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(select)
+      .range(offset, offset + PAGE - 1);
+    if (error) return null;
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+/**
  * Convert a raw homebrew_content row + its parent pack into the matching
  * `*Result` shape. Returns null for unknown content types so unsupported
  * payloads don't crash the resolver.
+ *
+ * Exported so the pack detail page can hydrate its own row fetches into
+ * the same shapes the SRD/imported tiers use, then pump them through
+ * the shared content-table list components.
  */
-function mapEntryToResult(
+export function mapEntryToResult(
   entry: HomebrewContentRow,
   pack: HomebrewPackRow,
 ): ContentResult | null {
@@ -303,7 +344,7 @@ function mapEntryToResult(
  * a bundled SRD entry and an imported one — and so the source-book badge
  * shows the imported source (e.g. "PHB"), not the pack name.
  */
-function mapImportedEntryToResult(
+export function mapImportedEntryToResult(
   entry: ImportedContentRow,
   pack: HomebrewPackRow,
 ): ContentResult | null {

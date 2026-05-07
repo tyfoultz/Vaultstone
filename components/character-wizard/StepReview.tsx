@@ -96,7 +96,7 @@ export function StepReview() {
         <RevRow
           label="Ruleset"
           value={draft.srdVersion === 'SRD_2.0' ? 'D&D 5e 2024' : 'D&D 5e 2014'}
-          detail={draft.srdVersion === 'SRD_2.0' ? 'SRD 2.0' : 'SRD 5.1'}
+          detail={draft.srdVersion === 'SRD_2.0' ? 'SRD 2024' : 'SRD 2014'}
         />
         <RevRow label="Species" value={species?.name ?? draft.speciesKey ?? '—'} detail={species ? `${species.size} · ${species.speed} ft` : undefined} />
         <RevRow label="Class" value={cls?.name ?? draft.classKey ?? '—'} detail={cls ? `d${cls.hitDie} hit die` : undefined} />

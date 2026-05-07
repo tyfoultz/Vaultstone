@@ -79,7 +79,7 @@ export interface HomebrewCreatureData {
 // inside `magicItemKind` for category='magic-item'.
 // ─────────────────────────────────────────────────────────────────────────
 export interface HomebrewItemData {
-  category: 'weapon' | 'armor' | 'shield' | 'adventuring-gear' | 'magic-item' | 'crafting-equipment';
+  category: 'weapon' | 'armor' | 'shield' | 'adventuring-gear' | 'magic-item';
   /** Sub-category for magic items: wand, ring, potion, scroll, wondrous-item, etc. */
   magicItemKind?: string;
   rarity?: 'common' | 'uncommon' | 'rare' | 'very-rare' | 'legendary' | 'artifact';

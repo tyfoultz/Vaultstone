@@ -20,7 +20,6 @@ const CATEGORIES: Array<{ key: HomebrewItemData['category']; label: string }> = 
   { key: 'shield',              label: 'Shield' },
   { key: 'adventuring-gear',    label: 'Adv. Gear' },
   { key: 'magic-item',          label: 'Magic Item' },
-  { key: 'crafting-equipment',  label: 'Crafting' },
 ];
 
 const RARITIES: Array<{ key: NonNullable<HomebrewItemData['rarity']>; label: string }> = [

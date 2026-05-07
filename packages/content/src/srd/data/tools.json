@@ -1,22 +1,1600 @@
 [
-  { "key": "alchemists-supplies",     "name": "Alchemist's Supplies",     "type": "tool", "tier": "srd", "system": "dnd5e", "category": "artisan",            "cost": { "amount": 50, "currency": "gp" }, "weight": 8, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Vials, beakers, and reagents used to identify potions, brew acid or alchemist's fire, and craft mundane potions.", "data": {} },
-  { "key": "brewers-supplies",        "name": "Brewer's Supplies",        "type": "tool", "tier": "srd", "system": "dnd5e", "category": "artisan",            "cost": { "amount": 20, "currency": "gp" }, "weight": 9, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "The tools and ingredients of brewing — used for crafting beverages, identifying ales, and similar tasks.", "data": {} },
-  { "key": "calligraphers-supplies",  "name": "Calligrapher's Supplies",  "type": "tool", "tier": "srd", "system": "dnd5e", "category": "artisan",            "cost": { "amount": 10, "currency": "gp" }, "weight": 5, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Quills, ink, and parchment for fine letterwork — forging documents, decoding scripts, identifying scribal work.", "data": {} },
-  { "key": "carpenters-tools",        "name": "Carpenter's Tools",        "type": "tool", "tier": "srd", "system": "dnd5e", "category": "artisan",            "cost": { "amount": 8,  "currency": "gp" }, "weight": 6, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Saws, chisels, hammers, and nails for building wooden structures and crafting wooden items.", "data": {} },
-  { "key": "cooks-utensils",          "name": "Cook's Utensils",          "type": "tool", "tier": "srd", "system": "dnd5e", "category": "artisan",            "cost": { "amount": 1,  "currency": "gp" }, "weight": 8, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Pots, pans, and a fire kit for preparing meals — a key part of long-rest morale on the road.", "data": {} },
-  { "key": "leatherworkers-tools",    "name": "Leatherworker's Tools",    "type": "tool", "tier": "srd", "system": "dnd5e", "category": "artisan",            "cost": { "amount": 5,  "currency": "gp" }, "weight": 5, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Edged tools, mallets, and an awl for crafting leather goods — armor, scabbards, packs.", "data": {} },
-  { "key": "smiths-tools",            "name": "Smith's Tools",            "type": "tool", "tier": "srd", "system": "dnd5e", "category": "artisan",            "cost": { "amount": 20, "currency": "gp" }, "weight": 8, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Hammer, tongs, and an anvil for shaping metal — repairing weapons and armor, identifying their construction.", "data": {} },
-  { "key": "tinkers-tools",           "name": "Tinker's Tools",           "type": "tool", "tier": "srd", "system": "dnd5e", "category": "artisan",            "cost": { "amount": 50, "currency": "gp" }, "weight": 10, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "A jumble of small mechanical parts and engineering tools used to repair locks and construct ad-hoc devices.", "data": {} },
-  { "key": "weavers-tools",           "name": "Weaver's Tools",           "type": "tool", "tier": "srd", "system": "dnd5e", "category": "artisan",            "cost": { "amount": 1,  "currency": "gp" }, "weight": 5, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "A small loom, needles, and thread for crafting cloth, repairing garments, and identifying textiles.", "data": {} },
-  { "key": "thieves-tools",           "name": "Thieves' Tools",           "type": "tool", "tier": "srd", "system": "dnd5e", "category": "other",              "cost": { "amount": 25, "currency": "gp" }, "weight": 1, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Lockpicks, an etched mirror, narrow-bladed scissors. Used to pick locks, disarm traps, and similar acts of larceny.", "data": {} },
-  { "key": "herbalism-kit",           "name": "Herbalism Kit",            "type": "tool", "tier": "srd", "system": "dnd5e", "category": "other",              "cost": { "amount": 5,  "currency": "gp" }, "weight": 3, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Pouches and instruments for working with plants — identify, brew potions of healing, craft antitoxin.", "data": {} },
-  { "key": "navigators-tools",        "name": "Navigator's Tools",        "type": "tool", "tier": "srd", "system": "dnd5e", "category": "other",              "cost": { "amount": 25, "currency": "gp" }, "weight": 2, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "A sextant, compass, calipers, and similar instruments for plotting a course at sea or in the air.", "data": {} },
-  { "key": "poisoners-kit",           "name": "Poisoner's Kit",           "type": "tool", "tier": "srd", "system": "dnd5e", "category": "other",              "cost": { "amount": 50, "currency": "gp" }, "weight": 2, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Vials, chemicals, and equipment for crafting poisons. Many regions outlaw possession outright.", "data": {} },
-  { "key": "dice-set",                "name": "Dice Set",                 "type": "tool", "tier": "srd", "system": "dnd5e", "category": "gaming-set",         "cost": { "amount": 1,  "currency": "sp" }, "weight": 0, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "A small set of bone or wooden dice. Proficiency is most often used in social games of chance.", "data": {} },
-  { "key": "playing-card-set",        "name": "Playing Card Set",         "type": "tool", "tier": "srd", "system": "dnd5e", "category": "gaming-set",         "cost": { "amount": 5,  "currency": "sp" }, "weight": 0, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "A deck of playing cards. Useful for gambling, sleight of hand displays, and divinatory parlor tricks.", "data": {} },
-  { "key": "drum",                    "name": "Drum",                     "type": "tool", "tier": "srd", "system": "dnd5e", "category": "musical-instrument", "cost": { "amount": 6,  "currency": "gp" }, "weight": 3, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Hand-held percussion. Bards may use it as a spell focus.", "data": {} },
-  { "key": "flute",                   "name": "Flute",                    "type": "tool", "tier": "srd", "system": "dnd5e", "category": "musical-instrument", "cost": { "amount": 2,  "currency": "gp" }, "weight": 1, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Wooden wind instrument. A common bardic focus.", "data": {} },
-  { "key": "lute",                    "name": "Lute",                     "type": "tool", "tier": "srd", "system": "dnd5e", "category": "musical-instrument", "cost": { "amount": 35, "currency": "gp" }, "weight": 2, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Stringed instrument iconic to traveling bards. May serve as a spell focus.", "data": {} },
-  { "key": "lyre",                    "name": "Lyre",                     "type": "tool", "tier": "srd", "system": "dnd5e", "category": "musical-instrument", "cost": { "amount": 30, "currency": "gp" }, "weight": 2, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "Small harp-like instrument with a smaller, sweeter tone than a full harp.", "data": {} },
-  { "key": "horn",                    "name": "Horn",                     "type": "tool", "tier": "srd", "system": "dnd5e", "category": "musical-instrument", "cost": { "amount": 3,  "currency": "gp" }, "weight": 2, "srdVersions": ["SRD_5.1", "SRD_2.0"], "description": "A small brass horn for carrying tunes or marshaling allies on a battlefield.", "data": {} }
+  {
+    "key": "alchemist-s-supplies-srd-2-0",
+    "name": "Alchemist's Supplies",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 8,
+    "ability": "Intelligence",
+    "utilize": [
+      "Identify a substance (DC 15)",
+      "start a fire (DC 15)"
+    ],
+    "craft": [
+      "Acid",
+      "Alchemist's Fire",
+      "Component Pouch",
+      "Oil",
+      "Paper",
+      "Perfume"
+    ],
+    "data": {}
+  },
+  {
+    "key": "brewer-s-supplies-srd-2-0",
+    "name": "Brewer's Supplies",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 20,
+      "currency": "gp"
+    },
+    "weight": 9,
+    "ability": "Intelligence",
+    "utilize": [
+      "Detect poisoned drink (DC 15)",
+      "identify alcohol (DC 10)"
+    ],
+    "craft": [
+      "Antitoxin"
+    ],
+    "data": {}
+  },
+  {
+    "key": "calligrapher-s-supplies-srd-2-0",
+    "name": "Calligrapher's Supplies",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "ability": "Dexterity",
+    "utilize": [
+      "Write text with impressive flourishes that guard against forgery (DC 15)"
+    ],
+    "craft": [
+      "Ink",
+      "*Spell Scroll*"
+    ],
+    "data": {}
+  },
+  {
+    "key": "carpenter-s-tools-srd-2-0",
+    "name": "Carpenter's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 8,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "ability": "Strength",
+    "utilize": [
+      "Seal",
+      "pry open a door",
+      "container (DC 20)"
+    ],
+    "craft": [
+      "Club",
+      "Greatclub",
+      "Quarterstaff",
+      "Barrel",
+      "Chest",
+      "Ladder",
+      "Pole",
+      "Portable Ram",
+      "Torch"
+    ],
+    "data": {}
+  },
+  {
+    "key": "cartographer-s-tools-srd-2-0",
+    "name": "Cartographer's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "ability": "Wisdom",
+    "utilize": [
+      "Draft a map of a small area (DC 15)"
+    ],
+    "craft": [
+      "Map"
+    ],
+    "data": {}
+  },
+  {
+    "key": "cobbler-s-tools-srd-2-0",
+    "name": "Cobbler's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "ability": "Dexterity",
+    "utilize": [
+      "Modify footwear to give Advantage on the wearer's next Dexterity (Acrobatics) check (DC 10)"
+    ],
+    "craft": [
+      "Climber's Kit"
+    ],
+    "data": {}
+  },
+  {
+    "key": "cook-s-utensils-srd-2-0",
+    "name": "Cook's Utensils",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 8,
+    "ability": "Wisdom",
+    "utilize": [
+      "Improve food's flavor (DC 10)",
+      "detect spoiled",
+      "poisoned food (DC 15)"
+    ],
+    "craft": [
+      "Rations"
+    ],
+    "data": {}
+  },
+  {
+    "key": "glassblower-s-tools-srd-2-0",
+    "name": "Glassblower's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "ability": "Intelligence",
+    "utilize": [
+      "Discern what a glass object held in the past 24 hours (DC 15)"
+    ],
+    "craft": [
+      "Glass Bottle",
+      "Magnifying Glass",
+      "Spyglass",
+      "Vial"
+    ],
+    "data": {}
+  },
+  {
+    "key": "jeweler-s-tools-srd-2-0",
+    "name": "Jeweler's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "ability": "Intelligence",
+    "utilize": [
+      "Discern a gem's value (DC 15)"
+    ],
+    "craft": [
+      "Arcane Focus",
+      "Holy Symbol"
+    ],
+    "data": {}
+  },
+  {
+    "key": "leatherworker-s-tools-srd-2-0",
+    "name": "Leatherworker's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "ability": "Dexterity",
+    "utilize": [
+      "Add a design to a leather item (DC 10)"
+    ],
+    "craft": [
+      "Sling",
+      "Whip",
+      "Hide Armor",
+      "Leather Armor",
+      "Studded Leather Armor",
+      "Backpack",
+      "Crossbow Bolt Case",
+      "Map",
+      "Scroll Case",
+      "Parchment",
+      "Pouch",
+      "Quiver",
+      "Waterskin"
+    ],
+    "data": {}
+  },
+  {
+    "key": "mason-s-tools-srd-2-0",
+    "name": "Mason's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 8,
+    "ability": "Strength",
+    "utilize": [
+      "Chisel a symbol",
+      "hole in stone (DC 10)"
+    ],
+    "craft": [
+      "Block and Tackle"
+    ],
+    "data": {}
+  },
+  {
+    "key": "painter-s-supplies-srd-2-0",
+    "name": "Painter's Supplies",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "ability": "Wisdom",
+    "utilize": [
+      "Paint a recognizable image of something you've seen (DC 10)"
+    ],
+    "craft": [
+      "Druidic Focus",
+      "Holy Symbol"
+    ],
+    "data": {}
+  },
+  {
+    "key": "potter-s-tools-srd-2-0",
+    "name": "Potter's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "ability": "Intelligence",
+    "utilize": [
+      "Discern what a ceramic object held in the past 24 hours (DC 15)"
+    ],
+    "craft": [
+      "Jug",
+      "Lamp"
+    ],
+    "data": {}
+  },
+  {
+    "key": "smith-s-tools-srd-2-0",
+    "name": "Smith's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 20,
+      "currency": "gp"
+    },
+    "weight": 8,
+    "ability": "Strength",
+    "utilize": [
+      "Pry open a door",
+      "container (DC 20)"
+    ],
+    "craft": [
+      "Any Melee weapon (except Club",
+      "Greatclub",
+      "Quarterstaff",
+      "and Whip)",
+      "Medium armor (except Hide)",
+      "Heavy armor",
+      "Ball Bearings",
+      "Bucket",
+      "Caltrops",
+      "Chain",
+      "Crowbar",
+      "Firearm Bullets",
+      "Grappling Hook",
+      "Iron Pot",
+      "Iron Spikes",
+      "Sling Bullets"
+    ],
+    "data": {}
+  },
+  {
+    "key": "tinker-s-tools-srd-2-0",
+    "name": "Tinker's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "ability": "Dexterity",
+    "utilize": [
+      "Assemble a Tiny item composed of scrap",
+      "which falls apart in 1 minute (DC 20)"
+    ],
+    "craft": [
+      "Musket",
+      "Pistol",
+      "Bell",
+      "Bullseye Lantern",
+      "Flask",
+      "Hooded Lantern",
+      "Hunting Trap",
+      "Lock",
+      "Manacles",
+      "Mirror",
+      "Shovel",
+      "Signal Whistle",
+      "Tinderbox"
+    ],
+    "data": {}
+  },
+  {
+    "key": "weaver-s-tools-srd-2-0",
+    "name": "Weaver's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "ability": "Dexterity",
+    "utilize": [
+      "Mend a tear in clothing (DC 10)",
+      "sew a Tiny design (DC 10)"
+    ],
+    "craft": [
+      "Padded Armor",
+      "Basket",
+      "Bedroll",
+      "Blanket",
+      "Fine Clothes",
+      "Net",
+      "Robe",
+      "Rope",
+      "Sack",
+      "String",
+      "Tent",
+      "Traveler's Clothes"
+    ],
+    "data": {}
+  },
+  {
+    "key": "woodcarver-s-tools-srd-2-0",
+    "name": "Woodcarver's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "ability": "Dexterity",
+    "utilize": [
+      "Carve a pattern in wood (DC 10)"
+    ],
+    "craft": [
+      "Club",
+      "Greatclub",
+      "Quarterstaff",
+      "Ranged weapons (except Pistol",
+      "Musket",
+      "and Sling)",
+      "Arcane Focus",
+      "Arrows",
+      "Bolts",
+      "Druidic Focus",
+      "Ink Pen",
+      "Needles"
+    ],
+    "data": {}
+  },
+  {
+    "key": "alchemist-s-supplies-srd-5-1",
+    "name": "Alchemist's Supplies",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 8,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "brewer-s-supplies-srd-5-1",
+    "name": "Brewer's Supplies",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 20,
+      "currency": "gp"
+    },
+    "weight": 9,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "carpenter-s-tools-srd-5-1",
+    "name": "Carpenter's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 8,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "cartographer-s-tools-srd-5-1",
+    "name": "Cartographer's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "cobbler-s-tools-srd-5-1",
+    "name": "Cobbler's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "glassblower-s-tools-srd-5-1",
+    "name": "Glassblower's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "jeweler-s-tools-srd-5-1",
+    "name": "Jeweler's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "leatherworker-s-tools-srd-5-1",
+    "name": "Leatherworker's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "mason-s-tools-srd-5-1",
+    "name": "Mason's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 8,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "painter-s-supplies-srd-5-1",
+    "name": "Painter's Supplies",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "artisan",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "dice-srd-2-0",
+    "name": "Dice",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "gaming-set",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "ability": "Wisdom",
+    "utilize": [
+      "Discern whether someone is cheating (DC 10)",
+      "win the game (DC 20)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "dragonchess-srd-2-0",
+    "name": "Dragonchess",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "gaming-set",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "ability": "Intelligence",
+    "utilize": [
+      "Discern an opponent's mood and intentions (DC 15)",
+      "win the game (DC 20)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "playing-cards-srd-2-0",
+    "name": "Playing Cards",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "gaming-set",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "ability": "Charisma",
+    "utilize": [
+      "Discern an opponent's mood and intentions (DC 15)",
+      "win the game (DC 20)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "three-dragon-ante-srd-2-0",
+    "name": "Three-Dragon Ante",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "gaming-set",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "ability": "Charisma",
+    "utilize": [
+      "Discern an opponent's mood and intentions (DC 15)",
+      "win the game (DC 20)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "bagpipes-srd-2-0",
+    "name": "Bagpipes",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "ability": "Charisma",
+    "utilize": [
+      "Identify a musical piece (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "drum-srd-2-0",
+    "name": "Drum",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 6,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "ability": "Charisma",
+    "utilize": [
+      "Identify a musical piece (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "dulcimer-srd-2-0",
+    "name": "Dulcimer",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "ability": "Charisma",
+    "utilize": [
+      "Identify a musical piece (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "flute-srd-2-0",
+    "name": "Flute",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "ability": "Charisma",
+    "utilize": [
+      "Identify a musical piece (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "horn-srd-2-0",
+    "name": "Horn",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 3,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "ability": "Charisma",
+    "utilize": [
+      "Identify a musical piece (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "lute-srd-2-0",
+    "name": "Lute",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 35,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "ability": "Charisma",
+    "utilize": [
+      "Identify a musical piece (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "lyre-srd-2-0",
+    "name": "Lyre",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "ability": "Charisma",
+    "utilize": [
+      "Identify a musical piece (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "pan-flute-srd-2-0",
+    "name": "Pan Flute",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 12,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "ability": "Charisma",
+    "utilize": [
+      "Identify a musical piece (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "shawm-srd-2-0",
+    "name": "Shawm",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "ability": "Charisma",
+    "utilize": [
+      "Identify a musical piece (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "viol-srd-2-0",
+    "name": "Viol",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "ability": "Charisma",
+    "utilize": [
+      "Identify a musical piece (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "bagpipes-srd-5-1",
+    "name": "Bagpipes",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "description": "Several of the most common types of musical instruments are shown on the table as examples. If you have proficiency with a given musical instrument, you can add your proficiency bonus to any ability checks you make to play music with the instrument. A bard can use a musical instrument as a spellcasting focus. Each type of musical instrument requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "drum-srd-5-1",
+    "name": "Drum",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 6,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "Several of the most common types of musical instruments are shown on the table as examples. If you have proficiency with a given musical instrument, you can add your proficiency bonus to any ability checks you make to play music with the instrument. A bard can use a musical instrument as a spellcasting focus. Each type of musical instrument requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "dulcimer-srd-5-1",
+    "name": "Dulcimer",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "description": "Several of the most common types of musical instruments are shown on the table as examples. If you have proficiency with a given musical instrument, you can add your proficiency bonus to any ability checks you make to play music with the instrument. A bard can use a musical instrument as a spellcasting focus. Each type of musical instrument requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "flute-srd-5-1",
+    "name": "Flute",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Several of the most common types of musical instruments are shown on the table as examples. If you have proficiency with a given musical instrument, you can add your proficiency bonus to any ability checks you make to play music with the instrument. A bard can use a musical instrument as a spellcasting focus. Each type of musical instrument requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "horn-srd-5-1",
+    "name": "Horn",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 3,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "Several of the most common types of musical instruments are shown on the table as examples. If you have proficiency with a given musical instrument, you can add your proficiency bonus to any ability checks you make to play music with the instrument. A bard can use a musical instrument as a spellcasting focus. Each type of musical instrument requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "lute-srd-5-1",
+    "name": "Lute",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 35,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "Several of the most common types of musical instruments are shown on the table as examples. If you have proficiency with a given musical instrument, you can add your proficiency bonus to any ability checks you make to play music with the instrument. A bard can use a musical instrument as a spellcasting focus. Each type of musical instrument requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "lyre-srd-5-1",
+    "name": "Lyre",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "Several of the most common types of musical instruments are shown on the table as examples. If you have proficiency with a given musical instrument, you can add your proficiency bonus to any ability checks you make to play music with the instrument. A bard can use a musical instrument as a spellcasting focus. Each type of musical instrument requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "shawm-srd-5-1",
+    "name": "Shawm",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 2,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Several of the most common types of musical instruments are shown on the table as examples. If you have proficiency with a given musical instrument, you can add your proficiency bonus to any ability checks you make to play music with the instrument. A bard can use a musical instrument as a spellcasting focus. Each type of musical instrument requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "viol-srd-5-1",
+    "name": "Viol",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "musical-instrument",
+    "cost": {
+      "amount": 30,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "Several of the most common types of musical instruments are shown on the table as examples. If you have proficiency with a given musical instrument, you can add your proficiency bonus to any ability checks you make to play music with the instrument. A bard can use a musical instrument as a spellcasting focus. Each type of musical instrument requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "climber-s-kit-srd-2-0",
+    "name": "Climber's Kit",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 12,
+    "description": "A Climber's Kit includes boot tips, gloves, pitons, and a harness. As a Utilize action, you can use the Climber's Kit to anchor yourself; when you do, you can't fall more than 25 feet from the anchor point, and you can't move more than 25 feet from there without undoing the anchor as a Bonus Action.",
+    "data": {}
+  },
+  {
+    "key": "disguise-kit-srd-2-0",
+    "name": "Disguise Kit",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "ability": "Charisma",
+    "utilize": [
+      "Apply makeup (DC 10)"
+    ],
+    "craft": [
+      "Costume"
+    ],
+    "data": {}
+  },
+  {
+    "key": "forgery-kit-srd-2-0",
+    "name": "Forgery Kit",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "ability": "Dexterity",
+    "utilize": [
+      "Mimic 10",
+      "fewer words of someone else's handwriting (DC 15)",
+      "duplicate a wax seal (DC 20)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "healer-s-kit-srd-2-0",
+    "name": "Healer's Kit",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "A Healer's Kit has ten uses. As a Utilize action, you can expend one of its uses to stabilize an Unconscious creature that has 0 Hit Points without needing to make a Wisdom (Medicine) check.",
+    "data": {}
+  },
+  {
+    "key": "herbalism-kit-srd-2-0",
+    "name": "Herbalism Kit",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "ability": "Intelligence",
+    "utilize": [
+      "Identify a plant (DC 15)"
+    ],
+    "craft": [
+      "Antitoxin",
+      "Potion of Healing"
+    ],
+    "data": {}
+  },
+  {
+    "key": "navigator-s-tools-srd-2-0",
+    "name": "Navigator's Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "ability": "Wisdom",
+    "utilize": [
+      "Plot a course (DC 15)",
+      "determine position (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "poisoner-s-kit-srd-2-0",
+    "name": "Poisoner's Kit",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "ability": "Intelligence",
+    "utilize": [
+      "Detect a poisoned object (DC 10)"
+    ],
+    "craft": [
+      "Basic Poison"
+    ],
+    "data": {}
+  },
+  {
+    "key": "thieves-tools-srd-2-0",
+    "name": "Thieves' Tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "ability": "Dexterity",
+    "utilize": [
+      "Pick a lock (DC 15)",
+      "disarm a trap (DC 15)"
+    ],
+    "data": {}
+  },
+  {
+    "key": "calligrapher-s-supplies-srd-5-1",
+    "name": "Calligrapher's supplies",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "cook-s-utensils-srd-5-1",
+    "name": "Cook's utensils",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 8,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "dice-set-srd-5-1",
+    "name": "Dice set",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 1,
+      "currency": "sp"
+    },
+    "description": "This item encompasses a wide range of game pieces, including dice and decks of cards (for games such as Three-­‐‑Dragon Ante). A few common examples appear on the Tools table, but other kinds of gaming sets exist. If you are proficient with a gaming set, you can add your proficiency bonus to ability checks you make to play a game with that set. Each type of gaming set requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "disguise-kit-srd-5-1",
+    "name": "Disguise kit",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "This pouch of cosmetics, hair dye, and small props lets you create disguises that change your physical appearance. Proficiency with this kit lets you add your proficiency bonus to any ability checks you make to create a visual disguise.",
+    "data": {}
+  },
+  {
+    "key": "forgery-kit-srd-5-1",
+    "name": "Forgery kit",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 15,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "This small box contains a variety of papers and parchments, pens and inks, seals and sealing wax, gold and silver leaf, and other supplies necessary to create convincing forgeries of physical documents. \\n\\nProficiency with this kit lets you add your proficiency bonus to any ability checks you make to create a physical forgery of a document.",
+    "data": {}
+  },
+  {
+    "key": "herbalism-kit-srd-5-1",
+    "name": "Herbalism Kit",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "This kit contains a variety of instruments such as clippers, mortar and pestle, and pouches and vials used by herbalists to create remedies and potions. Proficiency with this kit lets you add your proficiency bonus to any ability checks you make to identify or apply herbs. Also, proficiency with this kit is required to create antitoxin and potions of healing.",
+    "data": {}
+  },
+  {
+    "key": "navigator-s-tools-srd-5-1",
+    "name": "Navigator's tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "This set of instruments is used for navigation at sea. Proficiency with navigator's tools lets you chart a ship's course and follow navigation charts. In addition, these tools allow you to add your proficiency bonus to any ability check you make to avoid getting lost at sea.",
+    "data": {}
+  },
+  {
+    "key": "pan-flute-srd-5-1",
+    "name": "Pan flute",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 12,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "Several of the most common types of musical instruments are shown on the table as examples. If you have proficiency with a given musical instrument, you can add your proficiency bonus to any ability checks you make to play music with the instrument. A bard can use a musical instrument as a spellcasting focus. Each type of musical instrument requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "playing-card-set-srd-5-1",
+    "name": "Playing card set",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 5,
+      "currency": "sp"
+    },
+    "description": "This item encompasses a wide range of game pieces, including dice and decks of cards (for games such as Three-­‐‑Dragon Ante). A few common examples appear on the Tools table, but other kinds of gaming sets exist. If you are proficient with a gaming set, you can add your proficiency bonus to ability checks you make to play a game with that set. Each type of gaming set requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "poisoner-s-kit-srd-5-1",
+    "name": "Poisoner's kit",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 2,
+    "description": "A poisoner’s kit includes the vials, chemicals, and other equipment necessary for the creation of poisons. Proficiency with this kit lets you add your proficiency bonus to any ability checks you make to craft or use poisons.",
+    "data": {}
+  },
+  {
+    "key": "potter-s-tools-srd-5-1",
+    "name": "Potter's tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 3,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "smith-s-tools-srd-5-1",
+    "name": "Smith's tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 20,
+      "currency": "gp"
+    },
+    "weight": 8,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "thieves-tools-srd-5-1",
+    "name": "Thieves' tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 25,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "This set of tools includes a small file, a set of lock picks, a small mirror mounted on a metal handle, a set of narrow-­‐‑bladed scissors, and a pair of pliers. Proficiency with these tools lets you add your proficiency bonus to any ability checks you make to disarm traps or open locks.",
+    "data": {}
+  },
+  {
+    "key": "tinker-s-tools-srd-5-1",
+    "name": "Tinker's tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 50,
+      "currency": "gp"
+    },
+    "weight": 10,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "weaver-s-tools-srd-5-1",
+    "name": "Weaver's tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  },
+  {
+    "key": "woodcarver-s-tools-srd-5-1",
+    "name": "Woodcarver's tools",
+    "type": "tool",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_5.1"
+    ],
+    "category": "other",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "weight": 5,
+    "description": "These special tools include the items needed to pursue a craft or trade.\\n\\n\r\nProficiency with a set of artisan’s tools lets you add your proficiency bonus to any ability checks you make using the tools in your craft. Each type of artisan’s tools requires a separate proficiency.",
+    "data": {}
+  }
 ]

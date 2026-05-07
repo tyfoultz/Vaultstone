@@ -2,6 +2,7 @@ import type { GameSystemDefinition } from '@vaultstone/types';
 import { attributes } from './attributes';
 import { resourcePools } from './resources';
 import { creationSteps } from './creation-steps';
+import { optionalRules } from './optional-rules';
 
 // Both editions share schema (attributes, resources, sheet, creation steps).
 // They diverge only in id / displayName / version / SRD-content filter.
@@ -24,6 +25,7 @@ export const dnd5e2014System: GameSystemDefinition = {
   attributes,
   resourcePools,
   creationSteps,
+  optionalRules,
   sheetSections: SHEET_SECTIONS,
 };
 
@@ -37,6 +39,7 @@ export const dnd5e2024System: GameSystemDefinition = {
   attributes,
   resourcePools,
   creationSteps,
+  optionalRules,
   sheetSections: SHEET_SECTIONS,
 };
 

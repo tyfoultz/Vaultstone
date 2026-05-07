@@ -56,7 +56,11 @@ const CATEGORY_MAP = {
   'ammunition': 'adventuring-gear',
   'equipment-pack': 'adventuring-gear',
   'poison': 'adventuring-gear',
-  'spellcasting-focus': 'crafting-equipment',
+  // Spellcasting foci (druidic foci, holy symbols, arcane focuses, component
+  // pouches) are listed alongside other personal gear in the SRD equipment
+  // tables — they're not crafting tools. Group them with adventuring-gear
+  // so they land in the same bucket as the rest.
+  'spellcasting-focus': 'adventuring-gear',
   // Magic-item categories (wondrous-item, potion, scroll, rod, wand, staff,
   // ring) are intentionally NOT mapped here. The dedicated /magicitems/
   // import (transforms/magic-items.js) owns the variant-level catalog —
@@ -194,8 +198,28 @@ function transformOne(item) {
   if (properties.length > 0) out.properties = properties;
   out.description = normalizeDescription(item.desc);
   out.data = {};
+  // Stamp a sub-bucket discriminator on adventuring-gear so the UI can
+  // facet by ammunition / packs / poisons / foci without those becoming
+  // top-level item categories (they'd inflate the type union and split
+  // the Equipment sub-tabs without much payoff). The original Open5e
+  // category drives this — it's already differentiated upstream.
+  if (ourCategory === 'adventuring-gear') {
+    const kind = GEAR_KIND_MAP[sourceCategory];
+    if (kind) out.data.gearKind = kind;
+  }
   return out;
 }
+
+/** Open5e source category → gear sub-bucket. Categories that collapse
+ *  into adventuring-gear without a meaningful sub-bucket (the generic
+ *  `'adventuring-gear'` itself) get no `gearKind`, which the facet
+ *  reads as "Other gear". */
+const GEAR_KIND_MAP = {
+  ammunition: 'ammunition',
+  'equipment-pack': 'equipment-pack',
+  poison: 'poison',
+  'spellcasting-focus': 'spellcasting-focus',
+};
 
 function main() {
   if (!fs.existsSync(SRC)) {
@@ -222,7 +246,7 @@ function main() {
   // Stable sort: by category, then edition (5.1 before 2.0), then name.
   const categoryOrder = {
     weapon: 0, armor: 1, shield: 2, 'adventuring-gear': 3,
-    'crafting-equipment': 4, 'magic-item': 5,
+    'magic-item': 4,
   };
   out.sort((a, b) =>
     ((categoryOrder[a.category] ?? 9) - (categoryOrder[b.category] ?? 9)) ||
