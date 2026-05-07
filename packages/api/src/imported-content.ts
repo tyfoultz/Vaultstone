@@ -68,11 +68,19 @@ export async function listImportedContent(packId: string) {
   const PAGE = 1000;
   const out: ImportedContentRow[] = [];
   for (let offset = 0; ; offset += PAGE) {
+    // Bulk imports stamp the same `imported_at` on hundreds of rows
+    // simultaneously, so ordering by that column alone gives Postgres
+    // no tiebreaker between pages — a row on the boundary can land
+    // in both page N and page N+1, producing duplicates that later
+    // collide on the (pack_id, source_label, entry_key) unique index
+    // when the consumer (e.g. pack export → import) reinserts them.
+    // Add `id` as a secondary order so each row has a stable position.
     const { data, error } = await supabase
       .from('imported_content')
       .select('*')
       .eq('pack_id', packId)
       .order('imported_at', { ascending: true })
+      .order('id', { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) return { data: null, error };
     const rows = (data ?? []) as ImportedContentRow[];
