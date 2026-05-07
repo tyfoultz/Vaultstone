@@ -1,4 +1,5 @@
 export * from './characters';
+export * from './character-builder';
 export * from './content';
 export * from './homebrew';
 export * from './systems';

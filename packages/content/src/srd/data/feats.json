@@ -88,7 +88,13 @@
       "You can take this feat more than once."
     ],
     "description": "",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "character-level",
+        "minimum": 4
+      }
+    ]
   },
   {
     "key": "grappler-srd-2-0",
@@ -108,7 +114,21 @@
       "You don't have to spend extra movement to move a creature Grappled by you if the creature is your size or smaller."
     ],
     "description": "You gain the following benefits.",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "character-level",
+        "minimum": 4
+      },
+      {
+        "kind": "ability-score",
+        "abilities": [
+          "strength",
+          "dexterity"
+        ],
+        "minimum": 13
+      }
+    ]
   },
   {
     "key": "grappler-srd-5-1",
@@ -126,7 +146,16 @@
       "You can use your action to try to pin a creature grappled by you. The creature makes a Strength or Dexterity saving throw against your maneuver DC. On a failure, you and the creature are both restrained until the grapple ends."
     ],
     "description": "You've developed the skills necessary to hold your own in close-quarters grappling. You gain the following benefits:",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "ability-score",
+        "abilities": [
+          "strength"
+        ],
+        "minimum": 13
+      }
+    ]
   },
   {
     "key": "archery-srd-2-0",
@@ -143,7 +172,13 @@
       "You gain a +2 bonus to attack rolls you make with Ranged weapons."
     ],
     "description": "",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "class-feature",
+        "featureName": "Fighting Style"
+      }
+    ]
   },
   {
     "key": "defense-srd-2-0",
@@ -160,7 +195,13 @@
       "While you're wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class."
     ],
     "description": "",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "class-feature",
+        "featureName": "Fighting Style"
+      }
+    ]
   },
   {
     "key": "great-weapon-fighting-srd-2-0",
@@ -177,7 +218,13 @@
       "When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit."
     ],
     "description": "",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "class-feature",
+        "featureName": "Fighting Style"
+      }
+    ]
   },
   {
     "key": "two-weapon-fighting-srd-2-0",
@@ -194,7 +241,13 @@
       "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage."
     ],
     "description": "",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "class-feature",
+        "featureName": "Fighting Style"
+      }
+    ]
   },
   {
     "key": "boon-of-combat-prowess-srd-2-0",
@@ -212,7 +265,13 @@
       "When you miss with an attack roll, you can hit instead. Once you use this benefit, you can't use it again until the start of your next turn."
     ],
     "description": "You gain the following benefits.",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "character-level",
+        "minimum": 19
+      }
+    ]
   },
   {
     "key": "boon-of-dimensional-travel-srd-2-0",
@@ -230,7 +289,13 @@
       "Immediately after you take the Attack action or the Magic action, you can teleport up to 30 feet to an unoccupied space you can see."
     ],
     "description": "You gain the following benefits.",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "character-level",
+        "minimum": 19
+      }
+    ]
   },
   {
     "key": "boon-of-fate-srd-2-0",
@@ -248,7 +313,13 @@
       "When you or another creature within 60 feet of you succeeds on or fails a D20 Test, you can roll 2d4 and apply the total rolled as a bonus or penalty to the d20 roll. Once you use this benefit, you can't use it again until you roll Initiative or finish a Short or Long Rest."
     ],
     "description": "You gain the following benefits.",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "character-level",
+        "minimum": 19
+      }
+    ]
   },
   {
     "key": "boon-of-irresistible-offense-srd-2-0",
@@ -267,7 +338,13 @@
       "When you roll a 20 on the d20 for an attack roll, you can deal extra damage to the target equal to the ability score increased by this feat. The extra damage's type is the same as the attack's type."
     ],
     "description": "You gain the following benefits.",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "character-level",
+        "minimum": 19
+      }
+    ]
   },
   {
     "key": "boon-of-spell-recall-srd-2-0",
@@ -285,7 +362,17 @@
       "Whenever you cast a spell with a level 1–4 spell slot, roll 1d4. If the number you roll is the same as the slot's level, the slot isn't expended."
     ],
     "description": "You gain the following benefits.",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "character-level",
+        "minimum": 19
+      },
+      {
+        "kind": "class-feature",
+        "featureName": "Spellcasting"
+      }
+    ]
   },
   {
     "key": "boon-of-the-night-spirit-srd-2-0",
@@ -304,7 +391,13 @@
       "While within Dim Light or Darkness, you have Resistance to all damage except Psychic and Radiant."
     ],
     "description": "You gain the following benefits.",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "character-level",
+        "minimum": 19
+      }
+    ]
   },
   {
     "key": "boon-of-the-truesight-srd-2-0",
@@ -322,6 +415,12 @@
       "You have Truesight with a range of 60 feet."
     ],
     "description": "You gain the following benefits.",
-    "data": {}
+    "data": {},
+    "prerequisitesRaw": [
+      {
+        "kind": "character-level",
+        "minimum": 19
+      }
+    ]
   }
 ]

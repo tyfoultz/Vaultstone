@@ -148,6 +148,14 @@ export interface FeatResult extends ContentResult {
   category: 'origin' | 'general' | 'fighting-style' | 'epic-boon';
   /** Free-form prerequisite text (e.g. "Strength 13+", "level 4+"). Empty string if none. */
   prerequisites?: string;
+  /**
+   * Structured prerequisite clauses — all must be satisfied (AND).
+   * Empty / undefined when the feat has no prerequisites or when the
+   * SRD prose doesn't fit any structured kind. The wizard + character
+   * sheet check these against the candidate character; the
+   * `prerequisites` string above stays the canonical display form.
+   */
+  prerequisitesRaw?: import('./character-builder').FeatPrerequisite[];
   /** Bullet-form benefits. */
   benefits: string[];
   srdVersions: string[];
@@ -482,6 +490,18 @@ export interface SpeciesResult extends ContentResult {
   traits: Array<{ name: string; description: string }>;
   /** Fixed ASI granted by the species (SRD 5.1 style). Empty for SRD 2.0 species. */
   abilityScoreIncreases: Array<{ ability: string; amount: number }>;
+  /**
+   * Per-species permissions for the wizard's Customize Origin step.
+   * 2014 species ship all-false (locked to defaults); 2024 species
+   * ship all-true (every part of the kit is the player's pick). The
+   * wizard reads these flags to decide which swap UI surfaces to
+   * render when the campaign rule `customize_origin` is enabled.
+   *
+   * Optional for backwards compatibility with seed data — consumers
+   * default to `{ abilityScores: false, languages: false, skills: false }`
+   * for entries that omit it.
+   */
+  swapRules?: import('./character-builder').SpeciesSwapRules;
   srdVersions: string[];
 }
 
@@ -550,6 +570,14 @@ export interface ClassResult extends ContentResult {
   }>;
   /** Free-text multiclass prerequisite (e.g. "Strength 13"). */
   multiclassPrerequisite?: string;
+  /**
+   * Structured multiclass prerequisite — every group must be
+   * satisfied (AND), and a group is satisfied if any of its
+   * abilities meets `minimum`. Empty / undefined when the class has
+   * no multiclass prereq. The free-text `multiclassPrerequisite`
+   * field above stays the display form.
+   */
+  multiclassPrerequisiteRaw?: import('./character-builder').MulticlassPrereq[];
   /** Proficiencies gained when multiclassing into this class. */
   multiclassProficiencies?: {
     armor?: string[];
