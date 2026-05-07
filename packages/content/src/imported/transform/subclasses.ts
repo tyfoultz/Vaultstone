@@ -62,7 +62,15 @@ export function transformSubclasses(
   opts: TransformOptions,
 ): SubclassResult[] {
   const { systemId } = opts;
-  const subclasses = raw.subclass ?? [];
+  // 5e.tools' 2024 class files ship every legacy subclass twice — once
+  // tagged `edition: 'classic'` (the bare 2014 entry) and once tagged
+  // `edition: 'one'` (the 2024-renderer-aware reprint copy). They have
+  // identical (name, source, className, shortName), which collapses to
+  // the same entry_key and triggers a Postgres `ON CONFLICT DO UPDATE`
+  // error mid-import. Dedupe by composite key here, preferring the
+  // first occurrence (typically `edition: 'classic'`, which is what
+  // 2014-system imports want anyway).
+  const subclasses = dedupeSubclassesByKey(raw.subclass ?? []);
   const allFeatures = raw.subclassFeature ?? [];
 
   // Strict composite-key index for O(1) lookup. Key matches the
@@ -197,6 +205,28 @@ export function transformSubclasses(
 }
 
 // ── Internals ─────────────────────────────────────────────────────────────
+
+/**
+ * Drop duplicate subclass entries that share (source, className,
+ * shortName||name) — these arise in 5e.tools 2024 class files, which
+ * ship each legacy subclass twice (`edition: 'classic'` vs
+ * `edition: 'one'`). The pair has identical mechanical content; one
+ * is a presentation tag for the 5e.tools renderer. Both would
+ * collapse to the same entry_key on import, so we keep only the
+ * first occurrence.
+ */
+function dedupeSubclassesByKey(subclasses: RawSubclass[]): RawSubclass[] {
+  const seen = new Set<string>();
+  const out: RawSubclass[] = [];
+  for (const sc of subclasses) {
+    const shortName = sc.shortName ?? sc.name;
+    const key = `${sc.source}|${sc.className}|${shortName}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(sc);
+  }
+  return out;
+}
 
 /**
  * Whether a 5e.tools source code refers to the 2024 edition. 5e.tools

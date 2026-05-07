@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   View, ScrollView, Pressable, TextInput, StyleSheet, useWindowDimensions, Modal,
 } from 'react-native';
@@ -866,11 +866,19 @@ function ClassDetailModal({
   // (e.g. an unrecognized source code, or a homebrew pack that stores a
   // custom parentClassKey). Class names are stable across editions, so
   // matching on name is a reliable safety net.
-  const classNameLower = c.name.toLowerCase();
+  // Edition-keyed match. Subclasses always carry the SRD-style
+  // `parentClassKey` (`paladin-srd-5-1`, `paladin-srd-2-0`) — both
+  // SRD-bundled subclasses and imports use that shape (the imported
+  // subclass transform derives the edition suffix from the source
+  // code). Class entries don't share that shape uniformly: SRD
+  // classes use `paladin-srd-5-1`, imports use
+  // `imported_dnd5e_2014_class_phb_paladin`. Compare via a canonical
+  // class key derived from the active class's name + edition, so
+  // imported and SRD classes both match against the same set of
+  // subclasses.
+  const canonicalClassKey = canonicalParentKey(c);
   const matchingSubclasses = allSubclasses.filter(
-    (s) =>
-      s.parentClassKey === c.key
-      || (s.parentClassName ?? '').toLowerCase() === classNameLower,
+    (s) => s.parentClassKey === c.key || s.parentClassKey === canonicalClassKey,
   );
   // Group same-named variants and pick the richest one to render. The
   // SRD bundle ships a thin Life Domain (2 features); an imported XPHB
@@ -928,22 +936,24 @@ function ClassDetailModal({
     !!c.multiclassPrerequisite ||
     !!c.multiclassProficiencies;
 
+  const supplementalCount = readSupplementalSections(c).length;
+  const hasOverview = !!c.description && c.description.trim().length > 0;
   const anchors = useMemo(() => {
-    const list: { id: string; label: string }[] = [
-      { id: 'core', label: 'Core Traits' },
-    ];
+    const list: { id: string; label: string }[] = [];
+    if (hasOverview)              list.push({ id: 'overview',  label: 'Overview' });
+    list.push({ id: 'core', label: 'Core Traits' });
     if (hasBecoming)              list.push({ id: 'becoming',   label: 'Becoming' });
+    if (supplementalCount > 0)    list.push({ id: 'supplemental-lore', label: 'Lore' });
     if (featureGroups.length > 0) list.push({ id: 'features',   label: 'Features' });
     if (subclasses.length > 0)    list.push({ id: 'subclasses', label: 'Subclasses' });
     return list;
-  }, [hasBecoming, featureGroups.length, subclasses.length]);
+  }, [hasOverview, hasBecoming, featureGroups.length, subclasses.length, supplementalCount]);
 
   return (
     <DetailModal
       visible
       onClose={onClose}
       title={c.name}
-      subtitle={c.description}
       anchors={anchors}
       headerExtra={
         variants.length > 1 ? (
@@ -951,6 +961,27 @@ function ClassDetailModal({
         ) : null
       }
     >
+      {/* ── Overview ─────────────────────────────────────────────────
+          Class blurb / canonical intro from imported fluff (or the
+          authored description for SRD-bundled classes). Lifted out of
+          the modal subtitle so it gets a proper anchored section
+          heading and parallels the rest of the page structure. */}
+      {hasOverview ? (
+        <DetailSection id="overview" style={styles.modalSection}>
+          <DetailSectionHeading>Overview</DetailSectionHeading>
+          {(c.description ?? '').split(/\n\s*\n/).map((para, i) => (
+            <Text
+              key={i}
+              variant="body-sm"
+              family="body"
+              style={[styles.bodyText, i > 0 ? { marginTop: spacing.sm } : null]}
+            >
+              {para.trim()}
+            </Text>
+          ))}
+        </DetailSection>
+      ) : null}
+
       {/* ── Core Traits ──────────────────────────────────────────────── */}
       <DetailSection id="core" style={styles.modalSection}>
         <DetailSectionHeading>{`Core ${c.name} Traits`}</DetailSectionHeading>
@@ -986,7 +1017,7 @@ function ClassDetailModal({
       {/* ── Becoming a [Class] ──────────────────────────────────────── */}
       {hasBecoming ? (
         <DetailSection id="becoming" style={styles.modalSection}>
-          <DetailSectionHeading>{`Becoming a ${c.name}`}</DetailSectionHeading>
+          <DetailSectionHeading>{`Becoming ${indefiniteArticle(c.name)} ${c.name}`}</DetailSectionHeading>
 
           {/* As a Level 1 Character — SRD-style bullet prose */}
           <View style={styles.subSection}>
@@ -1036,34 +1067,66 @@ function ClassDetailModal({
           {Array.isArray(c.startingEquipment) && c.startingEquipment.length > 0 ? (
             <View style={styles.subSection}>
               <MetaLabel size="sm">Starting equipment</MetaLabel>
-              {c.startingEquipment.map((opt, i) => (
-                <View key={i} style={styles.bullet}>
-                  <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
-                    Option {opt.label ?? String.fromCharCode(65 + i)}
-                  </Text>
-                  {opt.items && opt.items.length > 0 ? (
-                    <Text variant="body-sm" family="body" style={styles.bodyText}>
-                      {opt.items.join(', ')}
-                    </Text>
-                  ) : null}
-                  {opt.gold ? (
-                    <Text variant="body-sm" family="body" style={styles.bodyText}>
-                      {opt.gold.amount} {opt.gold.currency}
-                    </Text>
-                  ) : null}
-                </View>
-              ))}
+              {/* Side-by-side option columns. Each starting-equipment
+                  option (Option A / Option B / …) becomes its own
+                  column with a bold header and bullet list, and the
+                  columns wrap on narrow viewports so 3+ options stay
+                  readable on mobile. The original stacked layout
+                  forced the user to scroll past Option A to compare
+                  it with Option B. */}
+              <View style={styles.startingEquipGrid}>
+                {c.startingEquipment.map((opt, i) => {
+                  const goldLine = opt.gold
+                    ? opt.gold.dice
+                      ? `Roll ${opt.gold.dice} ${opt.gold.currency}`
+                      : `${opt.gold.amount} ${opt.gold.currency}`
+                    : null;
+                  return (
+                    <View key={i} style={styles.startingEquipColumn}>
+                      <Text
+                        variant="body-sm"
+                        family="body"
+                        weight="bold"
+                        style={[styles.startingEquipHeader, { color: colors.onSurface }]}
+                      >
+                        Option {opt.label ?? String.fromCharCode(65 + i)}
+                      </Text>
+                      {opt.items?.map((item, j) => (
+                        <Text key={j} variant="body-sm" family="body" style={styles.bodyText}>
+                          • {item}
+                        </Text>
+                      ))}
+                      {goldLine ? (
+                        <Text variant="body-sm" family="body" style={styles.bodyText}>
+                          • {goldLine}
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
             </View>
           ) : null}
         </DetailSection>
       ) : null}
+
+      {/* Supplemental lore — named sub-sections from the entry's own
+          source (Primal Instinct, A Life of Danger, etc.), collapsed
+          off the canonical class intro to keep the opening short.
+          Cross-source content embedded in 5e.tools fluff (XGE/TCE/SCAG
+          tables) is filtered out at import time so the user only sees
+          flavor from the book they actually picked. Imported-only —
+          SRD entries don't carry this field. Sits between Becoming
+          and Features so worldbuilding reads before mechanical
+          drilldown. */}
+      <SupplementalLoreSection klass={c} />
 
       {/* ── Class Features (table + detailed list) ──────────────────── */}
       {featureGroups.length > 0 ? (
         <DetailSection id="features" style={styles.modalSection}>
           <DetailSectionHeading>{`${c.name} Class Features`}</DetailSectionHeading>
           <Text variant="body-sm" family="body" style={[styles.bodyText, { marginBottom: spacing.sm }]}>
-            As a {c.name}, you gain the following class features when you reach the specified {c.name} levels. These features are listed in the {c.name} Features table.
+            As {indefiniteArticle(c.name)} {c.name}, you gain the following class features when you reach the specified {c.name} levels. These features are listed in the {c.name} Features table.
           </Text>
 
           {/* Class table — Level → feature names per level */}
@@ -1109,45 +1172,17 @@ function ClassDetailModal({
         </DetailSection>
       ) : null}
 
-      {/* ── Subclasses (nested cards) ───────────────────────────────── */}
+      {/* ── Subclasses (tabbed) ─────────────────────────────────────────
+          A character only ever picks one subclass, so stacking every
+          subclass top-to-bottom (5+ on most classes) made the modal
+          dramatically taller for no payoff. Tabs cut scroll length and
+          let the user compare offerings by tapping rather than
+          scrolling. The detail body for the active subclass renders
+          inside <SubclassTabs> below. */}
       {subclasses.length > 0 ? (
         <DetailSection id="subclasses" style={styles.modalSection}>
           <DetailSectionHeading>{`Subclasses · unlock at L${c.subclassUnlockLevel}`}</DetailSectionHeading>
-          {subclasses.map(({ active: sc, sources }) => (
-            <View key={sc.key} style={styles.subclassCard}>
-              <View style={styles.subclassHeadRow}>
-                <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.primary, flex: 1 }}>
-                  {sc.name}
-                </Text>
-                {/* Source badges for every variant this subclass exists
-                    in — SRD 5.1, SRD 2024, imported pack codes (XPHB,
-                    PHB, etc.). The card body shows the richest variant
-                    selected by the dedupe logic above. */}
-                <View style={styles.subclassSourceStack}>
-                  {sources.map((src, i) => (
-                    <SourceBadge key={`${sc.key}-src-${i}`} source={src} size="sm" />
-                  ))}
-                </View>
-              </View>
-              {sc.description ? (
-                <MarkdownText style={[styles.bodyText, { marginTop: 4 }]}>
-                  {sc.description}
-                </MarkdownText>
-              ) : null}
-              {Array.isArray(sc.features) && sc.features.length > 0 ? (
-                <View style={[styles.subBlock, { marginTop: spacing.xs + 2 }]}>
-                  {sc.features.map((f, i) => (
-                    <View key={i} style={styles.bullet}>
-                      <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
-                        L{f.level} · {f.name}
-                      </Text>
-                      <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ))}
+          <SubclassTabs subclasses={subclasses} />
         </DetailSection>
       ) : null}
 
@@ -1158,6 +1193,158 @@ function ClassDetailModal({
       ) : null}
     </DetailModal>
   );
+}
+
+/**
+ * Subclass picker — horizontal tab strip showing every available
+ * subclass for the current class, with the active tab's full body
+ * (description + leveled features) rendered below.
+ *
+ * A character only ever picks one subclass, so stacking every
+ * subclass card vertically (5+ for most classes) wasted screen space
+ * and forced long mobile scrolls. Tabs let the user compare offerings
+ * by tapping rather than scrolling, and shrink the modal's overall
+ * height by an order of magnitude on classes like Cleric or Wizard.
+ *
+ * Source badges for each subclass move into the active body's header
+ * row so the tab strip itself stays compact (just the name).
+ */
+function SubclassTabs({
+  subclasses,
+}: {
+  subclasses: Array<{ active: SubclassResult; sources: ImportSource[] }>;
+}) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  // Reset to the first tab if the subclass list changes (e.g. user
+  // switched between PHB / XPHB variants of the parent class).
+  const prevLenRef = useRef(subclasses.length);
+  useEffect(() => {
+    if (prevLenRef.current !== subclasses.length) {
+      setActiveIdx(0);
+      prevLenRef.current = subclasses.length;
+    } else if (activeIdx >= subclasses.length) {
+      setActiveIdx(0);
+    }
+  }, [subclasses.length, activeIdx]);
+
+  const safeIdx = Math.min(activeIdx, Math.max(0, subclasses.length - 1));
+  const current = subclasses[safeIdx];
+  if (!current) return null;
+  const { active: sc, sources } = current;
+
+  return (
+    <View>
+      {/* Tab strip wraps to multiple rows when there are too many
+          subclasses to fit on a single line. A horizontal ScrollView
+          would hide tabs offscreen with no discoverable affordance to
+          reach them on web (no scrollbar, no edge fade), so wrapping
+          beats scrolling for this case — every tab stays tappable
+          regardless of viewport width. */}
+      <View style={styles.subclassTabRow}>
+        {subclasses.map((entry, i) => {
+          const isActive = i === safeIdx;
+          return (
+            <Pressable
+              key={entry.active.key}
+              onPress={() => setActiveIdx(i)}
+              style={({ pressed }) => [
+                styles.subclassTab,
+                isActive && styles.subclassTabActive,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Text
+                variant="body-sm"
+                family="body"
+                weight={isActive ? 'bold' : 'medium'}
+                style={{
+                  color: isActive ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+                }}
+                numberOfLines={1}
+              >
+                {entry.active.name}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.subclassCard}>
+        <View style={styles.subclassHeadRow}>
+          <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.primary, flex: 1 }}>
+            {sc.name}
+          </Text>
+          <View style={styles.subclassSourceStack}>
+            {sources.map((src, i) => (
+              <SourceBadge key={`${sc.key}-src-${i}`} source={src} size="sm" />
+            ))}
+          </View>
+        </View>
+        {sc.description ? (
+          <MarkdownText style={[styles.bodyText, { marginTop: 4 }]}>
+            {sc.description}
+          </MarkdownText>
+        ) : null}
+        {Array.isArray(sc.features) && sc.features.length > 0 ? (
+          <View style={[styles.subBlock, { marginTop: spacing.xs + 2 }]}>
+            {dedupeSubclassFeatures(sc.features).map((f, i) => (
+              <View key={i} style={styles.bullet}>
+                <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+                  L{f.level} · {f.name}
+                </Text>
+                <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Read the imported-content `data.supplementalSections` field (an
+ * array of `{ sourceCode, content }` written by the fluff transform)
+ * and render each as a bordered block with the source as a chip.
+ * Renders nothing when the field is empty / missing.
+ */
+function SupplementalLoreSection({ klass }: { klass: ClassResult }) {
+  const sections = readSupplementalSections(klass);
+  if (sections.length === 0) return null;
+  return (
+    <DetailSection id="supplemental-lore" style={styles.modalSection}>
+      <DetailSectionHeading>Lore &amp; Worldbuilding</DetailSectionHeading>
+      <Text variant="body-sm" family="body" style={[styles.bodyText, { marginBottom: spacing.sm, fontStyle: 'italic' }]}>
+        Deeper flavor for this class — origin themes, roleplay hooks, and
+        worldbuilding tables.
+      </Text>
+      {sections.map((sec, i) => (
+        <View key={i} style={styles.supplementalLoreBlock}>
+          <MarkdownText style={styles.bodyText}>{sec.content}</MarkdownText>
+        </View>
+      ))}
+    </DetailSection>
+  );
+}
+
+/** Pull the `supplementalSections` array off a class result.
+ *  Imported-content payloads are spread onto the result by the resolver
+ *  (mapImportedEntryToResult does `return { ...payload, ... }`), so the
+ *  fluff transform's `supplementalSections` field ends up at the top
+ *  level of the ClassResult — not nested under `.data`. The cast is
+ *  defensive so a malformed row doesn't crash the detail modal. */
+function readSupplementalSections(
+  klass: ClassResult,
+): Array<{ sourceCode: string; content: string }> {
+  const raw = (klass as unknown as { supplementalSections?: unknown }).supplementalSections;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const e = entry as { sourceCode?: unknown; content?: unknown };
+    if (typeof e.sourceCode !== 'string' || typeof e.content !== 'string') return [];
+    if (!e.content.trim()) return [];
+    return [{ sourceCode: e.sourceCode, content: e.content }];
+  });
 }
 
 /**
@@ -1566,6 +1753,60 @@ export function SubclassesList({
       )}
     />
   );
+}
+
+/**
+ * Derive the canonical SRD-style parent-class key (`paladin-srd-5-1`,
+ * `wizard-srd-2-0`, etc.) from a ClassResult. SRD-bundled classes
+ * already use this shape as their `key`; imported classes use a
+ * different shape (`imported_dnd5e_2014_class_phb_paladin`) but their
+ * `system` field carries the edition. This helper lets the subclass
+ * filter match against either.
+ *
+ * Returns null when the class's edition isn't known (custom systems
+ * with no SRD lineage). Subclasses won't match a null key, so those
+ * classes simply don't surface subclasses unless the subclass's own
+ * `parentClassKey` happens to equal the class's literal `key`.
+ */
+function canonicalParentKey(c: ClassResult): string | null {
+  const edition =
+    c.system === 'dnd5e_2014' ? 'srd-5-1' :
+    c.system === 'dnd5e_2024' ? 'srd-2-0' :
+    null;
+  if (!edition) return null;
+  return `${c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${edition}`;
+}
+
+/**
+ * Drop subclass features that repeat the exact same `(name,
+ * description)` block at multiple levels. 5e.tools authors features
+ * like Circle of the Land's "Circle Spells" as separate L3/L5/L7/L9
+ * entries that each repeat the full rule text plus all 7 land-type
+ * spell tables — the rendered card otherwise dumps the same 50-line
+ * tables four times. We keep the earliest-level instance and drop
+ * subsequent twins; the leveled spell tables inside the kept feature
+ * already cover what unlocks at later levels.
+ */
+function dedupeSubclassFeatures(
+  features: NonNullable<SubclassResult['features']>,
+): NonNullable<SubclassResult['features']> {
+  const seen = new Set<string>();
+  const out: NonNullable<SubclassResult['features']> = [];
+  for (const f of features) {
+    const fingerprint = `${f.name.toLowerCase()}␟${f.description}`;
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+    out.push(f);
+  }
+  return out;
+}
+
+/** "a" / "an" article picker for class names. Picks "an" for class
+ *  names that begin with a vowel sound — the common cases in 5e D&D
+ *  are Artificer / "an Artificer". Conservative on consonants because
+ *  "u" can go either way (Universalist → "a"). */
+function indefiniteArticle(noun: string): 'a' | 'an' {
+  return /^[aeio]/i.test(noun.trim()) ? 'an' : 'a';
 }
 
 function subclassFingerprint(s: SubclassResult): string {
@@ -2931,20 +3172,20 @@ export function ItemsList({
       columns={[
         { key: 'name', label: 'Name', cell: (it) => it.name, compare: (a, b) => a.name.localeCompare(b.name), width: 180, defaultSort: 'asc' },
         {
-          // Magic / Mundane indicator. Reflects the *active* variant
-          // on grouped rows — a Greatsword group with Base active
-          // reads "Mundane"; switch to the +1 tab and it reads
-          // "✦ Magic". Sort order puts magic items first so users
-          // sorting on this column see the magical entries together.
-          key: 'magic',
-          label: 'Magic',
-          cell: (it) => (it.category === 'magic-item' ? '✦ Magic' : 'Mundane'),
-          compare: (a, b) => {
-            const am = a.category === 'magic-item' ? 0 : 1;
-            const bm = b.category === 'magic-item' ? 0 : 1;
-            return am - bm;
+          // Broad category column — Weapon / Armor / Shield /
+          // Adventuring Gear / Magic Item / Tool. Lives next to the
+          // narrower Type column ("Martial Melee" / "Heavy Armor" /
+          // "Wand"); together they read as "Weapon · Martial Melee"
+          // at a glance without forcing the user into the Filters
+          // sheet to discover what's there.
+          key: 'category',
+          label: 'Category',
+          cell: (it) => {
+            if (readIsTool(it)) return 'Tool';
+            return capitalize(it.category.replace('-', ' '));
           },
-          width: 90,
+          compare: (a, b) => (a.category ?? '').localeCompare(b.category ?? ''),
+          width: 130,
         },
         {
           key: 'type',
@@ -3377,23 +3618,69 @@ function skillLabel(key: string): string {
     .join(' ');
 }
 
-function CreatureAbilityBlock({ scores, mods }: {
+function CreatureAbilityBlock({ scores, mods, saves }: {
   scores: NonNullable<CreatureResult['abilityScores']>;
   mods: NonNullable<CreatureResult['abilityModifiers']>;
+  /** Saving-throw bonuses by ability key. When provided, the Save
+   *  column populates only for abilities the creature is proficient
+   *  in; non-proficient abilities show a dash. */
+  saves?: CreatureResult['savingThrows'];
 }) {
-  const cells: Array<['STR' | 'DEX' | 'CON' | 'INT' | 'WIS' | 'CHA', number, number]> = [
-    ['STR', scores.str, mods.str], ['DEX', scores.dex, mods.dex], ['CON', scores.con, mods.con],
-    ['INT', scores.int, mods.int], ['WIS', scores.wis, mods.wis], ['CHA', scores.cha, mods.cha],
+  type AbKey = 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha';
+  const rows: Array<[AbKey, string, number, number]> = [
+    ['str', 'STR', scores.str, mods.str],
+    ['dex', 'DEX', scores.dex, mods.dex],
+    ['con', 'CON', scores.con, mods.con],
+    ['int', 'INT', scores.int, mods.int],
+    ['wis', 'WIS', scores.wis, mods.wis],
+    ['cha', 'CHA', scores.cha, mods.cha],
   ];
   return (
-    <View style={styles.creatureAbilityGrid}>
-      {cells.map(([label, score, mod]) => (
-        <View key={label} style={styles.creatureAbilityCell}>
-          <Text variant="label-sm" weight="bold" uppercase style={styles.creatureAbilityLabel}>{label}</Text>
-          <Text variant="body-md" family="headline" style={styles.creatureAbilityScore}>{score}</Text>
-          <Text variant="body-sm" family="body" style={styles.creatureAbilityMod}>{fmtSigned(mod)}</Text>
-        </View>
-      ))}
+    <View style={styles.creatureAbilityTable}>
+      <View style={[styles.creatureAbilityRow, styles.creatureAbilityHeadRow]}>
+        <Text variant="label-sm" weight="bold" uppercase style={[styles.creatureAbilityCell, styles.creatureAbilityNameCol, styles.creatureAbilityHeadText]}>
+          {' '}
+        </Text>
+        <Text variant="label-sm" weight="bold" uppercase style={[styles.creatureAbilityCell, styles.creatureAbilityNumCol, styles.creatureAbilityHeadText]}>
+          Score
+        </Text>
+        <Text variant="label-sm" weight="bold" uppercase style={[styles.creatureAbilityCell, styles.creatureAbilityNumCol, styles.creatureAbilityHeadText]}>
+          Modifier
+        </Text>
+        <Text variant="label-sm" weight="bold" uppercase style={[styles.creatureAbilityCell, styles.creatureAbilityNumCol, styles.creatureAbilityHeadText]}>
+          Save
+        </Text>
+      </View>
+      {rows.map(([key, label, score, mod], i) => {
+        const saveBonus = saves?.[key];
+        return (
+          <View
+            key={key}
+            style={[styles.creatureAbilityRow, i === rows.length - 1 && styles.creatureAbilityRowLast]}
+          >
+            <Text variant="label-sm" weight="bold" uppercase style={[styles.creatureAbilityCell, styles.creatureAbilityNameCol, styles.creatureAbilityNameText]}>
+              {label}
+            </Text>
+            <Text variant="body-sm" family="body" style={[styles.creatureAbilityCell, styles.creatureAbilityNumCol, styles.creatureAbilityValueText]}>
+              {score}
+            </Text>
+            <Text variant="body-sm" family="body" style={[styles.creatureAbilityCell, styles.creatureAbilityNumCol, styles.creatureAbilityValueText]}>
+              {fmtSigned(mod)}
+            </Text>
+            <Text
+              variant="body-sm"
+              family="body"
+              style={[
+                styles.creatureAbilityCell,
+                styles.creatureAbilityNumCol,
+                typeof saveBonus === 'number' ? styles.creatureAbilitySaveText : styles.creatureAbilityDashText,
+              ]}
+            >
+              {typeof saveBonus === 'number' ? fmtSigned(saveBonus) : '—'}
+            </Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -3403,6 +3690,41 @@ function CreatureLineRow({ label, value }: { label: string; value: string }) {
     <View style={styles.itemStatRow}>
       <Text variant="label-sm" weight="bold" uppercase style={styles.itemStatLabel}>{label}</Text>
       <Text variant="body-sm" family="body" style={styles.itemStatValue}>{value}</Text>
+    </View>
+  );
+}
+
+/**
+ * Render one of a creature's behavior sections (Traits / Actions /
+ * Reactions / Bonus Actions / Legendary). Each section gets a
+ * hairline divider above + uppercase label so the stat block reads as
+ * grouped behaviors rather than one continuous bullet list. Inside,
+ * each entry's name renders bold inline with its body, mirroring the
+ * standard 5e stat-block format.
+ */
+function CreatureBehaviorSection({
+  label,
+  entries,
+}: {
+  label: string;
+  entries: ReadonlyArray<{ name: string; description: string }>;
+}) {
+  return (
+    <View style={styles.creatureBehaviorSection}>
+      <MetaLabel size="sm">{label}</MetaLabel>
+      {entries.map((e, i) => (
+        <View key={i} style={styles.creatureBehaviorEntry}>
+          <Text variant="body-sm" family="body" style={styles.bodyText}>
+            <Text weight="bold" family="body" style={{ color: colors.onSurface }}>
+              {e.name}.
+            </Text>{' '}
+            {/* description renders inline so the name + body read as
+                one stat-block line; MarkdownText below picks up any
+                tables or multi-paragraph bodies. */}
+          </Text>
+          <MarkdownText style={styles.bodyText}>{e.description}</MarkdownText>
+        </View>
+      ))}
     </View>
   );
 }
@@ -3475,11 +3797,6 @@ export function CreaturesList({
         { key: 'environment', label: 'Environment', getValues: (c) => c.environments ?? [] },
       ]}
       renderBody={(c) => {
-            const savesText = c.savingThrows
-              ? Object.entries(c.savingThrows)
-                  .map(([ab, v]) => `${ab.toUpperCase()} ${fmtSigned(v as number)}`)
-                  .join(', ')
-              : '';
             const skillsText = c.skills
               ? Object.entries(c.skills)
                   .map(([k, v]) => `${skillLabel(k)} ${fmtSigned(v as number)}`)
@@ -3492,67 +3809,71 @@ export function CreaturesList({
             if (c.senses?.truesight) sensesParts.push(`truesight ${c.senses.truesight} ft.`);
             if (typeof c.senses?.passivePerception === 'number') sensesParts.push(`passive Perception ${c.senses.passivePerception}`);
             const sensesText = sensesParts.join(', ');
+            // Challenge line — labeled CR + XP. The table row above
+            // shows bare CR; the body block deserves the full
+            // "Challenge 2 (450 XP)" prose form so the user gets the
+            // standard stat-block reading.
+            const challengeText = (() => {
+              const cr = c.challengeRating;
+              if (cr == null || cr === '') return '';
+              const xp = typeof c.xp === 'number' ? ` (${c.xp.toLocaleString()} XP)` : '';
+              return `${cr}${xp}`;
+            })();
             return (
               <>
+                {/* Identity + senses meta block above the ability
+                    table. Challenge rides up here too so the user
+                    knows the creature's threat tier before reading
+                    abilities. AC / HP / Speed / Prof and damage
+                    interactions stay below the abilities — those are
+                    combat-resolution numbers. */}
                 <View style={styles.itemStatTable}>
                   {c.size ? <CreatureLineRow label="Size" value={c.size} /> : null}
                   {c.creatureType ? <CreatureLineRow label="Type" value={c.creatureType} /> : null}
                   {c.alignment ? <CreatureLineRow label="Alignment" value={c.alignment} /> : null}
-                  <CreatureLineRow label="AC" value={c.armorDetail ? `${c.ac} (${c.armorDetail})` : `${c.ac}`} />
-                  <CreatureLineRow label="HP" value={c.hitDice ? `${c.hp} (${c.hitDice})` : `${c.hp}`} />
-                  {c.speed ? <CreatureLineRow label="Speed" value={c.speed} /> : null}
-                  {typeof c.proficiencyBonus === 'number' ? <CreatureLineRow label="Prof" value={fmtSigned(c.proficiencyBonus)} /> : null}
-                  {typeof c.xp === 'number' ? <CreatureLineRow label="XP" value={c.xp.toLocaleString()} /> : null}
+                  {challengeText ? <CreatureLineRow label="Challenge" value={challengeText} /> : null}
+                  {skillsText ? <CreatureLineRow label="Skills" value={skillsText} /> : null}
+                  {sensesText ? <CreatureLineRow label="Senses" value={sensesText} /> : null}
+                  {c.languages ? <CreatureLineRow label="Languages" value={c.languages} /> : null}
                 </View>
 
                 {c.abilityScores && c.abilityModifiers ? (
                   <View style={styles.subBlock}>
-                    <CreatureAbilityBlock scores={c.abilityScores} mods={c.abilityModifiers} />
+                    <CreatureAbilityBlock
+                      scores={c.abilityScores}
+                      mods={c.abilityModifiers}
+                      saves={c.savingThrows}
+                    />
                   </View>
                 ) : null}
 
-                {(savesText || skillsText || sensesText || c.languages) ? (
-                  <View style={styles.itemStatTable}>
-                    {savesText ? <CreatureLineRow label="Saves"  value={savesText} /> : null}
-                    {skillsText ? <CreatureLineRow label="Skills" value={skillsText} /> : null}
-                    {sensesText ? <CreatureLineRow label="Senses" value={sensesText} /> : null}
-                    {c.languages ? <CreatureLineRow label="Languages" value={c.languages} /> : null}
-                  </View>
-                ) : null}
+                {/* Combat stats below the abilities — AC / HP / Speed
+                    / Challenge / Prof. The damage interaction rows
+                    (Resist / Immune / Vuln / Cond Imm) ride along
+                    here so all combat-relevant numbers cluster in
+                    one block before behavior sections begin. */}
+                <View style={styles.itemStatTable}>
+                  <CreatureLineRow label="AC" value={c.armorDetail ? `${c.ac} (${c.armorDetail})` : `${c.ac}`} />
+                  <CreatureLineRow label="HP" value={c.hitDice ? `${c.hp} (${c.hitDice})` : `${c.hp}`} />
+                  {c.speed ? <CreatureLineRow label="Speed" value={c.speed} /> : null}
+                  {typeof c.proficiencyBonus === 'number' ? <CreatureLineRow label="Prof" value={fmtSigned(c.proficiencyBonus)} /> : null}
+                  {c.damageResistances?.length ? <CreatureLineRow label="Resist"   value={c.damageResistances.join(', ')} /> : null}
+                  {c.damageImmunities?.length ? <CreatureLineRow label="Immune"   value={c.damageImmunities.join(', ')} /> : null}
+                  {c.damageVulnerabilities?.length ? <CreatureLineRow label="Vuln"     value={c.damageVulnerabilities.join(', ')} /> : null}
+                  {c.conditionImmunities?.length ? <CreatureLineRow label="Cond Imm" value={c.conditionImmunities.join(', ')} /> : null}
+                </View>
 
-                {(c.damageResistances?.length || c.damageImmunities?.length || c.damageVulnerabilities?.length || c.conditionImmunities?.length) ? (
-                  <View style={styles.itemStatTable}>
-                    {c.damageResistances?.length ? <CreatureLineRow label="Resist"   value={c.damageResistances.join(', ')} /> : null}
-                    {c.damageImmunities?.length ? <CreatureLineRow label="Immune"   value={c.damageImmunities.join(', ')} /> : null}
-                    {c.damageVulnerabilities?.length ? <CreatureLineRow label="Vuln"     value={c.damageVulnerabilities.join(', ')} /> : null}
-                    {c.conditionImmunities?.length ? <CreatureLineRow label="Cond Imm" value={c.conditionImmunities.join(', ')} /> : null}
-                  </View>
-                ) : null}
-
+                {/* Traits / Actions / Reactions / Bonus Actions /
+                    Legendary — each rendered as a labeled section
+                    with a hairline divider above so the stat block
+                    has clear visual breaks between behavior groups
+                    rather than a wall of bullets. */}
                 {c.traits?.length ? (
-                  <View style={styles.subBlock}>
-                    <MetaLabel size="sm">Traits</MetaLabel>
-                    {c.traits.map((t, i) => (
-                      <View key={i} style={styles.bullet}>
-                        <Text variant="body-sm" weight="bold" family="body" style={styles.bodyText}>{t.name}.</Text>
-                        <MarkdownText style={styles.bodyText}>{t.description}</MarkdownText>
-                      </View>
-                    ))}
-                  </View>
+                  <CreatureBehaviorSection label="Traits" entries={c.traits} />
                 ) : null}
-
                 {c.actions?.length ? (
-                  <View style={styles.subBlock}>
-                    <MetaLabel size="sm">Actions</MetaLabel>
-                    {c.actions.map((a, i) => (
-                      <View key={i} style={styles.bullet}>
-                        <Text variant="body-sm" weight="bold" family="body" style={styles.bodyText}>{a.name}.</Text>
-                        <MarkdownText style={styles.bodyText}>{a.description}</MarkdownText>
-                      </View>
-                    ))}
-                  </View>
+                  <CreatureBehaviorSection label="Actions" entries={c.actions} />
                 ) : null}
-
               </>
             );
           }}
@@ -4392,6 +4713,25 @@ const styles = StyleSheet.create({
   },
   bodyText: { color: colors.onSurfaceVariant, lineHeight: 20 },
   subBlock: { gap: 6, marginTop: spacing.xs + 2 },
+  /** Side-by-side starting-equipment columns. `flexWrap` lets 3+
+   *  options break to a second row on narrow viewports rather than
+   *  squeezing into a too-tight column. Each column claims ~48% so
+   *  two options fit per row; min-width prevents 4+ options from
+   *  collapsing into unusable slivers on phones. */
+  startingEquipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: spacing.md,
+    rowGap: spacing.sm,
+    marginTop: spacing.xs + 2,
+  },
+  startingEquipColumn: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    minWidth: 160,
+    gap: 2,
+  },
+  startingEquipHeader: { marginBottom: 2 },
 
   sourceTabs: {
     flexDirection: 'row',
@@ -4703,6 +5043,45 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     maxWidth: 180,
   },
+  subclassTabRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+    marginTop: spacing.xs,
+    paddingVertical: 2,
+  },
+  subclassTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+    maxWidth: 220,
+  },
+  subclassTabActive: {
+    backgroundColor: colors.primaryContainer + '55',
+    borderColor: colors.primary + '88',
+  },
+
+  // Supplemental lore — boxed blocks of worldbuilding from later
+  // books (XGE/TCE/SCAG) layered onto a class's fluff. Same card
+  // chrome as subclasses for visual consistency.
+  supplementalLoreBlock: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.outline + '88',
+    padding: spacing.sm + 4,
+    marginTop: spacing.sm,
+    gap: spacing.xs,
+  },
+  supplementalLoreHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginBottom: 2,
+  },
 
   // Class progression table
   classTable: {
@@ -4720,12 +5099,15 @@ const styles = StyleSheet.create({
   classTableRowLast: { borderBottomWidth: 0 },
   classTableHeadRow: { backgroundColor: colors.surfaceContainerHigh },
   classTableCell: {
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: spacing.xs,
   },
-  classTableLevelCell:    { width: 56,  color: colors.outline, letterSpacing: 1 },
-  classTableMetaCell:     { width: 100, color: colors.outline, letterSpacing: 1 },
-  classTableFeaturesCell: { width: 280, color: colors.outline, letterSpacing: 1 },
+  // Header cells inherit the small-caps tracking from the `uppercase`
+  // label-sm variant; data cells drop the tracking so digits and
+  // feature names read naturally without extra horizontal slop.
+  classTableLevelCell:    { width: 40, color: colors.outline },
+  classTableMetaCell:     { width: 64, color: colors.outline },
+  classTableFeaturesCell: { width: 220, color: colors.outline },
 
   // Class features grouped by level
   featureLevelGroup: {
@@ -4749,6 +5131,20 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs + 2,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.outlineVariant + '88',
+  },
+  /** Behavior section (Traits / Actions / Reactions / etc.) — divider
+   *  above for clear visual breaks between groups, plus inner gap so
+   *  consecutive entries don't visually run together. */
+  creatureBehaviorSection: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant + '66',
+    gap: spacing.xs,
+  },
+  creatureBehaviorEntry: {
+    marginTop: spacing.xs,
+    gap: 2,
   },
   itemStatRow: {
     flexDirection: 'row',
@@ -4784,39 +5180,43 @@ const styles = StyleSheet.create({
   },
 
   // Creature stat block — six-cell ability grid.
-  creatureAbilityGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
+  /** Ability table — abilities down the left, columns Score / Modifier
+   *  / Save. Mirrors the standard 5e/D&D Beyond stat-block layout and
+   *  takes less vertical space than per-cell tiles while keeping each
+   *  ability's three numbers easy to read in a row. */
+  creatureAbilityTable: {
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
-  },
-  creatureAbilityCell: {
-    flexBasis: '15.5%',
-    flexGrow: 1,
-    minWidth: 56,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    borderRadius: radius.lg,
+    overflow: 'hidden',
     backgroundColor: colors.surfaceContainer,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.outlineVariant + '88',
-    alignItems: 'center',
   },
-  creatureAbilityLabel: {
+  creatureAbilityRow: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant + '55',
+  },
+  creatureAbilityRowLast: { borderBottomWidth: 0 },
+  creatureAbilityHeadRow: { backgroundColor: colors.surfaceContainerHigh },
+  creatureAbilityCell: {
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: spacing.xs,
+  },
+  creatureAbilityNameCol: { width: 64 },
+  creatureAbilityNumCol: { flex: 1, textAlign: 'center' },
+  creatureAbilityHeadText: {
     color: colors.outline,
     letterSpacing: 1,
-    marginBottom: 2,
   },
-  creatureAbilityScore: {
-    color: colors.onSurface,
-    fontSize: 18,
-    lineHeight: 22,
+  creatureAbilityNameText: {
+    color: colors.outline,
+    letterSpacing: 1,
   },
-  creatureAbilityMod: {
-    color: colors.onSurfaceVariant,
-    marginTop: 1,
-  },
+  creatureAbilityValueText: { color: colors.onSurface },
+  creatureAbilitySaveText: { color: colors.primary },
+  creatureAbilityDashText: { color: colors.outline },
 
   // Reference rows
   refRow: {

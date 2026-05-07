@@ -162,10 +162,14 @@ function decorateLine(rawLine: string): DecoratedLine | null {
   // its own.
   line = line.replace(/^\s*>\s?/, '');
   // Heading prefixes: `# `, `## `, `### `, etc. Strip and flag the line
-  // so the renderer can emphasize it.
+  // so the renderer can emphasize it. The space after the marker is
+  // optional — Open5e's 5.1 class data ships sub-headings as
+  // `###Cantrips` without the space, and CommonMark would technically
+  // refuse those, but the user-visible text would otherwise leak the
+  // literal hashes. Be lenient.
   let heading = false;
-  const headingMatch = /^(#{1,6})\s+(.*)$/.exec(line);
-  if (headingMatch) {
+  const headingMatch = /^(#{1,6})\s*(.*)$/.exec(line);
+  if (headingMatch && headingMatch[2].length > 0) {
     heading = true;
     line = headingMatch[2];
   }

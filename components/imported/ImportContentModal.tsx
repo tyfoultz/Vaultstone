@@ -430,6 +430,12 @@ export function ImportContentModal({
               // user imported under the 2024 code (e.g. XDMG).
               name: p.name,
               contentType: p.contentType,
+              // Cross-source supplemental sections (XGE/TCE/SCAG
+              // worldbuilding appended to a PHB class's fluff) ride
+              // along to the row's data so the renderer can surface
+              // them as a separate Supplemental Lore section instead
+              // of bloating the canonical class intro.
+              supplementalSections: p.supplementalSections,
             })),
             fluffSource: { fileName: picked.fileName, sourceLabel },
           });

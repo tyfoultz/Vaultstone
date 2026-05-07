@@ -538,7 +538,15 @@ export interface ClassResult extends ContentResult {
   startingEquipment?: Array<{
     label?: string;
     items?: string[];
-    gold?: { amount: number; currency: 'cp' | 'sp' | 'ep' | 'gp' | 'pp' };
+    /** Either a fixed amount (2024-style "15 GP") or a dice
+     *  expression (5.1-style "2d4 × 10 gp"). Dice expressions are
+     *  surfaced verbatim — the UI renders them as "Roll 2d4 × 10
+     *  gp" rather than evaluating to a fixed value. */
+    gold?: {
+      amount?: number;
+      dice?: string;
+      currency: 'cp' | 'sp' | 'ep' | 'gp' | 'pp';
+    };
   }>;
   /** Free-text multiclass prerequisite (e.g. "Strength 13"). */
   multiclassPrerequisite?: string;

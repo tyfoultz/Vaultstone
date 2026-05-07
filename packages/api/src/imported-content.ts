@@ -169,6 +169,11 @@ export async function patchImportedDescriptions(args: {
     name?: string;
     /** Optional — required alongside `name` for the fallback lookup. */
     contentType?: string;
+    /** Supplemental fluff sections from later books (XGE / TCE / etc.)
+     *  that the row's primary source omits. Stored alongside the
+     *  description so the renderer can surface them in a separate
+     *  "Supplemental Lore" section. */
+    supplementalSections?: Array<{ sourceCode: string; content: string }>;
   }>;
   /** Optional provenance stamped into each patched row's `data.fluffSource`.
    *  Surfaced in pack source-card grids so users can see which cards
@@ -230,28 +235,73 @@ export async function patchImportedDescriptions(args: {
     }
   }
 
-  let patched = 0;
+  // Build the list of rows to write. Skip rows whose stored
+  // description already matches the patch — re-importing the same
+  // fluff file should be a no-op rather than 300+ network round trips.
+  //
+  // Two-pass ordering: exact entry_key matches go first, then
+  // name-fallback matches fill in any rows still un-patched. This
+  // prevents cross-edition contamination when a fluff file ships both
+  // PHB and XPHB entries for the same class name — without ordering,
+  // the XPHB patch's name fallback would overwrite the PHB row that
+  // the PHB patch had just legitimately matched. Each row is written
+  // at most once per call.
+  type Update = { id: string; data: Record<string, unknown> };
+  const updates: Update[] = [];
+  const claimedRowIds = new Set<string>();
+  type PatchEntry = (typeof patches)[number];
+  const exactMatches: Array<{ patch: PatchEntry; row: { id: string; data: unknown } }> = [];
+  const fallbackCandidates: PatchEntry[] = [];
   for (const patch of patches) {
-    let row: { id: string; data: unknown } | undefined = byKey.get(patch.entryKey);
-    if (!row && patch.name && patch.contentType) {
-      row = byNameByType.get(patch.contentType)?.get(patch.name.toLowerCase());
-    }
-    if (!row) continue; // no matching entry; user imported fluff before class
-    const merged: Record<string, unknown> = {
-      ...(row.data as Record<string, unknown>),
-      description: patch.description,
-    };
-    if (fluffSource) {
-      merged.fluffSource = fluffSource;
-    }
-    const { error } = await supabase
-      .from('imported_content')
-      .update({ data: merged as Database['public']['Tables']['imported_content']['Update']['data'] })
-      .eq('id', row.id);
-    if (error) return { patched, error };
-    patched++;
+    const exact = byKey.get(patch.entryKey);
+    if (exact) exactMatches.push({ patch, row: exact });
+    else if (patch.name && patch.contentType) fallbackCandidates.push(patch);
   }
-  return { patched, error: null };
+  const orderedHits: Array<{ patch: PatchEntry; row: { id: string; data: unknown } }> = [];
+  for (const hit of exactMatches) {
+    if (claimedRowIds.has(hit.row.id)) continue;
+    claimedRowIds.add(hit.row.id);
+    orderedHits.push(hit);
+  }
+  for (const patch of fallbackCandidates) {
+    const row = byNameByType.get(patch.contentType!)?.get(patch.name!.toLowerCase());
+    if (!row) continue;
+    if (claimedRowIds.has(row.id)) continue; // already patched by exact match
+    claimedRowIds.add(row.id);
+    orderedHits.push({ patch, row });
+  }
+  for (const { patch, row } of orderedHits) {
+    const existing = row.data as Record<string, unknown>;
+    const sameSupplementals = sameSupplementalSections(
+      existing.supplementalSections,
+      patch.supplementalSections,
+    );
+    if (
+      existing.description === patch.description
+      && sameSupplementals
+      && (!fluffSource || sameProvenance(existing.fluffSource, fluffSource))
+    ) {
+      continue;
+    }
+    const merged: Record<string, unknown> = { ...existing, description: patch.description };
+    if (patch.supplementalSections && patch.supplementalSections.length > 0) {
+      merged.supplementalSections = patch.supplementalSections;
+    } else {
+      // Re-import that no longer carries supplementals — clear the
+      // stale field so the renderer doesn't keep showing them.
+      delete merged.supplementalSections;
+    }
+    if (fluffSource) merged.fluffSource = fluffSource;
+    updates.push({ id: row.id, data: merged });
+  }
+
+  // Run updates in parallel chunks. PostgREST doesn't have a clean
+  // "update-many-by-id" verb (upsert requires full-row data), so each
+  // patch is its own UPDATE. Sequential awaits across 500+ rows (full
+  // bestiary fluff) is too brittle — a single dropped request bails
+  // the whole import. Parallelizing 25 at a time keeps the network
+  // saturated without overwhelming the connection pool.
+  return runUpdatesInParallel(updates);
 }
 
 /**
@@ -322,28 +372,105 @@ export async function patchImportedSpellClasses(args: {
     }
   }
 
-  let patched = 0;
+  // Build the list of rows to write. Skipping a row when its `data`
+  // already carries the same `classes` (re-imports of the same lookup
+  // file) avoids hammering the network with no-op updates and lets
+  // the user re-run the import for free.
+  type Update = { id: string; data: Record<string, unknown> };
+  const updates: Update[] = [];
   for (const patch of patches) {
     let row: { id: string; data: unknown } | undefined = byKey.get(patch.entryKey);
     if (!row && patch.name) {
       row = byName.get(patch.name.toLowerCase());
     }
     if (!row) continue; // user imported the lookup before the spells file
-    const merged: Record<string, unknown> = {
-      ...(row.data as Record<string, unknown>),
-      classes: patch.classes,
-    };
-    if (classesSource) {
-      merged.classesSource = classesSource;
+    const existing = row.data as Record<string, unknown>;
+    const existingClasses = Array.isArray(existing.classes) ? existing.classes : [];
+    if (
+      arraysEqual(existingClasses, patch.classes)
+      && (!classesSource || sameProvenance(existing.classesSource, classesSource))
+    ) {
+      continue;
     }
-    const { error } = await supabase
-      .from('imported_content')
-      .update({ data: merged as Database['public']['Tables']['imported_content']['Update']['data'] })
-      .eq('id', row.id);
-    if (error) return { patched, error };
-    patched++;
+    const merged: Record<string, unknown> = { ...existing, classes: patch.classes };
+    if (classesSource) merged.classesSource = classesSource;
+    updates.push({ id: row.id, data: merged });
+  }
+
+  // Run updates in parallel chunks (see runUpdatesInParallel for the
+  // rationale — upsert can't do update-many-by-id without full row
+  // data). Importing the 700-spell lookup against a fully-populated
+  // pack runs 700 individual UPDATEs; in parallel chunks of 25 that's
+  // ~28 round-trip waves, far more tolerant of transient network
+  // issues than 700 sequential awaits.
+  return runUpdatesInParallel(updates);
+}
+
+/**
+ * Run a list of single-row UPDATE requests in parallel chunks. Returns
+ * { patched, error } matching the calling-function shape — `patched`
+ * counts successful updates, `error` is the first failure (subsequent
+ * updates in the failing chunk may have already succeeded; that's
+ * acceptable since each is idempotent for our purposes).
+ */
+async function runUpdatesInParallel(
+  updates: Array<{ id: string; data: Record<string, unknown> }>,
+): Promise<{ patched: number; error: { message: string } | null }> {
+  const PARALLEL_CHUNK = 25;
+  let patched = 0;
+  for (let i = 0; i < updates.length; i += PARALLEL_CHUNK) {
+    const slice = updates.slice(i, i + PARALLEL_CHUNK);
+    const results = await Promise.all(
+      slice.map((u) =>
+        supabase
+          .from('imported_content')
+          .update({ data: u.data as Database['public']['Tables']['imported_content']['Update']['data'] })
+          .eq('id', u.id),
+      ),
+    );
+    for (const r of results) {
+      if (r.error) return { patched, error: r.error };
+      patched++;
+    }
   }
   return { patched, error: null };
+}
+
+/** Shallow array equality used to skip no-op upserts. */
+function arraysEqual<T>(a: T[], b: T[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/** Compare a stored provenance blob (`fluffSource`, `classesSource`)
+ *  against what we'd write. Used to skip rows where the new value
+ *  matches the existing one — re-importing the same file twice
+ *  should be free. */
+function sameProvenance(
+  existing: unknown,
+  next: { fileName: string; sourceLabel: string },
+): boolean {
+  if (!existing || typeof existing !== 'object') return false;
+  const e = existing as { fileName?: unknown; sourceLabel?: unknown };
+  return e.fileName === next.fileName && e.sourceLabel === next.sourceLabel;
+}
+
+/** Compare two `supplementalSections` arrays for equality so the
+ *  fluff patch loop can skip no-op writes. Strict shape match: same
+ *  length, same per-index source + content. Treats `undefined` /
+ *  empty-array as equivalent. */
+function sameSupplementalSections(existing: unknown, next: unknown): boolean {
+  const e = Array.isArray(existing) ? existing : [];
+  const n = Array.isArray(next) ? next : [];
+  if (e.length !== n.length) return false;
+  for (let i = 0; i < e.length; i++) {
+    const a = e[i] as { sourceCode?: unknown; content?: unknown };
+    const b = n[i] as { sourceCode?: unknown; content?: unknown };
+    if (a?.sourceCode !== b?.sourceCode) return false;
+    if (a?.content !== b?.content) return false;
+  }
+  return true;
 }
 
 /**

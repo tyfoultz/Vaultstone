@@ -81,6 +81,11 @@ type RawClass = {
   hd?: { number?: number; faces?: number };
   /** Lowercase ability-score abbreviations granting save proficiency. */
   proficiency?: string[];
+  /** Subclass-feature heading per class — "Primal Path" (Barbarian),
+   *  "Druid Circle" (Druid), "Sacred Oath" (Paladin), etc. Used to
+   *  detect placeholder "<subclassTitle> feature" rows the source
+   *  ships at subclass-feature levels (L6/L10/L14 typically). */
+  subclassTitle?: string;
   /** 5e.tools 2024 ships primary ability as an array of `{ <abilityCode>: true }`
    *  objects (e.g. Barbarian → `[{str: true}]`, Ranger → `[{dex: true, wis: true}]`).
    *  Each element is one ability; multiple keys inside one element AND
@@ -281,8 +286,20 @@ function buildClass(
     // for parity with how the subclass transform handles its
     // self-named feature.
     .filter((f) => f.name.toLowerCase() !== c.name.toLowerCase())
+    // Drop placeholder "<subclassTitle> feature" entries that 5.1
+    // ships at L6/L10/L14 — they're stubs ("you gain a feature from
+    // your Primal Path") with no real content. Each class has its
+    // own subclass title (Primal Path / Bard College / Divine Domain
+    // / Druid Circle / Martial Archetype / Monastic Tradition /
+    // Sacred Oath / Ranger Archetype / Roguish Archetype / Sorcerous
+    // Origin / Otherworldly Patron / Arcane Tradition), so we pass
+    // the class's `subclassTitle` to the detector. The system page
+    // already injects a "Subclass feature" placeholder at the
+    // matching subclassFeatureLevels — leaving these stubs in would
+    // double up the row.
+    .filter((f) => !isSubclassFeaturePlaceholder(f, c.subclassTitle))
     .flatMap((f) => {
-      const fullDesc = entriesToText(f.entries ?? []).trim();
+      const fullDesc = stripVariantPrefix(entriesToText(f.entries ?? []).trim());
       const split = splitSubOptions(fullDesc);
       const parent: NonNullable<ClassResult['features']>[number] = {
         level: f.level,
@@ -334,7 +351,7 @@ function buildClass(
     importSource,
     data: {},
     hitDie: c.hd?.faces ?? 8,
-    primaryAbility: extractPrimaryAbility(c.primaryAbility),
+    primaryAbility: resolvePrimaryAbility(c),
     savingThrows: (c.proficiency ?? []).map(abilityFullName),
     armorProficiencies: flattenStringList(sp?.armor),
     weaponProficiencies: flattenStringList(sp?.weapons),
@@ -433,7 +450,14 @@ function formatProfEntry(entry: string): string {
   // Single bare word with no whitespace or markup — treat as a code
   // ("light", "martial") and Title Case it.
   if (!/[\s{]/.test(trimmed)) return titleCase(trimmed);
-  return stripMarkup(trimmed);
+  // Markup-bearing entry — strip tags, then title-case so 5.1's
+  // lowercase entity names ("hand crossbows", "thieves' tools")
+  // render as "Hand Crossbows", "Thieves' Tools". The fixSkillCasing
+  // pass keeps small joiners like "of" lowercase ("Tasha's Cauldron
+  // of Everything", though that's a book title not a prof — same
+  // rule applies).
+  const stripped = stripMarkup(trimmed);
+  return fixSkillCasing(titleCase(stripped));
 }
 
 /**
@@ -463,6 +487,40 @@ function extractPrimaryAbility(
   return out;
 }
 
+/**
+ * Resolve a class's primary ability. The 2024 XPHB ships
+ * `primaryAbility` as structured data; the 2014 PHB doesn't ship the
+ * field at all (the rule was prose-only in that edition). Fall back to
+ * a hardcoded table keyed on class name for entries the source omits —
+ * the standard 2014 SRD class set has stable, well-known primary
+ * abilities.
+ */
+function resolvePrimaryAbility(c: RawClass): string[] {
+  const fromData = extractPrimaryAbility(c.primaryAbility);
+  if (fromData.length > 0) return fromData;
+  return PRIMARY_ABILITY_FALLBACK[c.name] ?? [];
+}
+
+/** Hardcoded primary-ability table for 2014 SRD classes (the source
+ *  doesn't carry the field). Multi-ability entries use OR semantics
+ *  (separate strings) for "either-or" classes (Fighter), and AND
+ *  semantics (joined with " & ") for true multi-stat classes (Monk,
+ *  Paladin, Ranger). */
+const PRIMARY_ABILITY_FALLBACK: Record<string, string[]> = {
+  Barbarian: ['Strength'],
+  Bard:      ['Charisma'],
+  Cleric:    ['Wisdom'],
+  Druid:     ['Wisdom'],
+  Fighter:   ['Strength', 'Dexterity'],
+  Monk:      ['Dexterity & Wisdom'],
+  Paladin:   ['Strength & Charisma'],
+  Ranger:    ['Dexterity & Wisdom'],
+  Rogue:     ['Dexterity'],
+  Sorcerer:  ['Charisma'],
+  Warlock:   ['Charisma'],
+  Wizard:    ['Intelligence'],
+};
+
 /** Full 5e skill list, used to expand `{any: N}` skill choices into an
  *  explicit `from` set. Stable across 5.1 and 2024 — both editions share
  *  the same 18 skills tied to the same abilities. */
@@ -490,7 +548,10 @@ function extractSkillChoices(
   if (!choose) return { count: 0, from: [] };
   return {
     count: choose.count ?? 0,
-    from: (choose.from ?? []).map(titleCase),
+    // 5.1 ships skill names lowercased ("sleight of hand"); titleCase
+    // makes them "Sleight Of Hand" but proper SRD casing is "Sleight
+    // of Hand". fixSkillCasing un-capitalizes the joiner words.
+    from: (choose.from ?? []).map(titleCase).map(fixSkillCasing),
   };
 }
 
@@ -664,9 +725,37 @@ function buildStartingEquipment(
     });
   }
   if (typeof se.goldAlternative === 'string' && se.goldAlternative.trim()) {
-    out.push({ label: `B: ${stripInlineMarkup(se.goldAlternative)}` });
+    // 5.1 ships goldAlternative as a markup expression like
+    // "{@dice 2d4 × 10|2d4 × 10|Starting Gold}". Strip markup to get
+    // "2d4 × 10", then surface it as a structured `gold.dice` value
+    // so the renderer can show it as "Roll 2d4 × 10 gp" instead of
+    // baking the dice into a label string.
+    const stripped = stripInlineMarkup(se.goldAlternative).trim();
+    const dice = parseGoldAlternative(stripped);
+    if (dice) {
+      out.push({ label: 'B', gold: { dice, currency: 'gp' } });
+    } else {
+      // Fallback for unrecognized expressions — keep them visible so
+      // the user notices and we can extend the parser.
+      out.push({ label: 'B', gold: { dice: stripped, currency: 'gp' } });
+    }
   }
   return out;
+}
+
+/**
+ * Pull a dice expression out of a 5.1 `goldAlternative` string. Typical
+ * shapes after markup stripping: "2d4 × 10" (most classes), "5d4"
+ * (Monk's special case — they get 5d4 gp without the ×10 multiplier).
+ * Returns the canonical form ("NdM × 10" or "NdM"). Returns null when
+ * the string doesn't look like a dice expression at all.
+ */
+function parseGoldAlternative(text: string): string | null {
+  const withMultiplier = text.match(/(\d+d\d+)\s*[×x*]\s*(\d+)/);
+  if (withMultiplier) return `${withMultiplier[1]} × ${withMultiplier[2]}`;
+  const bare = text.match(/^\s*(\d+d\d+)\s*$/);
+  if (bare) return bare[1];
+  return null;
 }
 
 /**
@@ -718,9 +807,17 @@ function formatMulticlassRequirements(
   requirements: RawMulticlassRequirements | undefined,
 ): ClassResult['multiclassPrerequisite'] {
   if (!requirements) return undefined;
-  const groups: Array<Record<string, number>> = Array.isArray(requirements.or)
+  let groups: Array<Record<string, number>> = Array.isArray(requirements.or)
     ? requirements.or
     : [stripOrFromRequirements(requirements)];
+  // Fighter ships `{"or":[{"str":13,"dex":13}]}` — one group with two
+  // ability scores inside. The intent is "Strength 13 OR Dexterity 13",
+  // not the AND-joined "Strength 13, Dexterity 13" the bare reader
+  // produces. Detect the single-group multi-key case and split each
+  // ability into its own group so the OR formatting kicks in.
+  if (groups.length === 1 && Object.keys(groups[0]).length > 1) {
+    groups = Object.entries(groups[0]).map(([k, v]) => ({ [k]: v }));
+  }
   const formatted = groups
     .map((g) => formatRequirementGroup(g))
     .filter(Boolean);
@@ -823,13 +920,17 @@ function formatToolTrait(s: string): string {
 }
 
 /**
- * Fix multi-word skill names where titleCase over-capitalizes joining
- * words. "Sleight of Hand" is the only standard 5e skill that hits
- * this, but the rule is general: lowercase short joiners (of, the, a,
- * an, in, on, to, for) when they aren't the first word.
+ * Fix multi-word names where titleCase over-capitalizes joining
+ * words. "Sleight of Hand" is the canonical case but the rule is
+ * general: lowercase short joiners and articles (of, the, a, an, in,
+ * on, to, for, your, with, and, or) when they aren't the first word.
+ * Used for skill names and proficiency entries where 5.1 ships the
+ * source lowercased and titleCase elevates everything to caps.
  */
 function fixSkillCasing(s: string): string {
-  return s.replace(/\b(Of|The|A|An|In|On|To|For)\b/g, (m, p1) => p1.toLowerCase()).replace(/^[a-z]/, (c) => c.toUpperCase());
+  return s
+    .replace(/\b(Of|The|A|An|In|On|To|For|Your|With|And|Or)\b/g, (_, p1) => p1.toLowerCase())
+    .replace(/^[a-z]/, (c) => c.toUpperCase());
 }
 
 /**
@@ -847,6 +948,59 @@ function fixSkillCasing(s: string): string {
  * emphasis (spell name, defined term) than a real sub-feature, so we
  * leave the description untouched in that case.
  */
+/**
+ * Detect 5.1-style "Path feature" / "Subclass feature" stub entries —
+ * these only say "you gain a feature from your Primal Path" and exist
+ * to flag the slot in the source. Our system page injects a proper
+ * "Subclass feature" placeholder at every subclassFeatureLevel, so
+ * importing these stubs would double up the row.
+ */
+function isSubclassFeaturePlaceholder(
+  f: { name: string; entries?: RawEntry[] },
+  subclassTitle: string | undefined,
+): boolean {
+  const trimmed = f.name.trim();
+  // Generic "Path feature" / "Subclass feature" naming, plus per-class
+  // "<subclassTitle> feature" (Druid → "Druid Circle feature", Bard
+  // → "Bard College feature", Cleric → "Divine Domain feature",
+  // etc.). The match is case-insensitive and ignores trailing-space
+  // variations.
+  const titlePattern = subclassTitle
+    ? new RegExp(`^${escapeRegex(subclassTitle)}\\s+features?$`, 'i')
+    : null;
+  const matchesName =
+    /^(?:path|subclass)\s+features?$/i.test(trimmed)
+    || (titlePattern?.test(trimmed) ?? false);
+  if (!matchesName) return false;
+  const text = entriesToText(f.entries ?? []).trim().toLowerCase();
+  // Only filter the bare-stub form. A custom homebrew might author a
+  // longer "Druid Circle feature" with real content; that should pass
+  // through. The 5.1 stub is "At Nth level, you gain a feature from
+  // your <subclass title>." — match the "you gain a feature from your"
+  // phrase so any class's stub is recognized.
+  return text.length === 0 || /you gain a feature from your /i.test(text);
+}
+
+/** Escape regex metacharacters so a plain-string subclass title can be
+ *  used inside a RegExp constructor. */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Drop 5e.tools' editorial "Nth-level CLASSNAME optional class features"
+ * lead line that prefixes Tasha's-style optional features. The line is
+ * an italicized variantrule reference in the source — useful as a tag
+ * for the renderer, but redundant noise above the actual rule text.
+ * Format: "3rd-level barbarian optional class features\n\nWhen you...".
+ */
+function stripVariantPrefix(desc: string): string {
+  return desc.replace(
+    /^\d+(?:st|nd|rd|th)-level\s+\w+\s+optional class features?\s*\n+/i,
+    '',
+  );
+}
+
 function splitSubOptions(desc: string): {
   parentDesc: string;
   children: Array<{ name: string; desc: string }>;

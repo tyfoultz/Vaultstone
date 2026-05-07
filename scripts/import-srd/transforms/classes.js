@@ -128,6 +128,12 @@ function normalizeDescription(s) {
   return String(s)
     .replace(/\r\n?/g, '\n')
     .replace(/^[\t ]*[*\-][\t ]+/gm, '• ')
+    // Open5e's 5.1 class data ships sub-headings without the space
+    // after the hash marker — `###Cantrips` instead of `### Cantrips`.
+    // CommonMark would refuse those, and our renderer would leak the
+    // literal hashes. Normalize at ingest so the bundled JSON is
+    // CommonMark-valid.
+    .replace(/^(#{1,6})(?=\S)/gm, '$1 ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -305,10 +311,18 @@ function parseStartingEquipment51(desc) {
   // "* (a) a greataxe or (b) any martial melee weapon\n* ..."
   // Rather than over-engineer parsing, dump the cleaned bullet lines as a
   // single "Choose:" option list — UI consumers can render as-is.
+  //
+  // Open5e's 5.1 desc wraps the (a)/(b)/(c) option markers in markdown
+  // italics: `(*a*) a greataxe or (*b*) any martial melee weapon`. Strip
+  // the asterisks around single letters so the rendered output reads
+  // as plain option labels — bullets in this list pass through to the
+  // UI without going through MarkdownText, so leftover asterisks would
+  // surface as literal punctuation.
   const lines = String(desc)
     .replace(/\r\n?/g, '\n')
     .split(/\n/)
     .map((l) => l.replace(/^\s*[*\-]\s*/, '').trim())
+    .map((l) => l.replace(/\*([a-z])\*/g, '$1'))
     .filter((l) => l && !/^you start/i.test(l));
   if (lines.length === 0) return undefined;
   return [{ label: 'A', items: lines }];

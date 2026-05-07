@@ -23,6 +23,25 @@
 
 import { entriesToText, slugify, type RawEntry } from './entries';
 
+/**
+ * Detects "inline section opener" strings — paragraphs whose first
+ * sentence is a short Title-Case label that names a named sub-section
+ * 5e.tools collapsed into prose. Three accepted forms:
+ *   1. `{@b Primal Instinct.} People of towns…`     (5e.tools raw bold)
+ *   2. `**Primal Instinct.** People of towns…`      (post-strip bold)
+ *   3. `Primal Instinct. People of towns…`          (no bold at all)
+ *
+ * The label must be 2–6 Title-Case words ending in a period, immediately
+ * followed by a single space and a capitalized body sentence. Single-
+ * word labels are rejected to avoid false positives on regular prose
+ * that happens to start with a capitalized word (e.g. "Strong embrace…"
+ * or "Magic infuses…"). Used by `splitBySectionSource` to recognize
+ * named sub-sections that 5e.tools flattened into prose strings rather
+ * than separate `{ name, entries }` objects.
+ */
+const INLINE_SECTION_OPENER =
+  /^(?:\{@\w+\s+|\*\*)?\s*[A-Z][A-Za-z'-]*(?:\s+(?:[A-Z][A-Za-z'-]*|of|the|and|a|to|in))+(?:\}|\*\*)?\.\s*(?:\}|\*\*)?\s+[A-Z]/;
+
 // ── Source-side type sketches ─────────────────────────────────────────────
 
 type FluffCopyRef = {
@@ -84,8 +103,26 @@ export type FluffPatch = {
   /** Content type of the row this patch targets. Used for grouping
    *  counts in the import modal. */
   contentType: FluffContentType;
-  /** Flattened prose to write into the row's `data.description`. */
+  /** Flattened prose to write into the row's `data.description`.
+   *  Sourced strictly from sections matching the fluff entry's own
+   *  source — supplemental sections from later books surface as
+   *  `supplementalSections` instead. */
   description: string;
+  /**
+   * Top-level fluff sections from later supplements (5e.tools fluff
+   * files often append XGE / TCE / SCAG additions to a PHB class's
+   * fluff entry). The renderer surfaces these in a separate
+   * "Supplemental Lore" section keyed on source so they don't bloat
+   * the canonical class intro. Empty when the source ships only the
+   * own-source content.
+   */
+  supplementalSections?: Array<{
+    /** "XGE" / "TCE" / "SCAG" — the section's declared source. */
+    sourceCode: string;
+    /** Flattened prose for this section. Already markdown-cleaned via
+     *  the same pipeline as `description`. */
+    content: string;
+  }>;
 };
 
 export type TransformOptions = {
@@ -220,19 +257,259 @@ function transformSimpleFluffArray<T extends RawFluffEntry>(
   };
 
   for (const f of list) {
-    const entries = resolveEntries(f);
-    const description = stripBoldRuns(entriesToText(entries).trim(), f.name);
-    if (!description) continue;
+    const allEntries = resolveEntries(f);
+    const split = splitBySectionSource(allEntries, f.source, f.name);
+    let { own } = split;
+    let supplementals = split.supplementals;
+    let description = stripBoldRuns(entriesToText(own).trim(), f.name);
+
+    // Fallback: 5e.tools fluff entries don't always lead with bare
+    // intro paragraphs. Some classes (e.g. Barbarian) put every
+    // top-level entry under a named section, so the strict split
+    // produces zero own-source intro prose. We try two cheaper rescues
+    // before giving up:
+    //   (a) peel leading strings + unnamed entries from inside the
+    //       first own-source supplemental block (handles classes whose
+    //       fluff is wrapped in a single section with vignettes inside);
+    //   (b) if even that produces nothing, promote the entire first
+    //       own-source named section into the description so the modal
+    //       isn't blank. The named section's contents ("**Music and
+    //       Magic.** ...") are perfectly serviceable intro prose; we
+    //       drop it from the Lore drawer to avoid duplication.
+    if (!description && supplementals.length > 0) {
+      const firstOwnIdx = supplementals.findIndex((s) => s.sourceCode === f.source);
+      if (firstOwnIdx >= 0) {
+        const promoted = peelLeadingProse(supplementals[firstOwnIdx]!.entry, f.source);
+        if (promoted.intro.length > 0) {
+          description = stripBoldRuns(entriesToText(promoted.intro).trim(), f.name);
+          if (promoted.remainder.length === 0) {
+            supplementals = supplementals.filter((_, i) => i !== firstOwnIdx);
+          } else {
+            supplementals = supplementals.map((s, i) =>
+              i === firstOwnIdx
+                ? { sourceCode: s.sourceCode, entry: { type: 'entries', entries: promoted.remainder } }
+                : s,
+            );
+          }
+        } else {
+          // (b) Promote the first named child of the wrapper as the
+          // intro, leaving the rest in Lore. Render the section's
+          // inner entries directly (drop the section header) so the
+          // visible description reads as flowing prose instead of
+          // "**Primal Instinct.** Anyone might…".
+          const firstChild = peelFirstNamedChild(supplementals[firstOwnIdx]!.entry);
+          if (firstChild.first) {
+            const introEntries = unwrapSectionEntries(firstChild.first);
+            description = stripBoldRuns(entriesToText(introEntries).trim(), f.name);
+            if (firstChild.rest.length === 0) {
+              supplementals = supplementals.filter((_, i) => i !== firstOwnIdx);
+            } else {
+              supplementals = supplementals.map((s, i) =>
+                i === firstOwnIdx
+                  ? { sourceCode: s.sourceCode, entry: { type: 'entries', entries: firstChild.rest } }
+                  : s,
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // Supplemental sections render through MarkdownText (rich
+     // formatting), not the modal subtitle's plain Text — so we keep
+     // the `**Sub-Label.**` bold prefixes that `entriesToText` emits
+     // for nested 5e.tools blocks. The description below strips them
+     // because the subtitle widget can't render bold runs inline.
+    const supplementalSections = supplementals
+      .map((sec) => ({
+        sourceCode: sec.sourceCode,
+        content: stripLeadingTitle(entriesToText([sec.entry]).trim(), f.name),
+      }))
+      .filter((sec) => sec.content.length > 0);
+    if (!description && supplementalSections.length === 0) continue;
     out.push({
       entryKey: keyFor(f),
       name: f.name,
       sourceCode: f.source,
       contentType,
       description,
+      ...(supplementalSections.length > 0 ? { supplementalSections } : {}),
     });
   }
 
   return out;
+}
+
+/**
+ * Split top-level fluff entries into a short canonical intro and
+ * collapsible supplemental sections.
+ *
+ * Two split signals, applied together:
+ *  1. Cross-source sections (e.g. an XGE/TCE block embedded in a PHB
+ *     class entry) always go to supplementals tagged with their own
+ *     source code.
+ *  2. Within the entry's own source, the first contiguous run of
+ *     strings + unnamed sections is the canonical intro. As soon as a
+ *     **named** sub-section appears (`{ name: "Music and Magic", ... }`),
+ *     that section and every named sibling after it are pushed into
+ *     supplementals under `ownSource`. This keeps the visible class
+ *     description to the opening hook and tucks worldbuilding tables
+ *     ("Creating a Bard", "Quick Build", "Music and Magic") into the
+ *     Lore drawer.
+ *
+ * Same-source supplementals are emitted as a single grouped section
+ * so the UI doesn't render five tiny blocks back-to-back; nested
+ * sub-blocks inside a supplemental flow through `entriesToText` as
+ * bold-prefixed paragraphs.
+ */
+function splitBySectionSource(
+  entries: RawEntry[],
+  ownSource: string,
+  /** The fluff entry's own name (e.g. "Barbarian"). 5e.tools often
+   *  wraps the canonical content in a `{ name: "Barbarian", type:
+   *  "section" }` block whose `name` just restates the entry name —
+   *  that's a wrapper to flatten, not a real sub-section. */
+  ownName?: string,
+): {
+  own: RawEntry[];
+  supplementals: Array<{ sourceCode: string; entry: RawEntry }>;
+} {
+  // 5e.tools wraps fluff entries inconsistently: sometimes the payload
+  // is a flat array of strings + named sections, sometimes it's a
+  // single `{ type: 'section', entries: [...] }` wrapper, and
+  // sometimes it's a mix of own-source wrappers + cross-source
+  // siblings. Flatten any own-source wrapper at the top level whose
+  // own `name` is missing OR matches the fluff entry's name (i.e. a
+  // class-title restate, not a real sub-section) so the split
+  // heuristic sees the actual content list. Cross-source wrappers
+  // stay intact so they get dropped wholesale by the cross-source
+  // filter below.
+  const ownNameLc = ownName?.trim().toLowerCase() ?? '';
+  entries = entries.flatMap((e) => {
+    if (typeof e === 'string') return [e];
+    const src = (e as { source?: string }).source;
+    if (typeof src === 'string' && src !== ownSource) return [e];
+    const rawName = (e as { name?: unknown }).name;
+    const name = typeof rawName === 'string' ? rawName.trim() : '';
+    const isNamedRealSection =
+      name.length > 0 && name.toLowerCase() !== ownNameLc;
+    if (isNamedRealSection) return [e];
+    const inner = e.entries ?? (e.entry !== undefined ? [e.entry] : null);
+    return inner && inner.length > 0 ? inner : [e];
+  });
+  const own: RawEntry[] = [];
+  const supplementals: Array<{ sourceCode: string; entry: RawEntry }> = [];
+  // Collect own-source named sub-sections so we can group them under a
+  // single synthetic supplemental block keyed on `ownSource`.
+  const ownNamedSections: RawEntry[] = [];
+  let sawOwnNamedSection = false;
+
+  for (const e of entries) {
+    if (typeof e === 'string') {
+      // Inline section boundary: 5e.tools sometimes flattens what
+      // would be a `{ name: '...', entries: [...] }` block into a
+      // single string starting with `{@b Primal Instinct.} ...` (or
+      // the already-stripped form `**Primal Instinct.** ...`). Treat
+      // any string that opens with a bold-prefix label of 1–6 words
+      // as the start of a named sub-section so PHB lore (Primal
+      // Instinct, A Life of Danger, Creating a Barbarian, Quick
+      // Build) collapses into Lore alongside `name`-shaped sections.
+      const looksLikeInlineSection = INLINE_SECTION_OPENER.test(e);
+      if (looksLikeInlineSection) sawOwnNamedSection = true;
+      // Strings before the first named section count as intro prose.
+      // Strings after it are paragraph glue between named sections —
+      // fold them into the supplemental group so context isn't lost.
+      if (sawOwnNamedSection) ownNamedSections.push(e);
+      else own.push(e);
+      continue;
+    }
+    const src = (e as { source?: string }).source;
+    if (typeof src === 'string' && src !== ownSource) {
+      // Cross-source nested section (e.g. an XGE Personal Totems
+      // table embedded in a PHB Barbarian fluff entry). The user only
+      // imported PHB, so we drop these silently rather than render
+      // them as Lore — including them would smuggle in content from
+      // a book the user didn't pick, which violates the per-import
+      // ToS callout's premise (the user attests rights to *what they
+      // imported*, not whatever 5e.tools layered on top).
+      continue;
+    }
+    const isNamed = typeof (e as { name?: unknown }).name === 'string'
+      && ((e as { name?: string }).name ?? '').trim().length > 0;
+    if (isNamed) {
+      sawOwnNamedSection = true;
+      ownNamedSections.push(e);
+    } else {
+      // Unnamed top-level container — treat its contents as intro prose
+      // before any named section appears, otherwise fold into the
+      // supplemental group to preserve order.
+      if (sawOwnNamedSection) ownNamedSections.push(e);
+      else own.push(e);
+    }
+  }
+
+  if (ownNamedSections.length > 0) {
+    supplementals.unshift({
+      sourceCode: ownSource,
+      entry: { type: 'entries', entries: ownNamedSections },
+    });
+  }
+  return { own, supplementals };
+}
+
+/**
+ * When the top-level split produces no canonical intro (because the
+ * fluff entry is already wrapped in a single section with everything
+ * inside it), reach one level deeper into the wrapper to peel off
+ * leading strings + unnamed entries before the first named sub-block.
+ * Mirrors the same own-source heuristic as `splitBySectionSource` but
+ * applied to a synthetic wrapper supplemental.
+ */
+function peelLeadingProse(
+  entry: RawEntry,
+  ownSource: string,
+): { intro: RawEntry[]; remainder: RawEntry[] } {
+  if (typeof entry === 'string') return { intro: [entry], remainder: [] };
+  const inner = entry.entries ?? (entry.entry !== undefined ? [entry.entry] : []);
+  const intro: RawEntry[] = [];
+  const remainder: RawEntry[] = [];
+  let sawNamed = false;
+  for (const e of inner) {
+    if (sawNamed) { remainder.push(e); continue; }
+    if (typeof e === 'string') { intro.push(e); continue; }
+    const src = (e as { source?: string }).source;
+    if (typeof src === 'string' && src !== ownSource) { sawNamed = true; remainder.push(e); continue; }
+    const isNamed = typeof (e as { name?: unknown }).name === 'string'
+      && ((e as { name?: string }).name ?? '').trim().length > 0;
+    if (isNamed) { sawNamed = true; remainder.push(e); }
+    else intro.push(e);
+  }
+  return { intro, remainder };
+}
+
+/**
+ * Last-ditch description fallback: when an entry has no leading prose
+ * even one level into the wrapper, return the first child entry as the
+ * intro and the rest as the remainder. Used by the patch builder when
+ * the structural split would otherwise produce a blank class blurb.
+ */
+function peelFirstNamedChild(entry: RawEntry): { first: RawEntry | null; rest: RawEntry[] } {
+  if (typeof entry === 'string') return { first: entry, rest: [] };
+  const inner = entry.entries ?? (entry.entry !== undefined ? [entry.entry] : []);
+  if (inner.length === 0) return { first: null, rest: [] };
+  return { first: inner[0]!, rest: inner.slice(1) };
+}
+
+/**
+ * Strip the outer named-section wrapper off a fluff entry so its prose
+ * renders without an inline section header. Used when promoting a
+ * named section into the canonical class description — the modal
+ * already shows the class name as the title, so "**Primal Instinct.**"
+ * as a leading bold prefix would feel like a stray heading.
+ */
+function unwrapSectionEntries(entry: RawEntry): RawEntry[] {
+  if (typeof entry === 'string') return [entry];
+  return entry.entries ?? (entry.entry !== undefined ? [entry.entry] : []);
 }
 
 function defaultMatchCopy(copy: FluffCopyRef, candidate: RawFluffEntry): boolean {
@@ -256,6 +533,22 @@ function stripBoldRuns(text: string, leadingTitle?: string): string {
   let out = text.replace(/\*\*(.+?)\*\*/g, '$1').trim();
   if (leadingTitle) {
     const escaped = leadingTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(`^${escaped}\\.\\s+`), '').trim();
+  }
+  return out;
+}
+
+/**
+ * Drop a duplicated `<Name>.` prefix from rich-text content while
+ * leaving inline `**bold**` runs intact. Used for supplemental Lore
+ * sections, which render through MarkdownText and benefit from the
+ * preserved bold prefixes that mark sub-headings.
+ */
+function stripLeadingTitle(text: string, leadingTitle?: string): string {
+  let out = text;
+  if (leadingTitle) {
+    const escaped = leadingTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(`^\\*\\*${escaped}\\.\\*\\*\\s+`), '').trim();
     out = out.replace(new RegExp(`^${escaped}\\.\\s+`), '').trim();
   }
   return out;

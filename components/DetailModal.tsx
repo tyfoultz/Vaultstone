@@ -72,6 +72,28 @@ export function DetailModal({
     setActiveAnchor(id);
   }
 
+  /**
+   * Update the active anchor pill as the user scrolls past sections,
+   * so the sticky bar reflects where they actually are. Picks the
+   * deepest section whose top has scrolled above the chrome line
+   * (offsetY + small tolerance for rounding).
+   */
+  function handleScroll(e: { nativeEvent: { contentOffset: { y: number } } }) {
+    if (!anchors || anchors.length === 0) return;
+    const y = e.nativeEvent.contentOffset.y + 24;
+    let bestId: string | null = anchors[0]?.id ?? null;
+    let bestY = -Infinity;
+    for (const a of anchors) {
+      const sectionY = sectionPositions.current.get(a.id);
+      if (sectionY == null) continue;
+      if (sectionY <= y && sectionY > bestY) {
+        bestY = sectionY;
+        bestId = a.id;
+      }
+    }
+    if (bestId && bestId !== activeAnchor) setActiveAnchor(bestId);
+  }
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={[s.backdrop, isWide ? s.backdropDesktop : s.backdropMobile]}>
@@ -139,6 +161,8 @@ export function DetailModal({
             style={s.body}
             contentContainerStyle={s.bodyContent}
             showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={32}
           >
             {/* Subtitle / description — split on blank lines so each paragraph
                 renders as its own Text with proper gap. */}
