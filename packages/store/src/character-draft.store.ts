@@ -62,6 +62,21 @@ export interface CharacterDraft {
    * pickers consume this to scope the homebrew tier.
    */
   selectedPackIds: string[];
+
+  /**
+   * Resolved character-creation rules from the linked campaign,
+   * keyed by rule.key. Populated on bootstrap when the wizard is
+   * launched with ?campaignId=. Empty object for standalone
+   * characters (no rules apply, so steps fall back to the system
+   * defaults). The shape of each value depends on the rule's type
+   * (`boolean` / `string` / `number`); consumers narrow at read
+   * time. Wizard steps read this to gate content (multiclass off
+   * → no multiclass step, customize-origin off → species step
+   * locks ability bonuses, etc.) and the wizard parent surfaces a
+   * read-only "campaign rules" summary so the player knows what
+   * they're playing under.
+   */
+  campaignRules: Record<string, boolean | string | number>;
 }
 
 interface CharacterDraftActions {
@@ -75,6 +90,7 @@ interface CharacterDraftActions {
   setAbilityScoreMethod: (method: AbilityScoreMethod) => void;
   setAbilityScores: (scores: Dnd5eAbilityScores) => void;
   setStartingLevel: (level: number) => void;
+  setCampaignRules: (rules: Record<string, boolean | string | number>) => void;
   setCharacterName: (name: string) => void;
   setCampaignId: (id: string | null) => void;
   setSelectedPackIds: (ids: string[]) => void;
@@ -102,6 +118,7 @@ const INITIAL_DRAFT: CharacterDraft = {
   characterName: '',
   campaignId: null,
   selectedPackIds: [],
+  campaignRules: {},
 };
 
 export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActions>()(
@@ -129,6 +146,8 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
       setAbilityScores: (abilityScores) => set({ abilityScores }),
 
       setStartingLevel: (startingLevel) => set({ startingLevel }),
+
+      setCampaignRules: (campaignRules) => set({ campaignRules }),
 
       setCharacterName: (characterName) => set({ characterName }),
 

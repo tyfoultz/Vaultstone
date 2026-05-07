@@ -23,6 +23,7 @@ import { StepBackground } from '../../components/character-wizard/StepBackground
 import { StepAbilityScores } from '../../components/character-wizard/StepAbilityScores';
 import { StepReview } from '../../components/character-wizard/StepReview';
 import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
+import { CampaignRulesSummary } from '../../components/character-wizard/CampaignRulesSummary';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eSpellSlotLevel, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
 
 // SRD 5e full-caster spell slot progression [level → [lvl1, lvl2, ... lvl9]]
@@ -201,6 +202,11 @@ export default function NewCharacterScreen() {
         const { data: rulesBag } = await getCampaignCharacterRules(launchedCampaignId);
         if (sys && rulesBag) {
           const resolved = resolveRuleValues(sys.optionalRules, rulesBag);
+          // Stash the full resolved set on the draft so wizard
+          // steps + the read-only summary can read any rule
+          // without re-fetching. Each step decides which keys it
+          // cares about.
+          useCharacterDraftStore.getState().setCampaignRules(resolved);
           const startingLevel = Number(resolved.starting_level);
           if (Number.isFinite(startingLevel) && startingLevel >= 1 && startingLevel <= 20) {
             useCharacterDraftStore.getState().setStartingLevel(startingLevel);
@@ -599,6 +605,12 @@ export default function NewCharacterScreen() {
           don't span the full screen on widescreens. */}
       <ContentWidth size="reading" style={{ flex: 1 }}>
         <View style={s.content}>
+          {/* Campaign rules summary — collapsible, hidden on
+              standalone characters and the fork screen (where the
+              user hasn't committed to a campaign yet). Renders
+              above the active step so the player has rules context
+              before each decision. */}
+          {STEPS[step]?.key !== 'ruleset' ? <CampaignRulesSummary /> : null}
           {(() => {
             const key = STEPS[step]?.key;
             // Helper to advance to the step after the current one. Uses the
