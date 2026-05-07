@@ -35,6 +35,13 @@ export type DetailModalProps = {
    * `<DetailSection id={...}>` registered under the same id.
    */
   anchors?: DetailModalAnchor[];
+  /**
+   * Optional content rendered between the sticky title row and the
+   * anchor bar. Used for source-variant chips on classes — sits with
+   * the chrome rather than the body so it stays visible as the user
+   * scrolls inside a tab.
+   */
+  headerExtra?: React.ReactNode;
   children: React.ReactNode;
 };
 
@@ -45,7 +52,7 @@ type SectionRegistry = {
 const DetailModalContext = createContext<SectionRegistry | null>(null);
 
 export function DetailModal({
-  visible, onClose, title, subtitle, heroStats, anchors, children,
+  visible, onClose, title, subtitle, heroStats, anchors, headerExtra, children,
 }: DetailModalProps) {
   const { width } = useWindowDimensions();
   const isWide = width >= 720;
@@ -63,6 +70,28 @@ export function DetailModal({
     // Small offset so the section title isn't flush against the sticky chrome above.
     scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
     setActiveAnchor(id);
+  }
+
+  /**
+   * Update the active anchor pill as the user scrolls past sections,
+   * so the sticky bar reflects where they actually are. Picks the
+   * deepest section whose top has scrolled above the chrome line
+   * (offsetY + small tolerance for rounding).
+   */
+  function handleScroll(e: { nativeEvent: { contentOffset: { y: number } } }) {
+    if (!anchors || anchors.length === 0) return;
+    const y = e.nativeEvent.contentOffset.y + 24;
+    let bestId: string | null = anchors[0]?.id ?? null;
+    let bestY = -Infinity;
+    for (const a of anchors) {
+      const sectionY = sectionPositions.current.get(a.id);
+      if (sectionY == null) continue;
+      if (sectionY <= y && sectionY > bestY) {
+        bestY = sectionY;
+        bestId = a.id;
+      }
+    }
+    if (bestId && bestId !== activeAnchor) setActiveAnchor(bestId);
   }
 
   return (
@@ -84,40 +113,16 @@ export function DetailModal({
             </Pressable>
           </View>
 
-          <ScrollView
-            ref={scrollRef}
-            style={s.body}
-            contentContainerStyle={s.bodyContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Subtitle / description — split on blank lines so each paragraph
-                renders as its own Text with proper gap. */}
-            {subtitle ? (
-              <View style={s.subtitleBlock}>
-                {subtitle.split(/\n\s*\n/).map((para, i) => (
-                  <Text key={i} variant="body-md" family="body" style={s.subtitle}>
-                    {para.trim()}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
+          {/* Header extras (e.g. source-variant chips) — pinned under
+              the title, above the anchor bar. Sits with the modal chrome
+              rather than the scrollable body. */}
+          {headerExtra ? <View style={s.headerExtra}>{headerExtra}</View> : null}
 
-            {/* Hero stats strip */}
-            {heroStats && heroStats.length > 0 ? (
-              <View style={s.heroStrip}>
-                {heroStats.map((st) => (
-                  <View key={st.label} style={s.heroTile}>
-                    <Text variant="label-sm" weight="bold" uppercase style={s.heroLabel}>{st.label}</Text>
-                    <Text variant="title-sm" family="headline" weight="bold" style={s.heroValue} numberOfLines={1}>
-                      {st.value}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-
-            {/* Anchor pills */}
-            {anchors && anchors.length > 0 ? (
+          {/* Anchor pills — pinned under the sticky header so they stay
+              accessible while the body scrolls. Sits outside the body
+              ScrollView so it doesn't move with the content. */}
+          {anchors && anchors.length > 0 ? (
+            <View style={s.anchorBar}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -148,6 +153,41 @@ export function DetailModal({
                   );
                 })}
               </ScrollView>
+            </View>
+          ) : null}
+
+          <ScrollView
+            ref={scrollRef}
+            style={s.body}
+            contentContainerStyle={s.bodyContent}
+            showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={32}
+          >
+            {/* Subtitle / description — split on blank lines so each paragraph
+                renders as its own Text with proper gap. */}
+            {subtitle ? (
+              <View style={s.subtitleBlock}>
+                {subtitle.split(/\n\s*\n/).map((para, i) => (
+                  <Text key={i} variant="body-md" family="body" style={s.subtitle}>
+                    {para.trim()}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {/* Hero stats strip */}
+            {heroStats && heroStats.length > 0 ? (
+              <View style={s.heroStrip}>
+                {heroStats.map((st) => (
+                  <View key={st.label} style={s.heroTile}>
+                    <Text variant="label-sm" weight="bold" uppercase style={s.heroLabel}>{st.label}</Text>
+                    <Text variant="title-sm" family="headline" weight="bold" style={s.heroValue} numberOfLines={1}>
+                      {st.value}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             ) : null}
 
             {/* Body content */}
@@ -218,7 +258,7 @@ const s = StyleSheet.create({
   },
   sheetDesktop: {
     width: '100%',
-    maxWidth: 720,
+    maxWidth: 880,
     maxHeight: '90%',
     borderRadius: 16,
     borderWidth: 1,
@@ -266,9 +306,21 @@ const s = StyleSheet.create({
   heroLabel: { color: colors.outline, letterSpacing: 1.25 },
   heroValue: { color: colors.onSurface },
 
+  headerExtra: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+    backgroundColor: colors.surfaceContainer,
+  },
+  anchorBar: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs + 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant + '55',
+    backgroundColor: colors.surfaceContainer,
+  },
   anchorScroll: {
     flexGrow: 0,
-    marginVertical: spacing.xs,
   },
   anchorRow: {
     flexDirection: 'row',

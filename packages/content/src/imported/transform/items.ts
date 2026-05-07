@@ -44,8 +44,14 @@ type RawItem = {
   rarity?: string;
   /** Boolean true OR a "by a wizard"-style detail string. */
   reqAttune?: boolean | string;
-  /** Pipe-delimited weapon property codes ("V|XPHB", "L|XPHB"). */
-  property?: string[];
+  /** Pipe-delimited weapon property codes ("V|XPHB", "L|XPHB"). Some
+   *  entries (e.g. Lance's "2H" with "unless mounted") ship as an
+   *  `{ uid, note }` object instead of a bare string. */
+  property?: Array<string | { uid: string; note?: string }>;
+  /** 2024 Weapon Mastery property — pipe-delimited like properties.
+   *  Examples: "Graze|XPHB", "Sap|XPHB", "Vex|XPHB", "Cleave|XPHB".
+   *  Same string-or-object union as `property`. */
+  mastery?: Array<string | { uid: string; note?: string }>;
   weaponCategory?: 'simple' | 'martial';
   /** Primary damage die (e.g. "1d8"). */
   dmg1?: string;
@@ -65,6 +71,8 @@ type RawItem = {
   weapon?: boolean;
   /** Armor flag — set on armor-shaped items including magic ones. */
   armor?: boolean;
+  /** Set on items 5e.tools tags as poisons. Drives gearKind detection. */
+  poison?: boolean;
   /** Magic-item bonus markers — presence implies magic-item categorization. */
   bonusWeapon?: string;
   bonusWeaponAttack?: string;
@@ -76,6 +84,14 @@ type RawItem = {
   entries?: RawEntry[];
   /** Variant-of pointer — we skip these for v1. */
   _copy?: { name?: string; source?: string };
+  /**
+   * Structured pack contents on equipment packs (Burglar's Pack,
+   * Explorer's Pack, etc.). Entries are either a slug-with-source
+   * string ("backpack|xphb", quantity 1 implicit) or an object with
+   * an explicit quantity. We resolve the slug to a display name on
+   * import so the consumer doesn't need a cross-file lookup.
+   */
+  packContents?: Array<string | { item: string; quantity?: number }>;
   [key: string]: unknown;
 };
 
@@ -122,6 +138,17 @@ export function transformItems(
       if (category === 'magic-item') {
         data.magicItemKind = magicItemKind(it);
       }
+      // For adventuring gear, derive a sub-bucket discriminator so the
+      // UI can facet (Ammunition / Equipment Packs / Poisons / etc.)
+      // without those becoming peer top-level categories. 5e.tools
+      // doesn't carry a clean source-side category for these — we
+      // detect from `type` codes plus name patterns.
+      if (category === 'adventuring-gear') {
+        const kind = detectGearKind(it);
+        if (kind) data.gearKind = kind;
+      }
+
+      const packContents = parsePackContents(it.packContents);
 
       return {
         key: `imported_${systemId}_item_${slugify(it.source)}_${slugify(it.name)}`,
@@ -138,9 +165,54 @@ export function transformItems(
         properties: properties.length > 0 ? properties : undefined,
         requiresAttunement: !!it.reqAttune,
         rarity: normalizeRarity(it.rarity, isMagic),
+        packContents: packContents.length > 0 ? packContents : undefined,
         srdVersions: [],
       };
     });
+}
+
+/**
+ * Resolve 5e.tools `packContents` references into our flat
+ * `{ name, quantity }[]` shape. Each upstream entry is either:
+ *   - a string `"backpack|xphb"` → quantity 1, slug part is the name
+ *   - an object `{ item: "candle|xphb", quantity: 10 }`
+ *
+ * We strip the source suffix and titlecase the slug to get a display
+ * name. The character builder wires actual ItemResult lookup later;
+ * for now the user sees the resolved name verbatim, which matches how
+ * the upstream prose reads ("10 Candles, Crowbar, …").
+ */
+function parsePackContents(
+  raw: Array<string | { item: string; quantity?: number }> | undefined,
+): Array<{ name: string; quantity: number }> {
+  if (!raw || !Array.isArray(raw)) return [];
+  const out: Array<{ name: string; quantity: number }> = [];
+  for (const entry of raw) {
+    let ref: string;
+    let quantity = 1;
+    if (typeof entry === 'string') {
+      ref = entry;
+    } else if (entry && typeof entry === 'object' && typeof entry.item === 'string') {
+      ref = entry.item;
+      if (typeof entry.quantity === 'number') quantity = entry.quantity;
+    } else {
+      continue;
+    }
+    // Slug shape: "name|source". The source suffix is informational —
+    // we only need the name for display.
+    const namePart = ref.split('|')[0]?.trim();
+    if (!namePart) continue;
+    out.push({ name: titleCase(namePart), quantity });
+  }
+  return out;
+}
+
+/** Titlecase a 5e.tools slug ("ball bearings" → "Ball Bearings"). */
+function titleCase(s: string): string {
+  return s
+    .split(/\s+/)
+    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
 }
 
 // ── Internals ─────────────────────────────────────────────────────────────
@@ -153,6 +225,18 @@ function stripSource(code: string | undefined): string | null {
   if (!code) return null;
   const head = code.split('|')[0]?.trim().toUpperCase();
   return head || null;
+}
+
+/**
+ * Normalize a 5e.tools pipe-delimited reference to `{uid, note}`. The
+ * source ships these as either bare strings ("V|XPHB") or objects
+ * (`{uid: "2H|XPHB", note: "unless mounted"}`) — Lance's two-handed
+ * property uses the object form to carry the contextual qualifier,
+ * and we surface that note in the rendered property line.
+ */
+function readPipeRef(entry: string | { uid: string; note?: string }): { uid: string; note?: string } {
+  if (typeof entry === 'string') return { uid: entry };
+  return { uid: entry.uid, note: entry.note };
 }
 
 /**
@@ -189,6 +273,61 @@ function categorize(it: RawItem, isMagic: boolean): ItemResult['category'] {
   if (it.armor === true) return 'armor';
   return 'adventuring-gear';
 }
+
+/**
+ * Detect a gear sub-bucket for an adventuring-gear item. Returns one of
+ * 'ammunition' | 'equipment-pack' | 'poison' | 'spellcasting-focus', or
+ * null if the item is generic gear. Used by the UI to facet within the
+ * Adventuring Gear sub-tab without introducing peer top-level categories.
+ *
+ * Detection is multi-signal because 5e.tools doesn't carry a clean
+ * source-side category for these:
+ *   - 5e.tools type codes: A = ammunition, EXP = explosives (not a
+ *     bucket we surface), `$P` shows up on poisons, FCS on foci.
+ *   - Name patterns: "* Pack" for equipment packs (Burglar's Pack,
+ *     Explorer's Pack, etc.), known poison names for the XDMG named
+ *     poisons whose type code doesn't classify them.
+ *   - Item flags: `poison: true` on entries that have it.
+ */
+function detectGearKind(it: RawItem): string | null {
+  const t = stripSource(it.type);
+  if (t === 'A' || t === 'AF') return 'ammunition';
+  if (t === '$P' || it.poison === true) return 'poison';
+  if (t === 'FCS' || t === 'INS') return 'spellcasting-focus';
+  if (t === 'P' && (it as { tier?: string }).tier !== 'minor' && !it.rarity) {
+    // 5e.tools reuses 'P' for both poisons and potions — disambiguate
+    // by rarity (potions have it, poisons don't).
+    return 'poison';
+  }
+  // Name-based fallbacks for entries 5e.tools doesn't tag:
+  //   - Equipment packs always end in " Pack" (Explorer's Pack, etc.)
+  //   - XDMG named poisons follow a small known list
+  if (/\bPack$/.test(it.name)) return 'equipment-pack';
+  if (KNOWN_POISON_NAMES.has(it.name)) return 'poison';
+  return null;
+}
+
+/** Hard-coded list of poison names that 5e.tools doesn't tag with a
+ *  poison type code. Drawn from the 2024 DMG's named-poisons table.
+ *  Adding to this list won't break anything; missing entries just fall
+ *  through to generic adventuring-gear. */
+const KNOWN_POISON_NAMES = new Set<string>([
+  'Basic Poison',
+  "Assassin's Blood",
+  'Burnt Othur Fumes',
+  'Carrion Crawler Mucus',
+  'Drow Poison',
+  'Essence of Ether',
+  'Malice',
+  'Midnight Tears',
+  'Oil of Taggit',
+  'Pale Tincture',
+  'Purple Worm Poison',
+  'Serpent Venom',
+  'Torpor',
+  'Truth Serum',
+  'Wyvern Poison',
+]);
 
 /**
  * Pick the magicItemKind discriminator for a magic item. Mirrors the
@@ -248,17 +387,19 @@ function collectProperties(it: RawItem): string[] {
 
   // Weapon properties: codes like "V|XPHB" → "Versatile (1d10)".
   if (Array.isArray(it.property)) {
-    for (const code of it.property) {
-      const stripped = stripSource(code);
+    for (const entry of it.property) {
+      const { uid, note } = readPipeRef(entry);
+      const stripped = stripSource(uid);
       if (!stripped) continue;
       const name = WEAPON_PROPERTY_NAMES[stripped] ?? stripped;
       // Versatile gets the alt damage die in parens, matching how the
       // SRD weapons table renders it.
-      if (stripped === 'V' && it.dmg2) {
-        out.push(`Versatile (${it.dmg2})`);
-      } else {
-        out.push(name);
-      }
+      let display: string;
+      if (stripped === 'V' && it.dmg2) display = `Versatile (${it.dmg2})`;
+      else display = name;
+      // Append the contextual note when present (e.g. Lance's
+      // "Two-handed (unless mounted)").
+      out.push(note ? `${display} (${note})` : display);
     }
   }
 
@@ -271,6 +412,18 @@ function collectProperties(it: RawItem): string[] {
   // Weapon category (simple / martial).
   if (it.weaponCategory) {
     out.push(`${capitalize(it.weaponCategory)} weapon`);
+  }
+
+  // Weapon Mastery (2024) — pipe-delimited like properties. Only one
+  // mastery is typical, but we join with " · " to handle the rare
+  // multi-mastery case without an awkward bare comma list.
+  if (Array.isArray(it.mastery) && it.mastery.length > 0) {
+    const names = it.mastery
+      .map((entry) => stripSource(readPipeRef(entry).uid))
+      .filter((s): s is string => !!s);
+    if (names.length > 0) {
+      out.push(`Mastery: ${names.join(' · ')}`);
+    }
   }
 
   // Armor base AC + stealth + strength prereq.
@@ -348,7 +501,7 @@ function normalizeRarity(raw: string | undefined, isMagic: boolean): ItemResult[
   }
 }
 
-function capitalize(s: string): string {
-  if (!s) return s;
+function capitalize(s: unknown): string {
+  if (typeof s !== 'string' || !s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }

@@ -128,6 +128,12 @@ function normalizeDescription(s) {
   return String(s)
     .replace(/\r\n?/g, '\n')
     .replace(/^[\t ]*[*\-][\t ]+/gm, '• ')
+    // Open5e's 5.1 class data ships sub-headings without the space
+    // after the hash marker — `###Cantrips` instead of `### Cantrips`.
+    // CommonMark would refuse those, and our renderer would leak the
+    // literal hashes. Normalize at ingest so the bundled JSON is
+    // CommonMark-valid.
+    .replace(/^(#{1,6})(?=\S)/gm, '$1 ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -305,10 +311,18 @@ function parseStartingEquipment51(desc) {
   // "* (a) a greataxe or (b) any martial melee weapon\n* ..."
   // Rather than over-engineer parsing, dump the cleaned bullet lines as a
   // single "Choose:" option list — UI consumers can render as-is.
+  //
+  // Open5e's 5.1 desc wraps the (a)/(b)/(c) option markers in markdown
+  // italics: `(*a*) a greataxe or (*b*) any martial melee weapon`. Strip
+  // the asterisks around single letters so the rendered output reads
+  // as plain option labels — bullets in this list pass through to the
+  // UI without going through MarkdownText, so leftover asterisks would
+  // surface as literal punctuation.
   const lines = String(desc)
     .replace(/\r\n?/g, '\n')
     .split(/\n/)
     .map((l) => l.replace(/^\s*[*\-]\s*/, '').trim())
+    .map((l) => l.replace(/\*([a-z])\*/g, '$1'))
     .filter((l) => l && !/^you start/i.test(l));
   if (lines.length === 0) return undefined;
   return [{ label: 'A', items: lines }];
@@ -414,22 +428,69 @@ function spellSlotOrdinal(name) {
  * feature) pair so the UI can render a per-level progression list.
  */
 function buildFeatures(features) {
-  /** @type {Array<{ level: number; name: string; description?: string }>} */
+  /** @type {Array<{ level: number; name: string; description?: string; parentName?: string }>} */
   const out = [];
   for (const f of features) {
     if (f.feature_type !== 'CLASS_LEVEL_FEATURE') continue;
     const levels = (f.gained_at ?? []).map((g) => g.level).filter((l) => typeof l === 'number');
     if (levels.length === 0) continue; // skip ambiguous "no level" entries (Rages, Rage Damage)
     for (const lvl of levels) {
-      out.push({
-        level: lvl,
-        name: f.name,
-        description: normalizeDescription(f.desc),
-      });
+      const fullDesc = normalizeDescription(f.desc);
+      const split = splitSubOptions(fullDesc);
+      out.push({ level: lvl, name: f.name, description: split.parentDesc });
+      for (const sub of split.children) {
+        out.push({ level: lvl, name: sub.name, description: sub.desc, parentName: f.name });
+      }
     }
   }
-  out.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+  // Stable sort: by level first, then preserving authored order so
+  // children stay grouped under their parent (the post-pass in the
+  // renderer also enforces this, but we keep the JSON tidy).
+  out.sort((a, b) => a.level - b.level);
   return out.length > 0 ? out : undefined;
+}
+
+/**
+ * Open5e ships sub-options of a feature as `**Name.** body` paragraphs
+ * appended to the parent feature's description (e.g. Cleric's Divine
+ * Order embeds `**Protector.** ...` and `**Thaumaturge.** ...`). The
+ * client used to render these as inline bold text inside one paragraph;
+ * splitting them into discrete child entries lets the modal indent them
+ * under the parent the same way the imported-content path does for
+ * 5e.tools refClassFeature blocks.
+ *
+ * Detection rule: only split when the parent description contains a
+ * paragraph break followed by `**Name.**` and at least one other
+ * `**Name.**` paragraph follows — a single `**Foo.**` mid-paragraph is
+ * almost always inline emphasis (e.g. spell names), not a sub-option.
+ * The parent keeps its non-`**Name.**` lead-in prose; children take
+ * the body that follows their bold label up to the next label.
+ */
+function splitSubOptions(desc) {
+  if (!desc || typeof desc !== 'string') return { parentDesc: desc, children: [] };
+  // Find the first paragraph break that's immediately followed by `**Foo.**`.
+  const splitMatch = desc.match(/\n\n(?=\*\*[^*\n]+?\.\*\*\s)/);
+  if (!splitMatch || typeof splitMatch.index !== 'number') {
+    return { parentDesc: desc, children: [] };
+  }
+  const head = desc.slice(0, splitMatch.index).trim();
+  const tail = desc.slice(splitMatch.index + 2);
+  // Pull out every `**Name.** body` paragraph from the tail. The body
+  // runs until the next `\n\n**Name.**` boundary or end of string.
+  const subRe = /\*\*([^*\n]+?)\.\*\*\s+([\s\S]+?)(?=\n\n\*\*[^*\n]+?\.\*\*\s|$)/g;
+  const children = [];
+  let m;
+  while ((m = subRe.exec(tail)) !== null) {
+    const name = m[1].trim();
+    const body = m[2].trim();
+    if (name && body) children.push({ name, desc: body });
+  }
+  // Need ≥ 2 children to confidently treat this as a sub-option list.
+  // A single `**Name.**` is more likely inline emphasis (spell name,
+  // term definition) than a real sub-feature, so we leave the
+  // description untouched in that case.
+  if (children.length < 2) return { parentDesc: desc, children: [] };
+  return { parentDesc: head, children };
 }
 
 /**
@@ -453,6 +514,48 @@ function detectSubclassUnlockLevel(features) {
   }
   return 3;
 }
+
+/**
+ * Hardcoded subclass-feature levels per class per edition. Open5e's
+ * `/classes/` payload doesn't expose these as discrete events, so we
+ * encode the canonical 5e schedule. The class table renders "Subclass
+ * feature" at each level so rows like Barbarian L6/10/14 don't render as
+ * blank dashes when the actual feature lives in the chosen subclass.
+ *
+ * Editions split where they diverge: 5.1 unlocked subclass at L1 for
+ * Cleric/Sorcerer/Warlock and L2 for Druid/Wizard; 2024 standardized to
+ * L3 across the board.
+ */
+const SUBCLASS_FEATURE_LEVELS = {
+  'SRD_5.1': {
+    Barbarian: [3, 6, 10, 14],
+    Bard:      [3, 6, 14],
+    Cleric:    [1, 6, 17],
+    Druid:     [2, 6, 10, 14],
+    Fighter:   [3, 7, 10, 15, 18],
+    Monk:      [3, 6, 11, 17],
+    Paladin:   [3, 7, 15, 20],
+    Ranger:    [3, 7, 11, 15],
+    Rogue:     [3, 9, 13, 17],
+    Sorcerer:  [1, 6, 14, 18],
+    Warlock:   [1, 6, 10, 14],
+    Wizard:    [2, 6, 10, 14],
+  },
+  'SRD_2.0': {
+    Barbarian: [3, 6, 10, 14],
+    Bard:      [3, 6, 14],
+    Cleric:    [3, 6, 17],
+    Druid:     [3, 6, 10, 14],
+    Fighter:   [3, 7, 10, 15, 18],
+    Monk:      [3, 6, 11, 17],
+    Paladin:   [3, 7, 15, 20],
+    Ranger:    [3, 7, 11, 15],
+    Rogue:     [3, 9, 13, 17],
+    Sorcerer:  [3, 6, 14, 18],
+    Warlock:   [3, 6, 10, 14],
+    Wizard:    [3, 6, 10, 14],
+  },
+};
 
 function transformOne(cls) {
   // Skip subclasses — they live in subclasses.json.
@@ -517,6 +620,7 @@ function transformOne(cls) {
   const { columns, table } = buildProgression(cls.features);
   const features = buildFeatures(cls.features);
   const subclassUnlockLevel = detectSubclassUnlockLevel(cls.features);
+  const subclassFeatureLevels = SUBCLASS_FEATURE_LEVELS[srdVersion]?.[cls.name];
   // Open5e ships `caster_type: null` for every 5.1 class (data gap upstream),
   // so we can't rely on it alone. Falling back to the classes that have a
   // known spellcasting ability — that's the canonical SRD list of casters.
@@ -550,6 +654,7 @@ function transformOne(cls) {
   if (columns) out.progressionColumns = columns;
   if (table) out.progressionTable = table;
   if (features) out.features = features;
+  if (subclassFeatureLevels) out.subclassFeatureLevels = subclassFeatureLevels;
 
   const mc = MULTICLASS_BY_CLASS[cls.name];
   if (mc) {

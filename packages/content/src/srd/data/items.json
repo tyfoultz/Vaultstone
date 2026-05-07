@@ -2520,7 +2520,9 @@
     },
     "weight": 1,
     "description": "Ammunition for weapons that use arrows. Comes in a pack of 20. Typically stored in a quiver.",
-    "data": {}
+    "data": {
+      "gearKind": "ammunition"
+    }
   },
   {
     "key": "backpack-srd-2-0",
@@ -2538,7 +2540,9 @@
     },
     "weight": 5,
     "description": "A Backpack holds up to 30 pounds within 1 cubic foot. It can also serve as a saddlebag.",
-    "data": {}
+    "data": {
+      "gearKind": "equipment-pack"
+    }
   },
   {
     "key": "ball-bearings-srd-2-0",
@@ -2681,7 +2685,9 @@
     },
     "weight": 1.5,
     "description": "Ammunition for weapons that use bolts. Comes in a pack of 20. Typically stored in a case.",
-    "data": {}
+    "data": {
+      "gearKind": "ammunition"
+    }
   },
   {
     "key": "book-srd-2-0",
@@ -2753,7 +2759,9 @@
     },
     "weight": 2,
     "description": "Ammunition for weapons that use bullets, firearm. Comes in a pack of 10. Typically stored in a pouch.",
-    "data": {}
+    "data": {
+      "gearKind": "ammunition"
+    }
   },
   {
     "key": "bullets-sling-20-srd-2-0",
@@ -2771,7 +2779,9 @@
     },
     "weight": 1.5,
     "description": "Ammunition for weapons that use bullets, sling. Comes in a pack of 20. Typically stored in a pouch.",
-    "data": {}
+    "data": {
+      "gearKind": "ammunition"
+    }
   },
   {
     "key": "burglar-s-pack-srd-2-0",
@@ -2789,7 +2799,9 @@
     },
     "weight": 42,
     "description": "A Burglar's Pack contains the following items: Backpack, Ball Bearings, Bell, 10 Candles, Crowbar, Hooded Lantern, 7 flasks of Oil, 5 days of Rations, Rope, Tinderbox, and Waterskin.",
-    "data": {}
+    "data": {
+      "gearKind": "equipment-pack"
+    }
   },
   {
     "key": "caltrops-srd-2-0",
@@ -2986,7 +2998,68 @@
     },
     "weight": 39,
     "description": "A Diplomat's Pack contains the following items: Chest, Fine Clothes, Ink, 5 Ink Pens, Lamp, 2 Map or Scroll Cases, 4 flasks of Oil, 5 sheets of Paper, 5 sheets of Parchment, Perfume, and Tinderbox.",
-    "data": {}
+    "data": {
+      "gearKind": "equipment-pack"
+    }
+  },
+  {
+    "key": "druidic-focus-sprig-of-mistletoe-srd-2-0",
+    "name": "Druidic Focus, Sprig of Mistletoe",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 1,
+      "currency": "gp"
+    },
+    "description": "A Druidic Focus is carved, tied with ribbon, or painted to channel primal magic. A Druid or Ranger can use such an object as a Spellcasting Focus.",
+    "data": {
+      "gearKind": "spellcasting-focus"
+    }
+  },
+  {
+    "key": "druidic-focus-wooden-staff-srd-2-0",
+    "name": "Druidic Focus, Wooden Staff",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 5,
+      "currency": "gp"
+    },
+    "weight": 4,
+    "description": "A Druidic Focus is carved, tied with ribbon, or painted to channel primal magic. A Druid or Ranger can use such an object as a Spellcasting Focus. This staff can also be used as a Quarterstaff.",
+    "data": {
+      "gearKind": "spellcasting-focus"
+    }
+  },
+  {
+    "key": "druidic-focus-yew-wand-srd-2-0",
+    "name": "Druidic Focus, Yew Wand",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "adventuring-gear",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 1,
+    "description": "A Druidic Focus is carved, tied with ribbon, or painted to channel primal magic. A Druid or Ranger can use such an object as a Spellcasting Focus.",
+    "data": {
+      "gearKind": "spellcasting-focus"
+    }
   },
   {
     "key": "dungeoneer-s-pack-srd-2-0",
@@ -3004,7 +3077,9 @@
     },
     "weight": 55,
     "description": "A Dungeoneer's Pack contains the following items: Backpack, Caltrops, Crowbar, 2 flasks of Oil, 10 days of Rations, Rope, Tinderbox, 10 Torches, and Waterskin.",
-    "data": {}
+    "data": {
+      "gearKind": "equipment-pack"
+    }
   },
   {
     "key": "entertainer-s-pack-srd-2-0",
@@ -3022,7 +3097,9 @@
     },
     "weight": 58,
     "description": "An Entertainer's Pack contains the following items: Backpack, Bedroll, Bell, Bullseye Lantern, 3 Costumes, Mirror, 8 flasks of Oil, 9 days of Rations, Tinderbox, and Waterskin.",
-    "data": {}
+    "data": {
+      "gearKind": "equipment-pack"
+    }
   },
   {
     "key": "explorer-s-pack-srd-2-0",
@@ -3040,7 +3117,9 @@
     },
     "weight": 55,
     "description": "An Explorer's Pack contains the following items: Backpack, Bedroll, 2 flasks of Oil, 10 days of Rations, Rope, Tinderbox, 10 Torches, and Waterskin.",
-    "data": {}
+    "data": {
+      "gearKind": "equipment-pack"
+    }
   },
   {
     "key": "feed-per-day-srd-2-0",
@@ -3395,7 +3474,9 @@
     },
     "weight": 1,
     "description": "Ammunition for weapons that use needles. Comes in a pack of 50. Typically stored in a pouch.",
-    "data": {}
+    "data": {
+      "gearKind": "ammunition"
+    }
   },
   {
     "key": "paper-srd-2-0",
@@ -3535,7 +3616,9 @@
     },
     "weight": 29,
     "description": "A Priest's Pack contains the following items: Backpack, Blanket, Holy Water, Lamp, 7 days of Rations, Robe, and Tinderbox.",
-    "data": {}
+    "data": {
+      "gearKind": "equipment-pack"
+    }
   },
   {
     "key": "quiver-srd-2-0",
@@ -3715,7 +3798,9 @@
     },
     "weight": 22,
     "description": "A Scholar's Pack contains the following items: Backpack, Book, Ink, Ink Pen, Lamp, 10 flasks of Oil, 10 sheets of Parchment, and Tinderbox.",
-    "data": {}
+    "data": {
+      "gearKind": "equipment-pack"
+    }
   },
   {
     "key": "shovel-srd-2-0",
@@ -3995,7 +4080,9 @@
     },
     "weight": 0.05,
     "description": "An arrow for a bow.",
-    "data": {}
+    "data": {
+      "gearKind": "ammunition"
+    }
   },
   {
     "key": "assassin-s-blood-srd-5-1",
@@ -4012,7 +4099,9 @@
       "currency": "gp"
     },
     "description": "A creature subjected to this poison must make a DC 10 Constitution saving throw. On a failed save, it takes 6 (1d12) poison damage and is poisoned for 24 hours. On a successful save, the creature takes half damage and isn't poisoned.\\n\\n\n\n**_Ingested._** A creature must swallow an entire dose of ingested poison to suffer its effects. The dose can be delivered in food or a liquid. You may decide that a partial dose has a reduced effect, such as allowing advantage on the saving throw or dealing only half damage on a failed save.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "backpack-srd-5-1",
@@ -4172,7 +4261,9 @@
     },
     "weight": 0.02,
     "description": "Needles to be fired with a blowgun.",
-    "data": {}
+    "data": {
+      "gearKind": "ammunition"
+    }
   },
   {
     "key": "book-srd-5-1",
@@ -4243,7 +4334,9 @@
       "currency": "gp"
     },
     "description": "A creature subjected to this poison must succeed on a DC 13 Constitution saving throw or take 10 (3d6) poison damage, and must repeat the saving throw at the start of each of its turns. On each successive failed save, the character takes 3 (1d6) poison damage. After three successful saves, the poison ends.\\n\\n**_Inhaled._** These poisons are powders or gases that take effect when inhaled. Blowing the powder or releasing the gas subjects creatures in a 5-foot cube to its effect. The resulting cloud dissipates immediately afterward. Holding one's breath is ineffective against inhaled poisons, as they affect nasal membranes, tear ducts, and other parts of the body.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "caltrops-bag-of-20-srd-5-1",
@@ -4492,7 +4585,9 @@
       "currency": "gp"
     },
     "description": "This poison must be harvested from a dead or incapacitated crawler. A creature subjected to this poison must succeed on a DC 13 Constitution saving throw or be poisoned for 1 minute. The poisoned creature is paralyzed. The creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success.\\n\\n\n**_Contact._** Contact poison can be smeared on an object and remains potent until it is touched or washed off. A creature that touches contact poison with exposed skin suffers its effects.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "crossbow-bolt-srd-5-1",
@@ -4510,7 +4605,9 @@
     },
     "weight": 0.08,
     "description": "Bolts to be used in a crossbow.",
-    "data": {}
+    "data": {
+      "gearKind": "ammunition"
+    }
   },
   {
     "key": "crowbar-srd-5-1",
@@ -4563,7 +4660,9 @@
       "currency": "gp"
     },
     "description": "This poison is typically made only by the drow, and only in a place far removed from sunlight. A creature subjected to this poison must succeed on a DC 13 Constitution saving throw or be poisoned for 1 hour. If the saving throw fails by 5 or more, the creature is also unconscious while poisoned in this way. The creature wakes up if it takes damage or if another creature takes an action to shake it awake.\n\\n\\n**_Injury._** Injury poison can be applied to weapons, ammunition, trap components, and other objects that deal piercing or slashing damage and remains potent until delivered through a wound or washed off. A creature that takes piercing or slashing damage from an object coated with the poison is exposed to its effects.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "emblem-srd-5-1",
@@ -4597,7 +4696,9 @@
       "currency": "gp"
     },
     "description": "A creature subjected to this poison must succeed on a DC 15 Constitution saving throw or become poisoned for 8 hours. The poisoned creature is unconscious. The creature wakes up if it takes damage or if another creature takes an action to shake it awake.\\n\\n**_Inhaled._** These poisons are powders or gases that take effect when inhaled. Blowing the powder or releasing the gas subjects creatures in a 5-foot cube to its effect. The resulting cloud dissipates immediately afterward. Holding one's breath is ineffective against inhaled poisons, as they affect nasal membranes, tear ducts, and other parts of the body.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "fishing-tackle-srd-5-1",
@@ -4953,7 +5054,9 @@
       "currency": "gp"
     },
     "description": "A creature subjected to this poison must succeed on a DC 15 Constitution saving throw or become poisoned for 1 hour. The poisoned creature is blinded.\\n\\n**_Inhaled._** These poisons are powders or gases that take effect when inhaled. Blowing the powder or releasing the gas subjects creatures in a 5-foot cube to its effect. The resulting cloud dissipates immediately afterward. Holding one's breath is ineffective against inhaled poisons, as they affect nasal membranes, tear ducts, and other parts of the body.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "manacles-srd-5-1",
@@ -5006,7 +5109,9 @@
       "currency": "gp"
     },
     "description": "A creature that ingests this poison suffers no effect until the stroke of midnight. If the poison has not been neutralized before then, the creature must succeed on a DC 17 Constitution saving throw, taking 31 (9d6) poison damage on a failed save, or half as much damage on a successful one.\\n\\n **_Ingested._** A creature must swallow an entire dose of ingested poison to suffer its effects. The dose can be delivered in food or a liquid. You may decide that a partial dose has a reduced effect, such as allowing advantage on the saving throw or dealing only half damage on a failed save.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "mirror-steel-srd-5-1",
@@ -5041,7 +5146,9 @@
       "currency": "gp"
     },
     "description": "A creature subjected to this poison must succeed on a DC 13 Constitution saving throw or become poisoned for 24 hours. The poisoned creature is unconscious. The creature wakes up if it takes damage.\\n\\n **_Contact._** Contact poison can be smeared on an object and remains potent until it is touched or washed off. A creature that touches contact poison with exposed skin suffers its effects.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "orb-srd-5-1",
@@ -5076,7 +5183,9 @@
       "currency": "gp"
     },
     "description": "A creature subjected to this poison must succeed on a DC 16 Constitution saving throw or take 3 (1d6) poison damage and become poisoned. The poisoned creature must repeat the saving throw every 24 hours, taking 3 (1d6) poison damage on a failed save. Until this poison ends, the damage the poison deals can't be healed by any means. After seven successful saving throws, the effect ends and the creature can heal normally. \\n\\n **_Ingested._** A creature must swallow an entire dose of ingested poison to suffer its effects. The dose can be delivered in food or a liquid. You may decide that a partial dose has a reduced effect, such as allowing advantage on the saving throw or dealing only half damage on a failed save.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "paper-one-sheet-srd-5-1",
@@ -5180,7 +5289,9 @@
       "currency": "gp"
     },
     "description": "You can use the poison in this vial to coat one slashing or piercing weapon or up to three pieces of ammunition. Applying the poison takes an action. A creature hit by the poisoned weapon or ammunition must make a DC 10 Constitution saving throw or take 1d4 poison damage. Once applied, the poison retains potency for 1 minute before drying.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "pole-10-foot-srd-5-1",
@@ -5251,7 +5362,9 @@
       "currency": "gp"
     },
     "description": "This poison must be harvested from a dead or incapacitated purple worm. A creature subjected to this poison must make a DC 19 Constitution saving throw, taking 42 (12d6) poison damage on a failed save, or half as much damage on a successful one.\n\\n\\n\n**_Injury._** Injury poison can be applied to weapons, ammunition, trap components, and other objects that deal piercing or slashing damage and remains potent until delivered through a wound or washed off. A creature that takes piercing or slashing damage from an object coated with the poison is exposed to its effects.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "quiver-srd-5-1",
@@ -5447,7 +5560,9 @@
       "currency": "gp"
     },
     "description": "This poison must be harvested from a dead or incapacitated giant poisonous snake. A creature subjected to this poison must succeed on a DC 11 Constitution saving throw, taking 10 (3d6) poison damage on a failed save, or half as much damage on a successful one.\n\\n\\n\n**_Injury._** Injury poison can be applied to weapons, ammunition, trap components, and other objects that deal piercing or slashing damage and remains potent until delivered through a wound or washed off. A creature that takes piercing or slashing damage from an object coated with the poison is exposed to its effects.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "shovel-srd-5-1",
@@ -5500,7 +5615,9 @@
     },
     "weight": 0.075,
     "description": "Technically their cost is 20 for 4cp.",
-    "data": {}
+    "data": {
+      "gearKind": "ammunition"
+    }
   },
   {
     "key": "soap-srd-5-1",
@@ -5659,7 +5776,9 @@
       "currency": "gp"
     },
     "description": "A creature subjected to this poison must succeed on a DC 15 Constitution saving throw or become poisoned for 4d6 hours. The poisoned creature is incapacitated.\n\\n\\n\n**_Ingested._** A creature must swallow an entire dose of ingested poison to suffer its effects. The dose can be delivered in food or a liquid. You may decide that a partial dose has a reduced effect, such as allowing advantage on the saving throw or dealing only half damage on a failed save.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "totem-srd-5-1",
@@ -5693,7 +5812,9 @@
       "currency": "gp"
     },
     "description": "A creature subjected to this poison must succeed on a DC 11 Constitution saving throw or become poisoned for 1 hour. The poisoned creature can't knowingly speak a lie, as if under the effect of a zone of truth spell.\n\\n\\n\n**_Ingested._** A creature must swallow an entire dose of ingested poison to suffer its effects. The dose can be delivered in food or a liquid. You may decide that a partial dose has a reduced effect, such as allowing advantage on the saving throw or dealing only half damage on a failed save.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   },
   {
     "key": "vial-srd-5-1",
@@ -5781,59 +5902,8 @@
       "currency": "gp"
     },
     "description": "This poison must be harvested from a dead or incapacitated wyvern. A creature subjected to this poison must make a DC 15 Constitution saving throw, taking 24 (7d6) poison damage on a failed save, or half as much damage on a successful one.\n\\n\\n\n**_Injury._** Injury poison can be applied to weapons, ammunition, trap components, and other objects that deal piercing or slashing damage and remains potent until delivered through a wound or washed off. A creature that takes piercing or slashing damage from an object coated with the poison is exposed to its effects.",
-    "data": {}
-  },
-  {
-    "key": "druidic-focus-sprig-of-mistletoe-srd-2-0",
-    "name": "Druidic Focus, Sprig of Mistletoe",
-    "type": "item",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": [
-      "SRD_2.0"
-    ],
-    "category": "crafting-equipment",
-    "cost": {
-      "amount": 1,
-      "currency": "gp"
-    },
-    "description": "A Druidic Focus is carved, tied with ribbon, or painted to channel primal magic. A Druid or Ranger can use such an object as a Spellcasting Focus.",
-    "data": {}
-  },
-  {
-    "key": "druidic-focus-wooden-staff-srd-2-0",
-    "name": "Druidic Focus, Wooden Staff",
-    "type": "item",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": [
-      "SRD_2.0"
-    ],
-    "category": "crafting-equipment",
-    "cost": {
-      "amount": 5,
-      "currency": "gp"
-    },
-    "weight": 4,
-    "description": "A Druidic Focus is carved, tied with ribbon, or painted to channel primal magic. A Druid or Ranger can use such an object as a Spellcasting Focus. This staff can also be used as a Quarterstaff.",
-    "data": {}
-  },
-  {
-    "key": "druidic-focus-yew-wand-srd-2-0",
-    "name": "Druidic Focus, Yew Wand",
-    "type": "item",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": [
-      "SRD_2.0"
-    ],
-    "category": "crafting-equipment",
-    "cost": {
-      "amount": 10,
-      "currency": "gp"
-    },
-    "weight": 1,
-    "description": "A Druidic Focus is carved, tied with ribbon, or painted to channel primal magic. A Druid or Ranger can use such an object as a Spellcasting Focus.",
-    "data": {}
+    "data": {
+      "gearKind": "poison"
+    }
   }
 ]

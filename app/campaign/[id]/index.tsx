@@ -709,7 +709,7 @@ export default function CampaignDetailScreen() {
                     }}
                   >
                     <MaterialCommunityIcons
-                      name={pack.name.startsWith('Imported: ') ? 'tray-arrow-down' : 'auto-fix'}
+                      name="auto-fix"
                       size={18}
                       color={colors.brand}
                     />

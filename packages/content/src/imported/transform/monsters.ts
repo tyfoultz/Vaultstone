@@ -408,16 +408,28 @@ function flattenDamageList(
 ): string[] | undefined {
   if (!list || list.length === 0) return undefined;
   const out: string[] = [];
-  for (const entry of list) {
-    if (typeof entry === 'string') {
-      out.push(titleCase(entry));
-      continue;
+  // 5e.tools nests groups inside groups for clauses like "immune to
+  // bludgeoning, piercing, and slashing from nonmagical attacks" — so
+  // we walk recursively, harvesting only the bare-string leaves.
+  // Non-string non-group entries are dropped (with a defensive titleCase
+  // guard upstream too, just in case).
+  function walk(node: unknown): void {
+    if (typeof node === 'string') {
+      const t = titleCase(node);
+      if (t) out.push(t);
+      return;
     }
-    const inner = entry[innerKey];
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    const inner = (node as Record<string, unknown>)[innerKey];
     if (Array.isArray(inner)) {
-      for (const name of inner) out.push(titleCase(name));
+      for (const item of inner) walk(item);
     }
   }
+  for (const entry of list) walk(entry);
   return out.length > 0 ? out : undefined;
 }
 
@@ -539,14 +551,18 @@ function collectActions(m: RawMonster): CreatureResult['actions'] {
   return out.length > 0 ? out : undefined;
 }
 
-function titleCase(s: string): string {
+function titleCase(s: unknown): string {
+  // Guard against non-string inputs from upstream — 5e.tools sometimes
+  // nests objects inside arrays we expect to be flat (e.g. damage-
+  // immunity groups inside groups), and we'd rather skip than crash.
+  if (typeof s !== 'string' || !s) return '';
   return s
     .split(/\s+/)
     .map((part) => (part.length > 0 ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part))
     .join(' ');
 }
 
-function capitalize(s: string): string {
-  if (!s) return s;
+function capitalize(s: unknown): string {
+  if (typeof s !== 'string' || !s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }

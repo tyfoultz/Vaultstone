@@ -25,7 +25,7 @@
 //   doesn't crash, but those entries don't import.
 
 import type { BackgroundResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry } from './entries';
+import { entriesToText, slugify, sourceLongName, type RawEntry, type RawEntryObject } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ export function transformBackgrounds(
         type: 'background',
         tier: 'imported',
         system: systemId,
-        description: entriesToText(b.entries ?? []).trim(),
+        description: entriesToText(stripStatLabelList(b.entries ?? [])).trim(),
         importSource,
         data: {},
         skillProficiencies: extractSkills(b.skillProficiencies),
@@ -98,12 +98,82 @@ export function transformBackgrounds(
         languages: extractLanguageCount(b.languageProficiencies),
         abilityScoreOptions: extractAbilityOptions(b.ability),
         originFeat: extractOriginFeat(b.feats),
+        startingEquipment: extractStartingEquipment(b.entries ?? []),
         srdVersions: [],
       };
     });
 }
 
 // ── Internals ─────────────────────────────────────────────────────────────
+
+const STAT_LABEL_PATTERN = /^(Ability Scores?|Feat|Skill Proficienc(y|ies)|Tool Proficienc(y|ies)|Languages?|Equipment)\b/i;
+
+/**
+ * Drop the leading "stat block" list that 5e.tools backgrounds put at the
+ * top of their `entries` (a `list-hang-notitle` whose items are labels like
+ * "Ability Scores:", "Skill Proficiencies:", "Equipment:"). That data is
+ * already surfaced through the structured fields (skillProficiencies,
+ * abilityScoreOptions, toolProficiency, originFeat) and the detail screen
+ * renders it as discrete prof blocks — leaving it in the description body
+ * doubles up the same info under different labels.
+ *
+ * We identify the block structurally (a `list-hang-notitle` whose items are
+ * `type: 'item'` named blocks where most names match a stat-label pattern)
+ * rather than by position, so non-stat lists in the same entries array
+ * survive untouched.
+ */
+function stripStatLabelList(entries: RawEntry[]): RawEntry[] {
+  return entries.filter((e) => !isStatLabelList(e));
+}
+
+function isStatLabelList(entry: RawEntry): boolean {
+  if (typeof entry === 'string' || entry === null) return false;
+  const e = entry as RawEntryObject;
+  if (e.type !== 'list') return false;
+  if (e.style !== 'list-hang-notitle') return false;
+  const items = Array.isArray(e.items) ? (e.items as RawEntry[]) : [];
+  if (items.length === 0) return false;
+  let labeled = 0;
+  for (const item of items) {
+    if (typeof item === 'string' || !item) continue;
+    const obj = item as RawEntryObject;
+    if (obj.type !== 'item') continue;
+    if (typeof obj.name === 'string' && STAT_LABEL_PATTERN.test(obj.name)) labeled++;
+  }
+  // Require a majority of items to look like stat labels before we strip,
+  // so an unrelated `list-hang-notitle` that happens to share the style
+  // doesn't get eaten.
+  return labeled >= Math.ceil(items.length / 2);
+}
+
+const EQUIPMENT_LABEL = /^Equipment\b/i;
+
+/**
+ * Pull the Equipment line out of the leading stat-label list. We render
+ * it as a structured field on the detail screen (alongside skills, tool,
+ * origin feat) instead of leaving it in the description body, which keeps
+ * imported backgrounds visually consistent with SRD 2024 entries.
+ *
+ * Returns the trimmed entry text (with {@tag} markup stripped via
+ * entriesToText) or null when no Equipment item is present.
+ */
+function extractStartingEquipment(entries: RawEntry[]): string | null {
+  for (const entry of entries) {
+    if (!isStatLabelList(entry)) continue;
+    const items = ((entry as RawEntryObject).items ?? []) as RawEntry[];
+    for (const item of items) {
+      if (typeof item === 'string' || !item) continue;
+      const obj = item as RawEntryObject;
+      if (obj.type !== 'item') continue;
+      if (typeof obj.name !== 'string' || !EQUIPMENT_LABEL.test(obj.name)) continue;
+      const sub: RawEntry[] = obj.entries ?? (obj.entry !== undefined ? [obj.entry] : []);
+      const text = entriesToText(sub).trim();
+      return text || null;
+    }
+  }
+  return null;
+}
+
 
 const SKILL_DISPLAY: Record<string, string> = {
   acrobatics: 'Acrobatics',
@@ -243,7 +313,8 @@ function extractOriginFeat(feats: Array<Record<string, unknown>> | undefined): s
   return '';
 }
 
-function titleCase(s: string): string {
+function titleCase(s: unknown): string {
+  if (typeof s !== 'string' || !s) return '';
   return s
     .split(/[\s_-]+/)
     .map((part) => (part.length > 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part))

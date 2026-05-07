@@ -24,6 +24,18 @@ export { transformMonsters } from './transform/monsters';
 export type { RawBestiaryFile } from './transform/monsters';
 export { transformClasses } from './transform/classes';
 export type { RawClassesFile } from './transform/classes';
+export { transformClassFluff, transformFluff } from './transform/fluff';
+export type { RawFluffFile, FluffPatch, FluffContentType } from './transform/fluff';
+export { transformSpellSourceLookup } from './transform/spellSourceLookup';
+export type { RawSpellSourceLookupFile, SpellClassesPatch } from './transform/spellSourceLookup';
+export { transformOptionalFeatures } from './transform/optionalFeatures';
+export type { RawOptionalFeaturesFile } from './transform/optionalFeatures';
+export { transformDeities } from './transform/deities';
+export type { RawDeitiesFile } from './transform/deities';
+export { transformVariantRules } from './transform/variantRules';
+export type { RawVariantRulesFile } from './transform/variantRules';
+export { transformMagicVariants } from './transform/magicVariants';
+export type { RawMagicVariantsFile } from './transform/magicVariants';
 // All transforms share TransformOptions; export one since they're
 // structurally identical.
 export type { TransformOptions } from './transform/feats';

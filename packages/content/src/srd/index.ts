@@ -11,6 +11,9 @@ import type {
   SpellResult,
   ItemResult,
   FeatResult,
+  OptionalFeatureResult,
+  DeityResult,
+  VariantRuleResult,
   CreatureResult,
   SkillResult,
   DamageTypeResult,
@@ -109,6 +112,20 @@ const MUNDANE_ITEMS         = withSource(itemsData               as unknown as I
 const MAGIC_ITEMS_CATALOG   = withSource(magicItemsData          as unknown as ItemResult[]);
 const ITEMS                 = [...MUNDANE_ITEMS, ...MAGIC_ITEMS_CATALOG];
 const FEATS                 = withSource(featsData               as unknown as FeatResult[]);
+// Optional features (Eldritch Invocations, Metamagic, Maneuvers,
+// Fighting Styles, Pact Boons) live in XPHB rather than the SRD —
+// the 2024 SRD release intentionally omits them. The bundle starts
+// empty; the field exists so the system page renders the sub-tab
+// uniformly and imported XPHB packs flow into it.
+const OPTIONAL_FEATURES: OptionalFeatureResult[] = [];
+// Deities are XDMG/SCAG/etc. content, not bundled in the SRD release.
+// Same pattern as OPTIONAL_FEATURES — the field exists so imports
+// flow into it without per-tab plumbing.
+const DEITIES: DeityResult[] = [];
+// Variant / optional rules + the XPHB compendium glossary are also
+// imported-only. Empty array; the field exists so the system page
+// renders the sub-tab uniformly.
+const VARIANT_RULES: VariantRuleResult[] = [];
 const CREATURES             = withSource(creaturesData           as unknown as CreatureResult[]);
 const SKILLS                = withSource(skillsData              as unknown as SkillResult[]);
 const DAMAGE_TYPES          = withSource(damageTypesData         as unknown as DamageTypeResult[]);
@@ -130,7 +147,8 @@ const COVER                 = withSource(coverData               as unknown as C
 
 const ALL_SRD: ContentResult[] = [
   ...SPECIES, ...CLASSES, ...BACKGROUNDS, ...SUBCLASSES,
-  ...CONDITIONS, ...RULES, ...SPELLS, ...ITEMS, ...FEATS, ...CREATURES,
+  ...CONDITIONS, ...RULES, ...SPELLS, ...ITEMS, ...FEATS, ...OPTIONAL_FEATURES,
+  ...DEITIES, ...VARIANT_RULES, ...CREATURES,
   ...SKILLS, ...DAMAGE_TYPES, ...SCHOOLS, ...SIZES, ...LANGUAGES,
   ...ACTION_TYPES, ...WEAPON_PROPERTIES, ...WEAPON_MASTERIES,
   ...STANDARD_ACTIONS, ...SENSES, ...SPEEDS, ...CREATURE_TYPES,
@@ -176,6 +194,9 @@ export interface SrdCounts {
   spells: number;
   items: number;
   feats: number;
+  optionalFeatures: number;
+  deities: number;
+  variantRules: number;
   creatures: number;
   skills: number;
   damageTypes: number;
@@ -207,6 +228,9 @@ export interface SrdContent {
   spells: SpellResult[];
   items: ItemResult[];
   feats: FeatResult[];
+  optionalFeatures: OptionalFeatureResult[];
+  deities: DeityResult[];
+  variantRules: VariantRuleResult[];
   creatures: CreatureResult[];
   skills: SkillResult[];
   damageTypes: DamageTypeResult[];
@@ -237,7 +261,8 @@ export function getSrdContent(version?: SrdVersion): SrdContent {
     return {
       species: SPECIES, classes: CLASSES, subclasses: SUBCLASSES,
       backgrounds: BACKGROUNDS, conditions: CONDITIONS, rules: RULES,
-      spells: SPELLS, items: ITEMS, feats: FEATS, creatures: CREATURES,
+      spells: SPELLS, items: ITEMS, feats: FEATS, optionalFeatures: OPTIONAL_FEATURES,
+      deities: DEITIES, variantRules: VARIANT_RULES, creatures: CREATURES,
       skills: SKILLS, damageTypes: DAMAGE_TYPES, schools: SCHOOLS,
       sizes: SIZES, languages: LANGUAGES, actionTypes: ACTION_TYPES,
       weaponProperties: WEAPON_PROPERTIES, weaponMasteries: WEAPON_MASTERIES,
@@ -261,6 +286,9 @@ export function getSrdContent(version?: SrdVersion): SrdContent {
     spells:              SPELLS.filter(matches),
     items:               ITEMS.filter(matches),
     feats:               FEATS.filter(matches),
+    optionalFeatures:    OPTIONAL_FEATURES.filter(matches),
+    deities:             DEITIES.filter(matches),
+    variantRules:        VARIANT_RULES.filter(matches),
     creatures:           CREATURES.filter(matches),
     skills:              SKILLS.filter(matches),
     damageTypes:         DAMAGE_TYPES.filter(matches),
@@ -306,6 +334,9 @@ function countsFromContent(c: SrdContent): SrdCounts {
     spells:              c.spells.length,
     items:               c.items.length,
     feats:               c.feats.length,
+    optionalFeatures:    c.optionalFeatures.length,
+    deities:             c.deities.length,
+    variantRules:        c.variantRules.length,
     creatures:           c.creatures.length,
     skills:              c.skills.length,
     damageTypes:         c.damageTypes.length,

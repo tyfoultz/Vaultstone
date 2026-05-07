@@ -7,7 +7,9 @@
 // Both kinds render as visually similar cards with kind-distinguishing
 // icons + sublabels so users can tell them apart at a glance, while the
 // unified surface keeps the mental model simple ("things that add
-// content to my system"). Tap and delete diverge by kind — see PackCard.
+// content to my system"). Cards open the pack on tap; deletion lives
+// inside the pack detail page so destructive actions stay one click
+// deeper than browse.
 
 import { useEffect, useState } from 'react';
 import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
@@ -17,13 +19,13 @@ import {
   MetaLabel, Text, Icon,
 } from '@vaultstone/ui';
 import {
-  listHomebrewPacks, deleteHomebrewPack, getPackCampaignUsage,
+  listHomebrewPacks, getPackCampaignUsage,
   type HomebrewPackRow,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import { CreateHomebrewPackModal } from '../homebrew/CreateHomebrewPackModal';
-import { ImportContentModal } from '../imported/ImportContentModal';
+import { ImportPackModal } from '../homebrew/ImportPackModal';
 
 type Props = {
   system: GameSystemDefinition;
@@ -43,7 +45,6 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -61,17 +62,12 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [user, system.id, refreshTick]);
+  }, [user, system.id]);
 
   // While loading, render nothing — the SRD tabs immediately below are
   // self-contained, so a brief absence here is preferable to a flash of
   // an empty state that turns into populated content.
   if (loading) return null;
-
-  function fanOutChange() {
-    setRefreshTick((n) => n + 1);
-    onPacksChanged?.();
-  }
 
   return (
     <View style={s.section}>
@@ -95,10 +91,6 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
             pack={pack}
             usage={usage.get(pack.id) ?? []}
             onOpen={() => router.push(`/homebrew-pack/${pack.id}` as Href)}
-            onDeleted={() => {
-              setPacks((prev) => prev.filter((p) => p.id !== pack.id));
-              onPacksChanged?.();
-            }}
           />
         ))}
 
@@ -111,12 +103,14 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
             Create
           </Text>
         </Pressable>
-
+        {/* Import an existing pack from a JSON file someone else
+            exported. Uses the same vaultstone-pack/v1 format the
+            Export action on the pack detail page produces. */}
         <Pressable
           onPress={() => setImportOpen(true)}
           style={({ pressed }) => [s.newPackTile, pressed && { opacity: 0.85 }]}
         >
-          <Icon name="upload-file" size={18} color={colors.primary} />
+          <Icon name="file-upload" size={18} color={colors.primary} />
           <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.primary }}>
             Import
           </Text>
@@ -137,93 +131,45 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
         />
       ) : null}
 
-      <ImportContentModal
-        visible={importOpen}
-        systemId={system.id}
-        onClose={() => setImportOpen(false)}
-        onImported={fanOutChange}
-      />
+      {importOpen ? (
+        <ImportPackModal
+          expectedSystem={system.id}
+          systemDisplayName={system.displayName}
+          onClose={() => setImportOpen(false)}
+          onImported={(pack) => {
+            setImportOpen(false);
+            setPacks((prev) => [pack, ...prev]);
+            onPacksChanged?.();
+            router.push(`/homebrew-pack/${pack.id}` as Href);
+          }}
+        />
+      ) : null}
     </View>
   );
 }
 
 /**
- * Single content-pack card. Two-state body: the default shows name +
- * sublabel + trash; pressing trash flips into a confirm/cancel pair
- * inline (no separate modal, keeps the horizontal-scroll geometry stable).
+ * Single content-pack card. Tap to open the pack detail page. Deletion
+ * lives inside that page rather than here — destructive actions stay
+ * one click deeper than browsing so a stray tap on the row can't drop
+ * a pack the user just imported.
  *
- * Imported packs (created via the import modal) and authored packs both
- * surface here as homebrew_packs rows — the storage convention is that
- * import-created packs are named "Imported: <filename>" so the user can
- * tell them apart in the row. Both kinds open the same per-pack detail
- * page on tap; the detail UI handles the authored-vs-imported rendering.
+ * Packs are unified — a pack can hold authored entries, JSON imports,
+ * or both. The breakdown is visible on the pack detail page; the row
+ * card just identifies the pack.
  */
 function PackCard({
   pack,
   usage,
   onOpen,
-  onDeleted,
 }: {
   pack: HomebrewPackRow;
   /** Campaigns the pack is currently enabled on. Empty array → no usage chip. */
   usage: Array<{ campaignId: string; campaignName: string }>;
   onOpen: () => void;
-  onDeleted: () => void;
 }) {
-  const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
-
-  async function handleDelete() {
-    setDeleting(true);
-    setDeleteError('');
-    const { error } = await deleteHomebrewPack(pack.id);
-    setDeleting(false);
-    if (error) {
-      setDeleteError(error.message);
-      return;
-    }
-    onDeleted();
-  }
-
-  if (confirming) {
-    return (
-      <View style={[s.packCard, s.packCardConfirm]}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.hpDanger }} numberOfLines={2}>
-            {deleteError || `Delete "${pack.name}"?`}
-          </Text>
-          <MetaLabel size="sm">All entries inside the pack will be deleted.</MetaLabel>
-        </View>
-        <Pressable
-          onPress={() => {
-            setConfirming(false);
-            setDeleteError('');
-          }}
-          style={[s.confirmBtn, s.confirmCancel]}
-        >
-          <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}>
-            Cancel
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={handleDelete}
-          disabled={deleting}
-          style={[s.confirmBtn, s.confirmDelete]}
-        >
-          <Text variant="label-sm" weight="semibold" uppercase style={{ color: '#fff', letterSpacing: 1 }}>
-            {deleting ? 'Deleting…' : 'Delete'}
-          </Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  // Imported packs are named "Imported: ..." by the import flow — surface
-  // a different icon so the user can tell them apart in the row at a glance.
-  const isImported = pack.name.startsWith('Imported: ');
-  const iconName = isImported ? 'upload-file' : 'auto-fix-high';
-  const sublabel = isImported ? 'Imported pack' : 'Authored pack';
+  const iconName = 'auto-fix-high' as const;
+  const sublabel = pack.description?.trim() || 'Content pack';
 
   // Usage chip — "Used by N campaigns". The full campaign name list goes
   // on accessibilityLabel so screen readers announce it and (on web) it
@@ -256,16 +202,6 @@ function PackCard({
           </Text>
         </View>
       ) : null}
-      <Pressable
-        onPress={(e) => {
-          e.stopPropagation();
-          setConfirming(true);
-        }}
-        style={s.packDeleteBtn}
-        accessibilityLabel={`Delete ${pack.name}`}
-      >
-        <Icon name="delete" size={16} color={colors.onSurfaceVariant} />
-      </Pressable>
     </Pressable>
   );
 }
@@ -324,16 +260,6 @@ const s = StyleSheet.create({
     minWidth: 140,
     justifyContent: 'center',
   },
-  packDeleteBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerHigh,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '33',
-  },
   usageChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -349,23 +275,5 @@ const s = StyleSheet.create({
     color: colors.onSurfaceVariant,
     fontSize: 10,
     fontVariant: ['tabular-nums'],
-  },
-  packCardConfirm: {
-    minWidth: 320,
-    borderColor: colors.hpDanger + '55',
-  },
-  confirmBtn: {
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radius.full,
-    borderWidth: 1,
-  },
-  confirmCancel: {
-    borderColor: colors.outlineVariant + '55',
-    backgroundColor: 'transparent',
-  },
-  confirmDelete: {
-    borderColor: colors.hpDanger,
-    backgroundColor: colors.hpDanger,
   },
 });

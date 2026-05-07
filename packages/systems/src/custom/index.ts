@@ -10,6 +10,7 @@ export const customSystem: GameSystemDefinition = {
   attributes: [],
   resourcePools: [],
   creationSteps: [],
+  optionalRules: [],
   sheetSections: [
     { key: 'stats', label: 'Stats', order: 1 },
     { key: 'resources', label: 'Resources', order: 2 },

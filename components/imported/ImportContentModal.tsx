@@ -18,16 +18,19 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing } from '@vaultstone/ui';
 import {
   transformSubclasses, transformFeats, transformSpells, transformBackgrounds, transformItems,
-  transformSpecies, transformMonsters, transformClasses,
+  transformSpecies, transformMonsters, transformClasses, transformFluff,
+  transformSpellSourceLookup, transformOptionalFeatures, transformDeities,
+  transformVariantRules, transformMagicVariants,
 } from '@vaultstone/content';
 import type { ContentResult, ImportSource } from '@vaultstone/types';
 import {
   createHomebrewPack, listHomebrewPacks,
-  upsertImportedEntries, deleteImportedEntriesInPack,
+  upsertImportedEntries, deleteImportedEntriesBySourceLabel,
+  patchImportedDescriptions, patchImportedSpellClasses,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import {
-  pickContentJson, probeContent, hasImportableContent,
+  pickContentJson, probeContent, hasImportableContent, applySourceFilter, UNKNOWN_SOURCE,
   type PickedJson, type ImportableContent, type ImportDiagnostic,
 } from './importContentJson';
 
@@ -43,9 +46,20 @@ type ImportableEntry = ContentResult & {
   name: string;
 };
 
+/** Numeric per-kind count keys on ImportableContent. Excludes the
+ *  picker-support fields (sourcesByKind, allSources, diagnostic) which
+ *  IMPORT_KINDS never references. */
+type ImportableCountKey =
+  | 'subclasses' | 'feats' | 'spells' | 'backgrounds'
+  | 'items' | 'species' | 'monsters' | 'classes' | 'optionalFeatures'
+  | 'deities' | 'variantRules' | 'magicVariants'
+  | 'classFluff' | 'backgroundFluff' | 'featFluff' | 'itemFluff'
+  | 'speciesFluff' | 'creatureFluff'
+  | 'spellClasses';
+
 type ImportKind = {
   /** Field name in ImportableContent — count of items found in the file. */
-  countKey: keyof ImportableContent;
+  countKey: ImportableCountKey;
   /** Top-level JSON keys on the source payload that this kind reads.
    *  Most kinds have one (e.g. `subclass`); items have two
    *  (`baseitem` + `item`) since 5e.tools splits mundane and magic
@@ -123,7 +137,71 @@ const IMPORT_KINDS: ImportKind[] = [
     contentType: 'class',
     transform: transformClasses,
   },
+  {
+    countKey: 'optionalFeatures',
+    topLevelKeys: ['optionalfeature'],
+    label: 'Optional Features',
+    // Match the OptionalFeatureResult.type literal so future filters
+    // that group by content_type see authored + imported under one
+    // bucket if/when authored optional features land.
+    contentType: 'optional-feature',
+    transform: transformOptionalFeatures,
+  },
+  {
+    countKey: 'deities',
+    topLevelKeys: ['deity'],
+    label: 'Deities',
+    contentType: 'deity',
+    transform: transformDeities,
+  },
+  {
+    countKey: 'variantRules',
+    topLevelKeys: ['variantrule'],
+    label: 'Variant Rules',
+    contentType: 'variant-rule',
+    transform: transformVariantRules,
+  },
+  {
+    countKey: 'magicVariants',
+    topLevelKeys: ['magicvariant'],
+    // Display label is the user-facing concept ("variant magic items")
+    // — the underlying content_type is 'item' since each derived row
+    // is a magic item that lands in the same Items catalog as
+    // hand-imported magic items.
+    label: 'Magic Item Variants',
+    contentType: 'item',
+    transform: transformMagicVariants,
+  },
 ];
+
+// Fluff kinds are intentionally NOT in IMPORT_KINDS — they don't
+// produce *Result entries, they produce description patches that merge
+// into existing rows. The Confirm rows, source filter, and patch path
+// each special-case them. Listed here so the disclosure list and
+// label list still mention every supported flavor kind.
+type FluffKind = {
+  countKey: ImportableCountKey;
+  topLevelKeys: string[];
+  label: string;
+};
+const FLUFF_KINDS: FluffKind[] = [
+  { countKey: 'classFluff',      topLevelKeys: ['classFluff', 'subclassFluff'], label: 'Class flavor' },
+  { countKey: 'backgroundFluff', topLevelKeys: ['backgroundFluff'],             label: 'Background flavor' },
+  { countKey: 'featFluff',       topLevelKeys: ['featFluff'],                   label: 'Feat flavor' },
+  { countKey: 'itemFluff',       topLevelKeys: ['itemFluff'],                   label: 'Item flavor' },
+  { countKey: 'speciesFluff',    topLevelKeys: ['raceFluff', 'subraceFluff'],   label: 'Species flavor' },
+  { countKey: 'creatureFluff',   topLevelKeys: ['monsterFluff'],                label: 'Creature flavor' },
+];
+
+// Spell-source-lookup is its own kind — neither an entry producer nor a
+// fluff-style description patch. It merges class lists onto existing
+// imported spell rows so class-detail spell tables surface them. Kept
+// in its own constant (singular) since the file shape is one-of and
+// the disclosure / probe rows render it once.
+const SPELL_CLASSES_KIND = {
+  countKey: 'spellClasses' as const,
+  label: 'Spell class lists',
+};
 
 type Props = {
   visible: boolean;
@@ -131,21 +209,39 @@ type Props = {
   onClose: () => void;
   /** Fires after a successful import so the caller can refresh state. */
   onImported: () => void;
+  /** When set, the import targets this existing pack instead of creating
+   *  a new one. The pack-name field is hidden; only "Source label" shows. */
+  packId?: string;
+  /** When set, pre-fills the source label and (in re-import mode) targets
+   *  that exact card to refresh. Combined with `packId`, this is the
+   *  "Re-import this card" flow from the pack detail page. */
+  initialSourceLabel?: string;
 };
 
 type Phase = 'intro' | 'confirm' | 'working';
 
-export function ImportContentModal({ visible, systemId, onClose, onImported }: Props) {
+export function ImportContentModal({
+  visible, systemId, onClose, onImported, packId, initialSourceLabel,
+}: Props) {
   const userId = useAuthStore((s) => s.user?.id ?? null);
+  const targetPackId = packId ?? null;
   const [phase, setPhase] = useState<Phase>('intro');
   const [picked, setPicked] = useState<PickedJson | null>(null);
   const [probe, setProbe] = useState<ImportableContent | null>(null);
-  // Pack name the user can override before confirming. Defaults to the
-  // filename-derived name; per the design discussion (option b), changing
-  // it creates a new pack rather than redirecting a re-import — so a
-  // re-import of the same file with the default name still de-dupes
-  // cleanly into the existing pack.
+  // Pack name draft — only used in "create new pack" mode (no packId).
+  // When importing into an existing pack, the user names the *card*
+  // (source label) instead.
   const [packNameDraft, setPackNameDraft] = useState('');
+  // Source label draft — the per-card name. Defaults to filename-derived.
+  // Used as the dedupe key alongside packId; same label re-imported with
+  // a fresh file refreshes the card, different label creates a new card.
+  const [sourceLabelDraft, setSourceLabelDraft] = useState(initialSourceLabel ?? '');
+  // Source filter state — the set of `source` codes the user has chosen
+  // to keep. `null` means "import everything" (single-source files
+  // skip the picker entirely; multi-source files default to all-on
+  // until the user narrows). Switches back to `null` on every reset
+  // so it never leaks across imports.
+  const [selectedSources, setSelectedSources] = useState<Set<string> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function reset() {
@@ -153,8 +249,24 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
     setPicked(null);
     setProbe(null);
     setPackNameDraft('');
+    setSourceLabelDraft(initialSourceLabel ?? '');
+    setSelectedSources(null);
     setError(null);
   }
+
+  // Filtered counts after the source picker is applied. When no probe
+  // exists yet (intro phase) we render zeros — the Import button only
+  // appears in confirm phase, so this is safe.
+  const filteredCounts = probe
+    ? applySourceFilter(probe, selectedSources)
+    : {
+        subclasses: 0, feats: 0, spells: 0, backgrounds: 0, items: 0,
+        species: 0, monsters: 0, classes: 0, optionalFeatures: 0,
+        deities: 0, variantRules: 0, magicVariants: 0,
+        classFluff: 0, backgroundFluff: 0, featFluff: 0, itemFluff: 0,
+        speciesFluff: 0, creatureFluff: 0, spellClasses: 0,
+      };
+  const hasFilteredContent = Object.values(filteredCounts).some((n) => n > 0);
 
   function handleClose() {
     if (phase === 'working') return; // disallow close mid-import
@@ -170,7 +282,23 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
       const probeResult = probeContent(result.payload);
       setPicked(result);
       setProbe(probeResult);
-      setPackNameDraft(derivePackName(result.fileName));
+      // Multi-source files start with every source selected (so the
+      // user sees full counts and can opt-in to narrowing). Single-
+      // source files leave the picker null — no UI rendered.
+      setSelectedSources(
+        probeResult.allSources.length > 1
+          ? new Set(probeResult.allSources)
+          : null,
+      );
+      // In create-pack mode, default both fields from the filename. In
+      // existing-pack mode, only the source label is editable; default
+      // to filename if the caller didn't pre-fill (re-import would have).
+      if (!targetPackId) {
+        setPackNameDraft(deriveDefaultName(result.fileName));
+      }
+      if (!sourceLabelDraft) {
+        setSourceLabelDraft(deriveDefaultName(result.fileName));
+      }
       setPhase('confirm');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -179,38 +307,64 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
 
   async function handleImport() {
     if (!picked || !probe || !userId) return;
-    const packName = packNameDraft.trim() || derivePackName(picked.fileName);
+    const sourceLabel = sourceLabelDraft.trim() || deriveDefaultName(picked.fileName);
     setPhase('working');
     setError(null);
     try {
-      // Look up an existing import pack by exact name + system + owner.
-      // Re-importing the same file with the same name finds the existing
-      // pack and replaces its entries; renaming creates a new pack
-      // (intentional per the design call — user-named packs aren't
-      // expected to merge across renames).
-      const { data: existingPacks } = await listHomebrewPacks({ system: systemId });
-      let pack = existingPacks?.find(
-        (p) => p.owner_user_id === userId && p.name === packName,
-      ) ?? null;
+      let packIdResolved = targetPackId;
 
-      if (!pack) {
-        const { data: created, error: createErr } = await createHomebrewPack({
-          ownerUserId: userId,
-          system: systemId,
-          name: packName,
-          description: `Imported from ${picked.fileName}`,
-        });
-        if (createErr || !created) {
-          throw new Error(createErr?.message ?? 'Failed to create pack');
+      // Top-level entry point: create a new pack named by the user.
+      // In-pack entry point: targetPackId is set, skip creation.
+      if (!packIdResolved) {
+        const packName = packNameDraft.trim() || deriveDefaultName(picked.fileName);
+        // Look up an existing pack by exact name + system + owner so a
+        // user re-running the top-level "Import" with the same pack
+        // name lands in the existing pack instead of duplicating it.
+        // Renaming creates a new pack.
+        const { data: existingPacks } = await listHomebrewPacks({ system: systemId });
+        let pack = existingPacks?.find(
+          (p) => p.owner_user_id === userId && p.name === packName,
+        ) ?? null;
+
+        if (!pack) {
+          const { data: created, error: createErr } = await createHomebrewPack({
+            ownerUserId: userId,
+            system: systemId,
+            name: packName,
+            description: null,
+          });
+          if (createErr || !created) {
+            throw new Error(createErr?.message ?? 'Failed to create pack');
+          }
+          pack = created;
         }
-        pack = created;
+        packIdResolved = pack.id;
       }
 
-      // Wipe existing imported entries in this pack before re-importing
+      // Wipe entries under this (pack, source_label) before re-importing
       // so removed entries (renamed source-keys, deleted upstream) don't
-      // linger. Authored entries in homebrew_content stay untouched —
-      // we only delete from imported_content.
-      await deleteImportedEntriesInPack(pack.id);
+      // linger. Authored entries and other cards in the same pack are
+      // untouched — the wipe is scoped to this card only. Only run the
+      // wipe when this import will actually write entries — patch-only
+      // imports (fluff, spell-source-lookup) produce row updates, not
+      // new rows, and would otherwise wipe a same-named card the user
+      // actually wants to keep.
+      const hasEntryProducingKind = IMPORT_KINDS.some(
+        (k) => probe[k.countKey] > 0,
+      );
+      if (hasEntryProducingKind) {
+        await deleteImportedEntriesBySourceLabel(packIdResolved, sourceLabel);
+      }
+
+      // Apply the source filter (when set). Build a shallow clone of
+      // the payload with each top-level array narrowed to entries whose
+      // `source` is in `selectedSources`. Transforms read these arrays
+      // directly, so the filter is invisible to them — they just see a
+      // smaller input. `selectedSources === null` means no filter; the
+      // payload passes through unchanged.
+      const transformPayload = selectedSources
+        ? filterPayloadBySource(picked.payload, selectedSources)
+        : picked.payload;
 
       // Run every transform whose top-level key the probe found. A
       // single file can carry multiple content types (e.g. an XPHB.json
@@ -220,7 +374,7 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
       for (const kind of IMPORT_KINDS) {
         const count = probe[kind.countKey];
         if (typeof count !== 'number' || count === 0) continue;
-        const produced = kind.transform(picked.payload as never, {
+        const produced = kind.transform(transformPayload as never, {
           systemId,
           sourceLabel: picked.fileName,
         });
@@ -239,11 +393,95 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
       }
 
       const { error: upsertErr } = await upsertImportedEntries({
-        packId: pack.id,
+        packId: packIdResolved,
         userId,
+        sourceLabel,
         entries: entriesToUpsert,
       });
       if (upsertErr) throw new Error(upsertErr.message);
+
+      // Flavor / fluff — separate path. Fluff files carry description
+      // prose for already-imported rows (class, subclass, background,
+      // feat, item, species, creature); they get merged into the
+      // existing row's `data.description` rather than creating new
+      // entries. Pack-scoped, so the user can import fluff under any
+      // source_label (typically a different filename than the
+      // structured file) — patch matching ignores source_label and
+      // keys only on entry_key.
+      const totalFluffProbe = FLUFF_KINDS.reduce(
+        (n, k) => n + (probe[k.countKey] ?? 0),
+        0,
+      );
+      if (totalFluffProbe > 0) {
+        const patches = transformFluff(transformPayload as never, {
+          systemId,
+          sourceLabel: picked.fileName,
+        });
+        if (patches.length > 0) {
+          const { patched, error: patchErr } = await patchImportedDescriptions({
+            packId: packIdResolved,
+            patches: patches.map((p) => ({
+              entryKey: p.entryKey,
+              description: p.description,
+              // Forward name + contentType so the API can fall back to
+              // a (name, content_type) lookup when the source-coded
+              // entry_key doesn't match. This bridges fluff entries
+              // sourced under the 2014 code (e.g. DMG) onto rows the
+              // user imported under the 2024 code (e.g. XDMG).
+              name: p.name,
+              contentType: p.contentType,
+              // Cross-source supplemental sections (XGE/TCE/SCAG
+              // worldbuilding appended to a PHB class's fluff) ride
+              // along to the row's data so the renderer can surface
+              // them as a separate Supplemental Lore section instead
+              // of bloating the canonical class intro.
+              supplementalSections: p.supplementalSections,
+            })),
+            fluffSource: { fileName: picked.fileName, sourceLabel },
+          });
+          if (patchErr) throw new Error(patchErr.message);
+          // No matching rows in the pack — the user imported the
+          // fluff before the structured file. Surface it instead of
+          // silently no-opping so they can correct the ordering.
+          if (patched === 0) {
+            throw new Error(
+              `Fluff produced ${patches.length} patches but matched 0 rows. Import the matching structured file first, then re-import the fluff.`,
+            );
+          }
+        }
+      }
+
+      // Spell-source-lookup — third path. Same model as fluff: the
+      // file doesn't carry structured spell entries, it carries class-
+      // assignment metadata that gets merged onto existing imported
+      // spell rows. Source filter is irrelevant for this file (it's
+      // single-purpose), so we transform the original payload.
+      if (probe.spellClasses > 0) {
+        const classPatches = transformSpellSourceLookup(
+          picked.payload as Parameters<typeof transformSpellSourceLookup>[0],
+          { systemId },
+        );
+        if (classPatches.length > 0) {
+          const { patched, error: patchErr } = await patchImportedSpellClasses({
+            packId: packIdResolved,
+            patches: classPatches.map((p) => ({
+              entryKey: p.entryKey,
+              classes: p.classes,
+              // Name fallback bridges the 2014/2024 source-code split
+              // when the lookup file groups spells under their original
+              // source but the user imported the 2024 sibling.
+              name: p.name,
+            })),
+            classesSource: { fileName: picked.fileName, sourceLabel },
+          });
+          if (patchErr) throw new Error(patchErr.message);
+          if (patched === 0) {
+            throw new Error(
+              `Spell class lookup produced ${classPatches.length} patches but matched 0 rows. Import the matching spells file first, then re-import the lookup.`,
+            );
+          }
+        }
+      }
 
       onImported();
       reset();
@@ -279,6 +517,24 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
               probe={probe}
               packName={packNameDraft}
               onPackNameChange={setPackNameDraft}
+              sourceLabel={sourceLabelDraft}
+              onSourceLabelChange={setSourceLabelDraft}
+              showPackNameField={!targetPackId}
+              // Re-import mode locks the source label field. The caller
+              // pre-fills `initialSourceLabel` with the existing card's
+              // label; letting the user edit it silently forks into a
+              // new card and drops the original entries (the wipe step
+              // is keyed by the in-flight label, not the original).
+              lockSourceLabel={!!initialSourceLabel}
+              selectedSources={selectedSources}
+              onToggleSource={(src) => {
+                setSelectedSources((prev) => {
+                  const next = new Set(prev ?? probe.allSources);
+                  if (next.has(src)) next.delete(src);
+                  else next.add(src);
+                  return next;
+                });
+              }}
             />
           ) : null}
 
@@ -302,12 +558,12 @@ export function ImportContentModal({ visible, systemId, onClose, onImported }: P
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  style={[s.confirmBtn, !hasImportableContent(probe!) && s.disabledBtn]}
+                  style={[s.confirmBtn, !hasFilteredContent && s.disabledBtn]}
                   onPress={handleImport}
-                  disabled={!hasImportableContent(probe!)}
+                  disabled={!hasFilteredContent}
                 >
                   <Text style={s.confirmBtnText}>
-                    {hasImportableContent(probe!) ? 'Import' : 'Nothing to import'}
+                    {hasFilteredContent ? 'Import' : 'Nothing to import'}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -348,6 +604,10 @@ function IntroBody() {
           {IMPORT_KINDS.map((k) => (
             <Text key={k.contentType} style={s.formatsLine}>• {k.label}</Text>
           ))}
+          {FLUFF_KINDS.map((k) => (
+            <Text key={k.countKey} style={s.formatsLine}>• {k.label}</Text>
+          ))}
+          <Text style={s.formatsLine}>• {SPELL_CLASSES_KIND.label}</Text>
         </View>
       ) : null}
 
@@ -364,13 +624,24 @@ function IntroBody() {
 }
 
 function ConfirmBody({
-  picked, probe, packName, onPackNameChange,
+  picked, probe, packName, onPackNameChange, sourceLabel, onSourceLabelChange, showPackNameField,
+  lockSourceLabel, selectedSources, onToggleSource,
 }: {
   picked: PickedJson;
   probe: ImportableContent;
   packName: string;
   onPackNameChange: (s: string) => void;
+  sourceLabel: string;
+  onSourceLabelChange: (s: string) => void;
+  showPackNameField: boolean;
+  /** Re-import mode — the source label is fixed and shown read-only.
+   *  Editing the label would silently fork into a new card. */
+  lockSourceLabel: boolean;
+  /** null = no picker; otherwise the set of source codes the user has on. */
+  selectedSources: Set<string> | null;
+  onToggleSource: (src: string) => void;
 }) {
+  const filteredCounts = applySourceFilter(probe, selectedSources);
   return (
     <>
       <View style={s.filePreview}>
@@ -380,34 +651,129 @@ function ConfirmBody({
           <Text style={s.filePreviewMeta}>{formatBytes(picked.sizeBytes)}</Text>
         </View>
       </View>
+      {showPackNameField ? (
+        <View style={s.nameField}>
+          <Text style={s.nameFieldLabel}>Pack name</Text>
+          <TextInput
+            value={packName}
+            onChangeText={onPackNameChange}
+            style={s.nameFieldInput}
+            placeholder="My PHB pack"
+            placeholderTextColor={colors.textSecondary}
+          />
+          <Text style={s.nameFieldHint}>
+            A new pack with this name will be created (or reused if you
+            already own one).
+          </Text>
+        </View>
+      ) : null}
       <View style={s.nameField}>
-        <Text style={s.nameFieldLabel}>Pack name</Text>
-        <TextInput
-          value={packName}
-          onChangeText={onPackNameChange}
-          style={s.nameFieldInput}
-          placeholder="Imported: phb.json"
-          placeholderTextColor={colors.textSecondary}
-        />
+        <Text style={s.nameFieldLabel}>Source label</Text>
+        {lockSourceLabel ? (
+          <View style={s.lockedField}>
+            <MaterialCommunityIcons name="lock-outline" size={14} color={colors.textSecondary} />
+            <Text style={s.lockedFieldText} numberOfLines={1}>{sourceLabel}</Text>
+          </View>
+        ) : (
+          <TextInput
+            value={sourceLabel}
+            onChangeText={onSourceLabelChange}
+            style={s.nameFieldInput}
+            placeholder="PHB"
+            placeholderTextColor={colors.textSecondary}
+          />
+        )}
         <Text style={s.nameFieldHint}>
-          Re-importing the same file with this exact name updates the
-          existing pack. Renaming creates a new one.
+          {lockSourceLabel
+            ? 'Re-importing this card refreshes its entries in place. To create a separate card, cancel and use "Add imported content" instead.'
+            : 'Each import inside a pack is a separate "card". Re-importing with the same label refreshes that card; a new label adds another card.'}
         </Text>
       </View>
-      <Text style={s.body}>Found in this file:</Text>
+      {selectedSources && probe.allSources.length > 1 ? (
+        <SourcePicker
+          probe={probe}
+          selectedSources={selectedSources}
+          onToggle={onToggleSource}
+        />
+      ) : null}
+      <Text style={s.body}>Will be imported:</Text>
       <View style={s.probeList}>
         {IMPORT_KINDS.map((k) => (
           <ProbeRow
             key={k.contentType}
             label={k.label}
-            count={(probe[k.countKey] as number | undefined) ?? 0}
+            count={filteredCounts[k.countKey] ?? 0}
           />
         ))}
+        {FLUFF_KINDS.map((k) => (
+          <ProbeRow
+            key={k.countKey}
+            label={k.label}
+            count={filteredCounts[k.countKey] ?? 0}
+          />
+        ))}
+        <ProbeRow
+          key={SPELL_CLASSES_KIND.countKey}
+          label={SPELL_CLASSES_KIND.label}
+          count={filteredCounts[SPELL_CLASSES_KIND.countKey] ?? 0}
+        />
       </View>
       {!hasImportableContent(probe) ? (
         <DiagnosticHint diagnostic={probe.diagnostic} />
       ) : null}
     </>
+  );
+}
+
+/**
+ * Multi-source picker — renders a chip per distinct `source` code across
+ * the file with the per-source total in parentheses. Selected chips
+ * include their entries in the import; unselected chips skip them. Only
+ * rendered when the file has 2+ distinct sources (single-source files
+ * pass `selectedSources = null` from above and skip the picker).
+ */
+function SourcePicker({
+  probe, selectedSources, onToggle,
+}: {
+  probe: ImportableContent;
+  selectedSources: Set<string>;
+  onToggle: (src: string) => void;
+}) {
+  // Sum entries per source across every kind so the chip can show the
+  // total contribution at a glance ("XPHB · 17", "PHB · 42").
+  const totalsBySource: Record<string, number> = {};
+  for (const counts of Object.values(probe.sourcesByKind)) {
+    for (const [src, n] of Object.entries(counts)) {
+      totalsBySource[src] = (totalsBySource[src] ?? 0) + n;
+    }
+  }
+  return (
+    <View style={s.nameField}>
+      <Text style={s.nameFieldLabel}>Sources to include</Text>
+      <View style={s.sourcePickerRow}>
+        {probe.allSources.map((src) => {
+          const selected = selectedSources.has(src);
+          const label = src === UNKNOWN_SOURCE ? 'No source' : src;
+          return (
+            <TouchableOpacity
+              key={src}
+              onPress={() => onToggle(src)}
+              style={[s.sourceChip, selected && s.sourceChipActive]}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+            >
+              <Text style={[s.sourceChipText, selected && s.sourceChipTextActive]}>
+                {label} · {totalsBySource[src] ?? 0}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <Text style={s.nameFieldHint}>
+        This file contains entries from multiple sources. Tap to include
+        or exclude each one.
+      </Text>
+    </View>
   );
 }
 
@@ -430,6 +796,30 @@ function DiagnosticHint({ diagnostic }: { diagnostic: ImportDiagnostic }) {
     );
   }
   if (diagnostic.kind === 'no-recognized-keys') {
+    // Special case: the user picked a Vaultstone pack-export file
+    // (`vaultstone-pack/v1`) and dropped it into the content-import
+    // flow, which only knows about 5e.tools shapes. Surface a
+    // redirect to the pack-import tile rather than the generic "we
+    // don't recognize this" copy. We detect the format by its top-
+    // level keys, which the probe already collected.
+    if (looksLikePackExportFile(diagnostic.foundKeys)) {
+      return (
+        <View style={s.diagnosticBox}>
+          <Text style={s.diagnosticTitle}>This is a Vaultstone pack file</Text>
+          <Text style={s.diagnosticBody}>
+            This file was produced by the <Text style={{ fontWeight: 'bold' }}>Export</Text>{' '}
+            button on a pack detail page, so it can't be imported as raw
+            content into an existing pack.
+          </Text>
+          <Text style={s.diagnosticBody}>
+            To restore it, close this modal and click the{' '}
+            <Text style={{ fontWeight: 'bold' }}>Import</Text> tile in the
+            "Your Content Packs" row on the system page — that flow creates
+            a new pack from the file.
+          </Text>
+        </View>
+      );
+    }
     return (
       <View style={s.diagnosticBox}>
         <Text style={s.diagnosticTitle}>Nothing to import</Text>
@@ -451,6 +841,16 @@ function DiagnosticHint({ diagnostic }: { diagnostic: ImportDiagnostic }) {
   return null;
 }
 
+/** Heuristic: does this set of top-level keys match the
+ *  `vaultstone-pack/v1` export-file shape? Used to redirect the user
+ *  to the pack-import flow instead of the content-import flow when
+ *  they picked the wrong file in the wrong modal. */
+function looksLikePackExportFile(foundKeys: string[]): boolean {
+  const set = new Set(foundKeys);
+  return set.has('format') && set.has('pack')
+    && (set.has('importedEntries') || set.has('homebrewEntries'));
+}
+
 /**
  * Inline-render the flat list of every supported top-level key (across
  * all import kinds) as code spans joined with commas + an "or" before
@@ -458,7 +858,10 @@ function DiagnosticHint({ diagnostic }: { diagnostic: ImportDiagnostic }) {
  * adding to IMPORT_KINDS updates here automatically.
  */
 function renderKeyList() {
-  const keys = IMPORT_KINDS.flatMap((k) => k.topLevelKeys);
+  const keys = [
+    ...IMPORT_KINDS.flatMap((k) => k.topLevelKeys),
+    ...FLUFF_KINDS.flatMap((k) => k.topLevelKeys),
+  ];
   return keys.map((key, i) => (
     <Text key={key}>
       {i > 0 ? (i === keys.length - 1 ? ', or ' : ', ') : ''}
@@ -469,7 +872,11 @@ function renderKeyList() {
 
 /** Plural label list ("subclasses, feats, spells, and backgrounds"). */
 function renderLabelList(): string {
-  const labels = IMPORT_KINDS.map((k) => k.label.toLowerCase());
+  const labels = [
+    ...IMPORT_KINDS.map((k) => k.label.toLowerCase()),
+    ...FLUFF_KINDS.map((k) => k.label.toLowerCase()),
+    SPELL_CLASSES_KIND.label.toLowerCase(),
+  ];
   if (labels.length <= 1) return labels.join('');
   if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
   return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
@@ -501,15 +908,62 @@ function WorkingBody() {
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /**
- * Pack name derived from a source filename. Strips common extensions and
- * the conventional "imported from" prefix the user already sees in the
- * description, so the pack name in the Content Packs row reads cleanly.
- *
- * Re-imports of the same file find the existing pack via this name +
- * system + owner, so the function must be deterministic.
+ * Default name (pack name + source label) derived from a source filename.
+ * Strips the .json extension. Used for both first-time pack creation and
+ * card-label defaults so the user has a sensible starting point. They're
+ * free to edit either.
  */
-function derivePackName(fileName: string): string {
-  return `Imported: ${fileName.replace(/\.json$/i, '')}`;
+function deriveDefaultName(fileName: string): string {
+  return fileName.replace(/\.json$/i, '');
+}
+
+/**
+ * Shallow-clone a 5e.tools payload with the recognized top-level arrays
+ * narrowed to entries whose `source` is in `selectedSources`. Entries
+ * with no `source` field bucket under UNKNOWN_SOURCE — same key the
+ * picker presents as "No source". Other top-level keys are copied
+ * unchanged so cross-references the transforms might consult (e.g.
+ * `subclassFeature[]`, `classFeature[]`) still resolve.
+ */
+function filterPayloadBySource(payload: unknown, selectedSources: Set<string>): unknown {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
+  const obj = payload as Record<string, unknown>;
+  // NOTE: every fluff array (`classFluff`, `subclassFluff`,
+  // `backgroundFluff`, `featFluff`, `itemFluff`, `raceFluff`,
+  // `subraceFluff`, `monsterFluff`) is intentionally NOT filtered.
+  // Fluff entries commonly use `_copy` to inherit prose from another
+  // fluff entry inside the same file (e.g. XPHB Barbarian fluff
+  // `_copy`s the PHB Barbarian fluff). If we filter the array before
+  // the transform runs, the `_copy` target gets stripped and resolution
+  // silently dead-ends. The transform itself only emits patches keyed
+  // to entry_keys that exist in the pack, so unselected-source fluff
+  // has no effect downstream.
+  const KEYS = ['subclass', 'feat', 'spell', 'background', 'baseitem', 'item', 'race', 'subrace', 'monster', 'class', 'optionalfeature', 'deity', 'variantrule', 'magicvariant'];
+  const out: Record<string, unknown> = { ...obj };
+  for (const key of KEYS) {
+    const arr = obj[key];
+    if (!Array.isArray(arr)) continue;
+    out[key] = arr.filter((entry) => {
+      const src = readEntrySource(entry, key);
+      return selectedSources.has(src);
+    });
+  }
+  return out;
+}
+
+/** Source resolution for filter purposes. Most arrays ship a top-level
+ *  `source` field; magicvariant is the exception — its source lives
+ *  inside `inherits.source` since the entries are templates that
+ *  inherit metadata from a publication's variant chapter. */
+function readEntrySource(entry: unknown, key: string): string {
+  if (!entry || typeof entry !== 'object') return UNKNOWN_SOURCE;
+  const e = entry as { source?: unknown; inherits?: { source?: unknown } };
+  const direct = typeof e.source === 'string' ? e.source : '';
+  if (direct) return direct;
+  if (key === 'magicvariant' && typeof e.inherits?.source === 'string') {
+    return e.inherits.source;
+  }
+  return UNKNOWN_SOURCE;
 }
 
 function formatBytes(n: number): string {
@@ -521,12 +975,13 @@ function formatBytes(n: number): string {
 const s = StyleSheet.create({
   backdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center', padding: spacing.lg,
+    justifyContent: 'center', alignItems: 'center', padding: spacing.lg,
   },
   card: {
     backgroundColor: colors.surface, borderRadius: 16,
     padding: spacing.lg, gap: spacing.md,
     borderWidth: 1, borderColor: colors.border,
+    width: '100%', maxWidth: 560,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   title: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
@@ -581,6 +1036,36 @@ const s = StyleSheet.create({
   },
   nameFieldHint: {
     fontSize: 11, color: colors.textSecondary, lineHeight: 15,
+  },
+  lockedField: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  lockedFieldText: {
+    flex: 1, color: colors.textPrimary, fontSize: 14, fontWeight: '600',
+  },
+
+  sourcePickerRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+  },
+  sourceChip: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: colors.background,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  sourceChipActive: {
+    backgroundColor: colors.brand + '22',
+    borderColor: colors.brand,
+  },
+  sourceChipText: {
+    fontSize: 12, color: colors.textSecondary, fontWeight: '600',
+  },
+  sourceChipTextActive: {
+    color: colors.textPrimary,
   },
 
   probeList: { gap: spacing.xs },

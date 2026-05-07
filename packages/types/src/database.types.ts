@@ -332,6 +332,7 @@ export interface Database {
           source_name: string | null;
           source_page: number | null;
           source_url: string | null;
+          source_label: string;
           imported_at: string;
         };
         Insert: {
@@ -346,6 +347,7 @@ export interface Database {
           source_name?: string | null;
           source_page?: number | null;
           source_url?: string | null;
+          source_label: string;
           imported_at?: string;
         };
         Update: {
@@ -358,6 +360,7 @@ export interface Database {
           source_name?: string | null;
           source_page?: number | null;
           source_url?: string | null;
+          source_label?: string;
         };
         Relationships: [];
       };

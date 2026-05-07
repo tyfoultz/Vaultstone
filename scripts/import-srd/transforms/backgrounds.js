@@ -77,12 +77,12 @@ function transformOne(bg) {
     ? parseList(abilityScores.desc).map((a) => a.toLowerCase())
     : [];
 
-  // Description: prefer the published flavor text. When that's empty
-  // (most 2024 entries), synthesize a short summary from the equipment
-  // benefit so the row isn't blank in the UI.
-  const description =
-    normalizeDescription(bg.desc) ||
-    (equipment ? `Starting equipment: ${equipment.desc}` : '');
+  // Description holds flavor text only; starting equipment moved to its
+  // own field so the detail UI can render it as a discrete block alongside
+  // skills, tool, and origin feat. 2024 entries have no flavor prose
+  // upstream, so this is often empty for 2.0 backgrounds — that's fine.
+  const description = normalizeDescription(bg.desc);
+  const startingEquipment = equipment?.desc?.trim() || null;
 
   return {
     key: `${slug}-srd-${VERSION_TO_SLUG[srdVersion]}`,
@@ -102,6 +102,7 @@ function transformOne(bg) {
       : 0,
     abilityScoreOptions: abilityOptions,
     originFeat: featBenefit?.desc?.trim() || '',
+    startingEquipment,
     description,
     data: {},
   };

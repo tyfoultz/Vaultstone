@@ -250,9 +250,7 @@ function AddPackModal({
                           {p.description}
                         </Text>
                       ) : (
-                        <MetaLabel size="sm">
-                          {p.name.startsWith('Imported: ') ? 'Imported pack' : 'Authored pack'}
-                        </MetaLabel>
+                        <MetaLabel size="sm">Content pack</MetaLabel>
                       )}
                     </View>
                     <Icon name="add" size={20} color={colors.primary} />
