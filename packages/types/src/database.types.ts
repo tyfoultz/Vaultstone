@@ -830,6 +830,10 @@ export interface Database {
           width: number;
           height: number;
           alt: string;
+          /** Display copy shown beneath the image in the canvas and in
+           *  the campaign window pane. Distinct from `alt` (which is
+           *  for screen readers). Empty string = no caption. */
+          caption: string;
           byte_size: number;
           content_type: string;
           deleted_at: string | null;
@@ -845,6 +849,7 @@ export interface Database {
           width: number;
           height: number;
           alt?: string;
+          caption?: string;
           byte_size: number;
           content_type?: string;
           deleted_at?: string | null;
@@ -855,6 +860,7 @@ export interface Database {
         Update: {
           page_id?: string | null;
           alt?: string;
+          caption?: string;
           deleted_at?: string | null;
           hard_delete_after?: string | null;
         };

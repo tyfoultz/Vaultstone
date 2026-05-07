@@ -8,9 +8,15 @@ declare module '@tiptap/core' {
       insertWorldImage: (attrs: {
         imageId: string;
         alt?: string;
+        caption?: string;
         width: number;
         height: number;
       }) => ReturnType;
+      /** Update the caption attribute on a selected worldImage node.
+       *  Called by the right-click → Edit caption flow; the node view
+       *  re-renders with the new caption immediately. The DB row is
+       *  patched separately so the caption survives a page reload. */
+      setWorldImageCaption: (caption: string) => ReturnType;
     };
   }
 }
@@ -25,6 +31,12 @@ export const WorldImageNode = Node.create({
     return {
       imageId: { default: null },
       alt: { default: '' },
+      // Display caption — distinct from alt (accessibility text).
+      // Stored on the node so the canvas re-renders without
+      // re-fetching, and persisted to world_images.caption so the
+      // value survives page reloads + flows to the campaign window
+      // pane.
+      caption: { default: '' },
       width: { default: 0 },
       height: { default: 0 },
     };
@@ -51,6 +63,24 @@ export const WorldImageNode = Node.create({
             type: this.name,
             attrs,
           });
+        },
+      setWorldImageCaption:
+        (caption) =>
+        ({ tr, state, dispatch }) => {
+          // Walk the selection and patch caption on any worldImage
+          // node it covers. Right-click context-menu handler selects
+          // the node before invoking this, so in practice we patch
+          // exactly one node per call.
+          const { from, to } = state.selection;
+          let found = false;
+          state.doc.nodesBetween(from, to, (node, pos) => {
+            if (node.type.name !== 'worldImage') return true;
+            tr.setNodeMarkup(pos, undefined, { ...node.attrs, caption });
+            found = true;
+            return false;
+          });
+          if (found && dispatch) dispatch(tr);
+          return found;
         },
     };
   },
