@@ -17,6 +17,7 @@ import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
 import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { CampaignPacksCard } from '../../../components/campaign/CampaignPacksCard';
+import { CampaignPageV2 } from '../../../components/campaign/CampaignPageV2';
 import { ManageCampaignContentModal } from '../../../components/campaign/ManageCampaignContentModal';
 import type { Database } from '@vaultstone/types';
 import type { Dnd5eStats } from '@vaultstone/types';
@@ -60,7 +61,19 @@ function characterSummary(member: Member): string | null {
   return `${member.characters.name}  ·  ${cls} ${stats.level ?? 1}`;
 }
 
+/**
+ * Route entry. Splits between V1 (the legacy long-form page) and V2
+ * (the redesigned hub) based on the `?v=2` query param. Each variant
+ * is its own component so each owns its own hook tree — switching
+ * variants remounts cleanly without a rules-of-hooks violation.
+ */
 export default function CampaignDetailScreen() {
+  const { id, v } = useLocalSearchParams<{ id: string; v?: string }>();
+  if (v === '2' && id) return <CampaignPageV2 campaignId={id} />;
+  return <CampaignDetailV1 />;
+}
+
+function CampaignDetailV1() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
@@ -322,9 +335,19 @@ export default function CampaignDetailScreen() {
 
   return (
     <ScrollView style={s.scroll} contentContainerStyle={s.container}>
-      <TouchableOpacity onPress={() => router.push('/(drawer)/campaigns')} style={s.back}>
-        <Text style={s.backText}>← Campaigns</Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <TouchableOpacity onPress={() => router.push('/(drawer)/campaigns')} style={s.back}>
+          <Text style={s.backText}>← Campaigns</Text>
+        </TouchableOpacity>
+        {/* Temporary toggle to the V2 redesign while it matures.
+            Removed once V2 is the only layout. */}
+        <TouchableOpacity
+          onPress={() => router.replace(`/campaign/${id}?v=2` as never)}
+          style={[s.back, { paddingRight: spacing.lg }]}
+        >
+          <Text style={[s.backText, { color: colors.primary }]}>Try V2 layout →</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={s.grid}>
         {/* ---- Hero card (cover + description + session status) ---- */}
