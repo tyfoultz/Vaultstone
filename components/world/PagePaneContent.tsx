@@ -45,7 +45,7 @@ import { PageHead } from './PageHead';
 import { OrphanBanner } from './OrphanBanner';
 import { PlayerViewToggle } from './PlayerViewToggle';
 import { FactsModal } from './FactsModal';
-import { LoreCanvasEditor } from './LoreCanvasEditor.web';
+import { LoreCanvasEditor } from './LoreCanvasEditor';
 import { ShareModal } from './ShareModal';
 import { StructuredFieldsForm } from './StructuredFieldsForm';
 import { FactionPageView } from './FactionPageView';

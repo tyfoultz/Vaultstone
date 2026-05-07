@@ -30,6 +30,7 @@ import { Text, colors, spacing, useBreakpoint } from '@vaultstone/ui';
 
 import { ActiveSectionProvider } from '../../../components/world/ActiveSectionContext';
 import { LensSwitchBanner } from '../../../components/world/LensSwitchBanner';
+import { MobileWorldTabBar } from '../../../components/world/MobileWorldTabBar';
 import { PlayerViewBanner } from '../../../components/world/PlayerViewBanner';
 import { WorldSidebar } from '../../../components/world/WorldSidebar';
 
@@ -180,15 +181,20 @@ export default function WorldLayout() {
     );
   }
 
+  const resolvedWorld = storeWorld ?? world;
+
   return (
     <ActiveSectionProvider initialSectionId={firstSectionId}>
-      <View style={styles.root}>
-        {!isMobile ? <WorldSidebar world={storeWorld ?? world} /> : null}
+      <View style={isMobile ? styles.rootMobile : styles.root}>
+        {!isMobile ? <WorldSidebar world={resolvedWorld} /> : null}
         <View style={styles.content}>
           <PlayerViewBanner />
           <LensSwitchBanner />
           <Slot />
         </View>
+        {isMobile ? (
+          <MobileWorldTabBar worldId={worldId} world={resolvedWorld} />
+        ) : null}
       </View>
     </ActiveSectionProvider>
   );
@@ -198,6 +204,11 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     flexDirection: 'row',
+    backgroundColor: colors.surfaceCanvas,
+  },
+  rootMobile: {
+    flex: 1,
+    flexDirection: 'column',
     backgroundColor: colors.surfaceCanvas,
   },
   content: {

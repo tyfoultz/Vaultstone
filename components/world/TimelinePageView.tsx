@@ -40,7 +40,7 @@ import { usePageVisibilityToggle } from './usePageVisibilityToggle';
 import { worldPageHref, worldSectionHref } from './worldHref';
 import { CalendarSchemaEditor } from './timeline/CalendarSchemaEditor';
 import { EraRibbon } from './timeline/EraRibbon';
-import { TimelineSpine } from './timeline/TimelineSpine.web';
+import { TimelineSpine } from './timeline/TimelineSpine';
 import { EventEditorModal } from './timeline/EventEditorModal';
 
 const LOCK_HEARTBEAT_MS = 30_000;

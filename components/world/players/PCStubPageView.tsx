@@ -43,7 +43,7 @@ import {
 } from '@vaultstone/ui';
 
 import { EditLockBanner } from '../EditLockBanner';
-import { LoreCanvasEditor } from '../LoreCanvasEditor.web';
+import { LoreCanvasEditor } from '../LoreCanvasEditor';
 import { OrphanBanner } from '../OrphanBanner';
 import { PlayerViewToggle } from '../PlayerViewToggle';
 import { ShareModal } from '../ShareModal';
