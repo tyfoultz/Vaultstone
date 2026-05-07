@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getTemplate } from '@vaultstone/content';
@@ -32,6 +32,31 @@ export default function PagesListScreen() {
   const pagesByWorld = usePagesStore((s) => (worldId ? s.byWorldId[worldId] : undefined));
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const listRef = useRef<SectionList>(null);
+  const hasScrolled = useRef(false);
+
+  // Auto-expand and scroll to the target section from ?section= param
+  useEffect(() => {
+    if (!filterSectionId || hasScrolled.current) return;
+    // Ensure the target section is not collapsed
+    setCollapsed((prev) => {
+      if (prev.has(filterSectionId)) {
+        const next = new Set(prev);
+        next.delete(filterSectionId);
+        return next;
+      }
+      return prev;
+    });
+    // Scroll to the section after a short delay for layout
+    const timer = setTimeout(() => {
+      const idx = sections.findIndex((s) => s.id === filterSectionId);
+      if (idx >= 0 && listRef.current) {
+        listRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true });
+        hasScrolled.current = true;
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filterSectionId, sections]);
 
   if (!isMobile) {
     router.replace(worldHref(worldId));
@@ -107,6 +132,7 @@ export default function PagesListScreen() {
       </View>
 
       <SectionList
+        ref={listRef}
         sections={filteredGroups}
         keyExtractor={(page) => page.id}
         stickySectionHeadersEnabled={false}

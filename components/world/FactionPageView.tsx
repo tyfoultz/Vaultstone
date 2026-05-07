@@ -862,10 +862,12 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
                     <Icon name="close" size={20} color={colors.onSurfaceVariant} />
                   </Pressable>
                 </View>
-                <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-                  {renderPills()}
-                </View>
-                {renderSidebarBody()}
+                <ScrollView>
+                  <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+                    {renderPills()}
+                  </View>
+                  {renderSidebarBody()}
+                </ScrollView>
               </Pressable>
             </Pressable>
           </Modal>

@@ -40,6 +40,7 @@ import {
   fonts,
   radius,
   spacing,
+  useBreakpoint,
 } from '@vaultstone/ui';
 
 import { EditLockBanner } from '../EditLockBanner';
@@ -119,6 +120,8 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
   const [orphanResolveOpen, setOrphanResolveOpen] = useState(false);
   const [characterPickerOpen, setCharacterPickerOpen] = useState(false);
   const [addingRelationship, setAddingRelationship] = useState(false);
+  const { isMobile } = useBreakpoint();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Character data
   const [character, setCharacter] = useState<Character | null>(null);
@@ -362,6 +365,161 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
 
   const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'error' ? 'Error' : null;
 
+  const renderSidebarBody = () => (
+    <>
+      <View style={sideStyles.rightTabs}>
+        <RightTabBtn label="On This Page" active={rightTab === 'info'} onPress={() => setRightTab('info')} />
+        <RightTabBtn label="Sub-pages" active={rightTab === 'sub'} onPress={() => setRightTab('sub')} />
+      </View>
+      <ScrollView contentContainerStyle={sideStyles.rightBody}>
+        {rightTab === 'info' ? (
+          <>
+            {/* Mentioned on this page */}
+            <View style={sideStyles.sideSection}>
+              <SideSectionHeader icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined} />
+              {mentionedPages.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
+              ) : mentionedPages.map((mp) => {
+                const mi = MENTION_ICON[mp.page_kind] ?? MENTION_ICON.custom;
+                return (
+                  <Pressable key={mp.id} onPress={() => router.push(worldPageHref(worldId, mp.id))} style={sideStyles.mentionRow}>
+                    <View style={[sideStyles.mentionDot, { backgroundColor: mi.color }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{mp.title}</Text>
+                      <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[mp.page_kind] ?? 'Page').toUpperCase()}</Text>
+                    </View>
+                    <Icon name="chevron-right" size={12} color={colors.outline} />
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Locations */}
+            <View style={sideStyles.sideSection}>
+              <SideSectionHeader icon="place" title="LOCATIONS" count={npcLocations.length || undefined} />
+              {npcLocations.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No locations linked yet.</Text>
+              ) : npcLocations.map((loc) => (
+                <Pressable key={loc.id} onPress={() => router.push(worldPageHref(worldId, loc.id))} style={sideStyles.mentionRow}>
+                  <View style={[sideStyles.mentionDot, { backgroundColor: colors.primary }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{loc.title}</Text>
+                    <Text style={sideStyles.mentionMeta}>LOCATION</Text>
+                  </View>
+                  <Icon name="chevron-right" size={12} color={colors.outline} />
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Linked from */}
+            <View style={sideStyles.sideSection}>
+              <SideSectionHeader icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined} />
+              {backlinksLoaded && backlinks.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
+              ) : backlinks.map((bl) => (
+                <Pressable key={bl.id} onPress={() => router.push(worldPageHref(worldId, bl.id))} style={sideStyles.mentionRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{bl.title}</Text>
+                    <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[bl.page_kind] ?? 'Page').toUpperCase()}</Text>
+                  </View>
+                  <Icon name="chevron-right" size={12} color={colors.outline} />
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Seen in play */}
+            <View style={sideStyles.sideSection}>
+              <SideSectionHeader icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined} />
+              {seenLoaded && seenInPlay.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
+              ) : seenInPlay.slice(0, 5).map((evt) => (
+                <View key={evt.id} style={sideStyles.seenRow}>
+                  <View style={sideStyles.seenHeader}>
+                    <View style={sideStyles.seenBadge}><Text style={sideStyles.seenBadgeText}>{evt.source_session_id ? 'S' : 'E'}</Text></View>
+                    <Text style={sideStyles.seenAgo}>{formatRelativeTime(evt.created_at)}</Text>
+                  </View>
+                  <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>{evt.title}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Relationships */}
+            <View style={sideStyles.sideSection}>
+              <SideSectionHeader icon="people" title="RELATIONSHIPS" count={relationships.length || undefined} />
+              {relationships.map((rel, i) => {
+                const targetPage = (allPages ?? []).find((p) => p.id === rel.targetPageId);
+                if (!targetPage) return null;
+                return (
+                  <View key={`${rel.targetPageId}-${i}`} style={styles.relRow}>
+                    <Pressable onPress={() => router.push(worldPageHref(worldId, rel.targetPageId))} style={styles.relLink}>
+                      <View style={[sideStyles.mentionDot, { backgroundColor: colors.cosmic }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{targetPage.title}</Text>
+                        <Text style={sideStyles.mentionMeta}>{rel.type.toUpperCase()}</Text>
+                      </View>
+                      <Icon name="chevron-right" size={12} color={colors.outline} />
+                    </Pressable>
+                    <Pressable onPress={() => { updateField('__relationships', relationships.filter((_, j) => j !== i)); if (targetPage) removeReciprocalRelationship(targetPage, page.id); }} style={{ padding: 4 }}>
+                      <Icon name="close" size={12} color={colors.outline} />
+                    </Pressable>
+                  </View>
+                );
+              })}
+              <Pressable onPress={() => setAddingRelationship(true)} style={styles.addRelBtn}>
+                <Icon name="add" size={14} color={colors.outline} />
+                <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add relationship</Text>
+              </Pressable>
+            </View>
+
+            {/* Goals */}
+            <View style={sideStyles.sideSection}>
+              <SideSectionHeader icon="flag" title="GOALS" count={goals.length || undefined} />
+              {goals.map((goal, i) => (
+                <View key={i} style={sideStyles.hookRow}>
+                  <Text style={sideStyles.hookBullet}>•</Text>
+                  <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{goal}</Text>
+                  <Pressable onPress={() => updateField('__goals', goals.filter((_, j) => j !== i))} style={{ padding: 2 }}>
+                    <Icon name="close" size={12} color={colors.outline} />
+                  </Pressable>
+                </View>
+              ))}
+              <HookInput onAdd={(text) => updateField('__goals', [...goals, text])} placeholder="Add a goal or motivation" />
+            </View>
+
+            {/* Hooks & Rumors */}
+            <View style={sideStyles.sideSection}>
+              <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
+              {hooks.map((hook, i) => (
+                <View key={i} style={sideStyles.hookRow}>
+                  <Text style={sideStyles.hookBullet}>•</Text>
+                  <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{hook}</Text>
+                  <Pressable onPress={() => updateField('__hooks', hooks.filter((_, j) => j !== i))} style={{ padding: 2 }}>
+                    <Icon name="close" size={12} color={colors.outline} />
+                  </Pressable>
+                </View>
+              ))}
+              <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
+            </View>
+          </>
+        ) : (
+          <View style={sideStyles.sideSection}>
+            <SideSectionHeader icon="subdirectory-arrow-right" title="SUB-PAGES" count={subpages.length || undefined} />
+            {subpages.length === 0 ? (
+              <Text variant="body-sm" style={sideStyles.emptyText}>No sub-pages yet.</Text>
+            ) : subpages.map((sp) => (
+              <Pressable key={sp.id} onPress={() => router.push(worldPageHref(worldId, sp.id))} style={sideStyles.mentionRow}>
+                <View style={{ flex: 1 }}>
+                  <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{sp.title}</Text>
+                </View>
+                <Icon name="chevron-right" size={12} color={colors.outline} />
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </>
+  );
+
   return (
     <View style={splitMode ? styles.rootSplit : styles.root}>
       {!splitMode ? (
@@ -560,173 +718,51 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
           ) : null}
         </View>
 
-        {/* ── Right sidebar ── */}
-        {rightCollapsed ? (
-          <View style={sideStyles.rightPanelCollapsed}>
-            <Pressable onPress={() => setRightCollapsed(false)} style={sideStyles.rightPanelToggleBtn}>
-              <Icon name="chevron-left" size={14} color={colors.onSurfaceVariant} />
-            </Pressable>
-          </View>
-        ) : (
-          <View style={sideStyles.rightPanel}>
-            <View style={sideStyles.rightPanelTopRow}>
-              <Pressable onPress={() => setRightCollapsed(true)} style={sideStyles.rightPanelToggleBtn}>
-                <Icon name="chevron-right" size={14} color={colors.outline} />
+        {/* ── Right sidebar — hidden on mobile ── */}
+        {!isMobile ? (
+          rightCollapsed ? (
+            <View style={sideStyles.rightPanelCollapsed}>
+              <Pressable onPress={() => setRightCollapsed(false)} style={sideStyles.rightPanelToggleBtn}>
+                <Icon name="chevron-left" size={14} color={colors.onSurfaceVariant} />
               </Pressable>
             </View>
-            <View style={sideStyles.rightTabs}>
-              <RightTabBtn label="On This Page" active={rightTab === 'info'} onPress={() => setRightTab('info')} />
-              <RightTabBtn label="Sub-pages" active={rightTab === 'sub'} onPress={() => setRightTab('sub')} />
+          ) : (
+            <View style={sideStyles.rightPanel}>
+              <View style={sideStyles.rightPanelTopRow}>
+                <Pressable onPress={() => setRightCollapsed(true)} style={sideStyles.rightPanelToggleBtn}>
+                  <Icon name="chevron-right" size={14} color={colors.outline} />
+                </Pressable>
+              </View>
+              {renderSidebarBody()}
             </View>
-            <ScrollView contentContainerStyle={sideStyles.rightBody}>
-              {rightTab === 'info' ? (
-                <>
-                  {/* Mentioned on this page */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined} />
-                    {mentionedPages.length === 0 ? (
-                      <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
-                    ) : mentionedPages.map((mp) => {
-                      const mi = MENTION_ICON[mp.page_kind] ?? MENTION_ICON.custom;
-                      return (
-                        <Pressable key={mp.id} onPress={() => router.push(worldPageHref(worldId, mp.id))} style={sideStyles.mentionRow}>
-                          <View style={[sideStyles.mentionDot, { backgroundColor: mi.color }]} />
-                          <View style={{ flex: 1 }}>
-                            <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{mp.title}</Text>
-                            <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[mp.page_kind] ?? 'Page').toUpperCase()}</Text>
-                          </View>
-                          <Icon name="chevron-right" size={12} color={colors.outline} />
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-
-                  {/* Locations */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="place" title="LOCATIONS" count={npcLocations.length || undefined} />
-                    {npcLocations.length === 0 ? (
-                      <Text variant="body-sm" style={sideStyles.emptyText}>No locations linked yet.</Text>
-                    ) : npcLocations.map((loc) => (
-                      <Pressable key={loc.id} onPress={() => router.push(worldPageHref(worldId, loc.id))} style={sideStyles.mentionRow}>
-                        <View style={[sideStyles.mentionDot, { backgroundColor: colors.primary }]} />
-                        <View style={{ flex: 1 }}>
-                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{loc.title}</Text>
-                          <Text style={sideStyles.mentionMeta}>LOCATION</Text>
-                        </View>
-                        <Icon name="chevron-right" size={12} color={colors.outline} />
-                      </Pressable>
-                    ))}
-                  </View>
-
-                  {/* Linked from */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined} />
-                    {backlinksLoaded && backlinks.length === 0 ? (
-                      <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
-                    ) : backlinks.map((bl) => (
-                      <Pressable key={bl.id} onPress={() => router.push(worldPageHref(worldId, bl.id))} style={sideStyles.mentionRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{bl.title}</Text>
-                          <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[bl.page_kind] ?? 'Page').toUpperCase()}</Text>
-                        </View>
-                        <Icon name="chevron-right" size={12} color={colors.outline} />
-                      </Pressable>
-                    ))}
-                  </View>
-
-                  {/* Seen in play */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined} />
-                    {seenLoaded && seenInPlay.length === 0 ? (
-                      <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
-                    ) : seenInPlay.slice(0, 5).map((evt) => (
-                      <View key={evt.id} style={sideStyles.seenRow}>
-                        <View style={sideStyles.seenHeader}>
-                          <View style={sideStyles.seenBadge}><Text style={sideStyles.seenBadgeText}>{evt.source_session_id ? 'S' : 'E'}</Text></View>
-                          <Text style={sideStyles.seenAgo}>{formatRelativeTime(evt.created_at)}</Text>
-                        </View>
-                        <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>{evt.title}</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  {/* Relationships */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="people" title="RELATIONSHIPS" count={relationships.length || undefined} />
-                    {relationships.map((rel, i) => {
-                      const targetPage = (allPages ?? []).find((p) => p.id === rel.targetPageId);
-                      if (!targetPage) return null;
-                      return (
-                        <View key={`${rel.targetPageId}-${i}`} style={styles.relRow}>
-                          <Pressable onPress={() => router.push(worldPageHref(worldId, rel.targetPageId))} style={styles.relLink}>
-                            <View style={[sideStyles.mentionDot, { backgroundColor: colors.cosmic }]} />
-                            <View style={{ flex: 1 }}>
-                              <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{targetPage.title}</Text>
-                              <Text style={sideStyles.mentionMeta}>{rel.type.toUpperCase()}</Text>
-                            </View>
-                            <Icon name="chevron-right" size={12} color={colors.outline} />
-                          </Pressable>
-                          <Pressable onPress={() => { updateField('__relationships', relationships.filter((_, j) => j !== i)); if (targetPage) removeReciprocalRelationship(targetPage, page.id); }} style={{ padding: 4 }}>
-                            <Icon name="close" size={12} color={colors.outline} />
-                          </Pressable>
-                        </View>
-                      );
-                    })}
-                    <Pressable onPress={() => setAddingRelationship(true)} style={styles.addRelBtn}>
-                      <Icon name="add" size={14} color={colors.outline} />
-                      <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add relationship</Text>
-                    </Pressable>
-                  </View>
-
-                  {/* Goals */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="flag" title="GOALS" count={goals.length || undefined} />
-                    {goals.map((goal, i) => (
-                      <View key={i} style={sideStyles.hookRow}>
-                        <Text style={sideStyles.hookBullet}>•</Text>
-                        <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{goal}</Text>
-                        <Pressable onPress={() => updateField('__goals', goals.filter((_, j) => j !== i))} style={{ padding: 2 }}>
-                          <Icon name="close" size={12} color={colors.outline} />
-                        </Pressable>
-                      </View>
-                    ))}
-                    <HookInput onAdd={(text) => updateField('__goals', [...goals, text])} placeholder="Add a goal or motivation" />
-                  </View>
-
-                  {/* Hooks & Rumors */}
-                  <View style={sideStyles.sideSection}>
-                    <SideSectionHeader icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined} />
-                    {hooks.map((hook, i) => (
-                      <View key={i} style={sideStyles.hookRow}>
-                        <Text style={sideStyles.hookBullet}>•</Text>
-                        <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{hook}</Text>
-                        <Pressable onPress={() => updateField('__hooks', hooks.filter((_, j) => j !== i))} style={{ padding: 2 }}>
-                          <Icon name="close" size={12} color={colors.outline} />
-                        </Pressable>
-                      </View>
-                    ))}
-                    <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
-                  </View>
-                </>
-              ) : (
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="subdirectory-arrow-right" title="SUB-PAGES" count={subpages.length || undefined} />
-                  {subpages.length === 0 ? (
-                    <Text variant="body-sm" style={sideStyles.emptyText}>No sub-pages yet.</Text>
-                  ) : subpages.map((sp) => (
-                    <Pressable key={sp.id} onPress={() => router.push(worldPageHref(worldId, sp.id))} style={sideStyles.mentionRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{sp.title}</Text>
-                      </View>
-                      <Icon name="chevron-right" size={12} color={colors.outline} />
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </ScrollView>
-          </View>
-        )}
+          )
+        ) : null}
       </View>
+
+      {/* ── Mobile FAB + bottom-sheet overlay ── */}
+      {isMobile ? (
+        <>
+          <Pressable
+            style={{ position: 'absolute', bottom: 24, right: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryContainer, alignItems: 'center', justifyContent: 'center', elevation: 4 }}
+            onPress={() => setSidebarOpen(true)}
+          >
+            <Icon name="info-outline" size={20} color={colors.primary} />
+          </Pressable>
+          <Modal visible={sidebarOpen} transparent animationType="slide" onRequestClose={() => setSidebarOpen(false)}>
+            <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setSidebarOpen(false)}>
+              <Pressable style={{ backgroundColor: colors.surfaceContainerHigh, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '80%' }} onPress={() => {}}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '33' }}>
+                  <Text variant="title-sm" weight="bold" style={{ color: colors.onSurface }}>Details</Text>
+                  <Pressable onPress={() => setSidebarOpen(false)} hitSlop={8}>
+                    <Icon name="close" size={20} color={colors.onSurfaceVariant} />
+                  </Pressable>
+                </View>
+                {renderSidebarBody()}
+              </Pressable>
+            </Pressable>
+          </Modal>
+        </>
+      ) : null}
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
       {orphanResolveOpen ? <OrphanResolveModal page={page} worldId={worldId} onClose={() => setOrphanResolveOpen(false)} /> : null}

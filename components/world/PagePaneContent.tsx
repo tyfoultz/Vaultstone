@@ -522,7 +522,7 @@ export function PagePaneContent({
           style={styles.wikiDoc}
           contentContainerStyle={isMobile ? styles.wikiDocInnerMobile : (isLore ? styles.wikiDocInnerWide : styles.wikiDocInner)}
         >
-          <View style={styles.headerWrap}>
+          <View style={isMobile ? styles.headerWrapMobile : styles.headerWrap}>
           {editingTitle ? (
               <input
                 type="text"
@@ -671,12 +671,14 @@ export function PagePaneContent({
                     <Icon name="close" size={20} color={colors.onSurfaceVariant} />
                   </Pressable>
                 </View>
-                {!isLore ? (
-                  <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
-                    <StructuredFieldsForm page={page} template={template} onSaveStateChange={setSaveState} />
-                  </View>
-                ) : null}
-                <WikiRightPanel pageId={page.id} worldId={worldId} />
+                <ScrollView>
+                  {!isLore ? (
+                    <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
+                      <StructuredFieldsForm page={page} template={template} onSaveStateChange={setSaveState} />
+                    </View>
+                  ) : null}
+                  <WikiRightPanel pageId={page.id} worldId={worldId} />
+                </ScrollView>
               </Pressable>
             </Pressable>
           </Modal>
@@ -706,6 +708,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceCanvas,
   },
   headerWrap: { height: 120, overflow: 'hidden' as const },
+  headerWrapMobile: { overflow: 'hidden' as const },
   wikiWrap: {
     flex: 1,
     flexDirection: 'row',
