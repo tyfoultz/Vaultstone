@@ -3,12 +3,11 @@ import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import {
   getCampaignsForWorld,
   getWorldImageSignedUrlById,
-  setCampaignSceneImage,
-  setCampaignSubjectImage,
   updateWorldImageCaption,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
-import { colors, spacing } from '@vaultstone/ui';
+import { colors, ImageCropModal, spacing } from '@vaultstone/ui';
+import { commitPin, decidePinFlow, type PinSlot } from './pinImageWithCrop';
 
 type SignedUrlEntry = { url: string; expiresAt: number };
 const urlCache = new Map<string, SignedUrlEntry>();
@@ -77,6 +76,15 @@ export function WorldImageNodeView(props: NodeViewProps) {
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [draftCaption, setDraftCaption] = useState('');
   const [saving, setSaving] = useState(false);
+  // Pending pin — populated when the user picks Scene or Subject;
+  // mounts the crop modal at the slot's aspect. Cleared on
+  // confirm/cancel.
+  const [pendingPin, setPendingPin] = useState<{
+    campaignId: string;
+    slot: PinSlot;
+    aspect: [number, number];
+    signedUrl: string;
+  } | null>(null);
   const [dmCampaigns, setDmCampaigns] = useState<DMCampaign[] | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const userId = useAuthStore((s) => s.user?.id ?? null);
@@ -162,13 +170,37 @@ export function WorldImageNodeView(props: NodeViewProps) {
   }
 
   // ── Pin sub-modes ─────────────────────────────────────────────────
-  async function pinSlot(slot: 'scene' | 'subject', campaignId: string) {
+  async function pinSlot(slot: PinSlot, campaignId: string) {
     if (!imageId) return;
     setSaving(true);
-    const fn = slot === 'scene' ? setCampaignSceneImage : setCampaignSubjectImage;
-    await fn(campaignId, imageId);
+    const decision = await decidePinFlow({ imageId, slot });
     setSaving(false);
     setMenuOpen(false);
+    if (!decision) return;
+    // Always show the crop modal — even matching aspects benefit
+    // from the user confirming framing (the slot might want a
+    // specific subject in frame, not the source's whole canvas).
+    setPendingPin({
+      campaignId,
+      slot,
+      aspect: decision.aspect,
+      signedUrl: decision.signedUrl,
+    });
+  }
+
+  async function handlePinCropConfirm(croppedBlobUri: string) {
+    if (!pendingPin || !worldId || !imageId) return;
+    await commitPin({
+      campaignId: pendingPin.campaignId,
+      worldId,
+      slot: pendingPin.slot,
+      sourceImageId: imageId,
+      sourceWidth: width,
+      sourceHeight: height,
+      aspect: pendingPin.aspect,
+      croppedBlobUri,
+    });
+    setPendingPin(null);
   }
 
   // Pin actions: when there's only one DM-able campaign, the menu
@@ -255,6 +287,25 @@ export function WorldImageNodeView(props: NodeViewProps) {
             />
           ) : null}
         </div>
+      ) : null}
+      {/* Pin-flow crop modal — opens when the user picks a slot.
+          Always shown so the user can frame the slot intentionally,
+          even when the source's aspect already matches. Confirmed
+          crop uploads as a new world_images record (see commitPin)
+          and pins it. */}
+      {pendingPin ? (
+        <ImageCropModal
+          visible
+          imageUri={pendingPin.signedUrl}
+          aspect={pendingPin.aspect}
+          usageHint={
+            pendingPin.slot === 'scene'
+              ? 'Scene fills the campaign window pane background (16:9).'
+              : 'Subject overlays the top-right of the scene (9:16 portrait).'
+          }
+          onCancel={() => setPendingPin(null)}
+          onConfirm={handlePinCropConfirm}
+        />
       ) : null}
     </NodeViewWrapper>
   );

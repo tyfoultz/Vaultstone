@@ -5,12 +5,12 @@ import {
   createWorldImage,
   getCampaignsForWorld,
   getWorldImageSignedUrlById,
-  setCampaignSceneImage,
-  setCampaignSubjectImage,
   updateWorldImageCaption,
   uploadWorldImage,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
+import { ImageCropModal } from '@vaultstone/ui';
+import { commitPin, decidePinFlow, type PinSlot } from './pinImageWithCrop';
 
 type CanvasBlock = {
   id: string;
@@ -539,6 +539,20 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     Array<{ id: string; name: string }> | null
   >(null);
   const userId = useAuthStore((s) => s.user?.id ?? null);
+
+  // Pending pin — populated when an image's aspect doesn't match
+  // the target slot, so the user has to crop before we can commit
+  // the pin. The ImageCropModal mounts on this state and clears it
+  // on confirm/cancel.
+  const [pendingPin, setPendingPin] = useState<{
+    campaignId: string;
+    sourceImageId: string;
+    sourceWidth: number;
+    sourceHeight: number;
+    slot: PinSlot;
+    aspect: [number, number];
+    signedUrl: string;
+  } | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const changeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1443,13 +1457,56 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     setImageMenu({ ...imageMenu, mode: 'pin-subject' });
   }
 
-  async function pinImageSlot(slot: 'scene' | 'subject', campaignId: string) {
-    if (!imageMenu) return;
+  async function pinImageSlot(slot: PinSlot, campaignId: string) {
+    if (!imageMenu || !worldId) return;
     setImageMenuSaving(true);
-    const fn = slot === 'scene' ? setCampaignSceneImage : setCampaignSubjectImage;
-    await fn(campaignId, imageMenu.imageId);
+
+    // Look up the source image's natural dimensions from the
+    // rendered <img> in the canvas. The Tiptap node-view path
+    // stores width/height on the node attrs; we don't have those
+    // here so we fall back to the live <img> element.
+    const imgEl = canvasRef.current?.querySelector<HTMLImageElement>(
+      `img[data-world-image-id="${imageMenu.imageId}"]`,
+    );
+    const sourceWidth = imgEl?.naturalWidth ?? 0;
+    const sourceHeight = imgEl?.naturalHeight ?? 0;
+
+    const decision = await decidePinFlow({
+      imageId: imageMenu.imageId,
+      slot,
+    });
     setImageMenuSaving(false);
     setImageMenu(null);
+    if (!decision) return;
+
+    // Hand off to the crop modal. The user always confirms
+    // framing — even when the source aspect matches the slot,
+    // they may want to focus on a particular subject within
+    // the frame.
+    setPendingPin({
+      campaignId,
+      sourceImageId: imageMenu.imageId,
+      sourceWidth,
+      sourceHeight,
+      slot,
+      aspect: decision.aspect,
+      signedUrl: decision.signedUrl,
+    });
+  }
+
+  async function handlePinCropConfirm(croppedBlobUri: string) {
+    if (!pendingPin || !worldId) return;
+    await commitPin({
+      campaignId: pendingPin.campaignId,
+      worldId,
+      slot: pendingPin.slot,
+      sourceImageId: pendingPin.sourceImageId,
+      sourceWidth: pendingPin.sourceWidth,
+      sourceHeight: pendingPin.sourceHeight,
+      aspect: pendingPin.aspect,
+      croppedBlobUri,
+    });
+    setPendingPin(null);
   }
 
   const canPin = !!worldId && !!userId
@@ -1827,6 +1884,24 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           </div>
         ) : null}
       </div>
+      {/* Pin-flow crop modal — mounts when the user picks a slot
+          and we need their crop. Confirmed crop uploads as a new
+          world_images record (caller decides; see commitPin) and
+          commits the pin. Cancel discards the pending pin. */}
+      {pendingPin ? (
+        <ImageCropModal
+          visible
+          imageUri={pendingPin.signedUrl}
+          aspect={pendingPin.aspect}
+          usageHint={
+            pendingPin.slot === 'scene'
+              ? 'Scene fills the campaign window pane background (16:9).'
+              : 'Subject overlays the top-right of the scene (9:16 portrait).'
+          }
+          onCancel={() => setPendingPin(null)}
+          onConfirm={handlePinCropConfirm}
+        />
+      ) : null}
     </View>
   );
 }
