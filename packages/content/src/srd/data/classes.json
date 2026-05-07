@@ -432,6 +432,14 @@
       14
     ],
     "multiclassPrerequisite": "Strength 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "strength"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Shields"
@@ -777,6 +785,14 @@
       14
     ],
     "multiclassPrerequisite": "Strength 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "strength"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Shields"
@@ -1390,6 +1406,14 @@
       14
     ],
     "multiclassPrerequisite": "Charisma 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "charisma"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor"
@@ -1989,6 +2013,14 @@
       14
     ],
     "multiclassPrerequisite": "Charisma 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "charisma"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor"
@@ -2657,6 +2689,14 @@
       17
     ],
     "multiclassPrerequisite": "Wisdom 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "wisdom"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor",
@@ -3172,6 +3212,14 @@
       17
     ],
     "multiclassPrerequisite": "Wisdom 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "wisdom"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor",
@@ -3859,6 +3907,14 @@
       14
     ],
     "multiclassPrerequisite": "Wisdom 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "wisdom"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor",
@@ -4371,6 +4427,14 @@
       14
     ],
     "multiclassPrerequisite": "Wisdom 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "wisdom"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor",
@@ -4759,6 +4823,15 @@
       18
     ],
     "multiclassPrerequisite": "Strength 13 or Dexterity 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "strength",
+          "dexterity"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor",
@@ -5052,6 +5125,15 @@
       18
     ],
     "multiclassPrerequisite": "Strength 13 or Dexterity 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "strength",
+          "dexterity"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor",
@@ -5494,6 +5576,20 @@
       17
     ],
     "multiclassPrerequisite": "Dexterity 13 and Wisdom 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "dexterity"
+        ],
+        "minimum": 13
+      },
+      {
+        "abilities": [
+          "wisdom"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "weapons": [
         "Simple weapons",
@@ -5826,6 +5922,20 @@
       17
     ],
     "multiclassPrerequisite": "Dexterity 13 and Wisdom 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "dexterity"
+        ],
+        "minimum": 13
+      },
+      {
+        "abilities": [
+          "wisdom"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "weapons": [
         "Simple weapons",
@@ -6328,6 +6438,20 @@
       20
     ],
     "multiclassPrerequisite": "Strength 13 and Charisma 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "strength"
+        ],
+        "minimum": 13
+      },
+      {
+        "abilities": [
+          "charisma"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor",
@@ -6743,6 +6867,20 @@
       20
     ],
     "multiclassPrerequisite": "Strength 13 and Charisma 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "strength"
+        ],
+        "minimum": 13
+      },
+      {
+        "abilities": [
+          "charisma"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor",
@@ -7277,6 +7415,20 @@
       15
     ],
     "multiclassPrerequisite": "Dexterity 13 and Wisdom 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "dexterity"
+        ],
+        "minimum": 13
+      },
+      {
+        "abilities": [
+          "wisdom"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor",
@@ -7742,6 +7894,20 @@
       15
     ],
     "multiclassPrerequisite": "Dexterity 13 and Wisdom 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "dexterity"
+        ],
+        "minimum": 13
+      },
+      {
+        "abilities": [
+          "wisdom"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor",
@@ -8144,6 +8310,14 @@
       17
     ],
     "multiclassPrerequisite": "Dexterity 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "dexterity"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor"
@@ -8461,6 +8635,14 @@
       17
     ],
     "multiclassPrerequisite": "Dexterity 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "dexterity"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor"
@@ -9085,7 +9267,15 @@
       14,
       18
     ],
-    "multiclassPrerequisite": "Charisma 13"
+    "multiclassPrerequisite": "Charisma 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "charisma"
+        ],
+        "minimum": 13
+      }
+    ]
   },
   {
     "key": "sorcerer-srd-5-1",
@@ -9622,7 +9812,15 @@
       14,
       18
     ],
-    "multiclassPrerequisite": "Charisma 13"
+    "multiclassPrerequisite": "Charisma 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "charisma"
+        ],
+        "minimum": 13
+      }
+    ]
   },
   {
     "key": "warlock-srd-2-0",
@@ -10066,6 +10264,14 @@
       14
     ],
     "multiclassPrerequisite": "Charisma 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "charisma"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor"
@@ -10447,6 +10653,14 @@
       14
     ],
     "multiclassPrerequisite": "Charisma 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "charisma"
+        ],
+        "minimum": 13
+      }
+    ],
     "multiclassProficiencies": {
       "armor": [
         "Light armor"
@@ -11022,7 +11236,15 @@
       10,
       14
     ],
-    "multiclassPrerequisite": "Intelligence 13"
+    "multiclassPrerequisite": "Intelligence 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "intelligence"
+        ],
+        "minimum": 13
+      }
+    ]
   },
   {
     "key": "wizard-srd-5-1",
@@ -11501,6 +11723,14 @@
       10,
       14
     ],
-    "multiclassPrerequisite": "Intelligence 13"
+    "multiclassPrerequisite": "Intelligence 13",
+    "multiclassPrerequisiteRaw": [
+      {
+        "abilities": [
+          "intelligence"
+        ],
+        "minimum": 13
+      }
+    ]
   }
 ]
