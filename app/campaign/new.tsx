@@ -66,8 +66,7 @@ export default function NewCampaignScreen() {
     }
 
     addCampaign(data);
-    // Land on V2 so the DM sees the setup checklist immediately.
-    router.push(`/campaign/${data.id}?v=2`);
+    router.push(`/campaign/${data.id}`);
   }
 
   return (

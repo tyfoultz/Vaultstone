@@ -183,7 +183,7 @@ export function ManageMembersModal({
                         {/* Remove disabled for the DM and the auth'd
                             user (the DM removes themselves by deleting
                             the campaign; players leave via their own
-                            "Leave campaign" path on V1). */}
+                            "Leave campaign" path). */}
                         {!isSelf && !isDM ? (
                           <GhostButton
                             label={removing === m.user_id ? '…' : 'Remove'}

@@ -1,6 +1,6 @@
-// Campaign page V2 — landing/decision hub for one campaign.
+// Campaign page — landing/decision hub for one campaign.
 //
-// Replaces the V1 dashboard's wall of cards with a phase-aware layout:
+// Phase-aware layout:
 //   • Setup mode  — DM-only checklist (world / packs / character rules)
 //                   gated until everything is set.
 //   • Open mode   — steady-state hub. DM sees session controls + party
@@ -9,8 +9,10 @@
 //   • In-session  — same layout, but the window pane goes live above
 //                   the rest and Start Session swaps to End Session.
 //
-// Side-by-side: V1 stays at /campaign/[id]; this component renders
-// when the route receives `?v=2`. Swap V1 for this once happy.
+// "V2" in the component name is historical — this layout replaced the
+// original dashboard once it reached parity. Renamed to drop the
+// version suffix is a follow-up rename pass; for now we keep the
+// import path stable.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -84,9 +86,8 @@ export function CampaignPageV2({ campaignId }: Props) {
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
   const [worldModalOpen, setWorldModalOpen] = useState(false);
   /** Manage Content modal — handles both system swap and pack
-   *  attach/enable in a single surface (mirrors V1's flow). Opened
-   *  by the System and Content packs checklist rows + the
-   *  references row's pack CTA. */
+   *  attach/enable in a single surface. Opened by the System and
+   *  Content packs checklist rows + the references row's pack CTA. */
   const [contentModalOpen, setContentModalOpen] = useState(false);
   /** Manage Members modal — DM-only join code + member list with
    *  remove. Opened by the Party panel's "Manage members" CTA. */
@@ -328,7 +329,9 @@ export function CampaignPageV2({ campaignId }: Props) {
             />
             {/* Players (non-DM) can leave the campaign. The DM
                 doesn't get this affordance — leaving as DM means
-                deleting the campaign, which lives on the V1 page. */}
+                deleting the campaign, which is its own destructive
+                flow (TODO: surface a DM "delete campaign" action
+                somewhere — currently a follow-up). */}
             {!isDM && phase !== 'setup' ? (
               <GhostButton
                 label="Leave"
@@ -336,18 +339,11 @@ export function CampaignPageV2({ campaignId }: Props) {
                 onPress={() => setLeaveConfirmOpen(true)}
               />
             ) : null}
-            {/* V2 is opt-in via ?v=2 while we test parity. Provide a
-                jump back to V1 for any feature V2 hasn't ported yet. */}
-            <GhostButton
-              label="V1 layout"
-              onPress={() => router.replace(`/campaign/${campaignId}` as Href)}
-            />
           </View>
         }
       />
 
-      {/* Leave-campaign confirmation banner — players only. Mirrors
-          V1's delete banner pattern for visual consistency. Removing
+      {/* Leave-campaign confirmation banner — players only. Removing
           your own membership is destructive enough to warrant a
           two-step confirm rather than a popover. */}
       {leaveConfirmOpen ? (
@@ -956,11 +952,10 @@ function PartyPanel({
 // ── Recent activity ─────────────────────────────────────────────────
 
 function RecentActivityCard({ campaignId }: { campaignId: string }) {
-  // Placeholder for v2: the V1 page mounts SessionLogCard +
-  // SessionHistoryCard + SessionNotesPanel as separate cards. For the
-  // redesign, surface a single "recent activity" preview that links
-  // into the existing notes/recap routes. Full embed comes when the
-  // V1 cards are decommissioned.
+  // Placeholder: surfaces a single "recent activity" preview that
+  // links into the existing notes/recap routes. Full embed of the
+  // most recent recap + last-note timestamp lands when SessionLogCard
+  // / SessionHistoryCard / SessionNotesPanel are folded into this card.
   const router = useRouter();
   return (
     <Card tier="container" padding="md" style={{ gap: spacing.sm }}>
@@ -978,8 +973,8 @@ function RecentActivityCard({ campaignId }: { campaignId: string }) {
         />
       </View>
       <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant }}>
-        Embed of the most recent session recap + last note timestamp lands when V1 cards are
-        decommissioned. For now, jump to the notes page above.
+        Embed of the most recent session recap + last note timestamp lands when the older
+        notes/recap cards are folded in here. For now, jump to the notes page above.
       </Text>
     </Card>
   );
@@ -1090,9 +1085,8 @@ const s = StyleSheet.create({
     borderColor: colors.outlineVariant + '88',
   },
 
-  /** Two-step confirmation banner. Mirrors V1's delete confirm
-   *  shape — destructive intent reads as a clear, full-width call
-   *  to action rather than a tooltip. */
+  /** Two-step confirmation banner. Destructive intent reads as a
+   *  clear, full-width call to action rather than a tooltip. */
   confirmBanner: {
     flexDirection: 'row',
     alignItems: 'center',
