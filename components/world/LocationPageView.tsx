@@ -212,12 +212,13 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
   const bannerLock = heldByOther
     ? { ownerId: lockOwnerId as string, since: lockSince as string }
     : lockError;
+  const readOnly = !isWorldOwner || heldByOther;
 
   const lockCtxRef = useRef({ lockOwnerId, lockSince, myUserId, updatePageInStore });
   lockCtxRef.current = { lockOwnerId, lockSince, myUserId, updatePageInStore };
 
   const tryClaim = useCallback(async () => {
-    if (!page.id) return;
+    if (!page.id || !isWorldOwner) return;
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
     if (error) {
@@ -562,22 +563,22 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
       <View style={styles.mainWrap}>
         {/* Editor column — full width, sticky toolbar, no card border */}
         <View style={styles.editorCol}>
-          {bannerLock ? (
+          {bannerLock && isWorldOwner ? (
             <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
               <EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} onForceUnlock={isWorldOwner ? async () => { await forceReleasePageEdit(page.id); updatePageInStore(page.id, { editing_user_id: null, editing_since: null }); void tryClaim(); } : undefined} />
             </View>
           ) : null}
 
           <View
-            style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]}
-            pointerEvents={heldByOther ? 'none' : 'auto'}
+            style={[{ flex: 1 }, readOnly ? styles.disabledEditor : undefined]}
+            pointerEvents={readOnly ? 'none' : 'auto'}
           >
             <LoreCanvasEditor
               initialBlocks={
                 (page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null
               }
               onChange={handleCanvasChange}
-              editable={!heldByOther}
+              editable={!readOnly}
               mentionablePages={mentionablePages}
               getSectionLabel={sectionLabelById}
               onMentionClick={(targetId) => void flushAndNavigate(targetId)}

@@ -191,9 +191,10 @@ export function PagePaneContent({
   );
 
   const isOrphan = useMemo(() => {
+    if (!isWorldOwner) return false;
     if (!page || !page.parent_page_id) return false;
     return !(allPages ?? []).some((p) => p.id === page.parent_page_id);
-  }, [page, allPages]);
+  }, [isWorldOwner, page, allPages]);
 
   const lockOwnerId = page?.editing_user_id ?? null;
   const lockSince = page?.editing_since ?? null;
@@ -204,6 +205,7 @@ export function PagePaneContent({
   const bannerLock = heldByOther
     ? { ownerId: lockOwnerId as string, since: lockSince as string }
     : lockError;
+  const readOnly = !isWorldOwner || heldByOther;
 
   useEffect(() => {
     if (section && !splitMode) setActiveSectionId(section.id);
@@ -213,7 +215,7 @@ export function PagePaneContent({
   lockCtxRef.current = { lockOwnerId, lockSince, myUserId, updatePageInStore };
 
   const tryClaim = useCallback(async () => {
-    if (!pageId) return;
+    if (!pageId || !isWorldOwner) return;
     const { data, error } = await claimPageEdit(pageId);
     const ctx = lockCtxRef.current;
     if (error) {
@@ -563,7 +565,7 @@ export function PagePaneContent({
           <View style={{ marginTop: splitMode ? spacing.sm : (isLore ? spacing.md : spacing.xl), gap: spacing.lg }}>
             {isOrphan ? <OrphanBanner page={page} /> : null}
 
-            {bannerLock ? (
+            {bannerLock && isWorldOwner ? (
               <EditLockBanner
                 ownerUserId={bannerLock.ownerId}
                 lockedSinceIso={bannerLock.since}
@@ -577,8 +579,8 @@ export function PagePaneContent({
             ) : null}
 
             <View
-              style={heldByOther ? styles.disabledEditor : undefined}
-              pointerEvents={heldByOther ? 'none' : 'auto'}
+              style={readOnly ? styles.disabledEditor : undefined}
+              pointerEvents={readOnly ? 'none' : 'auto'}
             >
               {!isLore ? (
                 <StructuredFieldsForm
@@ -597,7 +599,7 @@ export function PagePaneContent({
                         ?? null
                     }
                     onChange={handleCanvasChange}
-                    editable={!heldByOther}
+                    editable={!readOnly}
                     mentionablePages={mentionablePages}
                     getSectionLabel={sectionLabelById}
                     onMentionClick={(targetPageId) => void flushAndNavigate(targetPageId)}
@@ -606,7 +608,7 @@ export function PagePaneContent({
                   <BodyEditor
                     initialContent={(page.body as object) ?? null}
                     onChange={handleBodyChange}
-                    editable={!heldByOther}
+                    editable={!readOnly}
                     placeholder={`Begin the chronicle of ${page.title}…`}
                     worldId={worldId}
                     pageId={pageId}

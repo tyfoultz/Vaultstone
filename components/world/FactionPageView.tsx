@@ -465,12 +465,13 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
   const lockFresh = lockSince !== null && Date.now() - Date.parse(lockSince) < 90_000;
   const heldByOther = lockFresh && lockOwnerId !== null && myUserId !== null && lockOwnerId !== myUserId;
   const bannerLock = heldByOther ? { ownerId: lockOwnerId as string, since: lockSince as string } : lockError;
+  const readOnly = !isWorldOwner || heldByOther;
 
   const lockCtxRef = useRef({ lockOwnerId, lockSince, myUserId, updatePageInStore });
   lockCtxRef.current = { lockOwnerId, lockSince, myUserId, updatePageInStore };
 
   const tryClaim = useCallback(async () => {
-    if (!page.id) return;
+    if (!page.id || !isWorldOwner) return;
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
     if (error) {
@@ -668,9 +669,9 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
       {/* ── Main area ── */}
       <View style={styles.mainWrap}>
         <View style={styles.editorCol}>
-          {bannerLock ? <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}><EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} onForceUnlock={isWorldOwner ? async () => { await forceReleasePageEdit(page.id); updatePageInStore(page.id, { editing_user_id: null, editing_since: null }); void tryClaim(); } : undefined} /></View> : null}
-          <View style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]} pointerEvents={heldByOther ? 'none' : 'auto'}>
-            <LoreCanvasEditor initialBlocks={(page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null} onChange={handleCanvasChange} editable={!heldByOther} mentionablePages={mentionablePages} getSectionLabel={sectionLabelById} onMentionClick={(targetId) => void flushAndNavigate(targetId)} />
+          {bannerLock && isWorldOwner ? <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}><EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} onForceUnlock={isWorldOwner ? async () => { await forceReleasePageEdit(page.id); updatePageInStore(page.id, { editing_user_id: null, editing_since: null }); void tryClaim(); } : undefined} /></View> : null}
+          <View style={[{ flex: 1 }, readOnly ? styles.disabledEditor : undefined]} pointerEvents={readOnly ? 'none' : 'auto'}>
+            <LoreCanvasEditor initialBlocks={(page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null} onChange={handleCanvasChange} editable={!readOnly} mentionablePages={mentionablePages} getSectionLabel={sectionLabelById} onMentionClick={(targetId) => void flushAndNavigate(targetId)} />
           </View>
           {saveLabel ? <View style={styles.saveIndicator}><View style={[styles.saveDot, saveState === 'error' ? { backgroundColor: colors.hpDanger } : { backgroundColor: colors.hpHealthy }]} /><Text style={styles.saveText}>{saveLabel}</Text></View> : null}
         </View>
