@@ -85,6 +85,15 @@ export async function searchProfilesByDisplayName(query: string) {
     .limit(10);
 }
 
+export async function getMyPagePermission(pageId: string) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: null };
+  return supabase.rpc('effective_page_permission', {
+    p_user_id: user.id,
+    p_page_id: pageId,
+  });
+}
+
 // Batch-load profile records for a set of user ids — used to hydrate the
 // "already shared with" list once ShareModal has fetched the grant rows.
 export async function getProfilesByIds(userIds: string[]) {

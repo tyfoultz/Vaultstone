@@ -6,10 +6,12 @@ import {
   claimPageEdit,
   forceReleasePageEdit,
   getEventsForTimeline,
+  getMyPagePermission,
   listMaps,
   listPinsForWorld,
   listPinTypes,
   releasePageEdit,
+  supabase,
   trashPage,
   updatePage,
   type MapPin,
@@ -184,6 +186,23 @@ export function PagePaneContent({
   }, [timelinePages]);
 
   const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(null);
+  const [canEdit, setCanEdit] = useState(isWorldOwner);
+
+  useEffect(() => {
+    if (isWorldOwner) { setCanEdit(true); return; }
+    if (!pageId || !myUserId) return;
+    const check = () => getMyPagePermission(pageId).then(({ data }) => setCanEdit(data === 'edit'));
+    void check();
+    const channel = supabase.channel(`perm:${pageId}:${myUserId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'world_page_permissions',
+        filter: `page_id=eq.${pageId}`,
+      }, () => void check())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [pageId, myUserId, isWorldOwner]);
 
   const section = useMemo(
     () => sections.find((sec) => sec.id === page?.section_id) ?? null,
@@ -205,7 +224,7 @@ export function PagePaneContent({
   const bannerLock = heldByOther
     ? { ownerId: lockOwnerId as string, since: lockSince as string }
     : lockError;
-  const readOnly = !isWorldOwner || heldByOther;
+  const readOnly = !canEdit || heldByOther;
 
   useEffect(() => {
     if (section && !splitMode) setActiveSectionId(section.id);
@@ -215,7 +234,7 @@ export function PagePaneContent({
   lockCtxRef.current = { lockOwnerId, lockSince, myUserId, updatePageInStore };
 
   const tryClaim = useCallback(async () => {
-    if (!pageId || !isWorldOwner) return;
+    if (!pageId || !canEdit) return;
     const { data, error } = await claimPageEdit(pageId);
     const ctx = lockCtxRef.current;
     if (error) {
@@ -541,21 +560,14 @@ export function PagePaneContent({
                 accentToken={template.accentToken}
                 onTitleDoubleClick={() => setEditingTitle(true)}
                 actions={
-                  <>
-                    {isLore && template.fields.length > 0 ? (
-                      <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
-                        <Icon name="info-outline" size={14} color={colors.primary} />
-                        <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
-                          Facts
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                    <VisibilityBadge
-                      visibility={page.visible_to_players ? 'player' : 'gm'}
-                      interactive={isWorldOwner}
-                      onPress={() => setShareOpen(true)}
-                    />
-                  </>
+                  isLore && template.fields.length > 0 && isWorldOwner ? (
+                    <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
+                      <Icon name="info-outline" size={14} color={colors.primary} />
+                      <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
+                        Facts
+                      </Text>
+                    </Pressable>
+                  ) : undefined
                 }
               />
             )

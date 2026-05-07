@@ -5,6 +5,7 @@ import {
   claimPageEdit,
   forceReleasePageEdit,
   getEventsForTimeline,
+  getMyPagePermission,
   releasePageEdit,
   trashPage,
 } from '@vaultstone/api';
@@ -89,13 +90,18 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
   const bannerLock = heldByOther
     ? { ownerId: lockOwnerId as string, since: lockSince as string }
     : lockError;
-  const readOnly = !isWorldOwner || heldByOther;
+  const [canEdit, setCanEdit] = useState(isWorldOwner);
+  useEffect(() => {
+    if (isWorldOwner) { setCanEdit(true); return; }
+    getMyPagePermission(page.id).then(({ data }) => setCanEdit(data === 'edit'));
+  }, [page.id, isWorldOwner]);
+  const readOnly = !canEdit || heldByOther;
 
   const lockCtxRef = useRef({ lockOwnerId, lockSince, myUserId, updatePageInStore });
   lockCtxRef.current = { lockOwnerId, lockSince, myUserId, updatePageInStore };
 
   const tryClaim = useCallback(async () => {
-    if (!page.id || !isWorldOwner) return;
+    if (!page.id || !canEdit) return;
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
     if (error) {

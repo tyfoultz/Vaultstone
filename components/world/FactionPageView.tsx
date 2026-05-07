@@ -6,6 +6,7 @@ import {
   cascadeMentionLabel,
   claimPageEdit,
   forceReleasePageEdit,
+  getMyPagePermission,
   getMap,
   getMapImageSignedUrl,
   getPagesLinkingTo,
@@ -465,13 +466,18 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
   const lockFresh = lockSince !== null && Date.now() - Date.parse(lockSince) < 90_000;
   const heldByOther = lockFresh && lockOwnerId !== null && myUserId !== null && lockOwnerId !== myUserId;
   const bannerLock = heldByOther ? { ownerId: lockOwnerId as string, since: lockSince as string } : lockError;
-  const readOnly = !isWorldOwner || heldByOther;
+  const [canEdit, setCanEdit] = useState(isWorldOwner);
+  useEffect(() => {
+    if (isWorldOwner) { setCanEdit(true); return; }
+    getMyPagePermission(page.id).then(({ data }) => setCanEdit(data === 'edit'));
+  }, [page.id, isWorldOwner]);
+  const readOnly = !canEdit || heldByOther;
 
   const lockCtxRef = useRef({ lockOwnerId, lockSince, myUserId, updatePageInStore });
   lockCtxRef.current = { lockOwnerId, lockSince, myUserId, updatePageInStore };
 
   const tryClaim = useCallback(async () => {
-    if (!page.id || !isWorldOwner) return;
+    if (!page.id || !canEdit) return;
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
     if (error) {
