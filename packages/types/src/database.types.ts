@@ -72,6 +72,12 @@ export interface Database {
           party_view_settings: Json | null;
           next_session_at: string | null;
           next_session_prep_page_id: string | null;
+          /** DM-pinned scene image for the campaign window pane. FK
+           *  to world_images.id. Null = fall back to world banner. */
+          scene_image_id: string | null;
+          /** DM-pinned subject image overlaid on the scene. FK to
+           *  world_images.id. Null = no subject overlay. */
+          subject_image_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -87,6 +93,8 @@ export interface Database {
           party_view_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;
+          scene_image_id?: string | null;
+          subject_image_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -102,6 +110,8 @@ export interface Database {
           party_view_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;
+          scene_image_id?: string | null;
+          subject_image_id?: string | null;
         };
         Relationships: [];
       };

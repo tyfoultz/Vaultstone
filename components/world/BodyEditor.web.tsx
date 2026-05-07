@@ -98,7 +98,15 @@ export function BodyEditor({
   ).current;
 
   const editor = useEditor({
-    extensions: [StarterKit, mentionExtension, WorldImageNode, ...(editable ? [DragHandle] : [])],
+    extensions: [
+      StarterKit,
+      mentionExtension,
+      // Pass worldId through so the image node view can offer
+      // "Pin to Scene / Pin as Subject" when the user is the DM of
+      // a campaign linked to this world.
+      WorldImageNode.configure({ worldId }),
+      ...(editable ? [DragHandle] : []),
+    ],
     content: initialRef.current,
     editable,
     immediatelyRender: true,

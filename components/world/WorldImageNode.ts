@@ -21,11 +21,21 @@ declare module '@tiptap/core' {
   }
 }
 
-export const WorldImageNode = Node.create({
+export const WorldImageNode = Node.create<{
+  /** World id this editor belongs to. The node view reads it from
+   *  options to look up linked campaigns when the DM right-clicks
+   *  an image to pin it. Optional because some embeds reuse the
+   *  node without campaign-pinning context (e.g. read-only views). */
+  worldId?: string;
+}>({
   name: 'worldImage',
   group: 'block',
   atom: true,
   draggable: true,
+
+  addOptions() {
+    return { worldId: undefined };
+  },
 
   addAttributes() {
     return {
