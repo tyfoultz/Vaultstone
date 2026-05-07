@@ -436,8 +436,8 @@ export function PagePaneContent({
               <PlayerViewToggle />
               <VisibilityBadge
                 visibility={page.visible_to_players ? 'player' : 'gm'}
-                interactive={!!toggleVisibility}
-                onPress={toggleVisibility ?? undefined}
+                interactive={isWorldOwner}
+                onPress={() => setShareOpen(true)}
               />
               {isWorldOwner ? (
                 <>
@@ -550,8 +550,8 @@ export function PagePaneContent({
                     ) : null}
                     <VisibilityBadge
                       visibility={page.visible_to_players ? 'player' : 'gm'}
-                      interactive={!!toggleVisibility}
-                      onPress={toggleVisibility ?? undefined}
+                      interactive={isWorldOwner}
+                      onPress={() => setShareOpen(true)}
                     />
                   </>
                 }

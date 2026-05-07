@@ -429,8 +429,8 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
           <PlayerViewToggle />
           <VisibilityBadge
             visibility={page.visible_to_players ? 'player' : 'gm'}
-            interactive={!!toggleVisibility}
-            onPress={toggleVisibility ?? undefined}
+            interactive={isWorldOwner}
+            onPress={() => setShareOpen(true)}
           />
           {isWorldOwner ? (
             <Pressable onPress={() => setShareOpen(true)} style={styles.shareBtn}>

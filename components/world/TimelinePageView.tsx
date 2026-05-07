@@ -205,8 +205,8 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
               <PlayerViewToggle />
               <VisibilityBadge
                 visibility={page.visible_to_players ? 'player' : 'gm'}
-                interactive={!!toggleVisibility}
-                onPress={toggleVisibility ?? undefined}
+                interactive={isWorldOwner}
+                onPress={() => setShareOpen(true)}
               />
               {isWorldOwner ? (
                 <>
