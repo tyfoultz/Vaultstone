@@ -325,80 +325,78 @@ export function ShareModal({ page, onClose }: Props) {
               </View>
 
               {/* Player visibility */}
-              {linkedCampaigns.length > 0 ? (
-                <View style={styles.section}>
-                  <MetaLabel size="sm" tone="muted">
-                    Player visibility
-                  </MetaLabel>
+              <View style={styles.section}>
+                <MetaLabel size="sm" tone="muted">
+                  Player visibility
+                </MetaLabel>
 
-                  <View style={styles.toggleRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text variant="label-md" weight="semibold">
-                        Show to all players
-                      </Text>
-                      <Text variant="body-sm" tone="secondary" style={styles.toggleHelp}>
-                        Every member of every linked campaign can view this page.
-                      </Text>
-                    </View>
-                    <Switch
-                      value={visibleToAll}
-                      onValueChange={handleToggleVisibleToAll}
-                      thumbColor={visibleToAll ? colors.player : colors.outline}
-                      trackColor={{ false: colors.outlineVariant, true: colors.player + '55' }}
-                    />
+                <View style={styles.toggleRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="label-md" weight="semibold">
+                      Visible to all players
+                    </Text>
+                    <Text variant="body-sm" tone="secondary" style={styles.toggleHelp}>
+                      All world members{linkedCampaigns.length > 0 ? ' and linked-campaign players' : ''} can view this page.
+                    </Text>
                   </View>
-
-                  {!visibleToAll && campaignPlayers.length > 0 ? (
-                    <View style={{ gap: 2, marginTop: spacing.sm }}>
-                      <Text variant="label-sm" style={{ color: colors.outline, marginBottom: 4 }}>
-                        Or grant to specific players:
-                      </Text>
-                      {(() => {
-                        const grouped = new Map<string, { name: string; players: CampaignPlayer[] }>();
-                        for (const p of campaignPlayers) {
-                          if (!grouped.has(p.campaignId)) grouped.set(p.campaignId, { name: p.campaignName, players: [] });
-                          grouped.get(p.campaignId)!.players.push(p);
-                        }
-                        return Array.from(grouped.entries()).map(([campId, { name, players }]) => (
-                          <View key={campId}>
-                            {grouped.size > 1 ? (
-                              <Text variant="label-sm" uppercase style={{ color: colors.outline, letterSpacing: 1, fontSize: 10, marginTop: spacing.xs, marginBottom: 2 }}>
-                                {name}
-                              </Text>
-                            ) : null}
-                            {players.map((p) => {
-                              const granted = playerGrantIds.has(p.userId);
-                              return (
-                                <Pressable
-                                  key={p.userId}
-                                  onPress={() => handleTogglePlayerGrant(p)}
-                                  style={styles.playerRow}
-                                >
-                                  <Icon
-                                    name={granted ? 'check-circle' : 'radio-button-unchecked'}
-                                    size={18}
-                                    color={granted ? colors.player : colors.outline}
-                                  />
-                                  <View style={{ flex: 1 }}>
-                                    <Text variant="label-md" weight="semibold" style={{ color: colors.onSurface }}>
-                                      {p.displayName}
-                                    </Text>
-                                    {p.characterName ? (
-                                      <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
-                                        {p.characterName}
-                                      </Text>
-                                    ) : null}
-                                  </View>
-                                </Pressable>
-                              );
-                            })}
-                          </View>
-                        ));
-                      })()}
-                    </View>
-                  ) : null}
+                  <Switch
+                    value={visibleToAll}
+                    onValueChange={handleToggleVisibleToAll}
+                    thumbColor={visibleToAll ? colors.player : colors.outline}
+                    trackColor={{ false: colors.outlineVariant, true: colors.player + '55' }}
+                  />
                 </View>
-              ) : null}
+
+                {!visibleToAll && campaignPlayers.length > 0 ? (
+                  <View style={{ gap: 2, marginTop: spacing.sm }}>
+                    <Text variant="label-sm" style={{ color: colors.outline, marginBottom: 4 }}>
+                      Or grant to specific players:
+                    </Text>
+                    {(() => {
+                      const grouped = new Map<string, { name: string; players: CampaignPlayer[] }>();
+                      for (const p of campaignPlayers) {
+                        if (!grouped.has(p.campaignId)) grouped.set(p.campaignId, { name: p.campaignName, players: [] });
+                        grouped.get(p.campaignId)!.players.push(p);
+                      }
+                      return Array.from(grouped.entries()).map(([campId, { name, players }]) => (
+                        <View key={campId}>
+                          {grouped.size > 1 ? (
+                            <Text variant="label-sm" uppercase style={{ color: colors.outline, letterSpacing: 1, fontSize: 10, marginTop: spacing.xs, marginBottom: 2 }}>
+                              {name}
+                            </Text>
+                          ) : null}
+                          {players.map((p) => {
+                            const granted = playerGrantIds.has(p.userId);
+                            return (
+                              <Pressable
+                                key={p.userId}
+                                onPress={() => handleTogglePlayerGrant(p)}
+                                style={styles.playerRow}
+                              >
+                                <Icon
+                                  name={granted ? 'check-circle' : 'radio-button-unchecked'}
+                                  size={18}
+                                  color={granted ? colors.player : colors.outline}
+                                />
+                                <View style={{ flex: 1 }}>
+                                  <Text variant="label-md" weight="semibold" style={{ color: colors.onSurface }}>
+                                    {p.displayName}
+                                  </Text>
+                                  {p.characterName ? (
+                                    <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>
+                                      {p.characterName}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ));
+                    })()}
+                  </View>
+                ) : null}
+              </View>
 
               <View style={styles.section}>
                 <MetaLabel size="sm" tone="muted">
@@ -534,7 +532,9 @@ export function ShareModal({ page, onClose }: Props) {
                   </View>
                 ) : rows.length === 0 ? (
                   <Text variant="body-sm" tone="secondary" style={{ paddingVertical: spacing.sm }}>
-                    Only the world owner and linked-campaign members can see this page.
+                    {visibleToAll
+                      ? 'All world members and linked-campaign players can view this page.'
+                      : 'Only the world owner can see this page. Grant access below or toggle player visibility above.'}
                   </Text>
                 ) : (
                   rows.map((row) => (
@@ -561,23 +561,6 @@ export function ShareModal({ page, onClose }: Props) {
                               {row.inherited ? `From ${row.sourceTitle}` : 'Direct'}
                             </Text>
                           </View>
-                          <View style={styles.sourceChip}>
-                            <Text
-                              variant="label-md"
-                              uppercase
-                              weight="semibold"
-                              style={{
-                                color:
-                                  row.perm.permission === 'edit'
-                                    ? colors.primary
-                                    : colors.onSurfaceVariant,
-                                fontSize: 10,
-                                letterSpacing: 1,
-                              }}
-                            >
-                              {row.perm.permission}
-                            </Text>
-                          </View>
                           {row.perm.cascade ? (
                             <View style={styles.sourceChip}>
                               <Text
@@ -600,7 +583,10 @@ export function ShareModal({ page, onClose }: Props) {
                         <View style={styles.grantActions}>
                           <Pressable
                             onPress={() => handleTogglePermission(row)}
-                            style={styles.grantAction}
+                            style={[
+                              styles.permToggleChip,
+                              row.perm.permission === 'edit' && styles.permToggleChipEdit,
+                            ]}
                             accessibilityLabel={
                               row.perm.permission === 'edit'
                                 ? 'Switch to view only'
@@ -609,9 +595,21 @@ export function ShareModal({ page, onClose }: Props) {
                           >
                             <Icon
                               name={row.perm.permission === 'edit' ? 'edit' : 'visibility'}
-                              size={16}
-                              color={colors.onSurfaceVariant}
+                              size={12}
+                              color={row.perm.permission === 'edit' ? colors.primary : colors.onSurfaceVariant}
                             />
+                            <Text
+                              variant="label-sm"
+                              uppercase
+                              weight="semibold"
+                              style={{
+                                color: row.perm.permission === 'edit' ? colors.primary : colors.onSurfaceVariant,
+                                fontSize: 10,
+                                letterSpacing: 1,
+                              }}
+                            >
+                              {row.perm.permission}
+                            </Text>
                           </Pressable>
                           <Pressable
                             onPress={() => handleToggleCascade(row)}
@@ -782,6 +780,7 @@ const styles = StyleSheet.create({
   },
   grantActions: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
   },
   grantAction: {
@@ -789,6 +788,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '55',
+  },
+  permToggleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+  },
+  permToggleChipEdit: {
+    backgroundColor: colors.primaryContainer + '33',
+    borderColor: colors.primary + '55',
   },
   footer: {
     flexDirection: 'row',

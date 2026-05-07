@@ -6,10 +6,12 @@ import {
   claimPageEdit,
   forceReleasePageEdit,
   getEventsForTimeline,
+  getMyPagePermission,
   listMaps,
   listPinsForWorld,
   listPinTypes,
   releasePageEdit,
+  supabase,
   trashPage,
   updatePage,
   type MapPin,
@@ -184,6 +186,23 @@ export function PagePaneContent({
   }, [timelinePages]);
 
   const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(null);
+  const [canEdit, setCanEdit] = useState(isWorldOwner);
+
+  useEffect(() => {
+    if (isWorldOwner) { setCanEdit(true); return; }
+    if (!pageId || !myUserId) return;
+    const check = () => getMyPagePermission(pageId).then(({ data }) => setCanEdit(data === 'edit'));
+    void check();
+    const channel = supabase.channel(`perm:${pageId}:${myUserId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'world_page_permissions',
+        filter: `page_id=eq.${pageId}`,
+      }, () => void check())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [pageId, myUserId, isWorldOwner]);
 
   const section = useMemo(
     () => sections.find((sec) => sec.id === page?.section_id) ?? null,
@@ -191,9 +210,10 @@ export function PagePaneContent({
   );
 
   const isOrphan = useMemo(() => {
+    if (!isWorldOwner) return false;
     if (!page || !page.parent_page_id) return false;
     return !(allPages ?? []).some((p) => p.id === page.parent_page_id);
-  }, [page, allPages]);
+  }, [isWorldOwner, page, allPages]);
 
   const lockOwnerId = page?.editing_user_id ?? null;
   const lockSince = page?.editing_since ?? null;
@@ -204,6 +224,7 @@ export function PagePaneContent({
   const bannerLock = heldByOther
     ? { ownerId: lockOwnerId as string, since: lockSince as string }
     : lockError;
+  const readOnly = !canEdit || heldByOther;
 
   useEffect(() => {
     if (section && !splitMode) setActiveSectionId(section.id);
@@ -213,7 +234,7 @@ export function PagePaneContent({
   lockCtxRef.current = { lockOwnerId, lockSince, myUserId, updatePageInStore };
 
   const tryClaim = useCallback(async () => {
-    if (!pageId) return;
+    if (!pageId || !canEdit) return;
     const { data, error } = await claimPageEdit(pageId);
     const ctx = lockCtxRef.current;
     if (error) {
@@ -436,8 +457,8 @@ export function PagePaneContent({
               <PlayerViewToggle />
               <VisibilityBadge
                 visibility={page.visible_to_players ? 'player' : 'gm'}
-                interactive={!!toggleVisibility}
-                onPress={toggleVisibility ?? undefined}
+                interactive={isWorldOwner}
+                onPress={() => setShareOpen(true)}
               />
               {isWorldOwner ? (
                 <>
@@ -539,21 +560,14 @@ export function PagePaneContent({
                 accentToken={template.accentToken}
                 onTitleDoubleClick={() => setEditingTitle(true)}
                 actions={
-                  <>
-                    {isLore && template.fields.length > 0 ? (
-                      <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
-                        <Icon name="info-outline" size={14} color={colors.primary} />
-                        <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
-                          Facts
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                    <VisibilityBadge
-                      visibility={page.visible_to_players ? 'player' : 'gm'}
-                      interactive={!!toggleVisibility}
-                      onPress={toggleVisibility ?? undefined}
-                    />
-                  </>
+                  isLore && template.fields.length > 0 && isWorldOwner ? (
+                    <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
+                      <Icon name="info-outline" size={14} color={colors.primary} />
+                      <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
+                        Facts
+                      </Text>
+                    </Pressable>
+                  ) : undefined
                 }
               />
             )
@@ -563,7 +577,7 @@ export function PagePaneContent({
           <View style={{ marginTop: splitMode ? spacing.sm : (isLore ? spacing.md : spacing.xl), gap: spacing.lg }}>
             {isOrphan ? <OrphanBanner page={page} /> : null}
 
-            {bannerLock ? (
+            {bannerLock && isWorldOwner ? (
               <EditLockBanner
                 ownerUserId={bannerLock.ownerId}
                 lockedSinceIso={bannerLock.since}
@@ -577,8 +591,8 @@ export function PagePaneContent({
             ) : null}
 
             <View
-              style={heldByOther ? styles.disabledEditor : undefined}
-              pointerEvents={heldByOther ? 'none' : 'auto'}
+              style={readOnly ? styles.disabledEditor : undefined}
+              pointerEvents={readOnly ? 'none' : 'auto'}
             >
               {!isLore ? (
                 <StructuredFieldsForm
@@ -597,7 +611,7 @@ export function PagePaneContent({
                         ?? null
                     }
                     onChange={handleCanvasChange}
-                    editable={!heldByOther}
+                    editable={!readOnly}
                     mentionablePages={mentionablePages}
                     getSectionLabel={sectionLabelById}
                     onMentionClick={(targetPageId) => void flushAndNavigate(targetPageId)}
@@ -606,7 +620,7 @@ export function PagePaneContent({
                   <BodyEditor
                     initialContent={(page.body as object) ?? null}
                     onChange={handleBodyChange}
-                    editable={!heldByOther}
+                    editable={!readOnly}
                     placeholder={`Begin the chronicle of ${page.title}…`}
                     worldId={worldId}
                     pageId={pageId}

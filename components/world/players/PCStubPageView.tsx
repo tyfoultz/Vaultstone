@@ -376,7 +376,7 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
         </View>
         <View style={styles.topBarRight}>
           <PlayerViewToggle />
-          <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} interactive={!!toggleVisibility} onPress={toggleVisibility ?? undefined} />
+          <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} interactive={isWorldOwner} onPress={() => setShareOpen(true)} />
           {isWorldOwner ? (
             <>
               <Pressable onPress={() => setShareOpen(true)} style={styles.shareBtn}>
@@ -405,12 +405,9 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
         </View>
       ) : null}
 
-      {/* Main area */}
-      <View style={styles.mainWrap}>
-        <View style={styles.editorCol}>
-          {/* Title row */}
-          <View style={styles.headerWrap}>
-          <View style={styles.titleRow}>
+      {/* Title row */}
+      <View style={styles.headerWrap}>
+      <View style={styles.titleRow}>
             <div style={{ position: 'relative' }}>
               <div
                 onClick={() => portraitUrl ? setAdjustingPortrait(true) : portraitInputRef.current?.click()}
@@ -521,8 +518,11 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
               </View>
             ) : null}
           </View>
-          </View>
+      </View>
 
+      {/* Main area */}
+      <View style={styles.mainWrap}>
+        <View style={styles.editorCol}>
           {isOrphan ? (
             <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
               <OrphanBanner page={page} />

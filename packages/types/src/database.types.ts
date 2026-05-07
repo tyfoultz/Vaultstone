@@ -510,6 +510,26 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
+      world_members: {
+        Row: {
+          world_id: string;
+          user_id: string;
+          role: 'viewer' | 'editor';
+          invited_by: string;
+          created_at: string;
+        };
+        Insert: {
+          world_id: string;
+          user_id: string;
+          role?: 'viewer' | 'editor';
+          invited_by: string;
+          created_at?: string;
+        };
+        Update: {
+          role?: 'viewer' | 'editor';
+        };
+        Relationships: [];
+      };
       world_sections: {
         Row: {
           id: string;

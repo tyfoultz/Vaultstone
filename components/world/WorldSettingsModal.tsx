@@ -3,11 +3,16 @@ import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import {
+  addWorldMember,
   archiveWorld,
   getCampaigns,
   getCampaignsForWorld,
   getPage,
+  getProfilesByIds,
   linkWorldToCampaign,
+  listWorldMembers,
+  removeWorldMember,
+  searchProfilesByDisplayName,
   softDeleteWorld,
   unarchiveWorld,
   unlinkWorldFromCampaign,
@@ -105,6 +110,11 @@ export function WorldSettingsModal({ world, onClose }: Props) {
 
   const [myCampaigns, setMyCampaigns] = useState<Campaign[]>([]);
   const [linkedIds, setLinkedIds] = useState<string[]>([]);
+  const [members, setMembers] = useState<Array<{ world_id: string; user_id: string; role: 'viewer' | 'editor'; invited_by: string; created_at: string }>>([]);
+  const [memberProfiles, setMemberProfiles] = useState<Array<{ id: string; display_name: string | null; avatar_url: string | null }>>([]);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [memberSearchResults, setMemberSearchResults] = useState<Array<{ id: string; display_name: string | null; avatar_url: string | null }>>([]);
+  const [memberSearching, setMemberSearching] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [working, setWorking] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -143,6 +153,14 @@ export function WorldSettingsModal({ world, onClose }: Props) {
         }
       },
     );
+    listWorldMembers(world.id).then(({ data }) => {
+      if (!data || data.length === 0) { setMembers([]); setMemberProfiles([]); return; }
+      setMembers(data);
+      const userIds = data.map((m) => m.user_id);
+      getProfilesByIds(userIds).then(({ data: profiles }) => {
+        setMemberProfiles(profiles ?? []);
+      });
+    });
   }, [user, world.id]);
 
   useEffect(() => {
@@ -154,6 +172,37 @@ export function WorldSettingsModal({ world, onClose }: Props) {
       if (schema?.eras) setCalendarSchema(schema);
     });
   }, [world.primary_timeline_page_id]);
+
+  useEffect(() => {
+    if (memberSearch.trim().length < 2) { setMemberSearchResults([]); return; }
+    const timeout = setTimeout(async () => {
+      setMemberSearching(true);
+      const { data } = await searchProfilesByDisplayName(memberSearch);
+      const existingIds = new Set(members.map((m) => m.user_id));
+      existingIds.add(user?.id ?? '');
+      setMemberSearchResults((data ?? []).filter((p) => !existingIds.has(p.id)));
+      setMemberSearching(false);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [memberSearch, members, user?.id]);
+
+  async function handleAddMember(userId: string) {
+    if (!user) return;
+    const { data } = await addWorldMember({ worldId: world.id, userId, invitedBy: user.id });
+    if (data) {
+      setMembers((prev) => [...prev, data]);
+      const profile = memberSearchResults.find((p) => p.id === userId);
+      if (profile) setMemberProfiles((prev) => [...prev, profile]);
+      setMemberSearch('');
+      setMemberSearchResults([]);
+    }
+  }
+
+  async function handleRemoveMember(userId: string) {
+    await removeWorldMember(world.id, userId);
+    setMembers((prev) => prev.filter((m) => m.user_id !== userId));
+    setMemberProfiles((prev) => prev.filter((p) => p.id !== userId));
+  }
 
   async function handleSaveAll() {
     if (!isOwner) return;
@@ -551,6 +600,73 @@ export function WorldSettingsModal({ world, onClose }: Props) {
                 </View>
               ) : null}
 
+              {/* Members */}
+              {isOwner ? (
+                <View style={{ marginTop: spacing.xl }}>
+                  <SectionHeader title="Members" />
+                  <Text variant="body-sm" style={{ color: colors.onSurfaceVariant, marginBottom: spacing.md }}>
+                    Members can view this world and all player-visible pages without being in a linked campaign.
+                  </Text>
+
+                  {/* Current members */}
+                  {members.length > 0 ? (
+                    <View style={{ gap: spacing.xs, marginBottom: spacing.md }}>
+                      {members.map((m) => {
+                        const profile = memberProfiles.find((p) => p.id === m.user_id);
+                        return (
+                          <View key={m.user_id} style={styles.memberRow}>
+                            <View style={styles.memberAvatar}>
+                              <Text variant="label-sm" weight="bold" style={{ color: colors.primary }}>
+                                {(profile?.display_name ?? '?')[0].toUpperCase()}
+                              </Text>
+                            </View>
+                            <Text variant="body-sm" style={{ color: colors.onSurface, flex: 1 }} numberOfLines={1}>
+                              {profile?.display_name ?? 'Unknown user'}
+                            </Text>
+                            <Pressable onPress={() => handleRemoveMember(m.user_id)} hitSlop={8}>
+                              <Icon name="close" size={16} color={colors.onSurfaceVariant} />
+                            </Pressable>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+
+                  {/* Search to add */}
+                  <Input
+                    label="Add member"
+                    placeholder="Search by display name…"
+                    value={memberSearch}
+                    onChangeText={setMemberSearch}
+                  />
+                  {memberSearchResults.length > 0 ? (
+                    <View style={styles.memberSearchList}>
+                      {memberSearchResults.map((profile) => (
+                        <Pressable
+                          key={profile.id}
+                          style={styles.memberSearchItem}
+                          onPress={() => handleAddMember(profile.id)}
+                        >
+                          <View style={styles.memberAvatar}>
+                            <Text variant="label-sm" weight="bold" style={{ color: colors.primary }}>
+                              {(profile.display_name ?? '?')[0].toUpperCase()}
+                            </Text>
+                          </View>
+                          <Text variant="body-sm" style={{ color: colors.onSurface, flex: 1 }} numberOfLines={1}>
+                            {profile.display_name ?? 'Unknown'}
+                          </Text>
+                          <Icon name="add" size={16} color={colors.primary} />
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : memberSearch.trim().length >= 2 && !memberSearching ? (
+                    <Text variant="body-sm" style={{ color: colors.onSurfaceVariant, marginTop: spacing.xs }}>
+                      No users found.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
               {/* Lifecycle */}
               {isOwner ? (
                 <View style={{ marginTop: spacing.xl }}>
@@ -743,5 +859,37 @@ const styles = StyleSheet.create({
     borderColor: colors.hpDanger + '55',
     backgroundColor: colors.errorContainer + '22',
     flexWrap: 'wrap',
+  },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.lg,
+  },
+  memberAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primaryContainer + '44',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memberSearchList: {
+    marginTop: spacing.xs,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    backgroundColor: colors.surfaceContainerHigh,
+    overflow: 'hidden',
+    maxHeight: 180,
+  },
+  memberSearchItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
 });

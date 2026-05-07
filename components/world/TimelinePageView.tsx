@@ -5,6 +5,7 @@ import {
   claimPageEdit,
   forceReleasePageEdit,
   getEventsForTimeline,
+  getMyPagePermission,
   releasePageEdit,
   trashPage,
 } from '@vaultstone/api';
@@ -89,12 +90,18 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
   const bannerLock = heldByOther
     ? { ownerId: lockOwnerId as string, since: lockSince as string }
     : lockError;
+  const [canEdit, setCanEdit] = useState(isWorldOwner);
+  useEffect(() => {
+    if (isWorldOwner) { setCanEdit(true); return; }
+    getMyPagePermission(page.id).then(({ data }) => setCanEdit(data === 'edit'));
+  }, [page.id, isWorldOwner]);
+  const readOnly = !canEdit || heldByOther;
 
   const lockCtxRef = useRef({ lockOwnerId, lockSince, myUserId, updatePageInStore });
   lockCtxRef.current = { lockOwnerId, lockSince, myUserId, updatePageInStore };
 
   const tryClaim = useCallback(async () => {
-    if (!page.id) return;
+    if (!page.id || !canEdit) return;
     const { data, error } = await claimPageEdit(page.id);
     const ctx = lockCtxRef.current;
     if (error) {
@@ -205,8 +212,8 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
               <PlayerViewToggle />
               <VisibilityBadge
                 visibility={page.visible_to_players ? 'player' : 'gm'}
-                interactive={!!toggleVisibility}
-                onPress={toggleVisibility ?? undefined}
+                interactive={isWorldOwner}
+                onPress={() => setShareOpen(true)}
               />
               {isWorldOwner ? (
                 <>
@@ -269,7 +276,7 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
               }
             />
           </View>
-          {isWorldOwner && !heldByOther ? (
+          {isWorldOwner && !readOnly ? (
             <View style={styles.headActions}>
               <Pressable onPress={() => handleAddEvent()} style={styles.addEventBtn}>
                 <Icon name="add" size={16} color={colors.onPrimary} />
@@ -282,7 +289,7 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
         </View>
         </View>
 
-        {bannerLock ? (
+        {bannerLock && isWorldOwner ? (
           <EditLockBanner
             ownerUserId={bannerLock.ownerId}
             lockedSinceIso={bannerLock.since}
@@ -317,8 +324,8 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
         {/* Collapsible schema editor */}
         {schemaExpanded ? (
           <View
-            style={heldByOther ? styles.disabledEditor : undefined}
-            pointerEvents={heldByOther ? 'none' : 'auto'}
+            style={readOnly ? styles.disabledEditor : undefined}
+            pointerEvents={readOnly ? 'none' : 'auto'}
           >
             <CalendarSchemaEditor page={page} onSaveStateChange={setSaveState} />
           </View>

@@ -103,9 +103,13 @@ export function buildPageTree(
   sectionId: string,
 ): WorldPageTreeNode[] {
   const pages = (allPages ?? []).filter((p) => p.section_id === sectionId);
+  const pageIds = new Set(pages.map((p) => p.id));
   const byParent = new Map<string | null, WorldPage[]>();
   for (const page of pages) {
-    const parent = page.parent_page_id ?? null;
+    // Promote to root if parent isn't in the visible set (e.g. RLS filtered it)
+    const parent = page.parent_page_id && pageIds.has(page.parent_page_id)
+      ? page.parent_page_id
+      : null;
     const bucket = byParent.get(parent);
     if (bucket) bucket.push(page);
     else byParent.set(parent, [page]);

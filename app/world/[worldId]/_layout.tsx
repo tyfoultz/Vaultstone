@@ -17,6 +17,7 @@ import {
   getPagesForWorld,
   getSectionsForWorld,
   getWorld,
+  supabase,
 } from '@vaultstone/api';
 import {
   useAuthStore,
@@ -124,6 +125,32 @@ export default function WorldLayout() {
     setSections,
     setPages,
   ]);
+
+  useEffect(() => {
+    if (!session || !worldId) return;
+    const name = `world-perms:${worldId}:${Date.now()}`;
+    const channel = supabase.channel(name)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'world_page_permissions',
+      }, () => {
+        getPagesForWorld(worldId).then(({ data }) => {
+          if (data) setPages(worldId, data as WorldPage[]);
+        });
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'world_pages',
+        filter: `world_id=eq.${worldId}`,
+      }, (payload) => {
+        const row = payload.new as WorldPage;
+        usePagesStore.getState().updatePage(row.id, row);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [session, worldId, setPages]);
 
   if (!session) return null;
 
