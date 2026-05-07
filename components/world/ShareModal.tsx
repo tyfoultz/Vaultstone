@@ -561,23 +561,6 @@ export function ShareModal({ page, onClose }: Props) {
                               {row.inherited ? `From ${row.sourceTitle}` : 'Direct'}
                             </Text>
                           </View>
-                          <View style={styles.sourceChip}>
-                            <Text
-                              variant="label-md"
-                              uppercase
-                              weight="semibold"
-                              style={{
-                                color:
-                                  row.perm.permission === 'edit'
-                                    ? colors.primary
-                                    : colors.onSurfaceVariant,
-                                fontSize: 10,
-                                letterSpacing: 1,
-                              }}
-                            >
-                              {row.perm.permission}
-                            </Text>
-                          </View>
                           {row.perm.cascade ? (
                             <View style={styles.sourceChip}>
                               <Text
@@ -600,7 +583,10 @@ export function ShareModal({ page, onClose }: Props) {
                         <View style={styles.grantActions}>
                           <Pressable
                             onPress={() => handleTogglePermission(row)}
-                            style={styles.grantAction}
+                            style={[
+                              styles.permToggleChip,
+                              row.perm.permission === 'edit' && styles.permToggleChipEdit,
+                            ]}
                             accessibilityLabel={
                               row.perm.permission === 'edit'
                                 ? 'Switch to view only'
@@ -609,9 +595,21 @@ export function ShareModal({ page, onClose }: Props) {
                           >
                             <Icon
                               name={row.perm.permission === 'edit' ? 'edit' : 'visibility'}
-                              size={16}
-                              color={colors.onSurfaceVariant}
+                              size={12}
+                              color={row.perm.permission === 'edit' ? colors.primary : colors.onSurfaceVariant}
                             />
+                            <Text
+                              variant="label-sm"
+                              uppercase
+                              weight="semibold"
+                              style={{
+                                color: row.perm.permission === 'edit' ? colors.primary : colors.onSurfaceVariant,
+                                fontSize: 10,
+                                letterSpacing: 1,
+                              }}
+                            >
+                              {row.perm.permission}
+                            </Text>
                           </Pressable>
                           <Pressable
                             onPress={() => handleToggleCascade(row)}
@@ -782,6 +780,7 @@ const styles = StyleSheet.create({
   },
   grantActions: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
   },
   grantAction: {
@@ -789,6 +788,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '55',
+  },
+  permToggleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+  },
+  permToggleChipEdit: {
+    backgroundColor: colors.primaryContainer + '33',
+    borderColor: colors.primary + '55',
   },
   footer: {
     flexDirection: 'row',
