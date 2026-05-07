@@ -796,6 +796,30 @@ function DiagnosticHint({ diagnostic }: { diagnostic: ImportDiagnostic }) {
     );
   }
   if (diagnostic.kind === 'no-recognized-keys') {
+    // Special case: the user picked a Vaultstone pack-export file
+    // (`vaultstone-pack/v1`) and dropped it into the content-import
+    // flow, which only knows about 5e.tools shapes. Surface a
+    // redirect to the pack-import tile rather than the generic "we
+    // don't recognize this" copy. We detect the format by its top-
+    // level keys, which the probe already collected.
+    if (looksLikePackExportFile(diagnostic.foundKeys)) {
+      return (
+        <View style={s.diagnosticBox}>
+          <Text style={s.diagnosticTitle}>This is a Vaultstone pack file</Text>
+          <Text style={s.diagnosticBody}>
+            This file was produced by the <Text style={{ fontWeight: 'bold' }}>Export</Text>{' '}
+            button on a pack detail page, so it can't be imported as raw
+            content into an existing pack.
+          </Text>
+          <Text style={s.diagnosticBody}>
+            To restore it, close this modal and click the{' '}
+            <Text style={{ fontWeight: 'bold' }}>Import</Text> tile in the
+            "Your Content Packs" row on the system page — that flow creates
+            a new pack from the file.
+          </Text>
+        </View>
+      );
+    }
     return (
       <View style={s.diagnosticBox}>
         <Text style={s.diagnosticTitle}>Nothing to import</Text>
@@ -815,6 +839,16 @@ function DiagnosticHint({ diagnostic }: { diagnostic: ImportDiagnostic }) {
     );
   }
   return null;
+}
+
+/** Heuristic: does this set of top-level keys match the
+ *  `vaultstone-pack/v1` export-file shape? Used to redirect the user
+ *  to the pack-import flow instead of the content-import flow when
+ *  they picked the wrong file in the wrong modal. */
+function looksLikePackExportFile(foundKeys: string[]): boolean {
+  const set = new Set(foundKeys);
+  return set.has('format') && set.has('pack')
+    && (set.has('importedEntries') || set.has('homebrewEntries'));
 }
 
 /**
