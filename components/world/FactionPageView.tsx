@@ -573,18 +573,18 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
   const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved · just now' : saveState === 'error' ? 'Save failed' : '';
 
   const renderPills = () => (
-    <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingBottom: spacing.xs }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, paddingBottom: spacing.xs }}>
       {propertyPills.map((pill) => (
-        <div key={pill.key} style={{ position: 'relative' }}>
+        <div key={pill.key} style={{ position: 'relative', maxWidth: '100%' }}>
           <Pressable onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)} style={[styles.pill, pill.color ? { borderColor: pill.color + '44' } : undefined, !pill.value && styles.pillEmpty]}>
             {pill.icon ? <Icon name={pill.icon as React.ComponentProps<typeof Icon>['name']} size={12} color={pill.color ?? colors.outline} /> : null}
             <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>{pill.label}</Text>
-            {pill.value ? <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>{pill.fieldType === 'text' ? pill.value : pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}</Text> : null}
+            {pill.value ? <Text numberOfLines={1} style={[styles.pillValue, { flexShrink: 1 }, pill.color ? { color: pill.color } : undefined]}>{pill.fieldType === 'text' ? pill.value : pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}</Text> : null}
           </Pressable>
           {editingPill === pill.key ? <PillEditor pill={pill} onSelect={(v) => { updateField(pill.key, v); setEditingPill(null); }} onClose={() => setEditingPill(null)} /> : null}
         </div>
       ))}
-    </div>
+    </View>
   );
 
   const renderSidebarBody = () => (

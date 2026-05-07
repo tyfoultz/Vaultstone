@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Icon, colors, radius, spacing } from '@vaultstone/ui';
+import { Icon, colors, radius, spacing, useBreakpoint } from '@vaultstone/ui';
 import {
   createWorldImage,
   getCampaignsForWorld,
@@ -514,6 +514,7 @@ function MentionTypeahead({ query, pages, position, onSelect, onClose, getSectio
 // ── Main Editor ─────────────────────────────────────────────────────────
 
 export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, mentionablePages, getSectionLabel, onMentionClick, worldId, pageId }: Props) {
+  const { isMobile } = useBreakpoint();
   const [blocks, setBlocks] = useState<CanvasBlock[]>(initialBlocks ?? []);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
@@ -1516,7 +1517,38 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   return (
     <View style={styles.root}>
       <CanvasStyles />
-      {editable ? (
+      {editable && isMobile && focusedId ? (
+        <div className="lore-toolbar lore-toolbar-mobile">
+          <button className={`lore-toolbar-btn${activeFormats.has('bold') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('bold')} type="button">
+            <Icon name="format-bold" size={18} color={activeFormats.has('bold') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <button className={`lore-toolbar-btn${activeFormats.has('italic') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('italic')} type="button">
+            <Icon name="format-italic" size={18} color={activeFormats.has('italic') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <button className={`lore-toolbar-btn${activeFormats.has('underline') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('underline')} type="button">
+            <Icon name="format-underlined" size={18} color={activeFormats.has('underline') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <div className="lore-toolbar-sep" />
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('formatBlock', 'h2')} type="button">
+            <Icon name="title" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className={`lore-toolbar-btn${activeFormats.has('insertUnorderedList') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('insertUnorderedList')} type="button">
+            <Icon name="format-list-bulleted" size={18} color={activeFormats.has('insertUnorderedList') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <button className={`lore-toolbar-btn${activeFormats.has('insertOrderedList') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('insertOrderedList')} type="button">
+            <Icon name="format-list-numbered" size={18} color={activeFormats.has('insertOrderedList') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <div className="lore-toolbar-sep" />
+          <button className={`lore-toolbar-btn${activeFormats.has('strikeThrough') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('strikeThrough')} type="button">
+            <Icon name="strikethrough-s" size={18} color={activeFormats.has('strikeThrough') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('removeFormat')} type="button">
+            <Icon name="format-clear" size={18} color={colors.onSurfaceVariant} />
+          </button>
+        </div>
+      ) : null}
+
+      {editable && !isMobile ? (
         <div className="lore-toolbar">
           {/* Font size */}
           <div style={{ position: 'relative' }}>
@@ -1922,6 +1954,17 @@ function CanvasStyles() {
             top: 0;
             z-index: 10;
             flex-wrap: wrap;
+          }
+          .lore-toolbar-mobile {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            gap: 2px;
+            padding: 6px 8px;
+          }
+          .lore-toolbar-mobile::-webkit-scrollbar {
+            display: none;
           }
           .lore-toolbar-btn {
             display: inline-flex;

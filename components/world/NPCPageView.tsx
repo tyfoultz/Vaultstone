@@ -710,18 +710,9 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
     saveState === 'error' ? 'Save failed' : '';
 
   const renderPills = () => (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      gap: 6,
-      paddingLeft: spacing.lg,
-      paddingRight: spacing.lg,
-      paddingBottom: spacing.xs,
-    }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, paddingBottom: spacing.xs }}>
       {propertyPills.map((pill) => (
-        <div key={pill.key} style={{ position: 'relative' }}>
+        <div key={pill.key} style={{ position: 'relative', maxWidth: '100%' }}>
           <Pressable
             onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)}
             style={[
@@ -741,7 +732,7 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
               {pill.label}
             </Text>
             {pill.value ? (
-              <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>
+              <Text numberOfLines={1} style={[styles.pillValue, { flexShrink: 1 }, pill.color ? { color: pill.color } : undefined]}>
                 {pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}
               </Text>
             ) : null}
@@ -755,7 +746,7 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
           ) : null}
         </div>
       ))}
-    </div>
+    </View>
   );
 
   const renderSidebarBody = () => (
