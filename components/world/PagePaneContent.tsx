@@ -434,6 +434,11 @@ export function PagePaneContent({
           actions={
             <>
               <PlayerViewToggle />
+              <VisibilityBadge
+                visibility={page.visible_to_players ? 'player' : 'gm'}
+                interactive={!!toggleVisibility}
+                onPress={toggleVisibility ?? undefined}
+              />
               {isWorldOwner ? (
                 <>
                   <Pressable
@@ -464,7 +469,6 @@ export function PagePaneContent({
                   </Pressable>
                 </>
               ) : null}
-              <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} />
             </>
           }
         />

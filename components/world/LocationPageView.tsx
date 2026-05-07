@@ -427,6 +427,11 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
         </View>
         <View style={styles.topBarRight}>
           <PlayerViewToggle />
+          <VisibilityBadge
+            visibility={page.visible_to_players ? 'player' : 'gm'}
+            interactive={!!toggleVisibility}
+            onPress={toggleVisibility ?? undefined}
+          />
           {isWorldOwner ? (
             <Pressable onPress={() => setShareOpen(true)} style={styles.shareBtn}>
               <Icon name="share" size={14} color={colors.onSurfaceVariant} />

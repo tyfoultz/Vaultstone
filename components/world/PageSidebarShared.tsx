@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Icon, Text, colors, fonts, radius, spacing } from '@vaultstone/ui';
 
@@ -123,82 +124,102 @@ export function PillEditor({ pill, onSelect, onClose }: {
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(pill.value);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = anchorRef.current?.parentElement;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, []);
 
   if (pill.fieldType === 'select' && pill.options) {
     return (
       <>
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100 }} onClick={onClose} />
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          marginTop: 4,
-          background: colors.surfaceContainerHigh,
-          border: `1px solid ${colors.outlineVariant}55`,
-          borderRadius: 8,
-          padding: 4,
-          minWidth: 140,
-          maxHeight: 240,
-          overflowY: 'auto',
-          zIndex: 101,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-        }}>
-          {pill.options.map((opt) => (
-            <Pressable
-              key={opt}
-              onPress={() => onSelect(opt)}
-              style={[styles.pillDropdownItem, pill.value === opt && styles.pillDropdownItemActive]}
-            >
-              <Text style={[styles.pillDropdownText, pill.value === opt && { color: colors.primary }]}>
-                {opt.charAt(0).toUpperCase() + opt.slice(1)}
-              </Text>
-            </Pressable>
-          ))}
-          {pill.value ? (
-            <Pressable onPress={() => onSelect('')} style={styles.pillDropdownItem}>
-              <Text style={[styles.pillDropdownText, { color: colors.outline, fontStyle: 'italic' }]}>Clear</Text>
-            </Pressable>
-          ) : null}
-        </div>
+        <div ref={anchorRef} style={{ display: 'none' }} />
+        {pos ? createPortal(
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 9000 }} onClick={onClose} />
+            <div style={{
+              position: 'fixed',
+              top: pos.top,
+              left: pos.left,
+              background: colors.surfaceContainerHigh,
+              border: `1px solid ${colors.outlineVariant}55`,
+              borderRadius: 8,
+              padding: 4,
+              minWidth: 140,
+              maxHeight: 240,
+              overflowY: 'auto',
+              zIndex: 9001,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            }}>
+              {pill.options.map((opt) => (
+                <Pressable
+                  key={opt}
+                  onPress={() => onSelect(opt)}
+                  style={[styles.pillDropdownItem, pill.value === opt && styles.pillDropdownItemActive]}
+                >
+                  <Text style={[styles.pillDropdownText, pill.value === opt && { color: colors.primary }]}>
+                    {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+              {pill.value ? (
+                <Pressable onPress={() => onSelect('')} style={styles.pillDropdownItem}>
+                  <Text style={[styles.pillDropdownText, { color: colors.outline, fontStyle: 'italic' }]}>Clear</Text>
+                </Pressable>
+              ) : null}
+            </div>
+          </>,
+          document.body,
+        ) : null}
       </>
     );
   }
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 100 }} onClick={onClose} />
-      <div style={{
-        position: 'absolute',
-        top: '100%',
-        left: 0,
-        marginTop: 4,
-        zIndex: 101,
-        minWidth: 160,
-      }}>
-        <input
-          type="text"
-          value={draft}
-          onChange={(e: any) => setDraft(e.target.value)}
-          onKeyDown={(e: any) => {
-            if (e.key === 'Enter') onSelect(draft);
-            if (e.key === 'Escape') onClose();
-          }}
-          autoFocus
-          placeholder={pill.label}
-          style={{
-            background: colors.surfaceContainerHigh,
-            border: `1px solid ${colors.outlineVariant}55`,
-            borderRadius: 6,
-            padding: '6px 10px',
-            color: colors.onSurface,
-            fontSize: 13,
-            fontFamily: "'Manrope', system-ui, sans-serif",
-            outline: 'none',
-            width: '100%',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-          }}
-        />
-      </div>
+      <div ref={anchorRef} style={{ display: 'none' }} />
+      {pos ? createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9000 }} onClick={onClose} />
+          <div style={{
+            position: 'fixed',
+            top: pos.top,
+            left: pos.left,
+            zIndex: 9001,
+            minWidth: 160,
+          }}>
+            <input
+              type="text"
+              value={draft}
+              onChange={(e: any) => setDraft(e.target.value)}
+              onKeyDown={(e: any) => {
+                if (e.key === 'Enter') onSelect(draft);
+                if (e.key === 'Escape') onClose();
+              }}
+              autoFocus
+              placeholder={pill.label}
+              style={{
+                background: colors.surfaceContainerHigh,
+                border: `1px solid ${colors.outlineVariant}55`,
+                borderRadius: 6,
+                padding: '6px 10px',
+                color: colors.onSurface,
+                fontSize: 13,
+                fontFamily: "'Manrope', system-ui, sans-serif",
+                outline: 'none',
+                width: '100%',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              }}
+            />
+          </div>
+        </>,
+        document.body,
+      ) : null}
     </>
   );
 }

@@ -376,6 +376,7 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
         </View>
         <View style={styles.topBarRight}>
           <PlayerViewToggle />
+          <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} interactive={!!toggleVisibility} onPress={toggleVisibility ?? undefined} />
           {isWorldOwner ? (
             <>
               <Pressable onPress={() => setShareOpen(true)} style={styles.shareBtn}>
@@ -387,7 +388,6 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
               </Pressable>
             </>
           ) : null}
-          <VisibilityBadge visibility={page.visible_to_players ? 'player' : 'gm'} interactive={!!toggleVisibility} onPress={toggleVisibility ?? undefined} />
         </View>
       </View>
       ) : null}

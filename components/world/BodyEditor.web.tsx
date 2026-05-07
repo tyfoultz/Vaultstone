@@ -235,7 +235,7 @@ function EditorStyles() {
           .vaultstone-body-editor {
             min-height: 240px;
             outline: none;
-            color: #e0dae8;
+            color: #ffffff;
             font-family: 'CormorantGaramond_400Regular', 'Cormorant Garamond', Georgia, serif;
             font-size: 16px;
             line-height: 1.7;
@@ -243,7 +243,7 @@ function EditorStyles() {
           }
           .vaultstone-body-editor p {
             margin: 0 0 ${spacing.sm}px 0;
-            color: #e0dae8;
+            color: #ffffff;
             font-size: 16px;
             line-height: 1.7;
           }
