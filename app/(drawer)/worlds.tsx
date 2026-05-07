@@ -182,6 +182,8 @@ function WorldCard({
   widthBasis: number;
   onPress: () => void;
 }) {
+  const user = useAuthStore((s) => s.user);
+  const isOwner = user?.id === world.owner_user_id;
   const removeWorld = useWorldsStore((s) => s.removeWorld);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -222,16 +224,18 @@ function WorldCard({
               <Icon name="public" size={48} color={colors.onPrimary} />
             </LinearGradient>
           )}
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-              setConfirming(true);
-            }}
-            style={styles.deleteBtn}
-            accessibilityLabel={`Delete ${world.name}`}
-          >
-            <Icon name="delete" size={18} color={colors.onSurface} />
-          </Pressable>
+          {isOwner ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                setConfirming(true);
+              }}
+              style={styles.deleteBtn}
+              accessibilityLabel={`Delete ${world.name}`}
+            >
+              <Icon name="delete" size={18} color={colors.onSurface} />
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
@@ -259,6 +263,7 @@ function WorldCard({
         </View>
 
         <View style={{ flexDirection: 'row', gap: spacing.xs, marginTop: spacing.md }}>
+          {!isOwner ? <Chip label="Shared" variant="meta" /> : null}
           {world.is_archived ? <Chip label="Archived" variant="meta" /> : null}
         </View>
 
