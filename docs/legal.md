@@ -72,6 +72,26 @@ This is a different posture than uploaded PDFs and intentionally so: imports are
 
 **Required ToS obligation (imports) — per-import gate.** The app must present an in-app Terms of Service callout before each import that states the user is solely responsible for ensuring they have lawful rights to the content being imported, that imported entries are stored on Vaultstone's infrastructure under their account, and that they accept responsibility for any sharing they later configure. The user must affirmatively accept before the import proceeds.
 
+### Pack Export / Import (User-to-User Pack Transfer)
+
+A pack owner can export their entire pack (authored homebrew + imported structured content) to a `vaultstone-pack/v1` JSON file. Another user can import that file into their own account, which creates a **new pack owned by the importer** with all entries restored. There is no shared-state link back to the original — the file is a one-way handoff, not a synced share.
+
+This path matters legally because it lets users move content between accounts without going back through the original 5e.tools-style JSON. The same per-import attestation must apply: receiving content from another user does not change who carries the rights obligation.
+
+#### Permitted
+- A pack owner exporting their pack to a JSON file for backup, debugging, or out-of-band sharing with users they trust
+- An importer creating a fresh pack in their own account from a received file, after accepting the per-import ToS callout
+- A new owner subsequently attaching the imported pack to a campaign they DM, on the same terms as any other pack (see Part 5)
+
+#### Not Permitted
+- Importing a pack file containing content the importer does not have the lawful right to use, even if the original exporter accepted the rights attestation
+- Building a public pack registry, marketplace, or distribution channel without revisiting the legal posture for that scale of distribution
+- Treating a received pack as a shared resource — once imported, it lives entirely under the importer's account; the original exporter has no audit, revocation, or sync path
+
+> **Rule:** Pack export creates a portable file. Pack import re-grounds responsibility under the new owner. Both ends accept the per-import ToS callout — the exporter to confirm they had rights to the content they're packaging, the importer to re-attest before the file lands in their account.
+
+**Required ToS obligation (pack import) — per-import gate, same wording line as JSON imports.** The receiving user must affirmatively accept that they have lawful rights to the content in the file before the new pack row is created. The exporter side surfaces the same line at the moment of export. Both sides retain transcripts of acceptance for audit.
+
 ---
 
 ## Part 4: User-Generated Content (Homebrew, Notes, etc.)
@@ -122,6 +142,7 @@ A GM creates a campaign that players join. The session synchronizes **gameplay s
 | Non-SRD publisher content | No | — | Cannot be bundled |
 | User-uploaded PDFs | Yes | User's own device only | Never — reader is private to the uploader |
 | User-imported structured JSON content | Yes (per-import ToS gate) | Supabase, scoped to importer's pack | Only when importer attaches pack to a campaign they DM |
+| User-to-user pack transfer (export/import file) | Yes (per-import ToS gate on both ends) | New Supabase pack scoped to receiving user | One-way file handoff — recipient owns their copy |
 | User-created character data | Yes | Supabase, scoped to user | Freely syncable to the user's campaigns |
 | User-authored homebrew | Yes | Supabase, scoped to user's pack | Same as imports — pack attaches to a campaign |
 | Party sync — character state | Yes | Real-time + DB | No raw publisher source text transmitted |

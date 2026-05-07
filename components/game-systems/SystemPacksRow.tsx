@@ -25,6 +25,7 @@ import {
 import { useAuthStore } from '@vaultstone/store';
 import type { GameSystemDefinition } from '@vaultstone/types';
 import { CreateHomebrewPackModal } from '../homebrew/CreateHomebrewPackModal';
+import { ImportPackModal } from '../homebrew/ImportPackModal';
 
 type Props = {
   system: GameSystemDefinition;
@@ -43,6 +44,7 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
   const [usage, setUsage] = useState<CampaignUsage>(new Map());
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -101,6 +103,18 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
             Create
           </Text>
         </Pressable>
+        {/* Import an existing pack from a JSON file someone else
+            exported. Uses the same vaultstone-pack/v1 format the
+            Export action on the pack detail page produces. */}
+        <Pressable
+          onPress={() => setImportOpen(true)}
+          style={({ pressed }) => [s.newPackTile, pressed && { opacity: 0.85 }]}
+        >
+          <Icon name="file-upload" size={18} color={colors.primary} />
+          <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.primary }}>
+            Import
+          </Text>
+        </Pressable>
       </ScrollView>
 
       {createOpen ? (
@@ -110,6 +124,20 @@ export function SystemPacksRow({ system, onPacksChanged }: Props) {
           onClose={() => setCreateOpen(false)}
           onCreated={(pack) => {
             setCreateOpen(false);
+            setPacks((prev) => [pack, ...prev]);
+            onPacksChanged?.();
+            router.push(`/homebrew-pack/${pack.id}` as Href);
+          }}
+        />
+      ) : null}
+
+      {importOpen ? (
+        <ImportPackModal
+          expectedSystem={system.id}
+          systemDisplayName={system.displayName}
+          onClose={() => setImportOpen(false)}
+          onImported={(pack) => {
+            setImportOpen(false);
             setPacks((prev) => [pack, ...prev]);
             onPacksChanged?.();
             router.push(`/homebrew-pack/${pack.id}` as Href);

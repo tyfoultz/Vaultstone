@@ -16,11 +16,13 @@ import {
   listImportedContent,
   listImportedSourceCards,
   deleteImportedEntriesBySourceLabel,
+  exportHomebrewPack,
   type HomebrewPackRow,
   type HomebrewContentRow,
   type ImportedContentRow,
   type ImportedSourceCard,
 } from '@vaultstone/api';
+import { downloadPackJson } from '../../../components/homebrew/packTransferIo';
 import { ImportContentModal } from '../../../components/imported/ImportContentModal';
 import {
   SpellsList, FeatsList, OptionalFeaturesList, DeitiesList, VariantRulesList,
@@ -85,6 +87,11 @@ export default function HomebrewPackDetailScreen() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  // Export-pack feedback. Both pieces of state belong at component top
+  // level (handleExport reads/writes them); kept colocated with delete
+  // because export is the parallel "package up the pack" action.
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
 
   // Form modal state — `formOpen` is the content type whose modal is up;
   // `editingEntry` is the row being edited (null = create mode).
@@ -317,6 +324,38 @@ export default function HomebrewPackDetailScreen() {
     setConfirmEntryId(null);
   }
 
+  /**
+   * Build a vaultstone-pack/v1 JSON blob from this pack and offer it
+   * to the user as a download (web) or write it to the cache dir
+   * (native). RLS gates read access — co-DMs and campaign members who
+   * can read the pack can also export it. The exporter attests they
+   * had rights to whatever is in the file; the importer re-attests on
+   * the receiving side.
+   */
+  async function handleExport() {
+    if (!pack) return;
+    setExporting(true);
+    setExportMessage(null);
+    const { data, error: err } = await exportHomebrewPack(pack.id);
+    if (err || !data) {
+      setExporting(false);
+      setExportMessage(err?.message ?? 'Failed to read pack contents.');
+      return;
+    }
+    const fileName = `${pack.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-pack.json`;
+    const result = await downloadPackJson({ fileName, payload: data });
+    setExporting(false);
+    if (!result.ok) {
+      setExportMessage(result.message);
+      return;
+    }
+    setExportMessage(
+      result.uri
+        ? `Saved to ${result.uri}`
+        : `Downloaded ${fileName} (${data.importedEntries.length + data.homebrewEntries.length} entries).`,
+    );
+  }
+
   async function handleCardDelete(sourceLabel: string) {
     if (!pack) return;
     setCardDeleting(sourceLabel);
@@ -383,6 +422,12 @@ export default function HomebrewPackDetailScreen() {
               }}
             />
             <GhostButton
+              label={exporting ? 'Exporting…' : 'Export'}
+              icon="file-download"
+              onPress={handleExport}
+              disabled={exporting}
+            />
+            <GhostButton
               label="Delete"
               icon="delete"
               onPress={() => setConfirmingDelete(true)}
@@ -420,6 +465,26 @@ export default function HomebrewPackDetailScreen() {
           >
             <Text variant="label-sm" weight="semibold" uppercase style={{ color: '#fff', letterSpacing: 1 }}>
               {deleting ? 'Deleting…' : 'Delete'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* Export status banner — surfaces success or error after the
+          user clicks Export. Stays put until they dismiss; the button
+          itself shows in-flight progress via its label. */}
+      {exportMessage ? (
+        <View style={styles.deleteBanner}>
+          <Icon name="info-outline" size={18} color={colors.outline} />
+          <Text variant="body-sm" family="body" style={{ flex: 1, color: colors.onSurface }}>
+            {exportMessage}
+          </Text>
+          <Pressable
+            onPress={() => setExportMessage(null)}
+            style={[styles.bannerBtn, styles.bannerCancel]}
+          >
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}>
+              Dismiss
             </Text>
           </Pressable>
         </View>
