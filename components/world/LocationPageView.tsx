@@ -588,6 +588,8 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
               mentionablePages={mentionablePages}
               getSectionLabel={sectionLabelById}
               onMentionClick={(targetId) => void flushAndNavigate(targetId)}
+              worldId={worldId}
+              pageId={page.id}
             />
           </View>
 
