@@ -12,6 +12,8 @@ export * from './homebrew-entries';
 export * from './imported-content';
 export * from './pack-transfer';
 export * from './campaign-packs';
+export * from './campaign-window-pane';
+export * from './campaign-character-rules';
 export * from './worlds';
 export * from './world-campaigns';
 export * from './sections';

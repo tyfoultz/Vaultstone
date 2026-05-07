@@ -72,6 +72,16 @@ export interface Database {
           party_view_settings: Json | null;
           next_session_at: string | null;
           next_session_prep_page_id: string | null;
+          /** DM-pinned scene image for the campaign window pane. FK
+           *  to world_images.id. Null = fall back to world banner. */
+          scene_image_id: string | null;
+          /** DM-pinned subject image overlaid on the scene. FK to
+           *  world_images.id. Null = no subject overlay. */
+          subject_image_id: string | null;
+          /** Bag of optional-rule values keyed by rule.key. Read with
+           *  the system's optionalRules definition to know how to
+           *  interpret each value (boolean / choice / number). */
+          character_creation_rules: Json;
           created_at: string;
         };
         Insert: {
@@ -87,6 +97,9 @@ export interface Database {
           party_view_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;
+          scene_image_id?: string | null;
+          subject_image_id?: string | null;
+          character_creation_rules?: Json;
           created_at?: string;
         };
         Update: {
@@ -102,6 +115,9 @@ export interface Database {
           party_view_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;
+          scene_image_id?: string | null;
+          subject_image_id?: string | null;
+          character_creation_rules?: Json;
         };
         Relationships: [];
       };
@@ -830,6 +846,10 @@ export interface Database {
           width: number;
           height: number;
           alt: string;
+          /** Display copy shown beneath the image in the canvas and in
+           *  the campaign window pane. Distinct from `alt` (which is
+           *  for screen readers). Empty string = no caption. */
+          caption: string;
           byte_size: number;
           content_type: string;
           deleted_at: string | null;
@@ -845,6 +865,7 @@ export interface Database {
           width: number;
           height: number;
           alt?: string;
+          caption?: string;
           byte_size: number;
           content_type?: string;
           deleted_at?: string | null;
@@ -855,6 +876,7 @@ export interface Database {
         Update: {
           page_id?: string | null;
           alt?: string;
+          caption?: string;
           deleted_at?: string | null;
           hard_delete_after?: string | null;
         };

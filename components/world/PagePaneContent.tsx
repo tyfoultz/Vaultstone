@@ -615,6 +615,8 @@ export function PagePaneContent({
                     mentionablePages={mentionablePages}
                     getSectionLabel={sectionLabelById}
                     onMentionClick={(targetPageId) => void flushAndNavigate(targetPageId)}
+                    worldId={worldId}
+                    pageId={pageId}
                   />
                 ) : (
                   <BodyEditor

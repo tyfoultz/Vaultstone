@@ -10,7 +10,10 @@ import {
   createCharacterDraft,
   updateCharacterDraft,
   deleteCharacterDraft,
+  getCampaignCharacterRules,
+  resolveRuleValues,
 } from '@vaultstone/api';
+import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
@@ -20,6 +23,7 @@ import { StepBackground } from '../../components/character-wizard/StepBackground
 import { StepAbilityScores } from '../../components/character-wizard/StepAbilityScores';
 import { StepReview } from '../../components/character-wizard/StepReview';
 import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
+import { CampaignRulesSummary } from '../../components/character-wizard/CampaignRulesSummary';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eSpellSlotLevel, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
 
 // SRD 5e full-caster spell slot progression [level → [lvl1, lvl2, ... lvl9]]
@@ -185,6 +189,41 @@ export default function NewCharacterScreen() {
         // Implicit commit to campaign mode (ruleset step is skipped in
         // this flow, but the gate still reads rulesetMode).
         setDraftRulesetMode('campaign');
+
+        // Apply the campaign's character-creation rules. Starting
+        // level seeds the new character; ability score method seeds
+        // the wizard's default but the player can still override on
+        // the StepAbilityScores page (the rule's scope is
+        // 'character'). Other rules (multiclassing, feats variant,
+        // optional class features, customize origin) apply at the
+        // sheet/wizard step level; downstream steps consume them as
+        // they get touched in follow-up work.
+        const sys = BUNDLED_SYSTEMS_BY_ID[data.system];
+        const { data: rulesBag } = await getCampaignCharacterRules(launchedCampaignId);
+        if (sys && rulesBag) {
+          const resolved = resolveRuleValues(sys.optionalRules, rulesBag);
+          // Stash the full resolved set on the draft so wizard
+          // steps + the read-only summary can read any rule
+          // without re-fetching. Each step decides which keys it
+          // cares about.
+          useCharacterDraftStore.getState().setCampaignRules(resolved);
+          const startingLevel = Number(resolved.starting_level);
+          if (Number.isFinite(startingLevel) && startingLevel >= 1 && startingLevel <= 20) {
+            useCharacterDraftStore.getState().setStartingLevel(startingLevel);
+          }
+          const method = String(resolved.ability_score_method);
+          if (method === 'standard_array' || method === 'point_buy' || method === 'rolled') {
+            // 'rolled' is the system label for 4d6-drop-lowest; the
+            // draft store's discriminator uses 'roll_dice' for the
+            // same concept (legacy naming). Bridge the two here.
+            const draftMethod =
+              method === 'rolled' ? 'roll_dice' :
+              method === 'point_buy' ? 'point_buy' :
+              'standard_array';
+            useCharacterDraftStore.getState().setAbilityScoreMethod(draftMethod);
+          }
+        }
+
         setBootstrapping(false);
       }
     })();
@@ -391,6 +430,13 @@ export default function NewCharacterScreen() {
       }
 
       const conMod = Math.floor((draft.abilityScores.constitution - 10) / 2);
+      // TODO(starting-level-progression): the campaign's `starting_level`
+      // rule lands on the draft via bootstrap, but full level-N character
+      // creation (HP per level, ability score improvements at L4/8/etc,
+      // class features per level, scaling spell slots, multiclass-aware
+      // progression) is a separate pass. v1 of the rules pipeline still
+      // initializes the new character at L1 even when the rule says
+      // higher; the next iteration on the wizard wires in level-up logic.
       const hpMax = cls.hitDie + conMod;
 
       const base_stats: Dnd5eStats = {
@@ -559,6 +605,12 @@ export default function NewCharacterScreen() {
           don't span the full screen on widescreens. */}
       <ContentWidth size="reading" style={{ flex: 1 }}>
         <View style={s.content}>
+          {/* Campaign rules summary — collapsible, hidden on
+              standalone characters and the fork screen (where the
+              user hasn't committed to a campaign yet). Renders
+              above the active step so the player has rules context
+              before each decision. */}
+          {STEPS[step]?.key !== 'ruleset' ? <CampaignRulesSummary /> : null}
           {(() => {
             const key = STEPS[step]?.key;
             // Helper to advance to the step after the current one. Uses the

@@ -63,6 +63,22 @@ export async function listImagesForPage(pageId: string) {
     .order('created_at', { ascending: true });
 }
 
+/**
+ * Patch a world image's display caption. Used by the right-click →
+ * "Edit caption" flow on the canvas; the canvas Tiptap node attrs
+ * are also patched in the same handler so the canvas reflects the
+ * change without a refetch. The caption flows through to the
+ * campaign window pane automatically (the pane reads the live row).
+ */
+export async function updateWorldImageCaption(imageId: string, caption: string) {
+  return supabase
+    .from('world_images')
+    .update({ caption })
+    .eq('id', imageId)
+    .select('id, caption')
+    .single();
+}
+
 export async function softDeleteWorldImage(imageId: string) {
   const now = new Date();
   const hardDeleteAfter = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);

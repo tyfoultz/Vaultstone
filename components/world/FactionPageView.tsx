@@ -677,7 +677,7 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
         <View style={styles.editorCol}>
           {bannerLock && isWorldOwner ? <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}><EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} onForceUnlock={isWorldOwner ? async () => { await forceReleasePageEdit(page.id); updatePageInStore(page.id, { editing_user_id: null, editing_since: null }); void tryClaim(); } : undefined} /></View> : null}
           <View style={[{ flex: 1 }, readOnly ? styles.disabledEditor : undefined]} pointerEvents={readOnly ? 'none' : 'auto'}>
-            <LoreCanvasEditor initialBlocks={(page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null} onChange={handleCanvasChange} editable={!readOnly} mentionablePages={mentionablePages} getSectionLabel={sectionLabelById} onMentionClick={(targetId) => void flushAndNavigate(targetId)} />
+            <LoreCanvasEditor initialBlocks={(page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null} onChange={handleCanvasChange} editable={!readOnly} mentionablePages={mentionablePages} getSectionLabel={sectionLabelById} onMentionClick={(targetId) => void flushAndNavigate(targetId)} worldId={worldId} pageId={page.id} />
           </View>
           {saveLabel ? <View style={styles.saveIndicator}><View style={[styles.saveDot, saveState === 'error' ? { backgroundColor: colors.hpDanger } : { backgroundColor: colors.hpHealthy }]} /><Text style={styles.saveText}>{saveLabel}</Text></View> : null}
         </View>

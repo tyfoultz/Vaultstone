@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Icon, colors, radius, spacing } from '@vaultstone/ui';
+import {
+  createWorldImage,
+  getCampaignsForWorld,
+  getWorldImageSignedUrlById,
+  updateWorldImageCaption,
+  uploadWorldImage,
+} from '@vaultstone/api';
+import { useAuthStore } from '@vaultstone/store';
+import { ImageCropModal } from '@vaultstone/ui';
+import { commitPin, decidePinFlow, type PinSlot } from './pinImageWithCrop';
 
 type CanvasBlock = {
   id: string;
@@ -26,6 +36,15 @@ type Props = {
   mentionablePages?: MentionablePage[];
   getSectionLabel?: (sectionId: string) => string;
   onMentionClick?: (pageId: string) => void;
+  /** World + page context for image uploads. When set, paste/upload
+   *  routes through `world_images` so images become real records
+   *  (with caption + signed-URL src + a `data-world-image-id`
+   *  attribute on the rendered <img>). The DM can then right-click
+   *  any such image to pin it to the campaign window pane.
+   *  Optional because some embeds (legacy / preview) don't have a
+   *  page context — those still fall back to data-URL inserts. */
+  worldId?: string;
+  pageId?: string;
 };
 
 function uid() {
@@ -494,7 +513,7 @@ function MentionTypeahead({ query, pages, position, onSelect, onClose, getSectio
 
 // ── Main Editor ─────────────────────────────────────────────────────────
 
-export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, mentionablePages, getSectionLabel, onMentionClick }: Props) {
+export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, mentionablePages, getSectionLabel, onMentionClick, worldId, pageId }: Props) {
   const [blocks, setBlocks] = useState<CanvasBlock[]>(initialBlocks ?? []);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
@@ -502,6 +521,38 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Right-click menu on world-image elements — caption editor +
+  // pin actions for DM'd campaigns. Mode flips between the root
+  // option list, the inline caption editor, and the campaign
+  // chooser when multiple campaigns DM'd by the user are linked
+  // to this world.
+  const [imageMenu, setImageMenu] = useState<{
+    imageId: string;
+    x: number;
+    y: number;
+    mode: 'root' | 'caption' | 'pin-scene' | 'pin-subject';
+  } | null>(null);
+  const [imageMenuDraftCaption, setImageMenuDraftCaption] = useState('');
+  const [imageMenuSaving, setImageMenuSaving] = useState(false);
+  const [imageMenuDMCampaigns, setImageMenuDMCampaigns] = useState<
+    Array<{ id: string; name: string }> | null
+  >(null);
+  const userId = useAuthStore((s) => s.user?.id ?? null);
+
+  // Pending pin — populated when an image's aspect doesn't match
+  // the target slot, so the user has to crop before we can commit
+  // the pin. The ImageCropModal mounts on this state and clears it
+  // on confirm/cancel.
+  const [pendingPin, setPendingPin] = useState<{
+    campaignId: string;
+    sourceImageId: string;
+    sourceWidth: number;
+    sourceHeight: number;
+    slot: PinSlot;
+    aspect: [number, number];
+    signedUrl: string;
+  } | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const changeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -525,6 +576,78 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   for (const b of blocks) {
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
   }
+
+  // Load the list of campaigns the auth'd user DMs that are linked
+  // to this world. Cached on the component since the menu is the
+  // only consumer; re-fetched once per world. A user not DM'ing
+  // any linked campaign sees pin actions disabled with a hint.
+  useEffect(() => {
+    if (!worldId || !userId) {
+      setImageMenuDMCampaigns([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data } = await getCampaignsForWorld(worldId);
+      if (cancelled) return;
+      const rows = (data ?? []) as unknown as Array<{
+        campaigns: { id: string; name: string; dm_user_id: string } | null;
+      }>;
+      const entries = rows
+        .map((r) => r.campaigns)
+        .filter((c): c is { id: string; name: string; dm_user_id: string } =>
+          !!c && c.dm_user_id === userId)
+        .map((c) => ({ id: c.id, name: c.name }));
+      setImageMenuDMCampaigns(entries);
+    })();
+    return () => { cancelled = true; };
+  }, [worldId, userId]);
+
+  // Close the image menu when the user clicks anywhere outside it.
+  useEffect(() => {
+    if (!imageMenu) return;
+    function onAway(e: MouseEvent) {
+      const target = e.target as Element | null;
+      if (target?.closest?.('.lore-image-menu')) return;
+      setImageMenu(null);
+    }
+    window.addEventListener('mousedown', onAway);
+    return () => window.removeEventListener('mousedown', onAway);
+  }, [imageMenu]);
+
+  // Refresh signed URLs on every `<img data-world-image-id>` after
+  // the canvas mounts. Signed URLs from storage have a ~1h TTL, so
+  // serialized HTML carries stale URLs across page reloads. The
+  // helper caches per-id, so this loop is one quick round-trip per
+  // distinct image and a no-op on later renders within the cache
+  // window.
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    let cancelled = false;
+    const imgs = canvasRef.current.querySelectorAll<HTMLImageElement>('img[data-world-image-id]');
+    if (imgs.length === 0) return;
+
+    const seen = new Set<string>();
+    imgs.forEach((img) => {
+      const imageId = img.getAttribute('data-world-image-id');
+      if (!imageId || seen.has(imageId)) return;
+      seen.add(imageId);
+      void getWorldImageSignedUrlById(imageId).then(({ data }) => {
+        if (cancelled || !data?.signedUrl) return;
+        // Update every <img> in the canvas with this id (a single
+        // image can appear inside multiple blocks if duplicated).
+        canvasRef.current?.querySelectorAll<HTMLImageElement>(
+          `img[data-world-image-id="${imageId}"]`,
+        ).forEach((node) => {
+          node.src = data.signedUrl;
+        });
+      });
+    });
+    return () => { cancelled = true; };
+    // Re-run when blocks change so newly inserted images get their
+    // signed-URL resolution too. The helper's per-id cache makes
+    // this cheap.
+  }, [blocks]);
 
   const [contentHeight, setContentHeight] = useState(0);
 
@@ -644,6 +767,28 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   const handleCanvasContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     if (!editable) return;
     const target = e.target as HTMLElement;
+
+    // Right-click on a tagged world image → open the pin/caption
+    // menu instead of the browser default. Walks up to find an
+    // <img data-world-image-id> ancestor since the click can land
+    // on an inner wrapper or resize handle. Falls through to the
+    // existing canvas-blank paste behavior on non-image clicks.
+    const imgEl = target.closest?.('img[data-world-image-id]') as HTMLImageElement | null;
+    if (imgEl) {
+      const imageId = imgEl.getAttribute('data-world-image-id');
+      if (imageId) {
+        e.preventDefault();
+        const rect = canvasRef.current!.getBoundingClientRect();
+        setImageMenu({
+          imageId,
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+          mode: 'root',
+        });
+      }
+      return;
+    }
+
     if (target !== canvasRef.current) return;
 
     e.preventDefault();
@@ -880,6 +1025,82 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     });
   }
 
+  /**
+   * Upload a pasted/dropped image to Supabase storage as a real
+   * `world_images` record, then render it as an `<img>` carrying
+   * `data-world-image-id` so right-click pin actions can resolve
+   * back to the row. Returns the rendered HTML tag (or null if the
+   * upload fails) along with the image's natural dimensions for
+   * block sizing. When the editor lacks a worldId/pageId context
+   * (preview, legacy embeds), the caller falls back to the
+   * data-URL path that pre-existed this refactor.
+   */
+  async function uploadCanvasImage(file: File): Promise<{
+    html: string;
+    width: number;
+    height: number;
+  } | null> {
+    if (!worldId || !pageId) return null;
+
+    // Probe natural dimensions client-side first so we have an
+    // accurate display size + can persist them on the
+    // world_images row (the row stores the original dimensions
+    // the way BodyEditor's WorldImageNode does).
+    const dims = await new Promise<{ w: number; h: number } | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+        img.onerror = () => resolve(null);
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+    if (!dims) return null;
+
+    const imageId = crypto.randomUUID();
+    const filename = file.name && file.name.length > 0 ? file.name : 'image';
+    const { key, error: uploadErr } = await uploadWorldImage({
+      worldId,
+      imageId,
+      filename,
+      body: file,
+      contentType: file.type || 'image/jpeg',
+    });
+    if (uploadErr) return null;
+
+    const { error: rowErr } = await createWorldImage({
+      id: imageId,
+      world_id: worldId,
+      page_id: pageId,
+      image_key: key,
+      width: dims.w,
+      height: dims.h,
+      byte_size: file.size,
+      content_type: file.type || 'image/jpeg',
+    });
+    if (rowErr) return null;
+
+    const { data: signed } = await getWorldImageSignedUrlById(imageId);
+    const src = signed?.signedUrl;
+    if (!src) return null;
+
+    // Cap visible width at 480 to match the legacy data-URL path
+    // (so existing canvas layouts don't shift dramatically when
+    // the new path lands). Height tracks the natural aspect ratio.
+    const maxW = 480;
+    const w = Math.min(dims.w, maxW);
+    const h = Math.round(w * (dims.h / dims.w));
+    // data-world-image-caption starts empty; the right-click
+    // editor sets it on the rendered <img> after the user types
+    // and saves. The DB row is the source of truth — this attr
+    // is just a render-time mirror so re-opening the menu doesn't
+    // require a fresh DB hit.
+    const html = `<img data-world-image-id="${imageId}" data-world-image-caption="" src="${src}" style="width:${w}px;height:${h}px;border-radius:6px;display:block;margin:4px 0;" />`;
+    return { html, width: w, height: h };
+  }
+
   function handleBlockPaste(id: string, e: React.ClipboardEvent) {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -890,29 +1111,46 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
         const file = item.getAsFile();
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = reader.result as string;
-          const img = new Image();
-          img.onload = () => {
-            const maxW = 480;
-            const w = Math.min(img.naturalWidth, maxW);
-            const h = Math.round(w * (img.naturalHeight / img.naturalWidth));
-            document.execCommand(
-              'insertHTML',
-              false,
-              `<img src="${dataUrl}" style="width:${w}px;height:${h}px;border-radius:6px;display:block;margin:4px 0;" />`,
-            );
+        // Upload-routed path: world_images row + signed URL. Falls
+        // back to the legacy data-URL insert when worldId/pageId
+        // aren't in scope (preview, legacy embeds).
+        void (async () => {
+          const uploaded = await uploadCanvasImage(file);
+          if (uploaded) {
+            document.execCommand('insertHTML', false, uploaded.html);
             const el = document.querySelector(`[data-block-id="${id}"] .lore-block-content`) as HTMLElement;
             if (el) {
               htmlRef.current[id] = el.innerHTML;
               requestAnimationFrame(() => fitBlockToContent(id));
               emitChange();
             }
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            const img = new Image();
+            img.onload = () => {
+              const maxW = 480;
+              const w = Math.min(img.naturalWidth, maxW);
+              const h = Math.round(w * (img.naturalHeight / img.naturalWidth));
+              document.execCommand(
+                'insertHTML',
+                false,
+                `<img src="${dataUrl}" style="width:${w}px;height:${h}px;border-radius:6px;display:block;margin:4px 0;" />`,
+              );
+              const el = document.querySelector(`[data-block-id="${id}"] .lore-block-content`) as HTMLElement;
+              if (el) {
+                htmlRef.current[id] = el.innerHTML;
+                requestAnimationFrame(() => fitBlockToContent(id));
+                emitChange();
+              }
+            };
+            img.src = dataUrl;
           };
-          img.src = dataUrl;
-        };
-        reader.readAsDataURL(file);
+          reader.readAsDataURL(file);
+        })();
         return;
       }
     }
@@ -931,26 +1169,49 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           e.preventDefault();
           const file = item.getAsFile();
           if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => {
-            const dataUrl = reader.result as string;
-            const img = new Image();
-            img.onload = () => {
-              const maxW = 480;
-              const w = Math.min(img.naturalWidth, maxW);
-              const h = Math.round(w * (img.naturalHeight / img.naturalWidth));
+
+          // Same upload-routed-with-fallback pattern as
+          // handleBlockPaste — try the world_images path first
+          // and fall back to the legacy data-URL insert when the
+          // editor lacks a worldId/pageId context.
+          void (async () => {
+            const uploaded = await uploadCanvasImage(file);
+            if (uploaded) {
               const pos = pendingClick ?? { x: snap(40), y: snap(40) };
               setPendingClick(null);
               const newId = uid();
-              const imgTag = `<img src="${dataUrl}" style="width:${w}px;height:${h}px;border-radius:6px;display:block;margin:4px 0;" />`;
-              htmlRef.current[newId] = imgTag;
-              setBlocks((prev) => [...prev, { id: newId, x: pos.x, y: pos.y, width: w + BLOCK_PADDING, html: imgTag }]);
+              htmlRef.current[newId] = uploaded.html;
+              setBlocks((prev) => [...prev, {
+                id: newId, x: pos.x, y: pos.y,
+                width: uploaded.width + BLOCK_PADDING,
+                html: uploaded.html,
+              }]);
               setFocusedId(newId);
               emitChange();
+              return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = () => {
+              const dataUrl = reader.result as string;
+              const img = new Image();
+              img.onload = () => {
+                const maxW = 480;
+                const w = Math.min(img.naturalWidth, maxW);
+                const h = Math.round(w * (img.naturalHeight / img.naturalWidth));
+                const pos = pendingClick ?? { x: snap(40), y: snap(40) };
+                setPendingClick(null);
+                const newId = uid();
+                const imgTag = `<img src="${dataUrl}" style="width:${w}px;height:${h}px;border-radius:6px;display:block;margin:4px 0;" />`;
+                htmlRef.current[newId] = imgTag;
+                setBlocks((prev) => [...prev, { id: newId, x: pos.x, y: pos.y, width: w + BLOCK_PADDING, html: imgTag }]);
+                setFocusedId(newId);
+                emitChange();
+              };
+              img.src = dataUrl;
             };
-            img.src = dataUrl;
-          };
-          reader.readAsDataURL(file);
+            reader.readAsDataURL(file);
+          })();
           return;
         }
       }
@@ -1146,6 +1407,111 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   }
 
   const pd = (e: React.MouseEvent) => e.preventDefault();
+
+  // ── Image menu handlers ────────────────────────────────────────────
+  function openImageCaptionEditor() {
+    if (!imageMenu) return;
+    // Read the current caption from any matching <img> in the
+    // canvas (re-renders mirror it across duplicates) so the
+    // editor doesn't start blank when the user has a caption set.
+    const current = canvasRef.current
+      ?.querySelector(`img[data-world-image-id="${imageMenu.imageId}"]`)
+      ?.getAttribute('data-world-image-caption') ?? '';
+    setImageMenuDraftCaption(current);
+    setImageMenu({ ...imageMenu, mode: 'caption' });
+  }
+
+  async function commitImageCaption() {
+    if (!imageMenu || imageMenuSaving) return;
+    setImageMenuSaving(true);
+    const { error } = await updateWorldImageCaption(
+      imageMenu.imageId,
+      imageMenuDraftCaption,
+    );
+    setImageMenuSaving(false);
+    if (error) return;
+    // Mirror the caption onto the rendered <img> so subsequent
+    // re-opens of the menu show the new value without a refetch.
+    canvasRef.current?.querySelectorAll<HTMLImageElement>(
+      `img[data-world-image-id="${imageMenu.imageId}"]`,
+    ).forEach((node) => node.setAttribute('data-world-image-caption', imageMenuDraftCaption));
+    setImageMenu(null);
+  }
+
+  function chooseImageScene() {
+    if (!imageMenu || !imageMenuDMCampaigns) return;
+    if (imageMenuDMCampaigns.length === 0) return;
+    if (imageMenuDMCampaigns.length === 1) {
+      void pinImageSlot('scene', imageMenuDMCampaigns[0]!.id);
+      return;
+    }
+    setImageMenu({ ...imageMenu, mode: 'pin-scene' });
+  }
+  function chooseImageSubject() {
+    if (!imageMenu || !imageMenuDMCampaigns) return;
+    if (imageMenuDMCampaigns.length === 0) return;
+    if (imageMenuDMCampaigns.length === 1) {
+      void pinImageSlot('subject', imageMenuDMCampaigns[0]!.id);
+      return;
+    }
+    setImageMenu({ ...imageMenu, mode: 'pin-subject' });
+  }
+
+  async function pinImageSlot(slot: PinSlot, campaignId: string) {
+    if (!imageMenu || !worldId) return;
+    setImageMenuSaving(true);
+
+    // Look up the source image's natural dimensions from the
+    // rendered <img> in the canvas. The Tiptap node-view path
+    // stores width/height on the node attrs; we don't have those
+    // here so we fall back to the live <img> element.
+    const imgEl = canvasRef.current?.querySelector<HTMLImageElement>(
+      `img[data-world-image-id="${imageMenu.imageId}"]`,
+    );
+    const sourceWidth = imgEl?.naturalWidth ?? 0;
+    const sourceHeight = imgEl?.naturalHeight ?? 0;
+
+    const decision = await decidePinFlow({
+      imageId: imageMenu.imageId,
+      slot,
+    });
+    setImageMenuSaving(false);
+    setImageMenu(null);
+    if (!decision) return;
+
+    // Hand off to the crop modal. The user always confirms
+    // framing — even when the source aspect matches the slot,
+    // they may want to focus on a particular subject within
+    // the frame.
+    setPendingPin({
+      campaignId,
+      sourceImageId: imageMenu.imageId,
+      sourceWidth,
+      sourceHeight,
+      slot,
+      aspect: decision.aspect,
+      signedUrl: decision.signedUrl,
+    });
+  }
+
+  async function handlePinCropConfirm(croppedBlobUri: string) {
+    if (!pendingPin || !worldId) return;
+    await commitPin({
+      campaignId: pendingPin.campaignId,
+      worldId,
+      slot: pendingPin.slot,
+      sourceImageId: pendingPin.sourceImageId,
+      sourceWidth: pendingPin.sourceWidth,
+      sourceHeight: pendingPin.sourceHeight,
+      aspect: pendingPin.aspect,
+      croppedBlobUri,
+    });
+    setPendingPin(null);
+  }
+
+  const canPin = !!worldId && !!userId
+    && imageMenuDMCampaigns !== null
+    && imageMenuDMCampaigns.length > 0;
 
   return (
     <View style={styles.root}>
@@ -1412,7 +1778,130 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
             Click anywhere to start writing…
           </div>
         ) : null}
+        {/* Image right-click menu — caption editor + pin actions.
+            Anchored at the click position relative to the canvas
+            so it appears over the image without portal plumbing. */}
+        {imageMenu ? (
+          <div
+            className="lore-image-menu"
+            style={{ left: imageMenu.x, top: imageMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {imageMenu.mode === 'root' ? (
+              <div className="lore-image-menu-list">
+                <button
+                  type="button"
+                  className="lore-image-menu-item"
+                  onClick={openImageCaptionEditor}
+                >
+                  <span className="lore-image-menu-icon">✏</span>
+                  <span className="lore-image-menu-label">Edit caption</span>
+                </button>
+                <div className="lore-image-menu-sep" />
+                <button
+                  type="button"
+                  className={`lore-image-menu-item${!canPin ? ' disabled' : ''}`}
+                  onClick={canPin ? chooseImageScene : undefined}
+                  disabled={!canPin}
+                  title={!canPin ? "No DM'd campaign linked to this world" : undefined}
+                >
+                  <span className="lore-image-menu-icon">🖼</span>
+                  <span className="lore-image-menu-label">Pin to Scene</span>
+                </button>
+                <button
+                  type="button"
+                  className={`lore-image-menu-item${!canPin ? ' disabled' : ''}`}
+                  onClick={canPin ? chooseImageSubject : undefined}
+                  disabled={!canPin}
+                >
+                  <span className="lore-image-menu-icon">👤</span>
+                  <span className="lore-image-menu-label">Pin as Subject</span>
+                </button>
+              </div>
+            ) : null}
+            {imageMenu.mode === 'caption' ? (
+              <div className="lore-image-menu-pane">
+                <div className="lore-image-menu-paneLabel">Caption</div>
+                <textarea
+                  value={imageMenuDraftCaption}
+                  onChange={(e) => setImageMenuDraftCaption(e.target.value)}
+                  placeholder="What is shown? (optional)"
+                  className="lore-image-menu-input"
+                  autoFocus
+                  rows={3}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setImageMenu(null);
+                    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      void commitImageCaption();
+                    }
+                  }}
+                />
+                <div className="lore-image-menu-row">
+                  <button type="button" className="lore-image-menu-btn ghost"
+                    onClick={() => setImageMenu(null)}>
+                    Cancel
+                  </button>
+                  <button type="button" className="lore-image-menu-btn primary"
+                    onClick={commitImageCaption} disabled={imageMenuSaving}>
+                    {imageMenuSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {(imageMenu.mode === 'pin-scene' || imageMenu.mode === 'pin-subject')
+              && imageMenuDMCampaigns ? (
+              <div className="lore-image-menu-pane">
+                <div className="lore-image-menu-paneLabel">
+                  {imageMenu.mode === 'pin-scene' ? 'Pin as Scene in…' : 'Pin as Subject in…'}
+                </div>
+                <div className="lore-image-menu-list">
+                  {imageMenuDMCampaigns.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="lore-image-menu-item"
+                      onClick={() =>
+                        pinImageSlot(imageMenu.mode === 'pin-scene' ? 'scene' : 'subject', c.id)
+                      }
+                      disabled={imageMenuSaving}
+                    >
+                      <span className="lore-image-menu-label">{c.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="lore-image-menu-row">
+                  <button type="button" className="lore-image-menu-btn ghost"
+                    onClick={() => setImageMenu({ ...imageMenu, mode: 'root' })}>
+                    Back
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
+      {/* Pin-flow crop modal — mounts when the user picks a slot
+          and we need their crop. Confirmed crop uploads as a new
+          world_images record (caller decides; see commitPin) and
+          commits the pin. Cancel discards the pending pin. */}
+      {pendingPin ? (
+        <ImageCropModal
+          visible
+          imageUri={pendingPin.signedUrl}
+          aspect={pendingPin.aspect}
+          usageHint={
+            pendingPin.slot === 'scene'
+              ? 'Scene fills the campaign window pane background (16:9).'
+              : 'Subject overlays the top-right of the scene (9:16 portrait).'
+          }
+          onCancel={() => setPendingPin(null)}
+          onConfirm={handlePinCropConfirm}
+        />
+      ) : null}
     </View>
   );
 }
@@ -1623,6 +2112,112 @@ function CanvasStyles() {
             font-size: 15px;
             font-style: italic;
             pointer-events: none;
+          }
+          /* Image right-click menu — caption editor + pin actions.
+             Mirrors the Tiptap node-view menu styling so the look is
+             identical in both editors. */
+          .lore-image-menu {
+            position: absolute;
+            z-index: 50;
+            min-width: 220px;
+            background: ${colors.surfaceContainerHigh};
+            border: 1px solid ${colors.outlineVariant};
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            overflow: hidden;
+          }
+          .lore-image-menu-list {
+            display: flex;
+            flex-direction: column;
+            padding: 4px;
+          }
+          .lore-image-menu-sep {
+            height: 1px;
+            background: ${colors.outlineVariant}88;
+            margin: 4px 6px;
+          }
+          .lore-image-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border: none;
+            background: transparent;
+            color: ${colors.onSurface};
+            font-family: 'Manrope', system-ui, sans-serif;
+            font-size: 13px;
+            text-align: left;
+            cursor: pointer;
+            border-radius: 6px;
+          }
+          .lore-image-menu-item:not(.disabled):hover {
+            background: ${colors.surfaceContainer};
+          }
+          .lore-image-menu-item.disabled {
+            color: ${colors.outline};
+            cursor: not-allowed;
+          }
+          .lore-image-menu-icon { width: 18px; text-align: center; font-size: 14px; }
+          .lore-image-menu-label { flex: 1; }
+          .lore-image-menu-pane {
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 280px;
+          }
+          .lore-image-menu-paneLabel {
+            font-family: 'Manrope', system-ui, sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: ${colors.outline};
+          }
+          .lore-image-menu-input {
+            width: 100%;
+            box-sizing: border-box;
+            background: ${colors.surfaceContainer};
+            border: 1px solid ${colors.outlineVariant};
+            border-radius: 6px;
+            color: ${colors.onSurface};
+            padding: 8px 10px;
+            font-family: 'Manrope', system-ui, sans-serif;
+            font-size: 13px;
+            line-height: 1.4;
+            resize: vertical;
+            min-height: 56px;
+            outline: none;
+          }
+          .lore-image-menu-input:focus {
+            border-color: ${colors.primary};
+          }
+          .lore-image-menu-row {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+          }
+          .lore-image-menu-btn {
+            font-family: 'Manrope', system-ui, sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+          }
+          .lore-image-menu-btn.ghost {
+            background: transparent;
+            color: ${colors.onSurfaceVariant};
+            border-color: ${colors.outlineVariant};
+          }
+          .lore-image-menu-btn.primary {
+            background: ${colors.primary};
+            color: ${colors.onPrimary};
+          }
+          .lore-image-menu-btn.primary:disabled {
+            opacity: 0.6;
+            cursor: progress;
           }
           .lore-block {
             border: 1px solid transparent;

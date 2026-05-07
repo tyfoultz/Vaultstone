@@ -1,5 +1,12 @@
-import type { Json } from '@vaultstone/types';
+import type { Database, Json } from '@vaultstone/types';
 import { supabase } from './client';
+
+/**
+ * One row from the `worlds` table. Re-exported as a public type so
+ * UI consumers (worlds list, link-world picker) can type their state
+ * without reaching into the generated Database type directly.
+ */
+export type WorldRow = Database['public']['Tables']['worlds']['Row'];
 
 // Returns worlds the authenticated user can access (owned ∪ linked-campaign-member).
 // RLS handles the union — no userId needed.

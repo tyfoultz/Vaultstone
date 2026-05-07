@@ -278,6 +278,9 @@ const styles = StyleSheet.create({
     maxHeight: '90%',
   },
   panel: {
+    // Inherit the wrapper's height bound so the inner ScrollView
+    // can scroll when the import preview grows past the viewport.
+    flex: 1,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '33',
   },
