@@ -14,8 +14,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator,
+  View, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator, Platform,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import {
   supabase, getCampaignMembers, listCampaignPacks,
@@ -23,14 +24,17 @@ import {
   getWorldsForCampaign,
   getCampaignCharacterRules,
   resolveRuleValues,
+  removeCampaignMember,
+  uploadCampaignCover,
   type HomebrewPackRow,
 } from '@vaultstone/api';
 import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { CharacterCreationRulesModal } from './CharacterCreationRulesModal';
-import { useAuthStore } from '@vaultstone/store';
+import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import {
   colors, spacing, radius,
-  Card, ContentWidth, GhostButton, GradientButton, Icon, MetaLabel, ScreenHeader, Text,
+  Card, ContentWidth, GhostButton, GradientButton, Icon, ImageCropModal,
+  MetaLabel, ScreenHeader, Text,
 } from '@vaultstone/ui';
 import type { Database, Dnd5eStats } from '@vaultstone/types';
 import { CampaignWindowPane } from './CampaignWindowPane';
@@ -59,6 +63,12 @@ type Props = {
 export function CampaignPageV2({ campaignId }: Props) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  // Campaign-store updates mirror local edits to the page-level
+  // campaign state (cover URL change, leaving the campaign) so
+  // other surfaces (drawer list, home page) reflect them on next
+  // mount without a full refetch.
+  const updateCampaignInStore = useCampaignStore((s) => s.updateCampaign);
+  const removeCampaignFromStore = useCampaignStore((s) => s.removeCampaign);
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -88,6 +98,16 @@ export function CampaignPageV2({ campaignId }: Props) {
   const [endModalOpen, setEndModalOpen] = useState(false);
   const [startingSession, setStartingSession] = useState(false);
   const [endingSession, setEndingSession] = useState(false);
+  /** Cover-image picker / crop state. On native we let the picker
+   *  handle aspect-ratio cropping inline; on web the picker can't
+   *  crop, so we stash the URI and open ImageCropModal afterwards. */
+  const [cropUri, setCropUri] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  /** Leave-campaign confirmation — players only. Removing yourself
+   *  drops your campaign membership and routes back to the
+   *  campaigns list. */
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [loadingFlags, setLoadingFlags] = useState({ campaign: true, world: true, members: true, rules: true });
   // Bumped to refresh derived surfaces (window pane, party list) after
   // a write that affects them (e.g. clear scene, add member).
@@ -230,6 +250,56 @@ export function CampaignPageV2({ campaignId }: Props) {
     }
   }
 
+  async function uploadCover(uri: string, mime: string) {
+    if (!campaign) return;
+    setUploadingCover(true);
+    const { url } = await uploadCampaignCover(campaign.id, uri, mime);
+    setUploadingCover(false);
+    if (url) {
+      // Mirror the upload result into local + global campaign
+      // state so the hero re-renders without a refetch and other
+      // surfaces (drawer, home page) see the new cover too.
+      setCampaign((prev) => (prev ? { ...prev, cover_image_url: url } : prev));
+      updateCampaignInStore(campaign.id, { cover_image_url: url });
+    }
+  }
+
+  async function handlePickCover() {
+    if (!campaign) return;
+    const isWeb = Platform.OS === 'web';
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: !isWeb,
+      aspect: [16, 9],
+      quality: 0.5,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (isWeb) {
+      // Web's picker can't crop inline — stage the URI and let the
+      // ImageCropModal hand back a 16:9 result before upload.
+      setCropUri(asset.uri);
+    } else {
+      await uploadCover(asset.uri, asset.mimeType ?? 'image/jpeg');
+    }
+  }
+
+  async function handleCropConfirm(croppedUri: string) {
+    setCropUri(null);
+    await uploadCover(croppedUri, 'image/jpeg');
+  }
+
+  async function handleLeaveCampaign() {
+    if (!campaign || !user || leaving) return;
+    setLeaving(true);
+    const { error } = await removeCampaignMember(campaign.id, user.id);
+    setLeaving(false);
+    if (!error) {
+      removeCampaignFromStore(campaign.id);
+      router.replace('/(drawer)/campaigns' as Href);
+    }
+  }
+
   if (stillLoading || !campaign) {
     return (
       <View style={s.loadingContainer}>
@@ -256,6 +326,16 @@ export function CampaignPageV2({ campaignId }: Props) {
                 else router.replace('/(drawer)/campaigns' as Href);
               }}
             />
+            {/* Players (non-DM) can leave the campaign. The DM
+                doesn't get this affordance — leaving as DM means
+                deleting the campaign, which lives on the V1 page. */}
+            {!isDM && phase !== 'setup' ? (
+              <GhostButton
+                label="Leave"
+                icon="logout"
+                onPress={() => setLeaveConfirmOpen(true)}
+              />
+            ) : null}
             {/* V2 is opt-in via ?v=2 while we test parity. Provide a
                 jump back to V1 for any feature V2 hasn't ported yet. */}
             <GhostButton
@@ -266,8 +346,45 @@ export function CampaignPageV2({ campaignId }: Props) {
         }
       />
 
+      {/* Leave-campaign confirmation banner — players only. Mirrors
+          V1's delete banner pattern for visual consistency. Removing
+          your own membership is destructive enough to warrant a
+          two-step confirm rather than a popover. */}
+      {leaveConfirmOpen ? (
+        <View style={s.confirmBanner}>
+          <Icon name="warning" size={18} color={colors.hpDanger} />
+          <Text variant="body-sm" family="body" style={{ flex: 1, color: colors.onSurface }}>
+            Leave <Text weight="bold">{campaign.name}</Text>? Your character stays on your account
+            but you'll need a new join code to come back.
+          </Text>
+          <Pressable
+            onPress={() => setLeaveConfirmOpen(false)}
+            style={[s.bannerBtn, s.bannerCancel]}
+          >
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}>
+              Cancel
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={handleLeaveCampaign}
+            disabled={leaving}
+            style={[s.bannerBtn, s.bannerDanger]}
+          >
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: '#fff', letterSpacing: 1 }}>
+              {leaving ? 'Leaving…' : 'Leave'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <ContentWidth size="wide" style={s.body}>
-        <HeroStrip campaign={campaign} world={linkedWorld} />
+        <HeroStrip
+          campaign={campaign}
+          world={linkedWorld}
+          isDM={isDM}
+          onEditCover={handlePickCover}
+          uploading={uploadingCover}
+        />
 
         {phase === 'setup' ? (
           <SetupChecklist
@@ -390,6 +507,19 @@ export function CampaignPageV2({ campaignId }: Props) {
         />
       ) : null}
 
+      {/* Web-only crop step. Native picker handles aspect-ratio
+          cropping inline, so we only mount this when cropUri is
+          set (always web). Confirm uploads the cropped jpeg. */}
+      {cropUri ? (
+        <ImageCropModal
+          visible
+          imageUri={cropUri}
+          aspect={[16, 9]}
+          onCancel={() => setCropUri(null)}
+          onConfirm={handleCropConfirm}
+        />
+      ) : null}
+
       {/* DM-only start/end session modals. Always mounted (visible
           flag controls render) so any in-flight state survives a
           stray remount. */}
@@ -425,18 +555,58 @@ function phaseLabel(phase: Phase, isDM: boolean): string {
 function HeroStrip({
   campaign,
   world,
+  isDM,
+  onEditCover,
+  uploading,
 }: {
   campaign: Campaign;
   world: { id: string; name: string } | null;
+  isDM: boolean;
+  /** When set, tapping the cover (or the edit pill on it) opens
+   *  the OS image picker. DM-only — players see the cover as
+   *  read-only chrome. */
+  onEditCover: () => void;
+  uploading: boolean;
 }) {
+  // Wrap the cover in a Pressable for the DM so the whole image
+  // surface is the affordance; players see a static <View>. The
+  // edit pill on top reinforces interactability for the DM
+  // without competing with the press target.
+  const coverInner = campaign.cover_image_url ? (
+    <Image source={{ uri: campaign.cover_image_url }} style={s.heroCover} />
+  ) : (
+    <View style={[s.heroCover, s.heroCoverPlaceholder]}>
+      <Icon name="image" size={28} color={colors.outline} />
+      {isDM ? (
+        <Text variant="label-sm" family="body" style={{ color: colors.outline, marginTop: 6 }}>
+          Tap to add a cover image
+        </Text>
+      ) : null}
+    </View>
+  );
+
   return (
     <Card tier="container" padding="md" style={s.heroCard}>
-      {campaign.cover_image_url ? (
-        <Image source={{ uri: campaign.cover_image_url }} style={s.heroCover} />
+      {isDM ? (
+        <Pressable
+          onPress={onEditCover}
+          disabled={uploading}
+          style={({ pressed }) => [pressed && { opacity: 0.85 }]}
+        >
+          {coverInner}
+          <View style={s.heroCoverEdit}>
+            <Icon
+              name={uploading ? 'cloud-upload' : 'edit'}
+              size={14}
+              color={colors.onSurface}
+            />
+            <Text variant="label-sm" family="body" weight="semibold" style={{ color: colors.onSurface }}>
+              {uploading ? 'Uploading…' : 'Edit cover'}
+            </Text>
+          </View>
+        </Pressable>
       ) : (
-        <View style={[s.heroCover, s.heroCoverPlaceholder]}>
-          <Icon name="image" size={28} color={colors.outline} />
-        </View>
+        coverInner
       )}
       <View style={s.heroBody}>
         <Text variant="title-lg" family="headline" weight="bold" style={{ color: colors.onSurface }}>
@@ -901,6 +1071,53 @@ const s = StyleSheet.create({
   heroCoverPlaceholder: {
     backgroundColor: colors.surfaceContainer,
     alignItems: 'center', justifyContent: 'center',
+  },
+  /** "Edit cover" pill anchored over the cover image's top-right.
+   *  Visible only to the DM since the whole cover is the press
+   *  target; the pill is the visual cue that the area is tappable. */
+  heroCoverEdit: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHigh + 'CC',
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '88',
+  },
+
+  /** Two-step confirmation banner. Mirrors V1's delete confirm
+   *  shape — destructive intent reads as a clear, full-width call
+   *  to action rather than a tooltip. */
+  confirmBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.hpDanger + '44',
+  },
+  bannerBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+  },
+  bannerCancel: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '88',
+  },
+  bannerDanger: {
+    backgroundColor: colors.hpDanger,
   },
   heroBody: {
     padding: spacing.md,
