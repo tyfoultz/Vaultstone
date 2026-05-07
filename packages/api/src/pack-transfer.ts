@@ -177,14 +177,30 @@ export async function importHomebrewPack(args: {
 
   let importedCount = 0;
   if (file.importedEntries.length > 0) {
+    // Defensive dedupe — older export files (built before the
+    // listImportedContent pagination tiebreaker fix) can carry the
+    // same row twice if the source pack had hundreds of rows sharing
+    // an `imported_at` timestamp. The unique index on
+    // `(pack_id, source_label, entry_key)` would reject the second
+    // copy and bail the whole import. Collapse duplicates client-side
+    // so an old file still imports cleanly; the kept row is the first
+    // occurrence (stable order from the export).
+    const seen = new Set<string>();
+    const deduped = file.importedEntries.filter((e) => {
+      const key = `${e.source_label}␟${e.entry_key}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
     // Re-stamp pack_id + user_id so the rows land under the recipient.
     // Chunk inserts so a single overweight pack (full PHB ≈ 1500+ rows)
     // doesn't blow the request body limit. PostgREST defaults at ~50MB
     // request, but most edges cap lower; 500 rows per chunk keeps each
     // request comfortably under any realistic ceiling.
     const CHUNK = 500;
-    for (let i = 0; i < file.importedEntries.length; i += CHUNK) {
-      const slice = file.importedEntries.slice(i, i + CHUNK);
+    for (let i = 0; i < deduped.length; i += CHUNK) {
+      const slice = deduped.slice(i, i + CHUNK);
       const rows: ImportedContentInsert[] = slice.map((e) => ({
         pack_id: pack.id,
         user_id: userId,
