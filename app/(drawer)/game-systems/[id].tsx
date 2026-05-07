@@ -2752,16 +2752,17 @@ function featFingerprint(f: FeatResult): string {
  *  column cell and the Kind facet chip — keep them in lockstep so the
  *  filter chip and the row text never disagree. */
 const OPTIONAL_FEATURE_KIND_LABELS: Record<OptionalFeatureKind, string> = {
-  invocation:             'Invocation',
-  metamagic:              'Metamagic',
-  maneuver:               'Maneuver',
-  'fighting-style':       'Fighting Style',
-  'pact-boon':            'Pact Boon',
-  'artificer-infusion':   'Artificer Infusion',
-  'arcane-shot':          'Arcane Shot',
-  'elemental-discipline': 'Elemental Discipline',
-  rune:                   'Rune',
-  other:                  'Other',
+  invocation:               'Invocation',
+  metamagic:                'Metamagic',
+  maneuver:                 'Maneuver',
+  'fighting-style':         'Fighting Style',
+  'pact-boon':              'Pact Boon',
+  'artificer-infusion':     'Artificer Infusion',
+  'arcane-shot':            'Arcane Shot',
+  'elemental-discipline':   'Elemental Discipline',
+  rune:                     'Rune',
+  'class-feature-variant':  'Class Feature Variant',
+  other:                    'Other',
 };
 
 function formatOptionalFeatureKinds(kinds: OptionalFeatureKind[] | undefined): string {

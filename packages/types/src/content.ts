@@ -274,6 +274,13 @@ export interface OptionalFeatureResult extends ContentResult {
  * character creation or levelling. Codes outside this list (`O`,
  * `RP`, `RN`, `AS`, `ED`, etc.) collapse into 'other' so the catalog
  * still surfaces them without proliferating buckets.
+ *
+ * `class-feature-variant` is the Tasha's-style "Optional Class
+ * Features" concept — a variant that *replaces or augments* a base
+ * class feature, distinct from the picks-within-a-feature kinds
+ * above. Variants carry `data.replacesFeature` and `data.targetClassKey`
+ * + `data.targetLevel` so the wizard can splice them into the right
+ * spot when the campaign rule `optional_class_features` is enabled.
  */
 export type OptionalFeatureKind =
   | 'invocation'        // EI — Warlock Eldritch Invocation
@@ -285,6 +292,7 @@ export type OptionalFeatureKind =
   | 'arcane-shot'       // AS — Arcane Archer Arcane Shot
   | 'elemental-discipline' // ED — Way of Four Elements monk discipline
   | 'rune'              // RN — Rune Knight rune
+  | 'class-feature-variant' // Tasha's-style alternate to a base class feature
   | 'other';
 
 export interface RuleResult extends ContentResult {

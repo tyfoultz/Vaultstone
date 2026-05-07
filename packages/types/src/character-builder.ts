@@ -119,46 +119,6 @@ export interface MulticlassPrereq {
 
 export type MulticlassPrereqTable = Record<string, MulticlassPrereq[]>;
 
-// ── Optional class features ──────────────────────────────────────────────
-
-/**
- * A class feature variant — a Tasha's-style alternate that replaces
- * or augments a base class feature when the campaign rule
- * `optional_class_features` is enabled. Distinct from
- * `ClassResult.features[]` (which is the always-on base list); this
- * shape lives separately so the wizard can render two columns
- * (base + optional) and apply the campaign-rule filter cleanly.
- *
- * The 5.1 + 5.2 SRDs do not ship Tasha's content, so this catalog
- * lands empty for bundled systems. Pack authors populate it via the
- * homebrew authoring form. Schema is stable so future SRD updates
- * (or licensed pack imports) can drop in without re-shaping.
- */
-export interface OptionalClassFeature {
-  /** Stable key — slug form, edition-suffixed. */
-  key: string;
-  /** The class this variant belongs to (matches `ClassResult.key`). */
-  classKey: string;
-  /** Class level at which the variant is available. */
-  level: number;
-  /** Display name shown in the picker. */
-  name: string;
-  /** Prose description. */
-  description: string;
-  /**
-   * The base feature this variant replaces, by name. Empty when the
-   * variant is purely additive (most fighting-style alternates).
-   * Renderers strike-through the replaced base feature when present.
-   */
-  replaces?: string;
-  /**
-   * Provenance label shown in the picker — "Tasha's Cauldron of
-   * Everything", "Homebrew", etc. Free-form so pack authors can
-   * label their own collections.
-   */
-  source?: string;
-}
-
 // ── Species origin swap rules ────────────────────────────────────────────
 
 /**
