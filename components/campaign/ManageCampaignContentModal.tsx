@@ -321,12 +321,19 @@ export function ManageCampaignContentModal({
 const s = StyleSheet.create({
   backdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center', padding: spacing.lg,
+    // Center the panel horizontally on wide viewports so the modal
+    // doesn't stretch to viewport-edge on desktop.
+    justifyContent: 'center', alignItems: 'center', padding: spacing.lg,
   },
   card: {
     backgroundColor: colors.surface, borderRadius: 16,
     borderWidth: 1, borderColor: colors.border,
     maxHeight: '90%',
+    // Width cap matches the rest of our modals (rules editor, link
+    // world). Mobile viewports take the full width via 100% before
+    // the cap kicks in.
+    width: '100%',
+    maxWidth: 640,
   },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

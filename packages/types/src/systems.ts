@@ -74,6 +74,22 @@ export interface OptionalRule {
   max?: number;
   /** Optional when type === 'number'. Increment step (default 1). */
   step?: number;
+  /**
+   * Optional parent rule key. When set, this rule renders as a sub-
+   * item under its parent's row (indented + visually grouped) and is
+   * hidden when the parent's value matches `parentHiddenWhen`. Used
+   * for rules that only make sense in the context of another rule
+   * (e.g. "Ignore Coin Weight" is irrelevant when Encumbrance is
+   * Disabled). The bag still stores both keys independently — the
+   * parent relationship is purely a presentation hint.
+   */
+  parentKey?: string;
+  /**
+   * When the parent's value equals (or is included in) this, the
+   * sub-rule is hidden. Single-value compare for boolean parents;
+   * array for choice parents (e.g. hide when 'disabled' is chosen).
+   */
+  parentHiddenWhen?: boolean | string | Array<boolean | string>;
 }
 
 export interface SheetSection {

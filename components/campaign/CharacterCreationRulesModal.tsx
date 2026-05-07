@@ -74,8 +74,14 @@ export function CharacterCreationRulesModal({ campaignId, system, onClose, onSav
     <Modal transparent visible animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable onPress={(e) => e.stopPropagation()} style={styles.panelWrapper}>
-          <Card tier="container" padding="lg" style={styles.panel}>
-            <ScrollView>
+          <Card tier="container" padding="sm" style={styles.panel}>
+            {/* Padding pushed onto the scroll content so we can
+                reserve a wider right inset for the scrollbar lane.
+                Without this the toggle / chip controls in the right
+                column get clipped behind the scrollbar on web. The
+                Card's own padding is reduced to 'sm' (the smallest
+                valid step) since the scroll content owns the rest. */}
+            <ScrollView contentContainerStyle={styles.scrollBody}>
               <View style={styles.header}>
                 <View style={{ flex: 1 }}>
                   <MetaLabel size="sm" tone="accent">{system.displayName}</MetaLabel>
@@ -150,6 +156,11 @@ function RuleGroup({
   draft: CharacterCreationRuleValues;
   onChange: (key: string, value: boolean | string | number) => void;
 }) {
+  // Walk the rules in declared order. A rule with `parentKey` set
+  // hides when its parent's value matches `parentHiddenWhen`, and
+  // renders indented when shown. The parent-relationship metadata
+  // lives on the rule definition, so adding more grouped rules
+  // doesn't require modal changes.
   return (
     <View style={styles.group}>
       <View style={{ marginBottom: spacing.sm }}>
@@ -160,16 +171,44 @@ function RuleGroup({
           {caption}
         </Text>
       </View>
-      {rules.map((rule) => (
-        <RuleRow
-          key={rule.key}
-          rule={rule}
-          value={draft[rule.key] ?? rule.default}
-          onChange={(v) => onChange(rule.key, v)}
-        />
-      ))}
+      {rules.map((rule) => {
+        // Sub-rules hide entirely when their parent is in a state
+        // that makes them irrelevant (e.g. coin weight when
+        // encumbrance is Disabled). When shown, they render with
+        // the same chrome as any other row.
+        if (rule.parentKey) {
+          const parentValue = draft[rule.parentKey];
+          if (isHiddenByParent(parentValue, rule.parentHiddenWhen)) return null;
+        }
+        return (
+          <RuleRow
+            key={rule.key}
+            rule={rule}
+            value={draft[rule.key] ?? rule.default}
+            onChange={(v) => onChange(rule.key, v)}
+          />
+        );
+      })}
     </View>
   );
+}
+
+/**
+ * Decide whether a sub-rule should be hidden given the parent's
+ * current value. Single-value or array `parentHiddenWhen` both
+ * supported. Undefined hides nothing — the sub-rule shows whenever
+ * its parent has any value.
+ */
+function isHiddenByParent(
+  parentValue: boolean | string | number | undefined,
+  hiddenWhen: OptionalRule['parentHiddenWhen'],
+): boolean {
+  if (hiddenWhen === undefined) return false;
+  if (parentValue === undefined) return false;
+  if (Array.isArray(hiddenWhen)) {
+    return hiddenWhen.some((v) => v === parentValue);
+  }
+  return hiddenWhen === parentValue;
 }
 
 function RuleRow({
@@ -179,8 +218,16 @@ function RuleRow({
   value: boolean | string | number;
   onChange: (value: boolean | string | number) => void;
 }) {
+  // Stack vs. side-by-side layout. Booleans (a tiny toggle) and
+  // numbers (a compact stepper) sit beside the label column. Choice
+  // rules can have wide chip rows ("Disabled (single-class only)")
+  // that crowd the description into a too-narrow column when laid
+  // out horizontally; render them stacked instead so the chips get
+  // the full row width and the description column doesn't wrap one
+  // word per line.
+  const stack = rule.type === 'choice';
   return (
-    <View style={styles.ruleRow}>
+    <View style={[styles.ruleRow, stack && styles.ruleRowStacked]}>
       <View style={{ flex: 1 }}>
         <Text variant="body-md" family="body" weight="semibold" style={{ color: colors.onSurface }}>
           {rule.label}
@@ -189,7 +236,7 @@ function RuleRow({
           {rule.description}
         </Text>
       </View>
-      <View style={styles.ruleControl}>
+      <View style={[styles.ruleControl, stack && styles.ruleControlStacked]}>
         {rule.type === 'boolean' ? (
           <BooleanToggle value={!!value} onChange={onChange} />
         ) : null}
@@ -248,10 +295,10 @@ function ChoicePicker({
             ]}
           >
             <Text
-              variant="label-sm"
+              variant="body-sm"
               family="body"
-              weight={active ? 'bold' : 'medium'}
-              style={{ color: active ? colors.onPrimaryContainer : colors.onSurfaceVariant }}
+              weight={active ? 'bold' : 'semibold'}
+              style={{ color: active ? colors.onPrimary : colors.onSurface }}
             >
               {c.label}
             </Text>
@@ -319,12 +366,27 @@ const styles = StyleSheet.create({
   },
   panelWrapper: {
     width: '100%',
-    maxWidth: 640,
+    maxWidth: 720,
     maxHeight: '90%',
   },
   panel: {
+    // Inherit the wrapper's height bound so the inner ScrollView
+    // gets a finite container to scroll within. Without this the
+    // Card grows to its content's natural height and overflows the
+    // wrapper, leaving no room (and no scroll affordance) for tall
+    // rules editors.
+    flex: 1,
     borderWidth: 1,
     borderColor: colors.outlineVariant + '33',
+  },
+  scrollBody: {
+    // Outer padding the Card used to provide; right padding is
+    // bumped to spacing.xl + extra so the web scrollbar has a
+    // dedicated lane that doesn't overlap the rule controls.
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.lg + 12,
   },
   header: {
     flexDirection: 'row',
@@ -353,9 +415,24 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.outlineVariant + '33',
   },
+  /** Stacked variant — label/description on top, control row below
+   *  full-width. Used when the control would crowd the label column
+   *  (multi-chip choice pickers). */
+  ruleRowStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: spacing.sm,
+  },
   ruleControl: {
     minWidth: 200,
     alignItems: 'flex-end',
+  },
+  /** Stacked control fills the row width and centers chips so
+   *  they read as a single grouped option strip rather than
+   *  hugging an edge. */
+  ruleControlStacked: {
+    minWidth: 0,
+    alignItems: 'center',
   },
   toggle: {
     width: 44,
@@ -383,21 +460,29 @@ const styles = StyleSheet.create({
   },
   chipRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 6,
-    justifyContent: 'flex-end',
+    // Centered chip strip on a single line — reads as a single
+    // grouped option selector. Long labels are kept short at the
+    // rule-definition layer (the rule's description handles the
+    // detail) so the strip never needs to wrap.
+    justifyContent: 'center',
   },
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    // Larger tap target + stronger surface contrast so the chips
+    // read as buttons rather than text labels. Inactive chips sit
+    // on `surfaceContainerHigh` (one tier above the modal panel),
+    // active chips fill with the primary color so the selection is
+    // unambiguous at a glance.
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: radius.full,
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1,
-    borderColor: colors.outlineVariant + '44',
+    borderColor: colors.outlineVariant + '88',
   },
   chipActive: {
-    backgroundColor: colors.primaryContainer + '55',
-    borderColor: colors.primary + '88',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   stepperRow: {
     flexDirection: 'row',

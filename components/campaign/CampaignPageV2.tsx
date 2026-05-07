@@ -30,10 +30,12 @@ import { CharacterCreationRulesModal } from './CharacterCreationRulesModal';
 import { useAuthStore } from '@vaultstone/store';
 import {
   colors, spacing, radius,
-  Card, GhostButton, GradientButton, Icon, MetaLabel, ScreenHeader, Text,
+  Card, ContentWidth, GhostButton, GradientButton, Icon, MetaLabel, ScreenHeader, Text,
 } from '@vaultstone/ui';
 import type { Database, Dnd5eStats } from '@vaultstone/types';
 import { CampaignWindowPane } from './CampaignWindowPane';
+import { LinkWorldModal } from './LinkWorldModal';
+import { ManageCampaignContentModal } from './ManageCampaignContentModal';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type Member = {
@@ -67,6 +69,12 @@ export function CampaignPageV2({ campaignId }: Props) {
    *  rule key. */
   const [rulesSet, setRulesSet] = useState(false);
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
+  const [worldModalOpen, setWorldModalOpen] = useState(false);
+  /** Manage Content modal — handles both system swap and pack
+   *  attach/enable in a single surface (mirrors V1's flow). Opened
+   *  by the System and Content packs checklist rows + the
+   *  references row's pack CTA. */
+  const [contentModalOpen, setContentModalOpen] = useState(false);
   const [loadingFlags, setLoadingFlags] = useState({ campaign: true, world: true, members: true, rules: true });
   // Bumped to refresh derived surfaces (window pane, party list) after
   // a write that affects them (e.g. clear scene, add member).
@@ -207,17 +215,23 @@ export function CampaignPageV2({ campaignId }: Props) {
         }
       />
 
-      <View style={s.body}>
+      <ContentWidth size="wide" style={s.body}>
         <HeroStrip campaign={campaign} world={linkedWorld} />
 
         {phase === 'setup' ? (
           <SetupChecklist
             isDM={isDM}
+            systemDisplayName={
+              campaign.system_label
+                || BUNDLED_SYSTEMS_BY_ID[campaign.system]?.displayName
+                || campaign.system
+            }
             world={linkedWorld}
             packCount={packs.length}
             rulesSet={rulesSet}
-            campaignId={campaign.id}
             onConfigureRules={() => setRulesModalOpen(true)}
+            onChooseWorld={() => setWorldModalOpen(true)}
+            onManageContent={() => setContentModalOpen(true)}
           />
         ) : null}
 
@@ -253,10 +267,11 @@ export function CampaignPageV2({ campaignId }: Props) {
               packs={packs}
               rulesSet={rulesSet}
               onConfigureRules={() => setRulesModalOpen(true)}
+              onManageContent={() => setContentModalOpen(true)}
             />
           </>
         ) : null}
-      </View>
+      </ContentWidth>
 
       {/* DM-only rules editor. Mounted at the page level so both
           the setup checklist and the references row can open it
@@ -274,6 +289,34 @@ export function CampaignPageV2({ campaignId }: Props) {
           />
         );
       })() : null}
+
+      {/* DM-only world picker. Lets the DM either link an existing
+          world or create + link a new one in a single round-trip.
+          Refresh tick bump propagates to the linked-world reader so
+          the checklist flips to ✓ on save. */}
+      {isDM && worldModalOpen ? (
+        <LinkWorldModal
+          campaignId={campaign.id}
+          currentWorld={linkedWorld}
+          onClose={() => setWorldModalOpen(false)}
+          onLinked={() => setRefreshTick((n) => n + 1)}
+        />
+      ) : null}
+
+      {/* DM-only content manager — system swap + pack toggles in a
+          single surface. Opened by the Game system / Content packs
+          checklist rows and the references row's pack CTA. The
+          modal owns its own visibility prop, so we always mount it
+          (it no-ops while invisible) for cleaner state handling. */}
+      {isDM ? (
+        <ManageCampaignContentModal
+          visible={contentModalOpen}
+          campaignId={campaign.id}
+          currentSystem={campaign.system}
+          onClose={() => setContentModalOpen(false)}
+          onChanged={() => setRefreshTick((n) => n + 1)}
+        />
+      ) : null}
     </ScrollView>
   );
 }
@@ -329,20 +372,30 @@ function HeroStrip({
 
 function SetupChecklist({
   isDM,
+  systemDisplayName,
   world,
   packCount,
   rulesSet,
-  campaignId,
   onConfigureRules,
+  onChooseWorld,
+  onManageContent,
 }: {
   isDM: boolean;
+  /** Display name of the campaign's current system. Always set —
+   *  campaigns are created with a default system that the DM can
+   *  swap from the system row's CTA. */
+  systemDisplayName: string;
   world: { id: string; name: string } | null;
   packCount: number;
   rulesSet: boolean;
-  campaignId: string;
   onConfigureRules: () => void;
+  onChooseWorld: () => void;
+  /** Opens the manage-content modal which handles both system swap
+   *  and pack attach/enable. The same modal serves both checklist
+   *  rows; we route through it so the DM doesn't get bounced
+   *  between two surfaces. */
+  onManageContent: () => void;
 }) {
-  const router = useRouter();
   if (!isDM) {
     return (
       <Card tier="container" padding="md">
@@ -367,12 +420,24 @@ function SetupChecklist({
         </Text>
       </View>
 
+      {/* System row is always "done" — campaigns are created with a
+          default system. The DM swaps via the manage-content modal,
+          which gates the swap once any character exists on the
+          campaign. The check is intrinsic state, not a gate the DM
+          has to pass; it's a confirmation breadcrumb. */}
+      <ChecklistItem
+        done
+        title="Game system"
+        body={`Using ${systemDisplayName}. Swap before any characters are created.`}
+        cta="Change system"
+        onPress={onManageContent}
+      />
       <ChecklistItem
         done={!!world}
         title="Link a world"
         body={world ? `Linked to ${world.name}.` : 'Pick or create the world this campaign is set in.'}
         cta={world ? 'Manage' : 'Choose world'}
-        onPress={() => router.push('/(drawer)/worlds' as Href)}
+        onPress={onChooseWorld}
       />
       <ChecklistItem
         done={packCount > 0}
@@ -384,7 +449,7 @@ function SetupChecklist({
             : 'Optional — SRD content is always available without a pack.'
         }
         cta={packCount > 0 ? 'Manage packs' : 'Add packs'}
-        onPress={() => router.push(`/campaign/${campaignId}` as Href)}
+        onPress={onManageContent}
       />
       <ChecklistItem
         done={rulesSet}
@@ -650,11 +715,13 @@ function ReferencesCard({
   packs,
   rulesSet,
   onConfigureRules,
+  onManageContent,
 }: {
   world: { id: string; name: string } | null;
   packs: HomebrewPackRow[];
   rulesSet: boolean;
   onConfigureRules: () => void;
+  onManageContent: () => void;
 }) {
   const router = useRouter();
   return (
@@ -673,10 +740,7 @@ function ReferencesCard({
             ? `${packs.length} attached`
             : 'SRD only'}
           ctaIcon="folder-open"
-          onPress={() => {
-            // V1 hosts CampaignPacksCard; until V2 has its own,
-            // surface the list inline on the V1 page.
-          }}
+          onPress={onManageContent}
         />
         <ReferenceRow
           label="Character rules"

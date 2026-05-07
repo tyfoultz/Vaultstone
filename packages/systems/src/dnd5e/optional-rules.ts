@@ -56,13 +56,21 @@ export const optionalRules: OptionalRule[] = [
     default: true,
   },
   {
-    key: 'enforce_multiclass_prerequisites',
-    label: 'Enforce Multiclass Prerequisites',
+    key: 'multiclassing',
+    label: 'Multiclassing',
     description:
-      "Require the published ability score minimums when a character takes a level in a new class (e.g. Strength 13 to multiclass into Fighter). Disable for the more permissive 2014 variant rule.",
+      "Whether players can take levels in more than one class. Enforced (default) requires the published ability score minimums (e.g. Strength 13 to multiclass into Fighter). Relaxed allows multiclassing but waives the prereqs — the more permissive 2014 variant. Disabled removes multiclassing entirely; characters stay single-class.",
     scope: 'campaign',
-    type: 'boolean',
-    default: true,
+    type: 'choice',
+    default: 'enforced',
+    choices: [
+      // "Allowed" prefix on the on-states groups them visually as
+      // sub-modes of "multiclassing is on" while Disabled stands
+      // alone. Description above explains what each variant does.
+      { key: 'enforced', label: 'Allowed - Enforced' },
+      { key: 'relaxed',  label: 'Allowed - Relaxed' },
+      { key: 'disabled', label: 'Disabled' },
+    ],
   },
   {
     key: 'advancement_type',
@@ -92,28 +100,24 @@ export const optionalRules: OptionalRule[] = [
     ],
   },
   {
-    key: 'feats_at_level_1',
-    label: 'Feats at Level 1',
-    description:
-      'Grant every character a feat at first level in addition to their class features. Standard in the 2024 rules (each background grants a starting feat); a common house rule in 2014 campaigns.',
-    scope: 'campaign',
-    type: 'boolean',
-    default: true,
-  },
-  {
-    key: 'flanking',
-    label: 'Flanking',
-    description:
-      'Optional combat rule from the DMG: a creature flanked by two enemies grants Advantage on melee attacks against it. Off by default — flanking interacts in surprising ways with the rogue\'s Sneak Attack.',
-    scope: 'campaign',
-    type: 'boolean',
-    default: false,
-  },
-  {
     key: 'ignore_coin_weight',
     label: 'Ignore Coin Weight',
     description:
       'Coins do not count toward the carrying-capacity total (50 coins weigh 1 lb. by default). On for most modern campaigns since coin weight is rarely worth the bookkeeping.',
+    scope: 'campaign',
+    type: 'boolean',
+    default: true,
+    // Sub-item of Encumbrance — hidden entirely when encumbrance
+    // is disabled (no point caring about coin weight if there's no
+    // carrying-capacity tracking to begin with).
+    parentKey: 'encumbrance',
+    parentHiddenWhen: 'disabled',
+  },
+  {
+    key: 'feats_at_level_1',
+    label: 'Feats at Level 1',
+    description:
+      'Grant every character a feat at first level in addition to their class features. Standard in the 2024 rules (each background grants a starting feat); a common house rule in 2014 campaigns.',
     scope: 'campaign',
     type: 'boolean',
     default: true,
