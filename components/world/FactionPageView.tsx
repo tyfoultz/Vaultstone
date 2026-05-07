@@ -35,6 +35,7 @@ import {
   fonts,
   radius,
   spacing,
+  useBreakpoint,
 } from '@vaultstone/ui';
 
 import { EditLockBanner } from './EditLockBanner';
@@ -390,6 +391,8 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
   const [editingPill, setEditingPill] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [addingRelationship, setAddingRelationship] = useState(false);
+  const { isMobile } = useBreakpoint();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const section = useMemo(() => sections.find((s) => s.id === page.section_id) ?? null, [sections, page]);
   const fields = (page.structured_fields as Record<string, unknown>) ?? {};
@@ -569,6 +572,159 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
 
   const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved · just now' : saveState === 'error' ? 'Save failed' : '';
 
+  const renderPills = () => (
+    <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingBottom: spacing.xs }}>
+      {propertyPills.map((pill) => (
+        <div key={pill.key} style={{ position: 'relative' }}>
+          <Pressable onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)} style={[styles.pill, pill.color ? { borderColor: pill.color + '44' } : undefined, !pill.value && styles.pillEmpty]}>
+            {pill.icon ? <Icon name={pill.icon as React.ComponentProps<typeof Icon>['name']} size={12} color={pill.color ?? colors.outline} /> : null}
+            <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>{pill.label}</Text>
+            {pill.value ? <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>{pill.fieldType === 'text' ? pill.value : pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}</Text> : null}
+          </Pressable>
+          {editingPill === pill.key ? <PillEditor pill={pill} onSelect={(v) => { updateField(pill.key, v); setEditingPill(null); }} onClose={() => setEditingPill(null)} /> : null}
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderSidebarBody = () => (
+    <>
+      <View style={sideStyles.rightTabs}>
+        <RightTabBtn label="On This Page" active={rightTab === 'on_this_page'} onPress={() => setRightTab('on_this_page')} />
+        <RightTabBtn label="Sub-pages" active={rightTab === 'sub_pages'} onPress={() => setRightTab('sub_pages')} />
+      </View>
+
+      <ScrollView contentContainerStyle={sideStyles.rightBody}>
+        {rightTab === 'on_this_page' ? (
+          <>
+            {/* Members */}
+            <CollapsibleSideSection icon="person" title="MEMBERS" count={members.length || undefined}>
+              {members.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No NPCs have this faction assigned yet.</Text>
+              ) : (
+                members
+                  .sort((a, b) => (a.id === leaderId ? -1 : b.id === leaderId ? 1 : 0))
+                  .map((npc) => (
+                    <Pressable key={npc.id} onPress={() => router.push(worldPageHref(worldId, npc.id))} style={sideStyles.mentionRow}>
+                      <View style={[sideStyles.mentionDot, { backgroundColor: colors.hpDanger }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{npc.title}</Text>
+                        <Text style={sideStyles.mentionMeta}>{npc.id === leaderId ? 'LEADER' : 'NPC'}</Text>
+                      </View>
+                      <Icon name="chevron-right" size={12} color={colors.outline} />
+                    </Pressable>
+                  ))
+              )}
+            </CollapsibleSideSection>
+
+            {/* Mentioned on this page */}
+            <CollapsibleSideSection icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined}>
+              {mentionedPages.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
+              ) : mentionedPages.map((mp) => {
+                const mi = MENTION_ICON[mp.page_kind] ?? MENTION_ICON.custom;
+                return (
+                  <Pressable key={mp.id} onPress={() => router.push(worldPageHref(worldId, mp.id))} style={sideStyles.mentionRow}>
+                    <View style={[sideStyles.mentionDot, { backgroundColor: mi.color }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{mp.title}</Text>
+                      <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[mp.page_kind] ?? 'Page').toUpperCase()}</Text>
+                    </View>
+                    <Icon name="chevron-right" size={12} color={colors.outline} />
+                  </Pressable>
+                );
+              })}
+            </CollapsibleSideSection>
+
+            {/* Linked from */}
+            <CollapsibleSideSection icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined}>
+              {backlinksLoaded && backlinks.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
+              ) : backlinks.map((bl) => (
+                <Pressable key={bl.id} onPress={() => router.push(worldPageHref(worldId, bl.id))} style={sideStyles.mentionRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{bl.title}</Text>
+                    <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[bl.page_kind] ?? 'Page').toUpperCase()}</Text>
+                  </View>
+                  <Icon name="chevron-right" size={12} color={colors.outline} />
+                </Pressable>
+              ))}
+            </CollapsibleSideSection>
+
+            {/* Seen in play */}
+            <CollapsibleSideSection icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined}>
+              {seenLoaded && seenInPlay.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
+              ) : seenInPlay.slice(0, 5).map((evt) => {
+                const ago = formatRelativeTime(evt.created_at);
+                const snippet = (evt.body_text ?? '').slice(0, 80);
+                return (
+                  <View key={evt.id} style={sideStyles.seenRow}>
+                    <View style={sideStyles.seenHeader}><View style={sideStyles.seenBadge}><Text style={sideStyles.seenBadgeText}>{evt.source_session_id ? 'S' : 'E'}</Text></View><Text style={sideStyles.seenAgo}>{ago}</Text></View>
+                    <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>{evt.title}</Text>
+                    {snippet ? <Text variant="body-sm" numberOfLines={2} style={{ color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 }}>"{snippet}{(evt.body_text ?? '').length > 80 ? '…' : ''}"</Text> : null}
+                  </View>
+                );
+              })}
+            </CollapsibleSideSection>
+
+            {/* Rivals & Allies */}
+            <CollapsibleSideSection icon="people" title="RIVALS & ALLIES" count={relationships.length || undefined}>
+              {relationships.map((rel, i) => {
+                const target = (allPages ?? []).find((p) => p.id === rel.targetPageId);
+                if (!target) return null;
+                const isNpc = target.page_kind === 'npc';
+                return (
+                  <View key={`${rel.targetPageId}-${i}`} style={styles.relRow}>
+                    <Pressable onPress={() => router.push(worldPageHref(worldId, rel.targetPageId))} style={styles.relLink}>
+                      <View style={[sideStyles.mentionDot, { backgroundColor: isNpc ? colors.cosmic : colors.hpWarning }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{target.title}</Text>
+                        <Text style={sideStyles.mentionMeta}>{rel.type.toUpperCase()}{rel.note ? ` · ${rel.note}` : ''}</Text>
+                      </View>
+                      <Icon name="chevron-right" size={12} color={colors.outline} />
+                    </Pressable>
+                    <Pressable onPress={() => updateField('__relationships', relationships.filter((_, j) => j !== i))} style={{ padding: 4 }}>
+                      <Icon name="close" size={12} color={colors.outline} />
+                    </Pressable>
+                  </View>
+                );
+              })}
+              <Pressable onPress={() => setAddingRelationship(true)} style={styles.addRelBtn}>
+                <Icon name="add" size={14} color={colors.outline} />
+                <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add relationship</Text>
+              </Pressable>
+            </CollapsibleSideSection>
+
+            {/* Hooks & Rumors */}
+            <CollapsibleSideSection icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined}>
+              {hooks.map((hook, i) => (
+                <View key={i} style={sideStyles.hookRow}>
+                  <Text style={sideStyles.hookBullet}>•</Text>
+                  <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{hook}</Text>
+                  <Pressable onPress={() => updateField('__hooks', hooks.filter((_, j) => j !== i))} style={{ padding: 2 }}><Icon name="close" size={12} color={colors.outline} /></Pressable>
+                </View>
+              ))}
+              <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
+            </CollapsibleSideSection>
+          </>
+        ) : null}
+
+        {rightTab === 'sub_pages' ? (
+          subpages.length === 0 ? (
+            <Text variant="body-sm" style={sideStyles.emptyText}>No sub-pages yet.</Text>
+          ) : subpages.map((p) => (
+            <Pressable key={p.id} onPress={() => router.push(worldPageHref(worldId, p.id))} style={sideStyles.mentionRow}>
+              <Icon name="shield" size={14} color={colors.hpWarning} />
+              <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>{p.title}</Text>
+              <Icon name="chevron-right" size={12} color={colors.outline} />
+            </Pressable>
+          ))
+        ) : null}
+      </ScrollView>
+    </>
+  );
+
   return (
     <View style={splitMode ? styles.rootSplit : styles.root}>
       {!splitMode ? (
@@ -647,19 +803,8 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
         </View>
       </View>
 
-      {/* ── Property pills ── */}
-      <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingBottom: spacing.xs }}>
-        {propertyPills.map((pill) => (
-          <div key={pill.key} style={{ position: 'relative' }}>
-            <Pressable onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)} style={[styles.pill, pill.color ? { borderColor: pill.color + '44' } : undefined, !pill.value && styles.pillEmpty]}>
-              {pill.icon ? <Icon name={pill.icon as React.ComponentProps<typeof Icon>['name']} size={12} color={pill.color ?? colors.outline} /> : null}
-              <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>{pill.label}</Text>
-              {pill.value ? <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>{pill.fieldType === 'text' ? pill.value : pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}</Text> : null}
-            </Pressable>
-            {editingPill === pill.key ? <PillEditor pill={pill} onSelect={(v) => { updateField(pill.key, v); setEditingPill(null); }} onClose={() => setEditingPill(null)} /> : null}
-          </div>
-        ))}
-      </div>
+      {/* ── Property pills — hidden on mobile ── */}
+      {!isMobile ? renderPills() : null}
       </View>
 
       {confirmDelete ? (
@@ -682,152 +827,50 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
           {saveLabel ? <View style={styles.saveIndicator}><View style={[styles.saveDot, saveState === 'error' ? { backgroundColor: colors.hpDanger } : { backgroundColor: colors.hpHealthy }]} /><Text style={styles.saveText}>{saveLabel}</Text></View> : null}
         </View>
 
-        {/* ── Right sidebar ── */}
-        {!rightPanelOpen ? (
-          <View style={sideStyles.rightPanelCollapsed}>
-            <Pressable onPress={() => setRightPanelOpen(true)} style={sideStyles.rightPanelToggleBtn}><Icon name="chevron-left" size={14} color={colors.onSurfaceVariant} /></Pressable>
-          </View>
-        ) : (
-          <View style={sideStyles.rightPanel}>
-            <View style={sideStyles.rightPanelTopRow}>
-              <Pressable onPress={() => setRightPanelOpen(false)} style={sideStyles.rightPanelToggleBtn}><Icon name="chevron-right" size={14} color={colors.outline} /></Pressable>
+        {/* ── Right sidebar — hidden on mobile ── */}
+        {!isMobile ? (
+          !rightPanelOpen ? (
+            <View style={sideStyles.rightPanelCollapsed}>
+              <Pressable onPress={() => setRightPanelOpen(true)} style={sideStyles.rightPanelToggleBtn}><Icon name="chevron-left" size={14} color={colors.onSurfaceVariant} /></Pressable>
             </View>
-            <View style={sideStyles.rightTabs}>
-              <RightTabBtn label="On This Page" active={rightTab === 'on_this_page'} onPress={() => setRightTab('on_this_page')} />
-              <RightTabBtn label="Sub-pages" active={rightTab === 'sub_pages'} onPress={() => setRightTab('sub_pages')} />
+          ) : (
+            <View style={sideStyles.rightPanel}>
+              <View style={sideStyles.rightPanelTopRow}>
+                <Pressable onPress={() => setRightPanelOpen(false)} style={sideStyles.rightPanelToggleBtn}><Icon name="chevron-right" size={14} color={colors.outline} /></Pressable>
+              </View>
+              {renderSidebarBody()}
             </View>
-
-            <ScrollView contentContainerStyle={sideStyles.rightBody}>
-              {rightTab === 'on_this_page' ? (
-                <>
-                  {/* Members */}
-                  <CollapsibleSideSection icon="person" title="MEMBERS" count={members.length || undefined}>
-                    {members.length === 0 ? (
-                      <Text variant="body-sm" style={sideStyles.emptyText}>No NPCs have this faction assigned yet.</Text>
-                    ) : (
-                      members
-                        .sort((a, b) => (a.id === leaderId ? -1 : b.id === leaderId ? 1 : 0))
-                        .map((npc) => (
-                          <Pressable key={npc.id} onPress={() => router.push(worldPageHref(worldId, npc.id))} style={sideStyles.mentionRow}>
-                            <View style={[sideStyles.mentionDot, { backgroundColor: colors.hpDanger }]} />
-                            <View style={{ flex: 1 }}>
-                              <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{npc.title}</Text>
-                              <Text style={sideStyles.mentionMeta}>{npc.id === leaderId ? 'LEADER' : 'NPC'}</Text>
-                            </View>
-                            <Icon name="chevron-right" size={12} color={colors.outline} />
-                          </Pressable>
-                        ))
-                    )}
-                  </CollapsibleSideSection>
-
-                  {/* Mentioned on this page */}
-                  <CollapsibleSideSection icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined}>
-                    {mentionedPages.length === 0 ? (
-                      <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
-                    ) : mentionedPages.map((mp) => {
-                      const mi = MENTION_ICON[mp.page_kind] ?? MENTION_ICON.custom;
-                      return (
-                        <Pressable key={mp.id} onPress={() => router.push(worldPageHref(worldId, mp.id))} style={sideStyles.mentionRow}>
-                          <View style={[sideStyles.mentionDot, { backgroundColor: mi.color }]} />
-                          <View style={{ flex: 1 }}>
-                            <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{mp.title}</Text>
-                            <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[mp.page_kind] ?? 'Page').toUpperCase()}</Text>
-                          </View>
-                          <Icon name="chevron-right" size={12} color={colors.outline} />
-                        </Pressable>
-                      );
-                    })}
-                  </CollapsibleSideSection>
-
-                  {/* Linked from */}
-                  <CollapsibleSideSection icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined}>
-                    {backlinksLoaded && backlinks.length === 0 ? (
-                      <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
-                    ) : backlinks.map((bl) => (
-                      <Pressable key={bl.id} onPress={() => router.push(worldPageHref(worldId, bl.id))} style={sideStyles.mentionRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{bl.title}</Text>
-                          <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[bl.page_kind] ?? 'Page').toUpperCase()}</Text>
-                        </View>
-                        <Icon name="chevron-right" size={12} color={colors.outline} />
-                      </Pressable>
-                    ))}
-                  </CollapsibleSideSection>
-
-                  {/* Seen in play */}
-                  <CollapsibleSideSection icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined}>
-                    {seenLoaded && seenInPlay.length === 0 ? (
-                      <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
-                    ) : seenInPlay.slice(0, 5).map((evt) => {
-                      const ago = formatRelativeTime(evt.created_at);
-                      const snippet = (evt.body_text ?? '').slice(0, 80);
-                      return (
-                        <View key={evt.id} style={sideStyles.seenRow}>
-                          <View style={sideStyles.seenHeader}><View style={sideStyles.seenBadge}><Text style={sideStyles.seenBadgeText}>{evt.source_session_id ? 'S' : 'E'}</Text></View><Text style={sideStyles.seenAgo}>{ago}</Text></View>
-                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>{evt.title}</Text>
-                          {snippet ? <Text variant="body-sm" numberOfLines={2} style={{ color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 }}>"{snippet}{(evt.body_text ?? '').length > 80 ? '…' : ''}"</Text> : null}
-                        </View>
-                      );
-                    })}
-                  </CollapsibleSideSection>
-
-                  {/* Rivals & Allies */}
-                  <CollapsibleSideSection icon="people" title="RIVALS & ALLIES" count={relationships.length || undefined}>
-                    {relationships.map((rel, i) => {
-                      const target = (allPages ?? []).find((p) => p.id === rel.targetPageId);
-                      if (!target) return null;
-                      const isNpc = target.page_kind === 'npc';
-                      return (
-                        <View key={`${rel.targetPageId}-${i}`} style={styles.relRow}>
-                          <Pressable onPress={() => router.push(worldPageHref(worldId, rel.targetPageId))} style={styles.relLink}>
-                            <View style={[sideStyles.mentionDot, { backgroundColor: isNpc ? colors.cosmic : colors.hpWarning }]} />
-                            <View style={{ flex: 1 }}>
-                              <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{target.title}</Text>
-                              <Text style={sideStyles.mentionMeta}>{rel.type.toUpperCase()}{rel.note ? ` · ${rel.note}` : ''}</Text>
-                            </View>
-                            <Icon name="chevron-right" size={12} color={colors.outline} />
-                          </Pressable>
-                          <Pressable onPress={() => updateField('__relationships', relationships.filter((_, j) => j !== i))} style={{ padding: 4 }}>
-                            <Icon name="close" size={12} color={colors.outline} />
-                          </Pressable>
-                        </View>
-                      );
-                    })}
-                    <Pressable onPress={() => setAddingRelationship(true)} style={styles.addRelBtn}>
-                      <Icon name="add" size={14} color={colors.outline} />
-                      <Text style={{ fontFamily: 'Manrope', fontSize: 11, color: colors.outline }}>Add relationship</Text>
-                    </Pressable>
-                  </CollapsibleSideSection>
-
-                  {/* Hooks & Rumors */}
-                  <CollapsibleSideSection icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined}>
-                    {hooks.map((hook, i) => (
-                      <View key={i} style={sideStyles.hookRow}>
-                        <Text style={sideStyles.hookBullet}>•</Text>
-                        <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{hook}</Text>
-                        <Pressable onPress={() => updateField('__hooks', hooks.filter((_, j) => j !== i))} style={{ padding: 2 }}><Icon name="close" size={12} color={colors.outline} /></Pressable>
-                      </View>
-                    ))}
-                    <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
-                  </CollapsibleSideSection>
-                </>
-              ) : null}
-
-              {rightTab === 'sub_pages' ? (
-                subpages.length === 0 ? (
-                  <Text variant="body-sm" style={sideStyles.emptyText}>No sub-pages yet.</Text>
-                ) : subpages.map((p) => (
-                  <Pressable key={p.id} onPress={() => router.push(worldPageHref(worldId, p.id))} style={sideStyles.mentionRow}>
-                    <Icon name="shield" size={14} color={colors.hpWarning} />
-                    <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>{p.title}</Text>
-                    <Icon name="chevron-right" size={12} color={colors.outline} />
-                  </Pressable>
-                ))
-              ) : null}
-            </ScrollView>
-          </View>
-        )}
+          )
+        ) : null}
       </View>
+
+      {/* ── Mobile FAB + bottom-sheet overlay ── */}
+      {isMobile ? (
+        <>
+          <Pressable
+            style={{ position: 'absolute', bottom: 24, right: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryContainer, alignItems: 'center', justifyContent: 'center', elevation: 4 }}
+            onPress={() => setSidebarOpen(true)}
+          >
+            <Icon name="info-outline" size={20} color={colors.primary} />
+          </Pressable>
+          <Modal visible={sidebarOpen} transparent animationType="slide" onRequestClose={() => setSidebarOpen(false)}>
+            <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setSidebarOpen(false)}>
+              <Pressable style={{ backgroundColor: colors.surfaceContainerHigh, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '80%' }} onPress={() => {}}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '33' }}>
+                  <Text variant="title-sm" weight="bold" style={{ color: colors.onSurface }}>Details</Text>
+                  <Pressable onPress={() => setSidebarOpen(false)} hitSlop={8}>
+                    <Icon name="close" size={20} color={colors.onSurfaceVariant} />
+                  </Pressable>
+                </View>
+                <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+                  {renderPills()}
+                </View>
+                {renderSidebarBody()}
+              </Pressable>
+            </Pressable>
+          </Modal>
+        </>
+      ) : null}
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
       {addingRelationship ? <AddFactionRelModal allPages={allPages ?? []} currentPageId={page.id} existingRelationships={relationships} onAdd={(rel) => { updateField('__relationships', [...relationships, rel]); setAddingRelationship(false); }} onClose={() => setAddingRelationship(false)} /> : null}

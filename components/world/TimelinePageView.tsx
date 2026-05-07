@@ -28,6 +28,7 @@ import {
   colors,
   radius,
   spacing,
+  useBreakpoint,
 } from '@vaultstone/ui';
 
 import { EditLockBanner } from './EditLockBanner';
@@ -62,6 +63,7 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
     [sections, page],
   );
   const myUserId = useAuthStore((s) => s.user?.id ?? null);
+  const { isMobile } = useBreakpoint();
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const toggleVisibility = usePageVisibilityToggle(page);
   const updatePageInStore = usePagesStore((s) => s.updatePage);
@@ -204,8 +206,10 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
           crumbs={[
             { key: 'world', label: world.name },
             { key: 'section', label: section.name },
-            { key: 'page', label: page.title },
+            { key: 'page', label: 'Timeline' },
           ]}
+          title="Timeline"
+          isDetail={isMobile}
           saveState={saveState}
           actions={
             <>
@@ -258,36 +262,38 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
       ) : null}
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        {/* Page head with event stats */}
-        <View style={styles.headerWrap}>
-        <View style={styles.headRow}>
-          <View style={{ flex: 1 }}>
-            <PageHead
-              icon={template.icon}
-              title={page.title}
-              meta={`${events.length} events · ${eraCount} eras`}
-              accentToken={template.accentToken}
-              actions={
-                <VisibilityBadge
-                  visibility={page.visible_to_players ? 'player' : 'gm'}
-                  interactive={!!toggleVisibility}
-                  onPress={toggleVisibility ?? undefined}
-                />
-              }
-            />
-          </View>
-          {isWorldOwner && !readOnly ? (
-            <View style={styles.headActions}>
-              <Pressable onPress={() => handleAddEvent()} style={styles.addEventBtn}>
-                <Icon name="add" size={16} color={colors.onPrimary} />
-                <Text variant="label-md" weight="bold" style={{ color: colors.onPrimary, fontSize: 12 }}>
-                  ADD EVENT
-                </Text>
-              </Pressable>
+        {/* Page head with event stats — hidden on mobile (title in top bar) */}
+        {!isMobile ? (
+          <View style={styles.headerWrap}>
+          <View style={styles.headRow}>
+            <View style={{ flex: 1 }}>
+              <PageHead
+                icon={template.icon}
+                title={page.title}
+                meta={`${events.length} events · ${eraCount} eras`}
+                accentToken={template.accentToken}
+                actions={
+                  <VisibilityBadge
+                    visibility={page.visible_to_players ? 'player' : 'gm'}
+                    interactive={!!toggleVisibility}
+                    onPress={toggleVisibility ?? undefined}
+                  />
+                }
+              />
             </View>
-          ) : null}
-        </View>
-        </View>
+            {isWorldOwner && !readOnly ? (
+              <View style={styles.headActions}>
+                <Pressable onPress={() => handleAddEvent()} style={styles.addEventBtn}>
+                  <Icon name="add" size={16} color={colors.onPrimary} />
+                  <Text variant="label-md" weight="bold" style={{ color: colors.onPrimary, fontSize: 12 }}>
+                    ADD EVENT
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+          </View>
+        ) : null}
 
         {bannerLock && isWorldOwner ? (
           <EditLockBanner
@@ -302,27 +308,28 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
           />
         ) : null}
 
-        {/* Calendar breadcrumb + schema editor toggle */}
-        <View style={styles.calendarBar}>
-          <Pressable
-            style={styles.calendarBreadcrumb}
-            onPress={() => setSchemaExpanded(!schemaExpanded)}
-          >
-            <Icon name="event" size={14} color={colors.outlineVariant} />
-            <Text variant="label-sm" uppercase weight="semibold" style={styles.calLabel}>
-              Timeline Structure
-            </Text>
-            <View style={{ flex: 1 }} />
-            <Icon
-              name={schemaExpanded ? 'expand-less' : 'expand-more'}
-              size={16}
-              color={colors.outlineVariant}
-            />
-          </Pressable>
-        </View>
-
+        {/* Calendar breadcrumb + schema editor toggle — desktop only */}
+        {!isMobile ? (
+          <View style={styles.calendarBar}>
+            <Pressable
+              style={styles.calendarBreadcrumb}
+              onPress={() => setSchemaExpanded(!schemaExpanded)}
+            >
+              <Icon name="event" size={14} color={colors.outlineVariant} />
+              <Text variant="label-sm" uppercase weight="semibold" style={styles.calLabel}>
+                Timeline Structure
+              </Text>
+              <View style={{ flex: 1 }} />
+              <Icon
+                name={schemaExpanded ? 'expand-less' : 'expand-more'}
+                size={16}
+                color={colors.outlineVariant}
+              />
+            </Pressable>
+          </View>
+        ) : null}
         {/* Collapsible schema editor */}
-        {schemaExpanded ? (
+        {!isMobile && schemaExpanded ? (
           <View
             style={readOnly ? styles.disabledEditor : undefined}
             pointerEvents={readOnly ? 'none' : 'auto'}

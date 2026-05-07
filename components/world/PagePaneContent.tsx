@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   cascadeMentionLabel,
@@ -34,6 +34,7 @@ import {
   colors,
   radius,
   spacing,
+  useBreakpoint,
 } from '@vaultstone/ui';
 import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 
@@ -87,6 +88,7 @@ export function PagePaneContent({
   onNavigate,
 }: Props) {
   const router = useRouter();
+  const { isMobile } = useBreakpoint();
   const world = useCurrentWorldStore((s) => s.world);
   const { setActiveSectionId } = useActiveSection();
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
@@ -117,6 +119,7 @@ export function PagePaneContent({
   const toggleVisibility = usePageVisibilityToggle(page ?? null);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [factsOpen, setFactsOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -517,7 +520,7 @@ export function PagePaneContent({
       <View style={styles.wikiWrap}>
         <ScrollView
           style={styles.wikiDoc}
-          contentContainerStyle={isLore ? styles.wikiDocInnerWide : styles.wikiDocInner}
+          contentContainerStyle={isMobile ? styles.wikiDocInnerMobile : (isLore ? styles.wikiDocInnerWide : styles.wikiDocInner)}
         >
           <View style={styles.headerWrap}>
           {editingTitle ? (
@@ -594,7 +597,7 @@ export function PagePaneContent({
               style={readOnly ? styles.disabledEditor : undefined}
               pointerEvents={readOnly ? 'none' : 'auto'}
             >
-              {!isLore ? (
+              {!isLore && !isMobile ? (
                 <StructuredFieldsForm
                   page={page}
                   template={template}
@@ -641,12 +644,44 @@ export function PagePaneContent({
           </View>
         </ScrollView>
 
-        <WikiRightPanel
-          pageId={page.id}
-          worldId={worldId}
-          defaultCollapsed={splitMode}
-        />
+        {!isMobile ? (
+          <WikiRightPanel
+            pageId={page.id}
+            worldId={worldId}
+            defaultCollapsed={splitMode}
+          />
+        ) : null}
       </View>
+
+      {/* Mobile sidebar overlay */}
+      {isMobile ? (
+        <>
+          <Pressable
+            style={mobileStyles.sidebarFab}
+            onPress={() => setSidebarOpen(true)}
+          >
+            <Icon name="info-outline" size={20} color={colors.primary} />
+          </Pressable>
+          <Modal visible={sidebarOpen} transparent animationType="slide" onRequestClose={() => setSidebarOpen(false)}>
+            <Pressable style={mobileStyles.sidebarBackdrop} onPress={() => setSidebarOpen(false)}>
+              <Pressable style={mobileStyles.sidebarPanel} onPress={() => {}}>
+                <View style={mobileStyles.sidebarHeader}>
+                  <Text variant="title-sm" weight="bold" style={{ color: colors.onSurface }}>Details</Text>
+                  <Pressable onPress={() => setSidebarOpen(false)} hitSlop={8}>
+                    <Icon name="close" size={20} color={colors.onSurfaceVariant} />
+                  </Pressable>
+                </View>
+                {!isLore ? (
+                  <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
+                    <StructuredFieldsForm page={page} template={template} onSaveStateChange={setSaveState} />
+                  </View>
+                ) : null}
+                <WikiRightPanel pageId={page.id} worldId={worldId} />
+              </Pressable>
+            </Pressable>
+          </Modal>
+        </>
+      ) : null}
 
       {shareOpen ? (
         <ShareModal page={page} onClose={() => setShareOpen(false)} />
@@ -690,6 +725,11 @@ const styles = StyleSheet.create({
     paddingTop: 28,
     paddingHorizontal: 36,
     paddingBottom: 64,
+  },
+  wikiDocInnerMobile: {
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: 80,
   },
   missing: {
     flex: 1,
@@ -746,5 +786,44 @@ const styles = StyleSheet.create({
   deleteBannerConfirm: {
     borderWidth: 1,
     borderColor: colors.hpDanger + '55',
+  },
+});
+
+const mobileStyles = StyleSheet.create({
+  sidebarFab: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    right: spacing.md,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  sidebarBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sidebarPanel: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '80%',
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '33',
   },
 });
