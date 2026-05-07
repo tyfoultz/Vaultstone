@@ -19,7 +19,7 @@ import {
 import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import {
   supabase, getCampaignMembers, listCampaignPacks,
-  getActiveSession,
+  getActiveSession, startSession, endSession,
   getWorldsForCampaign,
   getCampaignCharacterRules,
   resolveRuleValues,
@@ -36,6 +36,9 @@ import type { Database, Dnd5eStats } from '@vaultstone/types';
 import { CampaignWindowPane } from './CampaignWindowPane';
 import { LinkWorldModal } from './LinkWorldModal';
 import { ManageCampaignContentModal } from './ManageCampaignContentModal';
+import { ManageMembersModal } from './ManageMembersModal';
+import { StartSessionModal, type StartSessionPlayer } from '../session/StartSessionModal';
+import { EndSessionModal } from '../session/EndSessionModal';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type Member = {
@@ -75,6 +78,16 @@ export function CampaignPageV2({ campaignId }: Props) {
    *  by the System and Content packs checklist rows + the
    *  references row's pack CTA. */
   const [contentModalOpen, setContentModalOpen] = useState(false);
+  /** Manage Members modal — DM-only join code + member list with
+   *  remove. Opened by the Party panel's "Manage members" CTA. */
+  const [membersModalOpen, setMembersModalOpen] = useState(false);
+  /** Start / End session modals — DM-only. Start lets the DM pick
+   *  which players are present; End confirms with an optional
+   *  summary. Both share the page-level activeSessionId state. */
+  const [startModalOpen, setStartModalOpen] = useState(false);
+  const [endModalOpen, setEndModalOpen] = useState(false);
+  const [startingSession, setStartingSession] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
   const [loadingFlags, setLoadingFlags] = useState({ campaign: true, world: true, members: true, rules: true });
   // Bumped to refresh derived surfaces (window pane, party list) after
   // a write that affects them (e.g. clear scene, add member).
@@ -179,6 +192,44 @@ export function CampaignPageV2({ campaignId }: Props) {
   const stillLoading =
     loadingFlags.campaign || loadingFlags.world || loadingFlags.members || loadingFlags.rules;
 
+  // Pre-shape the player roster for the StartSessionModal — the
+  // modal expects a flattened {userId, displayName, characterName}
+  // shape rather than the raw Member record. Recomputed cheaply on
+  // each render; memoization isn't worth the indirection here.
+  const startModalPlayers: StartSessionPlayer[] = members
+    .filter((m) => m.role !== 'gm')
+    .map((m) => ({
+      userId: m.user_id,
+      displayName: m.profiles?.display_name ?? 'Anonymous',
+      characterName: m.characters?.name ?? null,
+    }));
+
+  async function handleConfirmStart(pickedUserIds: string[]) {
+    if (startingSession) return;
+    setStartingSession(true);
+    const { data } = await startSession(campaignId, pickedUserIds);
+    setStartingSession(false);
+    if (data) {
+      setActiveSessionId(data.id);
+      setStartModalOpen(false);
+    }
+  }
+
+  async function handleConfirmEnd() {
+    if (!activeSessionId || endingSession) return;
+    setEndingSession(true);
+    const { error } = await endSession(activeSessionId);
+    setEndingSession(false);
+    if (!error) {
+      setActiveSessionId(null);
+      setEndModalOpen(false);
+      // session-end trigger clears window-pane pins server-side;
+      // bump the tick so the pane re-fetches and reverts to the
+      // world banner.
+      setRefreshTick((n) => n + 1);
+    }
+  }
+
   if (stillLoading || !campaign) {
     return (
       <View style={s.loadingContainer}>
@@ -251,13 +302,15 @@ export function CampaignPageV2({ campaignId }: Props) {
               activeSessionId={activeSessionId}
               myMember={myMember}
               campaignId={campaign.id}
-              onSessionChanged={() => setRefreshTick((n) => n + 1)}
+              onStartSession={() => setStartModalOpen(true)}
+              onEndSession={() => setEndModalOpen(true)}
             />
 
             <PartyPanel
               members={members}
               isDM={isDM}
               currentUserId={user?.id ?? null}
+              onManageMembers={() => setMembersModalOpen(true)}
             />
 
             <RecentActivityCard campaignId={campaign.id} />
@@ -316,6 +369,46 @@ export function CampaignPageV2({ campaignId }: Props) {
           onClose={() => setContentModalOpen(false)}
           onChanged={() => setRefreshTick((n) => n + 1)}
         />
+      ) : null}
+
+      {/* DM-only members manager — join code + member list with
+          per-row remove. Opened by the Party panel's CTA. We pass
+          a setter to update the parent's campaign state when the
+          DM regenerates the join code; member list is refreshed
+          via refreshTick. */}
+      {isDM && membersModalOpen ? (
+        <ManageMembersModal
+          campaignId={campaign.id}
+          joinCode={campaign.join_code}
+          members={members}
+          currentUserId={user?.id ?? null}
+          onClose={() => setMembersModalOpen(false)}
+          onChanged={() => setRefreshTick((n) => n + 1)}
+          onJoinCodeChanged={(code) =>
+            setCampaign((prev) => (prev ? { ...prev, join_code: code } : prev))
+          }
+        />
+      ) : null}
+
+      {/* DM-only start/end session modals. Always mounted (visible
+          flag controls render) so any in-flight state survives a
+          stray remount. */}
+      {isDM ? (
+        <>
+          <StartSessionModal
+            visible={startModalOpen}
+            players={startModalPlayers}
+            starting={startingSession}
+            onClose={() => setStartModalOpen(false)}
+            onConfirm={handleConfirmStart}
+          />
+          <EndSessionModal
+            visible={endModalOpen}
+            ending={endingSession}
+            onClose={() => setEndModalOpen(false)}
+            onConfirm={handleConfirmEnd}
+          />
+        </>
       ) : null}
     </ScrollView>
   );
@@ -508,19 +601,21 @@ function PrimaryAction({
   activeSessionId,
   myMember,
   campaignId,
-  onSessionChanged,
+  onStartSession,
+  onEndSession,
 }: {
   isDM: boolean;
   activeSessionId: string | null;
   myMember: Member | undefined;
   campaignId: string;
-  onSessionChanged: () => void;
+  /** Open the start-session modal (DM picks which players are
+   *  present, then session row gets created). */
+  onStartSession: () => void;
+  /** Open the end-session confirmation modal. */
+  onEndSession: () => void;
 }) {
   const router = useRouter();
 
-  // DM in-session: end-session button (handled by the existing modal
-  // path on V1; v2 routes them to the V1 page for now to avoid
-  // duplicating the modal during the redesign).
   if (isDM) {
     if (activeSessionId) {
       return (
@@ -530,14 +625,21 @@ function PrimaryAction({
               Session in progress
             </Text>
             <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 2 }}>
-              Pinned imagery shows in the window pane above. End the session from the V1 page.
+              Pinned imagery shows in the window pane above. Open the combat tracker or wrap up below.
             </Text>
           </View>
-          <GhostButton
-            label="Open session view"
-            icon="open-in-new"
-            onPress={() => router.push(`/campaign/${campaignId}/combat` as Href)}
-          />
+          <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
+            <GhostButton
+              label="Combat tracker"
+              icon="open-in-new"
+              onPress={() => router.push(`/campaign/${campaignId}/combat` as Href)}
+            />
+            <GhostButton
+              label="End session"
+              icon="stop"
+              onPress={onEndSession}
+            />
+          </View>
         </Card>
       );
     }
@@ -553,7 +655,7 @@ function PrimaryAction({
         </View>
         <GradientButton
           label="Start session"
-          onPress={() => router.push(`/campaign/${campaignId}` as Href)}
+          onPress={onStartSession}
         />
       </Card>
     );
@@ -612,10 +714,12 @@ function PartyPanel({
   members,
   isDM,
   currentUserId,
+  onManageMembers,
 }: {
   members: Member[];
   isDM: boolean;
   currentUserId: string | null;
+  onManageMembers: () => void;
 }) {
   const players = members.filter((m) => m.role !== 'gm');
   return (
@@ -628,15 +732,18 @@ function PartyPanel({
           </Text>
         </View>
         {isDM ? (
-          // V1 "manage members" lives in a modal on the old page —
-          // for now, link there so the redesign doesn't duplicate
-          // the modal logic before it stabilizes.
-          <MetaLabel size="sm">Manage from V1 page</MetaLabel>
+          <GhostButton
+            label="Manage members"
+            icon="group"
+            onPress={onManageMembers}
+          />
         ) : null}
       </View>
       {players.length === 0 ? (
         <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant }}>
-          No players yet. Share the join code from the V1 page to invite some.
+          {isDM
+            ? 'No players yet. Open Manage members for the join code.'
+            : 'No other players yet.'}
         </Text>
       ) : (
         <View style={{ gap: 6 }}>
