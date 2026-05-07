@@ -672,7 +672,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
       ) : null}
 
       {/* ── Title row + pills (fixed height for cross-template alignment) ── */}
-      <View style={styles.headerWrap}>
+      <View style={isMobile ? styles.headerWrapMobile : styles.headerWrap}>
       <View style={styles.titleBar}>
         <Icon name="place" size={20} color={colors.primary} />
         {editingTitle ? (
@@ -841,6 +841,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
   headerWrap: { height: 120, overflow: 'hidden' as const },
+  headerWrapMobile: { paddingBottom: spacing.xs },
 
   // Top bar — compact breadcrumbs
   topBar: {

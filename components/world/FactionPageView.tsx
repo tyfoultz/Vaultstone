@@ -754,7 +754,7 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
       </View>
       ) : null}
 
-      <View style={styles.headerWrap}>
+      <View style={isMobile ? styles.headerWrapMobile : styles.headerWrap}>
       {/* ── Title row ── */}
       <View style={styles.factionHead}>
         <View style={{ marginRight: 4 }}><Icon name="shield" size={28} color={colors.hpWarning} /></View>
@@ -884,6 +884,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
   headerWrap: { height: 120, overflow: 'hidden' as const },
+  headerWrapMobile: { paddingBottom: spacing.xs },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '22' },
   topBarLeft: { flexDirection: 'row', alignItems: 'center' },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

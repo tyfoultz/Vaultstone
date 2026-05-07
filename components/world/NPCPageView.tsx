@@ -951,7 +951,7 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
       ) : null}
 
       {/* ── Portrait + Title + pills (fixed height for cross-template alignment) ── */}
-      <View style={styles.headerWrap}>
+      <View style={isMobile ? styles.headerWrapMobile : styles.headerWrap}>
       <View style={styles.npcHead}>
         <div style={{ position: 'relative' }}>
           <div
@@ -1327,6 +1327,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
   headerWrap: { height: 120, overflow: 'hidden' as const },
+  headerWrapMobile: { paddingBottom: spacing.xs },
 
   // Top bar
   topBar: {
