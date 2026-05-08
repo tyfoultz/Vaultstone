@@ -13,7 +13,7 @@ import {
   getCampaignCharacterRules,
   resolveRuleValues,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID, resolveCreationSteps } from '@vaultstone/systems';
 import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
@@ -61,53 +61,13 @@ function initSpellSlots(level: number): Dnd5eResources['spellSlots'] {
   };
 }
 
-// Static step lists. The Feats step is inserted dynamically between
-// Background and Ability Scores when the campaign rule
-// `feats_at_level_1` is on (or the standalone-mode default, which is
-// `true` per the system's `optional_rules.feats_at_level_1.default`).
-// See `buildSteps()` below.
-const STANDALONE_BASE_STEPS = [
-  { key: 'ruleset', label: 'Ruleset' },
-  { key: 'species', label: 'Species' },
-  { key: 'class', label: 'Class' },
-  { key: 'background', label: 'Background' },
-  { key: 'scores', label: 'Ability Scores' },
-  { key: 'review', label: 'Review' },
-] as const;
-
-const CAMPAIGN_BASE_STEPS = [
-  { key: 'species', label: 'Species' },
-  { key: 'class', label: 'Class' },
-  { key: 'background', label: 'Background' },
-  { key: 'scores', label: 'Ability Scores' },
-  { key: 'review', label: 'Review' },
-] as const;
-
-const FEATS_STEP = { key: 'feats', label: 'Starting Feat' } as const;
-
-/**
- * Build the active step list for the current launch context. Feats
- * step is spliced in after Background when the campaign rule
- * `feats_at_level_1` is on. Standalone mode defaults to on (the
- * system's bundled rule default).
- */
-function buildSteps(
-  isCampaign: boolean,
-  campaignRules: Record<string, boolean | string | number>,
-): ReadonlyArray<{ key: string; label: string }> {
-  const base = isCampaign ? CAMPAIGN_BASE_STEPS : STANDALONE_BASE_STEPS;
-  const featsAtL1 = isCampaign
-    ? campaignRules.feats_at_level_1 !== false
-    : true; // standalone: bundled-system default
-  if (!featsAtL1) return [...base];
-  // Splice Feats step right after Background.
-  const out: Array<{ key: string; label: string }> = [];
-  for (const step of base) {
-    out.push({ key: step.key, label: step.label });
-    if (step.key === 'background') out.push({ ...FEATS_STEP });
-  }
-  return out;
-}
+// Wizard step list is sourced from the chosen system's
+// `creationSteps` schema via `resolveCreationSteps()` — see
+// packages/systems/src/resolve-creation-steps.ts. The resolver
+// applies two filters: `inCampaign: false` steps drop out when
+// launched from a campaign, and `gatedByRule` steps drop out when
+// their rule resolves falsy. Standalone wizards fall through to
+// each rule's bundled system default.
 
 // Translate a campaigns.system id (dnd5e_2014 / dnd5e_2024 / dnd5e legacy
 // alias) into the wizard's draft shape (system + srdVersion). The draft's
@@ -119,6 +79,18 @@ function systemToDraft(systemId: string): { system: string; srdVersion: 'SRD_5.1
   if (systemId === 'dnd5e_2014') return { system: 'dnd5e', srdVersion: 'SRD_5.1' };
   // dnd5e_2024 / legacy dnd5e / Custom all fall through to the 2024 SRD.
   return { system: 'dnd5e', srdVersion: 'SRD_2.0' };
+}
+
+/** Reverse of `systemToDraft` — pick the bundled system definition that
+ *  matches the draft's (system, srdVersion). Returns `null` for unknown
+ *  combinations (the wizard won't proceed without a system anyway). */
+function draftToSystem(
+  system: string,
+  srdVersion: 'SRD_5.1' | 'SRD_2.0',
+) {
+  if (system !== 'dnd5e') return null;
+  const id = srdVersion === 'SRD_5.1' ? 'dnd5e_2014' : 'dnd5e_2024';
+  return BUNDLED_SYSTEMS_BY_ID[id] ?? null;
 }
 
 export default function NewCharacterScreen() {
@@ -267,16 +239,22 @@ export default function NewCharacterScreen() {
     setDraftRulesetMode,
   ]);
 
-  // Active step list and current step, swapped based on launch context.
-  // Memoize so the array reference is stable (avoids re-render churn in
-  // useEffect deps that depend on STEPS). The campaign-rules bag is
-  // populated during bootstrap for campaign-launched wizards; until
-  // bootstrap finishes the bag is empty and we fall through to defaults.
+  // Active step list resolved from the chosen system's `creationSteps`
+  // schema. The resolver applies inCampaign + gatedByRule filters, so
+  // changes to a system's step list (or to which steps are rule-gated)
+  // ripple through the wizard without code edits here. The campaign-
+  // rules bag is populated during bootstrap for campaign-launched
+  // wizards; until bootstrap finishes the bag is empty and gated steps
+  // fall through to each rule's bundled system default.
   const draftCampaignRules = useCharacterDraftStore((s) => s.campaignRules);
-  const STEPS = useMemo(
-    () => buildSteps(!!launchedCampaignId, draftCampaignRules),
-    [launchedCampaignId, draftCampaignRules],
-  );
+  const STEPS = useMemo(() => {
+    const sys = draftToSystem(draft.system, draft.srdVersion);
+    if (!sys) return [];
+    return resolveCreationSteps(sys, {
+      isCampaign: !!launchedCampaignId,
+      campaignRules: draftCampaignRules,
+    }).map((s) => ({ key: s.key, label: s.label }));
+  }, [launchedCampaignId, draftCampaignRules, draft.system, draft.srdVersion]);
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);

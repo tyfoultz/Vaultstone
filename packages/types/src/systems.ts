@@ -17,10 +17,41 @@ export interface AttributeDefinition {
 }
 
 export interface CreationStep {
+  /** Stable wizard-step key. The wizard's renderStep dispatch matches
+   *  on this exact value, so changes here ripple through the wizard. */
   key: string;
+  /** Header label shown on the step. */
   label: string;
-  contentCollection: string; // which ContentResolver collection to query for options
+  /**
+   * Which ContentResolver collection to query for options. Empty
+   * string for steps that don't read from the resolver (e.g. ability
+   * scores, name + review). The wizard doesn't use this directly
+   * yet — picker steps each call ContentResolver themselves with
+   * the appropriate type — but it's preserved so the read-only
+   * Schema view on the system detail page can surface it.
+   */
+  contentCollection: string;
+  /**
+   * Whether finishing the wizard requires the player to commit a
+   * value at this step. Required steps gate the Continue button via
+   * the wizard's `isStepComplete` check.
+   */
   required: boolean;
+  /**
+   * Whether this step participates in the campaign-launched flow.
+   * Steps with `inCampaign: false` (e.g. `'ruleset'`) are skipped
+   * when the wizard is launched with `?campaignId=` since the
+   * campaign already locks the system + content packs.
+   */
+  inCampaign?: boolean;
+  /**
+   * Optional rule key that gates the step's existence. When set, the
+   * wizard only renders the step if the resolved rule value is
+   * truthy (campaign-launched: from the campaign's rules bag;
+   * standalone: from the system's bundled default). Used today by
+   * the L1 Feats step (`'feats_at_level_1'`).
+   */
+  gatedByRule?: string;
 }
 
 /**
