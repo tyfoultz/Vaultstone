@@ -27,38 +27,67 @@ import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
 import { CampaignRulesSummary } from '../../components/character-wizard/CampaignRulesSummary';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eSpellSlotLevel, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
 
-// SRD 5e full-caster spell slot progression [level → [lvl1, lvl2, ... lvl9]]
-const FULL_CASTER_SLOTS: Record<number, number[]> = {
-  1:  [2, 0, 0, 0, 0, 0, 0, 0, 0],
-  2:  [3, 0, 0, 0, 0, 0, 0, 0, 0],
-  3:  [4, 2, 0, 0, 0, 0, 0, 0, 0],
-  4:  [4, 3, 0, 0, 0, 0, 0, 0, 0],
-  5:  [4, 3, 2, 0, 0, 0, 0, 0, 0],
-  6:  [4, 3, 3, 0, 0, 0, 0, 0, 0],
-  7:  [4, 3, 3, 1, 0, 0, 0, 0, 0],
-  8:  [4, 3, 3, 2, 0, 0, 0, 0, 0],
-  9:  [4, 3, 3, 3, 1, 0, 0, 0, 0],
-  10: [4, 3, 3, 3, 2, 0, 0, 0, 0],
-  11: [4, 3, 3, 3, 2, 1, 0, 0, 0],
-  12: [4, 3, 3, 3, 2, 1, 0, 0, 0],
-  13: [4, 3, 3, 3, 2, 1, 1, 0, 0],
-  14: [4, 3, 3, 3, 2, 1, 1, 0, 0],
-  15: [4, 3, 3, 3, 2, 1, 1, 1, 0],
-  16: [4, 3, 3, 3, 2, 1, 1, 1, 0],
-  17: [4, 3, 3, 3, 2, 1, 1, 1, 1],
-  18: [4, 3, 3, 3, 3, 1, 1, 1, 1],
-  19: [4, 3, 3, 3, 3, 2, 1, 1, 1],
-  20: [4, 3, 3, 3, 3, 2, 2, 1, 1],
+// Initialize a character's spell-slot resource bag from the picked
+// class's progression table at the starting level. The progression
+// table carries per-level slot counts as `1st` / `2nd` / ... `9th`
+// columns for full + half casters, and as `spellSlots` (count) +
+// `slotLevel` (e.g. "1st") for Warlock pact magic — both shapes are
+// handled here. Non-spellcasters return null.
+//
+// Reading from the table beats the hardcoded full-caster lookup
+// this used to live as: half-casters (Paladin / Ranger) correctly
+// get no slots at L1 in 5.1 and 2/0 at L1 in 5.2; Warlock's pact
+// magic reads its 1-slot at L1 instead of being given the wrong
+// 2-slot full-caster row.
+const SLOT_COLUMNS: Array<{ key: string; level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 }> = [
+  { key: '1st', level: 1 }, { key: '2nd', level: 2 }, { key: '3rd', level: 3 },
+  { key: '4th', level: 4 }, { key: '5th', level: 5 }, { key: '6th', level: 6 },
+  { key: '7th', level: 7 }, { key: '8th', level: 8 }, { key: '9th', level: 9 },
+];
+
+const SLOT_LEVEL_LABEL_TO_NUMBER: Record<string, 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9> = {
+  '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5,
+  '6th': 6, '7th': 7, '8th': 8, '9th': 9,
 };
 
-function initSpellSlots(level: number): Dnd5eResources['spellSlots'] {
-  const row = FULL_CASTER_SLOTS[Math.min(level, 20)] ?? FULL_CASTER_SLOTS[1];
+function initSpellSlots(
+  cls: ClassResult,
+  level: number,
+): Dnd5eResources['spellSlots'] {
+  if (!cls.spellcasting) return null;
+  const row = (cls.progressionTable ?? []).find((r) => r.level === Math.min(level, 20));
   const make = (max: number): Dnd5eSpellSlotLevel => ({ max, remaining: max });
-  return {
-    1: make(row[0]), 2: make(row[1]), 3: make(row[2]),
-    4: make(row[3]), 5: make(row[4]), 6: make(row[5]),
-    7: make(row[6]), 8: make(row[7]), 9: make(row[8]),
+  const empty = make(0);
+  const slots: Dnd5eResources['spellSlots'] = {
+    1: empty, 2: empty, 3: empty, 4: empty, 5: empty,
+    6: empty, 7: empty, 8: empty, 9: empty,
   };
+  if (!row) return slots;
+
+  // Full + half casters: read each `Nth` column directly. "—" / non-numeric
+  // values land at 0, which is correct for half-casters at L1 in 5.1.
+  let foundExplicitSlots = false;
+  for (const col of SLOT_COLUMNS) {
+    const raw = row.values[col.key];
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''), 10);
+    if (Number.isFinite(n)) {
+      slots[col.level] = make(n);
+      if (n > 0) foundExplicitSlots = true;
+    }
+  }
+  // Warlock pact magic: `spellSlots` is the count, `slotLevel` ("1st" /
+  // "2nd" / etc.) names the slot level all of those slots cast at. Only
+  // applied when the per-level columns above didn't already populate.
+  if (!foundExplicitSlots) {
+    const countRaw = row.values['spellSlots'];
+    const slotLevelRaw = row.values['slotLevel'];
+    const count = typeof countRaw === 'number' ? countRaw : parseInt(String(countRaw ?? ''), 10);
+    const slotLevel = typeof slotLevelRaw === 'string' ? SLOT_LEVEL_LABEL_TO_NUMBER[slotLevelRaw] : undefined;
+    if (Number.isFinite(count) && count > 0 && slotLevel) {
+      slots[slotLevel] = make(count);
+    }
+  }
+  return slots;
 }
 
 // Wizard step list is sourced from the chosen system's
@@ -540,7 +569,7 @@ export default function NewCharacterScreen() {
         inspiration: false,
         deathSaves: { successes: 0, failures: 0 },
         exhaustionLevel: 0,
-        spellSlots: cls.spellcasting ? initSpellSlots(1) : null,
+        spellSlots: initSpellSlots(cls, 1),
         ...(featsForResources.length > 0 ? { feats: featsForResources } : {}),
       };
 
