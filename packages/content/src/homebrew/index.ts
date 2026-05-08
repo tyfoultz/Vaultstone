@@ -71,10 +71,6 @@ type ImportedContentRow = {
  * surface even if the network is flaky.
  */
 export async function search(query: ContentQuery): Promise<ContentResult[]> {
-  // SRD version filter immediately excludes homebrew — homebrew is by
-  // definition not SRD. Bail before any network calls.
-  if (query.srdVersion) return [];
-
   // Build the optional pack allowlist before fetching entries. Two
   // mutually-exclusive scopes:
   //   - `campaignId` → packs the campaign has enabled (campaign_packs
@@ -147,7 +143,30 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   // Apply remaining filters in-memory.
   let filtered = results;
   if (query.system) {
-    filtered = filtered.filter((r) => r.system === query.system);
+    // Edition-aware system match. The wizard passes the legacy
+    // `'dnd5e'` system id alongside an `srdVersion` (`SRD_5.1` /
+    // `SRD_2.0`); homebrew packs may be tagged with the legacy
+    // `'dnd5e'` or with the edition-specific `'dnd5e_2014'` /
+    // `'dnd5e_2024'`. Treat these as compatible: a 2024-edition
+    // wizard query matches packs tagged `'dnd5e'` or `'dnd5e_2024'`,
+    // and a 2014-edition wizard query matches `'dnd5e_2014'` (the
+    // legacy `'dnd5e'` alias was the 2024 default before the split,
+    // so it doesn't merge into the 2014 set). Other systems
+    // (custom, etc.) keep exact-match.
+    const accepted = compatibleSystemIds(query.system, query.srdVersion);
+    filtered = filtered.filter((r) => accepted.has(r.system));
+  }
+  if (query.srdVersion) {
+    // Mirror the SRD reader: only filter entries that declare an
+    // `srdVersions` array. Imported 5e.tools content carries it
+    // (and we want imports to honor edition filtering); authored
+    // homebrew typically doesn't, so it passes through regardless
+    // of which edition the wizard is running under.
+    const version = query.srdVersion;
+    filtered = filtered.filter((r) => {
+      const item = r as ContentResult & { srdVersions?: string[] };
+      return item.srdVersions?.includes(version) ?? true;
+    });
   }
   if (query.type) {
     filtered = filtered.filter((r) => r.type === query.type);
@@ -159,6 +178,30 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
     );
   }
   return filtered;
+}
+
+/**
+ * System-id compatibility table for homebrew filtering. The wizard
+ * stores its system as the legacy `'dnd5e'` alias plus an edition
+ * tag in `srdVersion`; packs may be tagged with the legacy alias OR
+ * the edition-specific id. Mirrors the standalone pack picker's
+ * SRD_VERSION_TO_SYSTEM_ID table in components/character-wizard/StepRuleset.tsx.
+ *
+ * Falls back to exact-match for unknown systems so we don't widen
+ * non-D&D queries unintentionally.
+ */
+function compatibleSystemIds(
+  system: string,
+  srdVersion: 'SRD_5.1' | 'SRD_2.0' | undefined,
+): Set<string> {
+  if (system === 'dnd5e') {
+    if (srdVersion === 'SRD_5.1') return new Set(['dnd5e_2014']);
+    // 2.0 + unspecified default to 2024 (the legacy alias's pre-split posture).
+    return new Set(['dnd5e', 'dnd5e_2024']);
+  }
+  if (system === 'dnd5e_2014') return new Set(['dnd5e_2014']);
+  if (system === 'dnd5e_2024') return new Set(['dnd5e', 'dnd5e_2024']);
+  return new Set([system]);
 }
 
 /**
