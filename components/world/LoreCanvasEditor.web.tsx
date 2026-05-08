@@ -36,13 +36,6 @@ type Props = {
   mentionablePages?: MentionablePage[];
   getSectionLabel?: (sectionId: string) => string;
   onMentionClick?: (pageId: string) => void;
-  /** World + page context for image uploads. When set, paste/upload
-   *  routes through `world_images` so images become real records
-   *  (with caption + signed-URL src + a `data-world-image-id`
-   *  attribute on the rendered <img>). The DM can then right-click
-   *  any such image to pin it to the campaign window pane.
-   *  Optional because some embeds (legacy / preview) don't have a
-   *  page context — those still fall back to data-URL inserts. */
   worldId?: string;
   pageId?: string;
 };

@@ -36,6 +36,8 @@ type Props = {
   mentionablePages?: MentionablePage[];
   getSectionLabel?: (sectionId: string) => string;
   onMentionClick?: (pageId: string) => void;
+  worldId?: string;
+  pageId?: string;
 };
 
 const GRID = 12;
