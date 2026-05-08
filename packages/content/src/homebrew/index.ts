@@ -298,6 +298,9 @@ export function mapEntryToResult(
         prerequisites: d.prerequisites ?? '',
         benefits: d.benefits ?? [],
       };
+      if (d.prerequisitesRaw && d.prerequisitesRaw.length > 0) {
+        result.prerequisitesRaw = d.prerequisitesRaw;
+      }
       return result;
     }
     case 'class': {

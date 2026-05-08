@@ -101,6 +101,15 @@ export interface HomebrewFeatData {
   category: 'origin' | 'general' | 'fighting-style' | 'epic-boon';
   /** Free-form prereq line ("Strength 13+", "Level 4+ Fighter"). Empty for none. */
   prerequisites?: string;
+  /**
+   * Structured prereq clauses — all must be satisfied (AND). When
+   * present alongside the prose form, the wizard's prereq checker
+   * uses these for gating; the prose stays the canonical display.
+   * The authoring form lets users build the structured shape via a
+   * composite editor; the resolver mirrors `prerequisitesRaw` onto
+   * the corresponding `FeatResult.prerequisitesRaw` field.
+   */
+  prerequisitesRaw?: import('./character-builder').FeatPrerequisite[];
   /** Bullet-form benefits. */
   benefits: string[];
   description: string;

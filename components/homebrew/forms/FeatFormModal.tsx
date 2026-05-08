@@ -10,9 +10,10 @@ import {
   type HomebrewPackRow,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
-import type { HomebrewFeatData } from '@vaultstone/types';
+import type { FeatPrerequisite, HomebrewFeatData } from '@vaultstone/types';
 import { HomebrewFormShell } from './HomebrewFormShell';
 import { ChipToggleRow } from './ChipToggleRow';
+import { FeatPrereqEditor } from './FeatPrereqEditor';
 
 const CATEGORIES: Array<{ key: HomebrewFeatData['category']; label: string }> = [
   { key: 'origin',          label: 'Origin' },
@@ -46,6 +47,7 @@ export function FeatFormModal({ pack, entry, onClose, onSaved }: Props) {
   const [name, setName] = useState(initial.name);
   const [data, setData] = useState<HomebrewFeatData>(initial.data);
   const [benefitsText, setBenefitsText] = useState((initial.data.benefits ?? []).join('\n'));
+  const [prereqs, setPrereqs] = useState<FeatPrerequisite[]>(initial.data.prerequisitesRaw ?? []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -64,7 +66,13 @@ export function FeatFormModal({ pack, entry, onClose, onSaved }: Props) {
       .split('\n')
       .map((s) => s.trim())
       .filter(Boolean);
-    const finalData: HomebrewFeatData = { ...data, benefits };
+    const finalData: HomebrewFeatData = {
+      ...data,
+      benefits,
+      // Drop the field entirely when empty so the resolver doesn't
+      // surface an empty-array marker on FeatResult.prerequisitesRaw.
+      ...(prereqs.length > 0 ? { prerequisitesRaw: prereqs } : { prerequisitesRaw: undefined }),
+    };
 
     if (entry) {
       const { data: row, error: err } = await updateHomebrewEntry(entry.id, {
@@ -117,11 +125,17 @@ export function FeatFormModal({ pack, entry, onClose, onSaved }: Props) {
       </View>
 
       <Input
-        label="Prerequisites (optional)"
+        label="Prerequisites (display)"
         placeholder="Strength 13+; Level 4+"
         value={data.prerequisites ?? ''}
         onChangeText={(t) => patch('prerequisites', t)}
       />
+
+      <SectionHeader
+        title="Prerequisites (structured)"
+        meta="The wizard checks each clause against the candidate character. Optional — leave empty if the prose above is enough."
+      />
+      <FeatPrereqEditor value={prereqs} onChange={setPrereqs} />
 
       <SectionHeader title="Benefits" meta="One per line" />
       <Input
