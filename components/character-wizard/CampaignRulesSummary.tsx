@@ -1,14 +1,16 @@
-// Read-only summary of the campaign's character-creation rules.
+// Read-only summary of the character-creation rules in effect for
+// the wizard's current run. Two modes:
 //
-// Surfaces in the wizard when the player launched from a campaign
-// (?campaignId=…). Players see what rules they're playing under
-// before they pick a class or assign ability scores; nothing here
-// is editable from the player side.
+//   • Campaign-launched (?campaignId=…) — the DM picked these
+//     rules; players see the resolved values so they know what
+//     they're playing under. Nothing editable from the player side.
+//   • Standalone — the system's bundled defaults apply; players
+//     see them as informational context for the character.
 //
-// Each line resolves a rule key to a short human label. Values fall
-// back to the system's default when the campaign hasn't set the
-// rule (the bag is already resolved at bootstrap time, so the
-// summary just walks the bag).
+// Each line resolves a rule key to a short human label. The
+// underlying bag is resolved at bootstrap time so the summary just
+// walks the rule definitions and reads bag values; missing keys
+// fall through to the rule's `default`.
 
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -16,7 +18,7 @@ import { useCharacterDraftStore } from '@vaultstone/store';
 import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import {
   Card, Icon, MetaLabel, Text,
-  colors, radius, spacing,
+  colors, spacing,
 } from '@vaultstone/ui';
 import type { OptionalRule } from '@vaultstone/types';
 
@@ -26,24 +28,26 @@ export function CampaignRulesSummary() {
   const rules = useCharacterDraftStore((s) => s.campaignRules);
   const [expanded, setExpanded] = useState(false);
 
-  // Standalone characters don't have a campaign and don't see the
-  // summary. Same for campaign-linked drafts where the bootstrap
-  // hasn't yet finished hydrating rules (the bag is empty until
-  // setCampaignRules fires).
-  if (!campaignId || Object.keys(rules).length === 0) return null;
-
   const sys = BUNDLED_SYSTEMS_BY_ID[system];
   if (!sys) return null;
 
-  // Show every rule with a non-default value first; fall back to
-  // showing a few high-signal defaults so the player still gets a
-  // sense of the table's posture even on a freshly-set campaign.
-  // For the collapsed state we cap at 4 lines; expanded shows all.
-  const rows = sys.optionalRules
-    .filter((r) => rules[r.key] !== undefined)
-    .map((r) => ({ rule: r, value: rules[r.key]! }));
+  // Walk the system's rule definitions; for each, prefer the
+  // resolved bag value, otherwise fall through to the rule's
+  // bundled default. Standalone wizards land entirely in the
+  // fallback path; campaign-launched ones get the DM's saved
+  // values everywhere they touched a rule.
+  const rows = sys.optionalRules.map((rule) => {
+    const value = rules[rule.key] ?? rule.default;
+    return { rule, value };
+  });
 
   if (rows.length === 0) return null;
+
+  const isCampaign = !!campaignId;
+  const eyebrow = isCampaign ? 'Campaign rules' : 'Character creation rules';
+  const description = isCampaign
+    ? 'The DM has configured these rules for character creation in this campaign.'
+    : 'These are the system defaults for character creation. The DM of a campaign you join can override them.';
 
   const visible = expanded ? rows : rows.slice(0, 4);
   const hiddenCount = rows.length - visible.length;
@@ -55,9 +59,9 @@ export function CampaignRulesSummary() {
         style={styles.headerRow}
       >
         <View style={{ flex: 1 }}>
-          <MetaLabel size="sm">Campaign rules</MetaLabel>
+          <MetaLabel size="sm">{eyebrow}</MetaLabel>
           <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 2 }}>
-            The DM has configured these rules for character creation in this campaign.
+            {description}
           </Text>
         </View>
         <Icon
@@ -94,8 +98,9 @@ export function CampaignRulesSummary() {
  */
 function formatValue(
   rule: OptionalRule,
-  value: boolean | string | number,
+  value: boolean | string | number | undefined,
 ): string {
+  if (value === undefined) return '—';
   if (rule.type === 'boolean') return value ? 'On' : 'Off';
   if (rule.type === 'choice') {
     const match = rule.choices?.find((c) => c.key === value);
