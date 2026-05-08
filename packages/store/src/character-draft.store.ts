@@ -49,6 +49,17 @@ export interface CharacterDraft {
    */
   startingLevel: number;
 
+  /**
+   * Feats picked during creation, by feat key. Populated when the
+   * campaign rule `feats_at_level_1` is on (the wizard inserts a
+   * Feats step) or when the standalone wizard surfaces a feat
+   * picker. Empty for campaigns that disable the L1 feat. The
+   * background's auto-granted Origin Feat is recorded separately
+   * via the BackgroundResult, not here — this list is the player's
+   * additional picks.
+   */
+  chosenFeats: string[];
+
   // Step 5 — Review & Finalize
   characterName: string;
 
@@ -87,6 +98,7 @@ interface CharacterDraftActions {
   setClass: (key: string) => void;
   setChosenSkills: (skills: string[]) => void;
   setBackground: (key: string) => void;
+  setChosenFeats: (keys: string[]) => void;
   setAbilityScoreMethod: (method: AbilityScoreMethod) => void;
   setAbilityScores: (scores: Dnd5eAbilityScores) => void;
   setStartingLevel: (level: number) => void;
@@ -112,6 +124,7 @@ const INITIAL_DRAFT: CharacterDraft = {
   classKey: null,
   chosenSkills: [],
   backgroundKey: null,
+  chosenFeats: [],
   abilityScoreMethod: 'standard_array',
   abilityScores: null,
   startingLevel: 1,
@@ -139,6 +152,8 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
       setChosenSkills: (chosenSkills) => set({ chosenSkills }),
 
       setBackground: (backgroundKey) => set({ backgroundKey }),
+
+      setChosenFeats: (chosenFeats) => set({ chosenFeats }),
 
       setAbilityScoreMethod: (abilityScoreMethod) =>
         set({ abilityScoreMethod, abilityScores: null }),

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useCharacterDraftStore, useAuthStore } from '@vaultstone/store';
@@ -20,6 +20,7 @@ import { StepRuleset } from '../../components/character-wizard/StepRuleset';
 import { StepSpecies } from '../../components/character-wizard/StepSpecies';
 import { StepClass } from '../../components/character-wizard/StepClass';
 import { StepBackground } from '../../components/character-wizard/StepBackground';
+import { StepFeats } from '../../components/character-wizard/StepFeats';
 import { StepAbilityScores } from '../../components/character-wizard/StepAbilityScores';
 import { StepReview } from '../../components/character-wizard/StepReview';
 import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
@@ -60,26 +61,53 @@ function initSpellSlots(level: number): Dnd5eResources['spellSlots'] {
   };
 }
 
-// Step list when the wizard is launched without a campaign — user picks
-// the ruleset themselves at step 0.
-const STANDALONE_STEPS = [
+// Static step lists. The Feats step is inserted dynamically between
+// Background and Ability Scores when the campaign rule
+// `feats_at_level_1` is on (or the standalone-mode default, which is
+// `true` per the system's `optional_rules.feats_at_level_1.default`).
+// See `buildSteps()` below.
+const STANDALONE_BASE_STEPS = [
   { key: 'ruleset', label: 'Ruleset' },
   { key: 'species', label: 'Species' },
   { key: 'class', label: 'Class' },
   { key: 'background', label: 'Background' },
   { key: 'scores', label: 'Ability Scores' },
   { key: 'review', label: 'Review' },
-];
+] as const;
 
-// When launched from inside a campaign the ruleset is locked to the
-// campaign's system, so we skip the picker entirely.
-const CAMPAIGN_STEPS = [
+const CAMPAIGN_BASE_STEPS = [
   { key: 'species', label: 'Species' },
   { key: 'class', label: 'Class' },
   { key: 'background', label: 'Background' },
   { key: 'scores', label: 'Ability Scores' },
   { key: 'review', label: 'Review' },
-];
+] as const;
+
+const FEATS_STEP = { key: 'feats', label: 'Starting Feat' } as const;
+
+/**
+ * Build the active step list for the current launch context. Feats
+ * step is spliced in after Background when the campaign rule
+ * `feats_at_level_1` is on. Standalone mode defaults to on (the
+ * system's bundled rule default).
+ */
+function buildSteps(
+  isCampaign: boolean,
+  campaignRules: Record<string, boolean | string | number>,
+): ReadonlyArray<{ key: string; label: string }> {
+  const base = isCampaign ? CAMPAIGN_BASE_STEPS : STANDALONE_BASE_STEPS;
+  const featsAtL1 = isCampaign
+    ? campaignRules.feats_at_level_1 !== false
+    : true; // standalone: bundled-system default
+  if (!featsAtL1) return [...base];
+  // Splice Feats step right after Background.
+  const out: Array<{ key: string; label: string }> = [];
+  for (const step of base) {
+    out.push({ key: step.key, label: step.label });
+    if (step.key === 'background') out.push({ ...FEATS_STEP });
+  }
+  return out;
+}
 
 // Translate a campaigns.system id (dnd5e_2014 / dnd5e_2024 / dnd5e legacy
 // alias) into the wizard's draft shape (system + srdVersion). The draft's
@@ -105,6 +133,7 @@ export default function NewCharacterScreen() {
       classKey: s.classKey,
       chosenSkills: s.chosenSkills,
       backgroundKey: s.backgroundKey,
+      chosenFeats: s.chosenFeats,
       abilityScores: s.abilityScores,
       characterName: s.characterName,
       srdVersion: s.srdVersion,
@@ -239,7 +268,15 @@ export default function NewCharacterScreen() {
   ]);
 
   // Active step list and current step, swapped based on launch context.
-  const STEPS = launchedCampaignId ? CAMPAIGN_STEPS : STANDALONE_STEPS;
+  // Memoize so the array reference is stable (avoids re-render churn in
+  // useEffect deps that depend on STEPS). The campaign-rules bag is
+  // populated during bootstrap for campaign-launched wizards; until
+  // bootstrap finishes the bag is empty and we fall through to defaults.
+  const draftCampaignRules = useCharacterDraftStore((s) => s.campaignRules);
+  const STEPS = useMemo(
+    () => buildSteps(!!launchedCampaignId, draftCampaignRules),
+    [launchedCampaignId, draftCampaignRules],
+  );
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -320,6 +357,7 @@ export default function NewCharacterScreen() {
       case 'species':    return draft.speciesKey !== null;
       case 'class':      return draft.classKey !== null && (classSkillCount === 0 || draft.chosenSkills.length >= classSkillCount);
       case 'background': return draft.backgroundKey !== null;
+      case 'feats':      return draft.chosenFeats.length > 0;
       case 'scores':     return draft.abilityScores !== null;
       case 'review':     return (draft.characterName ?? '').trim().length > 0;
       default:           return false;
@@ -414,10 +452,25 @@ export default function NewCharacterScreen() {
     setSaveError('');
 
     try {
-      const [clsResults, bgResults, speciesResults] = await Promise.all([
+      // Fetch feats too when the wizard surfaced the feats step. Pulling
+      // them through ContentResolver (not the wizard's filtered list)
+      // means homebrew + imported feats resolve the same way SRD ones do.
+      const includeHomebrew = !!draft.campaignId || draft.selectedPackIds.length > 0;
+      const tiersForFeats: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+      const [clsResults, bgResults, speciesResults, featResults] = await Promise.all([
         ContentResolver.search({ type: 'class', system: 'dnd5e', tiers: ['srd'] }),
         ContentResolver.search({ type: 'background', system: 'dnd5e', tiers: ['srd'] }),
         ContentResolver.search({ type: 'species', system: 'dnd5e', tiers: ['srd'] }),
+        draft.chosenFeats.length > 0
+          ? ContentResolver.search({
+              type: 'feat',
+              system: 'dnd5e',
+              srdVersion: draft.srdVersion,
+              tiers: tiersForFeats,
+              campaignId: draft.campaignId ?? undefined,
+              packIds: !draft.campaignId && draft.selectedPackIds.length > 0 ? draft.selectedPackIds : undefined,
+            })
+          : Promise.resolve([]),
       ]);
       const cls = (clsResults as ClassResult[]).find((c) => c.key === draft.classKey);
       const bg = (bgResults as BackgroundResult[]).find((b) => b.key === draft.backgroundKey);
@@ -428,6 +481,23 @@ export default function NewCharacterScreen() {
         setSaving(false);
         return;
       }
+
+      // Resolve picked feats into the character's `resources.feats[]`
+      // shape. Skipped silently if the resolver couldn't find a feat —
+      // wizard's draft can't easily land in this state, but a stale
+      // pack opt-in could (e.g. user removed a pack between picking
+      // and finishing). Better to drop the orphan than block creation.
+      const chosenFeatRecords = (featResults as import('@vaultstone/types').FeatResult[])
+        .filter((f) => draft.chosenFeats.includes(f.key));
+      const featsForResources: import('@vaultstone/types').Dnd5eFeature[] =
+        chosenFeatRecords.map((f) => ({
+          id: f.key,
+          name: f.name,
+          description: [
+            f.description ?? '',
+            ...(f.benefits ?? []).map((b) => `• ${b}`),
+          ].filter(Boolean).join('\n\n'),
+        }));
 
       const conMod = Math.floor((draft.abilityScores.constitution - 10) / 2);
       // TODO(starting-level-progression): the campaign's `starting_level`
@@ -471,6 +541,7 @@ export default function NewCharacterScreen() {
         deathSaves: { successes: 0, failures: 0 },
         exhaustionLevel: 0,
         spellSlots: cls.spellcasting ? initSpellSlots(1) : null,
+        ...(featsForResources.length > 0 ? { feats: featsForResources } : {}),
       };
 
       const { data, error } = await createCharacter({
@@ -629,7 +700,12 @@ export default function NewCharacterScreen() {
               case 'class':
                 return <StepClass onPreviewChange={setInPreview} onAdvance={() => advanceTo('background')} />;
               case 'background':
-                return <StepBackground onPreviewChange={setInPreview} onAdvance={() => advanceTo('scores')} />;
+                return <StepBackground
+                  onPreviewChange={setInPreview}
+                  onAdvance={() => advanceTo(STEPS.some((s) => s.key === 'feats') ? 'feats' : 'scores')}
+                />;
+              case 'feats':
+                return <StepFeats onPreviewChange={setInPreview} onAdvance={() => advanceTo('scores')} />;
               case 'scores':
                 return <StepAbilityScores />;
               case 'review':
