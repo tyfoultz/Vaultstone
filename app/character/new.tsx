@@ -290,20 +290,37 @@ export default function NewCharacterScreen() {
   const [classSkillCount, setClassSkillCount] = useState<number>(0);
   const [backgroundName, setBackgroundName] = useState<string | null>(null);
 
+  // Resolve picked content names for the SheetSoFar bar through the
+  // same tiers the picker steps used. SRD-only here renders raw keys
+  // ("homebrew_my-pack_class_warden") in the summary the moment a
+  // homebrew class/species/background is picked.
+  const sheetSoFarPackIdsKey = draft.selectedPackIds.join(',');
+  const sheetSoFarTierArgs = useMemo(() => {
+    const includeHomebrew = !!draft.campaignId || draft.selectedPackIds.length > 0;
+    return {
+      system: 'dnd5e' as const,
+      srdVersion: draft.srdVersion,
+      tiers: (includeHomebrew ? ['srd', 'homebrew'] : ['srd']) as Array<'srd' | 'homebrew'>,
+      campaignId: draft.campaignId ?? undefined,
+      packIds: !draft.campaignId && draft.selectedPackIds.length > 0 ? draft.selectedPackIds : undefined,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.srdVersion, draft.campaignId, sheetSoFarPackIdsKey]);
+
   useEffect(() => {
     if (draft.speciesKey) {
-      ContentResolver.search({ type: 'species', system: 'dnd5e', tiers: ['srd'] }).then((r) => {
+      ContentResolver.search({ type: 'species', ...sheetSoFarTierArgs }).then((r) => {
         const sp = (r as SpeciesResult[]).find((x) => x.key === draft.speciesKey);
         setSpeciesName(sp?.name ?? null);
       });
     } else {
       setSpeciesName(null);
     }
-  }, [draft.speciesKey]);
+  }, [draft.speciesKey, sheetSoFarTierArgs]);
 
   useEffect(() => {
     if (draft.classKey) {
-      ContentResolver.search({ type: 'class', system: 'dnd5e', tiers: ['srd'] }).then((r) => {
+      ContentResolver.search({ type: 'class', ...sheetSoFarTierArgs }).then((r) => {
         const cls = (r as ClassResult[]).find((x) => x.key === draft.classKey);
         setClassName(cls?.name ?? null);
         setClassDie(cls?.hitDie ?? null);
@@ -314,18 +331,18 @@ export default function NewCharacterScreen() {
       setClassDie(null);
       setClassSkillCount(0);
     }
-  }, [draft.classKey]);
+  }, [draft.classKey, sheetSoFarTierArgs]);
 
   useEffect(() => {
     if (draft.backgroundKey) {
-      ContentResolver.search({ type: 'background', system: 'dnd5e', tiers: ['srd'] }).then((r) => {
+      ContentResolver.search({ type: 'background', ...sheetSoFarTierArgs }).then((r) => {
         const bg = (r as BackgroundResult[]).find((x) => x.key === draft.backgroundKey);
         setBackgroundName(bg?.name ?? null);
       });
     } else {
       setBackgroundName(null);
     }
-  }, [draft.backgroundKey]);
+  }, [draft.backgroundKey, sheetSoFarTierArgs]);
 
   // Highest ability score for SheetSoFar
   const highestStat = draft.abilityScores
@@ -452,24 +469,29 @@ export default function NewCharacterScreen() {
     setSaveError('');
 
     try {
-      // Fetch feats too when the wizard surfaced the feats step. Pulling
-      // them through ContentResolver (not the wizard's filtered list)
-      // means homebrew + imported feats resolve the same way SRD ones do.
+      // Pull every content kind through the same tier scoping the wizard
+      // steps used to surface them. SRD-only here would silently swap a
+      // homebrew class's proficiencies + features for whatever SRD class
+      // happens to share its key, or — more likely — `cls` resolves to
+      // undefined and the wizard errors out. Mirror the picker step's
+      // scoping so the saved character carries the proficiencies / hit
+      // die / origin feat / etc. of the *picked* content.
       const includeHomebrew = !!draft.campaignId || draft.selectedPackIds.length > 0;
-      const tiersForFeats: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+      const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+      const packIds = !draft.campaignId && draft.selectedPackIds.length > 0 ? draft.selectedPackIds : undefined;
+      const tierArgs = {
+        system: 'dnd5e',
+        srdVersion: draft.srdVersion,
+        tiers,
+        campaignId: draft.campaignId ?? undefined,
+        packIds,
+      } as const;
       const [clsResults, bgResults, speciesResults, featResults] = await Promise.all([
-        ContentResolver.search({ type: 'class', system: 'dnd5e', tiers: ['srd'] }),
-        ContentResolver.search({ type: 'background', system: 'dnd5e', tiers: ['srd'] }),
-        ContentResolver.search({ type: 'species', system: 'dnd5e', tiers: ['srd'] }),
+        ContentResolver.search({ type: 'class',      ...tierArgs }),
+        ContentResolver.search({ type: 'background', ...tierArgs }),
+        ContentResolver.search({ type: 'species',    ...tierArgs }),
         draft.chosenFeats.length > 0
-          ? ContentResolver.search({
-              type: 'feat',
-              system: 'dnd5e',
-              srdVersion: draft.srdVersion,
-              tiers: tiersForFeats,
-              campaignId: draft.campaignId ?? undefined,
-              packIds: !draft.campaignId && draft.selectedPackIds.length > 0 ? draft.selectedPackIds : undefined,
-            })
+          ? ContentResolver.search({ type: 'feat', ...tierArgs })
           : Promise.resolve([]),
       ]);
       const cls = (clsResults as ClassResult[]).find((c) => c.key === draft.classKey);
