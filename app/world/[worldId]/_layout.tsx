@@ -88,7 +88,7 @@ export default function WorldLayout() {
       setWorld(w);
       setActiveWorld(w);
       const sections = (sectionsRes.data ?? []) as WorldSection[];
-      const pages = (pagesRes.data ?? []) as WorldPage[];
+      const pages = (pagesRes.data ?? []) as unknown as WorldPage[];
       const linked = (
         (campaignsRes.data ?? []) as unknown as Array<{
           campaigns: Database['public']['Tables']['campaigns']['Row'] | null;
@@ -137,7 +137,7 @@ export default function WorldLayout() {
         table: 'world_page_permissions',
       }, () => {
         getPagesForWorld(worldId).then(({ data }) => {
-          if (data) setPages(worldId, data as WorldPage[]);
+          if (data) setPages(worldId, data as unknown as WorldPage[]);
         });
       })
       .on('postgres_changes', {

@@ -92,7 +92,7 @@ export function RecentlyDeletedModal({ visible, worldId, onClose }: Props) {
     if (!error) {
       setPages((prev) => prev.filter((p) => p.id !== id));
       const { data } = await getPagesForWorld(worldId);
-      if (data) setPagesForWorld(worldId, data as WorldPage[]);
+      if (data) setPagesForWorld(worldId, data as unknown as WorldPage[]);
     }
     setRestoring(null);
   }

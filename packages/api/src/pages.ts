@@ -2,10 +2,19 @@ import type { PageKind, TemplateKey, WorldPage } from '@vaultstone/types';
 
 import { supabase } from './client';
 
+const PAGE_LIST_COLUMNS = [
+  'id', 'world_id', 'section_id', 'parent_page_id', 'campaign_id',
+  'title', 'page_kind', 'template_key', 'template_version',
+  'visible_to_players', 'sort_order', 'structured_fields',
+  'body_text', 'body_refs', 'character_id', 'custom_icon',
+  'editing_user_id', 'editing_since', 'title_overridden',
+  'created_at', 'updated_at', 'deleted_at',
+].join(',');
+
 export async function getPagesForWorld(worldId: string) {
   return supabase
     .from('world_pages')
-    .select('*')
+    .select(PAGE_LIST_COLUMNS)
     .eq('world_id', worldId)
     .is('deleted_at', null)
     .order('sort_order', { ascending: true });

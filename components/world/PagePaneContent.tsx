@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   cascadeMentionLabel,
@@ -7,6 +7,7 @@ import {
   forceReleasePageEdit,
   getEventsForTimeline,
   getMyPagePermission,
+  getPage,
   listMaps,
   listPinsForWorld,
   listPinTypes,
@@ -107,6 +108,7 @@ export function PagePaneContent({
     return (id: string) => map.get(id) ?? '';
   }, [sections]);
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [bodyLoaded, setBodyLoaded] = useState(false);
   const updatePageInStore = usePagesStore((s) => s.updatePage);
   const bodyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingBodyRef = useRef<{
@@ -124,6 +126,22 @@ export function PagePaneContent({
   const [editingTitle, setEditingTitle] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const removePage = usePagesStore((s) => s.removePage);
+
+  // Lazy-load page body (excluded from page list fetch to save egress)
+  useEffect(() => {
+    if (!page || page.body != null) { setBodyLoaded(true); return; }
+    let cancelled = false;
+    getPage(pageId).then(({ data }) => {
+      if (cancelled || !data) return;
+      updatePageInStore(pageId, {
+        body: (data as any).body,
+        body_text: (data as any).body_text,
+        body_refs: (data as any).body_refs,
+      });
+      setBodyLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [pageId, page?.body]);
 
   const [worldPins, setWorldPins] = useState<MapPin[]>([]);
   const [worldMaps, setWorldMaps] = useState<WorldMap[]>([]);
@@ -160,6 +178,10 @@ export function PagePaneContent({
     () => (allPages ?? EMPTY_PAGES).filter((p) => p.page_kind === 'timeline'),
     [allPages],
   );
+  const timelinePageIds = useMemo(
+    () => timelinePages.map((p) => p.id).join(','),
+    [timelinePages],
+  );
   useEffect(() => {
     if (timelinePages.length === 0) {
       setMentionableEvents(EMPTY_MENTION_EVENTS);
@@ -186,7 +208,7 @@ export function PagePaneContent({
       },
     );
     return () => { cancelled = true; };
-  }, [timelinePages]);
+  }, [timelinePageIds]);
 
   const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(null);
   const [canEdit, setCanEdit] = useState(isWorldOwner);
@@ -384,6 +406,15 @@ export function PagePaneContent({
         >
           Back to world
         </Text>
+      </View>
+    );
+  }
+
+  // Wait for body to lazy-load before rendering editor
+  if (!bodyLoaded) {
+    return (
+      <View style={styles.missing}>
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
