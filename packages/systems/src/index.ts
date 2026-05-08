@@ -1,4 +1,5 @@
 export { dnd5eSystem, dnd5e2014System, dnd5e2024System } from './dnd5e';
+export { getAbilityAttributes, type AbilityAttributeMetadata } from './dnd5e/attributes';
 export {
   checkPrerequisites,
   type PrereqCharacter,

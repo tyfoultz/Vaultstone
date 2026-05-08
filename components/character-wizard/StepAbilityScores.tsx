@@ -1,32 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { useCharacterDraftStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
+import {
+  BUNDLED_SYSTEMS_BY_ID, getAbilityAttributes,
+} from '@vaultstone/systems';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Dnd5eAbilityScores } from '@vaultstone/types';
 
-const ABILITIES: (keyof Dnd5eAbilityScores)[] = [
-  'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma',
-];
-const SHORT: Record<keyof Dnd5eAbilityScores, string> = {
-  strength: 'STR', dexterity: 'DEX', constitution: 'CON',
-  intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
-};
-const BLURB: Record<keyof Dnd5eAbilityScores, string> = {
-  strength: 'Lifting, breaking, brawling.',
-  dexterity: 'Agility, reflexes and stealth.',
-  constitution: 'Endurance and hit points.',
-  intelligence: 'Memory, analysis, arcana.',
-  wisdom: 'Perception, insight, nature.',
-  charisma: 'Persuasion, deception, command.',
-};
+// The wizard's draft store stores ability scores in the D&D 5e
+// `Dnd5eAbilityScores` shape, which is structurally a
+// `Record<AbilityKey, number>`. We treat it as a string-keyed map
+// here so the rendering loop is driven by the system's attribute
+// list rather than a hardcoded six-key tuple — adding a homebrew
+// 5e variant with a seventh ability would just need a new entry
+// in `getAbilityAttributes(system.attributes)`.
+type AbilityScoreMap = Record<string, number>;
 
 const STANDARD_ARRAY = [15, 14, 13, 12, 10, 8];
 const POINT_COST: Record<number, number> = { 8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9 };
 const POINT_BUDGET = 27;
-const BLANK: Dnd5eAbilityScores = {
-  strength: 8, dexterity: 8, constitution: 8, intelligence: 8, wisdom: 8, charisma: 8,
-};
 
 type DiceRoll = { dice: number[]; sum: number };
 
@@ -49,48 +42,72 @@ const METHODS = [
 ];
 
 export function StepAbilityScores() {
-  const { abilityScoreMethod, abilityScores, setAbilityScoreMethod, setAbilityScores } =
+  const { abilityScoreMethod, abilityScores, setAbilityScoreMethod, setAbilityScores, system, srdVersion } =
     useCharacterDraftStore(
       useShallow((s) => ({
         abilityScoreMethod: s.abilityScoreMethod,
         abilityScores: s.abilityScores,
         setAbilityScoreMethod: s.setAbilityScoreMethod,
         setAbilityScores: s.setAbilityScores,
+        system: s.system,
+        srdVersion: s.srdVersion,
       }))
     );
 
-  const [rolls, setRolls] = useState<Partial<Record<keyof Dnd5eAbilityScores, DiceRoll>>>({});
-  const [arrayAssignments, setArrayAssignments] = useState<Partial<Record<keyof Dnd5eAbilityScores, number>>>(() => {
+  // Pull the raw-ability rows from the chosen system's `attributes[]`
+  // schema. For D&D 5e (both editions) this is the canonical six —
+  // the same set the constants above used to spell out — but reading
+  // it from the system definition means a homebrew 5e variant could
+  // legitimately add or rename an ability without code edits here.
+  const abilityRows = useMemo(() => {
+    const sysId = system === 'dnd5e' && srdVersion === 'SRD_5.1' ? 'dnd5e_2014' : 'dnd5e_2024';
+    const sys = BUNDLED_SYSTEMS_BY_ID[sysId];
+    return sys ? getAbilityAttributes(sys.attributes) : [];
+  }, [system, srdVersion]);
+  const ABILITIES = useMemo(() => abilityRows.map((a) => a.key), [abilityRows]);
+  const BLANK = useMemo<AbilityScoreMap>(() => {
+    const out: AbilityScoreMap = {};
+    for (const k of ABILITIES) out[k] = 8;
+    return out;
+  }, [ABILITIES]);
+
+  const [rolls, setRolls] = useState<Record<string, DiceRoll>>({});
+  const [arrayAssignments, setArrayAssignments] = useState<Record<string, number>>(() => {
     if (abilityScoreMethod !== 'standard_array' || !abilityScores) return {};
-    return Object.fromEntries(ABILITIES.map((a) => [a, abilityScores[a]])) as any;
+    const out: Record<string, number> = {};
+    for (const k of ABILITIES) {
+      const v = (abilityScores as unknown as AbilityScoreMap)[k];
+      if (typeof v === 'number') out[k] = v;
+    }
+    return out;
   });
   const [selectedArrayValue, setSelectedArrayValue] = useState<number | null>(null);
 
   useEffect(() => {
     if (abilityScoreMethod === 'roll_dice' && abilityScores === null) {
-      setAbilityScores({ ...BLANK });
+      setAbilityScores({ ...BLANK } as unknown as Dnd5eAbilityScores);
     }
-  }, [abilityScoreMethod]);
+  }, [abilityScoreMethod, BLANK]);
 
-  const scores: Dnd5eAbilityScores = abilityScores ?? { ...BLANK };
+  const scores: AbilityScoreMap = (abilityScores as unknown as AbilityScoreMap) ?? BLANK;
 
   // ── Roll Dice ──────────────────────────────────────────────────────────────
-  function rollAbility(ab: keyof Dnd5eAbilityScores) {
+  function rollAbility(ab: string) {
     const r = roll4d6Drop();
     const next = { ...rolls, [ab]: r };
     setRolls(next);
-    setAbilityScores({ ...scores, [ab]: r.sum });
+    setAbilityScores({ ...scores, [ab]: r.sum } as unknown as Dnd5eAbilityScores);
   }
   function rollAll() {
-    const nr: Partial<Record<keyof Dnd5eAbilityScores, DiceRoll>> = {};
-    const ns = { ...BLANK };
+    const nr: Record<string, DiceRoll> = {};
+    const ns: AbilityScoreMap = { ...BLANK };
     for (const ab of ABILITIES) { const r = roll4d6Drop(); nr[ab] = r; ns[ab] = r.sum; }
-    setRolls(nr); setAbilityScores(ns);
+    setRolls(nr); setAbilityScores(ns as unknown as Dnd5eAbilityScores);
   }
   const allRolled = ABILITIES.every((a) => rolls[a] !== undefined);
 
   // ── Standard Array ─────────────────────────────────────────────────────────
-  function assignArrayValue(ab: keyof Dnd5eAbilityScores) {
+  function assignArrayValue(ab: string) {
     if (selectedArrayValue === null) {
       const cur = arrayAssignments[ab];
       if (cur !== undefined) {
@@ -108,30 +125,30 @@ export function StepAbilityScores() {
     setSelectedArrayValue(null);
     syncArray(next);
   }
-  function syncArray(asgn: Partial<Record<keyof Dnd5eAbilityScores, number>>) {
-    const s = { ...BLANK };
-    for (const a of ABILITIES) { if (asgn[a] !== undefined) s[a] = asgn[a]!; }
-    setAbilityScores(s);
+  function syncArray(asgn: Record<string, number>) {
+    const s: AbilityScoreMap = { ...BLANK };
+    for (const a of ABILITIES) { if (asgn[a] !== undefined) s[a] = asgn[a]; }
+    setAbilityScores(s as unknown as Dnd5eAbilityScores);
   }
   const usedArrayVals = Object.values(arrayAssignments).filter((v): v is number => v !== undefined);
 
   // ── Point Buy ──────────────────────────────────────────────────────────────
-  function stepPointBuy(ab: keyof Dnd5eAbilityScores, delta: number) {
+  function stepPointBuy(ab: string, delta: number) {
     const next = scores[ab] + delta;
     if (next < 8 || next > 15) return;
-    const ns = { ...scores, [ab]: next };
+    const ns: AbilityScoreMap = { ...scores, [ab]: next };
     const spent = ABILITIES.reduce((acc, a) => acc + (POINT_COST[ns[a]] ?? 0), 0);
     if (spent > POINT_BUDGET) return;
-    setAbilityScores(ns);
+    setAbilityScores(ns as unknown as Dnd5eAbilityScores);
   }
   const pointsSpent = ABILITIES.reduce((acc, a) => acc + (POINT_COST[scores[a]] ?? 0), 0);
   const pointsRemaining = POINT_BUDGET - pointsSpent;
 
   // ── Manual ─────────────────────────────────────────────────────────────────
-  function updateManual(ab: keyof Dnd5eAbilityScores, raw: string) {
+  function updateManual(ab: string, raw: string) {
     const n = parseInt(raw, 10);
     if (isNaN(n)) return;
-    setAbilityScores({ ...scores, [ab]: Math.max(1, Math.min(30, n)) });
+    setAbilityScores({ ...scores, [ab]: Math.max(1, Math.min(30, n)) } as unknown as Dnd5eAbilityScores);
   }
 
   return (
@@ -165,8 +182,8 @@ export function StepAbilityScores() {
               pointsRemaining < 0 && { color: colors.hpDanger },
             ]}>{pointsRemaining}</Text>
           </View>
-          {ABILITIES.map((ab) => (
-            <AbilityRow key={ab} ability={ab} right={
+          {abilityRows.map(({ key: ab, label, short, description }) => (
+            <AbilityRow key={ab} label={label} short={short} description={description} right={
               <View style={s.stepperRow}>
                 <StepBtn onPress={() => stepPointBuy(ab, -1)} disabled={scores[ab] <= 8}>−</StepBtn>
                 <ScorePill score={scores[ab]} />
@@ -200,10 +217,10 @@ export function StepAbilityScores() {
               );
             })}
           </View>
-          {ABILITIES.map((ab) => {
+          {abilityRows.map(({ key: ab, label, short, description }) => {
             const val = arrayAssignments[ab];
             return (
-              <AbilityRow key={ab} ability={ab} right={
+              <AbilityRow key={ab} label={label} short={short} description={description} right={
                 <TouchableOpacity
                   style={[s.assignSlot, val !== undefined && s.assignSlotFilled]}
                   onPress={() => assignArrayValue(ab)}
@@ -234,10 +251,10 @@ export function StepAbilityScores() {
               <Text style={s.rollAllBtnText}>{allRolled ? '↺ REROLL ALL' : '🎲 ROLL ALL'}</Text>
             </TouchableOpacity>
           </View>
-          {ABILITIES.map((ab) => {
+          {abilityRows.map(({ key: ab, label, short, description }) => {
             const r = rolls[ab];
             return (
-              <AbilityRow key={ab} ability={ab} right={
+              <AbilityRow key={ab} label={label} short={short} description={description} right={
                 <View style={s.rollRight}>
                   <View style={s.diceRow}>
                     {(r ? r.dice : [0, 0, 0, 0]).map((d, i) => (
@@ -275,8 +292,8 @@ export function StepAbilityScores() {
       {abilityScoreMethod === 'roll' && (
         <>
           <Text style={s.subGuidance}>Enter scores rolled outside the app. Typical range: 3–18.</Text>
-          {ABILITIES.map((ab) => (
-            <AbilityRow key={ab} ability={ab} right={
+          {abilityRows.map(({ key: ab, label, short, description }) => (
+            <AbilityRow key={ab} label={label} short={short} description={description} right={
               <View style={s.manualRow}>
                 <TextInput
                   style={s.manualInput}
@@ -296,15 +313,20 @@ export function StepAbilityScores() {
   );
 }
 
-function AbilityRow({ ability, right }: { ability: keyof Dnd5eAbilityScores; right: React.ReactNode }) {
+function AbilityRow({ label, short, description, right }: {
+  label: string;
+  short: string;
+  description: string;
+  right: React.ReactNode;
+}) {
   return (
     <View style={s.abilityRow}>
       <View style={s.abilityBadge}>
-        <Text style={s.abilityShort}>{SHORT[ability]}</Text>
+        <Text style={s.abilityShort}>{short}</Text>
       </View>
       <View style={s.abilityInfo}>
-        <Text style={s.abilityName}>{ability.charAt(0).toUpperCase() + ability.slice(1)}</Text>
-        <Text style={s.abilityBlurb}>{BLURB[ability]}</Text>
+        <Text style={s.abilityName}>{label}</Text>
+        <Text style={s.abilityBlurb}>{description}</Text>
       </View>
       <View style={s.abilityRight}>{right}</View>
     </View>
