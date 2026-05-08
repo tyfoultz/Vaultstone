@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Icon, colors, radius, spacing } from '@vaultstone/ui';
+import { Icon, colors, radius, spacing, useBreakpoint } from '@vaultstone/ui';
 import {
   createWorldImage,
   getCampaignsForWorld,
@@ -36,13 +36,6 @@ type Props = {
   mentionablePages?: MentionablePage[];
   getSectionLabel?: (sectionId: string) => string;
   onMentionClick?: (pageId: string) => void;
-  /** World + page context for image uploads. When set, paste/upload
-   *  routes through `world_images` so images become real records
-   *  (with caption + signed-URL src + a `data-world-image-id`
-   *  attribute on the rendered <img>). The DM can then right-click
-   *  any such image to pin it to the campaign window pane.
-   *  Optional because some embeds (legacy / preview) don't have a
-   *  page context — those still fall back to data-URL inserts. */
   worldId?: string;
   pageId?: string;
 };
@@ -514,6 +507,7 @@ function MentionTypeahead({ query, pages, position, onSelect, onClose, getSectio
 // ── Main Editor ─────────────────────────────────────────────────────────
 
 export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, mentionablePages, getSectionLabel, onMentionClick, worldId, pageId }: Props) {
+  const { isMobile } = useBreakpoint();
   const [blocks, setBlocks] = useState<CanvasBlock[]>(initialBlocks ?? []);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
@@ -557,6 +551,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   onChangeRef.current = onChange;
   const changeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const htmlRef = useRef<Record<string, string>>({});
+  const [canvasScale, setCanvasScale] = useState(1);
+  const canvasScaleRef = useRef(1);
   const [tablePicker, setTablePicker] = useState(false);
   const [fontSizeOpen, setFontSizeOpen] = useState(false);
   const [textColorOpen, setTextColorOpen] = useState(false);
@@ -1272,17 +1268,19 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     if (!block || !canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
+    const s = canvasScaleRef.current;
     dragOffset.current = {
-      x: e.clientX - rect.left - block.x,
-      y: e.clientY - rect.top - block.y,
+      x: (e.clientX - rect.left) / s - block.x,
+      y: (e.clientY - rect.top) / s - block.y,
     };
     setDraggingId(id);
 
     function onMove(ev: MouseEvent) {
       if (!canvasRef.current) return;
       const cr = canvasRef.current.getBoundingClientRect();
-      const nx = snap(Math.max(0, ev.clientX - cr.left - dragOffset.current.x));
-      const ny = snap(Math.max(0, ev.clientY - cr.top - dragOffset.current.y));
+      const sc = canvasScaleRef.current;
+      const nx = snap(Math.max(0, (ev.clientX - cr.left) / sc - dragOffset.current.x));
+      const ny = snap(Math.max(0, (ev.clientY - cr.top) / sc - dragOffset.current.y));
       setBlocks((prev) => prev.map((b) => b.id === id ? { ...b, x: nx, y: ny } : b));
     }
 
@@ -1295,6 +1293,46 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+  }
+
+  function handleTouchDragStart(id: string, e: React.TouchEvent) {
+    e.stopPropagation();
+    const block = blocksRef.current.find((b) => b.id === id);
+    if (!block || !canvasRef.current) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const s = canvasScaleRef.current;
+    dragOffset.current = {
+      x: (touch.clientX - rect.left) / s - block.x,
+      y: (touch.clientY - rect.top) / s - block.y,
+    };
+    setDraggingId(id);
+
+    function onMove(ev: TouchEvent) {
+      ev.preventDefault();
+      if (!canvasRef.current) return;
+      const t = ev.touches[0];
+      if (!t) return;
+      const cr = canvasRef.current.getBoundingClientRect();
+      const sc = canvasScaleRef.current;
+      const nx = snap(Math.max(0, (t.clientX - cr.left) / sc - dragOffset.current.x));
+      const ny = snap(Math.max(0, (t.clientY - cr.top) / sc - dragOffset.current.y));
+      setBlocks((prev) => prev.map((b) => b.id === id ? { ...b, x: nx, y: ny } : b));
+    }
+
+    function onUp() {
+      setDraggingId(null);
+      emitChange();
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+      window.removeEventListener('touchcancel', onUp);
+    }
+
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+    window.addEventListener('touchcancel', onUp);
   }
 
   function handleResizeStart(id: string, e: React.MouseEvent) {
@@ -1406,6 +1444,42 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     }
   }
 
+  // Pinch-to-zoom on mobile
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el || !isMobile) return;
+    let lastDist = 0;
+    let startScale = 1;
+
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastDist = Math.hypot(dx, dy);
+        startScale = canvasScaleRef.current;
+      }
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        if (lastDist > 0) {
+          const newScale = Math.max(0.25, Math.min(3, startScale * (dist / lastDist)));
+          canvasScaleRef.current = newScale;
+          setCanvasScale(newScale);
+        }
+      }
+    }
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+    };
+  }, [isMobile]);
+
   const pd = (e: React.MouseEvent) => e.preventDefault();
 
   // ── Image menu handlers ────────────────────────────────────────────
@@ -1516,7 +1590,38 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   return (
     <View style={styles.root}>
       <CanvasStyles />
-      {editable ? (
+      {editable && isMobile && focusedId ? (
+        <div className="lore-toolbar lore-toolbar-mobile">
+          <button className={`lore-toolbar-btn${activeFormats.has('bold') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('bold')} type="button">
+            <Icon name="format-bold" size={18} color={activeFormats.has('bold') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <button className={`lore-toolbar-btn${activeFormats.has('italic') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('italic')} type="button">
+            <Icon name="format-italic" size={18} color={activeFormats.has('italic') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <button className={`lore-toolbar-btn${activeFormats.has('underline') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('underline')} type="button">
+            <Icon name="format-underlined" size={18} color={activeFormats.has('underline') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <div className="lore-toolbar-sep" />
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('formatBlock', 'h2')} type="button">
+            <Icon name="title" size={18} color={colors.onSurfaceVariant} />
+          </button>
+          <button className={`lore-toolbar-btn${activeFormats.has('insertUnorderedList') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('insertUnorderedList')} type="button">
+            <Icon name="format-list-bulleted" size={18} color={activeFormats.has('insertUnorderedList') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <button className={`lore-toolbar-btn${activeFormats.has('insertOrderedList') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('insertOrderedList')} type="button">
+            <Icon name="format-list-numbered" size={18} color={activeFormats.has('insertOrderedList') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <div className="lore-toolbar-sep" />
+          <button className={`lore-toolbar-btn${activeFormats.has('strikeThrough') ? ' lore-toolbar-active' : ''}`} onMouseDown={pd} onClick={() => execCmd('strikeThrough')} type="button">
+            <Icon name="strikethrough-s" size={18} color={activeFormats.has('strikeThrough') ? colors.primary : colors.onSurfaceVariant} />
+          </button>
+          <button className="lore-toolbar-btn" onMouseDown={pd} onClick={() => execCmd('removeFormat')} type="button">
+            <Icon name="format-clear" size={18} color={colors.onSurfaceVariant} />
+          </button>
+        </div>
+      ) : null}
+
+      {editable && !isMobile ? (
         <div className="lore-toolbar">
           {/* Font size */}
           <div style={{ position: 'relative' }}>
@@ -1707,7 +1812,14 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
         className="lore-canvas"
         onClick={handleCanvasClick}
         onContextMenu={handleCanvasContextMenu as any}
-        style={{ minHeight: 'calc(100vh - 160px)', position: 'relative', cursor: editable ? 'text' : 'default' }}
+        style={{
+          minHeight: 'calc(100vh - 160px)',
+          position: 'relative',
+          cursor: editable ? 'text' : 'default',
+          transform: isMobile ? `scale(${canvasScale})` : undefined,
+          transformOrigin: isMobile ? 'top left' : undefined,
+          width: isMobile ? `${100 / canvasScale}%` : undefined,
+        }}
       >
         <div style={{ position: 'absolute', top: 0, left: 0, width: 1, height: contentHeight, pointerEvents: 'none' }} />
         {blocks.map((block) => (
@@ -1738,6 +1850,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
               <div
                 className="lore-block-handle"
                 onMouseDown={(e) => handleDragStart(block.id, e)}
+                onTouchStart={(e) => handleTouchDragStart(block.id, e as any)}
                 title="Drag to move"
               >
                 ⠿
@@ -1922,6 +2035,17 @@ function CanvasStyles() {
             top: 0;
             z-index: 10;
             flex-wrap: wrap;
+          }
+          .lore-toolbar-mobile {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            gap: 2px;
+            padding: 6px 8px;
+          }
+          .lore-toolbar-mobile::-webkit-scrollbar {
+            display: none;
           }
           .lore-toolbar-btn {
             display: inline-flex;
@@ -2257,6 +2381,17 @@ function CanvasStyles() {
           .lore-block-handle:hover {
             color: ${colors.onSurfaceVariant};
             background: ${colors.surfaceContainerHigh};
+          }
+          @media (max-width: 768px) {
+            .lore-block-handle {
+              width: 32px;
+              height: 32px;
+              font-size: 18px;
+              left: -2px;
+              top: 4px;
+              background: ${colors.surfaceContainerHigh}88;
+              color: ${colors.onSurfaceVariant};
+            }
           }
           .lore-block-handle:active { cursor: grabbing; }
           .lore-block-content {

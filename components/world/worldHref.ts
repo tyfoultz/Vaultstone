@@ -23,3 +23,6 @@ export const worldMapHref = (worldId: string, mapId: string): Href =>
 
 export const worldRelationsHref = (worldId: string): Href =>
   (`/world/${worldId}/relations`) as unknown as Href;
+
+export const worldPagesHref = (worldId: string): Href =>
+  (`/world/${worldId}/pages`) as unknown as Href;

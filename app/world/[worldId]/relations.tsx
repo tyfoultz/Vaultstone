@@ -4,10 +4,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { updatePage } from '@vaultstone/api';
 import { useCurrentWorldStore, usePagesStore } from '@vaultstone/store';
 import type { PageKind, WorldPage } from '@vaultstone/types';
-import { colors, spacing } from '@vaultstone/ui';
+import { colors, spacing, useBreakpoint } from '@vaultstone/ui';
 
 import { worldPageHref } from '../../../components/world/worldHref';
 import { WorldTopBar } from '../../../components/world/WorldTopBar';
+import { MobileNodeDetailCard } from '../../../components/world/relation-web/MobileNodeDetailCard';
 import { NodeDetailCard } from '../../../components/world/relation-web/NodeDetailCard';
 import { RelationFilterBar } from '../../../components/world/relation-web/RelationFilterBar';
 import { RelationWeb } from '../../../components/world/relation-web/RelationWeb';
@@ -115,6 +116,8 @@ export default function RelationsScreen() {
     [worldId, router],
   );
 
+  const { isMobile } = useBreakpoint();
+
   if (!world || !worldId) return null;
 
   return (
@@ -164,17 +167,26 @@ export default function RelationsScreen() {
 
         {/* Node detail card overlay */}
         {selectedNode && selectedPage ? (
-          <View style={styles.detailOverlay} pointerEvents="box-none">
-            <NodeDetailCard
+          isMobile ? (
+            <MobileNodeDetailCard
               node={selectedNode}
-              page={selectedPage}
-              connectedEdges={connectedEdges}
-              nodeById={nodeById}
               worldId={worldId}
-              onClose={() => setSelectedNodeId(null)}
-              onOpenPage={handleOpenPage}
+              connectionCount={connectedEdges.length}
+              onDismiss={() => setSelectedNodeId(null)}
             />
-          </View>
+          ) : (
+            <View style={styles.detailOverlay} pointerEvents="box-none">
+              <NodeDetailCard
+                node={selectedNode}
+                page={selectedPage}
+                connectedEdges={connectedEdges}
+                nodeById={nodeById}
+                worldId={worldId}
+                onClose={() => setSelectedNodeId(null)}
+                onOpenPage={handleOpenPage}
+              />
+            </View>
+          )
         ) : null}
       </View>
     </View>

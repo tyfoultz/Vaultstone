@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { WorldSection } from '@vaultstone/types';
 
 interface SectionsState {
@@ -12,7 +14,7 @@ interface SectionsState {
 
 const sortByOrder = (a: WorldSection, b: WorldSection) => a.sort_order - b.sort_order;
 
-export const useSectionsStore = create<SectionsState>((set) => ({
+export const useSectionsStore = create<SectionsState>()(persist((set) => ({
   byWorldId: {},
 
   setSectionsForWorld: (worldId, sections) =>
@@ -60,6 +62,10 @@ export const useSectionsStore = create<SectionsState>((set) => ({
       delete next[worldId];
       return { byWorldId: next };
     }),
+}), {
+  name: 'vaultstone-sections',
+  storage: createJSONStorage(() => AsyncStorage),
+  partialize: (state) => ({ byWorldId: state.byWorldId }),
 }));
 
 // Stable empty sentinel so the selector returns the same reference when a

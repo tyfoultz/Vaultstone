@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   cascadeMentionLabel,
@@ -35,10 +35,11 @@ import {
   fonts,
   radius,
   spacing,
+  useBreakpoint,
 } from '@vaultstone/ui';
 
 import { EditLockBanner } from './EditLockBanner';
-import { LoreCanvasEditor } from './LoreCanvasEditor.web';
+import { LoreCanvasEditor } from './LoreCanvasEditor';
 import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
 import { PAGE_KIND_LABEL, toMaterialIcon } from './helpers';
@@ -157,6 +158,8 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
   const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode);
+  const { isMobile } = useBreakpoint();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const section = useMemo(
     () => sections.find((s) => s.id === page.section_id) ?? null,
@@ -409,6 +412,225 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
     saveState === 'saved' ? 'Saved · just now' :
     saveState === 'error' ? 'Save failed' : '';
 
+  const renderPills = () => (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, paddingBottom: spacing.xs }}>
+      {propertyPills.map((pill) => (
+        <div key={pill.key} style={{ position: 'relative', maxWidth: '100%' }}>
+          <Pressable
+            onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)}
+            style={[
+              styles.pill,
+              pill.color ? { borderColor: pill.color + '44' } : undefined,
+              !pill.value && styles.pillEmpty,
+            ]}
+          >
+            {pill.icon ? (
+              <Icon
+                name={pill.icon as React.ComponentProps<typeof Icon>['name']}
+                size={12}
+                color={pill.color ?? colors.outline}
+              />
+            ) : null}
+            <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>
+              {pill.label}
+            </Text>
+            {pill.value ? (
+              <Text numberOfLines={1} style={[styles.pillValue, { flexShrink: 1 }, pill.color ? { color: pill.color } : undefined]}>
+                {pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}
+              </Text>
+            ) : null}
+          </Pressable>
+          {editingPill === pill.key ? (
+            <PillEditor
+              pill={pill}
+              onSelect={(v) => { updateField(pill.key, v); setEditingPill(null); }}
+              onClose={() => setEditingPill(null)}
+            />
+          ) : null}
+        </div>
+      ))}
+      {tags.map((tag) => (
+        <View key={tag} style={styles.tagPill}>
+          <Text style={styles.tagDot}>·</Text>
+          <Text style={styles.tagText}>{tag}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderSidebarBody = () => (
+    <>
+      <View style={sideStyles.rightTabs}>
+        <RightTabBtn label="On This Page" active={rightTab === 'on_this_page'} onPress={() => setRightTab('on_this_page')} />
+        <RightTabBtn label="Sub-locations" active={rightTab === 'sub_locations'} onPress={() => setRightTab('sub_locations')} />
+      </View>
+
+      <ScrollView contentContainerStyle={sideStyles.rightBody}>
+        {rightTab === 'on_this_page' ? (
+          <>
+            <View style={sideStyles.sideSection}>
+              <SideSectionHeader icon="place" title="MAP PIN" />
+              {mapPin && mapData ? (
+                <Pressable
+                  onPress={() => router.push(worldMapHref(worldId, mapPin.map_id))}
+                  style={styles.mapPreview}
+                >
+                  <MapPinPreview
+                    signedUrl={mapData.signedUrl}
+                    label={mapData.map.label}
+                    xPct={mapPin.x_pct}
+                    yPct={mapPin.y_pct}
+                    mapWidth={mapData.map.image_width}
+                    mapHeight={mapData.map.image_height}
+                  />
+                  <View style={styles.mapMeta}>
+                    <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>
+                      {mapData.map.label}
+                    </Text>
+                    <Text style={styles.mapMetaLink}>OPEN MAP →</Text>
+                  </View>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => router.push(worldMapIndexHref(worldId))}
+                  style={styles.mapPlaceholder}
+                >
+                  <Icon name="map" size={24} color={colors.outline} />
+                  <Text variant="body-sm" style={{ color: colors.outline, marginTop: 4 }}>No map pin set</Text>
+                  <Text variant="body-sm" style={{ color: colors.primary, marginTop: 2, fontSize: 11 }}>Open Maps →</Text>
+                </Pressable>
+              )}
+            </View>
+
+            <CollapsibleSideSection icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined}>
+              {mentionedPages.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
+              ) : (
+                mentionedPages.map((mp) => {
+                  const mi = MENTION_ICON[mp.page_kind] ?? MENTION_ICON.custom;
+                  return (
+                    <Pressable key={mp.id} onPress={() => router.push(worldPageHref(worldId, mp.id))} style={sideStyles.mentionRow}>
+                      <View style={[sideStyles.mentionDot, { backgroundColor: mi.color }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{mp.title}</Text>
+                        <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[mp.page_kind] ?? 'Page').toUpperCase()}</Text>
+                      </View>
+                      <Icon name="chevron-right" size={12} color={colors.outline} />
+                    </Pressable>
+                  );
+                })
+              )}
+            </CollapsibleSideSection>
+
+            <CollapsibleSideSection icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined}>
+              {seenLoaded && seenInPlay.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
+              ) : (
+                seenInPlay.slice(0, 5).map((evt) => {
+                  const ago = formatRelativeTime(evt.created_at);
+                  const snippet = (evt.body_text ?? '').slice(0, 80);
+                  return (
+                    <View key={evt.id} style={sideStyles.seenRow}>
+                      <View style={sideStyles.seenHeader}>
+                        <View style={sideStyles.seenBadge}>
+                          <Text style={sideStyles.seenBadgeText}>
+                            {evt.source_session_id ? 'S' : 'E'}
+                          </Text>
+                        </View>
+                        <Text style={sideStyles.seenAgo}>{ago}</Text>
+                      </View>
+                      <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>
+                        {evt.title}
+                      </Text>
+                      {snippet ? (
+                        <Text variant="body-sm" numberOfLines={2} style={{ color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 }}>
+                          "{snippet}{(evt.body_text ?? '').length > 80 ? '…' : ''}"
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })
+              )}
+            </CollapsibleSideSection>
+
+            <CollapsibleSideSection icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined}>
+              {backlinksLoaded && backlinks.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
+              ) : (
+                backlinks.map((bl) => (
+                  <Pressable key={bl.id} onPress={() => router.push(worldPageHref(worldId, bl.id))} style={sideStyles.mentionRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{bl.title}</Text>
+                      <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[bl.page_kind] ?? 'Page').toUpperCase()}</Text>
+                    </View>
+                    <Icon name="chevron-right" size={12} color={colors.outline} />
+                  </Pressable>
+                ))
+              )}
+            </CollapsibleSideSection>
+
+            {/* NPCs */}
+            <CollapsibleSideSection icon="person" title="NPCS HERE" count={locationNpcs.length || undefined}>
+              {locationNpcs.length === 0 ? (
+                <Text variant="body-sm" style={sideStyles.emptyText}>No NPCs linked yet. Use @mention to reference NPC pages.</Text>
+              ) : (
+                locationNpcs.map((npc) => (
+                  <Pressable key={npc.id} onPress={() => router.push(worldPageHref(worldId, npc.id))} style={sideStyles.mentionRow}>
+                    <View style={[sideStyles.mentionDot, { backgroundColor: colors.hpDanger }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{npc.title}</Text>
+                      <Text style={sideStyles.mentionMeta}>NPC</Text>
+                    </View>
+                    <Icon name="chevron-right" size={12} color={colors.outline} />
+                  </Pressable>
+                ))
+              )}
+            </CollapsibleSideSection>
+
+            {/* Hooks & Rumors */}
+            <CollapsibleSideSection icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined}>
+              {hooks.map((hook, i) => (
+                <View key={i} style={sideStyles.hookRow}>
+                  <Text style={sideStyles.hookBullet}>•</Text>
+                  <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{hook}</Text>
+                  <Pressable
+                    onPress={() => updateField('__hooks', hooks.filter((_, j) => j !== i))}
+                    style={{ padding: 2 }}
+                  >
+                    <Icon name="close" size={12} color={colors.outline} />
+                  </Pressable>
+                </View>
+              ))}
+              <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
+            </CollapsibleSideSection>
+          </>
+        ) : null}
+
+        {rightTab === 'sub_locations' ? (
+          subpages.length === 0 ? (
+            <Text variant="body-sm" style={sideStyles.emptyText}>No sub-locations yet.</Text>
+          ) : (
+            subpages.map((p) => {
+              let iconName = 'place';
+              try {
+                const tpl = getTemplate(p.template_key as TemplateKey, p.template_version);
+                iconName = toMaterialIcon(tpl.icon);
+              } catch { /* default */ }
+              return (
+                <Pressable key={p.id} onPress={() => router.push(worldPageHref(worldId, p.id))} style={sideStyles.mentionRow}>
+                  <Icon name={iconName as React.ComponentProps<typeof Icon>['name']} size={14} color={colors.primary} />
+                  <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>{p.title}</Text>
+                  <Icon name="chevron-right" size={12} color={colors.outline} />
+                </Pressable>
+              );
+            })
+          )
+        ) : null}
+
+      </ScrollView>
+    </>
+  );
+
   return (
     <View style={splitMode ? styles.rootSplit : styles.root}>
       {/* ── Compact top bar: breadcrumbs + title + actions ── */}
@@ -433,7 +655,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
           <Text style={styles.crumbActive}>{page.title.toUpperCase()}</Text>
         </View>
         <View style={styles.topBarRight}>
-          <PlayerViewToggle />
+          {!isMobile ? <PlayerViewToggle /> : null}
           <VisibilityBadge
             visibility={page.visible_to_players ? 'player' : 'gm'}
             interactive={isWorldOwner}
@@ -442,7 +664,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
           {isWorldOwner ? (
             <Pressable onPress={() => setShareOpen(true)} style={styles.shareBtn}>
               <Icon name="share" size={14} color={colors.onSurfaceVariant} />
-              <Text variant="label-md" uppercase weight="semibold" style={{ color: colors.onSurfaceVariant, letterSpacing: 1, fontSize: 11 }}>Share</Text>
+              {!isMobile ? <Text variant="label-md" uppercase weight="semibold" style={{ color: colors.onSurfaceVariant, letterSpacing: 1, fontSize: 11 }}>Share</Text> : null}
             </Pressable>
           ) : null}
         </View>
@@ -450,7 +672,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
       ) : null}
 
       {/* ── Title row + pills (fixed height for cross-template alignment) ── */}
-      <View style={styles.headerWrap}>
+      <View style={isMobile ? styles.headerWrapMobile : styles.headerWrap}>
       <View style={styles.titleBar}>
         <Icon name="place" size={20} color={colors.primary} />
         {editingTitle ? (
@@ -495,59 +717,8 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
         )}
       </View>
 
-      {/* ── Property pills (editable) ── */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: 6,
-        paddingLeft: spacing.lg,
-        paddingRight: spacing.lg,
-        paddingBottom: spacing.xs,
-      }}>
-        {propertyPills.map((pill) => (
-          <div key={pill.key} style={{ position: 'relative' }}>
-            <Pressable
-              onPress={() => setEditingPill(editingPill === pill.key ? null : pill.key)}
-              style={[
-                styles.pill,
-                pill.color ? { borderColor: pill.color + '44' } : undefined,
-                !pill.value && styles.pillEmpty,
-              ]}
-            >
-              {pill.icon ? (
-                <Icon
-                  name={pill.icon as React.ComponentProps<typeof Icon>['name']}
-                  size={12}
-                  color={pill.color ?? colors.outline}
-                />
-              ) : null}
-              <Text style={[styles.pillLabel, pill.color ? { color: pill.color } : undefined]}>
-                {pill.label}
-              </Text>
-              {pill.value ? (
-                <Text style={[styles.pillValue, pill.color ? { color: pill.color } : undefined]}>
-                  {pill.value.charAt(0).toUpperCase() + pill.value.slice(1)}
-                </Text>
-              ) : null}
-            </Pressable>
-            {editingPill === pill.key ? (
-              <PillEditor
-                pill={pill}
-                onSelect={(v) => { updateField(pill.key, v); setEditingPill(null); }}
-                onClose={() => setEditingPill(null)}
-              />
-            ) : null}
-          </div>
-        ))}
-        {tags.map((tag) => (
-          <View key={tag} style={styles.tagPill}>
-            <Text style={styles.tagDot}>·</Text>
-            <Text style={styles.tagText}>{tag}</Text>
-          </View>
-        ))}
-      </div>
+      {/* ── Property pills (editable) — hidden on mobile ── */}
+      {!isMobile ? renderPills() : null}
       </View>
 
       {confirmDelete ? (
@@ -602,199 +773,64 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
           ) : null}
         </View>
 
-        {/* ── Right sidebar ── */}
-        {!rightPanelOpen ? (
-          <View style={sideStyles.rightPanelCollapsed}>
-            <Pressable
-              onPress={() => setRightPanelOpen(true)}
-              style={sideStyles.rightPanelToggleBtn}
-              accessibilityLabel="Show sidebar"
-            >
-              <Icon name="chevron-left" size={14} color={colors.onSurfaceVariant} />
-            </Pressable>
-          </View>
-        ) : (
-        <View style={sideStyles.rightPanel}>
-          <View style={sideStyles.rightPanelTopRow}>
-            <Pressable
-              onPress={() => setRightPanelOpen(false)}
-              style={sideStyles.rightPanelToggleBtn}
-              accessibilityLabel="Collapse sidebar"
-            >
-              <Icon name="chevron-right" size={14} color={colors.outline} />
-            </Pressable>
-          </View>
-          <View style={sideStyles.rightTabs}>
-            <RightTabBtn label="On This Page" active={rightTab === 'on_this_page'} onPress={() => setRightTab('on_this_page')} />
-            <RightTabBtn label="Sub-locations" active={rightTab === 'sub_locations'} onPress={() => setRightTab('sub_locations')} />
-          </View>
-
-          <ScrollView contentContainerStyle={sideStyles.rightBody}>
-            {rightTab === 'on_this_page' ? (
-              <>
-                <View style={sideStyles.sideSection}>
-                  <SideSectionHeader icon="place" title="MAP PIN" />
-                  {mapPin && mapData ? (
-                    <Pressable
-                      onPress={() => router.push(worldMapHref(worldId, mapPin.map_id))}
-                      style={styles.mapPreview}
-                    >
-                      <MapPinPreview
-                        signedUrl={mapData.signedUrl}
-                        label={mapData.map.label}
-                        xPct={mapPin.x_pct}
-                        yPct={mapPin.y_pct}
-                        mapWidth={mapData.map.image_width}
-                        mapHeight={mapData.map.image_height}
-                      />
-                      <View style={styles.mapMeta}>
-                        <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>
-                          {mapData.map.label}
-                        </Text>
-                        <Text style={styles.mapMetaLink}>OPEN MAP →</Text>
-                      </View>
-                    </Pressable>
-                  ) : (
-                    <Pressable
-                      onPress={() => router.push(worldMapIndexHref(worldId))}
-                      style={styles.mapPlaceholder}
-                    >
-                      <Icon name="map" size={24} color={colors.outline} />
-                      <Text variant="body-sm" style={{ color: colors.outline, marginTop: 4 }}>No map pin set</Text>
-                      <Text variant="body-sm" style={{ color: colors.primary, marginTop: 2, fontSize: 11 }}>Open Maps →</Text>
-                    </Pressable>
-                  )}
-                </View>
-
-                <CollapsibleSideSection icon="alternate-email" title="MENTIONED ON THIS PAGE" count={mentionedPages.length || undefined}>
-                  {mentionedPages.length === 0 ? (
-                    <Text variant="body-sm" style={sideStyles.emptyText}>No mentions yet.</Text>
-                  ) : (
-                    mentionedPages.map((mp) => {
-                      const mi = MENTION_ICON[mp.page_kind] ?? MENTION_ICON.custom;
-                      return (
-                        <Pressable key={mp.id} onPress={() => router.push(worldPageHref(worldId, mp.id))} style={sideStyles.mentionRow}>
-                          <View style={[sideStyles.mentionDot, { backgroundColor: mi.color }]} />
-                          <View style={{ flex: 1 }}>
-                            <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{mp.title}</Text>
-                            <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[mp.page_kind] ?? 'Page').toUpperCase()}</Text>
-                          </View>
-                          <Icon name="chevron-right" size={12} color={colors.outline} />
-                        </Pressable>
-                      );
-                    })
-                  )}
-                </CollapsibleSideSection>
-
-                <CollapsibleSideSection icon="history" title="SEEN IN PLAY" count={seenLoaded && seenInPlay.length > 0 ? seenInPlay.length : undefined}>
-                  {seenLoaded && seenInPlay.length === 0 ? (
-                    <Text variant="body-sm" style={sideStyles.emptyText}>No session references yet.</Text>
-                  ) : (
-                    seenInPlay.slice(0, 5).map((evt) => {
-                      const ago = formatRelativeTime(evt.created_at);
-                      const snippet = (evt.body_text ?? '').slice(0, 80);
-                      return (
-                        <View key={evt.id} style={sideStyles.seenRow}>
-                          <View style={sideStyles.seenHeader}>
-                            <View style={sideStyles.seenBadge}>
-                              <Text style={sideStyles.seenBadgeText}>
-                                {evt.source_session_id ? 'S' : 'E'}
-                              </Text>
-                            </View>
-                            <Text style={sideStyles.seenAgo}>{ago}</Text>
-                          </View>
-                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 12 }}>
-                            {evt.title}
-                          </Text>
-                          {snippet ? (
-                            <Text variant="body-sm" numberOfLines={2} style={{ color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 }}>
-                              "{snippet}{(evt.body_text ?? '').length > 80 ? '…' : ''}"
-                            </Text>
-                          ) : null}
-                        </View>
-                      );
-                    })
-                  )}
-                </CollapsibleSideSection>
-
-                <CollapsibleSideSection icon="link" title="LINKED FROM" count={backlinksLoaded && backlinks.length > 0 ? backlinks.length : undefined}>
-                  {backlinksLoaded && backlinks.length === 0 ? (
-                    <Text variant="body-sm" style={sideStyles.emptyText}>No backlinks yet.</Text>
-                  ) : (
-                    backlinks.map((bl) => (
-                      <Pressable key={bl.id} onPress={() => router.push(worldPageHref(worldId, bl.id))} style={sideStyles.mentionRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{bl.title}</Text>
-                          <Text style={sideStyles.mentionMeta}>{(PAGE_KIND_LABEL[bl.page_kind] ?? 'Page').toUpperCase()}</Text>
-                        </View>
-                        <Icon name="chevron-right" size={12} color={colors.outline} />
-                      </Pressable>
-                    ))
-                  )}
-                </CollapsibleSideSection>
-
-                {/* NPCs */}
-                <CollapsibleSideSection icon="person" title="NPCS HERE" count={locationNpcs.length || undefined}>
-                  {locationNpcs.length === 0 ? (
-                    <Text variant="body-sm" style={sideStyles.emptyText}>No NPCs linked yet. Use @mention to reference NPC pages.</Text>
-                  ) : (
-                    locationNpcs.map((npc) => (
-                      <Pressable key={npc.id} onPress={() => router.push(worldPageHref(worldId, npc.id))} style={sideStyles.mentionRow}>
-                        <View style={[sideStyles.mentionDot, { backgroundColor: colors.hpDanger }]} />
-                        <View style={{ flex: 1 }}>
-                          <Text variant="label-md" weight="semibold" numberOfLines={1} style={{ color: colors.onSurface, fontSize: 13 }}>{npc.title}</Text>
-                          <Text style={sideStyles.mentionMeta}>NPC</Text>
-                        </View>
-                        <Icon name="chevron-right" size={12} color={colors.outline} />
-                      </Pressable>
-                    ))
-                  )}
-                </CollapsibleSideSection>
-
-                {/* Hooks & Rumors */}
-                <CollapsibleSideSection icon="lightbulb" title="HOOKS & RUMORS" count={hooks.length || undefined}>
-                  {hooks.map((hook, i) => (
-                    <View key={i} style={sideStyles.hookRow}>
-                      <Text style={sideStyles.hookBullet}>•</Text>
-                      <Text variant="body-sm" style={{ flex: 1, color: colors.onSurfaceVariant, fontSize: 12 }}>{hook}</Text>
-                      <Pressable
-                        onPress={() => updateField('__hooks', hooks.filter((_, j) => j !== i))}
-                        style={{ padding: 2 }}
-                      >
-                        <Icon name="close" size={12} color={colors.outline} />
-                      </Pressable>
-                    </View>
-                  ))}
-                  <HookInput onAdd={(text) => updateField('__hooks', [...hooks, text])} />
-                </CollapsibleSideSection>
-              </>
-            ) : null}
-
-            {rightTab === 'sub_locations' ? (
-              subpages.length === 0 ? (
-                <Text variant="body-sm" style={sideStyles.emptyText}>No sub-locations yet.</Text>
-              ) : (
-                subpages.map((p) => {
-                  let iconName = 'place';
-                  try {
-                    const tpl = getTemplate(p.template_key as TemplateKey, p.template_version);
-                    iconName = toMaterialIcon(tpl.icon);
-                  } catch { /* default */ }
-                  return (
-                    <Pressable key={p.id} onPress={() => router.push(worldPageHref(worldId, p.id))} style={sideStyles.mentionRow}>
-                      <Icon name={iconName as React.ComponentProps<typeof Icon>['name']} size={14} color={colors.primary} />
-                      <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>{p.title}</Text>
-                      <Icon name="chevron-right" size={12} color={colors.outline} />
-                    </Pressable>
-                  );
-                })
-              )
-            ) : null}
-
-          </ScrollView>
-        </View>
-        )}
+        {/* ── Right sidebar — hidden on mobile ── */}
+        {!isMobile ? (
+          !rightPanelOpen ? (
+            <View style={sideStyles.rightPanelCollapsed}>
+              <Pressable
+                onPress={() => setRightPanelOpen(true)}
+                style={sideStyles.rightPanelToggleBtn}
+                accessibilityLabel="Show sidebar"
+              >
+                <Icon name="chevron-left" size={14} color={colors.onSurfaceVariant} />
+              </Pressable>
+            </View>
+          ) : (
+            <View style={sideStyles.rightPanel}>
+              <View style={sideStyles.rightPanelTopRow}>
+                <Pressable
+                  onPress={() => setRightPanelOpen(false)}
+                  style={sideStyles.rightPanelToggleBtn}
+                  accessibilityLabel="Collapse sidebar"
+                >
+                  <Icon name="chevron-right" size={14} color={colors.outline} />
+                </Pressable>
+              </View>
+              {renderSidebarBody()}
+            </View>
+          )
+        ) : null}
       </View>
+
+      {/* ── Mobile FAB + bottom-sheet overlay ── */}
+      {isMobile ? (
+        <>
+          <Pressable
+            style={{ position: 'absolute', bottom: 24, right: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryContainer, alignItems: 'center', justifyContent: 'center', elevation: 4 }}
+            onPress={() => setSidebarOpen(true)}
+          >
+            <Icon name="info-outline" size={20} color={colors.primary} />
+          </Pressable>
+          <Modal visible={sidebarOpen} transparent animationType="slide" onRequestClose={() => setSidebarOpen(false)}>
+            <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setSidebarOpen(false)}>
+              <Pressable style={{ backgroundColor: colors.surfaceContainerHigh, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '80%' }} onPress={() => {}}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.outlineVariant + '33' }}>
+                  <Text variant="title-sm" weight="bold" style={{ color: colors.onSurface }}>Details</Text>
+                  <Pressable onPress={() => setSidebarOpen(false)} hitSlop={8}>
+                    <Icon name="close" size={20} color={colors.onSurfaceVariant} />
+                  </Pressable>
+                </View>
+                <ScrollView>
+                  <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+                    {renderPills()}
+                  </View>
+                  {renderSidebarBody()}
+                </ScrollView>
+              </Pressable>
+            </Pressable>
+          </Modal>
+        </>
+      ) : null}
 
       {shareOpen ? <ShareModal page={page} onClose={() => setShareOpen(false)} /> : null}
     </View>
@@ -805,6 +841,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceCanvas },
   rootSplit: { flex: 1, backgroundColor: colors.surfaceCanvas, minHeight: 0 },
   headerWrap: { height: 120, overflow: 'hidden' as const },
+  headerWrapMobile: { paddingBottom: spacing.xs },
 
   // Top bar — compact breadcrumbs
   topBar: {

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { updateTimelineEvent } from '@vaultstone/api';
 import { useTimelineEventsStore } from '@vaultstone/store';
 import type { EraDefinition, TimelineCalendarSchema, TimelineEvent } from '@vaultstone/types';
-import { Icon, Text, colors, spacing } from '@vaultstone/ui';
+import { Icon, Text, colors, spacing, useBreakpoint } from '@vaultstone/ui';
 
 import { TimelineEventCard } from './TimelineEventCard';
 
@@ -29,6 +29,7 @@ export function TimelineSpine({
   onEditEvent,
   onAddEvent,
 }: Props) {
+  const { isMobile } = useBreakpoint();
   const groups = groupByEra(events, schema);
   const filtered = activeEra
     ? groups.filter((g) => g.era?.key === activeEra)
@@ -95,6 +96,40 @@ export function TimelineSpine({
         <Text variant="body-md" tone="secondary" style={{ marginTop: spacing.sm }}>
           No events yet. Add your first timeline event.
         </Text>
+      </View>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <View style={mStyles.root}>
+        {filtered.map((group, gi) => (
+          <View key={group.era?.key ?? `ungrouped-${gi}`}>
+            {group.era ? (
+              <View style={mStyles.eraHeader}>
+                <View style={mStyles.eraDiamond}>
+                  <Icon name="diamond" size={10} color={colors.primary} family="material-community" />
+                </View>
+                <Text variant="title-md" family="serif-display" weight="bold" style={{ color: colors.primary, fontStyle: 'italic' }}>
+                  {group.era.label}
+                </Text>
+              </View>
+            ) : null}
+
+            {group.events.map((event) => (
+              <View key={event.id} style={mStyles.eventRow}>
+                <Pressable style={mStyles.eventCard} onPress={() => onEditEvent(event)}>
+                  <TimelineEventCard event={event} era={group.era} isOwner={isOwner} onEdit={() => onEditEvent(event)} />
+                </Pressable>
+                <View style={mStyles.spineCol}>
+                  <View style={mStyles.spineLine} />
+                  <View style={mStyles.spineNode} />
+                  <View style={mStyles.spineLine} />
+                </View>
+              </View>
+            ))}
+          </View>
+        ))}
       </View>
     );
   }
@@ -265,4 +300,52 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cosmic, borderWidth: 2, borderColor: colors.surfaceCanvas,
   },
   emptyState: { alignItems: 'center', paddingVertical: spacing['2xl'] },
+});
+
+const mStyles = StyleSheet.create({
+  root: {
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.xl,
+  },
+  eraHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    marginTop: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '33',
+  },
+  eraDiamond: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventRow: {
+    flexDirection: 'row',
+    minHeight: 80,
+  },
+  eventCard: {
+    flex: 1,
+    marginBottom: spacing.sm,
+  },
+  spineCol: {
+    width: 32,
+    alignItems: 'center',
+    marginLeft: spacing.sm,
+  },
+  spineLine: {
+    flex: 1,
+    width: 2,
+    backgroundColor: colors.outlineVariant + '55',
+  },
+  spineNode: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceCanvas,
+  },
 });

@@ -18,12 +18,13 @@ import {
   usePagesStore,
   useSectionsStore,
 } from '@vaultstone/store';
-import { Chip, GhostButton, GradientButton, Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { Chip, GhostButton, GradientButton, Icon, MetaLabel, Text, colors, radius, spacing, useBreakpoint } from '@vaultstone/ui';
 import type { Database, TimelineCalendarSchema, WorldSection } from '@vaultstone/types';
 
 import { useActiveSection } from '../../../components/world/ActiveSectionContext';
 import { CreatePageModal } from '../../../components/world/CreatePageModal';
 import { CreateSectionModal } from '../../../components/world/CreateSectionModal';
+import { MobileWorldHome } from '../../../components/world/MobileWorldHome';
 import { SessionPrepPanel } from '../../../components/world/SessionPrepPanel';
 import { WorldOpeningBlock } from '../../../components/world/WorldOpeningBlock';
 import {
@@ -81,6 +82,7 @@ const ATLAS_GRID_STYLE = {
 export default function WorldLandingScreen() {
   const { worldId } = useLocalSearchParams<{ worldId: string }>();
   const router = useRouter();
+  const { isMobile } = useBreakpoint();
   const user = useAuthStore((s) => s.user);
   const world = useCurrentWorldStore((s) => s.world);
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
@@ -308,6 +310,19 @@ export default function WorldLandingScreen() {
   }
 
   if (!world || !worldId) return null;
+
+  if (isMobile) {
+    return (
+      <MobileWorldHome
+        worldId={worldId}
+        world={world}
+        sections={sections}
+        pageCounts={pageCounts}
+        isOwner={isOwner}
+        calendarSchema={calendarSchema}
+      />
+    );
+  }
 
   const handleSectionPress = (section: WorldSection) => {
     setActiveSectionId(section.id);

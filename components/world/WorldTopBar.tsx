@@ -1,6 +1,8 @@
-import { type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { MetaLabel, colors, spacing } from '@vaultstone/ui';
+import { type ReactNode, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Icon, MetaLabel, Text, colors, spacing } from '@vaultstone/ui';
+import { useBreakpoint } from '@vaultstone/ui';
 
 export type Crumb = {
   key: string;
@@ -13,12 +15,26 @@ type Props = {
   crumbs: Crumb[];
   saveState?: SaveState;
   actions?: ReactNode;
+  isDetail?: boolean;
+  title?: string;
+  onSearchPress?: () => void;
 };
 
-// Matches handoff `.topbar`. 48px high, uppercase kicker-row breadcrumbs,
-// save-state dot, right-aligned slot for page-specific CTAs. Presence
-// avatars are reserved space until Phase 3 wires Realtime.
-export function WorldTopBar({ crumbs, saveState = 'idle', actions }: Props) {
+export function WorldTopBar({ crumbs, saveState = 'idle', actions, isDetail, title, onSearchPress }: Props) {
+  const { isMobile } = useBreakpoint();
+
+  if (isMobile) {
+    return (
+      <MobileWorldTopBar
+        crumbs={crumbs}
+        actions={actions}
+        isDetail={isDetail}
+        title={title}
+        onSearchPress={onSearchPress}
+      />
+    );
+  }
+
   const dotColor =
     saveState === 'saving'
       ? colors.hpWarning
@@ -65,6 +81,87 @@ export function WorldTopBar({ crumbs, saveState = 'idle', actions }: Props) {
   );
 }
 
+// ── Mobile top bar ──────────────────────────────────────────────────────
+
+function MobileWorldTopBar({
+  crumbs,
+  actions,
+  isDetail,
+  title,
+  onSearchPress,
+}: Pick<Props, 'crumbs' | 'actions' | 'isDetail' | 'title' | 'onSearchPress'>) {
+  const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const breadcrumbText = crumbs
+    .slice(0, -1)
+    .map((c) => c.label)
+    .join(' › ');
+  const displayTitle = title ?? crumbs[crumbs.length - 1]?.label ?? '';
+
+  return (
+    <>
+      <View style={mobileStyles.root}>
+        {/* Left: hamburger or back */}
+        <Pressable
+          style={mobileStyles.iconBtn}
+          onPress={() => {
+            if (isDetail) {
+              router.back();
+            } else {
+              router.push('/(drawer)/worlds');
+            }
+          }}
+          hitSlop={8}
+        >
+          <Icon
+            name={isDetail ? 'arrow-back' : 'menu'}
+            size={24}
+            color={colors.onSurface}
+          />
+        </Pressable>
+
+        {/* Center: breadcrumb + title */}
+        <View style={mobileStyles.center}>
+          {breadcrumbText ? (
+            <MetaLabel size="sm" tone="muted" numberOfLines={1}>
+              {breadcrumbText}
+            </MetaLabel>
+          ) : null}
+          <Text variant="title-sm" numberOfLines={1} style={{ color: colors.onSurface }}>
+            {displayTitle}
+          </Text>
+        </View>
+
+        {/* Right: search + overflow */}
+        <View style={mobileStyles.rightActions}>
+          {onSearchPress ? (
+            <Pressable style={mobileStyles.iconBtn} onPress={onSearchPress} hitSlop={8}>
+              <Icon name="search" size={22} color={colors.onSurface} />
+            </Pressable>
+          ) : null}
+          {actions ? (
+            <Pressable style={mobileStyles.iconBtn} onPress={() => setMenuOpen(true)} hitSlop={8}>
+              <Icon name="more-vert" size={22} color={colors.onSurface} />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      {/* Overflow menu */}
+      {actions ? (
+        <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+          <Pressable style={mobileStyles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+            <Pressable style={mobileStyles.menuCard} onPress={() => {}}>
+              <ScrollView>{actions}</ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
   root: {
     height: 48,
@@ -100,5 +197,49 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+  },
+});
+
+const mobileStyles = StyleSheet.create({
+  root: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '22',
+    backgroundColor: colors.surfaceContainerLowest,
+    gap: spacing.xs,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+  },
+  rightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 56,
+    paddingRight: spacing.sm,
+  },
+  menuCard: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 12,
+    padding: spacing.sm,
+    minWidth: 180,
+    maxHeight: 400,
   },
 });

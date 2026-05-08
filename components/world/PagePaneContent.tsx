@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   cascadeMentionLabel,
@@ -7,6 +7,7 @@ import {
   forceReleasePageEdit,
   getEventsForTimeline,
   getMyPagePermission,
+  getPage,
   listMaps,
   listPinsForWorld,
   listPinTypes,
@@ -34,6 +35,7 @@ import {
   colors,
   radius,
   spacing,
+  useBreakpoint,
 } from '@vaultstone/ui';
 import type { Json, TemplateKey, WorldPage } from '@vaultstone/types';
 
@@ -45,7 +47,7 @@ import { PageHead } from './PageHead';
 import { OrphanBanner } from './OrphanBanner';
 import { PlayerViewToggle } from './PlayerViewToggle';
 import { FactsModal } from './FactsModal';
-import { LoreCanvasEditor } from './LoreCanvasEditor.web';
+import { LoreCanvasEditor } from './LoreCanvasEditor';
 import { ShareModal } from './ShareModal';
 import { StructuredFieldsForm } from './StructuredFieldsForm';
 import { FactionPageView } from './FactionPageView';
@@ -87,6 +89,7 @@ export function PagePaneContent({
   onNavigate,
 }: Props) {
   const router = useRouter();
+  const { isMobile } = useBreakpoint();
   const world = useCurrentWorldStore((s) => s.world);
   const { setActiveSectionId } = useActiveSection();
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
@@ -105,6 +108,7 @@ export function PagePaneContent({
     return (id: string) => map.get(id) ?? '';
   }, [sections]);
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [bodyLoaded, setBodyLoaded] = useState(false);
   const updatePageInStore = usePagesStore((s) => s.updatePage);
   const bodyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingBodyRef = useRef<{
@@ -117,10 +121,27 @@ export function PagePaneContent({
   const toggleVisibility = usePageVisibilityToggle(page ?? null);
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [factsOpen, setFactsOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const removePage = usePagesStore((s) => s.removePage);
+
+  // Lazy-load page body (excluded from page list fetch to save egress)
+  useEffect(() => {
+    if (!page || page.body != null) { setBodyLoaded(true); return; }
+    let cancelled = false;
+    getPage(pageId).then(({ data }) => {
+      if (cancelled || !data) return;
+      updatePageInStore(pageId, {
+        body: (data as any).body,
+        body_text: (data as any).body_text,
+        body_refs: (data as any).body_refs,
+      });
+      setBodyLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [pageId, page?.body]);
 
   const [worldPins, setWorldPins] = useState<MapPin[]>([]);
   const [worldMaps, setWorldMaps] = useState<WorldMap[]>([]);
@@ -157,6 +178,10 @@ export function PagePaneContent({
     () => (allPages ?? EMPTY_PAGES).filter((p) => p.page_kind === 'timeline'),
     [allPages],
   );
+  const timelinePageIds = useMemo(
+    () => timelinePages.map((p) => p.id).join(','),
+    [timelinePages],
+  );
   useEffect(() => {
     if (timelinePages.length === 0) {
       setMentionableEvents(EMPTY_MENTION_EVENTS);
@@ -183,7 +208,7 @@ export function PagePaneContent({
       },
     );
     return () => { cancelled = true; };
-  }, [timelinePages]);
+  }, [timelinePageIds]);
 
   const [lockError, setLockError] = useState<{ ownerId: string; since: string } | null>(null);
   const [canEdit, setCanEdit] = useState(isWorldOwner);
@@ -385,6 +410,15 @@ export function PagePaneContent({
     );
   }
 
+  // Wait for body to lazy-load before rendering editor
+  if (!bodyLoaded) {
+    return (
+      <View style={styles.missing}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
   // Specialized page-kind views
   const specializedView = (() => {
     if (page.page_kind === 'timeline')
@@ -517,9 +551,9 @@ export function PagePaneContent({
       <View style={styles.wikiWrap}>
         <ScrollView
           style={styles.wikiDoc}
-          contentContainerStyle={isLore ? styles.wikiDocInnerWide : styles.wikiDocInner}
+          contentContainerStyle={isMobile ? styles.wikiDocInnerMobile : (isLore ? styles.wikiDocInnerWide : styles.wikiDocInner)}
         >
-          <View style={styles.headerWrap}>
+          <View style={isMobile ? styles.headerWrapMobile : styles.headerWrap}>
           {editingTitle ? (
               <input
                 type="text"
@@ -594,7 +628,7 @@ export function PagePaneContent({
               style={readOnly ? styles.disabledEditor : undefined}
               pointerEvents={readOnly ? 'none' : 'auto'}
             >
-              {!isLore ? (
+              {!isLore && !isMobile ? (
                 <StructuredFieldsForm
                   page={page}
                   template={template}
@@ -641,12 +675,46 @@ export function PagePaneContent({
           </View>
         </ScrollView>
 
-        <WikiRightPanel
-          pageId={page.id}
-          worldId={worldId}
-          defaultCollapsed={splitMode}
-        />
+        {!isMobile ? (
+          <WikiRightPanel
+            pageId={page.id}
+            worldId={worldId}
+            defaultCollapsed={splitMode}
+          />
+        ) : null}
       </View>
+
+      {/* Mobile sidebar overlay */}
+      {isMobile ? (
+        <>
+          <Pressable
+            style={mobileStyles.sidebarFab}
+            onPress={() => setSidebarOpen(true)}
+          >
+            <Icon name="info-outline" size={20} color={colors.primary} />
+          </Pressable>
+          <Modal visible={sidebarOpen} transparent animationType="slide" onRequestClose={() => setSidebarOpen(false)}>
+            <Pressable style={mobileStyles.sidebarBackdrop} onPress={() => setSidebarOpen(false)}>
+              <Pressable style={mobileStyles.sidebarPanel} onPress={() => {}}>
+                <View style={mobileStyles.sidebarHeader}>
+                  <Text variant="title-sm" weight="bold" style={{ color: colors.onSurface }}>Details</Text>
+                  <Pressable onPress={() => setSidebarOpen(false)} hitSlop={8}>
+                    <Icon name="close" size={20} color={colors.onSurfaceVariant} />
+                  </Pressable>
+                </View>
+                <ScrollView>
+                  {!isLore ? (
+                    <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
+                      <StructuredFieldsForm page={page} template={template} onSaveStateChange={setSaveState} />
+                    </View>
+                  ) : null}
+                  <WikiRightPanel pageId={page.id} worldId={worldId} />
+                </ScrollView>
+              </Pressable>
+            </Pressable>
+          </Modal>
+        </>
+      ) : null}
 
       {shareOpen ? (
         <ShareModal page={page} onClose={() => setShareOpen(false)} />
@@ -671,6 +739,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceCanvas,
   },
   headerWrap: { height: 120, overflow: 'hidden' as const },
+  headerWrapMobile: { overflow: 'hidden' as const },
   wikiWrap: {
     flex: 1,
     flexDirection: 'row',
@@ -690,6 +759,11 @@ const styles = StyleSheet.create({
     paddingTop: 28,
     paddingHorizontal: 36,
     paddingBottom: 64,
+  },
+  wikiDocInnerMobile: {
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: 80,
   },
   missing: {
     flex: 1,
@@ -746,5 +820,44 @@ const styles = StyleSheet.create({
   deleteBannerConfirm: {
     borderWidth: 1,
     borderColor: colors.hpDanger + '55',
+  },
+});
+
+const mobileStyles = StyleSheet.create({
+  sidebarFab: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    right: spacing.md,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  sidebarBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sidebarPanel: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '80%',
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '33',
   },
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   createPin,
@@ -22,7 +22,7 @@ import {
   useWorldMapStackStore,
 } from '@vaultstone/store';
 import type { WorldPage } from '@vaultstone/types';
-import { GhostButton, GradientButton, Icon, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { GhostButton, GradientButton, Icon, Text, colors, radius, spacing, useBreakpoint } from '@vaultstone/ui';
 
 import { MapBreadcrumbs } from '../../../../components/world/map/MapBreadcrumbs';
 import { MapCanvas, type MapCanvasHandle } from '../../../../components/world/map/MapCanvas';
@@ -40,9 +40,11 @@ const EMPTY_PAGES: WorldPage[] = [];
 export default function WorldMapScreen() {
   const { worldId, mapId } = useLocalSearchParams<{ worldId: string; mapId: string }>();
   const router = useRouter();
+  const { isMobile } = useBreakpoint();
   const world = useCurrentWorldStore((s) => s.world);
   const myUserId = useAuthStore((s) => s.user?.id ?? null);
   const isOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const worldPages = usePagesStore((s) => (worldId ? s.byWorldId[worldId] ?? EMPTY_PAGES : EMPTY_PAGES));
 
   // Raw stored viewport (undefined = first landing on this map). We deliberately
@@ -358,15 +360,26 @@ export default function WorldMapScreen() {
           </MapCanvas>
         ) : null}
 
-        <PinFilterBar
-          pinTypes={pinTypes}
-          visibleTypes={visibleTypes}
-          onToggle={toggleType}
-          onAllToggle={toggleAll}
-          allVisible={allVisible}
-        />
+        {/* Filter bar: full chips on desktop, single button on mobile */}
+        {isMobile ? (
+          <Pressable
+            style={mobileMapStyles.filterBtn}
+            onPress={() => setFilterMenuOpen(true)}
+          >
+            <Icon name="filter-list" size={20} color={colors.onSurface} />
+          </Pressable>
+        ) : (
+          <PinFilterBar
+            pinTypes={pinTypes}
+            visibleTypes={visibleTypes}
+            onToggle={toggleType}
+            onAllToggle={toggleAll}
+            allVisible={allVisible}
+          />
+        )}
 
-        {scaleBounds ? (
+        {/* Zoom control — desktop only */}
+        {!isMobile && scaleBounds ? (
           <View style={styles.zoomControl} pointerEvents="box-none">
             <ZoomControl
               scale={liveScale}
@@ -378,7 +391,8 @@ export default function WorldMapScreen() {
           </View>
         ) : null}
 
-        {isOwner ? (
+        {/* Toolbar — desktop only */}
+        {!isMobile && isOwner ? (
           <View style={styles.toolbar} pointerEvents="box-none">
             <GhostButton label="Upload map" onPress={() => setUploadOpen(true)} />
             {placementMode ? (
@@ -392,7 +406,8 @@ export default function WorldMapScreen() {
           </View>
         ) : null}
 
-        {placementMode ? (
+        {/* Placement banner — desktop only */}
+        {!isMobile && placementMode ? (
           <View style={styles.placementBanner} pointerEvents="none">
             <Icon name="place" size={14} color={colors.primary} />
             <Text variant="label-sm" style={{ marginLeft: 6, color: colors.onSurface }}>
@@ -461,6 +476,86 @@ export default function WorldMapScreen() {
           }}
         />
       ) : null}
+
+      {/* Mobile filter + pin list overlay */}
+      {isMobile && filterMenuOpen ? (
+        <Modal visible transparent animationType="slide" onRequestClose={() => setFilterMenuOpen(false)}>
+          <Pressable style={mobileMapStyles.overlayBackdrop} onPress={() => setFilterMenuOpen(false)}>
+            <Pressable style={mobileMapStyles.overlayPanel} onPress={() => {}}>
+              <View style={mobileMapStyles.overlayHeader}>
+                <Text variant="title-sm" weight="bold" style={{ color: colors.onSurface }}>Filters & Places</Text>
+                <Pressable onPress={() => setFilterMenuOpen(false)} hitSlop={8}>
+                  <Icon name="close" size={20} color={colors.onSurfaceVariant} />
+                </Pressable>
+              </View>
+
+              {/* Pin type filters */}
+              <View style={mobileMapStyles.filterSection}>
+                <Pressable
+                  style={[mobileMapStyles.filterChip, allVisible && mobileMapStyles.filterChipActive]}
+                  onPress={toggleAll}
+                >
+                  <Text variant="label-sm" style={{ color: allVisible ? colors.primary : colors.onSurfaceVariant }}>All</Text>
+                </Pressable>
+                {pinTypes.map((pt) => {
+                  const active = visibleTypes.has(pt.key);
+                  return (
+                    <Pressable
+                      key={pt.key}
+                      style={[mobileMapStyles.filterChip, active && mobileMapStyles.filterChipActive]}
+                      onPress={() => toggleType(pt.key)}
+                    >
+                      <View style={[mobileMapStyles.filterDot, { backgroundColor: pt.default_color_hex }]} />
+                      <Text variant="label-sm" style={{ color: active ? colors.onSurface : colors.onSurfaceVariant }}>
+                        {pt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Pin list */}
+              <View style={mobileMapStyles.pinListHeader}>
+                <Text variant="label-sm" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                  ALL PLACES
+                </Text>
+                <Text variant="label-sm" style={{ color: colors.outlineVariant }}>
+                  {pins.filter((p) => visibleTypes.has(p.pin_type)).length} pins
+                </Text>
+              </View>
+              <ScrollView style={{ maxHeight: 300 }}>
+                {pins
+                  .filter((p) => visibleTypes.has(p.pin_type))
+                  .map((pin) => {
+                    const pt = pinTypes.find((t) => t.key === pin.pin_type);
+                    return (
+                      <Pressable
+                        key={pin.id}
+                        style={mobileMapStyles.pinRow}
+                        onPress={() => {
+                          setFilterMenuOpen(false);
+                          handlePinPress(pin);
+                        }}
+                      >
+                        <View style={[mobileMapStyles.pinDot, { backgroundColor: pin.color_override ?? pt?.default_color_hex ?? colors.outline }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text variant="body-sm" style={{ color: colors.onSurface }} numberOfLines={1}>
+                            {pin.label || 'Unnamed pin'}
+                          </Text>
+                          {pt ? (
+                            <Text variant="label-sm" style={{ color: colors.onSurfaceVariant, fontSize: 10 }}>
+                              {pt.label}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -502,5 +597,92 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary + '55',
     zIndex: 3,
+  },
+});
+
+const mobileMapStyles = StyleSheet.create({
+  filterBtn: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceContainerHigh + 'DD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+  },
+  overlayBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  overlayPanel: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '75%',
+    paddingBottom: spacing.lg,
+  },
+  overlayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '33',
+  },
+  filterSection: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '44',
+  },
+  filterChipActive: {
+    borderColor: colors.primary + '66',
+    backgroundColor: colors.primaryContainer + '22',
+  },
+  filterDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  pinListHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant + '22',
+    marginTop: spacing.xs,
+  },
+  pinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 44,
+  },
+  pinDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
 });

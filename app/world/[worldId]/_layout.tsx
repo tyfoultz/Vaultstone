@@ -30,6 +30,7 @@ import { Text, colors, spacing, useBreakpoint } from '@vaultstone/ui';
 
 import { ActiveSectionProvider } from '../../../components/world/ActiveSectionContext';
 import { LensSwitchBanner } from '../../../components/world/LensSwitchBanner';
+import { MobileWorldTabBar } from '../../../components/world/MobileWorldTabBar';
 import { PlayerViewBanner } from '../../../components/world/PlayerViewBanner';
 import { WorldSidebar } from '../../../components/world/WorldSidebar';
 
@@ -87,7 +88,7 @@ export default function WorldLayout() {
       setWorld(w);
       setActiveWorld(w);
       const sections = (sectionsRes.data ?? []) as WorldSection[];
-      const pages = (pagesRes.data ?? []) as WorldPage[];
+      const pages = (pagesRes.data ?? []) as unknown as WorldPage[];
       const linked = (
         (campaignsRes.data ?? []) as unknown as Array<{
           campaigns: Database['public']['Tables']['campaigns']['Row'] | null;
@@ -136,7 +137,7 @@ export default function WorldLayout() {
         table: 'world_page_permissions',
       }, () => {
         getPagesForWorld(worldId).then(({ data }) => {
-          if (data) setPages(worldId, data as WorldPage[]);
+          if (data) setPages(worldId, data as unknown as WorldPage[]);
         });
       })
       .on('postgres_changes', {
@@ -180,15 +181,20 @@ export default function WorldLayout() {
     );
   }
 
+  const resolvedWorld = storeWorld ?? world;
+
   return (
     <ActiveSectionProvider initialSectionId={firstSectionId}>
-      <View style={styles.root}>
-        {!isMobile ? <WorldSidebar world={storeWorld ?? world} /> : null}
+      <View style={isMobile ? styles.rootMobile : styles.root}>
+        {!isMobile ? <WorldSidebar world={resolvedWorld} /> : null}
         <View style={styles.content}>
           <PlayerViewBanner />
           <LensSwitchBanner />
           <Slot />
         </View>
+        {isMobile ? (
+          <MobileWorldTabBar worldId={worldId} world={resolvedWorld} />
+        ) : null}
       </View>
     </ActiveSectionProvider>
   );
@@ -198,6 +204,11 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     flexDirection: 'row',
+    backgroundColor: colors.surfaceCanvas,
+  },
+  rootMobile: {
+    flex: 1,
+    flexDirection: 'column',
     backgroundColor: colors.surfaceCanvas,
   },
   content: {

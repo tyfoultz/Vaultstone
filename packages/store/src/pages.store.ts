@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { WorldPage, WorldPageTreeNode } from '@vaultstone/types';
 
 interface PagesState {
@@ -12,7 +14,7 @@ interface PagesState {
 
 const sortByOrder = (a: WorldPage, b: WorldPage) => a.sort_order - b.sort_order;
 
-export const usePagesStore = create<PagesState>((set) => ({
+export const usePagesStore = create<PagesState>()(persist((set) => ({
   byWorldId: {},
 
   setPagesForWorld: (worldId, pages) =>
@@ -60,6 +62,17 @@ export const usePagesStore = create<PagesState>((set) => ({
       delete next[worldId];
       return { byWorldId: next };
     }),
+}), {
+  name: 'vaultstone-pages',
+  storage: createJSONStorage(() => AsyncStorage),
+  partialize: (state) => ({
+    byWorldId: Object.fromEntries(
+      Object.entries(state.byWorldId).map(([wid, pages]) => [
+        wid,
+        pages.map(({ body, ...rest }) => rest as WorldPage),
+      ]),
+    ),
+  }),
 }));
 
 // IMPORTANT: don't call these from inside a Zustand selector (e.g.,
