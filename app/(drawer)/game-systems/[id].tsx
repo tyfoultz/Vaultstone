@@ -24,6 +24,7 @@ import type {
   StandardActionResult, SenseResult, SpeedResult, CreatureTypeResult,
   AlignmentResult, CurrencyResult, ToolResult, MagicItemCategoryResult, CoverResult,
   ContentTier, ImportSource,
+  FeatPrerequisite, MulticlassPrereq, AbilityKey,
 } from '@vaultstone/types';
 
 const EMPTY_CONTENT: SrdContent = {
@@ -664,6 +665,28 @@ export function SpeciesList({
               ))}
             </View>
           ) : null}
+          {s.swapRules ? (
+            <View style={styles.subBlock}>
+              <MetaLabel size="sm">Customize Origin</MetaLabel>
+              <Text variant="body-sm" family="body" style={[styles.bodyText, { marginBottom: 4 }]}>
+                When the campaign rule {`"Customize Your Origin"`} is on, players may swap:
+              </Text>
+              <View style={prereqStyles.row}>
+                <Chip
+                  label={`Ability scores: ${s.swapRules.abilityScores ? 'Yes' : 'Locked'}`}
+                  variant="meta"
+                />
+                <Chip
+                  label={`Languages: ${s.swapRules.languages ? 'Yes' : 'Locked'}`}
+                  variant="meta"
+                />
+                <Chip
+                  label={`Skills: ${s.swapRules.skills ? 'Yes' : 'Locked'}`}
+                  variant="meta"
+                />
+              </View>
+            </View>
+          ) : null}
         </>
       )}
     />
@@ -1038,6 +1061,9 @@ function ClassDetailModal({
               <Text variant="body-sm" family="body" weight="bold" style={styles.featureLevelLabel}>
                 As a Multiclass Character
               </Text>
+              {c.multiclassPrerequisiteRaw && c.multiclassPrerequisiteRaw.length > 0 ? (
+                <MulticlassPrereqChips prereqs={c.multiclassPrerequisiteRaw} />
+              ) : null}
               {c.multiclassPrerequisite ? (
                 <Text variant="body-sm" family="body" style={[styles.bodyText, { marginBottom: spacing.xs }]}>
                   Prerequisite: <Text weight="bold" style={{ color: colors.onSurface }}>{c.multiclassPrerequisite}</Text>
@@ -2667,6 +2693,67 @@ function PopoverModal({
   );
 }
 
+// ── Character builder structured-prereq surface ─────────────────────────
+//
+// Render structured FeatPrerequisite[] as a row of chips. The wizard's
+// gating logic uses the same shape; this is the read-only surface that
+// shows DMs + pack authors what's wired up. Falls back gracefully when
+// only the prose form is present.
+
+const ABILITY_SHORT_LABELS: Record<AbilityKey, string> = {
+  strength: 'STR', dexterity: 'DEX', constitution: 'CON',
+  intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
+};
+
+function renderPrereqClause(clause: FeatPrerequisite): string {
+  switch (clause.kind) {
+    case 'ability-score': {
+      const abil = clause.abilities.map((a) => ABILITY_SHORT_LABELS[a]).join('/');
+      return `${abil} ${clause.minimum}+`;
+    }
+    case 'character-level':
+      return `Level ${clause.minimum}+`;
+    case 'class-feature':
+      return `${clause.featureName} feature`;
+    case 'prose':
+      return clause.text;
+  }
+}
+
+function PrereqChips({ prereqs }: { prereqs: FeatPrerequisite[] }) {
+  if (prereqs.length === 0) return null;
+  return (
+    <View style={prereqStyles.row}>
+      {prereqs.map((c, i) => (
+        <Chip key={i} label={renderPrereqClause(c)} variant="meta" />
+      ))}
+    </View>
+  );
+}
+
+function MulticlassPrereqChips({ prereqs }: { prereqs: MulticlassPrereq[] }) {
+  if (prereqs.length === 0) return null;
+  return (
+    <View style={prereqStyles.row}>
+      {prereqs.map((g, i) => {
+        const abil = g.abilities.map((a) => ABILITY_SHORT_LABELS[a]).join(' / ');
+        return <Chip key={i} label={`${abil} ${g.minimum}+`} variant="meta" />;
+      })}
+    </View>
+  );
+}
+
+const prereqStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 4,
+  },
+});
+
+// ── Feats ────────────────────────────────────────────────────────────────
+
 export function FeatsList({
   items, srdVersion, rowActions, headerExtra,
 }: {
@@ -2720,6 +2807,9 @@ export function FeatsList({
             <View style={styles.subBlock}>
               <MetaLabel size="sm">Prerequisite</MetaLabel>
               <Text variant="body-sm" family="body" style={styles.bodyText}>{f.prerequisites}</Text>
+              {f.prerequisitesRaw && f.prerequisitesRaw.length > 0 ? (
+                <PrereqChips prereqs={f.prerequisitesRaw} />
+              ) : null}
             </View>
           ) : null}
           {f.description ? <MarkdownText style={styles.bodyText}>{f.description}</MarkdownText> : null}
