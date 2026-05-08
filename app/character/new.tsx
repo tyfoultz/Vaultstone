@@ -538,6 +538,14 @@ export default function NewCharacterScreen() {
       // higher; the next iteration on the wizard wires in level-up logic.
       const hpMax = cls.hitDie + conMod;
 
+      // Seed the character's hit_point_method preference from the
+      // campaign's resolved rule (or the system default for standalone
+      // characters). The level-up flow reads this when granting
+      // per-level HP — there's no L1 effect, since every PC takes max
+      // HP at first level in both editions.
+      const hitPointMethodSetting: 'fixed' | 'rolled' =
+        draftCampaignRules.hit_point_method === 'rolled' ? 'rolled' : 'fixed';
+
       const base_stats: Dnd5eStats = {
         characterName: draft.characterName.trim(),
         level: 1,
@@ -560,6 +568,10 @@ export default function NewCharacterScreen() {
         originFeat: bg.originFeat,
         speed: (sp as any).speed ?? 30,
         hpMax,
+        settings: {
+          manualMode: false,
+          hitPointMethod: hitPointMethodSetting,
+        },
       };
 
       const resources: Dnd5eResources = {
