@@ -17,6 +17,7 @@ import { BUNDLED_SYSTEMS_BY_ID, resolveCreationSteps } from '@vaultstone/systems
 import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
+import { StepRules } from '../../components/character-wizard/StepRules';
 import { StepSpecies } from '../../components/character-wizard/StepSpecies';
 import { StepClass } from '../../components/character-wizard/StepClass';
 import { StepBackground } from '../../components/character-wizard/StepBackground';
@@ -378,6 +379,8 @@ export default function NewCharacterScreen() {
         if (rulesetMode === null) return false;
         if (rulesetMode === 'campaign' && !draft.campaignId) return false;
         return true;
+      case 'rules':      return true; // Always complete — campaign launch is read-only,
+                                       // standalone seeds defaults on mount so the bag is populated.
       case 'species':    return draft.speciesKey !== null;
       case 'class':      return draft.classKey !== null && (classSkillCount === 0 || draft.chosenSkills.length >= classSkillCount);
       case 'background': return draft.backgroundKey !== null;
@@ -722,7 +725,7 @@ export default function NewCharacterScreen() {
               user hasn't committed to a campaign yet). Renders
               above the active step so the player has rules context
               before each decision. */}
-          {STEPS[step]?.key !== 'ruleset' ? <CampaignRulesSummary /> : null}
+          {STEPS[step]?.key !== 'ruleset' && STEPS[step]?.key !== 'rules' ? <CampaignRulesSummary /> : null}
           {(() => {
             const key = STEPS[step]?.key;
             // Helper to advance to the step after the current one. Uses the
@@ -736,6 +739,8 @@ export default function NewCharacterScreen() {
             switch (key) {
               case 'ruleset':
                 return <StepRuleset />;
+              case 'rules':
+                return <StepRules />;
               case 'species':
                 return <StepSpecies onPreviewChange={setInPreview} onAdvance={() => advanceTo('class')} />;
               case 'class':

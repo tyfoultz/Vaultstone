@@ -19,6 +19,19 @@ export const creationSteps: CreationStep[] = [
     inCampaign: false,
   },
   {
+    // Character-creation rules step. Surfaces immediately after the
+    // system + content pack picks so the player sees (and, for
+    // standalone characters, edits) the rule set the rest of the
+    // wizard runs under. Campaign-launched runs render read-only;
+    // standalone runs render editable controls for the rules with
+    // creation-time effect. Mounted in both modes — the screen
+    // adapts to launch context.
+    key: 'rules',
+    label: 'Rules',
+    contentCollection: '',
+    required: true,
+  },
+  {
     key: 'species',
     label: 'Species',
     contentCollection: 'dnd5e.species',
