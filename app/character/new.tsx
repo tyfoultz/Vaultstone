@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Platform } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, type Href } from 'expo-router';
 import { useCharacterDraftStore, useAuthStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -393,7 +393,19 @@ export default function NewCharacterScreen() {
 
   function handleBack() {
     if (step === 0) {
-      router.back();
+      // Cancel from the first step routes back to wherever the user
+      // came from — the campaigns list, the campaign they launched
+      // from, or a draft list. router.back() on its own no-ops when
+      // there's no history (deep links, browser refresh), so fall
+      // through to a safe destination so the button is always
+      // responsive.
+      if (router.canGoBack()) {
+        router.back();
+      } else if (launchedCampaignId) {
+        router.replace(`/campaign/${launchedCampaignId}` as Href);
+      } else {
+        router.replace('/(drawer)/characters' as Href);
+      }
     } else {
       setStep(step - 1);
       setInPreview(false);
