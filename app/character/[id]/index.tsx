@@ -180,6 +180,27 @@ function parseProgressionInt(raw: string | number | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// Pull each spellcasting class's "Spellcasting" feature description for
+// the Spells tab's How-spellcasting-works panel. Skips classes that
+// aren't casters and ones that don't ship a Spellcasting feature
+// (legacy / homebrew). Multiclass returns one entry per caster class.
+function spellcastingExplainersFor(
+  stats: Dnd5eStats,
+  classResultsByKey: Record<string, ClassResult>,
+): Array<{ className: string; description: string }> {
+  const out: Array<{ className: string; description: string }> = [];
+  for (const e of getClassEntries(stats)) {
+    const cls = classResultsByKey[e.classKey];
+    if (!cls?.spellcasting) continue;
+    const feat = (cls.features ?? []).find(
+      (f) => f.name.toLowerCase() === 'spellcasting' && f.level === 1,
+    ) ?? (cls.features ?? []).find((f) => f.name.toLowerCase() === 'spellcasting');
+    if (!feat?.description) continue;
+    out.push({ className: cls.name, description: feat.description });
+  }
+  return out;
+}
+
 function StatCell({ icon, value, label, color, centered }: { icon: string; value: string; label: string; color: string; centered?: boolean }) {
   return (
     <View style={[statCellStyle.cell, centered && statCellStyle.cellCentered]}>
@@ -1289,6 +1310,7 @@ export default function CharacterSheetScreen() {
             onOpenManage={() => setSpellPickerOpen(true)}
             onOpenPrepare={() => setPreparePickerOpen(true)}
             canPrepare={getSpellbook(resources).some((sp) => sp.level > 0)}
+            spellcastingExplainers={spellcastingExplainersFor(stats, classResultsByKey)}
           />
         );
       case 'skills':

@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, useWindowDimensions,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, radius } from '@vaultstone/ui';
+import { colors, fonts, radius, spacing, MarkdownText } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5ePreparedSpell } from '@vaultstone/types';
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
@@ -40,12 +40,17 @@ interface Props {
   /** Whether the character has any leveled spells available to prepare —
    *  drives whether Prepare Spells button is shown at all. */
   canPrepare?: boolean;
+  /** Per-class Spellcasting feature text — drives the "How spellcasting
+   *  works for this character" panel. One entry per spellcasting class
+   *  the character has a level in; empty for non-casters. */
+  spellcastingExplainers?: Array<{ className: string; description: string }>;
 }
 
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
-  onOpenManage, onOpenPrepare, canPrepare,
+  onOpenManage, onOpenPrepare, canPrepare, spellcastingExplainers,
 }: Props) {
+  const [explainerOpen, setExplainerOpen] = useState(false);
   const { width } = useWindowDimensions();
   const isWide = width >= 560;
   const [search, setSearch] = useState('');
@@ -120,6 +125,37 @@ export function SpellsTab({
             <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
             <Text style={s.statLabel}>SAVE DC</Text>
           </View>
+        </View>
+      )}
+
+      {/* ── How spellcasting works (collapsible per-class explainer) ── */}
+      {spellcastingExplainers && spellcastingExplainers.length > 0 && (
+        <View style={s.explainerCard}>
+          <TouchableOpacity
+            style={s.explainerHeader}
+            onPress={() => setExplainerOpen((v) => !v)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.primary} />
+            <Text style={s.explainerTitle}>How spellcasting works</Text>
+            <MaterialCommunityIcons
+              name={explainerOpen ? 'chevron-up' : 'chevron-down'}
+              size={16}
+              color={colors.outline}
+            />
+          </TouchableOpacity>
+          {explainerOpen && (
+            <View style={s.explainerBody}>
+              {spellcastingExplainers.map((ex, i) => (
+                <View key={ex.className} style={i > 0 ? s.explainerSection : null}>
+                  {spellcastingExplainers.length > 1 && (
+                    <Text style={s.explainerClassLabel}>{ex.className.toUpperCase()}</Text>
+                  )}
+                  <MarkdownText style={s.explainerText}>{ex.description}</MarkdownText>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       )}
 
@@ -376,6 +412,37 @@ const s = StyleSheet.create({
   statValue: { fontSize: 26, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
   statLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.5, color: colors.outline },
   statDivider: { width: StyleSheet.hairlineWidth, height: 30, backgroundColor: colors.outlineVariant, alignSelf: 'center' },
+
+  // How-spellcasting-works collapsible card. The default is collapsed
+  // because the prose is long; players who want the rules tap to open
+  // and the panel surfaces the canonical class-feature description with
+  // its ### subsections rendered through MarkdownText.
+  explainerCard: {
+    marginHorizontal: 12, marginTop: 10,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, overflow: 'hidden',
+  },
+  explainerHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 9,
+  },
+  explainerTitle: {
+    flex: 1, fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.6, color: colors.onSurface,
+  },
+  explainerBody: {
+    paddingHorizontal: 14, paddingTop: 4, paddingBottom: 14,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  explainerSection: { marginTop: 14, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant },
+  explainerClassLabel: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, color: colors.primary, marginBottom: 6,
+  },
+  explainerText: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 19,
+  },
 
   // Search row
   searchRow: { flexDirection: 'row', gap: 8, padding: 12 },
