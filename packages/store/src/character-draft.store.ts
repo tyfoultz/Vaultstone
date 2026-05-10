@@ -36,6 +36,18 @@ export interface CharacterDraft {
   // Step 3 — Background
   backgroundKey: string | null;
 
+  /**
+   * Replacement skills for background-granted skill proficiencies
+   * the character already has from another source (typically the
+   * class). Map shape is `{ originalSkill: replacementSkill }`,
+   * both lower-cased. Per the SRD: "If a feature lets you gain a
+   * skill proficiency you already have, you can choose a different
+   * skill." The wizard surfaces a chip-row on the Background detail
+   * panel for each conflicting skill so the player picks the
+   * replacement; handleFinish merges these into `skillProficiencies`.
+   */
+  backgroundSkillReplacements: Record<string, string>;
+
   // Step 4 — Ability Scores
   abilityScoreMethod: AbilityScoreMethod;
   abilityScores: Dnd5eAbilityScores | null;
@@ -98,6 +110,7 @@ interface CharacterDraftActions {
   setClass: (key: string) => void;
   setChosenSkills: (skills: string[]) => void;
   setBackground: (key: string) => void;
+  setBackgroundSkillReplacements: (map: Record<string, string>) => void;
   setChosenFeats: (keys: string[]) => void;
   setAbilityScoreMethod: (method: AbilityScoreMethod) => void;
   setAbilityScores: (scores: Dnd5eAbilityScores) => void;
@@ -124,6 +137,7 @@ const INITIAL_DRAFT: CharacterDraft = {
   classKey: null,
   chosenSkills: [],
   backgroundKey: null,
+  backgroundSkillReplacements: {},
   chosenFeats: [],
   abilityScoreMethod: 'standard_array',
   abilityScores: null,
@@ -147,11 +161,13 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
 
       setSpecies: (speciesKey) => set({ speciesKey }),
 
-      setClass: (classKey) => set({ classKey, chosenSkills: [] }),
+      setClass: (classKey) => set({ classKey, chosenSkills: [], backgroundSkillReplacements: {} }),
 
-      setChosenSkills: (chosenSkills) => set({ chosenSkills }),
+      setChosenSkills: (chosenSkills) => set({ chosenSkills, backgroundSkillReplacements: {} }),
 
       setBackground: (backgroundKey) => set({ backgroundKey }),
+
+      setBackgroundSkillReplacements: (backgroundSkillReplacements) => set({ backgroundSkillReplacements }),
 
       setChosenFeats: (chosenFeats) => set({ chosenFeats }),
 

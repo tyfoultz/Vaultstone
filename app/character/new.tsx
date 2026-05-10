@@ -142,6 +142,7 @@ export default function NewCharacterScreen() {
       classKey: s.classKey,
       chosenSkills: s.chosenSkills,
       backgroundKey: s.backgroundKey,
+      backgroundSkillReplacements: s.backgroundSkillReplacements,
       chosenFeats: s.chosenFeats,
       abilityScores: s.abilityScores,
       characterName: s.characterName,
@@ -592,10 +593,29 @@ export default function NewCharacterScreen() {
         srdVersion: draft.srdVersion,
         abilityScores: draft.abilityScores,
         savingThrowProficiencies: cls.savingThrows.map((s) => s.toLowerCase()),
-        skillProficiencies: [
-          ...bg.skillProficiencies.map((s) => s.toLowerCase()),
-          ...draft.chosenSkills.map((s) => s.toLowerCase()),
-        ],
+        // Merge class-chosen + background-granted skills, applying any
+        // collision replacements the player picked on StepBackground.
+        // The replacements map is keyed by lower-case original skill;
+        // when present the replacement skill takes the slot. A final
+        // dedupe via Set guards against pathological cases (e.g. a
+        // homebrew background with duplicate entries in its own
+        // skillProficiencies list).
+        skillProficiencies: (() => {
+          const out: string[] = [];
+          const seen = new Set<string>();
+          const push = (sk: string) => {
+            const lc = sk.toLowerCase();
+            if (seen.has(lc)) return;
+            seen.add(lc);
+            out.push(lc);
+          };
+          for (const sk of draft.chosenSkills) push(sk);
+          for (const sk of bg.skillProficiencies) {
+            const replacement = draft.backgroundSkillReplacements[sk.toLowerCase()];
+            push(replacement ?? sk);
+          }
+          return out;
+        })(),
         armorProficiencies: cls.armorProficiencies,
         weaponProficiencies: cls.weaponProficiencies,
         toolProficiencies: bg.toolProficiency ? [bg.toolProficiency] : [],
