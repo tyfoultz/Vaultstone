@@ -205,6 +205,11 @@ export function SpellPickerModal({
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={s.rowName}>{sp.name}</Text>
                         </View>
+                        {sp.classes.length > 0 ? (
+                          <Text style={s.rowSource} numberOfLines={1}>
+                            {sp.classes.join(', ')}
+                          </Text>
+                        ) : null}
                         {has ? (
                           <Text style={s.rowHasText}>Added</Text>
                         ) : (
@@ -468,6 +473,11 @@ const s = StyleSheet.create({
   rowName: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface },
   rowMeta: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, marginTop: 2 },
   rowHasText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
+  rowSource: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.outline, letterSpacing: 0.3,
+    marginRight: 4, maxWidth: 200,
+  },
 
   // Background sits on the wrapper (`rowWrapExpanded`) so the row
   // header inherits it; the expansion just owns padding.
