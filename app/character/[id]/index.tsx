@@ -1115,6 +1115,16 @@ export default function CharacterSheetScreen() {
                 </View>
 
                 <View style={s.deskHeaderIcons}>
+                  {isOwner && stats.level < 20 ? (
+                    <TouchableOpacity
+                      style={s.deskIconBtn}
+                      onPress={() => router.push(`/character/${id}/level-up`)}
+                      hitSlop={6}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity
                     style={[s.deskIconBtn, resources.inspiration && s.deskIconBtnActive]}
                     onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
@@ -1427,6 +1437,16 @@ export default function CharacterSheetScreen() {
                 {capitalize(stats.speciesKey)} {capitalize(stats.classKey)} · Lv {stats.level}
               </Text>
             </View>
+
+            {isOwner && stats.level < 20 ? (
+              <TouchableOpacity
+                onPress={() => router.push(`/character/${id}/level-up`)}
+                hitSlop={8}
+                style={s.settingsIconBtn}
+              >
+                <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
               style={[s.inspirationBtn, resources.inspiration && s.inspirationBtnActive]}
