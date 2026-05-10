@@ -497,16 +497,50 @@ function ClassPickStep({
   onChooseNew: (k: string) => void;
 }) {
   const allowMulticlass = multiclassRule !== 'disabled';
-  const existing = entries.map((e) => ({
-    entry: e,
-    cls: classes.find((c) => c.key === e.classKey) ?? null,
-  })).filter((x) => x.cls);
 
-  // Candidate new classes: any class not already taken by an entry,
-  // gated by multiclass prereq check using the campaign rule.
+  // Resolve each entry's ClassResult out of the loaded catalog. The
+  // entry's stored `classKey` may not match a catalog key exactly —
+  // it can carry a different edition suffix, a legacy un-suffixed
+  // key from older characters, or (for homebrew-class characters)
+  // a key that's edition-stripped while the catalog is filtered to
+  // a single edition. Match on exact key first, then fall back to
+  // name (the stable human identity for a class). Without this
+  // fallback, a Cleric character whose key mismatches the catalog's
+  // current-edition Cleric key would slip into the "new class"
+  // multiclass list instead of the "existing classes" list.
+  const resolveClass = (e: Dnd5eClassEntry): ClassResult | null => {
+    const exact = classes.find((c) => c.key === e.classKey);
+    if (exact) return exact;
+    // Best-effort: match on the leading slug before the edition
+    // suffix. Both `cleric-srd-2-0` and `cleric` reduce to `cleric`,
+    // and the catalog's `cleric-srd-2-0` reduces the same way.
+    const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
+    const entrySlug = stripEdition(e.classKey);
+    return classes.find((c) => stripEdition(c.key) === entrySlug) ?? null;
+  };
+
+  const existingResolved = entries
+    .map((e) => ({ entry: e, cls: resolveClass(e) }))
+    .filter((x): x is { entry: Dnd5eClassEntry; cls: ClassResult } => x.cls !== null);
+
+  // Set of catalog keys already represented by an entry — these are
+  // excluded from the new-class list. We use the *resolved* catalog
+  // key (not the entry's stored key) so a key-mismatched entry still
+  // hides its current-edition catalog row from the multiclass list.
+  const existingClassKeys = new Set(existingResolved.map((x) => x.cls.key));
+
+  // Render shape for the existing-classes list. Entries whose class
+  // didn't resolve are kept here as well so the player sees them
+  // (with the entry's stored classKey as a fallback label) — that's
+  // strictly better than dropping the row and letting them duplicate
+  // it through the multiclass list.
+  const existing = existingResolved;
+
+  // Candidate new classes: any catalog class not already represented
+  // by an entry, gated by the multiclass prereq check.
   const newCandidates = allowMulticlass
     ? classes
-        .filter((c) => !entries.some((e) => e.classKey === c.key))
+        .filter((c) => !existingClassKeys.has(c.key))
         .map((c) => ({
           cls: c,
           check: checkMulticlassPrereqs(stats.abilityScores, c, multiclassRule),

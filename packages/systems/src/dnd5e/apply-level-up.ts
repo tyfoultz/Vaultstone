@@ -157,7 +157,19 @@ export function applyLevelUp(
       primary: false,
     });
   } else {
-    const idx = entries.findIndex((e) => e.classKey === pick.classKey);
+    // Find the entry to advance. Prefer an exact key match; fall
+    // back to a slug match (strip the edition suffix) so a character
+    // whose stored classKey predates the edition split (e.g. plain
+    // 'cleric' vs the catalog's 'cleric-srd-2-0') still resolves to
+    // its single class entry. When the lenient match wins we also
+    // re-pin the entry's classKey + hitDie to the catalog values so
+    // future level-ups go through the exact-match path.
+    let idx = entries.findIndex((e) => e.classKey === pick.classKey);
+    if (idx < 0) {
+      const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
+      const target = stripEdition(pick.classKey);
+      idx = entries.findIndex((e) => stripEdition(e.classKey) === target);
+    }
     if (idx < 0) {
       // Caller bug; return state unchanged so we don't corrupt the
       // character. The wizard validates this before the call.
@@ -165,6 +177,8 @@ export function applyLevelUp(
     }
     entries[idx] = {
       ...entries[idx],
+      classKey: pick.classKey,    // pin to catalog key for future ops
+      hitDie: cls.hitDie,         // pin in case the legacy hitDie was wrong
       level: entries[idx].level + 1,
       ...(pick.subclassKey !== undefined ? { subclassKey: pick.subclassKey } : {}),
     };
