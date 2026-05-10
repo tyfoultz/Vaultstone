@@ -137,9 +137,13 @@ function computeSpellLimits(
     const row = cls.progressionTable.find((r) => r.level === Math.min(e.level, 20));
     if (!row) continue;
 
-    // Cantrips — 2024 ships `cantrips`, 5.1 ships `cantripsKnown`.
-    const c = parseProgressionInt(row.values['cantrips'])
-      ?? parseProgressionInt(row.values['cantripsKnown']);
+    // Cantrips — try direct keys, then label match. Imported 5e.tools
+    // classes use `col2` keyed columns with "Cantrips" as the label.
+    const c = readProgressionValue(
+      cls, row,
+      ['cantrips', 'cantripsKnown'],
+      ['Cantrips Known', 'Cantrips'],
+    );
     if (c !== null) { cantrips += c; sawCantrip = true; }
 
     // Known-list classes carry `spellsKnown` (5.1 Sorcerer / Bard /
@@ -147,13 +151,21 @@ function computeSpellLimits(
     // For prepare-list classes the spellbook is uncapped, so we
     // simply don't accumulate a number — sawSpellbook stays false
     // and the Manage Spells modal omits the denominator.
-    const sk = parseProgressionInt(row.values['spellsKnown']);
+    const sk = readProgressionValue(
+      cls, row,
+      ['spellsKnown'],
+      ['Spells Known'],
+    );
     if (sk !== null) { spellbook += sk; sawSpellbook = true; }
 
     // Prepared — 2024 ships `preparedSpells`. Prepare-list 5.1
     // classes don't, so we compute `mod + classLevel` (min 1) using
     // the class's spellcasting ability + the character's score.
-    const pStructured = parseProgressionInt(row.values['preparedSpells']);
+    const pStructured = readProgressionValue(
+      cls, row,
+      ['preparedSpells'],
+      ['Prepared Spells'],
+    );
     if (pStructured !== null) {
       prepared += pStructured;
       sawPrepared = true;
@@ -178,6 +190,33 @@ function parseProgressionInt(raw: string | number | undefined): number | null {
   if (raw == null || raw === '—') return null;
   const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
   return Number.isFinite(n) ? n : null;
+}
+
+// Read a progression-table value by trying each known column key, then
+// falling back to a label match through `progressionColumns`. Imported
+// 5e.tools classes (notably Artificer) use generic `col0`/`col1`/...
+// keys with the human label carrying the meaning ("Cantrips Known",
+// "Prepared Spells"), so a key-only probe misses them.
+function readProgressionValue(
+  cls: ClassResult,
+  row: { values: Record<string, string | number> },
+  candidateKeys: string[],
+  candidateLabels: string[],
+): number | null {
+  for (const k of candidateKeys) {
+    const v = parseProgressionInt(row.values[k]);
+    if (v !== null) return v;
+  }
+  if (cls.progressionColumns) {
+    for (const col of cls.progressionColumns) {
+      const labelLc = col.label.toLowerCase();
+      if (candidateLabels.some((cand) => labelLc === cand.toLowerCase() || labelLc.includes(cand.toLowerCase()))) {
+        const v = parseProgressionInt(row.values[col.key]);
+        if (v !== null) return v;
+      }
+    }
+  }
+  return null;
 }
 
 // Per-class spellcasting payload for the Spells tab. Mixes structured
@@ -220,11 +259,15 @@ function spellcastingExplainersFor(
 
     // Synthesized counts at this character's level for this class.
     const row = cls.progressionTable?.find((r) => r.level === Math.min(e.level, 20));
-    const cantripsKnown = parseProgressionInt(row?.values['cantrips'])
-      ?? parseProgressionInt(row?.values['cantripsKnown'])
-      ?? undefined;
-    const sk = parseProgressionInt(row?.values['spellsKnown']);
-    const ps = parseProgressionInt(row?.values['preparedSpells']);
+    const cantripsKnown = row
+      ? (readProgressionValue(cls, row, ['cantrips', 'cantripsKnown'], ['Cantrips Known', 'Cantrips']) ?? undefined)
+      : undefined;
+    const sk = row
+      ? readProgressionValue(cls, row, ['spellsKnown'], ['Spells Known'])
+      : null;
+    const ps = row
+      ? readProgressionValue(cls, row, ['preparedSpells'], ['Prepared Spells'])
+      : null;
 
     let spellsKnownOrPrepared: number | undefined;
     let preparedLabel: string | undefined;
