@@ -470,8 +470,15 @@ export default function CharacterSheetScreen() {
   // field — it has in-progress notes that would clobber local edits.
   useEffect(() => {
     if (!id) return;
+    // Per-mount channel name. supabase.channel(name) caches by name,
+    // so re-mounting the sheet (e.g. after the level-up wizard's
+    // router.replace) hands back the already-subscribed channel —
+    // and adding `.on('postgres_changes', ...)` to a subscribed
+    // channel throws. A unique name per mount sidesteps the cache
+    // entirely, mirroring the world-layout's pattern.
+    const channelName = `character:${id}:${Date.now()}`;
     const channel = supabase
-      .channel(`character:${id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
