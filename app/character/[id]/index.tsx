@@ -1195,10 +1195,6 @@ export default function CharacterSheetScreen() {
             }}
             onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
             onOpenManage={() => setSpellPickerOpen(true)}
-            onRemoveSpell={(id) => {
-              const next = (resources.preparedSpells ?? []).filter((sp) => sp.id !== id);
-              persistResources({ ...resources, preparedSpells: next });
-            }}
           />
         );
       case 'skills':

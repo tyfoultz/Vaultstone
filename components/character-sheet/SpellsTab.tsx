@@ -30,15 +30,15 @@ interface Props {
   onSpellSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
   onConcentrationClear?: () => void;
   /** Open the catalog spell picker. The parent owns the modal so it can
-   *  pass the campaign + pack scope into ContentResolver. */
+   *  pass the campaign + pack scope into ContentResolver. The picker is
+   *  also where players remove prepared spells — the row itself doesn't
+   *  carry an inline remove affordance. */
   onOpenManage?: () => void;
-  /** Remove a prepared spell from resources.preparedSpells[] by id. */
-  onRemoveSpell?: (id: string) => void;
 }
 
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
-  onOpenManage, onRemoveSpell,
+  onOpenManage,
 }: Props) {
   const { width } = useWindowDimensions();
   const isWide = width >= 560;
@@ -192,7 +192,6 @@ export function SpellsTab({
               isLast={i === cantrips.length - 1}
               isWide={isWide}
               isOwner={isOwner}
-              onRemove={onRemoveSpell}
             />
           ))}
         </View>
@@ -230,7 +229,6 @@ export function SpellsTab({
               slot={slot}
               isOwner={isOwner}
               isWide={isWide}
-              onRemove={onRemoveSpell}
             />
           ))}
           {spells.length === 0 && slot && slot.max > 0 && (
@@ -291,14 +289,15 @@ function ColHeaders({ isWide }: { isWide: boolean }) {
 }
 
 function SpellRow({
-  spell, isLast, slot, isOwner, isWide, onRemove,
+  spell, isLast, slot, isWide,
 }: {
   spell: Dnd5ePreparedSpell;
   isLast: boolean;
   slot?: { max: number; remaining: number } | null;
+  /** Reserved for future per-row actions; currently unused since removal
+   *  lives in the Manage Spells modal instead of inline. */
   isOwner?: boolean;
   isWide?: boolean;
-  onRemove?: (id: string) => void;
 }) {
   const isCantrip = spell.level === 0;
   const hasSlots = slot ? slot.remaining > 0 : false;
@@ -347,12 +346,6 @@ function SpellRow({
         </Text>
       )}
       <Text style={[s.cellText, s.colNotes]} numberOfLines={2}>{spell.notes ?? '—'}</Text>
-
-      {isOwner && onRemove && (
-        <TouchableOpacity onPress={() => onRemove(spell.id)} hitSlop={8} style={s.removeBtn} activeOpacity={0.7}>
-          <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
