@@ -41,17 +41,66 @@ export interface Dnd5eAbilityScores {
 }
 
 /**
+ * One entry in a character's class list. Multi-classed characters
+ * carry multiple entries; single-classed characters carry one.
+ *
+ * `classKey` matches a `ClassResult.key` (edition-suffixed). The
+ * `subclassKey` matches a `SubclassResult.key`; null until the
+ * character reaches the class's subclass-unlock level. `hitDie`
+ * snapshots the class's hit die at the level the entry was added,
+ * matching the existing top-level `Dnd5eStats.hitDie` field's role.
+ */
+export interface Dnd5eClassEntry {
+  classKey: string;
+  level: number;
+  subclassKey: string | null;
+  hitDie: number;
+  /**
+   * Whether this entry was the *first* class on the character —
+   * the primary class. The primary class confers the full set of
+   * starting proficiencies (armor, weapons, tools, saves, two
+   * skills); secondary classes only confer the multiclass-entry
+   * subset. Exactly one entry per character carries `primary: true`.
+   */
+  primary: boolean;
+}
+
+/**
  * Shape of the `base_stats` JSON blob for a D&D 5e character.
  * Stores raw creation choices; all derived stats are computed at render time.
  */
 export interface Dnd5eStats {
   characterName: string;
-  /** Always 1 at creation; incremented on level-up (future feature). */
+  /**
+   * Total character level (sum of `classes[].level` when present,
+   * or just the legacy single-class level when not). Kept on the
+   * row for read-side simplicity in the sheet header, party view,
+   * etc. — these surfaces don't care which class(es) the level
+   * came from. The level-up wizard updates this in lockstep with
+   * `classes[]` writes.
+   */
   level: number;
 
   // Content selections (keys from ContentResolver)
   speciesKey: string;
+  /**
+   * Primary class key. Mirrored from `classes[]` (the entry with
+   * `primary: true`) when that list is populated; held as the only
+   * source of truth on legacy single-class characters that haven't
+   * been migrated to the array form. Display surfaces (sheet
+   * header, party view, character list) read this directly so they
+   * keep working unchanged across the migration.
+   */
   classKey: string;
+  /**
+   * Multi-class entries. Optional for backwards compat — characters
+   * created before the level-up arc shipped don't have this field
+   * and are treated as a single-class character whose `classKey` /
+   * `level` / `hitDie` describe the lone entry. The level-up
+   * wizard always writes this array; a single-class L1 character
+   * created today carries a one-element array.
+   */
+  classes?: Dnd5eClassEntry[];
   backgroundKey: string;
   /** Which SRD version the character was built with. */
   srdVersion: 'SRD_5.1' | 'SRD_2.0';
@@ -86,6 +135,40 @@ export interface Dnd5eStats {
 
   /** Per-character settings. Optional for backwards compat with existing characters. */
   settings?: CharacterSettings;
+}
+
+/**
+ * Read a character's class entries with the legacy single-class
+ * fallback. Returns the `classes[]` array verbatim when present;
+ * otherwise synthesizes a one-element array from the legacy
+ * top-level `classKey` / `level` / `hitDie` fields. Use this in
+ * any code path that needs the per-class breakdown (level-up,
+ * spell-slot computation, multiclass prereq checks); display code
+ * that just wants a primary class label can keep reading
+ * `stats.classKey` directly.
+ */
+export function getClassEntries(stats: Dnd5eStats): Dnd5eClassEntry[] {
+  if (stats.classes && stats.classes.length > 0) return stats.classes;
+  return [
+    {
+      classKey: stats.classKey,
+      level: stats.level,
+      subclassKey: null,
+      hitDie: stats.hitDie,
+      primary: true,
+    },
+  ];
+}
+
+/**
+ * Find the primary class entry — the entry the character started
+ * with, source of starting proficiencies and most display labels.
+ * Falls through to the synthetic legacy entry when no `classes[]`
+ * is present.
+ */
+export function getPrimaryClassEntry(stats: Dnd5eStats): Dnd5eClassEntry {
+  const entries = getClassEntries(stats);
+  return entries.find((e) => e.primary) ?? entries[0];
 }
 
 export type EquipmentSlot = 'weapon' | 'armor' | 'shield' | 'other';

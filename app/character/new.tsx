@@ -566,6 +566,20 @@ export default function NewCharacterScreen() {
         level: 1,
         speciesKey: draft.speciesKey,
         classKey: draft.classKey,
+        // Multi-class entry list. New characters always carry a
+        // single-element array describing the primary class; the
+        // level-up wizard appends more entries on multiclass. Legacy
+        // characters without this field still work via the
+        // getClassEntries() fallback in @vaultstone/types.
+        classes: [
+          {
+            classKey: draft.classKey,
+            level: 1,
+            subclassKey: null,
+            hitDie: cls.hitDie,
+            primary: true,
+          },
+        ],
         backgroundKey: draft.backgroundKey,
         srdVersion: draft.srdVersion,
         abilityScores: draft.abilityScores,
