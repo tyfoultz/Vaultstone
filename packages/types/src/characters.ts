@@ -336,8 +336,48 @@ export interface Dnd5eResources {
   appearance?: Dnd5eAppearance;
   /** Campaign journal entries. */
   journal?: Dnd5eJournalEntry[];
-  /** Prepared spells and cantrips. */
+  /**
+   * Active prepared spells + cantrips — the subset of `spellbook[]`
+   * the character can actually cast right now. Cantrips always read
+   * from this list (they don't get "unprepared" in 5e); leveled spells
+   * here represent what the player toggled on after a long rest.
+   *
+   * For pre-spellbook characters (created before the Manage/Prepare
+   * split landed), this is also the de-facto spellbook. The
+   * `getSpellbook` helper below normalizes both shapes.
+   */
   preparedSpells?: Dnd5ePreparedSpell[];
+
+  /**
+   * Every spell the character has learned — i.e. the master pool the
+   * Prepare Spells modal picks from. Populated by the Manage Spells
+   * modal (catalog → spellbook). For known-list classes (5.1 Sorcerer
+   * / Bard / Ranger / Warlock) this is the only list; the prepared/
+   * spellbook split collapses since every known spell is always cast-
+   * able. For prepare-list classes (Wizard, Cleric, etc.) this carries
+   * the wider pool the player chose during downtime / level-up, and
+   * `preparedSpells[]` carries today's active subset.
+   *
+   * Optional + nullable so legacy character rows (no spellbook field
+   * yet) stay readable — see `getSpellbook` for the normalization.
+   */
+  spellbook?: Dnd5ePreparedSpell[];
+}
+
+/**
+ * Resolve a character's full spellbook regardless of whether the row
+ * predates the Manage/Prepare split. New characters write to
+ * `resources.spellbook[]`; legacy characters only have
+ * `preparedSpells[]`, so we treat that as the spellbook too. Always
+ * dedupes by id so the merged shape stays stable when both fields
+ * are populated mid-migration.
+ */
+export function getSpellbook(resources: Dnd5eResources | null | undefined): Dnd5ePreparedSpell[] {
+  if (!resources) return [];
+  if (resources.spellbook && resources.spellbook.length > 0) {
+    return resources.spellbook;
+  }
+  return resources.preparedSpells ?? [];
 }
 
 export interface PartyViewSettings {

@@ -33,13 +33,15 @@ type Props = {
    *  modal falls back to the existingKeys size with no per-level
    *  breakdown. */
   existingSpells?: Dnd5ePreparedSpell[];
-  /** Spell-prep limits computed by the parent — `cantrips` is the
-   *  total cantrips known across all classes, `prepared` is the total
-   *  leveled spells prepared. Each may be undefined when the parent
-   *  can't compute it (e.g. legacy character with no progression data),
-   *  in which case the summary surfaces just the count without the
-   *  fraction denominator. */
-  spellLimits?: { cantrips?: number; prepared?: number };
+  /** Spell-prep limits computed by the parent. `cantrips` = total
+   *  cantrips known. `spellbook` = total leveled spells the character
+   *  may know (5.1 known-list cap; undefined for prepare-list classes
+   *  whose spellbook is effectively uncapped). `prepared` = total
+   *  leveled spells preparable for casting today. The Manage Spells
+   *  modal uses cantrip + spellbook; the Prepare Spells modal uses
+   *  cantrip + prepared. Each may be undefined when the parent can't
+   *  compute it (legacy character with no progression data). */
+  spellLimits?: { cantrips?: number; spellbook?: number; prepared?: number };
   campaignId?: string | null;
   packIds?: string[];
   srdVersion?: 'SRD_5.1' | 'SRD_2.0';
@@ -164,12 +166,14 @@ export function SpellPickerModal({
     ? 'All'
     : statusFilter === 'added' ? 'Added' : 'Unadded';
 
-  // Two-bucket summary: cantrips known + leveled spells prepared. Each
-  // bucket renders as `current/limit` when the parent supplied a limit
-  // via `spellLimits`, or just `current` otherwise. We deliberately
-  // don't break leveled spells down by level here — 5e's prep limit
-  // is a single pool across L1–L9 (Wizard L3 with 6 prepared can split
-  // them across 1st and 2nd as the player likes).
+  // Two-bucket summary for the spellbook view: cantrips known +
+  // leveled spells in the spellbook. Each bucket renders as
+  // `current/limit` when the parent supplied a limit via `spellLimits`,
+  // or just `current` otherwise. The leveled denominator falls back
+  // from spellbook → prepared so prepare-list classes (whose spellbook
+  // is uncapped) still show *some* useful denominator — their
+  // "spellbook" effectively maxes at the prepared limit anyway since
+  // there's no use case for learning a spell you can't ever prepare.
   const preparedSummary = useMemo(() => {
     if (!existingSpells) return null;
     let cantripCount = 0;
@@ -179,15 +183,15 @@ export function SpellPickerModal({
       else leveledCount++;
     }
     const cantripLimit = spellLimits?.cantrips;
-    const preparedLimit = spellLimits?.prepared;
+    const leveledLimit = spellLimits?.spellbook ?? spellLimits?.prepared;
     const cantripText = cantripLimit !== undefined
       ? `${cantripCount}/${cantripLimit} cantrips`
       : cantripCount === 1 ? '1 cantrip' : `${cantripCount} cantrips`;
-    const leveledText = preparedLimit !== undefined
-      ? `${leveledCount}/${preparedLimit} prepared`
-      : `${leveledCount} prepared`;
-    return { cantripText, leveledText, cantripCount, leveledCount, cantripLimit, preparedLimit };
-  }, [existingSpells, spellLimits?.cantrips, spellLimits?.prepared]);
+    const leveledText = leveledLimit !== undefined
+      ? `${leveledCount}/${leveledLimit} in spellbook`
+      : `${leveledCount} in spellbook`;
+    return { cantripText, leveledText, cantripCount, leveledCount, cantripLimit, leveledLimit };
+  }, [existingSpells, spellLimits?.cantrips, spellLimits?.spellbook, spellLimits?.prepared]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -245,8 +249,8 @@ export function SpellPickerModal({
                   <Text style={s.summaryDot}> · </Text>
                   <Text style={[
                     s.summaryChunk,
-                    preparedSummary.preparedLimit !== undefined
-                    && preparedSummary.leveledCount >= preparedSummary.preparedLimit
+                    preparedSummary.leveledLimit !== undefined
+                    && preparedSummary.leveledCount >= preparedSummary.leveledLimit
                     && s.summaryChunkAtLimit,
                   ]}>
                     {preparedSummary.leveledText}
@@ -335,25 +339,45 @@ export function SpellPickerModal({
                             <Text style={s.detailDesc}>{sp.description}</Text>
                           ) : null}
 
-                          {has ? (
-                            <TouchableOpacity
-                              style={[s.commitBtn, s.commitBtnRemove]}
-                              onPress={onRemove ? () => { onRemove(sp.key); onClose(); } : undefined}
-                              activeOpacity={onRemove ? 0.85 : 1}
-                            >
-                              <Text style={[s.commitText, s.commitTextRemove]}>
-                                {`Remove ${sp.name}`}
-                              </Text>
-                            </TouchableOpacity>
-                          ) : (
-                            <TouchableOpacity
-                              style={s.commitBtn}
-                              onPress={() => commit(sp)}
-                              activeOpacity={0.85}
-                            >
-                              <Text style={s.commitText}>{`Add ${sp.name}`}</Text>
-                            </TouchableOpacity>
-                          )}
+                          {(() => {
+                            if (has) {
+                              return (
+                                <TouchableOpacity
+                                  style={[s.commitBtn, s.commitBtnRemove]}
+                                  onPress={onRemove ? () => { onRemove(sp.key); onClose(); } : undefined}
+                                  activeOpacity={onRemove ? 0.85 : 1}
+                                >
+                                  <Text style={[s.commitText, s.commitTextRemove]}>
+                                    {`Remove ${sp.name}`}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            }
+                            // Gate on the relevant bucket's limit. Cantrips
+                            // and leveled spells live in separate pools so
+                            // hitting one doesn't lock the other out.
+                            const summary = preparedSummary;
+                            const overCap = summary
+                              ? sp.level === 0
+                                ? summary.cantripLimit !== undefined
+                                  && summary.cantripCount >= summary.cantripLimit
+                                : summary.leveledLimit !== undefined
+                                  && summary.leveledCount >= summary.leveledLimit
+                              : false;
+                            return (
+                              <TouchableOpacity
+                                style={[s.commitBtn, overCap && s.commitBtnDisabled]}
+                                onPress={overCap ? undefined : () => commit(sp)}
+                                activeOpacity={overCap ? 1 : 0.85}
+                              >
+                                <Text style={[s.commitText, overCap && s.commitTextDisabled]}>
+                                  {overCap
+                                    ? `${sp.level === 0 ? 'Cantrip' : 'Spellbook'} limit reached`
+                                    : `Add ${sp.name}`}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })()}
                         </View>
                       ) : null}
                     </View>

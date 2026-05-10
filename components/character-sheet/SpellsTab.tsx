@@ -29,16 +29,22 @@ interface Props {
   isOwner: boolean;
   onSpellSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
   onConcentrationClear?: () => void;
-  /** Open the catalog spell picker. The parent owns the modal so it can
-   *  pass the campaign + pack scope into ContentResolver. The picker is
-   *  also where players remove prepared spells — the row itself doesn't
-   *  carry an inline remove affordance. */
+  /** Open the catalog spell picker (Manage Spells). Adds/removes
+   *  spells from the character's spellbook. The parent owns the modal
+   *  so it can pass the campaign + pack scope into ContentResolver. */
   onOpenManage?: () => void;
+  /** Open the Prepare Spells modal — picks today's active subset from
+   *  the spellbook. Hidden when the character has no leveled spells in
+   *  their spellbook (e.g. cantrip-only or non-caster). */
+  onOpenPrepare?: () => void;
+  /** Whether the character has any leveled spells available to prepare —
+   *  drives whether Prepare Spells button is shown at all. */
+  canPrepare?: boolean;
 }
 
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
-  onOpenManage,
+  onOpenManage, onOpenPrepare, canPrepare,
 }: Props) {
   const { width } = useWindowDimensions();
   const isWide = width >= 560;
@@ -134,6 +140,11 @@ export function SpellsTab({
             </TouchableOpacity>
           )}
         </View>
+        {isOwner && onOpenPrepare && canPrepare && (
+          <TouchableOpacity style={s.manageBtn} activeOpacity={0.7} onPress={onOpenPrepare}>
+            <Text style={s.manageBtnText}>PREPARE</Text>
+          </TouchableOpacity>
+        )}
         {isOwner && onOpenManage && (
           <TouchableOpacity style={s.manageBtn} activeOpacity={0.7} onPress={onOpenManage}>
             <Text style={s.manageBtnText}>MANAGE SPELLS</Text>

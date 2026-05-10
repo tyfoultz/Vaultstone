@@ -18,7 +18,7 @@ import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
 import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult, SkillResult } from '@vaultstone/types';
-import { getClassEntries } from '@vaultstone/types';
+import { getClassEntries, getSpellbook } from '@vaultstone/types';
 import { HpModal } from '../../../components/character-sheet/HpModal';
 import { ConditionsPanel } from '../../../components/character-sheet/ConditionsPanel';
 import { RollToast } from '../../../components/character-sheet/RollToast';
@@ -31,6 +31,7 @@ import { GearTab } from '../../../components/character-sheet/GearTab';
 import { LoreTab } from '../../../components/character-sheet/LoreTab';
 import { FeatPickerModal } from '../../../components/character-sheet/FeatPickerModal';
 import { SpellPickerModal } from '../../../components/character-sheet/SpellPickerModal';
+import { PrepareSpellsModal } from '../../../components/character-sheet/PrepareSpellsModal';
 import { ItemPickerModal } from '../../../components/character-sheet/ItemPickerModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
@@ -89,34 +90,86 @@ function humanizeContentKey(key: string): string {
   return slug.split(/[-_\s]+/).filter(Boolean).map(capitalize).join(' ');
 }
 
-// Spell prep limits surfaced under the Manage Spells filters. Reads each
-// caster class's progression-table row at the entry's level and pulls
-// the `cantrips` (cantrips known) + `preparedSpells` (leveled spells
-// preparable) values; sums across class entries for multiclass. Returns
-// undefined for either bucket when no caster class entry contributes a
-// number — keeps the modal from showing "0 / 0" for non-casters or for
-// homebrew classes that don't ship a progression column.
+// Spell prep limits surfaced under the Manage Spells / Prepare Spells
+// filters. Three buckets, each summed across multiclass entries:
+//
+//   - cantrips   : `cantrips` (5.2) → `cantripsKnown` (5.1)
+//   - spellbook  : `spellsKnown` (5.1 known-list classes only). For
+//                  prepare-list classes the spellbook is effectively
+//                  uncapped (a Wizard's spellbook holds whatever they
+//                  scribe), so this stays undefined for them and the
+//                  Manage Spells modal omits the denominator.
+//   - prepared   : `preparedSpells` (5.2; rebranded "known" for sorc
+//                  in 2024) → ability-mod + classLevel formula for
+//                  5.1 prepare-list classes (min 1).
+//
+// Returns undefined for any bucket no caster contributes to; that
+// signals the picker to drop the denominator instead of showing "0/0".
+const ABILITY_BY_NAME: Record<string, keyof Dnd5eAbilityScores> = {
+  intelligence: 'intelligence',
+  wisdom: 'wisdom',
+  charisma: 'charisma',
+  strength: 'strength',
+  dexterity: 'dexterity',
+  constitution: 'constitution',
+};
+
+// Class names whose 5.1 prep limit is `mod + class level` (min 1). The
+// rest either have a structured `spellsKnown` column (handled separately)
+// or use the 2024 `preparedSpells` column.
+const PREPARE_FORMULA_CLASSES_5_1 = new Set(['wizard', 'cleric', 'druid', 'paladin', 'artificer']);
+
 function computeSpellLimits(
   stats: Dnd5eStats,
   classResultsByKey: Record<string, ClassResult>,
-): { cantrips?: number; prepared?: number } {
+): { cantrips?: number; spellbook?: number; prepared?: number } {
   const entries = getClassEntries(stats);
+  const scores = stats.abilityScores;
   let cantrips = 0;
+  let spellbook = 0;
   let prepared = 0;
   let sawCantrip = false;
+  let sawSpellbook = false;
   let sawPrepared = false;
   for (const e of entries) {
     const cls = classResultsByKey[e.classKey];
     if (!cls?.spellcasting || !cls.progressionTable) continue;
     const row = cls.progressionTable.find((r) => r.level === Math.min(e.level, 20));
     if (!row) continue;
-    const c = parseProgressionInt(row.values['cantrips']);
-    const p = parseProgressionInt(row.values['preparedSpells']);
+
+    // Cantrips — 2024 ships `cantrips`, 5.1 ships `cantripsKnown`.
+    const c = parseProgressionInt(row.values['cantrips'])
+      ?? parseProgressionInt(row.values['cantripsKnown']);
     if (c !== null) { cantrips += c; sawCantrip = true; }
-    if (p !== null) { prepared += p; sawPrepared = true; }
+
+    // Known-list classes carry `spellsKnown` (5.1 Sorcerer / Bard /
+    // Ranger / Warlock — Warlock 2014 had its own ad-hoc track too).
+    // For prepare-list classes the spellbook is uncapped, so we
+    // simply don't accumulate a number — sawSpellbook stays false
+    // and the Manage Spells modal omits the denominator.
+    const sk = parseProgressionInt(row.values['spellsKnown']);
+    if (sk !== null) { spellbook += sk; sawSpellbook = true; }
+
+    // Prepared — 2024 ships `preparedSpells`. Prepare-list 5.1
+    // classes don't, so we compute `mod + classLevel` (min 1) using
+    // the class's spellcasting ability + the character's score.
+    const pStructured = parseProgressionInt(row.values['preparedSpells']);
+    if (pStructured !== null) {
+      prepared += pStructured;
+      sawPrepared = true;
+    } else if (scores && cls.spellcastingAbility && PREPARE_FORMULA_CLASSES_5_1.has(cls.name.toLowerCase())) {
+      const abilityKey = ABILITY_BY_NAME[cls.spellcastingAbility.toLowerCase()];
+      if (abilityKey) {
+        const score = scores[abilityKey];
+        const mod = Math.floor((score - 10) / 2);
+        prepared += Math.max(1, mod + e.level);
+        sawPrepared = true;
+      }
+    }
   }
   return {
     cantrips: sawCantrip ? cantrips : undefined,
+    spellbook: sawSpellbook ? spellbook : undefined,
     prepared: sawPrepared ? prepared : undefined,
   };
 }
@@ -436,6 +489,7 @@ export default function CharacterSheetScreen() {
   const [featureCategory, setFeatureCategory] = useState<'classFeatures' | 'speciesTraits' | 'feats'>('classFeatures');
   const [featPickerOpen, setFeatPickerOpen] = useState(false);
   const [spellPickerOpen, setSpellPickerOpen] = useState(false);
+  const [preparePickerOpen, setPreparePickerOpen] = useState(false);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   /** Campaign rule `enforce_feat_prerequisites` resolved from the
    *  character's linked campaign. Standalone characters fall through
@@ -1233,6 +1287,8 @@ export default function CharacterSheetScreen() {
             }}
             onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
             onOpenManage={() => setSpellPickerOpen(true)}
+            onOpenPrepare={() => setPreparePickerOpen(true)}
+            canPrepare={getSpellbook(resources).some((sp) => sp.level > 0)}
           />
         );
       case 'skills':
@@ -2043,20 +2099,55 @@ export default function CharacterSheetScreen() {
           visible={spellPickerOpen}
           onClose={() => setSpellPickerOpen(false)}
           classNames={Object.values(classResultsByKey).map((c) => c.name)}
-          existingKeys={new Set((resources.preparedSpells ?? []).map((s) => s.id))}
-          existingSpells={resources.preparedSpells ?? []}
+          existingKeys={new Set(getSpellbook(resources).map((s) => s.id))}
+          existingSpells={getSpellbook(resources)}
           spellLimits={computeSpellLimits(stats, classResultsByKey)}
           campaignId={character?.campaign_id ?? null}
           packIds={character?.pack_ids ?? []}
           srdVersion={stats.srdVersion}
           onPick={(spell) => {
-            const next = [...(resources.preparedSpells ?? []), spell];
-            persistResources({ ...resources, preparedSpells: next });
+            // Manage Spells writes to the spellbook (the master list).
+            // Cantrips also auto-prepare since 5e cantrips are always
+            // available; leveled spells flow to prepared via the
+            // separate Prepare Spells modal.
+            const currentBook = getSpellbook(resources);
+            const nextBook = [...currentBook, spell];
+            const isCantrip = spell.level === 0;
+            const nextPrepared = isCantrip
+              ? [...(resources.preparedSpells ?? []), spell]
+              : (resources.preparedSpells ?? []);
+            persistResources({
+              ...resources,
+              spellbook: nextBook,
+              preparedSpells: nextPrepared,
+            });
           }}
           onRemove={(spellId) => {
-            const next = (resources.preparedSpells ?? []).filter((sp) => sp.id !== spellId);
-            persistResources({ ...resources, preparedSpells: next });
+            // Removing from the spellbook also removes from prepared
+            // (you can't have a prepared spell that isn't in your book).
+            const currentBook = getSpellbook(resources);
+            const nextBook = currentBook.filter((sp) => sp.id !== spellId);
+            const nextPrepared = (resources.preparedSpells ?? []).filter((sp) => sp.id !== spellId);
+            persistResources({
+              ...resources,
+              spellbook: nextBook,
+              preparedSpells: nextPrepared,
+            });
           }}
+        />
+      ) : null}
+
+      {/* Prepare Spells modal — toggles which leveled spells from the
+          spellbook are active for casting today. Cantrips render as a
+          read-only band at the top since they don't get unprepared. */}
+      {stats && resources ? (
+        <PrepareSpellsModal
+          visible={preparePickerOpen}
+          onClose={() => setPreparePickerOpen(false)}
+          spellbook={getSpellbook(resources)}
+          prepared={resources.preparedSpells ?? []}
+          preparedLimit={computeSpellLimits(stats, classResultsByKey).prepared}
+          onChange={(next) => persistResources({ ...resources, preparedSpells: next })}
         />
       ) : null}
 
