@@ -30,6 +30,7 @@ import { SpellsTab } from '../../../components/character-sheet/SpellsTab';
 import { GearTab } from '../../../components/character-sheet/GearTab';
 import { LoreTab } from '../../../components/character-sheet/LoreTab';
 import { FeatPickerModal } from '../../../components/character-sheet/FeatPickerModal';
+import { SpellPickerModal } from '../../../components/character-sheet/SpellPickerModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
@@ -395,6 +396,7 @@ export default function CharacterSheetScreen() {
   const [editFeature, setEditFeature] = useState<Dnd5eFeature | null>(null);
   const [featureCategory, setFeatureCategory] = useState<'classFeatures' | 'speciesTraits' | 'feats'>('classFeatures');
   const [featPickerOpen, setFeatPickerOpen] = useState(false);
+  const [spellPickerOpen, setSpellPickerOpen] = useState(false);
   /** Campaign rule `enforce_feat_prerequisites` resolved from the
    *  character's linked campaign. Standalone characters fall through
    *  to true (the system's bundled default). */
@@ -1187,6 +1189,11 @@ export default function CharacterSheetScreen() {
               });
             }}
             onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
+            onOpenManage={() => setSpellPickerOpen(true)}
+            onRemoveSpell={(id) => {
+              const next = (resources.preparedSpells ?? []).filter((sp) => sp.id !== id);
+              persistResources({ ...resources, preparedSpells: next });
+            }}
           />
         );
       case 'skills':
@@ -1980,6 +1987,26 @@ export default function CharacterSheetScreen() {
           packIds={character?.pack_ids ?? []}
           srdVersion={stats.srdVersion}
           onPick={(feature) => saveFeature('feats', feature)}
+        />
+      ) : null}
+
+      {/* Catalog spell picker — wires the Spells tab's "MANAGE SPELLS"
+          affordance. Class scoping uses resolved class names so a
+          Wizard sees Wizard spells (and any homebrew spells the
+          character's pack opt-in surfaces). */}
+      {stats && resources ? (
+        <SpellPickerModal
+          visible={spellPickerOpen}
+          onClose={() => setSpellPickerOpen(false)}
+          classNames={Object.values(classResultsByKey).map((c) => c.name)}
+          existingKeys={new Set((resources.preparedSpells ?? []).map((s) => s.id))}
+          campaignId={character?.campaign_id ?? null}
+          packIds={character?.pack_ids ?? []}
+          srdVersion={stats.srdVersion}
+          onPick={(spell) => {
+            const next = [...(resources.preparedSpells ?? []), spell];
+            persistResources({ ...resources, preparedSpells: next });
+          }}
         />
       ) : null}
 

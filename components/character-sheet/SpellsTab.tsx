@@ -29,10 +29,16 @@ interface Props {
   isOwner: boolean;
   onSpellSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
   onConcentrationClear?: () => void;
+  /** Open the catalog spell picker. The parent owns the modal so it can
+   *  pass the campaign + pack scope into ContentResolver. */
+  onOpenManage?: () => void;
+  /** Remove a prepared spell from resources.preparedSpells[] by id. */
+  onRemoveSpell?: (id: string) => void;
 }
 
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
+  onOpenManage, onRemoveSpell,
 }: Props) {
   const { width } = useWindowDimensions();
   const isWide = width >= 560;
@@ -128,9 +134,11 @@ export function SpellsTab({
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity style={s.manageBtn} activeOpacity={0.7}>
-          <Text style={s.manageBtnText}>MANAGE SPELLS</Text>
-        </TouchableOpacity>
+        {isOwner && onOpenManage && (
+          <TouchableOpacity style={s.manageBtn} activeOpacity={0.7} onPress={onOpenManage}>
+            <Text style={s.manageBtnText}>MANAGE SPELLS</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── Level filter chips ── */}
@@ -183,6 +191,8 @@ export function SpellsTab({
               spell={spell}
               isLast={i === cantrips.length - 1}
               isWide={isWide}
+              isOwner={isOwner}
+              onRemove={onRemoveSpell}
             />
           ))}
         </View>
@@ -220,6 +230,7 @@ export function SpellsTab({
               slot={slot}
               isOwner={isOwner}
               isWide={isWide}
+              onRemove={onRemoveSpell}
             />
           ))}
           {spells.length === 0 && slot && slot.max > 0 && (
@@ -243,7 +254,9 @@ export function SpellsTab({
           <MaterialCommunityIcons name="book-open-outline" size={32} color={colors.outlineVariant} />
           <Text style={s.emptyTitle}>No Spells Prepared</Text>
           <Text style={s.emptyBody}>
-            Spell management is coming soon. Slots and concentration are tracked above.
+            {isOwner && onOpenManage
+              ? 'Tap “Manage Spells” above to add spells from the catalog.'
+              : 'Slots and concentration are tracked above.'}
           </Text>
         </View>
       )}
@@ -278,13 +291,14 @@ function ColHeaders({ isWide }: { isWide: boolean }) {
 }
 
 function SpellRow({
-  spell, isLast, slot, isOwner, isWide,
+  spell, isLast, slot, isOwner, isWide, onRemove,
 }: {
   spell: Dnd5ePreparedSpell;
   isLast: boolean;
   slot?: { max: number; remaining: number } | null;
   isOwner?: boolean;
   isWide?: boolean;
+  onRemove?: (id: string) => void;
 }) {
   const isCantrip = spell.level === 0;
   const hasSlots = slot ? slot.remaining > 0 : false;
@@ -333,6 +347,12 @@ function SpellRow({
         </Text>
       )}
       <Text style={[s.cellText, s.colNotes]} numberOfLines={2}>{spell.notes ?? '—'}</Text>
+
+      {isOwner && onRemove && (
+        <TouchableOpacity onPress={() => onRemove(spell.id)} hitSlop={8} style={s.removeBtn} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -446,6 +466,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 9,
   },
   spellRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
+  removeBtn: { paddingHorizontal: 4, paddingVertical: 4, marginLeft: 4 },
 
   // AT WILL badge (cantrips)
   badgeAtWill: {
