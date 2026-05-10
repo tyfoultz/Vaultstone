@@ -180,23 +180,82 @@ function parseProgressionInt(raw: string | number | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// Pull each spellcasting class's "Spellcasting" feature description for
-// the Spells tab's How-spellcasting-works panel. Skips classes that
-// aren't casters and ones that don't ship a Spellcasting feature
-// (legacy / homebrew). Multiclass returns one entry per caster class.
+// Per-class spellcasting payload for the Spells tab. Mixes structured
+// data (always present — ability, cantrips known, prep limit) with the
+// class-shipped prose (optional — some classes ship only a thin "see
+// the PHB" stub, so we surface synthesized stats alongside whatever
+// prose exists). The synthesized core-stats grid renders above the
+// prose; a class with no prose still gets the actionable numbers.
 function spellcastingExplainersFor(
   stats: Dnd5eStats,
   classResultsByKey: Record<string, ClassResult>,
-): Array<{ className: string; description: string }> {
-  const out: Array<{ className: string; description: string }> = [];
+): Array<{
+  className: string;
+  spellcastingAbility: string | null;
+  cantripsKnown?: number;
+  spellsKnownOrPrepared?: number;
+  preparedLabel?: string;
+  preparedFormula?: string;
+  description?: string;
+}> {
+  const out: Array<{
+    className: string;
+    spellcastingAbility: string | null;
+    cantripsKnown?: number;
+    spellsKnownOrPrepared?: number;
+    preparedLabel?: string;
+    preparedFormula?: string;
+    description?: string;
+  }> = [];
   for (const e of getClassEntries(stats)) {
     const cls = classResultsByKey[e.classKey];
     if (!cls?.spellcasting) continue;
+
+    // Pull the canonical Spellcasting feature description for the
+    // prose. Falls back to undefined when missing — the synthesized
+    // stats above carry the load in that case.
     const feat = (cls.features ?? []).find(
       (f) => f.name.toLowerCase() === 'spellcasting' && f.level === 1,
     ) ?? (cls.features ?? []).find((f) => f.name.toLowerCase() === 'spellcasting');
-    if (!feat?.description) continue;
-    out.push({ className: cls.name, description: feat.description });
+
+    // Synthesized counts at this character's level for this class.
+    const row = cls.progressionTable?.find((r) => r.level === Math.min(e.level, 20));
+    const cantripsKnown = parseProgressionInt(row?.values['cantrips'])
+      ?? parseProgressionInt(row?.values['cantripsKnown'])
+      ?? undefined;
+    const sk = parseProgressionInt(row?.values['spellsKnown']);
+    const ps = parseProgressionInt(row?.values['preparedSpells']);
+
+    let spellsKnownOrPrepared: number | undefined;
+    let preparedLabel: string | undefined;
+    let preparedFormula: string | undefined;
+    if (sk !== null) {
+      spellsKnownOrPrepared = sk;
+      preparedLabel = 'Spells Known';
+    } else if (ps !== null) {
+      spellsKnownOrPrepared = ps;
+      preparedLabel = 'Prepared Spells';
+    } else if (cls.spellcastingAbility && PREPARE_FORMULA_CLASSES_5_1.has(cls.name.toLowerCase())) {
+      // 5.1 prepare-list class — formula `mod + level (min 1)`.
+      const abilityKey = ABILITY_BY_NAME[cls.spellcastingAbility.toLowerCase()];
+      if (abilityKey && stats.abilityScores) {
+        const score = stats.abilityScores[abilityKey];
+        const mod = Math.floor((score - 10) / 2);
+        spellsKnownOrPrepared = Math.max(1, mod + e.level);
+        preparedLabel = 'Prepared Spells';
+        preparedFormula = `${cls.spellcastingAbility} mod + ${cls.name} level`;
+      }
+    }
+
+    out.push({
+      className: cls.name,
+      spellcastingAbility: cls.spellcastingAbility ?? null,
+      cantripsKnown,
+      spellsKnownOrPrepared,
+      preparedLabel,
+      preparedFormula,
+      description: feat?.description,
+    });
   }
   return out;
 }

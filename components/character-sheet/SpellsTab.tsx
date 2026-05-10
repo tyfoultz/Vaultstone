@@ -7,6 +7,14 @@ import { colors, fonts, radius, spacing, MarkdownText } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5ePreparedSpell } from '@vaultstone/types';
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
+
+function shortAbility(name: string): string {
+  const map: Record<string, string> = {
+    strength: 'STR', dexterity: 'DEX', constitution: 'CON',
+    intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
+  };
+  return map[name.toLowerCase()] ?? name.slice(0, 3).toUpperCase();
+}
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 function capitalize(str: string) { return str.charAt(0).toUpperCase() + str.slice(1); }
 
@@ -40,10 +48,29 @@ interface Props {
   /** Whether the character has any leveled spells available to prepare —
    *  drives whether Prepare Spells button is shown at all. */
   canPrepare?: boolean;
-  /** Per-class Spellcasting feature text — drives the "How spellcasting
-   *  works for this character" panel. One entry per spellcasting class
-   *  the character has a level in; empty for non-casters. */
-  spellcastingExplainers?: Array<{ className: string; description: string }>;
+  /** Per-class spellcasting explainer payload — drives the "How
+   *  spellcasting works" panel. One entry per spellcasting class the
+   *  character has a level in; empty for non-casters. The synthesized
+   *  fields (ability, save DC, etc.) are derived from class data and
+   *  always present; `description` is the class-shipped prose, which
+   *  can be a thin pointer (5.1, imported homebrew) or a full ### body
+   *  (SRD 5.2). */
+  spellcastingExplainers?: Array<{
+    className: string;
+    /** Capitalized ability name (e.g. "Intelligence") or null when unknown. */
+    spellcastingAbility: string | null;
+    /** Cantrips known at this character's level for this class. */
+    cantripsKnown?: number;
+    /** Total leveled spells learnable / preparable at this level. */
+    spellsKnownOrPrepared?: number;
+    /** Short label for the cap above ("known" vs "prepared") + its formula
+     *  ("Intelligence mod + Artificer level"). */
+    preparedLabel?: string;
+    preparedFormula?: string;
+    /** Class-shipped prose. Optional — some entries (Artificer import)
+     *  ship only a stub pointing at the PHB. */
+    description?: string;
+  }>;
 }
 
 export function SpellsTab({
@@ -155,7 +182,35 @@ export function SpellsTab({
                   {spellcastingExplainers.length > 1 && (
                     <Text style={s.explainerClassLabel}>{ex.className.toUpperCase()}</Text>
                   )}
-                  <MarkdownText style={s.explainerText}>{ex.description}</MarkdownText>
+                  {/* Synthesized core stats — always shown so even classes
+                      with thin/missing prose (5.1 SRD, imported homebrew
+                      Artificer) surface the actual numbers a player needs
+                      at the table. */}
+                  <View style={s.synthGrid}>
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Ability" value={ex.spellcastingAbility} />
+                    )}
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Save DC" value={`8 + prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
+                    )}
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Spell Attack" value={`prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
+                    )}
+                    {ex.cantripsKnown !== undefined && (
+                      <SynthCell label="Cantrips Known" value={String(ex.cantripsKnown)} />
+                    )}
+                    {ex.spellsKnownOrPrepared !== undefined && ex.preparedLabel && (
+                      <SynthCell
+                        label={ex.preparedLabel}
+                        value={ex.preparedFormula
+                          ? `${ex.spellsKnownOrPrepared} (${ex.preparedFormula})`
+                          : String(ex.spellsKnownOrPrepared)}
+                      />
+                    )}
+                  </View>
+                  {ex.description ? (
+                    <MarkdownText style={s.explainerText}>{ex.description}</MarkdownText>
+                  ) : null}
                 </View>
               ))}
             </View>
@@ -401,6 +456,15 @@ function SpellRow({
   );
 }
 
+function SynthCell({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.synthCell}>
+      <Text style={s.synthLabel}>{label}</Text>
+      <Text style={s.synthValue}>{value}</Text>
+    </View>
+  );
+}
+
 // ── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
@@ -446,6 +510,30 @@ const s = StyleSheet.create({
   },
   explainerText: {
     fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 19,
+  },
+
+  // Synthesized core-stats grid above the prose. Two-column wrapping
+  // chips so the per-class essentials (ability, save DC, attack mod,
+  // cantrips known, prepared count) surface even when the source class
+  // ships only a thin "see the PHB" stub.
+  synthGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    marginBottom: 12,
+  },
+  synthCell: {
+    minWidth: 140,
+    paddingVertical: 6, paddingHorizontal: 10,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+  },
+  synthLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.outline, textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  synthValue: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurface, fontWeight: '600',
   },
 
   // Search row
