@@ -62,6 +62,7 @@ import {
   type SubclassResult,
 } from '@vaultstone/types';
 import { useAuthStore } from '@vaultstone/store';
+import { FeatPickerModal } from '../../../components/character-sheet/FeatPickerModal';
 
 const ABILITIES: AbilityKey[] = [
   'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma',
@@ -283,11 +284,9 @@ function LevelUpFlow({
   const showAsiStep = !!leveledClass && isAsiLevel(leveledClass, newClassLevel);
   const [asiKind, setAsiKind] = useState<AsiKind>(null);
   const [asiAllocation, setAsiAllocation] = useState<Record<AbilityKey, number>>(() => zeroAlloc());
-  // Feat pick deferred to the existing FeatPickerModal — we record only
-  // the chosen feat key + display data here, and surface a "Pick a feat"
-  // button that opens the modal in a future polish pass. v1 supports
-  // ASI only; the feat path stays as scaffolding.
-  const [featPick, _setFeatPick] = useState<{ key: string; name: string; description: string } | null>(null);
+  const [featPick, setFeatPick] = useState<{ key: string; name: string; description: string } | null>(null);
+  const [featPickerOpen, setFeatPickerOpen] = useState(false);
+  const enforceFeatPrereqs = campaignRules.enforce_feat_prerequisites !== false;
 
   // ── Step orchestration ──
   // Class step is shown when the player can choose between leveling an
@@ -458,6 +457,8 @@ function LevelUpFlow({
             onKind={setAsiKind}
             onAllocation={setAsiAllocation}
             featPick={featPick}
+            onClearFeatPick={() => setFeatPick(null)}
+            onOpenFeatPicker={() => setFeatPickerOpen(true)}
           />
         ) : null}
 
@@ -498,6 +499,28 @@ function LevelUpFlow({
           )}
         </View>
       </ContentWidth>
+
+      {/* Feat picker — opened from the ASI step's "Pick a feat" button.
+          Reuses the character sheet's modal so the catalog query, prereq
+          gating, and search UX stay consistent across the two surfaces. */}
+      <FeatPickerModal
+        visible={featPickerOpen}
+        onClose={() => setFeatPickerOpen(false)}
+        stats={stats}
+        existing={resources.feats ?? []}
+        enforcePrereqs={enforceFeatPrereqs}
+        campaignId={_campaignId}
+        packIds={_packIds}
+        srdVersion={stats.srdVersion}
+        onPick={(feature) => {
+          setFeatPick({
+            key: feature.id,
+            name: feature.name,
+            description: feature.description,
+          });
+          setFeatPickerOpen(false);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -767,6 +790,7 @@ function HpStep({
 
 function AsiStep({
   stats, kind, allocation, onKind, onAllocation, featPick,
+  onClearFeatPick, onOpenFeatPicker,
 }: {
   stats: Dnd5eStats;
   kind: AsiKind;
@@ -774,6 +798,8 @@ function AsiStep({
   onKind: (k: AsiKind) => void;
   onAllocation: (a: Record<AbilityKey, number>) => void;
   featPick: { key: string; name: string; description: string } | null;
+  onClearFeatPick: () => void;
+  onOpenFeatPicker: () => void;
 }) {
   function bump(ability: AbilityKey, delta: number) {
     const next = { ...allocation };
@@ -842,17 +868,38 @@ function AsiStep({
           </Text>
         </View>
       ) : kind === 'feat' ? (
-        <View>
-          <Text variant="body-sm" tone="secondary">
-            Feat picker coming soon. For now, pick an ASI instead — you can swap to a feat after the level-up
-            wizard supports it.
-          </Text>
+        <View style={{ gap: spacing.sm }}>
           {featPick ? (
-            <View style={{ marginTop: spacing.sm }}>
-              <Text variant="title-sm" family="headline" weight="bold">{featPick.name}</Text>
-              <Text variant="body-sm" tone="secondary">{featPick.description}</Text>
+            <View style={s.featPickCard}>
+              <View style={{ flex: 1 }}>
+                <Text variant="title-sm" family="headline" weight="bold">{featPick.name}</Text>
+                {featPick.description ? (
+                  <Text variant="body-sm" tone="secondary" numberOfLines={4} style={{ marginTop: 4 }}>
+                    {featPick.description}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+                <Pressable style={s.featPickBtn} onPress={onClearFeatPick}>
+                  <Text variant="label-md" weight="semibold" style={{ color: colors.onSurfaceVariant }}>
+                    Clear
+                  </Text>
+                </Pressable>
+                <Pressable style={s.featPickBtn} onPress={onOpenFeatPicker}>
+                  <Text variant="label-md" weight="semibold" style={{ color: colors.primary }}>
+                    Change feat
+                  </Text>
+                </Pressable>
+              </View>
             </View>
-          ) : null}
+          ) : (
+            <Pressable style={s.featPickCardEmpty} onPress={onOpenFeatPicker}>
+              <Icon name="add" size={18} color={colors.primary} />
+              <Text variant="body-sm" weight="semibold" style={{ color: colors.primary }}>
+                Pick a feat
+              </Text>
+            </Pressable>
+          )}
         </View>
       ) : null}
     </View>
@@ -1062,5 +1109,31 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.xl,
     gap: spacing.sm,
+  },
+  featPickCard: {
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '88',
+    backgroundColor: colors.surfaceContainer,
+  },
+  featPickCardEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.primary + '88',
+    backgroundColor: colors.primaryContainer + '11',
+  },
+  featPickBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
   },
 });
