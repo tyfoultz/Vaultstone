@@ -194,7 +194,7 @@ export function SpellPickerModal({
                     const has = existingKeys.has(sp.key);
                     const expanded = expandedKey === sp.key;
                     out.push(
-                      <View key={sp.key} style={s.rowWrap}>
+                      <View key={sp.key} style={[s.rowWrap, expanded && s.rowWrapExpanded]}>
                       <Pressable
                         style={[s.row, has && s.rowDisabled]}
                         onPress={() => setExpandedKey(expanded ? null : sp.key)}
@@ -440,6 +440,13 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
   },
+  // When a row is expanded the dark canvas extends up behind the row
+  // header so the selected spell visually reads as one card (header +
+  // detail) instead of a row sitting on top of a separate dark block.
+  rowWrapExpanded: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderBottomColor: 'transparent',
+  },
   groupHeader: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingTop: spacing.md, paddingBottom: 6, paddingHorizontal: 6,
@@ -468,9 +475,10 @@ const s = StyleSheet.create({
   rowMeta: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, marginTop: 2 },
   rowHasText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
 
+  // Background sits on the wrapper (`rowWrapExpanded`) so the row
+  // header inherits it; the expansion just owns padding.
   expansion: {
     paddingHorizontal: 12, paddingTop: 4, paddingBottom: spacing.md,
-    backgroundColor: colors.surfaceContainerLowest,
   },
 
   emptyText: { paddingVertical: 24, textAlign: 'center', color: colors.outline, fontFamily: fonts.body },
