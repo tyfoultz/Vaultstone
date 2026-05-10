@@ -41,14 +41,19 @@ export function SpellPickerModal({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState<number | 'all'>('all');
-  const [previewKey, setPreviewKey] = useState<string | null>(null);
+  // Single-open inline expansion. Tapping the same row again collapses;
+  // tapping a different row swaps the expansion (only one open at a time
+  // so the list doesn't grow unbounded as the player browses).
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setLoading(true);
     setSearch('');
     setLevelFilter('all');
-    setPreviewKey(null);
+    setExpandedKey(null);
+    setFilterMenuOpen(false);
     const includeHomebrew = !!campaignId || (packIds?.length ?? 0) > 0;
     const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
     ContentResolver.search({
@@ -88,7 +93,7 @@ export function SpellPickerModal({
   }, [list, search, levelFilter, classNamesLc]);
 
   // Levels actually present in the (class-filtered) catalog drive the
-  // chip row — no point showing a 9th-level chip when the character has
+  // dropdown options — no point listing 9th-level when the character has
   // no 9th-level spells available.
   const availableLevels = useMemo(() => {
     const set = new Set<number>();
@@ -100,8 +105,6 @@ export function SpellPickerModal({
     }
     return [...set].sort((a, b) => a - b);
   }, [list, classNamesLc]);
-
-  const preview = previewKey ? list.find((s) => s.key === previewKey) : null;
 
   function commit(spell: SpellResult) {
     const prepared: Dnd5ePreparedSpell = {
@@ -122,12 +125,18 @@ export function SpellPickerModal({
     onClose();
   }
 
+  const filterLabel = levelFilter === 'all'
+    ? 'All Levels'
+    : levelFilter === 0
+      ? 'Cantrips'
+      : `${LEVEL_LABELS[levelFilter] ?? String(levelFilter)} level`;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose}>
         <Pressable style={s.card} onPress={() => {}}>
           <View style={s.header}>
-            <Text style={s.title} numberOfLines={1}>{preview ? preview.name : 'Add a spell'}</Text>
+            <Text style={s.title} numberOfLines={1}>Add a spell</Text>
             <TouchableOpacity onPress={onClose} hitSlop={10}>
               <MaterialCommunityIcons name="close" size={22} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
@@ -137,41 +146,28 @@ export function SpellPickerModal({
             <View style={s.loadingWrap}>
               <ActivityIndicator color={colors.primary} />
             </View>
-          ) : preview ? (
-            <SpellDetail
-              spell={preview}
-              alreadyHas={existingKeys.has(preview.key)}
-              onBack={() => setPreviewKey(null)}
-              onPick={() => commit(preview)}
-            />
           ) : (
             <>
-              <View style={s.searchRow}>
-                <MaterialCommunityIcons name="magnify" size={16} color={colors.outline} />
-                <TextInput
-                  style={s.searchInput}
-                  placeholder="Search spells…"
-                  placeholderTextColor={colors.outline}
-                  value={search}
-                  onChangeText={setSearch}
-                />
-              </View>
-
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipsRow}>
-                <FilterChip
-                  label="ALL"
-                  active={levelFilter === 'all'}
-                  onPress={() => setLevelFilter('all')}
-                />
-                {availableLevels.map((lvl) => (
-                  <FilterChip
-                    key={lvl}
-                    label={lvl === 0 ? '0' : LEVEL_LABELS[lvl]?.replace(/[a-z]+$/i, '') ?? String(lvl)}
-                    active={levelFilter === lvl}
-                    onPress={() => setLevelFilter(levelFilter === lvl ? 'all' : lvl)}
+              <View style={s.controlsRow}>
+                <View style={s.searchBox}>
+                  <MaterialCommunityIcons name="magnify" size={16} color={colors.outline} />
+                  <TextInput
+                    style={s.searchInput}
+                    placeholder="Search spells…"
+                    placeholderTextColor={colors.outline}
+                    value={search}
+                    onChangeText={setSearch}
                   />
-                ))}
-              </ScrollView>
+                </View>
+                <TouchableOpacity
+                  style={s.filterBtn}
+                  onPress={() => setFilterMenuOpen(true)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={s.filterBtnLabel} numberOfLines={1}>{filterLabel}</Text>
+                  <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
+                </TouchableOpacity>
+              </View>
 
               <ScrollView style={s.list} contentContainerStyle={{ paddingBottom: spacing.md }}>
                 {filtered.length === 0 ? (
@@ -179,30 +175,74 @@ export function SpellPickerModal({
                 ) : null}
                 {filtered.map((sp) => {
                   const has = existingKeys.has(sp.key);
+                  const expanded = expandedKey === sp.key;
                   return (
-                    <Pressable
-                      key={sp.key}
-                      style={[s.row, has && s.rowDisabled]}
-                      onPress={() => setPreviewKey(sp.key)}
-                    >
-                      <View style={s.levelBadge}>
-                        <Text style={s.levelBadgeText}>{sp.level === 0 ? 'C' : sp.level}</Text>
-                      </View>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={s.rowName}>{sp.name}</Text>
-                        <Text style={s.rowMeta} numberOfLines={1}>
-                          {sp.school}
-                          {sp.concentration ? ' · Concentration' : ''}
-                          {sp.ritual ? ' · Ritual' : ''}
-                          {sp.classes.length > 0 ? ` · ${sp.classes.join(', ')}` : ''}
-                        </Text>
-                      </View>
-                      {has ? (
-                        <Text style={s.rowHasText}>Added</Text>
-                      ) : (
-                        <MaterialCommunityIcons name="chevron-right" size={18} color={colors.outline} />
-                      )}
-                    </Pressable>
+                    <View key={sp.key} style={s.rowWrap}>
+                      <Pressable
+                        style={[s.row, has && s.rowDisabled]}
+                        onPress={() => setExpandedKey(expanded ? null : sp.key)}
+                      >
+                        <View style={s.levelBadge}>
+                          <Text style={s.levelBadgeText}>{sp.level === 0 ? 'C' : sp.level}</Text>
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={s.rowName}>{sp.name}</Text>
+                          <Text style={s.rowMeta} numberOfLines={1}>
+                            {sp.school}
+                            {sp.concentration ? ' · Concentration' : ''}
+                            {sp.ritual ? ' · Ritual' : ''}
+                            {sp.classes.length > 0 ? ` · ${sp.classes.join(', ')}` : ''}
+                          </Text>
+                        </View>
+                        {has ? (
+                          <Text style={s.rowHasText}>Added</Text>
+                        ) : (
+                          <MaterialCommunityIcons
+                            name={expanded ? 'chevron-up' : 'chevron-down'}
+                            size={18}
+                            color={colors.outline}
+                          />
+                        )}
+                      </Pressable>
+                      {expanded ? (
+                        <View style={s.expansion}>
+                          <View style={s.metaGrid}>
+                            <DetailMeta label="Level" value={sp.level === 0 ? 'Cantrip' : LEVEL_LABELS[sp.level] ?? String(sp.level)} />
+                            <DetailMeta label="School" value={sp.school} />
+                            <DetailMeta label="Casting" value={sp.castingTime} />
+                            <DetailMeta label="Range" value={sp.range} />
+                            <DetailMeta label="Components" value={sp.components.join(', ')} />
+                            <DetailMeta label="Duration" value={sp.duration} />
+                          </View>
+
+                          {(sp.concentration || sp.ritual) && (
+                            <Text style={s.tagsLine}>
+                              {sp.concentration ? 'Concentration' : ''}
+                              {sp.concentration && sp.ritual ? ' · ' : ''}
+                              {sp.ritual ? 'Ritual' : ''}
+                            </Text>
+                          )}
+
+                          {sp.classes.length > 0 && (
+                            <Text style={s.classesLine}>Available to: {sp.classes.join(', ')}</Text>
+                          )}
+
+                          {sp.description ? (
+                            <Text style={s.detailDesc}>{sp.description}</Text>
+                          ) : null}
+
+                          <TouchableOpacity
+                            style={[s.commitBtn, has && s.commitBtnDisabled]}
+                            onPress={has ? undefined : () => commit(sp)}
+                            activeOpacity={has ? 1 : 0.85}
+                          >
+                            <Text style={[s.commitText, has && s.commitTextDisabled]}>
+                              {has ? 'Already prepared' : `Add ${sp.name}`}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+                    </View>
                   );
                 })}
               </ScrollView>
@@ -210,68 +250,45 @@ export function SpellPickerModal({
           )}
         </Pressable>
       </Pressable>
+
+      {/* Level filter dropdown — popover-style modal anchored visually
+          to the filter button. Single-select; "All Levels" resets. */}
+      <Modal
+        visible={filterMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFilterMenuOpen(false)}
+      >
+        <Pressable style={s.menuBackdrop} onPress={() => setFilterMenuOpen(false)}>
+          <Pressable style={s.menuCard} onPress={() => {}}>
+            <FilterMenuItem
+              label="All Levels"
+              active={levelFilter === 'all'}
+              onPress={() => { setLevelFilter('all'); setFilterMenuOpen(false); }}
+            />
+            {availableLevels.map((lvl) => (
+              <FilterMenuItem
+                key={lvl}
+                label={lvl === 0 ? 'Cantrips' : `${LEVEL_LABELS[lvl] ?? String(lvl)} level`}
+                active={levelFilter === lvl}
+                onPress={() => { setLevelFilter(lvl); setFilterMenuOpen(false); }}
+              />
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Modal>
   );
 }
 
-function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function FilterMenuItem({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity style={[s.chip, active && s.chipActive]} onPress={onPress} activeOpacity={0.7}>
-      <Text style={[s.chipText, active && s.chipTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function SpellDetail({
-  spell, alreadyHas, onBack, onPick,
-}: {
-  spell: SpellResult;
-  alreadyHas: boolean;
-  onBack: () => void;
-  onPick: () => void;
-}) {
-  return (
-    <ScrollView contentContainerStyle={s.detailWrap}>
-      <Pressable onPress={onBack} style={s.backLink}>
-        <MaterialCommunityIcons name="chevron-left" size={16} color={colors.onSurfaceVariant} />
-        <Text style={s.backText}>Back</Text>
-      </Pressable>
-
-      <View style={s.metaGrid}>
-        <DetailMeta label="Level" value={spell.level === 0 ? 'Cantrip' : LEVEL_LABELS[spell.level] ?? String(spell.level)} />
-        <DetailMeta label="School" value={spell.school} />
-        <DetailMeta label="Casting" value={spell.castingTime} />
-        <DetailMeta label="Range" value={spell.range} />
-        <DetailMeta label="Components" value={spell.components.join(', ')} />
-        <DetailMeta label="Duration" value={spell.duration} />
-      </View>
-
-      {(spell.concentration || spell.ritual) && (
-        <Text style={s.tagsLine}>
-          {spell.concentration ? 'Concentration' : ''}
-          {spell.concentration && spell.ritual ? ' · ' : ''}
-          {spell.ritual ? 'Ritual' : ''}
-        </Text>
-      )}
-
-      {spell.classes.length > 0 && (
-        <Text style={s.classesLine}>Available to: {spell.classes.join(', ')}</Text>
-      )}
-
-      {spell.description ? (
-        <Text style={s.detailDesc}>{spell.description}</Text>
+    <TouchableOpacity style={[s.menuItem, active && s.menuItemActive]} onPress={onPress} activeOpacity={0.7}>
+      <Text style={[s.menuItemText, active && s.menuItemTextActive]}>{label}</Text>
+      {active ? (
+        <MaterialCommunityIcons name="check" size={16} color={colors.primary} />
       ) : null}
-
-      <TouchableOpacity
-        style={[s.commitBtn, alreadyHas && s.commitBtnDisabled]}
-        onPress={alreadyHas ? undefined : onPick}
-        activeOpacity={alreadyHas ? 1 : 0.85}
-      >
-        <Text style={[s.commitText, alreadyHas && s.commitTextDisabled]}>
-          {alreadyHas ? 'Already prepared' : `Add ${spell.name}`}
-        </Text>
-      </TouchableOpacity>
-    </ScrollView>
+    </TouchableOpacity>
   );
 }
 
@@ -291,7 +308,7 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   card: {
-    width: '100%', maxWidth: 560, maxHeight: '85%',
+    width: '100%', maxWidth: 880, maxHeight: '88%',
     backgroundColor: colors.surfaceContainer,
     borderRadius: radius.xl,
     borderWidth: 1, borderColor: colors.outlineVariant,
@@ -306,31 +323,41 @@ const s = StyleSheet.create({
     color: colors.onSurface, flex: 1, minWidth: 0,
   },
   loadingWrap: { paddingVertical: 40, alignItems: 'center' },
-  searchRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+
+  controlsRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  searchBox: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.surfaceContainerHigh,
     borderRadius: radius.lg,
     paddingHorizontal: 12, paddingVertical: 8,
-    marginBottom: spacing.sm,
   },
   searchInput: {
     flex: 1, fontSize: 13, fontFamily: fonts.body, color: colors.onSurface,
   },
-  chipsRow: { flexDirection: 'row', gap: 6, paddingBottom: spacing.sm },
-  chip: {
-    paddingHorizontal: 10, paddingVertical: 5,
+  filterBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    paddingHorizontal: 12, paddingVertical: 9,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: 100, alignItems: 'center', justifyContent: 'center', minWidth: 36,
+    minWidth: 140,
   },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
-  chipTextActive: { color: colors.onPrimary },
+  filterBtnLabel: {
+    flex: 1, fontSize: 12, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurface, letterSpacing: 0.3,
+  },
 
-  list: { maxHeight: '60%' },
+  list: { maxHeight: '70%' },
+  rowWrap: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant,
+  },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingVertical: 10, paddingHorizontal: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
   rowDisabled: { opacity: 0.5 },
   levelBadge: {
@@ -344,11 +371,12 @@ const s = StyleSheet.create({
   rowMeta: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, marginTop: 2 },
   rowHasText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
 
-  emptyText: { paddingVertical: 24, textAlign: 'center', color: colors.outline, fontFamily: fonts.body },
+  expansion: {
+    paddingHorizontal: 12, paddingTop: 4, paddingBottom: spacing.md,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
 
-  detailWrap: { paddingBottom: spacing.lg },
-  backLink: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.sm },
-  backText: { fontSize: 13, color: colors.onSurfaceVariant, fontFamily: fonts.label, fontWeight: '600' },
+  emptyText: { paddingVertical: 24, textAlign: 'center', color: colors.outline, fontFamily: fonts.body },
 
   metaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
   metaCell: { minWidth: 120, paddingVertical: 4 },
@@ -363,12 +391,34 @@ const s = StyleSheet.create({
   detailDesc: { fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 19, marginTop: 8 },
 
   commitBtn: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     backgroundColor: colors.primary,
-    paddingVertical: 12, borderRadius: radius.lg,
+    paddingVertical: 11, borderRadius: radius.lg,
     alignItems: 'center',
   },
   commitBtnDisabled: { backgroundColor: colors.surfaceContainerHighest },
-  commitText: { fontSize: 14, fontFamily: fonts.label, fontWeight: '700', color: colors.onPrimary, letterSpacing: 0.5 },
+  commitText: { fontSize: 13, fontFamily: fonts.label, fontWeight: '700', color: colors.onPrimary, letterSpacing: 0.5 },
   commitTextDisabled: { color: colors.outline },
+
+  // Filter dropdown menu
+  menuBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  menuCard: {
+    width: '100%', maxWidth: 280,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    padding: 6,
+  },
+  menuItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: radius.lg,
+  },
+  menuItemActive: { backgroundColor: colors.surfaceContainerHighest },
+  menuItemText: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant },
+  menuItemTextActive: { color: colors.onSurface, fontWeight: '600' },
 });
