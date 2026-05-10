@@ -882,13 +882,56 @@ function ConfirmStep({
           <MetaLabel size="sm">New class features</MetaLabel>
           {features.map((f) => (
             <Text key={f.name} variant="body-sm" style={{ marginTop: 2 }}>
-              <Text weight="bold">{f.name}.</Text> <Text tone="secondary">{f.description}</Text>
+              <Text weight="bold">{f.name}.</Text> <Text tone="secondary">{stripTablesForPreview(f.description ?? '')}</Text>
             </Text>
           ))}
         </View>
       ) : null}
     </Card>
   );
+}
+
+/**
+ * Strip embedded markdown pipe-tables from a feature description for
+ * the level-up Confirm preview. The Confirm card uses plain Text (no
+ * markdown renderer), and 5e.tools-imported features (e.g. Artificer's
+ * Replicate Magic Item) often pack four reference tables into the
+ * description prose. The full text still lands on the character sheet
+ * via applyLevelUp's classFeaturesUnlocked write — this strip is
+ * preview-only, leaving a "(N reference tables omitted; see character
+ * sheet)" line so the player knows there's more to read.
+ */
+function stripTablesForPreview(text: string): string {
+  if (!text) return text;
+  // Pipe-table block: a header row, separator row, and one or more
+  // body rows. Match the contiguous run of table-shaped lines plus
+  // any preceding `**Title**` paragraph that introduces it.
+  const lines = text.split('\n');
+  const out: string[] = [];
+  let tableCount = 0;
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const isTableLine = /^\s*\|.*\|\s*$/.test(line);
+    if (isTableLine) {
+      tableCount++;
+      // Skip an optional preceding **Title** line that's a table caption.
+      if (out.length > 0 && /^\s*\*\*[^*]+\*\*\s*$/.test(out[out.length - 1])) {
+        out.pop();
+      }
+      while (i < lines.length && (/^\s*\|.*\|\s*$/.test(lines[i]) || lines[i].trim() === '')) {
+        i++;
+      }
+      continue;
+    }
+    out.push(line);
+    i++;
+  }
+  let cleaned = out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (tableCount > 0) {
+    cleaned += `\n\n(${tableCount} reference table${tableCount === 1 ? '' : 's'} omitted; see character sheet for full text.)`;
+  }
+  return cleaned;
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
