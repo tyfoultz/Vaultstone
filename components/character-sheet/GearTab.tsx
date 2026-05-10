@@ -30,11 +30,16 @@ interface Props {
   onToggleEquipped?: (id: string) => void;
   onUpdateNotes?: (notes: string) => void;
   onUpdateTreasure?: (treasure: string) => void;
+  /** Open the catalog item picker. The parent owns the modal so it can
+   *  pass the campaign + pack scope into ContentResolver. */
+  onOpenItemPicker?: () => void;
+  onRemoveItem?: (id: string) => void;
 }
 
 export function GearTab({
   stats, resources, isOwner, strengthScore,
   onUpdateCoins, onToggleEquipped, onUpdateNotes, onUpdateTreasure,
+  onOpenItemPicker, onRemoveItem,
 }: Props) {
   const equipment = resources.equipment ?? [];
   const coins = resources.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
@@ -76,7 +81,7 @@ export function GearTab({
       </View>
 
       {/* Equipped */}
-      <CardBlock title="Equipped" action={isOwner ? '+ Add' : undefined}>
+      <CardBlock title="Equipped" action={isOwner ? '+ Add' : undefined} onAction={onOpenItemPicker}>
         {equippedItems.length === 0
           ? <Text style={s.emptyHint}>Nothing equipped.</Text>
           : equippedItems.map((item, i) => (
@@ -85,6 +90,7 @@ export function GearTab({
               item={item}
               canToggle={isOwner}
               onToggle={() => onToggleEquipped?.(item.id)}
+              onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               isLast={i === equippedItems.length - 1}
             />
           ))
@@ -92,7 +98,7 @@ export function GearTab({
       </CardBlock>
 
       {/* Carrying */}
-      <CardBlock title="Carrying" action={isOwner ? '+ Add' : undefined}>
+      <CardBlock title="Carrying" action={isOwner ? '+ Add' : undefined} onAction={onOpenItemPicker}>
         {carriedItems.length === 0
           ? <Text style={s.emptyHint}>Nothing else carried.</Text>
           : carriedItems.map((item, i) => (
@@ -101,6 +107,7 @@ export function GearTab({
               item={item}
               canToggle={isOwner}
               onToggle={() => onToggleEquipped?.(item.id)}
+              onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               isLast={i === carriedItems.length - 1}
             />
           ))
@@ -170,24 +177,33 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
-function CardBlock({ title, action, children, style }: {
-  title: string; action?: string; children: React.ReactNode; style?: any;
+function CardBlock({ title, action, onAction, children, style }: {
+  title: string; action?: string; onAction?: () => void; children: React.ReactNode; style?: any;
 }) {
   return (
     <View style={[s.card, style]}>
       <View style={s.cardHead}>
         <Text style={s.cardTitle}>{title}</Text>
-        {action && <Text style={s.cardAction}>{action}</Text>}
+        {action && (
+          onAction ? (
+            <TouchableOpacity onPress={onAction} hitSlop={8} activeOpacity={0.7}>
+              <Text style={s.cardAction}>{action}</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={s.cardAction}>{action}</Text>
+          )
+        )}
       </View>
       <View style={s.cardBody}>{children}</View>
     </View>
   );
 }
 
-function EquipRow({ item, canToggle, onToggle, isLast }: {
+function EquipRow({ item, canToggle, onToggle, onRemove, isLast }: {
   item: Dnd5eEquipmentItem;
   canToggle: boolean;
   onToggle: () => void;
+  onRemove?: () => void;
   isLast: boolean;
 }) {
   return (
@@ -197,7 +213,7 @@ function EquipRow({ item, canToggle, onToggle, isLast }: {
         {item.attuned && <Pill label="Attuned" variant="primary" />}
         {item.slot === 'armor' && <Pill label="Armor" />}
         {item.slot === 'weapon' && item.damage && <Pill label={item.damage} />}
-        {item.notes && !item.damage && !item.acBase && <Pill label={item.notes} />}
+        {item.notes && !item.damage && !item.acBase && <Pill label={item.notes!.slice(0, 32)} />}
       </View>
       {canToggle && (
         <TouchableOpacity onPress={onToggle} hitSlop={8} activeOpacity={0.7}>
@@ -206,6 +222,11 @@ function EquipRow({ item, canToggle, onToggle, isLast }: {
             size={16}
             color={item.equipped ? colors.primary : colors.outline}
           />
+        </TouchableOpacity>
+      )}
+      {onRemove && (
+        <TouchableOpacity onPress={onRemove} hitSlop={8} activeOpacity={0.7} style={{ marginLeft: 6 }}>
+          <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
         </TouchableOpacity>
       )}
     </View>

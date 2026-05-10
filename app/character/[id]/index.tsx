@@ -31,6 +31,7 @@ import { GearTab } from '../../../components/character-sheet/GearTab';
 import { LoreTab } from '../../../components/character-sheet/LoreTab';
 import { FeatPickerModal } from '../../../components/character-sheet/FeatPickerModal';
 import { SpellPickerModal } from '../../../components/character-sheet/SpellPickerModal';
+import { ItemPickerModal } from '../../../components/character-sheet/ItemPickerModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
@@ -397,6 +398,7 @@ export default function CharacterSheetScreen() {
   const [featureCategory, setFeatureCategory] = useState<'classFeatures' | 'speciesTraits' | 'feats'>('classFeatures');
   const [featPickerOpen, setFeatPickerOpen] = useState(false);
   const [spellPickerOpen, setSpellPickerOpen] = useState(false);
+  const [itemPickerOpen, setItemPickerOpen] = useState(false);
   /** Campaign rule `enforce_feat_prerequisites` resolved from the
    *  character's linked campaign. Standalone characters fall through
    *  to true (the system's bundled default). */
@@ -1240,6 +1242,11 @@ export default function CharacterSheetScreen() {
             onToggleEquipped={handleToggleEquipped}
             onUpdateNotes={(notes) => persistResources({ ...resources, notes })}
             onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
+            onOpenItemPicker={() => setItemPickerOpen(true)}
+            onRemoveItem={(id) => {
+              const next = (resources.equipment ?? []).filter((it) => it.id !== id);
+              persistResources({ ...resources, equipment: next });
+            }}
           />
         );
       case 'lore':
@@ -2006,6 +2013,31 @@ export default function CharacterSheetScreen() {
           onPick={(spell) => {
             const next = [...(resources.preparedSpells ?? []), spell];
             persistResources({ ...resources, preparedSpells: next });
+          }}
+        />
+      ) : null}
+
+      {/* Catalog item picker — wires the Gear tab "+ Add" affordance.
+          Pulls from ContentResolver's items merge so SRD weapons +
+          armor + adventuring gear + magic items all appear, plus
+          anything imported via the character's homebrew packs. */}
+      {stats && resources ? (
+        <ItemPickerModal
+          visible={itemPickerOpen}
+          onClose={() => setItemPickerOpen(false)}
+          campaignId={character?.campaign_id ?? null}
+          packIds={character?.pack_ids ?? []}
+          srdVersion={stats.srdVersion}
+          onPick={(item) => {
+            // ID collisions across "add same item twice" — re-stamp on
+            // the second instance so React keys stay unique and the
+            // toggle/remove handlers don't double-fire.
+            const existing = resources.equipment ?? [];
+            const id = existing.some((e) => e.id === item.id)
+              ? `${item.id}-${Date.now()}`
+              : item.id;
+            const next = [...existing, { ...item, id }];
+            persistResources({ ...resources, equipment: next });
           }}
         />
       ) : null}
