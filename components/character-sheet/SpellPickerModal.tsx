@@ -350,7 +350,11 @@ const s = StyleSheet.create({
     color: colors.onSurface, letterSpacing: 0.3,
   },
 
-  list: { maxHeight: '70%' },
+  // No maxHeight — let the ScrollView take only the space it needs.
+  // The outer card's maxHeight (88%) caps the whole modal when the
+  // catalog is large; on short lists the modal shrinks to fit so we
+  // don't get a swathe of empty space below the last row.
+  list: { flexShrink: 1 },
   rowWrap: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
