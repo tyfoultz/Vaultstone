@@ -196,9 +196,14 @@ export function SpellPickerModal({
                     out.push(
                       <View key={sp.key} style={[s.rowWrap, expanded && s.rowWrapExpanded]}>
                       <Pressable
-                        style={[s.row, has && s.rowDisabled]}
+                        style={s.row}
                         onPress={() => setExpandedKey(expanded ? null : sp.key)}
                       >
+                        <View style={[s.statusCircle, has && s.statusCircleAdded]}>
+                          {has ? (
+                            <MaterialCommunityIcons name="check" size={12} color={colors.onPrimary} />
+                          ) : null}
+                        </View>
                         <View style={s.levelBadge}>
                           <Text style={s.levelBadgeText}>{sp.level === 0 ? 'C' : sp.level}</Text>
                         </View>
@@ -211,15 +216,11 @@ export function SpellPickerModal({
                             <Text style={s.rowSource} numberOfLines={1}>{code}</Text>
                           ) : null;
                         })()}
-                        {has ? (
-                          <Text style={s.rowHasText}>Added</Text>
-                        ) : (
-                          <MaterialCommunityIcons
-                            name={expanded ? 'chevron-up' : 'chevron-down'}
-                            size={18}
-                            color={colors.outline}
-                          />
-                        )}
+                        <MaterialCommunityIcons
+                          name={expanded ? 'chevron-up' : 'chevron-down'}
+                          size={18}
+                          color={colors.outline}
+                        />
                       </Pressable>
                       {expanded ? (
                         <View style={s.expansion}>
@@ -483,6 +484,19 @@ const s = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 6,
   },
   rowDisabled: { opacity: 0.5 },
+  // Status circle to the left of the level badge — hollow when the
+  // spell isn't prepared yet, filled with a check when it is. Provides
+  // a stable left-rail glance so the player can see at-a-glance which
+  // rows in the catalog are already on their sheet.
+  statusCircle: {
+    width: 20, height: 20, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.outline,
+  },
+  statusCircleAdded: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
   levelBadge: {
     width: 24, height: 24, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
