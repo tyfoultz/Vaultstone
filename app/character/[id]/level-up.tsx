@@ -646,10 +646,27 @@ function SubclassPickStep({
   chosen: string | null;
   onChoose: (k: string) => void;
 }) {
-  // Filter subclasses to those targeting the leveling class. The
-  // SubclassResult shape carries `parentClassKey` matching the class's
-  // edition-suffixed key.
-  const matching = subclasses.filter((sc) => sc.parentClassKey === cls.key);
+  // Filter subclasses to those targeting the leveling class. Match
+  // exact `parentClassKey` first, then fall back to:
+  //   - suffix-stripped slug equality (`cleric` ↔ `cleric-srd-2-0`)
+  //   - `parentClassName` matching the class's display name
+  // The fallbacks matter because imported classes are keyed
+  // `imported_<system>_class_<source>_<slug>` while their imported
+  // subclasses set `parentClassKey: <slug>-srd-X-X`. Without the
+  // name fallback, importing a homebrew Artificer + its subclasses
+  // produces zero matches and the wizard can't surface the picks.
+  const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
+  const stripImportedClass = (k: string) =>
+    k.replace(/^imported_[^_]+_class_[^_]+_/, '').toLowerCase();
+  const clsSlug = stripImportedClass(stripEdition(cls.key));
+  const clsName = cls.name.toLowerCase();
+  const matching = subclasses.filter((sc) => {
+    if (sc.parentClassKey === cls.key) return true;
+    if (stripEdition(sc.parentClassKey) === clsSlug) return true;
+    if (stripImportedClass(sc.parentClassKey) === clsSlug) return true;
+    if ((sc.parentClassName ?? '').toLowerCase() === clsName) return true;
+    return false;
+  });
   return (
     <View style={{ gap: spacing.md }}>
       <Text variant="body-sm" tone="secondary">
