@@ -16,8 +16,9 @@ import {
 import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius } from '@vaultstone/ui';
-import { getSrdContent } from '@vaultstone/content';
+import { getSrdContent, ContentResolver } from '@vaultstone/content';
 import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature } from '@vaultstone/types';
+import { getClassEntries } from '@vaultstone/types';
 import { HpModal } from '../../../components/character-sheet/HpModal';
 import { ConditionsPanel } from '../../../components/character-sheet/ConditionsPanel';
 import { RollToast } from '../../../components/character-sheet/RollToast';
@@ -67,6 +68,24 @@ function profBonus(level: number) { return Math.floor((level - 1) / 4) + 2; }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function titleCase(s: string) { return s.split(' ').map(capitalize).join(' '); }
+
+// Humanize a content key for display when ContentResolver hasn't returned
+// yet (or doesn't carry the entry). SRD keys are slugs like `dwarf` or
+// `artificer-srd-2-0` and humanize cleanly. Imported keys are shaped like
+// `imported_dnd5e_2014_class_efa_artificer` — strip the leading metadata
+// segments (`imported`, system, srdVersion, type, source) so the trailing
+// slug is what the user sees. This is a fallback; the real name comes
+// from ContentResolver once the lookup resolves.
+function humanizeContentKey(key: string): string {
+  if (!key) return '';
+  let slug = key;
+  if (slug.startsWith('imported_')) {
+    const parts = slug.split('_');
+    if (parts.length > 5) slug = parts.slice(5).join('_');
+  }
+  slug = slug.replace(/-srd-[\d-]+$/i, '');
+  return slug.split(/[-_\s]+/).filter(Boolean).map(capitalize).join(' ');
+}
 
 function StatCell({ icon, value, label, color, centered }: { icon: string; value: string; label: string; color: string; centered?: boolean }) {
   return (
@@ -394,6 +413,12 @@ export default function CharacterSheetScreen() {
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [logModal, setLogModal] = useState(false);
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Resolved display names for the character's species + class keys.
+  // Imported-content keys (`imported_dnd5e_2014_class_efa_artificer`)
+  // are unreadable raw — fall back to a humanized version of the key
+  // until ContentResolver returns the real entry.
+  const [speciesName, setSpeciesName] = useState<string | null>(null);
+  const [classNamesByKey, setClassNamesByKey] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!id) return;
@@ -464,6 +489,59 @@ export default function CharacterSheetScreen() {
     return () => { cancelled = true; };
   }, [character?.campaign_id]);
 
+  // Resolve human-readable species + class names. Imported-content keys
+  // are unreadable as raw strings; ContentResolver looks the entry up in
+  // the same merged SRD+homebrew tier the rest of the app uses. Pulls
+  // homebrew when there's a campaign or pack opt-in (mirrors the wizard
+  // and level-up flow).
+  useEffect(() => {
+    const stats = character?.base_stats as Dnd5eStats | null;
+    if (!stats) return;
+    const speciesKey = stats.speciesKey;
+    const entries = getClassEntries(stats);
+    const classKeys = Array.from(new Set(entries.map((e) => e.classKey).filter(Boolean)));
+    if (!speciesKey && classKeys.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const includeHomebrew = !!character?.campaign_id || (character?.pack_ids ?? []).length > 0;
+      const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+      const tierArgs = {
+        system: 'dnd5e' as const,
+        srdVersion: stats.srdVersion,
+        tiers,
+        campaignId: character?.campaign_id ?? undefined,
+        packIds: !character?.campaign_id && (character?.pack_ids ?? []).length > 0
+          ? (character?.pack_ids as string[])
+          : undefined,
+      };
+      const [speciesResults, classResults] = await Promise.all([
+        speciesKey ? ContentResolver.search({ ...tierArgs, type: 'species' }) : Promise.resolve([]),
+        classKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'class' }) : Promise.resolve([]),
+      ]);
+      if (cancelled) return;
+      if (speciesKey) {
+        const hit = speciesResults.find((r) => r.key === speciesKey);
+        if (hit) setSpeciesName(hit.name);
+      }
+      if (classKeys.length > 0) {
+        const map: Record<string, string> = {};
+        for (const k of classKeys) {
+          const hit = classResults.find((r) => r.key === k);
+          if (hit) map[k] = hit.name;
+        }
+        setClassNamesByKey(map);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [
+    character?.campaign_id,
+    character?.pack_ids,
+    (character?.base_stats as Dnd5eStats | null)?.speciesKey,
+    (character?.base_stats as Dnd5eStats | null)?.classKey,
+    (character?.base_stats as Dnd5eStats | null)?.classes,
+  ]);
+
   // Realtime: when another viewer (e.g. the DM via Party View) mutates this
   // character, merge the payload into local state so the sheet reflects the
   // change without a refresh. We intentionally don't sync the scratchpad
@@ -517,6 +595,20 @@ export default function CharacterSheetScreen() {
   const manualMode = settings.manualMode;
   const prof = stats ? profBonus(stats.level) : 2;
   const scores = stats?.abilityScores;
+
+  // Header subtitle pieces — fall back to a humanized key while the
+  // ContentResolver lookup is in flight (or when the entry isn't in the
+  // tier we searched, e.g. a deleted homebrew pack). Multiclass shows
+  // each class joined with " / ".
+  const speciesLabel = stats?.speciesKey
+    ? (speciesName ?? humanizeContentKey(stats.speciesKey))
+    : '';
+  const classLabel = stats
+    ? getClassEntries(stats)
+        .map((e) => classNamesByKey[e.classKey] ?? humanizeContentKey(e.classKey))
+        .filter(Boolean)
+        .join(' / ')
+    : '';
 
   function skillMod(skillName: string): number {
     if (!scores || !stats) return 0;
@@ -1146,7 +1238,7 @@ export default function CharacterSheetScreen() {
                     </TouchableOpacity>
                   )}
                   <Text style={s.deskSub} numberOfLines={1}>
-                    {capitalize(stats.speciesKey)} {capitalize(stats.classKey)}
+                    {[speciesLabel, classLabel].filter(Boolean).join(' ')}
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
                 </View>
@@ -1471,7 +1563,7 @@ export default function CharacterSheetScreen() {
                 </TouchableOpacity>
               )}
               <Text style={s.chromeSub} numberOfLines={1}>
-                {capitalize(stats.speciesKey)} {capitalize(stats.classKey)} · Lv {stats.level}
+                {[speciesLabel, classLabel].filter(Boolean).join(' ')} · Lv {stats.level}
               </Text>
             </View>
 
