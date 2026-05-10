@@ -269,13 +269,60 @@ export function AbilitiesTab({
         ))
       )}
 
-      {/* ── Proficiencies (still text-based; rebuilt in a later pass) ── */}
+      {/* ── Proficiencies (live from class + background, with attribution) ── */}
       <SectionRow label="PROFICIENCIES" style={{ marginTop: 16 }} />
       <View style={s.profCard}>
-        {stats.armorProficiencies.length > 0 && <ProfLine label="Armor" items={stats.armorProficiencies} />}
-        {stats.weaponProficiencies.length > 0 && <ProfLine label="Weapons" items={stats.weaponProficiencies} />}
-        {stats.toolProficiencies.length > 0 && <ProfLine label="Tools" items={stats.toolProficiencies} />}
-        {stats.languages.length > 0 && <ProfLine label="Languages" items={stats.languages} />}
+        <ProfLineWithSources
+          label="Armor"
+          items={mergeProfsWithSources({
+            stored: stats.armorProficiencies,
+            classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.armorProficiencies })),
+          })}
+        />
+        <ProfLineWithSources
+          label="Weapons"
+          items={mergeProfsWithSources({
+            stored: stats.weaponProficiencies,
+            classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.weaponProficiencies })),
+          })}
+        />
+        <ProfLineWithSources
+          label="Tools"
+          items={mergeProfsWithSources({
+            stored: stats.toolProficiencies,
+            classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.toolProficiencies ?? [] })),
+            background: backgroundResult?.toolProficiency
+              ? { source: backgroundResult.name, items: [backgroundResult.toolProficiency] }
+              : null,
+          })}
+        />
+        <ProfLineWithSources
+          label="Saving Throws"
+          items={mergeProfsWithSources({
+            stored: stats.savingThrowProficiencies.map((s) => capitalize(s)),
+            classGroups: classGroups
+              .filter((g) => g.entry.primary)
+              .map((g) => ({ source: g.cls.name, items: g.cls.savingThrows.map((s) => capitalize(s)) })),
+          })}
+        />
+        <ProfLineWithSources
+          label="Skills"
+          items={mergeProfsWithSources({
+            stored: stats.skillProficiencies.map((s) => titleCase(s)),
+            background: backgroundResult
+              ? { source: backgroundResult.name, items: backgroundResult.skillProficiencies.map((s) => titleCase(s)) }
+              : null,
+          })}
+        />
+        <ProfLineWithSources
+          label="Languages"
+          items={mergeProfsWithSources({
+            stored: stats.languages,
+            background: backgroundResult && backgroundResult.languages > 0
+              ? { source: backgroundResult.name, items: [`+${backgroundResult.languages} of player choice`] }
+              : null,
+          })}
+        />
       </View>
 
       <View style={{ height: 16 }} />
@@ -432,14 +479,66 @@ function EmptyHint({ text }: { text: string }) {
   );
 }
 
-function ProfLine({ label, items }: { label: string; items: string[] }) {
+// Merge proficiency entries from class(es), background, and the
+// stored stats array so the sheet can show "Smith's Tools (Soldier)"
+// — keyed by the lower-cased name to dedupe across sources. Stored
+// entries that aren't derivable from any source surface as
+// "Custom" (player-added or set by another tool).
+type ProfWithSource = { name: string; sources: string[] };
+function mergeProfsWithSources(args: {
+  stored: string[];
+  classGroups?: Array<{ source: string; items: string[] }>;
+  background?: { source: string; items: string[] } | null;
+}): ProfWithSource[] {
+  const map = new Map<string, ProfWithSource>();
+  const addOne = (name: string, source: string) => {
+    const key = name.trim().toLowerCase();
+    if (!key) return;
+    const existing = map.get(key);
+    if (existing) {
+      if (!existing.sources.includes(source)) existing.sources.push(source);
+    } else {
+      map.set(key, { name: name.trim(), sources: [source] });
+    }
+  };
+  for (const group of args.classGroups ?? []) {
+    for (const item of group.items) addOne(item, group.source);
+  }
+  if (args.background) {
+    for (const item of args.background.items) addOne(item, args.background.source);
+  }
+  // Anything in stored that didn't come from a derived source is a
+  // custom / player-added entry. We only flag it as "Custom" when no
+  // other source already claimed the same name (case-insensitive).
+  for (const item of args.stored) {
+    const key = item.trim().toLowerCase();
+    if (!key) continue;
+    if (!map.has(key)) {
+      map.set(key, { name: item.trim(), sources: ['Custom'] });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function ProfLineWithSources({ label, items }: { label: string; items: ProfWithSource[] }) {
+  if (items.length === 0) return null;
   return (
     <View style={s.profLine}>
       <Text style={s.profLineLabel}>{label}</Text>
-      <Text style={s.profLineValue}>{items.join(' · ')}</Text>
+      <View style={s.profItemsWrap}>
+        {items.map((it, i) => (
+          <View key={`${it.name}-${i}`} style={s.profItem}>
+            <Text style={s.profItemName}>{it.name}</Text>
+            <Text style={s.profItemSrc}>{it.sources.join(' · ')}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
+
+function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(); }
+function titleCase(s: string) { return s.split(/\s+/).map(capitalize).join(' '); }
 
 const s = StyleSheet.create({
   container: { paddingHorizontal: spacing.md, paddingTop: 14 },
@@ -525,11 +624,20 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg, padding: 14,
   },
-  profLine: { marginBottom: 8 },
+  profLine: { marginBottom: 12 },
   profLineLabel: {
     fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.5, textTransform: 'uppercase', color: colors.outline,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   profLineValue: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 17 },
+  profItemsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  profItem: {
+    backgroundColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    paddingVertical: 4, paddingHorizontal: 8,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  profItemName: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, fontWeight: '600' },
+  profItemSrc: { fontSize: 8, fontFamily: fonts.label, fontWeight: '600', color: colors.outline, letterSpacing: 0.6, marginTop: 1 },
 });
