@@ -89,6 +89,44 @@ function humanizeContentKey(key: string): string {
   return slug.split(/[-_\s]+/).filter(Boolean).map(capitalize).join(' ');
 }
 
+// Spell prep limits surfaced under the Manage Spells filters. Reads each
+// caster class's progression-table row at the entry's level and pulls
+// the `cantrips` (cantrips known) + `preparedSpells` (leveled spells
+// preparable) values; sums across class entries for multiclass. Returns
+// undefined for either bucket when no caster class entry contributes a
+// number — keeps the modal from showing "0 / 0" for non-casters or for
+// homebrew classes that don't ship a progression column.
+function computeSpellLimits(
+  stats: Dnd5eStats,
+  classResultsByKey: Record<string, ClassResult>,
+): { cantrips?: number; prepared?: number } {
+  const entries = getClassEntries(stats);
+  let cantrips = 0;
+  let prepared = 0;
+  let sawCantrip = false;
+  let sawPrepared = false;
+  for (const e of entries) {
+    const cls = classResultsByKey[e.classKey];
+    if (!cls?.spellcasting || !cls.progressionTable) continue;
+    const row = cls.progressionTable.find((r) => r.level === Math.min(e.level, 20));
+    if (!row) continue;
+    const c = parseProgressionInt(row.values['cantrips']);
+    const p = parseProgressionInt(row.values['preparedSpells']);
+    if (c !== null) { cantrips += c; sawCantrip = true; }
+    if (p !== null) { prepared += p; sawPrepared = true; }
+  }
+  return {
+    cantrips: sawCantrip ? cantrips : undefined,
+    prepared: sawPrepared ? prepared : undefined,
+  };
+}
+
+function parseProgressionInt(raw: string | number | undefined): number | null {
+  if (raw == null || raw === '—') return null;
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 function StatCell({ icon, value, label, color, centered }: { icon: string; value: string; label: string; color: string; centered?: boolean }) {
   return (
     <View style={[statCellStyle.cell, centered && statCellStyle.cellCentered]}>
@@ -2007,6 +2045,7 @@ export default function CharacterSheetScreen() {
           classNames={Object.values(classResultsByKey).map((c) => c.name)}
           existingKeys={new Set((resources.preparedSpells ?? []).map((s) => s.id))}
           existingSpells={resources.preparedSpells ?? []}
+          spellLimits={computeSpellLimits(stats, classResultsByKey)}
           campaignId={character?.campaign_id ?? null}
           packIds={character?.pack_ids ?? []}
           srdVersion={stats.srdVersion}

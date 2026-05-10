@@ -33,6 +33,13 @@ type Props = {
    *  modal falls back to the existingKeys size with no per-level
    *  breakdown. */
   existingSpells?: Dnd5ePreparedSpell[];
+  /** Spell-prep limits computed by the parent — `cantrips` is the
+   *  total cantrips known across all classes, `prepared` is the total
+   *  leveled spells prepared. Each may be undefined when the parent
+   *  can't compute it (e.g. legacy character with no progression data),
+   *  in which case the summary surfaces just the count without the
+   *  fraction denominator. */
+  spellLimits?: { cantrips?: number; prepared?: number };
   campaignId?: string | null;
   packIds?: string[];
   srdVersion?: 'SRD_5.1' | 'SRD_2.0';
@@ -44,7 +51,8 @@ type Props = {
 };
 
 export function SpellPickerModal({
-  visible, onClose, classNames, existingKeys, existingSpells, campaignId, packIds, srdVersion, onPick, onRemove,
+  visible, onClose, classNames, existingKeys, existingSpells, spellLimits,
+  campaignId, packIds, srdVersion, onPick, onRemove,
 }: Props) {
   const [list, setList] = useState<SpellResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,24 +164,30 @@ export function SpellPickerModal({
     ? 'All'
     : statusFilter === 'added' ? 'Added' : 'Unadded';
 
-  // Per-level prepared counts for the summary line. We don't know the
-  // class's prepared-spell limit (varies by class + INT/WIS mod + level)
-  // so we surface what we *can* show: how many are currently prepared,
-  // grouped by level. Empty when the character has nothing prepared.
+  // Two-bucket summary: cantrips known + leveled spells prepared. Each
+  // bucket renders as `current/limit` when the parent supplied a limit
+  // via `spellLimits`, or just `current` otherwise. We deliberately
+  // don't break leveled spells down by level here — 5e's prep limit
+  // is a single pool across L1–L9 (Wizard L3 with 6 prepared can split
+  // them across 1st and 2nd as the player likes).
   const preparedSummary = useMemo(() => {
-    if (!existingSpells || existingSpells.length === 0) return '';
-    const counts = new Map<number, number>();
-    for (const sp of existingSpells) counts.set(sp.level, (counts.get(sp.level) ?? 0) + 1);
-    const parts: string[] = [];
-    for (const lvl of [...counts.keys()].sort((a, b) => a - b)) {
-      const n = counts.get(lvl)!;
-      const label = lvl === 0
-        ? (n === 1 ? 'cantrip' : 'cantrips')
-        : `${LEVEL_LABELS[lvl] ?? `${lvl}th`}-level`;
-      parts.push(`${n} ${label}`);
+    if (!existingSpells) return null;
+    let cantripCount = 0;
+    let leveledCount = 0;
+    for (const sp of existingSpells) {
+      if (sp.level === 0) cantripCount++;
+      else leveledCount++;
     }
-    return parts.join(' · ');
-  }, [existingSpells]);
+    const cantripLimit = spellLimits?.cantrips;
+    const preparedLimit = spellLimits?.prepared;
+    const cantripText = cantripLimit !== undefined
+      ? `${cantripCount}/${cantripLimit} cantrips`
+      : cantripCount === 1 ? '1 cantrip' : `${cantripCount} cantrips`;
+    const leveledText = preparedLimit !== undefined
+      ? `${leveledCount}/${preparedLimit} prepared`
+      : `${leveledCount} prepared`;
+    return { cantripText, leveledText, cantripCount, leveledCount, cantripLimit, preparedLimit };
+  }, [existingSpells, spellLimits?.cantrips, spellLimits?.prepared]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -218,12 +232,26 @@ export function SpellPickerModal({
                 />
               </View>
 
-              {existingSpells ? (
-                <Text style={s.summaryLine}>
-                  {preparedSummary
-                    ? `Prepared: ${preparedSummary}`
-                    : 'Nothing prepared yet.'}
-                </Text>
+              {preparedSummary ? (
+                <View style={s.summaryRow}>
+                  <Text style={[
+                    s.summaryChunk,
+                    preparedSummary.cantripLimit !== undefined
+                    && preparedSummary.cantripCount >= preparedSummary.cantripLimit
+                    && s.summaryChunkAtLimit,
+                  ]}>
+                    {preparedSummary.cantripText}
+                  </Text>
+                  <Text style={s.summaryDot}> · </Text>
+                  <Text style={[
+                    s.summaryChunk,
+                    preparedSummary.preparedLimit !== undefined
+                    && preparedSummary.leveledCount >= preparedSummary.preparedLimit
+                    && s.summaryChunkAtLimit,
+                  ]}>
+                    {preparedSummary.leveledText}
+                  </Text>
+                </View>
               ) : null}
 
               <ScrollView style={s.list} contentContainerStyle={{ paddingBottom: spacing.md }}>
@@ -572,10 +600,21 @@ const s = StyleSheet.create({
     position: 'relative',
   },
   filterBtnNarrow: { minWidth: 110 },
-  summaryLine: {
+  summaryRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingBottom: spacing.sm, paddingHorizontal: 2,
+  },
+  summaryChunk: {
     fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
     color: colors.outline, letterSpacing: 0.4,
-    paddingBottom: spacing.sm, paddingHorizontal: 2,
+  },
+  // Highlight when the player is at-or-over the prep limit. Uses
+  // primary instead of hpDanger because being at-limit isn't a
+  // problem — it just means they can't prepare more without removing
+  // one first.
+  summaryChunkAtLimit: { color: colors.primary, fontWeight: '700' },
+  summaryDot: {
+    fontSize: 11, fontFamily: fonts.label, color: colors.outlineVariant, letterSpacing: 0.4,
   },
   // Web-only: a real <select> is layered over the styled button so the
   // browser opens its native dropdown on click while the visual chrome
