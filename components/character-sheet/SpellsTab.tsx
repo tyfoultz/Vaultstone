@@ -89,8 +89,12 @@ export function SpellsTab({
   const preparedSpells = resources.preparedSpells ?? [];
   const concentration = resources.concentrationSpell ?? null;
 
+  // `stats.spellcastingAbility` is stored capitalized ("Intelligence")
+  // because that's how cls.spellcastingAbility ships from the SRD; the
+  // scores object's keys are lowercased. Normalize before lookup, else
+  // every caster reads as INT/WIS/CHA = 10 → mod +0.
   const spellMod = spellAbility
-    ? abilityMod(scores[spellAbility as keyof Dnd5eAbilityScores] ?? 10)
+    ? abilityMod(scores[spellAbility.toLowerCase() as keyof Dnd5eAbilityScores] ?? 10)
     : null;
   const spellDC = spellMod !== null ? 8 + prof + spellMod : null;
   const spellAttack = spellMod !== null ? prof + spellMod : null;

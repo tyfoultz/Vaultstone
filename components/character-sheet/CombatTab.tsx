@@ -161,7 +161,9 @@ export function CombatTab({
               {ABILITY_KEYS.map((key) => {
                 const score = scores[key];
                 const mod = abilityMod(score);
-                const isSpellMod = stats.spellcastingAbility === key;
+                // stats.spellcastingAbility ships capitalized
+                // ("Intelligence"); ABILITY_KEYS are lowercase.
+                const isSpellMod = stats.spellcastingAbility?.toLowerCase() === key;
                 return (
                   <TouchableOpacity
                     key={key}
