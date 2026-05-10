@@ -47,6 +47,94 @@ function normalizeDescription(s) {
     .trim();
 }
 
+const ABILITY_NAMES = {
+  strength: 'strength', dexterity: 'dexterity', constitution: 'constitution',
+  intelligence: 'intelligence', wisdom: 'wisdom', charisma: 'charisma',
+};
+
+/**
+ * Parse Open5e's free-form prereq prose into structured FeatPrerequisite[].
+ *
+ * Known surface across the SRD 5.1 + 5.2 feat snapshots (6 unique strings):
+ *
+ *   "Strength 13 or higher"           → ability-score (str ≥ 13)
+ *   "Level 4+"                        → character-level ≥ 4
+ *   "Level 19+"                       → character-level ≥ 19
+ *   "Fighting Style Feature"          → class-feature "Fighting Style"
+ *   "Level 4+, Strength or Dexterity 13+"
+ *                                     → AND of [character-level ≥ 4,
+ *                                               ability-score (str|dex ≥ 13)]
+ *   "Level 19+, Spellcasting Feature" → AND of [character-level ≥ 19,
+ *                                               class-feature "Spellcasting"]
+ *
+ * Anything else falls through to a single { kind: 'prose' } clause so the
+ * gate stays informational rather than dropping the requirement.
+ *
+ * Returns [] when there's no prereq, otherwise an array of structured
+ * clauses that AND together.
+ */
+function parsePrerequisite(raw) {
+  if (!raw) return [];
+  const text = String(raw).trim();
+  if (!text) return [];
+
+  // Split on commas to get AND-conjoined clauses. The SRD prose is
+  // simple enough that comma reliably separates clauses; if a future
+  // prereq form needs richer punctuation we extend here.
+  const parts = text.split(',').map((p) => p.trim()).filter(Boolean);
+  const clauses = [];
+  let unrecognized = false;
+
+  for (const part of parts) {
+    const clause = parseClause(part);
+    if (clause) clauses.push(clause);
+    else { unrecognized = true; break; }
+  }
+
+  if (unrecognized || clauses.length === 0) {
+    return [{ kind: 'prose', text }];
+  }
+  return clauses;
+}
+
+function parseClause(part) {
+  // "Level N+" or "Level N or higher"
+  const lvl = /^level\s+(\d+)\s*(?:\+|or higher)?$/i.exec(part);
+  if (lvl) {
+    return { kind: 'character-level', minimum: Number(lvl[1]) };
+  }
+
+  // "<Ability> N+" / "<Ability> N or higher" / "<A1> or <A2> N+"
+  const abil = /^([a-z][a-z\s]*?)\s+(\d+)\s*(?:\+|or higher)?$/i.exec(part);
+  if (abil) {
+    const abilities = parseAbilityList(abil[1]);
+    if (abilities.length > 0) {
+      return { kind: 'ability-score', abilities, minimum: Number(abil[2]) };
+    }
+  }
+
+  // "<Name> Feature" — class feature gating.
+  const feat = /^(.+?)\s+feature$/i.exec(part);
+  if (feat) {
+    return { kind: 'class-feature', featureName: feat[1].trim() };
+  }
+
+  return null;
+}
+
+function parseAbilityList(s) {
+  // "Strength" → ['strength']; "Strength or Dexterity" → ['strength', 'dexterity'].
+  const tokens = s.split(/\s+or\s+|\s*\/\s*|\s+and\s+/i)
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+  const out = [];
+  for (const t of tokens) {
+    if (ABILITY_NAMES[t]) out.push(ABILITY_NAMES[t]);
+    else return [];
+  }
+  return out;
+}
+
 function transformOne(feat) {
   const docKey = feat.document?.key;
   const srdVersion = DOC_TO_VERSION[docKey];
@@ -57,7 +145,10 @@ function transformOne(feat) {
     ? feat.benefits.map((b) => normalizeDescription(b.desc)).filter(Boolean)
     : [];
 
-  return {
+  const prereqProse = feat.prerequisite ? String(feat.prerequisite).trim() : '';
+  const prereqRaw = parsePrerequisite(prereqProse);
+
+  const out = {
     key: `${slug}-srd-${VERSION_TO_SLUG[srdVersion]}`,
     name: feat.name,
     type: 'feat',
@@ -65,11 +156,13 @@ function transformOne(feat) {
     system: 'dnd5e',
     srdVersions: [srdVersion],
     category: normalizeCategory(feat.type),
-    prerequisites: feat.prerequisite ? String(feat.prerequisite).trim() : '',
+    prerequisites: prereqProse,
     benefits,
     description: normalizeDescription(feat.desc),
     data: {},
   };
+  if (prereqRaw.length > 0) out.prerequisitesRaw = prereqRaw;
+  return out;
 }
 
 function main() {

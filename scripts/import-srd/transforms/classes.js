@@ -123,6 +123,54 @@ function slugify(name) {
     .replace(/^-+|-+$/g, '');
 }
 
+const ABILITY_NAMES = {
+  strength: 'strength', dexterity: 'dexterity', constitution: 'constitution',
+  intelligence: 'intelligence', wisdom: 'wisdom', charisma: 'charisma',
+};
+
+/**
+ * Parse a multiclass prerequisite prose line into structured
+ * MulticlassPrereq[]. Returns groups that AND together; each group's
+ * abilities OR. The SRD prose forms in the table above:
+ *
+ *   "Strength 13"                       → 1 group, 1 ability
+ *   "Strength 13 or Dexterity 13"       → 1 group, 2 abilities (OR)
+ *   "Dexterity 13 and Wisdom 13"        → 2 groups (AND)
+ *   "Strength 13 and Charisma 13"       → 2 groups (AND)
+ *
+ * Assumes a single shared minimum across the prose (always 13 in the
+ * SRD). If a future homebrew class needs varied minimums per ability
+ * we extend here.
+ */
+function parseMulticlassPrereq(prose) {
+  if (!prose) return [];
+  // Split AND-conjoined groups. SRD uses " and " only.
+  const groups = String(prose).split(/\s+and\s+/i);
+  const out = [];
+  for (const g of groups) {
+    // Within a group, OR-conjoined abilities share a single minimum.
+    // Pattern: "<ability1> [or <ability2>] <num>"
+    // First find the trailing minimum number.
+    const m = /^(.+?)\s+(\d+)\s*$/.exec(g.trim());
+    if (!m) return []; // unrecognized — caller falls back to no-raw
+    const abilityPart = m[1];
+    const minimum = Number(m[2]);
+    // Each side of " or " may itself contain "<ability> 13" — strip
+    // any trailing numbers, then collect abilities.
+    const tokens = abilityPart.split(/\s+or\s+/i)
+      .map((t) => t.replace(/\s+\d+\s*$/, '').trim().toLowerCase())
+      .filter(Boolean);
+    const abilities = [];
+    for (const t of tokens) {
+      if (ABILITY_NAMES[t]) abilities.push(ABILITY_NAMES[t]);
+      else return []; // bail
+    }
+    if (abilities.length === 0) return [];
+    out.push({ abilities, minimum });
+  }
+  return out;
+}
+
 function normalizeDescription(s) {
   if (!s) return '';
   return String(s)
@@ -659,6 +707,8 @@ function transformOne(cls) {
   const mc = MULTICLASS_BY_CLASS[cls.name];
   if (mc) {
     out.multiclassPrerequisite = mc.prerequisite;
+    const raw = parseMulticlassPrereq(mc.prerequisite);
+    if (raw.length > 0) out.multiclassPrerequisiteRaw = raw;
     const profs = {};
     if (mc.armor) profs.armor = mc.armor;
     if (mc.weapons) profs.weapons = mc.weapons;

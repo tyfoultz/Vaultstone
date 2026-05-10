@@ -4,6 +4,8 @@ import { resourcePools } from './resources';
 import { creationSteps } from './creation-steps';
 import { optionalRules } from './optional-rules';
 
+export { checkPrerequisites, type PrereqCharacter, type PrereqCheckResult } from './prerequisites';
+
 // Both editions share schema (attributes, resources, sheet, creation steps).
 // They diverge only in id / displayName / version / SRD-content filter.
 const SHEET_SECTIONS: GameSystemDefinition['sheetSections'] = [

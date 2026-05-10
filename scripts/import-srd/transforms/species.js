@@ -145,6 +145,16 @@ function transformOne(species, parentLookup) {
     // Increase"). Leaving the structured field empty for now — UI consumers
     // can render the trait if they need to surface it.
     abilityScoreIncreases: [],
+    // Customize Origin permissions (Tasha's-style swap rules). 5.1
+    // species ship locked across the board — the Tasha's variant
+    // existed but lived behind the campaign's `customize_origin`
+    // toggle. 2024 species dropped the locked-by-default model
+    // entirely, so every part of their kit is the player's pick;
+    // exposing them as all-true keeps the wizard's swap UI in sync
+    // when the campaign rule is on. Homebrew species pick per-flag.
+    swapRules: srdVersion === 'SRD_2.0'
+      ? { abilityScores: true,  languages: true,  skills: true  }
+      : { abilityScores: false, languages: false, skills: false },
     description: normalizeDescription(species.desc),
     data: {},
   };

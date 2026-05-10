@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Platform } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, type Href } from 'expo-router';
 import { useCharacterDraftStore, useAuthStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -13,73 +13,91 @@ import {
   getCampaignCharacterRules,
   resolveRuleValues,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID, resolveCreationSteps } from '@vaultstone/systems';
 import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
+import { StepRules } from '../../components/character-wizard/StepRules';
 import { StepSpecies } from '../../components/character-wizard/StepSpecies';
 import { StepClass } from '../../components/character-wizard/StepClass';
 import { StepBackground } from '../../components/character-wizard/StepBackground';
+import { StepFeats } from '../../components/character-wizard/StepFeats';
 import { StepAbilityScores } from '../../components/character-wizard/StepAbilityScores';
 import { StepReview } from '../../components/character-wizard/StepReview';
 import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
 import { CampaignRulesSummary } from '../../components/character-wizard/CampaignRulesSummary';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eSpellSlotLevel, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
 
-// SRD 5e full-caster spell slot progression [level → [lvl1, lvl2, ... lvl9]]
-const FULL_CASTER_SLOTS: Record<number, number[]> = {
-  1:  [2, 0, 0, 0, 0, 0, 0, 0, 0],
-  2:  [3, 0, 0, 0, 0, 0, 0, 0, 0],
-  3:  [4, 2, 0, 0, 0, 0, 0, 0, 0],
-  4:  [4, 3, 0, 0, 0, 0, 0, 0, 0],
-  5:  [4, 3, 2, 0, 0, 0, 0, 0, 0],
-  6:  [4, 3, 3, 0, 0, 0, 0, 0, 0],
-  7:  [4, 3, 3, 1, 0, 0, 0, 0, 0],
-  8:  [4, 3, 3, 2, 0, 0, 0, 0, 0],
-  9:  [4, 3, 3, 3, 1, 0, 0, 0, 0],
-  10: [4, 3, 3, 3, 2, 0, 0, 0, 0],
-  11: [4, 3, 3, 3, 2, 1, 0, 0, 0],
-  12: [4, 3, 3, 3, 2, 1, 0, 0, 0],
-  13: [4, 3, 3, 3, 2, 1, 1, 0, 0],
-  14: [4, 3, 3, 3, 2, 1, 1, 0, 0],
-  15: [4, 3, 3, 3, 2, 1, 1, 1, 0],
-  16: [4, 3, 3, 3, 2, 1, 1, 1, 0],
-  17: [4, 3, 3, 3, 2, 1, 1, 1, 1],
-  18: [4, 3, 3, 3, 3, 1, 1, 1, 1],
-  19: [4, 3, 3, 3, 3, 2, 1, 1, 1],
-  20: [4, 3, 3, 3, 3, 2, 2, 1, 1],
+// Initialize a character's spell-slot resource bag from the picked
+// class's progression table at the starting level. The progression
+// table carries per-level slot counts as `1st` / `2nd` / ... `9th`
+// columns for full + half casters, and as `spellSlots` (count) +
+// `slotLevel` (e.g. "1st") for Warlock pact magic — both shapes are
+// handled here. Non-spellcasters return null.
+//
+// Reading from the table beats the hardcoded full-caster lookup
+// this used to live as: half-casters (Paladin / Ranger) correctly
+// get no slots at L1 in 5.1 and 2/0 at L1 in 5.2; Warlock's pact
+// magic reads its 1-slot at L1 instead of being given the wrong
+// 2-slot full-caster row.
+const SLOT_COLUMNS: Array<{ key: string; level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 }> = [
+  { key: '1st', level: 1 }, { key: '2nd', level: 2 }, { key: '3rd', level: 3 },
+  { key: '4th', level: 4 }, { key: '5th', level: 5 }, { key: '6th', level: 6 },
+  { key: '7th', level: 7 }, { key: '8th', level: 8 }, { key: '9th', level: 9 },
+];
+
+const SLOT_LEVEL_LABEL_TO_NUMBER: Record<string, 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9> = {
+  '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5,
+  '6th': 6, '7th': 7, '8th': 8, '9th': 9,
 };
 
-function initSpellSlots(level: number): Dnd5eResources['spellSlots'] {
-  const row = FULL_CASTER_SLOTS[Math.min(level, 20)] ?? FULL_CASTER_SLOTS[1];
+function initSpellSlots(
+  cls: ClassResult,
+  level: number,
+): Dnd5eResources['spellSlots'] {
+  if (!cls.spellcasting) return null;
+  const row = (cls.progressionTable ?? []).find((r) => r.level === Math.min(level, 20));
   const make = (max: number): Dnd5eSpellSlotLevel => ({ max, remaining: max });
-  return {
-    1: make(row[0]), 2: make(row[1]), 3: make(row[2]),
-    4: make(row[3]), 5: make(row[4]), 6: make(row[5]),
-    7: make(row[6]), 8: make(row[7]), 9: make(row[8]),
+  const empty = make(0);
+  const slots: Dnd5eResources['spellSlots'] = {
+    1: empty, 2: empty, 3: empty, 4: empty, 5: empty,
+    6: empty, 7: empty, 8: empty, 9: empty,
   };
+  if (!row) return slots;
+
+  // Full + half casters: read each `Nth` column directly. "—" / non-numeric
+  // values land at 0, which is correct for half-casters at L1 in 5.1.
+  let foundExplicitSlots = false;
+  for (const col of SLOT_COLUMNS) {
+    const raw = row.values[col.key];
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''), 10);
+    if (Number.isFinite(n)) {
+      slots[col.level] = make(n);
+      if (n > 0) foundExplicitSlots = true;
+    }
+  }
+  // Warlock pact magic: `spellSlots` is the count, `slotLevel` ("1st" /
+  // "2nd" / etc.) names the slot level all of those slots cast at. Only
+  // applied when the per-level columns above didn't already populate.
+  if (!foundExplicitSlots) {
+    const countRaw = row.values['spellSlots'];
+    const slotLevelRaw = row.values['slotLevel'];
+    const count = typeof countRaw === 'number' ? countRaw : parseInt(String(countRaw ?? ''), 10);
+    const slotLevel = typeof slotLevelRaw === 'string' ? SLOT_LEVEL_LABEL_TO_NUMBER[slotLevelRaw] : undefined;
+    if (Number.isFinite(count) && count > 0 && slotLevel) {
+      slots[slotLevel] = make(count);
+    }
+  }
+  return slots;
 }
 
-// Step list when the wizard is launched without a campaign — user picks
-// the ruleset themselves at step 0.
-const STANDALONE_STEPS = [
-  { key: 'ruleset', label: 'Ruleset' },
-  { key: 'species', label: 'Species' },
-  { key: 'class', label: 'Class' },
-  { key: 'background', label: 'Background' },
-  { key: 'scores', label: 'Ability Scores' },
-  { key: 'review', label: 'Review' },
-];
-
-// When launched from inside a campaign the ruleset is locked to the
-// campaign's system, so we skip the picker entirely.
-const CAMPAIGN_STEPS = [
-  { key: 'species', label: 'Species' },
-  { key: 'class', label: 'Class' },
-  { key: 'background', label: 'Background' },
-  { key: 'scores', label: 'Ability Scores' },
-  { key: 'review', label: 'Review' },
-];
+// Wizard step list is sourced from the chosen system's
+// `creationSteps` schema via `resolveCreationSteps()` — see
+// packages/systems/src/resolve-creation-steps.ts. The resolver
+// applies two filters: `inCampaign: false` steps drop out when
+// launched from a campaign, and `gatedByRule` steps drop out when
+// their rule resolves falsy. Standalone wizards fall through to
+// each rule's bundled system default.
 
 // Translate a campaigns.system id (dnd5e_2014 / dnd5e_2024 / dnd5e legacy
 // alias) into the wizard's draft shape (system + srdVersion). The draft's
@@ -91,6 +109,18 @@ function systemToDraft(systemId: string): { system: string; srdVersion: 'SRD_5.1
   if (systemId === 'dnd5e_2014') return { system: 'dnd5e', srdVersion: 'SRD_5.1' };
   // dnd5e_2024 / legacy dnd5e / Custom all fall through to the 2024 SRD.
   return { system: 'dnd5e', srdVersion: 'SRD_2.0' };
+}
+
+/** Reverse of `systemToDraft` — pick the bundled system definition that
+ *  matches the draft's (system, srdVersion). Returns `null` for unknown
+ *  combinations (the wizard won't proceed without a system anyway). */
+function draftToSystem(
+  system: string,
+  srdVersion: 'SRD_5.1' | 'SRD_2.0',
+) {
+  if (system !== 'dnd5e') return null;
+  const id = srdVersion === 'SRD_5.1' ? 'dnd5e_2014' : 'dnd5e_2024';
+  return BUNDLED_SYSTEMS_BY_ID[id] ?? null;
 }
 
 export default function NewCharacterScreen() {
@@ -105,6 +135,7 @@ export default function NewCharacterScreen() {
       classKey: s.classKey,
       chosenSkills: s.chosenSkills,
       backgroundKey: s.backgroundKey,
+      chosenFeats: s.chosenFeats,
       abilityScores: s.abilityScores,
       characterName: s.characterName,
       srdVersion: s.srdVersion,
@@ -238,8 +269,22 @@ export default function NewCharacterScreen() {
     setDraftRulesetMode,
   ]);
 
-  // Active step list and current step, swapped based on launch context.
-  const STEPS = launchedCampaignId ? CAMPAIGN_STEPS : STANDALONE_STEPS;
+  // Active step list resolved from the chosen system's `creationSteps`
+  // schema. The resolver applies inCampaign + gatedByRule filters, so
+  // changes to a system's step list (or to which steps are rule-gated)
+  // ripple through the wizard without code edits here. The campaign-
+  // rules bag is populated during bootstrap for campaign-launched
+  // wizards; until bootstrap finishes the bag is empty and gated steps
+  // fall through to each rule's bundled system default.
+  const draftCampaignRules = useCharacterDraftStore((s) => s.campaignRules);
+  const STEPS = useMemo(() => {
+    const sys = draftToSystem(draft.system, draft.srdVersion);
+    if (!sys) return [];
+    return resolveCreationSteps(sys, {
+      isCampaign: !!launchedCampaignId,
+      campaignRules: draftCampaignRules,
+    }).map((s) => ({ key: s.key, label: s.label }));
+  }, [launchedCampaignId, draftCampaignRules, draft.system, draft.srdVersion]);
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -253,20 +298,37 @@ export default function NewCharacterScreen() {
   const [classSkillCount, setClassSkillCount] = useState<number>(0);
   const [backgroundName, setBackgroundName] = useState<string | null>(null);
 
+  // Resolve picked content names for the SheetSoFar bar through the
+  // same tiers the picker steps used. SRD-only here renders raw keys
+  // ("homebrew_my-pack_class_warden") in the summary the moment a
+  // homebrew class/species/background is picked.
+  const sheetSoFarPackIdsKey = draft.selectedPackIds.join(',');
+  const sheetSoFarTierArgs = useMemo(() => {
+    const includeHomebrew = !!draft.campaignId || draft.selectedPackIds.length > 0;
+    return {
+      system: 'dnd5e' as const,
+      srdVersion: draft.srdVersion,
+      tiers: (includeHomebrew ? ['srd', 'homebrew'] : ['srd']) as Array<'srd' | 'homebrew'>,
+      campaignId: draft.campaignId ?? undefined,
+      packIds: !draft.campaignId && draft.selectedPackIds.length > 0 ? draft.selectedPackIds : undefined,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.srdVersion, draft.campaignId, sheetSoFarPackIdsKey]);
+
   useEffect(() => {
     if (draft.speciesKey) {
-      ContentResolver.search({ type: 'species', system: 'dnd5e', tiers: ['srd'] }).then((r) => {
+      ContentResolver.search({ type: 'species', ...sheetSoFarTierArgs }).then((r) => {
         const sp = (r as SpeciesResult[]).find((x) => x.key === draft.speciesKey);
         setSpeciesName(sp?.name ?? null);
       });
     } else {
       setSpeciesName(null);
     }
-  }, [draft.speciesKey]);
+  }, [draft.speciesKey, sheetSoFarTierArgs]);
 
   useEffect(() => {
     if (draft.classKey) {
-      ContentResolver.search({ type: 'class', system: 'dnd5e', tiers: ['srd'] }).then((r) => {
+      ContentResolver.search({ type: 'class', ...sheetSoFarTierArgs }).then((r) => {
         const cls = (r as ClassResult[]).find((x) => x.key === draft.classKey);
         setClassName(cls?.name ?? null);
         setClassDie(cls?.hitDie ?? null);
@@ -277,18 +339,18 @@ export default function NewCharacterScreen() {
       setClassDie(null);
       setClassSkillCount(0);
     }
-  }, [draft.classKey]);
+  }, [draft.classKey, sheetSoFarTierArgs]);
 
   useEffect(() => {
     if (draft.backgroundKey) {
-      ContentResolver.search({ type: 'background', system: 'dnd5e', tiers: ['srd'] }).then((r) => {
+      ContentResolver.search({ type: 'background', ...sheetSoFarTierArgs }).then((r) => {
         const bg = (r as BackgroundResult[]).find((x) => x.key === draft.backgroundKey);
         setBackgroundName(bg?.name ?? null);
       });
     } else {
       setBackgroundName(null);
     }
-  }, [draft.backgroundKey]);
+  }, [draft.backgroundKey, sheetSoFarTierArgs]);
 
   // Highest ability score for SheetSoFar
   const highestStat = draft.abilityScores
@@ -317,9 +379,12 @@ export default function NewCharacterScreen() {
         if (rulesetMode === null) return false;
         if (rulesetMode === 'campaign' && !draft.campaignId) return false;
         return true;
+      case 'rules':      return true; // Always complete — campaign launch is read-only,
+                                       // standalone seeds defaults on mount so the bag is populated.
       case 'species':    return draft.speciesKey !== null;
       case 'class':      return draft.classKey !== null && (classSkillCount === 0 || draft.chosenSkills.length >= classSkillCount);
       case 'background': return draft.backgroundKey !== null;
+      case 'feats':      return draft.chosenFeats.length > 0;
       case 'scores':     return draft.abilityScores !== null;
       case 'review':     return (draft.characterName ?? '').trim().length > 0;
       default:           return false;
@@ -328,7 +393,19 @@ export default function NewCharacterScreen() {
 
   function handleBack() {
     if (step === 0) {
-      router.back();
+      // Cancel from the first step routes back to wherever the user
+      // came from — the campaigns list, the campaign they launched
+      // from, or a draft list. router.back() on its own no-ops when
+      // there's no history (deep links, browser refresh), so fall
+      // through to a safe destination so the button is always
+      // responsive.
+      if (router.canGoBack()) {
+        router.back();
+      } else if (launchedCampaignId) {
+        router.replace(`/campaign/${launchedCampaignId}` as Href);
+      } else {
+        router.replace('/(drawer)/characters' as Href);
+      }
     } else {
       setStep(step - 1);
       setInPreview(false);
@@ -414,10 +491,30 @@ export default function NewCharacterScreen() {
     setSaveError('');
 
     try {
-      const [clsResults, bgResults, speciesResults] = await Promise.all([
-        ContentResolver.search({ type: 'class', system: 'dnd5e', tiers: ['srd'] }),
-        ContentResolver.search({ type: 'background', system: 'dnd5e', tiers: ['srd'] }),
-        ContentResolver.search({ type: 'species', system: 'dnd5e', tiers: ['srd'] }),
+      // Pull every content kind through the same tier scoping the wizard
+      // steps used to surface them. SRD-only here would silently swap a
+      // homebrew class's proficiencies + features for whatever SRD class
+      // happens to share its key, or — more likely — `cls` resolves to
+      // undefined and the wizard errors out. Mirror the picker step's
+      // scoping so the saved character carries the proficiencies / hit
+      // die / origin feat / etc. of the *picked* content.
+      const includeHomebrew = !!draft.campaignId || draft.selectedPackIds.length > 0;
+      const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+      const packIds = !draft.campaignId && draft.selectedPackIds.length > 0 ? draft.selectedPackIds : undefined;
+      const tierArgs = {
+        system: 'dnd5e',
+        srdVersion: draft.srdVersion,
+        tiers,
+        campaignId: draft.campaignId ?? undefined,
+        packIds,
+      } as const;
+      const [clsResults, bgResults, speciesResults, featResults] = await Promise.all([
+        ContentResolver.search({ type: 'class',      ...tierArgs }),
+        ContentResolver.search({ type: 'background', ...tierArgs }),
+        ContentResolver.search({ type: 'species',    ...tierArgs }),
+        draft.chosenFeats.length > 0
+          ? ContentResolver.search({ type: 'feat', ...tierArgs })
+          : Promise.resolve([]),
       ]);
       const cls = (clsResults as ClassResult[]).find((c) => c.key === draft.classKey);
       const bg = (bgResults as BackgroundResult[]).find((b) => b.key === draft.backgroundKey);
@@ -429,6 +526,23 @@ export default function NewCharacterScreen() {
         return;
       }
 
+      // Resolve picked feats into the character's `resources.feats[]`
+      // shape. Skipped silently if the resolver couldn't find a feat —
+      // wizard's draft can't easily land in this state, but a stale
+      // pack opt-in could (e.g. user removed a pack between picking
+      // and finishing). Better to drop the orphan than block creation.
+      const chosenFeatRecords = (featResults as import('@vaultstone/types').FeatResult[])
+        .filter((f) => draft.chosenFeats.includes(f.key));
+      const featsForResources: import('@vaultstone/types').Dnd5eFeature[] =
+        chosenFeatRecords.map((f) => ({
+          id: f.key,
+          name: f.name,
+          description: [
+            f.description ?? '',
+            ...(f.benefits ?? []).map((b) => `• ${b}`),
+          ].filter(Boolean).join('\n\n'),
+        }));
+
       const conMod = Math.floor((draft.abilityScores.constitution - 10) / 2);
       // TODO(starting-level-progression): the campaign's `starting_level`
       // rule lands on the draft via bootstrap, but full level-N character
@@ -438,6 +552,14 @@ export default function NewCharacterScreen() {
       // initializes the new character at L1 even when the rule says
       // higher; the next iteration on the wizard wires in level-up logic.
       const hpMax = cls.hitDie + conMod;
+
+      // Seed the character's hit_point_method preference from the
+      // campaign's resolved rule (or the system default for standalone
+      // characters). The level-up flow reads this when granting
+      // per-level HP — there's no L1 effect, since every PC takes max
+      // HP at first level in both editions.
+      const hitPointMethodSetting: 'fixed' | 'rolled' =
+        draftCampaignRules.hit_point_method === 'rolled' ? 'rolled' : 'fixed';
 
       const base_stats: Dnd5eStats = {
         characterName: draft.characterName.trim(),
@@ -461,6 +583,10 @@ export default function NewCharacterScreen() {
         originFeat: bg.originFeat,
         speed: (sp as any).speed ?? 30,
         hpMax,
+        settings: {
+          manualMode: false,
+          hitPointMethod: hitPointMethodSetting,
+        },
       };
 
       const resources: Dnd5eResources = {
@@ -470,7 +596,8 @@ export default function NewCharacterScreen() {
         inspiration: false,
         deathSaves: { successes: 0, failures: 0 },
         exhaustionLevel: 0,
-        spellSlots: cls.spellcasting ? initSpellSlots(1) : null,
+        spellSlots: initSpellSlots(cls, 1),
+        ...(featsForResources.length > 0 ? { feats: featsForResources } : {}),
       };
 
       const { data, error } = await createCharacter({
@@ -610,7 +737,7 @@ export default function NewCharacterScreen() {
               user hasn't committed to a campaign yet). Renders
               above the active step so the player has rules context
               before each decision. */}
-          {STEPS[step]?.key !== 'ruleset' ? <CampaignRulesSummary /> : null}
+          {STEPS[step]?.key !== 'ruleset' && STEPS[step]?.key !== 'rules' ? <CampaignRulesSummary /> : null}
           {(() => {
             const key = STEPS[step]?.key;
             // Helper to advance to the step after the current one. Uses the
@@ -624,12 +751,19 @@ export default function NewCharacterScreen() {
             switch (key) {
               case 'ruleset':
                 return <StepRuleset />;
+              case 'rules':
+                return <StepRules />;
               case 'species':
                 return <StepSpecies onPreviewChange={setInPreview} onAdvance={() => advanceTo('class')} />;
               case 'class':
                 return <StepClass onPreviewChange={setInPreview} onAdvance={() => advanceTo('background')} />;
               case 'background':
-                return <StepBackground onPreviewChange={setInPreview} onAdvance={() => advanceTo('scores')} />;
+                return <StepBackground
+                  onPreviewChange={setInPreview}
+                  onAdvance={() => advanceTo(STEPS.some((s) => s.key === 'feats') ? 'feats' : 'scores')}
+                />;
+              case 'feats':
+                return <StepFeats onPreviewChange={setInPreview} onAdvance={() => advanceTo('scores')} />;
               case 'scores':
                 return <StepAbilityScores />;
               case 'review':

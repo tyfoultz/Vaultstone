@@ -148,6 +148,14 @@ export interface FeatResult extends ContentResult {
   category: 'origin' | 'general' | 'fighting-style' | 'epic-boon';
   /** Free-form prerequisite text (e.g. "Strength 13+", "level 4+"). Empty string if none. */
   prerequisites?: string;
+  /**
+   * Structured prerequisite clauses — all must be satisfied (AND).
+   * Empty / undefined when the feat has no prerequisites or when the
+   * SRD prose doesn't fit any structured kind. The wizard + character
+   * sheet check these against the candidate character; the
+   * `prerequisites` string above stays the canonical display form.
+   */
+  prerequisitesRaw?: import('./character-builder').FeatPrerequisite[];
   /** Bullet-form benefits. */
   benefits: string[];
   srdVersions: string[];
@@ -266,6 +274,13 @@ export interface OptionalFeatureResult extends ContentResult {
  * character creation or levelling. Codes outside this list (`O`,
  * `RP`, `RN`, `AS`, `ED`, etc.) collapse into 'other' so the catalog
  * still surfaces them without proliferating buckets.
+ *
+ * `class-feature-variant` is the Tasha's-style "Optional Class
+ * Features" concept — a variant that *replaces or augments* a base
+ * class feature, distinct from the picks-within-a-feature kinds
+ * above. Variants carry `data.replacesFeature` and `data.targetClassKey`
+ * + `data.targetLevel` so the wizard can splice them into the right
+ * spot when the campaign rule `optional_class_features` is enabled.
  */
 export type OptionalFeatureKind =
   | 'invocation'        // EI — Warlock Eldritch Invocation
@@ -277,6 +292,7 @@ export type OptionalFeatureKind =
   | 'arcane-shot'       // AS — Arcane Archer Arcane Shot
   | 'elemental-discipline' // ED — Way of Four Elements monk discipline
   | 'rune'              // RN — Rune Knight rune
+  | 'class-feature-variant' // Tasha's-style alternate to a base class feature
   | 'other';
 
 export interface RuleResult extends ContentResult {
@@ -482,6 +498,18 @@ export interface SpeciesResult extends ContentResult {
   traits: Array<{ name: string; description: string }>;
   /** Fixed ASI granted by the species (SRD 5.1 style). Empty for SRD 2.0 species. */
   abilityScoreIncreases: Array<{ ability: string; amount: number }>;
+  /**
+   * Per-species permissions for the wizard's Customize Origin step.
+   * 2014 species ship all-false (locked to defaults); 2024 species
+   * ship all-true (every part of the kit is the player's pick). The
+   * wizard reads these flags to decide which swap UI surfaces to
+   * render when the campaign rule `customize_origin` is enabled.
+   *
+   * Optional for backwards compatibility with seed data — consumers
+   * default to `{ abilityScores: false, languages: false, skills: false }`
+   * for entries that omit it.
+   */
+  swapRules?: import('./character-builder').SpeciesSwapRules;
   srdVersions: string[];
 }
 
@@ -550,6 +578,14 @@ export interface ClassResult extends ContentResult {
   }>;
   /** Free-text multiclass prerequisite (e.g. "Strength 13"). */
   multiclassPrerequisite?: string;
+  /**
+   * Structured multiclass prerequisite — every group must be
+   * satisfied (AND), and a group is satisfied if any of its
+   * abilities meets `minimum`. Empty / undefined when the class has
+   * no multiclass prereq. The free-text `multiclassPrerequisite`
+   * field above stays the display form.
+   */
+  multiclassPrerequisiteRaw?: import('./character-builder').MulticlassPrereq[];
   /** Proficiencies gained when multiclassing into this class. */
   multiclassProficiencies?: {
     armor?: string[];

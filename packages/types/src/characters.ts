@@ -19,6 +19,16 @@ export interface CharacterSettings {
     activeLeft: string;
     activeRight: string | null;
   };
+  /**
+   * Player's choice for how additional hit points are determined on
+   * level-up. `'fixed'` grants the class's average (floor(die/2) + 1
+   * + CON mod); `'rolled'` rolls the hit die. Seeded at creation
+   * from the campaign's `hit_point_method` rule (or the system
+   * default for standalone characters); the level-up flow reads
+   * this when granting per-level HP. Defaults to `'fixed'` when
+   * absent — matches the SRD bundled rule default.
+   */
+  hitPointMethod?: 'fixed' | 'rolled';
 }
 
 export interface Dnd5eAbilityScores {

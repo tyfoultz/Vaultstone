@@ -31,6 +31,8 @@ export function StepReview() {
       abilityScores: s.abilityScores,
       chosenSkills: s.chosenSkills,
       characterName: s.characterName,
+      campaignId: s.campaignId,
+      selectedPackIds: s.selectedPackIds,
     }))
   );
   const setCharacterName = useCharacterDraftStore((s) => s.setCharacterName);
@@ -40,20 +42,36 @@ export function StepReview() {
   const [cls, setCls] = useState<ClassResult | null>(null);
   const [bg, setBg] = useState<BackgroundResult | null>(null);
 
+  // Resolve through the same tier scoping the picker steps used. SRD-only
+  // here renders raw keys ("homebrew_my-pack_class_warden") on the review
+  // page the moment the player picks a homebrew class/species/background.
+  const packIdsKey = draft.selectedPackIds.join(',');
   useEffect(() => {
+    const includeHomebrew = !!draft.campaignId || draft.selectedPackIds.length > 0;
+    const tierArgs = {
+      system: 'dnd5e' as const,
+      srdVersion: draft.srdVersion,
+      tiers: (includeHomebrew ? ['srd', 'homebrew'] : ['srd']) as Array<'srd' | 'homebrew'>,
+      campaignId: draft.campaignId ?? undefined,
+      packIds: !draft.campaignId && draft.selectedPackIds.length > 0 ? draft.selectedPackIds : undefined,
+    };
     if (draft.speciesKey) {
-      ContentResolver.search({ type: 'species', system: 'dnd5e', tiers: ['srd'] })
+      ContentResolver.search({ type: 'species', ...tierArgs })
         .then((r) => setSpecies((r as SpeciesResult[]).find((s) => s.key === draft.speciesKey) ?? null));
     }
     if (draft.classKey) {
-      ContentResolver.search({ type: 'class', system: 'dnd5e', tiers: ['srd'] })
+      ContentResolver.search({ type: 'class', ...tierArgs })
         .then((r) => setCls((r as ClassResult[]).find((c) => c.key === draft.classKey) ?? null));
     }
     if (draft.backgroundKey) {
-      ContentResolver.search({ type: 'background', system: 'dnd5e', tiers: ['srd'] })
+      ContentResolver.search({ type: 'background', ...tierArgs })
         .then((r) => setBg((r as BackgroundResult[]).find((b) => b.key === draft.backgroundKey) ?? null));
     }
-  }, [draft.speciesKey, draft.classKey, draft.backgroundKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    draft.speciesKey, draft.classKey, draft.backgroundKey,
+    draft.srdVersion, draft.campaignId, packIdsKey,
+  ]);
 
   const scores = draft.abilityScores;
   const conMod = scores ? Math.floor((scores.constitution - 10) / 2) : 0;

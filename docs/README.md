@@ -24,6 +24,7 @@ GitHub: https://github.com/tyfoultz/Vaultstone
 - [6. Session Notes & Campaign Notes Hub](features/06-notes.md) ✅
 - [7. World Building & Campaign Knowledge Base](features/07-world-building.md)
 - [8. PDF Reader (campaign-side)](features/08-pdf-rulebook.md) — superseded as content extension; reader-only now
+- [Character Builder Options](features/character-builder.md) — cross-cuts F1+F5: structured feat prereqs, multiclass prereqs, species swap rules, optional class feature variants. The data layer behind the campaign rules toggles.
 
 ### Active Plans
 - [World Builder Rewrite](plans/world-builder-rewrite.md) — Feature 7 full-rewrite plan (8 phases). Plan only; no build yet.

@@ -33,6 +33,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": true,
+      "languages": true,
+      "skills": true
+    },
     "description": "",
     "data": {}
   },
@@ -82,6 +87,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "Your draconic heritage manifests in a variety of traits you share with other dragonborn.",
     "data": {}
   },
@@ -115,6 +125,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": true,
+      "languages": true,
+      "skills": true
+    },
     "description": "",
     "data": {}
   },
@@ -168,6 +183,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "Your dwarf character has an assortment of inborn abilities, part and parcel of dwarven nature.",
     "data": {}
   },
@@ -205,6 +225,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": true,
+      "languages": true,
+      "skills": true
+    },
     "description": "",
     "data": {}
   },
@@ -254,6 +279,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "Your elf character has a variety of natural abilities, the result of thousands of years of elven refinement.",
     "data": {}
   },
@@ -283,6 +313,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": true,
+      "languages": true,
+      "skills": true
+    },
     "description": "",
     "data": {}
   },
@@ -324,6 +359,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "Your gnome character has certain characteristics in common with all other gnomes.",
     "data": {}
   },
@@ -353,6 +393,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": true,
+      "languages": true,
+      "skills": true
+    },
     "description": "",
     "data": {}
   },
@@ -398,6 +443,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "Your half-elf character has some qualities in common with elves and some that are unique to half-elves.",
     "data": {}
   },
@@ -447,6 +497,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "Your half-orc character has certain traits deriving from your orc ancestry.",
     "data": {}
   },
@@ -480,6 +535,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": true,
+      "languages": true,
+      "skills": true
+    },
     "description": "",
     "data": {}
   },
@@ -525,6 +585,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "Your halfling character has a number of traits in common with all other halflings.",
     "data": {}
   },
@@ -558,6 +623,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "As a high elf, you have a keen mind and a mastery of at least the basics of magic. In many fantasy gaming worlds, there are two kinds of high elves. One type is haughty and reclusive, believing themselves to be superior to non-elves and even other elves. The other type is more common and more friendly, and often encountered among humans and other races.",
     "data": {}
   },
@@ -583,6 +653,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "As a hill dwarf, you have keen senses, deep intuition, and remarkable resilience.",
     "data": {}
   },
@@ -612,6 +687,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": true,
+      "languages": true,
+      "skills": true
+    },
     "description": "",
     "data": {}
   },
@@ -645,6 +725,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "It’s hard to make generalizations about humans, but your human character has these traits.",
     "data": {}
   },
@@ -670,6 +755,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "As a lightfoot halfling, you can easily hide from notice, even using other people as cover. You're inclined to be affable and get along well with others. Lightfoots are more prone to wanderlust than other halflings, and often dwell alongside other races or take up a nomadic life.",
     "data": {}
   },
@@ -699,6 +789,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": true,
+      "languages": true,
+      "skills": true
+    },
     "description": "",
     "data": {}
   },
@@ -728,6 +823,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "As a rock gnome, you have a natural inventiveness and hardiness beyond that of other gnomes.",
     "data": {}
   },
@@ -757,6 +857,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": true,
+      "languages": true,
+      "skills": true
+    },
     "description": "",
     "data": {}
   },
@@ -802,6 +907,11 @@
       }
     ],
     "abilityScoreIncreases": [],
+    "swapRules": {
+      "abilityScores": false,
+      "languages": false,
+      "skills": false
+    },
     "description": "Tieflings share certain racial traits as a result of their infernal descent.",
     "data": {}
   }

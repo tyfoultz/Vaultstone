@@ -9,7 +9,11 @@ import { ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, supabase } from '@vaultstone/api';
+import {
+  getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, supabase,
+  getCampaignCharacterRules, resolveRuleValues,
+} from '@vaultstone/api';
+import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius } from '@vaultstone/ui';
 import { getSrdContent } from '@vaultstone/content';
@@ -24,6 +28,7 @@ import { AbilitiesTab } from '../../components/character-sheet/AbilitiesTab';
 import { SpellsTab } from '../../components/character-sheet/SpellsTab';
 import { GearTab } from '../../components/character-sheet/GearTab';
 import { LoreTab } from '../../components/character-sheet/LoreTab';
+import { FeatPickerModal } from '../../components/character-sheet/FeatPickerModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
@@ -370,6 +375,11 @@ export default function CharacterSheetScreen() {
   const [featureModal, setFeatureModal] = useState(false);
   const [editFeature, setEditFeature] = useState<Dnd5eFeature | null>(null);
   const [featureCategory, setFeatureCategory] = useState<'classFeatures' | 'speciesTraits' | 'feats'>('classFeatures');
+  const [featPickerOpen, setFeatPickerOpen] = useState(false);
+  /** Campaign rule `enforce_feat_prerequisites` resolved from the
+   *  character's linked campaign. Standalone characters fall through
+   *  to true (the system's bundled default). */
+  const [enforceFeatPrereqs, setEnforceFeatPrereqs] = useState(true);
   const [tempHpFieldInput, setTempHpFieldInput] = useState('');
   const [hpQuickInput, setHpQuickInput] = useState('');
   const [scratchpad, setScratchpad] = useState('');
@@ -425,6 +435,34 @@ export default function CharacterSheetScreen() {
     })();
     return () => { cancelled = true; };
   }, [id, authUser?.id]);
+
+  // Resolve the campaign's enforce_feat_prerequisites rule so the
+  // FeatPickerModal knows whether to gate prereq-bearing feats.
+  // Standalone characters (no linked campaign) fall through to the
+  // system's bundled default (true).
+  useEffect(() => {
+    const campaignId = character?.campaign_id ?? null;
+    if (!campaignId) {
+      setEnforceFeatPrereqs(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [{ data: rulesBag }, { data: campaignRow }] = await Promise.all([
+        getCampaignCharacterRules(campaignId),
+        supabase.from('campaigns').select('system').eq('id', campaignId).single(),
+      ]);
+      if (cancelled) return;
+      const sys = campaignRow?.system ? BUNDLED_SYSTEMS_BY_ID[campaignRow.system] : null;
+      if (!sys || !rulesBag) {
+        setEnforceFeatPrereqs(true);
+        return;
+      }
+      const resolved = resolveRuleValues(sys.optionalRules, rulesBag);
+      setEnforceFeatPrereqs(resolved.enforce_feat_prerequisites !== false);
+    })();
+    return () => { cancelled = true; };
+  }, [character?.campaign_id]);
 
   // Realtime: when another viewer (e.g. the DM via Party View) mutates this
   // character, merge the payload into local state so the sheet reflects the
@@ -975,6 +1013,13 @@ export default function CharacterSheetScreen() {
             isOwner={isOwner}
             onToggleFeatureUse={toggleFeatureUse}
             onAddFeature={(cat) => {
+              if (cat === 'feats') {
+                // Catalog picker — replaces the freeform modal so
+                // players can only add catalog feats and the prereq
+                // checker can gate them.
+                setFeatPickerOpen(true);
+                return;
+              }
               setFeatureCategory(cat);
               setEditFeature({ id: Date.now().toString(), name: '', description: '' });
               setFeatureModal(true);
@@ -1709,6 +1754,23 @@ export default function CharacterSheetScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Catalog feat picker — replaces the freeform feat-add modal
+          so players pick from the system's feat catalog and the
+          prereq checker can gate prereq-bearing feats. */}
+      {stats && resources ? (
+        <FeatPickerModal
+          visible={featPickerOpen}
+          onClose={() => setFeatPickerOpen(false)}
+          stats={stats}
+          existing={resources.feats ?? []}
+          enforcePrereqs={enforceFeatPrereqs}
+          campaignId={character?.campaign_id ?? null}
+          packIds={character?.pack_ids ?? []}
+          srdVersion={stats.srdVersion}
+          onPick={(feature) => saveFeature('feats', feature)}
+        />
+      ) : null}
 
       {/* Add XP modal */}
       <Modal visible={xpAddMode} transparent animationType="fade">

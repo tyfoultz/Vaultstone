@@ -60,6 +60,15 @@ type RawFluffEntry = {
   /** Inherits entries from the referenced fluff entry of the same
    *  kind. Resolved against the same file's array for that kind. */
   _copy?: FluffCopyRef;
+  /**
+   * 5e.tools convention for "this race is one of the monstrous
+   * humanoids" (Bugbear, Goblin, Hobgoblin, Kobold, Orc, Yuan-Ti
+   * Pureblood, etc.). When present, the fluff entry has no `entries`
+   * of its own and falls back to the file's `raceFluffMeta.monstrous`
+   * boilerplate sidebar instead. We synthesize a description from
+   * that meta block so these races aren't left with blank prose.
+   */
+  monstrous?: boolean;
 };
 
 type RawSubclassFluff = RawFluffEntry & {
@@ -84,6 +93,20 @@ export type RawFluffFile = {
   raceFluff?: RawFluffEntry[];
   subraceFluff?: RawSubraceFluff[];
   monsterFluff?: RawFluffEntry[];
+  /**
+   * Shared boilerplate keyed by name — 5e.tools uses this to serve
+   * the same prose to multiple race entries that flag themselves
+   * `monstrous: true` (Bugbear, Goblin, Hobgoblin, Kobold, Orc,
+   * Yuan-Ti Pureblood). The structured `monstrous` block carries
+   * a generic "what does it mean to play one of these in your
+   * campaign" sidebar that the species transform falls back to so
+   * those races don't ship with blank descriptions.
+   */
+  raceFluffMeta?: {
+    monstrous?: { name?: string; entries?: RawEntry[] };
+    uncommon?: { name?: string; entries?: RawEntry[] };
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 };
 
@@ -181,11 +204,21 @@ export function transformFluff(
     keyFor: (f) => `imported_${systemId}_item_${slugify(f.source)}_${slugify(f.name)}`,
   }));
 
+  // 5e.tools encodes per-race "monstrous adventurers" sidebars in
+  // a shared meta block at the file level. Race fluff entries that
+  // flag `monstrous: true` (Bugbear, Goblin, Hobgoblin, Kobold, Orc,
+  // Yuan-Ti Pureblood) carry no entries of their own; without a
+  // fallback they'd land with blank descriptions. Synthesize a
+  // generic patch from the meta block so they still get prose.
+  const monstrousMeta = raw.raceFluffMeta?.monstrous;
+  const monstrousFallback: RawEntry[] = monstrousMeta?.entries ?? [];
+
   // Race fluff: keyed identically to base races.
   out.push(...transformSimpleFluffArray({
     list: raw.raceFluff ?? [],
     contentType: 'species',
     keyFor: (f) => `imported_${systemId}_species_${slugify(f.source)}_${slugify(f.name)}`,
+    monstrousFallback,
   }));
 
   // Subrace fluff: keyed against the structured species transform's
@@ -198,6 +231,7 @@ export function transformFluff(
       const displayName = f.raceName ? `${f.raceName} (${f.name})` : f.name;
       return `imported_${systemId}_species_${slugify(f.source)}_${slugify(displayName)}`;
     },
+    monstrousFallback,
   }));
 
   // Monsters / creatures: parallel pattern. The structured transform
@@ -234,26 +268,40 @@ type FluffArrayConfig<T extends RawFluffEntry> = {
    *  same array. Defaults to equality on (name, source). Subclass fluff
    *  overrides this to also key on className/classSource. */
   matchCopy?: (copy: FluffCopyRef, candidate: T) => boolean;
+  /**
+   * Boilerplate entries to use when an entry has no `entries`,
+   * no `_copy`, and is flagged `monstrous: true`. Sourced from the
+   * file's `raceFluffMeta.monstrous.entries` for race fluff;
+   * undefined for other content types (which don't use this flag).
+   */
+  monstrousFallback?: RawEntry[];
 };
 
 function transformSimpleFluffArray<T extends RawFluffEntry>(
   cfg: FluffArrayConfig<T>,
 ): FluffPatch[] {
-  const { list, contentType, keyFor } = cfg;
+  const { list, contentType, keyFor, monstrousFallback } = cfg;
   const matchCopy = cfg.matchCopy ?? defaultMatchCopy;
   const out: FluffPatch[] = [];
 
   // Resolve an entry's effective `entries` by walking `_copy` chains
   // within the same array. Returns [] if the chain dead-ends or loops.
+  // Monstrous race entries (no entries, no _copy, `monstrous: true`)
+  // fall back to the file-level meta block so they ship with prose.
   const resolveEntries = (f: T, seen = new Set<string>()): RawEntry[] => {
     if (f.entries && f.entries.length > 0) return f.entries;
-    if (!f._copy) return [];
-    const refKey = JSON.stringify([f._copy.name, f._copy.source, f._copy.className ?? '', f._copy.classSource ?? '']);
-    if (seen.has(refKey)) return [];
-    seen.add(refKey);
-    const target = list.find((c) => matchCopy(f._copy!, c));
-    if (!target) return [];
-    return resolveEntries(target, seen);
+    if (f._copy) {
+      const refKey = JSON.stringify([f._copy.name, f._copy.source, f._copy.className ?? '', f._copy.classSource ?? '']);
+      if (seen.has(refKey)) return [];
+      seen.add(refKey);
+      const target = list.find((c) => matchCopy(f._copy!, c));
+      if (!target) return [];
+      return resolveEntries(target, seen);
+    }
+    if (f.monstrous && monstrousFallback && monstrousFallback.length > 0) {
+      return monstrousFallback;
+    }
+    return [];
   };
 
   for (const f of list) {

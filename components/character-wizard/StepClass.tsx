@@ -8,7 +8,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ContentResolver } from '@vaultstone/content';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import { WizardSigil } from './WizardSigil';
-import type { ClassResult } from '@vaultstone/types';
+import type { ClassResult, OptionalFeatureResult } from '@vaultstone/types';
 
 const CLASS_GLYPH: Record<string, string> = {
   barbarian: 'axe', bard: 'lute', cleric: 'sun', druid: 'leaf',
@@ -33,38 +33,61 @@ export function StepClass({ onPreviewChange, onAdvance }: Props) {
   const {
     srdVersion, classKey, chosenSkills,
     setClass: selectClass, setChosenSkills,
-    campaignId, selectedPackIds,
+    campaignId, selectedPackIds, campaignRules,
   } = useCharacterDraftStore(
     useShallow((s) => ({
       srdVersion: s.srdVersion, classKey: s.classKey,
       chosenSkills: s.chosenSkills, setClass: s.setClass, setChosenSkills: s.setChosenSkills,
       campaignId: s.campaignId,
       selectedPackIds: s.selectedPackIds,
+      campaignRules: s.campaignRules,
     }))
   );
 
   const [classes, setClasses] = useState<ClassResult[]>([]);
+  const [variants, setVariants] = useState<OptionalFeatureResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewKey, setPreviewKey] = useState<string | null>(null);
   const [filter, setFilter] = useState('All');
   const packIdsKey = selectedPackIds.join(',');
+
+  // Whether the campaign opts into Tasha's-style class-feature
+  // variants. Standalone wizards inherit the system default (true);
+  // campaigns that flip the rule off skip the variants pass entirely.
+  const includeVariants = campaignRules.optional_class_features !== false;
 
   useEffect(() => {
     // Mirrors StepSpecies: campaign or explicit pack picks include
     // homebrew; otherwise SRD-only.
     const includeHomebrew = !!campaignId || selectedPackIds.length > 0;
     const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
-    ContentResolver.search({
-      type: 'class',
-      system: 'dnd5e',
+    const tierArgs = {
+      system: 'dnd5e' as const,
       srdVersion,
       tiers,
       campaignId: campaignId ?? undefined,
       packIds: !campaignId && selectedPackIds.length > 0 ? selectedPackIds : undefined,
-    })
-      .then((r) => setClasses(r as ClassResult[]))
+    };
+    Promise.all([
+      ContentResolver.search({ type: 'class', ...tierArgs }),
+      // Pull the variant catalog only when the rule lets us surface
+      // it. SRD ships no `class-feature-variant` entries, so this is
+      // effectively a no-op until a homebrew pack adds them, but the
+      // plumbing is in place.
+      includeVariants
+        ? ContentResolver.search({ type: 'optional-feature', ...tierArgs })
+        : Promise.resolve([]),
+    ])
+      .then(([cr, vr]) => {
+        setClasses(cr as ClassResult[]);
+        setVariants(
+          (vr as OptionalFeatureResult[]).filter(
+            (v) => v.kinds?.includes('class-feature-variant'),
+          ),
+        );
+      })
       .finally(() => setLoading(false));
-  }, [srdVersion, campaignId, packIdsKey]);
+  }, [srdVersion, campaignId, packIdsKey, includeVariants]);
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
 
@@ -127,6 +150,41 @@ export function StepClass({ onPreviewChange, onAdvance }: Props) {
             </View>
           </>
         )}
+
+        {/* Class-feature variants — Tasha's-style alternates that
+            replace or augment a base feature. Surfaced when the
+            campaign rule `optional_class_features` is on AND a
+            homebrew pack has authored variants targeting this class
+            at L1. SRD ships none. */}
+        {(() => {
+          const matching = variants.filter((v) => {
+            const target = (v.data as { targetClassKey?: string; targetLevel?: number })?.targetClassKey;
+            const lvl = (v.data as { targetLevel?: number })?.targetLevel ?? 1;
+            return target === preview.key && lvl === 1;
+          });
+          if (matching.length === 0) return null;
+          return (
+            <>
+              <Text style={s.sectionLabel}>OPTIONAL VARIANTS</Text>
+              <View style={s.traitList}>
+                {matching.map((v) => {
+                  const replaces = (v.data as { replacesFeature?: string })?.replacesFeature;
+                  return (
+                    <Text key={v.key} style={s.traitItem}>
+                      <Text style={s.traitName}>{v.name}. </Text>
+                      {replaces ? (
+                        <Text style={s.traitDesc}>
+                          (Replaces {replaces}.){' '}
+                        </Text>
+                      ) : null}
+                      <Text style={s.traitDesc}>{v.description ?? ''}</Text>
+                    </Text>
+                  );
+                })}
+              </View>
+            </>
+          );
+        })()}
 
         {/* Skill picker */}
         <View style={s.skillPickerWrap}>

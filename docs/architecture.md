@@ -247,6 +247,17 @@ Internally fans out to: SRD JSON index → homebrew tier (which itself merges `h
 
 The eight-transform set is registered in `IMPORT_KINDS`; adding a new content type is one transform file plus one registry entry. The disclosure list, Confirm-step probe rows, diagnostic copy ("a `subclass`, `feat`, `spell`, … array"), and upsert loop all read from that single registry.
 
+### Character Builder Options
+
+Structured shapes that drive the character creation wizard's pickers and the campaign rule enforcement gates live in [packages/types/src/character-builder.ts](../packages/types/src/character-builder.ts). They sit on existing content results as optional fields:
+
+- `FeatResult.prerequisitesRaw` — `FeatPrerequisite[]` (kinds: `ability-score` / `character-level` / `class-feature` / `prose`). All 14 prereq-bearing SRD feats parse into structured form via `scripts/import-srd/transforms/feats.js`.
+- `ClassResult.multiclassPrerequisiteRaw` — `MulticlassPrereq[]`, AND of OR-groups. All 24 SRD classes (12 × 2 editions) populated via `scripts/import-srd/transforms/classes.js`.
+- `SpeciesResult.swapRules` — `SpeciesSwapRules` (per-species permissions for the wizard's Customize Origin step). 5.1 species ship all-false, 5.2 species ship all-true.
+- `OptionalFeatureKind` enum extended with `'class-feature-variant'` for Tasha's-style alternates that *replace* a base class feature, distinct from the picks-within-a-feature kinds (invocations, metamagic, maneuvers). Reuses the existing `OptionalFeatureResult` content type so the resolver, system page, and homebrew authoring forms work unchanged.
+
+The campaign rules in `packages/systems/src/dnd5e/optional-rules.ts` (`multiclassing`, `customize_origin`, `optional_class_features`, `feats_at_level_1`, `enforce_feat_prerequisites`) are the toggles that gate this data — see [features/character-builder.md](features/character-builder.md) for the rule → data → enforcement pipeline.
+
 ---
 
 ## Real-Time Session Architecture
