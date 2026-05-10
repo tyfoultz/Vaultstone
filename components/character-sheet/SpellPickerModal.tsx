@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, Modal, Pressable, ScrollView, TouchableOpacity,
-  ActivityIndicator, TextInput, StyleSheet,
+  ActivityIndicator, TextInput, StyleSheet, Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ContentResolver } from '@vaultstone/content';
@@ -159,14 +159,13 @@ export function SpellPickerModal({
                     onChangeText={setSearch}
                   />
                 </View>
-                <TouchableOpacity
-                  style={s.filterBtn}
-                  onPress={() => setFilterMenuOpen(true)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={s.filterBtnLabel} numberOfLines={1}>{filterLabel}</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
-                </TouchableOpacity>
+                <LevelFilterDropdown
+                  value={levelFilter}
+                  availableLevels={availableLevels}
+                  onChange={setLevelFilter}
+                  onOpenNativeMenu={() => setFilterMenuOpen(true)}
+                  label={filterLabel}
+                />
               </View>
 
               <ScrollView style={s.list} contentContainerStyle={{ paddingBottom: spacing.md }}>
@@ -281,6 +280,58 @@ export function SpellPickerModal({
   );
 }
 
+// Level filter dropdown — uses a native HTML <select> on web for the
+// real OS dropdown UI (proper keyboard navigation, no popover-clipping
+// at modal edges, no extra Modal stacking). On native (iOS/Android)
+// there's no equivalent primitive, so it falls through to opening the
+// popover Modal the parent owns.
+function LevelFilterDropdown({
+  value, availableLevels, onChange, onOpenNativeMenu, label,
+}: {
+  value: number | 'all';
+  availableLevels: number[];
+  onChange: (next: number | 'all') => void;
+  onOpenNativeMenu: () => void;
+  label: string;
+}) {
+  if (Platform.OS === 'web') {
+    return (
+      <View style={s.filterBtn}>
+        <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
+        <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        {(() => {
+          const Select = 'select' as any;
+          const Option = 'option' as any;
+          return (
+            <Select
+              style={s.htmlSelect}
+              value={value === 'all' ? 'all' : String(value)}
+              onChange={(e: { target: { value: string } }) => {
+                const v = e.target.value;
+                onChange(v === 'all' ? 'all' : parseInt(v, 10));
+              }}
+            >
+              <Option value="all">All Levels</Option>
+              {availableLevels.map((lvl) => (
+                <Option key={lvl} value={String(lvl)}>
+                  {lvl === 0 ? 'Cantrips' : `${LEVEL_LABELS[lvl] ?? String(lvl)} level`}
+                </Option>
+              ))}
+            </Select>
+          );
+        })()}
+      </View>
+    );
+  }
+  return (
+    <TouchableOpacity style={s.filterBtn} onPress={onOpenNativeMenu} activeOpacity={0.75}>
+      <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
+      <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
+    </TouchableOpacity>
+  );
+}
+
 function FilterMenuItem({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <TouchableOpacity style={[s.menuItem, active && s.menuItemActive]} onPress={onPress} activeOpacity={0.7}>
@@ -344,7 +395,17 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 9,
     borderWidth: 1, borderColor: colors.outlineVariant,
     minWidth: 140,
+    // Anchor the absolutely-positioned <select> overlay (web only).
+    position: 'relative',
   },
+  // Web-only: a real <select> is layered over the styled button so the
+  // browser opens its native dropdown on click while the visual chrome
+  // (chevron, label, surface) stays on-brand.
+  htmlSelect: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    opacity: 0, cursor: 'pointer', appearance: 'none',
+    border: 0, background: 'transparent', width: '100%', height: '100%',
+  } as any,
   filterBtnLabel: {
     flex: 1, fontSize: 12, fontFamily: fonts.label, fontWeight: '600',
     color: colors.onSurface, letterSpacing: 0.3,
