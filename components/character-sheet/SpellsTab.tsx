@@ -37,10 +37,6 @@ interface Props {
   isOwner: boolean;
   onSpellSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
   onConcentrationClear?: () => void;
-  /** Restore all expended spell slots — fired by the Long Rest button.
-   *  Caller writes the next resources.spellSlots with each level's
-   *  remaining bumped back to its max. */
-  onLongRest?: () => void;
   /** Open the catalog spell picker (Manage Spells). Adds/removes
    *  spells from the character's spellbook. The parent owns the modal
    *  so it can pass the campaign + pack scope into ContentResolver. */
@@ -79,7 +75,7 @@ interface Props {
 
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
-  onLongRest, onOpenManage, onOpenPrepare, canPrepare, spellcastingExplainers,
+  onOpenManage, onOpenPrepare, canPrepare, spellcastingExplainers,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
   const { width } = useWindowDimensions();
@@ -248,13 +244,6 @@ export function SpellsTab({
             </TouchableOpacity>
           )}
         </View>
-        {isOwner && onLongRest && spellSlots
-          && ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => spellSlots[l].max > 0) && (
-          <TouchableOpacity style={s.manageBtn} activeOpacity={0.7} onPress={onLongRest}>
-            <MaterialCommunityIcons name="bed" size={12} color={colors.primary} style={{ marginRight: 4 }} />
-            <Text style={s.manageBtnText}>LONG REST</Text>
-          </TouchableOpacity>
-        )}
         {isOwner && onOpenPrepare && canPrepare && (
           <TouchableOpacity style={s.manageBtn} activeOpacity={0.7} onPress={onOpenPrepare}>
             <Text style={s.manageBtnText}>PREPARE</Text>

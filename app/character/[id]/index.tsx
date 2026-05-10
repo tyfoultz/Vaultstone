@@ -957,6 +957,51 @@ export default function CharacterSheetScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOwner, classResultsByKey, character?.id]);
 
+  // Short Rest — restores resources whose recharge cadence is 'short'.
+  // Per 5e: Warlock pact slots (which we treat as a regular slot bucket,
+  // since the spellSlots reader merges pact slots into the same table)
+  // and any classResources flagged short-rest. Doesn't touch HP, slots
+  // generally, exhaustion, or hit dice — those are long-rest only or
+  // require explicit player action.
+  function handleShortRest() {
+    if (!resources || !canEditAny) return;
+    const next: Dnd5eResources = { ...resources };
+    if (resources.classResources && resources.classResources.length > 0) {
+      next.classResources = resources.classResources.map((r) =>
+        r.recharge === 'short' ? { ...r, current: r.max } : r,
+      );
+    }
+    persistResources(next);
+  }
+
+  // Long Rest — full reset: spell slots, hit dice (capped at total
+  // class levels), exhaustion -1, all classResources, death saves
+  // cleared. HP also restores to max. Concentration drops too. The
+  // player still triggers it manually because some campaigns gate
+  // long rests behind narrative beats.
+  function handleLongRest() {
+    if (!resources || !stats || !canEditAny) return;
+    const next: Dnd5eResources = { ...resources };
+    if (resources.spellSlots) {
+      const restored: typeof resources.spellSlots = { ...resources.spellSlots };
+      ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).forEach((l) => {
+        const slot = resources.spellSlots![l];
+        restored[l] = { max: slot.max, remaining: slot.max };
+      });
+      next.spellSlots = restored;
+    }
+    if (resources.classResources && resources.classResources.length > 0) {
+      next.classResources = resources.classResources.map((r) => ({ ...r, current: r.max }));
+    }
+    next.hpCurrent = stats.hpMax;
+    next.hpTemp = 0;
+    next.hitDiceRemaining = stats.level;
+    next.exhaustionLevel = Math.max(0, (resources.exhaustionLevel ?? 0) - 1);
+    next.deathSaves = { successes: 0, failures: 0 };
+    next.concentrationSpell = null;
+    persistResources(next);
+  }
+
   async function handleDragEnd(newItems: CardItem[]) {
     setCardItems(newItems);
     const order = newItems.map((i) => i.id);
@@ -1399,18 +1444,6 @@ export default function CharacterSheetScreen() {
               });
             }}
             onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
-            onLongRest={() => {
-              // Restore every spell slot's remaining to its max. Doesn't
-              // touch other long-rest mechanics (HP, hit dice, exhaustion)
-              // — those have their own affordances on the Combat tab.
-              if (!resources.spellSlots) return;
-              const restored: typeof resources.spellSlots = { ...resources.spellSlots };
-              ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).forEach((l) => {
-                const slot = resources.spellSlots![l];
-                restored[l] = { max: slot.max, remaining: slot.max };
-              });
-              persistResources({ ...resources, spellSlots: restored });
-            }}
             onOpenManage={() => setSpellPickerOpen(true)}
             onOpenPrepare={() => setPreparePickerOpen(true)}
             canPrepare={getSpellbook(resources).some((sp) => sp.level > 0)}
@@ -1699,6 +1732,31 @@ export default function CharacterSheetScreen() {
                 </View>
               </View>
             </View>
+
+            {/* ── Rest ─────────────────────────────────────────────── */}
+            {canEditAny && (
+              <View style={s.deskSection}>
+                <Text style={s.deskSectionLabel}>Rest</Text>
+                <View style={s.deskRestRow}>
+                  <TouchableOpacity
+                    style={s.deskRestBtn}
+                    onPress={handleShortRest}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="campfire" size={14} color={colors.primary} />
+                    <Text style={s.deskRestBtnText}>Short Rest</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.deskRestBtn}
+                    onPress={handleLongRest}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="bed" size={14} color={colors.primary} />
+                    <Text style={s.deskRestBtnText}>Long Rest</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {/* ── Senses (passive skills) ───────────────────────────── */}
             <View style={s.deskSection}>
@@ -3455,6 +3513,20 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 0,
     paddingVertical: 3, paddingHorizontal: 4,
     borderRadius: 6,
+  },
+  // Short / Long rest buttons in the desktop sidebar Rest section.
+  // Two-up flex row so they share width evenly; primary-bordered to
+  // signal they're action affordances, not info.
+  deskRestRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  deskRestBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 8, paddingHorizontal: 8,
+    borderWidth: 1, borderColor: colors.primary, borderRadius: 6,
+    backgroundColor: `${colors.primary}10`,
+  },
+  deskRestBtnText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.4,
   },
   deskAbilDot: {
     width: 7, height: 7, borderRadius: 4,
