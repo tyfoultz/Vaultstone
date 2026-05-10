@@ -13,7 +13,14 @@ import {
   getCampaignCharacterRules,
   resolveRuleValues,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID, resolveCreationSteps } from '@vaultstone/systems';
+import {
+  BUNDLED_SYSTEMS_BY_ID,
+  resolveCreationSteps,
+  applyLevelUp,
+  classFeaturesAtLevel,
+  defaultHpGain,
+  unpackClassFeaturesForPick,
+} from '@vaultstone/systems';
 import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
@@ -142,6 +149,7 @@ export default function NewCharacterScreen() {
       system: s.system,
       campaignId: s.campaignId,
       selectedPackIds: s.selectedPackIds,
+      startingLevel: s.startingLevel,
     }))
   );
   const resetDraft = useCharacterDraftStore((s) => s.resetDraft);
@@ -614,13 +622,50 @@ export default function NewCharacterScreen() {
         ...(featsForResources.length > 0 ? { feats: featsForResources } : {}),
       };
 
+      // ── starting_level > 1 bootstrap ─────────────────────────────
+      // The campaign's starting_level rule lands on the draft via
+      // bootstrap; we now run applyLevelUp() once per level above 1
+      // so the new character lands at the correct level with the
+      // right HP, spell slots, and class features. Sensible defaults
+      // (max HP, no ASI/feat picked, no subclass picked) are used at
+      // each level — the player can open the level-up wizard later
+      // to claim any pending picks (subclass at unlock level, ASI
+      // at L4/8/12/16/19).
+      let bootstrappedStats = base_stats;
+      let bootstrappedResources = resources;
+      const targetLevel = Math.min(20, Math.max(1, Math.floor(draft.startingLevel ?? 1)));
+      if (targetLevel > 1) {
+        const classByKey = new Map([[cls.key, cls]]);
+        for (let lvl = 2; lvl <= targetLevel; lvl++) {
+          const hpGain = defaultHpGain(bootstrappedStats, cls);
+          const featuresAtLevel = classFeaturesAtLevel(cls, lvl);
+          const result = applyLevelUp(
+            { stats: bootstrappedStats, resources: bootstrappedResources },
+            {
+              classKey: cls.key,
+              newMulticlassEntry: false,
+              hpGain,
+              // Subclass + ASI picks are intentionally skipped — the
+              // bootstrap doesn't have player input. The level-up
+              // wizard surfaces them as owed picks the player resolves
+              // when they open the character.
+              classFeaturesUnlocked: unpackClassFeaturesForPick(featuresAtLevel),
+            },
+            cls,
+            classByKey,
+          );
+          bootstrappedStats = result.stats;
+          bootstrappedResources = result.resources;
+        }
+      }
+
       const { data, error } = await createCharacter({
         user_id: user.id,
         campaign_id: draft.campaignId ?? null,
         name: draft.characterName.trim(),
         system: draft.system,
-        base_stats: base_stats as unknown as import('@vaultstone/types').Json,
-        resources: resources as unknown as import('@vaultstone/types').Json,
+        base_stats: bootstrappedStats as unknown as import('@vaultstone/types').Json,
+        resources: bootstrappedResources as unknown as import('@vaultstone/types').Json,
         // Standalone characters persist their pack opt-in here; campaign
         // characters get [] because they inherit packs from campaign_packs.
         pack_ids: draft.campaignId ? [] : draft.selectedPackIds,
