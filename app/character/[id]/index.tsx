@@ -17,7 +17,7 @@ import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
-import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult } from '@vaultstone/types';
+import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult, SkillResult } from '@vaultstone/types';
 import { getClassEntries } from '@vaultstone/types';
 import { HpModal } from '../../../components/character-sheet/HpModal';
 import { ConditionsPanel } from '../../../components/character-sheet/ConditionsPanel';
@@ -428,6 +428,7 @@ export default function CharacterSheetScreen() {
   const [backgroundResult, setBackgroundResult] = useState<BackgroundResult | null>(null);
   const [originFeatResult, setOriginFeatResult] = useState<FeatResult | null>(null);
   const [conditionResults, setConditionResults] = useState<ConditionResult[]>([]);
+  const [skillResults, setSkillResults] = useState<SkillResult[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -528,13 +529,14 @@ export default function CharacterSheetScreen() {
           ? (character?.pack_ids as string[])
           : undefined,
       };
-      const [speciesResults, classResults, subclassResults, backgroundResults, featResults, conditionResultsAll] = await Promise.all([
+      const [speciesResults, classResults, subclassResults, backgroundResults, featResults, conditionResultsAll, skillResultsAll] = await Promise.all([
         speciesKey ? ContentResolver.search({ ...tierArgs, type: 'species' }) : Promise.resolve([]),
         classKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'class' }) : Promise.resolve([]),
         subclassKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'subclass' }) : Promise.resolve([]),
         backgroundKey ? ContentResolver.search({ ...tierArgs, type: 'background' }) : Promise.resolve([]),
         originFeatName ? ContentResolver.search({ ...tierArgs, type: 'feat' }) : Promise.resolve([]),
         ContentResolver.search({ ...tierArgs, type: 'condition' }),
+        ContentResolver.search({ ...tierArgs, type: 'skill' }),
       ]);
       if (cancelled) return;
 
@@ -590,6 +592,7 @@ export default function CharacterSheetScreen() {
       }
 
       setConditionResults(conditionResultsAll as ConditionResult[]);
+      setSkillResults(skillResultsAll as SkillResult[]);
     })();
     return () => { cancelled = true; };
   }, [
@@ -1199,7 +1202,7 @@ export default function CharacterSheetScreen() {
           />
         );
       case 'skills':
-        return <SkillsTab stats={stats} scores={scores} prof={prof} onRoll={handleRoll} />;
+        return <SkillsTab stats={stats} scores={scores} prof={prof} onRoll={handleRoll} skillCatalog={skillResults} />;
       case 'traits':
         return (
           <AbilitiesTab
