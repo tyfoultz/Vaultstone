@@ -570,6 +570,9 @@ export default function CharacterSheetScreen() {
   const [featPickerOpen, setFeatPickerOpen] = useState(false);
   const [spellPickerOpen, setSpellPickerOpen] = useState(false);
   const [preparePickerOpen, setPreparePickerOpen] = useState(false);
+  // 'short' | 'long' | null — tracks which rest the player is about to
+  // confirm. Resets to null on dismiss.
+  const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   /** Campaign rule `enforce_feat_prerequisites` resolved from the
    *  character's linked campaign. Standalone characters fall through
@@ -1740,7 +1743,7 @@ export default function CharacterSheetScreen() {
                 <View style={s.deskRestRow}>
                   <TouchableOpacity
                     style={s.deskRestBtn}
-                    onPress={handleShortRest}
+                    onPress={() => setRestConfirm('short')}
                     activeOpacity={0.7}
                   >
                     <MaterialCommunityIcons name="campfire" size={14} color={colors.primary} />
@@ -1748,7 +1751,7 @@ export default function CharacterSheetScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={s.deskRestBtn}
-                    onPress={handleLongRest}
+                    onPress={() => setRestConfirm('long')}
                     activeOpacity={0.7}
                   >
                     <MaterialCommunityIcons name="bed" size={14} color={colors.primary} />
@@ -2273,6 +2276,63 @@ export default function CharacterSheetScreen() {
           onPick={(feature) => saveFeature('feats', feature)}
         />
       ) : null}
+
+      {/* Rest confirmation modal — gates short/long rest commits since
+          the underlying writes touch a lot of state (HP, slots, hit
+          dice, exhaustion) that's painful to undo. The body lists what
+          the rest will reset so the player knows what they're agreeing
+          to. */}
+      <Modal visible={!!restConfirm} transparent animationType="fade" onRequestClose={() => setRestConfirm(null)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setRestConfirm(null)}>
+          <Pressable style={s.restConfirmCard} onPress={() => {}}>
+            <View style={s.restConfirmHeader}>
+              <MaterialCommunityIcons
+                name={restConfirm === 'long' ? 'bed' : 'campfire'}
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={s.modalTitle}>
+                Take a {restConfirm === 'long' ? 'Long' : 'Short'} Rest?
+              </Text>
+            </View>
+            <Text style={s.restConfirmBody}>
+              {restConfirm === 'long' ? (
+                <>
+                  Restores spell slots, class resources, hit dice, and HP to maximum.
+                  Reduces exhaustion by 1 and clears death saves and concentration.
+                </>
+              ) : (
+                <>
+                  Restores class resources that recharge on a short rest. Doesn't
+                  touch HP, spell slots, or hit dice — those stay where they are.
+                </>
+              )}
+            </Text>
+            <View style={s.restConfirmActions}>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCancel]}
+                onPress={() => setRestConfirm(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.restConfirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCommit]}
+                onPress={() => {
+                  if (restConfirm === 'long') handleLongRest();
+                  else if (restConfirm === 'short') handleShortRest();
+                  setRestConfirm(null);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={s.restConfirmCommitText}>
+                  Take {restConfirm === 'long' ? 'Long' : 'Short'} Rest
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Catalog spell picker — wires the Spells tab's "MANAGE SPELLS"
           affordance. Class scoping uses resolved class names so a
@@ -3446,6 +3506,39 @@ const s = StyleSheet.create({
   modalTitle: {
     fontSize: 18, fontWeight: '700', color: colors.textPrimary,
     marginBottom: spacing.md,
+  },
+
+  // Short / Long rest confirm dialog. Inherits modalBackdrop above.
+  restConfirmCard: {
+    backgroundColor: colors.surface, borderRadius: 14,
+    borderColor: colors.border, borderWidth: 1,
+    width: '90%', maxWidth: 420, padding: spacing.lg,
+  },
+  restConfirmHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginBottom: spacing.md,
+  },
+  restConfirmBody: {
+    fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    lineHeight: 19, marginBottom: spacing.lg,
+  },
+  restConfirmActions: { flexDirection: 'row', gap: 10 },
+  restConfirmBtn: {
+    flex: 1, paddingVertical: 11, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  restConfirmCancel: {
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: 'transparent',
+  },
+  restConfirmCancelText: {
+    fontSize: 13, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, letterSpacing: 0.3,
+  },
+  restConfirmCommit: { backgroundColor: colors.primary },
+  restConfirmCommitText: {
+    fontSize: 13, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onPrimary, letterSpacing: 0.3,
   },
 
   // Activity log
