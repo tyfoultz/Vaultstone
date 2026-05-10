@@ -20,6 +20,7 @@ import {
   classFeaturesAtLevel,
   defaultHpGain,
   unpackClassFeaturesForPick,
+  spellSlotsForClassAtLevel,
 } from '@vaultstone/systems';
 import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
@@ -33,69 +34,19 @@ import { StepAbilityScores } from '../../components/character-wizard/StepAbility
 import { StepReview } from '../../components/character-wizard/StepReview';
 import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
 import { CampaignRulesSummary } from '../../components/character-wizard/CampaignRulesSummary';
-import type { Dnd5eStats, Dnd5eResources, Dnd5eSpellSlotLevel, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
+import type { Dnd5eStats, Dnd5eResources, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
 
-// Initialize a character's spell-slot resource bag from the picked
-// class's progression table at the starting level. The progression
-// table carries per-level slot counts as `1st` / `2nd` / ... `9th`
-// columns for full + half casters, and as `spellSlots` (count) +
-// `slotLevel` (e.g. "1st") for Warlock pact magic — both shapes are
-// handled here. Non-spellcasters return null.
-//
-// Reading from the table beats the hardcoded full-caster lookup
-// this used to live as: half-casters (Paladin / Ranger) correctly
-// get no slots at L1 in 5.1 and 2/0 at L1 in 5.2; Warlock's pact
-// magic reads its 1-slot at L1 instead of being given the wrong
-// 2-slot full-caster row.
-const SLOT_COLUMNS: Array<{ key: string; level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 }> = [
-  { key: '1st', level: 1 }, { key: '2nd', level: 2 }, { key: '3rd', level: 3 },
-  { key: '4th', level: 4 }, { key: '5th', level: 5 }, { key: '6th', level: 6 },
-  { key: '7th', level: 7 }, { key: '8th', level: 8 }, { key: '9th', level: 9 },
-];
-
-const SLOT_LEVEL_LABEL_TO_NUMBER: Record<string, 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9> = {
-  '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5,
-  '6th': 6, '7th': 7, '8th': 8, '9th': 9,
-};
-
+// initSpellSlots used to ship a duplicate of the leveling library's
+// progression-table parser; replaced by `spellSlotsForClassAtLevel`
+// from `@vaultstone/systems` so the two paths agree on
+// half-caster / Warlock pact-magic / 5.1-vs-5.2 quirks. Non-spellcasters
+// resolve to null here so resources.spellSlots stays unset for them.
 function initSpellSlots(
   cls: ClassResult,
   level: number,
 ): Dnd5eResources['spellSlots'] {
   if (!cls.spellcasting) return null;
-  const row = (cls.progressionTable ?? []).find((r) => r.level === Math.min(level, 20));
-  const make = (max: number): Dnd5eSpellSlotLevel => ({ max, remaining: max });
-  const empty = make(0);
-  const slots: Dnd5eResources['spellSlots'] = {
-    1: empty, 2: empty, 3: empty, 4: empty, 5: empty,
-    6: empty, 7: empty, 8: empty, 9: empty,
-  };
-  if (!row) return slots;
-
-  // Full + half casters: read each `Nth` column directly. "—" / non-numeric
-  // values land at 0, which is correct for half-casters at L1 in 5.1.
-  let foundExplicitSlots = false;
-  for (const col of SLOT_COLUMNS) {
-    const raw = row.values[col.key];
-    const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''), 10);
-    if (Number.isFinite(n)) {
-      slots[col.level] = make(n);
-      if (n > 0) foundExplicitSlots = true;
-    }
-  }
-  // Warlock pact magic: `spellSlots` is the count, `slotLevel` ("1st" /
-  // "2nd" / etc.) names the slot level all of those slots cast at. Only
-  // applied when the per-level columns above didn't already populate.
-  if (!foundExplicitSlots) {
-    const countRaw = row.values['spellSlots'];
-    const slotLevelRaw = row.values['slotLevel'];
-    const count = typeof countRaw === 'number' ? countRaw : parseInt(String(countRaw ?? ''), 10);
-    const slotLevel = typeof slotLevelRaw === 'string' ? SLOT_LEVEL_LABEL_TO_NUMBER[slotLevelRaw] : undefined;
-    if (Number.isFinite(count) && count > 0 && slotLevel) {
-      slots[slotLevel] = make(count);
-    }
-  }
-  return slots;
+  return spellSlotsForClassAtLevel(cls, level);
 }
 
 // Wizard step list is sourced from the chosen system's
