@@ -172,11 +172,29 @@ export function SpellPickerModal({
                 {filtered.length === 0 ? (
                   <Text style={s.emptyText}>No matching spells.</Text>
                 ) : null}
-                {filtered.map((sp) => {
-                  const has = existingKeys.has(sp.key);
-                  const expanded = expandedKey === sp.key;
-                  return (
-                    <View key={sp.key} style={s.rowWrap}>
+                {(() => {
+                  // When the filter is set to a single level, headers
+                  // would just repeat that label — only group when
+                  // we're showing the merged "All" view.
+                  const showHeaders = levelFilter === 'all';
+                  const out: React.ReactNode[] = [];
+                  let lastLevel: number | null = null;
+                  for (const sp of filtered) {
+                    if (showHeaders && sp.level !== lastLevel) {
+                      out.push(
+                        <View key={`header-${sp.level}`} style={s.groupHeader}>
+                          <Text style={s.groupHeaderText}>
+                            {sp.level === 0 ? 'CANTRIPS' : `${LEVEL_LABELS[sp.level]?.toUpperCase() ?? `LEVEL ${sp.level}`} LEVEL`}
+                          </Text>
+                          <View style={s.groupHeaderRule} />
+                        </View>
+                      );
+                      lastLevel = sp.level;
+                    }
+                    const has = existingKeys.has(sp.key);
+                    const expanded = expandedKey === sp.key;
+                    out.push(
+                      <View key={sp.key} style={s.rowWrap}>
                       <Pressable
                         style={[s.row, has && s.rowDisabled]}
                         onPress={() => setExpandedKey(expanded ? null : sp.key)}
@@ -242,8 +260,10 @@ export function SpellPickerModal({
                         </View>
                       ) : null}
                     </View>
-                  );
-                })}
+                    );
+                  }
+                  return out;
+                })()}
               </ScrollView>
             </>
           )}
@@ -419,6 +439,18 @@ const s = StyleSheet.create({
   rowWrap: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
+  },
+  groupHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingTop: spacing.md, paddingBottom: 6, paddingHorizontal: 6,
+  },
+  groupHeaderText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, color: colors.primary,
+  },
+  groupHeaderRule: {
+    flex: 1, height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.outlineVariant,
   },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
