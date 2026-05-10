@@ -205,11 +205,12 @@ export function SpellPickerModal({
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={s.rowName}>{sp.name}</Text>
                         </View>
-                        {sp.classes.length > 0 ? (
-                          <Text style={s.rowSource} numberOfLines={1}>
-                            {sp.classes.join(', ')}
-                          </Text>
-                        ) : null}
+                        {(() => {
+                          const code = sourceCodeFor(sp);
+                          return code ? (
+                            <Text style={s.rowSource} numberOfLines={1}>{code}</Text>
+                          ) : null;
+                        })()}
                         {has ? (
                           <Text style={s.rowHasText}>Added</Text>
                         ) : (
@@ -360,6 +361,25 @@ function FilterMenuItem({ label, active, onPress }: { label: string; active: boo
       ) : null}
     </TouchableOpacity>
   );
+}
+
+// Short publication-source label for the right side of each row —
+// "PHB", "TCE", "Aurora's Whole Realms" pack, etc. Imported entries
+// carry their book code on `importSource.code`; SRD entries don't have
+// a discrete book (the SRD itself is the source) so we derive a label
+// from `srdVersions`. Returns null when there's nothing useful to show.
+function sourceCodeFor(sp: SpellResult): string | null {
+  if (sp.importSource?.code) return sp.importSource.code;
+  if (sp.tier === 'homebrew' && sp.importSource?.name) return sp.importSource.name;
+  if (sp.tier === 'srd') {
+    const versions = sp.srdVersions ?? [];
+    if (versions.length === 0) return 'SRD';
+    if (versions.length === 1) {
+      return versions[0] === 'SRD_2.0' ? 'SRD 5.2' : 'SRD 5.1';
+    }
+    return 'SRD';
+  }
+  return null;
 }
 
 function DetailMeta({ label, value }: { label: string; value: string }) {
