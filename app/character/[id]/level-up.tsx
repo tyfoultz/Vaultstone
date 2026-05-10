@@ -222,16 +222,33 @@ function LevelUpFlow({
   const isMulticlassEntry = !!newClassKey;
   const effectiveClassKey = newClassKey ?? chosenClassKey ?? primary.classKey;
 
-  const leveledClass = useMemo(
-    () => classes.find((c) => c.key === effectiveClassKey) ?? null,
-    [classes, effectiveClassKey],
-  );
+  // Edition-tolerant lookup. Catalog keys are edition-suffixed
+  // (`cleric-srd-2-0`); legacy characters' stored classKey may be
+  // unsuffixed (`cleric`) or carry a different suffix. Match exact
+  // first, then fall back to the suffix-stripped slug. Without this
+  // every legacy character lands with `leveledClass: null`, which
+  // makes the HP / ASI / Confirm steps render empty bodies because
+  // they're all gated on `leveledClass` being non-null.
+  const leveledClass = useMemo(() => {
+    const exact = classes.find((c) => c.key === effectiveClassKey);
+    if (exact) return exact;
+    const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
+    const target = stripEdition(effectiveClassKey);
+    return classes.find((c) => stripEdition(c.key) === target) ?? null;
+  }, [classes, effectiveClassKey]);
 
   // The level the leveling-class entry will end up at. New multiclass
-  // entries always become level 1; existing entries increment.
+  // entries always become level 1; existing entries increment. Lookup
+  // uses the same lenient match so a legacy `cleric` entry still
+  // pairs with the catalog's `cleric-srd-2-0` row.
   const newClassLevel: number = useMemo(() => {
     if (isMulticlassEntry) return 1;
-    const e = entries.find((x) => x.classKey === effectiveClassKey);
+    const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
+    const targetExact = effectiveClassKey;
+    const targetSlug = stripEdition(effectiveClassKey);
+    const e = entries.find((x) =>
+      x.classKey === targetExact || stripEdition(x.classKey) === targetSlug,
+    );
     return e ? e.level + 1 : 1;
   }, [entries, effectiveClassKey, isMulticlassEntry]);
 
@@ -247,7 +264,11 @@ function LevelUpFlow({
   const showSubclassStep = useMemo(() => {
     if (!leveledClass || isMulticlassEntry) return false;
     if (isSubclassUnlockLevel(leveledClass, newClassLevel)) return true;
-    const existing = entries.find((e) => e.classKey === effectiveClassKey);
+    const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
+    const targetSlug = stripEdition(effectiveClassKey);
+    const existing = entries.find((e) =>
+      e.classKey === effectiveClassKey || stripEdition(e.classKey) === targetSlug,
+    );
     if (existing && !existing.subclassKey && newClassLevel >= leveledClass.subclassUnlockLevel) {
       return true;
     }
