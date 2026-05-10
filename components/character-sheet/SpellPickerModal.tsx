@@ -28,6 +28,11 @@ type Props = {
   classNames: string[];
   /** Already-prepared spell ids (matches SpellResult.key) — disabled in the list. */
   existingKeys: Set<string>;
+  /** Already-prepared spells, used for the summary counter under the
+   *  filters ("3 cantrips · 4 1st · 2 2nd prepared"). When omitted the
+   *  modal falls back to the existingKeys size with no per-level
+   *  breakdown. */
+  existingSpells?: Dnd5ePreparedSpell[];
   campaignId?: string | null;
   packIds?: string[];
   srdVersion?: 'SRD_5.1' | 'SRD_2.0';
@@ -39,7 +44,7 @@ type Props = {
 };
 
 export function SpellPickerModal({
-  visible, onClose, classNames, existingKeys, campaignId, packIds, srdVersion, onPick, onRemove,
+  visible, onClose, classNames, existingKeys, existingSpells, campaignId, packIds, srdVersion, onPick, onRemove,
 }: Props) {
   const [list, setList] = useState<SpellResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,6 +156,25 @@ export function SpellPickerModal({
     ? 'All'
     : statusFilter === 'added' ? 'Added' : 'Unadded';
 
+  // Per-level prepared counts for the summary line. We don't know the
+  // class's prepared-spell limit (varies by class + INT/WIS mod + level)
+  // so we surface what we *can* show: how many are currently prepared,
+  // grouped by level. Empty when the character has nothing prepared.
+  const preparedSummary = useMemo(() => {
+    if (!existingSpells || existingSpells.length === 0) return '';
+    const counts = new Map<number, number>();
+    for (const sp of existingSpells) counts.set(sp.level, (counts.get(sp.level) ?? 0) + 1);
+    const parts: string[] = [];
+    for (const lvl of [...counts.keys()].sort((a, b) => a - b)) {
+      const n = counts.get(lvl)!;
+      const label = lvl === 0
+        ? (n === 1 ? 'cantrip' : 'cantrips')
+        : `${LEVEL_LABELS[lvl] ?? `${lvl}th`}-level`;
+      parts.push(`${n} ${label}`);
+    }
+    return parts.join(' · ');
+  }, [existingSpells]);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose}>
@@ -193,6 +217,14 @@ export function SpellPickerModal({
                   label={statusLabel}
                 />
               </View>
+
+              {existingSpells ? (
+                <Text style={s.summaryLine}>
+                  {preparedSummary
+                    ? `Prepared: ${preparedSummary}`
+                    : 'Nothing prepared yet.'}
+                </Text>
+              ) : null}
 
               <ScrollView style={s.list} contentContainerStyle={{ paddingBottom: spacing.md }}>
                 {filtered.length === 0 ? (
@@ -540,6 +572,11 @@ const s = StyleSheet.create({
     position: 'relative',
   },
   filterBtnNarrow: { minWidth: 110 },
+  summaryLine: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.outline, letterSpacing: 0.4,
+    paddingBottom: spacing.sm, paddingHorizontal: 2,
+  },
   // Web-only: a real <select> is layered over the styled button so the
   // browser opens its native dropdown on click while the visual chrome
   // (chevron, label, surface) stays on-brand.

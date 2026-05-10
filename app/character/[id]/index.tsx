@@ -2006,6 +2006,7 @@ export default function CharacterSheetScreen() {
           onClose={() => setSpellPickerOpen(false)}
           classNames={Object.values(classResultsByKey).map((c) => c.name)}
           existingKeys={new Set((resources.preparedSpells ?? []).map((s) => s.id))}
+          existingSpells={resources.preparedSpells ?? []}
           campaignId={character?.campaign_id ?? null}
           packIds={character?.pack_ids ?? []}
           srdVersion={stats.srdVersion}
