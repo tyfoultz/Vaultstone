@@ -32,10 +32,14 @@ type Props = {
   packIds?: string[];
   srdVersion?: 'SRD_5.1' | 'SRD_2.0';
   onPick: (spell: Dnd5ePreparedSpell) => void;
+  /** Remove a prepared spell by id (matches SpellResult.key). The
+   *  modal calls this when the player taps Remove inside an expansion
+   *  that's already on the prepared list. */
+  onRemove?: (spellId: string) => void;
 };
 
 export function SpellPickerModal({
-  visible, onClose, classNames, existingKeys, campaignId, packIds, srdVersion, onPick,
+  visible, onClose, classNames, existingKeys, campaignId, packIds, srdVersion, onPick, onRemove,
 }: Props) {
   const [list, setList] = useState<SpellResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -271,15 +275,25 @@ export function SpellPickerModal({
                             <Text style={s.detailDesc}>{sp.description}</Text>
                           ) : null}
 
-                          <TouchableOpacity
-                            style={[s.commitBtn, has && s.commitBtnDisabled]}
-                            onPress={has ? undefined : () => commit(sp)}
-                            activeOpacity={has ? 1 : 0.85}
-                          >
-                            <Text style={[s.commitText, has && s.commitTextDisabled]}>
-                              {has ? 'Already prepared' : `Add ${sp.name}`}
-                            </Text>
-                          </TouchableOpacity>
+                          {has ? (
+                            <TouchableOpacity
+                              style={[s.commitBtn, s.commitBtnRemove]}
+                              onPress={onRemove ? () => { onRemove(sp.key); onClose(); } : undefined}
+                              activeOpacity={onRemove ? 0.85 : 1}
+                            >
+                              <Text style={[s.commitText, s.commitTextRemove]}>
+                                {`Remove ${sp.name}`}
+                              </Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <TouchableOpacity
+                              style={s.commitBtn}
+                              onPress={() => commit(sp)}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={s.commitText}>{`Add ${sp.name}`}</Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
                       ) : null}
                     </View>
@@ -628,6 +642,11 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   commitBtnDisabled: { backgroundColor: colors.surfaceContainerHighest },
+  commitBtnRemove: {
+    backgroundColor: 'transparent',
+    borderWidth: 1, borderColor: colors.hpDanger,
+  },
+  commitTextRemove: { color: colors.hpDanger },
   commitText: { fontSize: 13, fontFamily: fonts.label, fontWeight: '700', color: colors.onPrimary, letterSpacing: 0.5 },
   commitTextDisabled: { color: colors.outline },
 

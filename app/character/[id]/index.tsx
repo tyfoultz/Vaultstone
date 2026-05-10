@@ -2017,6 +2017,10 @@ export default function CharacterSheetScreen() {
             const next = [...(resources.preparedSpells ?? []), spell];
             persistResources({ ...resources, preparedSpells: next });
           }}
+          onRemove={(spellId) => {
+            const next = (resources.preparedSpells ?? []).filter((sp) => sp.id !== spellId);
+            persistResources({ ...resources, preparedSpells: next });
+          }}
         />
       ) : null}
 
