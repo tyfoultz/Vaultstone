@@ -18,10 +18,20 @@ import type {
 
 // ── Spell slot table columns (mirrored from app/character/new.tsx) ──────
 
-const SLOT_COLUMNS: Array<{ key: string; level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 }> = [
-  { key: '1st', level: 1 }, { key: '2nd', level: 2 }, { key: '3rd', level: 3 },
-  { key: '4th', level: 4 }, { key: '5th', level: 5 }, { key: '6th', level: 6 },
-  { key: '7th', level: 7 }, { key: '8th', level: 8 }, { key: '9th', level: 9 },
+// Each level accepts multiple key shapes — SRD ships `1st` / `2nd` /
+// ..., imported homebrew (notably 5e.tools Artificer) ships `spell1` /
+// `spell2` / ..., and some packs use just `1` / `2`. We probe all three
+// for each level so a single reader handles every shape.
+const SLOT_COLUMNS: Array<{ keys: readonly string[]; level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 }> = [
+  { keys: ['1st', 'spell1', '1'], level: 1 },
+  { keys: ['2nd', 'spell2', '2'], level: 2 },
+  { keys: ['3rd', 'spell3', '3'], level: 3 },
+  { keys: ['4th', 'spell4', '4'], level: 4 },
+  { keys: ['5th', 'spell5', '5'], level: 5 },
+  { keys: ['6th', 'spell6', '6'], level: 6 },
+  { keys: ['7th', 'spell7', '7'], level: 7 },
+  { keys: ['8th', 'spell8', '8'], level: 8 },
+  { keys: ['9th', 'spell9', '9'], level: 9 },
 ];
 
 const SLOT_LEVEL_LABEL_TO_NUMBER: Record<string, 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9> = {
@@ -60,8 +70,13 @@ export function spellSlotsForClassAtLevel(
   const slots = cloneSlots(EMPTY_SLOTS);
   let foundExplicitSlots = false;
   for (const col of SLOT_COLUMNS) {
-    const raw = row.values[col.key];
-    const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''), 10);
+    let n = NaN;
+    for (const key of col.keys) {
+      const raw = row.values[key];
+      if (raw == null || raw === '—') continue;
+      const parsed = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+      if (Number.isFinite(parsed)) { n = parsed; break; }
+    }
     if (Number.isFinite(n)) {
       slots[col.level] = { max: n, remaining: n };
       if (n > 0) foundExplicitSlots = true;

@@ -266,6 +266,15 @@ export interface Dnd5ePreparedSpell {
   effectType?: string;
   /** Source feature or background that granted this spell, e.g. 'Elven Lineage' */
   source?: string;
+  /** Component letters list — ['V','S','M']. Populated when added through
+   *  the catalog picker; absent on legacy entries. */
+  components?: string[];
+  /** Duration string from the catalog — '1 minute', 'Concentration, up to 1 minute', etc. */
+  duration?: string;
+  /** Full spell description copied from the catalog, used by the inline
+   *  expand on the Spells tab. Optional so legacy entries (added before
+   *  the modal back-filled this) still load cleanly. */
+  description?: string;
 }
 
 /** Generic per-class resource pool: Barbarian rages, Ki points, Channel Divinity, etc. */

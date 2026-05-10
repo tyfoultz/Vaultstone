@@ -147,6 +147,9 @@ export function SpellPickerModal({
       concentration: spell.concentration,
       castingTime: spell.castingTime,
       range: spell.range,
+      components: spell.components,
+      duration: spell.duration,
+      description: spell.description,
       // Carry the source identifier (class list or "Homebrew") so the
       // sheet can group by source if it wants. Falls through cleanly
       // when the spell has no class list.

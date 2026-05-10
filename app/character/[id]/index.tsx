@@ -13,7 +13,7 @@ import {
   getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, supabase,
   getCampaignCharacterRules, resolveRuleValues,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
@@ -924,6 +924,39 @@ export default function CharacterSheetScreen() {
     }
   }
 
+  // Self-heal spell slots — characters bootstrapped before the slot
+  // reader learned alternate progression-table column shapes (notably
+  // imported homebrew classes like 5e.tools Artificer that ship
+  // `spell1` / `spell2` / ... instead of `1st` / `2nd` / ...) wrote
+  // an all-zero slot table to the row. Now that the reader handles
+  // those keys, recompute on first sheet load and persist if the
+  // recompute would add slots that aren't there. Owner-only so
+  // non-owner viewers don't accidentally trip the write.
+  useEffect(() => {
+    if (!isOwner) return;
+    const stats = character?.base_stats as Dnd5eStats | null;
+    const resources = character?.resources as Dnd5eResources | null;
+    if (!stats || !resources) return;
+    if (Object.keys(classResultsByKey).length === 0) return;
+    const entries = getClassEntries(stats);
+    const map = new Map(Object.entries(classResultsByKey));
+    const computed = spellSlotsForCharacter(entries, map);
+    const current = resources.spellSlots;
+    const computedHasSlots = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const)
+      .some((l) => computed[l].max > 0);
+    const currentHasSlots = current
+      ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => (current[l]?.max ?? 0) > 0)
+      : false;
+    // Only heal when the recompute would *add* slots — never wipe a
+    // pre-populated table the player may have customized.
+    if (!computedHasSlots || currentHasSlots) return;
+    persistResources({
+      ...resources,
+      spellSlots: computed,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner, classResultsByKey, character?.id]);
+
   async function handleDragEnd(newItems: CardItem[]) {
     setCardItems(newItems);
     const order = newItems.map((i) => i.id);
@@ -1366,6 +1399,18 @@ export default function CharacterSheetScreen() {
               });
             }}
             onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
+            onLongRest={() => {
+              // Restore every spell slot's remaining to its max. Doesn't
+              // touch other long-rest mechanics (HP, hit dice, exhaustion)
+              // — those have their own affordances on the Combat tab.
+              if (!resources.spellSlots) return;
+              const restored: typeof resources.spellSlots = { ...resources.spellSlots };
+              ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).forEach((l) => {
+                const slot = resources.spellSlots![l];
+                restored[l] = { max: slot.max, remaining: slot.max };
+              });
+              persistResources({ ...resources, spellSlots: restored });
+            }}
             onOpenManage={() => setSpellPickerOpen(true)}
             onOpenPrepare={() => setPreparePickerOpen(true)}
             canPrepare={getSpellbook(resources).some((sp) => sp.level > 0)}
