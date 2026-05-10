@@ -18,17 +18,17 @@ import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius } from '@vaultstone/ui';
 import { getSrdContent } from '@vaultstone/content';
 import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature } from '@vaultstone/types';
-import { HpModal } from '../../components/character-sheet/HpModal';
-import { ConditionsPanel } from '../../components/character-sheet/ConditionsPanel';
-import { RollToast } from '../../components/character-sheet/RollToast';
-import type { RollResult } from '../../components/character-sheet/RollToast';
-import { CombatTab, ConditionsSection } from '../../components/character-sheet/CombatTab';
-import { SkillsTab } from '../../components/character-sheet/SkillsTab';
-import { AbilitiesTab } from '../../components/character-sheet/AbilitiesTab';
-import { SpellsTab } from '../../components/character-sheet/SpellsTab';
-import { GearTab } from '../../components/character-sheet/GearTab';
-import { LoreTab } from '../../components/character-sheet/LoreTab';
-import { FeatPickerModal } from '../../components/character-sheet/FeatPickerModal';
+import { HpModal } from '../../../components/character-sheet/HpModal';
+import { ConditionsPanel } from '../../../components/character-sheet/ConditionsPanel';
+import { RollToast } from '../../../components/character-sheet/RollToast';
+import type { RollResult } from '../../../components/character-sheet/RollToast';
+import { CombatTab, ConditionsSection } from '../../../components/character-sheet/CombatTab';
+import { SkillsTab } from '../../../components/character-sheet/SkillsTab';
+import { AbilitiesTab } from '../../../components/character-sheet/AbilitiesTab';
+import { SpellsTab } from '../../../components/character-sheet/SpellsTab';
+import { GearTab } from '../../../components/character-sheet/GearTab';
+import { LoreTab } from '../../../components/character-sheet/LoreTab';
+import { FeatPickerModal } from '../../../components/character-sheet/FeatPickerModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
