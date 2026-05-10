@@ -928,13 +928,34 @@ export default function CharacterSheetScreen() {
     );
   }
 
-  if (error || !character || !stats || !resources || !scores) {
+  if (error || !character) {
     return (
       <View style={s.loadingContainer}>
         <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(drawer)/characters')} style={{ marginBottom: spacing.lg }}>
           <Text style={{ color: colors.brand, fontSize: 14 }}>← Back</Text>
         </TouchableOpacity>
         <Text style={{ color: colors.hpDanger }}>{error || 'Character not found.'}</Text>
+      </View>
+    );
+  }
+
+  // The row exists but its JSON payload is missing pieces the sheet needs to
+  // render. Surface a specific diagnostic instead of the generic "Character
+  // not found" — this state is recoverable from (open the row in a debug
+  // tool or finish creation) and lying about it confuses the player.
+  if (!stats || !resources || !scores) {
+    const missing = [
+      !stats && 'base stats',
+      !resources && 'resources',
+      stats && !scores && 'ability scores',
+    ].filter(Boolean).join(', ');
+    return (
+      <View style={s.loadingContainer}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(drawer)/characters')} style={{ marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.brand, fontSize: 14 }}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={{ color: colors.hpDanger, marginBottom: spacing.sm }}>This character is missing required data: {missing}.</Text>
+        <Text style={{ color: colors.outline, fontSize: 12 }}>Character ID: {character.id}</Text>
       </View>
     );
   }
