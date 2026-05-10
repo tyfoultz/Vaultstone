@@ -488,14 +488,23 @@ export default function CharacterSheetScreen() {
           filter: `id=eq.${id}`,
         },
         (payload) => {
-          const next = payload.new as Character;
-          setCharacter(next);
-          updateCharacterLocally(id, {
-            base_stats: next.base_stats,
-            resources: next.resources,
-            conditions: next.conditions,
-            name: next.name,
-          });
+          // Merge into existing state instead of replacing. Postgres logical
+          // replication marks unchanged TOASTed columns (large JSONB values
+          // stored out-of-line) as "unchanged" in the WAL, and Supabase
+          // Realtime surfaces those as `null` in `payload.new`. Our base_stats
+          // / resources columns easily exceed the TOAST threshold, so an
+          // UPDATE that touched only one of them returns the other as null
+          // here — replacing wholesale would clobber it client-side and trip
+          // the load gate on the next render. Merging + skipping nullish
+          // values keeps the prior value for any column the WAL didn't ship.
+          const next = payload.new as Partial<Character>;
+          const merge: Partial<Character> = {};
+          if (next.base_stats != null) merge.base_stats = next.base_stats;
+          if (next.resources != null) merge.resources = next.resources;
+          if (next.conditions != null) merge.conditions = next.conditions;
+          if (next.name != null) merge.name = next.name;
+          setCharacter((prev) => (prev ? ({ ...prev, ...merge } as Character) : prev));
+          updateCharacterLocally(id, merge);
         },
       )
       .subscribe();

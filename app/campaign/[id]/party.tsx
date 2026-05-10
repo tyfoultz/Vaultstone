@@ -151,19 +151,22 @@ export default function PartyScreen() {
             conditions: string[] | null;
             name: string;
           };
+          // TOAST-unchanged JSONB columns ship as `null` over Realtime
+          // (REPLICA IDENTITY DEFAULT). Merge only the fields the WAL
+          // actually carried so an UPDATE that touched only one column
+          // doesn't clobber its sibling on the existing row.
           setMembers((prev) => {
             const hit = prev.some((m) => m.character_id === next.id);
             if (!hit) return prev;
-            return prev.map((m) => m.character_id === next.id && m.characters ? {
-              ...m,
-              characters: {
-                ...m.characters,
-                name: next.name,
-                base_stats: next.base_stats,
-                resources: next.resources,
-                conditions: next.conditions,
-              },
-            } : m);
+            return prev.map((m) => {
+              if (m.character_id !== next.id || !m.characters) return m;
+              const merged = { ...m.characters };
+              if (next.name != null) merged.name = next.name;
+              if (next.base_stats != null) merged.base_stats = next.base_stats as typeof merged.base_stats;
+              if (next.resources != null) merged.resources = next.resources as typeof merged.resources;
+              if (next.conditions != null) merged.conditions = next.conditions;
+              return { ...m, characters: merged };
+            });
           });
           setRecentlyUpdated((prev) => ({ ...prev, [next.id]: Date.now() }));
           const prior = flashTimersRef.current[next.id];
