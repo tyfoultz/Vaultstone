@@ -139,19 +139,27 @@ export function SpellsTab({
     return g.spells.length > 0 || (g.slot && g.slot.max > 0);
   });
 
+  // Counts for the stats-row cells (CANTRIPS + PREPARED). Sum the limits
+  // across explainer entries so multiclass shows the total (e.g.
+  // Wizard 3 / Cleric 2 cantrip caps add). undefined limit → no
+  // denominator, just the count.
+  const totalCantripsKnown = preparedSpells.filter((s) => s.level === 0).length;
+  const totalLeveledPrepared = preparedSpells.filter((s) => s.level > 0).length;
+  const cantripLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
+    (acc, ex) => ex.cantripsKnown !== undefined ? (acc ?? 0) + ex.cantripsKnown : acc,
+    undefined,
+  );
+  const preparedLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
+    (acc, ex) => ex.spellsKnownOrPrepared !== undefined ? (acc ?? 0) + ex.spellsKnownOrPrepared : acc,
+    undefined,
+  );
+
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
 
       {/* ── Spellcasting stats header ── */}
       {spellAbility && (
         <View style={s.statsRow}>
-          <View style={s.statBlock}>
-            <Text style={s.statValue}>{spellMod !== null ? fmtMod(spellMod) : '—'}</Text>
-            <Text style={s.statLabel}>
-              {spellAbility ? `${shortAbility(spellAbility)} MODIFIER` : 'MODIFIER'}
-            </Text>
-          </View>
-          <View style={s.statDivider} />
           <View style={s.statBlock}>
             <Text style={s.statValue}>{spellAttack !== null ? fmtMod(spellAttack) : '—'}</Text>
             <Text style={s.statLabel}>SPELL ATTACK</Text>
@@ -160,6 +168,30 @@ export function SpellsTab({
           <View style={s.statBlock}>
             <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
             <Text style={s.statLabel}>SAVE DC</Text>
+          </View>
+          <View style={s.statDivider} />
+          <View style={s.statBlock}>
+            <Text style={[
+              s.statValue,
+              cantripLimit !== undefined && totalCantripsKnown >= cantripLimit && s.statValueAtLimit,
+            ]}>
+              {cantripLimit !== undefined
+                ? `${totalCantripsKnown}/${cantripLimit}`
+                : String(totalCantripsKnown)}
+            </Text>
+            <Text style={s.statLabel}>CANTRIPS</Text>
+          </View>
+          <View style={s.statDivider} />
+          <View style={s.statBlock}>
+            <Text style={[
+              s.statValue,
+              preparedLimit !== undefined && totalLeveledPrepared >= preparedLimit && s.statValueAtLimit,
+            ]}>
+              {preparedLimit !== undefined
+                ? `${totalLeveledPrepared}/${preparedLimit}`
+                : String(totalLeveledPrepared)}
+            </Text>
+            <Text style={s.statLabel}>PREPARED</Text>
           </View>
         </View>
       )}
@@ -540,7 +572,8 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
   statBlock: { flex: 1, alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 26, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  statValue: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  statValueAtLimit: { color: colors.primary },
   statLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.5, color: colors.outline },
   statDivider: { width: StyleSheet.hairlineWidth, height: 30, backgroundColor: colors.outlineVariant, alignSelf: 'center' },
 
