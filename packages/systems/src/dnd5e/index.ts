@@ -22,6 +22,13 @@ export {
   type CasterType,
   type MulticlassCheckResult,
 } from './leveling';
+export {
+  applyLevelUp,
+  defaultHpGain,
+  unpackClassFeaturesForPick,
+  type LevelUpPick,
+  type ApplyLevelUpResult,
+} from './apply-level-up';
 
 // Both editions share schema (attributes, resources, sheet, creation steps).
 // They diverge only in id / displayName / version / SRD-content filter.

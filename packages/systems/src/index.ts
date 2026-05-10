@@ -23,6 +23,13 @@ export {
   type MulticlassCheckResult,
 } from './dnd5e/leveling';
 export {
+  applyLevelUp,
+  defaultHpGain,
+  unpackClassFeaturesForPick,
+  type LevelUpPick,
+  type ApplyLevelUpResult,
+} from './dnd5e/apply-level-up';
+export {
   resolveCreationSteps,
   type CreationStepContext,
 } from './resolve-creation-steps';
