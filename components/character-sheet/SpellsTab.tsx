@@ -82,9 +82,6 @@ export function SpellsTab({
   const isWide = width >= 560;
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
-  // Single-open inline expansion on prepared spell rows. Tapping the
-  // same row collapses; tapping a different row swaps the expansion.
-  const [expandedSpellId, setExpandedSpellId] = useState<string | null>(null);
 
   const spellAbility = stats.spellcastingAbility;
   const isSpellcaster = !!spellAbility;
@@ -341,10 +338,6 @@ export function SpellsTab({
               isLast={i === cantrips.length - 1}
               isWide={isWide}
               isOwner={isOwner}
-              expanded={expandedSpellId === spell.id}
-              onToggleExpanded={() => setExpandedSpellId(
-                expandedSpellId === spell.id ? null : spell.id,
-              )}
             />
           ))}
         </View>
@@ -382,10 +375,6 @@ export function SpellsTab({
               slot={slot}
               isOwner={isOwner}
               isWide={isWide}
-              expanded={expandedSpellId === spell.id}
-              onToggleExpanded={() => setExpandedSpellId(
-                expandedSpellId === spell.id ? null : spell.id,
-              )}
             />
           ))}
           {spells.length === 0 && slot && slot.max > 0 && (
@@ -446,7 +435,7 @@ function ColHeaders({ isWide }: { isWide: boolean }) {
 }
 
 function SpellRow({
-  spell, isLast, slot, isWide, expanded, onToggleExpanded,
+  spell, isLast, slot, isWide,
 }: {
   spell: Dnd5ePreparedSpell;
   isLast: boolean;
@@ -455,18 +444,13 @@ function SpellRow({
    *  lives in the Manage Spells modal instead of inline. */
   isOwner?: boolean;
   isWide?: boolean;
-  expanded?: boolean;
-  onToggleExpanded?: () => void;
 }) {
   const isCantrip = spell.level === 0;
   const hasSlots = slot ? slot.remaining > 0 : false;
 
   return (
-    <View style={[!isLast && s.spellRowBorder, expanded && s.spellRowExpandedWrap]}>
-      <Pressable
-        style={s.spellRow}
-        onPress={onToggleExpanded}
-      >
+    <View style={[!isLast && s.spellRowBorder, s.spellRowExpandedWrap]}>
+      <View style={s.spellRow}>
 
         {/* Badge: AT WILL or USE */}
         <View style={s.colBadge}>
@@ -508,17 +492,9 @@ function SpellRow({
           <Text style={[s.cellText, s.colEffect]} numberOfLines={1}>—</Text>
         ) : null}
         <Text style={[s.cellText, s.colNotes]} numberOfLines={2}>{spell.notes ?? '—'}</Text>
+      </View>
 
-        <MaterialCommunityIcons
-          name={expanded ? 'chevron-up' : 'chevron-down'}
-          size={16}
-          color={colors.outline}
-          style={{ marginLeft: 6 }}
-        />
-      </Pressable>
-
-      {expanded ? (
-        <View style={s.spellRowExpansion}>
+      <View style={s.spellRowExpansion}>
           <View style={s.spellMetaGrid}>
             {spell.castingTime ? <SpellMeta label="Casting Time" value={spell.castingTime} /> : null}
             {spell.range ? <SpellMeta label="Range" value={spell.range} /> : null}
@@ -536,8 +512,7 @@ function SpellRow({
               No description on file — re-add this spell through Manage Spells to fetch the latest text.
             </Text>
           )}
-        </View>
-      ) : null}
+      </View>
     </View>
   );
 }
