@@ -89,6 +89,11 @@ interface Props {
   canEditAny: boolean;
   equipment: Dnd5eEquipmentItem[];
   isDesktop?: boolean;
+  /** ContentResolver condition catalog scoped to the character's
+   *  campaign/packs. When supplied, drives the picker so homebrew /
+   *  imported conditions surface alongside SRD ones. Falls back to the
+   *  edition-filtered bundled list when null/empty. */
+  conditionCatalog?: ConditionResult[] | null;
   onOpenHpModal?: () => void;
   onRoll: (result: RollResult) => void;
   onToggleCondition: (c: string) => void;
@@ -113,7 +118,8 @@ function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void
 
 export function CombatTab({
   stats, resources, scores, prof,
-  activeConditions, canEditAny, equipment, isDesktop, onRoll, onToggleCondition, onSetExhaustion, getAttackBonus,
+  activeConditions, canEditAny, equipment, isDesktop, conditionCatalog,
+  onRoll, onToggleCondition, onSetExhaustion, getAttackBonus,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
 
@@ -385,7 +391,11 @@ export function CombatTab({
         canEditAny={canEditAny}
         onToggle={onToggleCondition}
         onSetExhaustion={onSetExhaustion}
-        bundledConditions={bundledConditionsFor(stats.srdVersion)}
+        bundledConditions={
+          conditionCatalog && conditionCatalog.length > 0
+            ? conditionCatalog.filter((c) => c.name.toLowerCase() !== 'exhaustion')
+            : bundledConditionsFor(stats.srdVersion)
+        }
       />
 
       {/* Passives */}

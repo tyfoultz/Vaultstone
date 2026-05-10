@@ -17,7 +17,7 @@ import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
-import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature } from '@vaultstone/types';
+import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult } from '@vaultstone/types';
 import { getClassEntries } from '@vaultstone/types';
 import { HpModal } from '../../../components/character-sheet/HpModal';
 import { ConditionsPanel } from '../../../components/character-sheet/ConditionsPanel';
@@ -413,12 +413,17 @@ export default function CharacterSheetScreen() {
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [logModal, setLogModal] = useState(false);
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Resolved display names for the character's species + class keys.
-  // Imported-content keys (`imported_dnd5e_2014_class_efa_artificer`)
-  // are unreadable raw — fall back to a humanized version of the key
-  // until ContentResolver returns the real entry.
-  const [speciesName, setSpeciesName] = useState<string | null>(null);
-  const [classNamesByKey, setClassNamesByKey] = useState<Record<string, string>>({});
+  // Resolved content for the character's identity. ContentResolver merges
+  // SRD + homebrew + imported tiers (scoped to the character's campaign /
+  // pack opt-in) so imported homebrew flows through. The sheet uses these
+  // for live class/subclass/species feature rendering and for origin-feat
+  // detail, falling back to humanized keys while the lookup is in flight.
+  const [speciesResult, setSpeciesResult] = useState<SpeciesResult | null>(null);
+  const [classResultsByKey, setClassResultsByKey] = useState<Record<string, ClassResult>>({});
+  const [subclassResultsByKey, setSubclassResultsByKey] = useState<Record<string, SubclassResult>>({});
+  const [backgroundResult, setBackgroundResult] = useState<BackgroundResult | null>(null);
+  const [originFeatResult, setOriginFeatResult] = useState<FeatResult | null>(null);
+  const [conditionResults, setConditionResults] = useState<ConditionResult[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -489,18 +494,22 @@ export default function CharacterSheetScreen() {
     return () => { cancelled = true; };
   }, [character?.campaign_id]);
 
-  // Resolve human-readable species + class names. Imported-content keys
-  // are unreadable as raw strings; ContentResolver looks the entry up in
-  // the same merged SRD+homebrew tier the rest of the app uses. Pulls
-  // homebrew when there's a campaign or pack opt-in (mirrors the wizard
-  // and level-up flow).
+  // Resolve content for the character's identity (species, class(es),
+  // subclass(es), background, origin feat) plus the SRD condition catalog.
+  // ContentResolver merges SRD + homebrew + imported tiers; we scope to
+  // the character's campaign + pack opt-in so imported homebrew flows
+  // through (mirrors the wizard / level-up flow). Names AND full payloads
+  // are kept so the sheet can render live features / traits / descriptions
+  // without snapshotting at creation time.
   useEffect(() => {
     const stats = character?.base_stats as Dnd5eStats | null;
     if (!stats) return;
     const speciesKey = stats.speciesKey;
     const entries = getClassEntries(stats);
     const classKeys = Array.from(new Set(entries.map((e) => e.classKey).filter(Boolean)));
-    if (!speciesKey && classKeys.length === 0) return;
+    const subclassKeys = Array.from(new Set(entries.map((e) => e.subclassKey).filter((k): k is string => !!k)));
+    const backgroundKey = stats.backgroundKey;
+    const originFeatName = stats.originFeat?.trim() || null;
 
     let cancelled = false;
     (async () => {
@@ -515,23 +524,68 @@ export default function CharacterSheetScreen() {
           ? (character?.pack_ids as string[])
           : undefined,
       };
-      const [speciesResults, classResults] = await Promise.all([
+      const [speciesResults, classResults, subclassResults, backgroundResults, featResults, conditionResultsAll] = await Promise.all([
         speciesKey ? ContentResolver.search({ ...tierArgs, type: 'species' }) : Promise.resolve([]),
         classKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'class' }) : Promise.resolve([]),
+        subclassKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'subclass' }) : Promise.resolve([]),
+        backgroundKey ? ContentResolver.search({ ...tierArgs, type: 'background' }) : Promise.resolve([]),
+        originFeatName ? ContentResolver.search({ ...tierArgs, type: 'feat' }) : Promise.resolve([]),
+        ContentResolver.search({ ...tierArgs, type: 'condition' }),
       ]);
       if (cancelled) return;
+
       if (speciesKey) {
-        const hit = speciesResults.find((r) => r.key === speciesKey);
-        if (hit) setSpeciesName(hit.name);
+        const hit = speciesResults.find((r) => r.key === speciesKey) as SpeciesResult | undefined;
+        setSpeciesResult(hit ?? null);
+      } else {
+        setSpeciesResult(null);
       }
+
       if (classKeys.length > 0) {
-        const map: Record<string, string> = {};
+        const map: Record<string, ClassResult> = {};
         for (const k of classKeys) {
-          const hit = classResults.find((r) => r.key === k);
-          if (hit) map[k] = hit.name;
+          const hit = classResults.find((r) => r.key === k) as ClassResult | undefined;
+          if (hit) map[k] = hit;
         }
-        setClassNamesByKey(map);
+        setClassResultsByKey(map);
+      } else {
+        setClassResultsByKey({});
       }
+
+      if (subclassKeys.length > 0) {
+        const map: Record<string, SubclassResult> = {};
+        const stripEdition = (s: string) => s.replace(/-srd-.*$/i, '');
+        for (const k of subclassKeys) {
+          // Subclass keys may diverge between editions; an exact match is
+          // best, fall back to a slug match so legacy stored keys still
+          // resolve.
+          const exact = subclassResults.find((r) => r.key === k);
+          const target = stripEdition(k);
+          const lenient = subclassResults.find((r) => stripEdition(r.key) === target);
+          const hit = (exact ?? lenient) as SubclassResult | undefined;
+          if (hit) map[k] = hit;
+        }
+        setSubclassResultsByKey(map);
+      } else {
+        setSubclassResultsByKey({});
+      }
+
+      if (backgroundKey) {
+        const hit = backgroundResults.find((r) => r.key === backgroundKey) as BackgroundResult | undefined;
+        setBackgroundResult(hit ?? null);
+      } else {
+        setBackgroundResult(null);
+      }
+
+      if (originFeatName) {
+        const lower = originFeatName.toLowerCase();
+        const hit = featResults.find((r) => r.name.toLowerCase() === lower) as FeatResult | undefined;
+        setOriginFeatResult(hit ?? null);
+      } else {
+        setOriginFeatResult(null);
+      }
+
+      setConditionResults(conditionResultsAll as ConditionResult[]);
     })();
     return () => { cancelled = true; };
   }, [
@@ -540,6 +594,8 @@ export default function CharacterSheetScreen() {
     (character?.base_stats as Dnd5eStats | null)?.speciesKey,
     (character?.base_stats as Dnd5eStats | null)?.classKey,
     (character?.base_stats as Dnd5eStats | null)?.classes,
+    (character?.base_stats as Dnd5eStats | null)?.backgroundKey,
+    (character?.base_stats as Dnd5eStats | null)?.originFeat,
   ]);
 
   // Realtime: when another viewer (e.g. the DM via Party View) mutates this
@@ -601,11 +657,11 @@ export default function CharacterSheetScreen() {
   // tier we searched, e.g. a deleted homebrew pack). Multiclass shows
   // each class joined with " / ".
   const speciesLabel = stats?.speciesKey
-    ? (speciesName ?? humanizeContentKey(stats.speciesKey))
+    ? (speciesResult?.name ?? humanizeContentKey(stats.speciesKey))
     : '';
   const classLabel = stats
     ? getClassEntries(stats)
-        .map((e) => classNamesByKey[e.classKey] ?? humanizeContentKey(e.classKey))
+        .map((e) => classResultsByKey[e.classKey]?.name ?? humanizeContentKey(e.classKey))
         .filter(Boolean)
         .join(' / ')
     : '';
@@ -1105,6 +1161,7 @@ export default function CharacterSheetScreen() {
             canEditAny={canEditAny}
             equipment={equipment}
             isDesktop={isDesktop}
+            conditionCatalog={conditionResults}
             onRoll={handleRoll}
             onToggleCondition={handleToggleCondition}
             onSetExhaustion={handleSetExhaustion}
@@ -1140,6 +1197,11 @@ export default function CharacterSheetScreen() {
             stats={stats}
             resources={resources}
             isOwner={isOwner}
+            classResultsByKey={classResultsByKey}
+            subclassResultsByKey={subclassResultsByKey}
+            speciesResult={speciesResult}
+            backgroundResult={backgroundResult}
+            originFeatResult={originFeatResult}
             onToggleFeatureUse={toggleFeatureUse}
             onAddFeature={(cat) => {
               if (cat === 'feats') {
