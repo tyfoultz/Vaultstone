@@ -398,7 +398,7 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   card: {
-    width: '100%', maxWidth: 640, maxHeight: '88%',
+    width: '100%', maxWidth: 640, maxHeight: '70%',
     backgroundColor: colors.surfaceContainer,
     borderRadius: radius.xl,
     borderWidth: 1, borderColor: colors.outlineVariant,
