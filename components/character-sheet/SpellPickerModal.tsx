@@ -153,7 +153,9 @@ export function SpellPickerModal({
       source: spell.classes && spell.classes.length > 0 ? spell.classes[0] : undefined,
     };
     onPick(prepared);
-    onClose();
+    // Stay open so the player can keep adding — the row updates to
+    // show the prepared check and the Add button swaps to Remove.
+    setExpandedKey(null);
   }
 
   const filterLabel = levelFilter === 'all'
@@ -344,7 +346,7 @@ export function SpellPickerModal({
                               return (
                                 <TouchableOpacity
                                   style={[s.commitBtn, s.commitBtnRemove]}
-                                  onPress={onRemove ? () => { onRemove(sp.key); onClose(); } : undefined}
+                                  onPress={onRemove ? () => { onRemove(sp.key); setExpandedKey(null); } : undefined}
                                   activeOpacity={onRemove ? 0.85 : 1}
                                 >
                                   <Text style={[s.commitText, s.commitTextRemove]}>
