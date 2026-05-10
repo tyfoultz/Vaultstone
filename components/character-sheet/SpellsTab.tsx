@@ -144,7 +144,9 @@ export function SpellsTab({
         <View style={s.statsRow}>
           <View style={s.statBlock}>
             <Text style={s.statValue}>{spellMod !== null ? fmtMod(spellMod) : '—'}</Text>
-            <Text style={s.statLabel}>MODIFIER</Text>
+            <Text style={s.statLabel}>
+              {spellAbility ? `${shortAbility(spellAbility)} MODIFIER` : 'MODIFIER'}
+            </Text>
           </View>
           <View style={s.statDivider} />
           <View style={s.statBlock}>
