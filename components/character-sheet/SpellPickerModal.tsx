@@ -41,19 +41,26 @@ export function SpellPickerModal({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState<number | 'all'>('all');
+  // Three-way: 'all' shows the whole catalog (default), 'added' narrows
+  // to spells already on the character's preparedSpells, 'unadded' hides
+  // those so the player can scan only candidates.
+  const [statusFilter, setStatusFilter] = useState<'all' | 'added' | 'unadded'>('all');
   // Single-open inline expansion. Tapping the same row again collapses;
   // tapping a different row swaps the expansion (only one open at a time
   // so the list doesn't grow unbounded as the player browses).
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setLoading(true);
     setSearch('');
     setLevelFilter('all');
+    setStatusFilter('all');
     setExpandedKey(null);
     setFilterMenuOpen(false);
+    setStatusMenuOpen(false);
     const includeHomebrew = !!campaignId || (packIds?.length ?? 0) > 0;
     const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
     ContentResolver.search({
@@ -84,13 +91,18 @@ export function SpellPickerModal({
         return s.classes.some((cn) => classNamesLc.has(cn.toLowerCase()));
       })
       .filter((s) => levelFilter === 'all' || s.level === levelFilter)
+      .filter((s) => {
+        if (statusFilter === 'all') return true;
+        const has = existingKeys.has(s.key);
+        return statusFilter === 'added' ? has : !has;
+      })
       .filter((s) => !q
         || s.name.toLowerCase().includes(q)
         || s.school.toLowerCase().includes(q)
         || (s.description ?? '').toLowerCase().includes(q),
       )
       .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
-  }, [list, search, levelFilter, classNamesLc]);
+  }, [list, search, levelFilter, statusFilter, existingKeys, classNamesLc]);
 
   // Levels actually present in the (class-filtered) catalog drive the
   // dropdown options — no point listing 9th-level when the character has
@@ -131,6 +143,10 @@ export function SpellPickerModal({
       ? 'Cantrips'
       : `${LEVEL_LABELS[levelFilter] ?? String(levelFilter)} level`;
 
+  const statusLabel = statusFilter === 'all'
+    ? 'All'
+    : statusFilter === 'added' ? 'Added' : 'Unadded';
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose}>
@@ -165,6 +181,12 @@ export function SpellPickerModal({
                   onChange={setLevelFilter}
                   onOpenNativeMenu={() => setFilterMenuOpen(true)}
                   label={filterLabel}
+                />
+                <StatusFilterDropdown
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  onOpenNativeMenu={() => setStatusMenuOpen(true)}
+                  label={statusLabel}
                 />
               </View>
 
@@ -297,6 +319,27 @@ export function SpellPickerModal({
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Status filter dropdown — same popover-Modal pattern, three-way. */}
+      <Modal
+        visible={statusMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setStatusMenuOpen(false)}
+      >
+        <Pressable style={s.menuBackdrop} onPress={() => setStatusMenuOpen(false)}>
+          <Pressable style={s.menuCard} onPress={() => {}}>
+            {(['all', 'unadded', 'added'] as const).map((opt) => (
+              <FilterMenuItem
+                key={opt}
+                label={opt === 'all' ? 'All' : opt === 'added' ? 'Added' : 'Unadded'}
+                active={statusFilter === opt}
+                onPress={() => { setStatusFilter(opt); setStatusMenuOpen(false); }}
+              />
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Modal>
   );
 }
@@ -347,6 +390,50 @@ function LevelFilterDropdown({
   }
   return (
     <TouchableOpacity style={s.filterBtn} onPress={onOpenNativeMenu} activeOpacity={0.75}>
+      <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
+      <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
+    </TouchableOpacity>
+  );
+}
+
+// Status filter dropdown — same web/native split as LevelFilterDropdown.
+// Three-way: all / unadded / added (we order with unadded ahead of
+// added since "show me what I haven't picked yet" is the more common
+// browse intent).
+function StatusFilterDropdown({
+  value, onChange, onOpenNativeMenu, label,
+}: {
+  value: 'all' | 'added' | 'unadded';
+  onChange: (next: 'all' | 'added' | 'unadded') => void;
+  onOpenNativeMenu: () => void;
+  label: string;
+}) {
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[s.filterBtn, s.filterBtnNarrow]}>
+        <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
+        <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        {(() => {
+          const Select = 'select' as any;
+          const Option = 'option' as any;
+          return (
+            <Select
+              style={s.htmlSelect}
+              value={value}
+              onChange={(e: { target: { value: string } }) => onChange(e.target.value as 'all' | 'added' | 'unadded')}
+            >
+              <Option value="all">All</Option>
+              <Option value="unadded">Unadded</Option>
+              <Option value="added">Added</Option>
+            </Select>
+          );
+        })()}
+      </View>
+    );
+  }
+  return (
+    <TouchableOpacity style={[s.filterBtn, s.filterBtnNarrow]} onPress={onOpenNativeMenu} activeOpacity={0.75}>
       <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
       <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
     </TouchableOpacity>
@@ -438,6 +525,7 @@ const s = StyleSheet.create({
     // Anchor the absolutely-positioned <select> overlay (web only).
     position: 'relative',
   },
+  filterBtnNarrow: { minWidth: 110 },
   // Web-only: a real <select> is layered over the styled button so the
   // browser opens its native dropdown on click while the visual chrome
   // (chevron, label, surface) stays on-brand.
