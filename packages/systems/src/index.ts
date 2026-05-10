@@ -6,6 +6,23 @@ export {
   type PrereqCheckResult,
 } from './dnd5e/prerequisites';
 export {
+  spellSlotsForClassAtLevel,
+  spellSlotsForCharacter,
+  casterTypeFor,
+  averageHpForDie,
+  hpGainForLevel,
+  classFeaturesAtLevel,
+  isSubclassUnlockLevel,
+  isAsiLevel,
+  checkMulticlassPrereqs,
+  proficiencyBonusForLevel,
+  totalLevel,
+  conModifier,
+  type SpellSlotsByLevel,
+  type CasterType,
+  type MulticlassCheckResult,
+} from './dnd5e/leveling';
+export {
   resolveCreationSteps,
   type CreationStepContext,
 } from './resolve-creation-steps';
