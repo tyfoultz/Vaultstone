@@ -137,7 +137,11 @@ export function SpellsTab({
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.primary} />
-            <Text style={s.explainerTitle}>How spellcasting works</Text>
+            <Text style={s.explainerTitle}>
+              {spellcastingExplainers.length === 1
+                ? `How ${spellcastingExplainers[0].className} spellcasting works`
+                : 'How spellcasting works'}
+            </Text>
             <MaterialCommunityIcons
               name={explainerOpen ? 'chevron-up' : 'chevron-down'}
               size={16}
