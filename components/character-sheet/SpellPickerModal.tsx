@@ -204,12 +204,6 @@ export function SpellPickerModal({
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={s.rowName}>{sp.name}</Text>
-                          <Text style={s.rowMeta} numberOfLines={1}>
-                            {sp.school}
-                            {sp.concentration ? ' · Concentration' : ''}
-                            {sp.ritual ? ' · Ritual' : ''}
-                            {sp.classes.length > 0 ? ` · ${sp.classes.join(', ')}` : ''}
-                          </Text>
                         </View>
                         {has ? (
                           <Text style={s.rowHasText}>Added</Text>
