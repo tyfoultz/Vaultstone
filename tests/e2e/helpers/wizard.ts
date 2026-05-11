@@ -2,9 +2,14 @@ import { expect, type Page } from '@playwright/test';
 
 // Opens the standalone wizard fork by going through the Characters tab.
 // Assumes the test user is already signed in (signIn fixture).
+//
+// Returns after advancing through the Rules step by default (so callers
+// land on Species). Pass `pauseOnRules: true` to stop on the Rules step
+// before Continue is pressed — needed when the test wants to toggle a
+// creation-time rule (customize_origin, feats_at_level_1, etc.).
 export async function openNewCharacterStandalone(
   page: Page,
-  opts: { packName?: string } = {},
+  opts: { packName?: string; pauseOnRules?: boolean } = {},
 ) {
   // RN-Web renders Touchable* as divs, so role=button doesn't apply; use text.
   await page.goto('/characters');
@@ -27,10 +32,13 @@ export async function openNewCharacterStandalone(
   // Continue out of Ruleset
   await clickContinue(page);
   // Standalone flow inserts a "Rules" step (campaign-rules editor) between
-  // Ruleset and Species. System defaults are pre-seeded, so we just Continue.
+  // Ruleset and Species. System defaults are pre-seeded, so we just Continue
+  // unless the caller wants to edit a rule first.
   await page.getByText('Character creation rules', { exact: true })
     .waitFor({ timeout: 10_000 });
-  await clickContinue(page);
+  if (!opts.pauseOnRules) {
+    await clickContinue(page);
+  }
 }
 
 export async function clickContinue(page: Page) {
