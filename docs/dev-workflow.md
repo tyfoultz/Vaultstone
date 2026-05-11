@@ -72,6 +72,17 @@ Pick the 1–2 golden-path interactions that the feature is *for* and verify the
 - Sign in → open campaign → tap party card row → picker modal opens → pick a character → modal closes → party card row now shows the character name.
 - Open drawer → characters list → the picked character shows "In: &lt;campaign name&gt;" badge; others show "Unassigned".
 
+### Tier 4 alternative: the Playwright test runner
+
+For regression-style coverage where you want the same flow re-run deterministically (rather than an interactive Claude-driven probe), the repo ships a Playwright test-runner setup separate from the MCP one above:
+
+- `npm run test:e2e` — runs every spec in `tests/e2e/` against `TEST_BASE_URL` (default `http://localhost:8081`). Playwright auto-starts `npm run web` if nothing's serving the URL yet, and reuses an existing server otherwise.
+- `npm run test:e2e:ui` — same suite, Playwright's interactive UI mode for stepping through and inspecting failures.
+
+Both use the same `.env.test` credentials as the MCP path. Specs are headed Chromium by default; failures save screenshots, video, and trace.zip under `test-results/` (gitignored).
+
+Use the runner for: character-creation matrix runs after touching wizard code, smoke checks on auth, or any flow you want re-run automatically on each push. Use the MCP path for: exploratory testing of a single feature you're iterating on. The two coexist — the runner doesn't replace the MCP flow.
+
 ### When Tier 4 is too expensive to be worth it
 
 Skip Tier 4 and rely on Tier 1 + Netlify preview for:
@@ -86,4 +97,6 @@ Skip Tier 4 and rely on Tier 1 + Netlify preview for:
 
 - `npm run typecheck` — Tier 1.
 - `npm run web` — dev server for Tier 4 (and manual dev).
+- `npm run test:e2e` — Playwright test-runner across `tests/e2e/`. Auto-starts the dev server if not already running.
+- `npm run test:e2e:ui` — Playwright interactive UI mode for the same suite.
 - `npm run build:web` — the exact command Netlify runs. Useful as an on-demand check for config/bundler-class changes.

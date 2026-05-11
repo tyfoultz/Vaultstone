@@ -272,10 +272,12 @@ function parseSkillChoices(value) {
     for (const [w, n] of Object.entries(wordToNum)) if (lower.includes(`choose ${w}`)) { count = n; break; }
   }
   // Skill names follow the colon (or "from") and are comma-separated, with
-  // a possible "or" before the last entry.
+  // a possible "or" / "and" before the last entry. SRD 5.1 uses the Oxford
+  // comma convention ("…, Persuasion, and Religion") which would otherwise
+  // leave " and Religion" as a parsed token and Title-Case to "And Religion".
   const after = value.replace(/^.*?(?::|from)\s*/i, '');
   const list = after
-    .replace(/\bor\b/gi, ',')
+    .replace(/\b(?:or|and)\b/gi, ',')
     .split(/[,;]/)
     .map((s) => s.replace(/[.\s]+$/, '').trim())
     .filter(Boolean);

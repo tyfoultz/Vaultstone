@@ -91,10 +91,6 @@ export function StepClass({ onPreviewChange, onAdvance }: Props) {
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
 
-  if (loading) {
-    return <View style={s.loadingWrap}><ActivityIndicator color={colors.primary} /></View>;
-  }
-
   const preview = previewKey ? classes.find((c) => c.key === previewKey) : null;
 
   // Commit the class pick as soon as the player opens its detail view
@@ -109,6 +105,10 @@ export function StepClass({ onPreviewChange, onAdvance }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview?.key]);
+
+  if (loading) {
+    return <View style={s.loadingWrap}><ActivityIndicator color={colors.primary} /></View>;
+  }
 
   if (preview) {
     const isChosen = classKey === preview.key;
