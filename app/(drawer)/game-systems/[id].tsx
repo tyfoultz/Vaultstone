@@ -659,7 +659,10 @@ export function SpeciesList({
               <MetaLabel size="sm">Traits</MetaLabel>
               {s.traits.map((t: any, i: number) => (
                 <View key={i} style={styles.bullet}>
-                  <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>{t.name}</Text>
+                  <Text variant="body-sm" family="body" weight="bold" style={{ color: colors.onSurface }}>
+                    {t.name}
+                    {typeof t.level === 'number' && t.level > 1 ? ` (Level ${t.level})` : ''}
+                  </Text>
                   <MarkdownText style={styles.bodyText}>{t.description}</MarkdownText>
                 </View>
               ))}

@@ -495,7 +495,7 @@ export interface SpeciesResult extends ContentResult {
   type: 'species';
   size: 'Small' | 'Medium' | 'Large';
   speed: number;
-  traits: Array<{ name: string; description: string }>;
+  traits: Array<{ name: string; description: string; level?: number }>;
   /** Fixed ASI granted by the species (SRD 5.1 style). Empty for SRD 2.0
    *  species (those use Custom Origin / `swapRules.abilityScores: true`
    *  to let the player distribute their own ASIs). */

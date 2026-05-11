@@ -128,6 +128,18 @@ export function SpeciesFormModal({ pack, entry, onClose, onSaved }: Props) {
     next[idx] = { ...next[idx], [field]: value };
     patch('traits', next);
   }
+  function patchTraitLevel(idx: number, raw: string) {
+    const next = data.traits.slice();
+    const trimmed = raw.trim();
+    if (trimmed === '') {
+      const { level: _drop, ...rest } = next[idx];
+      next[idx] = rest;
+    } else {
+      const n = Math.max(1, Math.min(20, Math.floor(Number(trimmed) || 1)));
+      next[idx] = { ...next[idx], level: n };
+    }
+    patch('traits', next);
+  }
 
   // ── Custom Origin swap rules ────────────────────────────────────────────
   const swap = data.swapRules ?? { abilityScores: false, languages: false, skills: false };
@@ -141,7 +153,14 @@ export function SpeciesFormModal({ pack, entry, onClose, onSaved }: Props) {
     if (!data.description.trim()) { setError('Description is required.'); return; }
     // Drop empty trait rows so we don't ship junk to the resolver.
     const cleanTraits = data.traits
-      .map((t) => ({ name: t.name.trim(), description: t.description.trim() }))
+      .map((t) => {
+        const out: { name: string; description: string; level?: number } = {
+          name: t.name.trim(),
+          description: t.description.trim(),
+        };
+        if (typeof t.level === 'number' && t.level > 1) out.level = t.level;
+        return out;
+      })
       .filter((t) => t.name || t.description);
     const final: HomebrewSpeciesData = {
       ...data,
@@ -325,6 +344,15 @@ export function SpeciesFormModal({ pack, entry, onClose, onSaved }: Props) {
                 placeholder="Darkvision"
                 value={trait.name}
                 onChangeText={(t) => patchTrait(idx, 'name', t)}
+              />
+            </View>
+            <View style={{ width: 96 }}>
+              <Input
+                label="Gained at level"
+                placeholder="1"
+                keyboardType="number-pad"
+                value={trait.level !== undefined ? String(trait.level) : ''}
+                onChangeText={(t) => patchTraitLevel(idx, t)}
               />
             </View>
             <Pressable

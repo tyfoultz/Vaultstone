@@ -124,7 +124,9 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
             <View style={s.traitList}>
               {preview.traits.map((t) => (
                 <Text key={t.name} style={s.traitItem}>
-                  <Text style={s.traitName}>{t.name}. </Text>
+                  <Text style={s.traitName}>
+                    {t.name}
+                    {t.level && t.level > 1 ? ` (Level ${t.level})` : ''}. </Text>
                   <Text style={s.traitDesc}>{t.description}</Text>
                 </Text>
               ))}

@@ -160,8 +160,9 @@ export interface HomebrewSpeciesData {
   speed: number;
   description: string;
   /** Named feature blocks ("Darkvision", "Fey Ancestry"). Rendered
-   *  as a bullet list on the detail card. */
-  traits: Array<{ name: string; description: string }>;
+   *  as a bullet list on the detail card. `level` is the character
+   *  level at which the trait unlocks — defaults to 1 when omitted. */
+  traits: Array<{ name: string; description: string; level?: number }>;
   /** Fixed ability score bonuses (Dwarf +2 CON style). Empty for
    *  Custom-Origin species that let the player pick on the wizard. */
   abilityScoreIncreases: Array<{ ability: string; amount: number }>;
