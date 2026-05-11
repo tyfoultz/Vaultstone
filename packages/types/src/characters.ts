@@ -41,17 +41,66 @@ export interface Dnd5eAbilityScores {
 }
 
 /**
+ * One entry in a character's class list. Multi-classed characters
+ * carry multiple entries; single-classed characters carry one.
+ *
+ * `classKey` matches a `ClassResult.key` (edition-suffixed). The
+ * `subclassKey` matches a `SubclassResult.key`; null until the
+ * character reaches the class's subclass-unlock level. `hitDie`
+ * snapshots the class's hit die at the level the entry was added,
+ * matching the existing top-level `Dnd5eStats.hitDie` field's role.
+ */
+export interface Dnd5eClassEntry {
+  classKey: string;
+  level: number;
+  subclassKey: string | null;
+  hitDie: number;
+  /**
+   * Whether this entry was the *first* class on the character —
+   * the primary class. The primary class confers the full set of
+   * starting proficiencies (armor, weapons, tools, saves, two
+   * skills); secondary classes only confer the multiclass-entry
+   * subset. Exactly one entry per character carries `primary: true`.
+   */
+  primary: boolean;
+}
+
+/**
  * Shape of the `base_stats` JSON blob for a D&D 5e character.
  * Stores raw creation choices; all derived stats are computed at render time.
  */
 export interface Dnd5eStats {
   characterName: string;
-  /** Always 1 at creation; incremented on level-up (future feature). */
+  /**
+   * Total character level (sum of `classes[].level` when present,
+   * or just the legacy single-class level when not). Kept on the
+   * row for read-side simplicity in the sheet header, party view,
+   * etc. — these surfaces don't care which class(es) the level
+   * came from. The level-up wizard updates this in lockstep with
+   * `classes[]` writes.
+   */
   level: number;
 
   // Content selections (keys from ContentResolver)
   speciesKey: string;
+  /**
+   * Primary class key. Mirrored from `classes[]` (the entry with
+   * `primary: true`) when that list is populated; held as the only
+   * source of truth on legacy single-class characters that haven't
+   * been migrated to the array form. Display surfaces (sheet
+   * header, party view, character list) read this directly so they
+   * keep working unchanged across the migration.
+   */
   classKey: string;
+  /**
+   * Multi-class entries. Optional for backwards compat — characters
+   * created before the level-up arc shipped don't have this field
+   * and are treated as a single-class character whose `classKey` /
+   * `level` / `hitDie` describe the lone entry. The level-up
+   * wizard always writes this array; a single-class L1 character
+   * created today carries a one-element array.
+   */
+  classes?: Dnd5eClassEntry[];
   backgroundKey: string;
   /** Which SRD version the character was built with. */
   srdVersion: 'SRD_5.1' | 'SRD_2.0';
@@ -86,6 +135,40 @@ export interface Dnd5eStats {
 
   /** Per-character settings. Optional for backwards compat with existing characters. */
   settings?: CharacterSettings;
+}
+
+/**
+ * Read a character's class entries with the legacy single-class
+ * fallback. Returns the `classes[]` array verbatim when present;
+ * otherwise synthesizes a one-element array from the legacy
+ * top-level `classKey` / `level` / `hitDie` fields. Use this in
+ * any code path that needs the per-class breakdown (level-up,
+ * spell-slot computation, multiclass prereq checks); display code
+ * that just wants a primary class label can keep reading
+ * `stats.classKey` directly.
+ */
+export function getClassEntries(stats: Dnd5eStats): Dnd5eClassEntry[] {
+  if (stats.classes && stats.classes.length > 0) return stats.classes;
+  return [
+    {
+      classKey: stats.classKey,
+      level: stats.level,
+      subclassKey: null,
+      hitDie: stats.hitDie,
+      primary: true,
+    },
+  ];
+}
+
+/**
+ * Find the primary class entry — the entry the character started
+ * with, source of starting proficiencies and most display labels.
+ * Falls through to the synthetic legacy entry when no `classes[]`
+ * is present.
+ */
+export function getPrimaryClassEntry(stats: Dnd5eStats): Dnd5eClassEntry {
+  const entries = getClassEntries(stats);
+  return entries.find((e) => e.primary) ?? entries[0];
 }
 
 export type EquipmentSlot = 'weapon' | 'armor' | 'shield' | 'other';
@@ -183,6 +266,15 @@ export interface Dnd5ePreparedSpell {
   effectType?: string;
   /** Source feature or background that granted this spell, e.g. 'Elven Lineage' */
   source?: string;
+  /** Component letters list — ['V','S','M']. Populated when added through
+   *  the catalog picker; absent on legacy entries. */
+  components?: string[];
+  /** Duration string from the catalog — '1 minute', 'Concentration, up to 1 minute', etc. */
+  duration?: string;
+  /** Full spell description copied from the catalog, used by the inline
+   *  expand on the Spells tab. Optional so legacy entries (added before
+   *  the modal back-filled this) still load cleanly. */
+  description?: string;
 }
 
 /** Generic per-class resource pool: Barbarian rages, Ki points, Channel Divinity, etc. */
@@ -253,8 +345,48 @@ export interface Dnd5eResources {
   appearance?: Dnd5eAppearance;
   /** Campaign journal entries. */
   journal?: Dnd5eJournalEntry[];
-  /** Prepared spells and cantrips. */
+  /**
+   * Active prepared spells + cantrips — the subset of `spellbook[]`
+   * the character can actually cast right now. Cantrips always read
+   * from this list (they don't get "unprepared" in 5e); leveled spells
+   * here represent what the player toggled on after a long rest.
+   *
+   * For pre-spellbook characters (created before the Manage/Prepare
+   * split landed), this is also the de-facto spellbook. The
+   * `getSpellbook` helper below normalizes both shapes.
+   */
   preparedSpells?: Dnd5ePreparedSpell[];
+
+  /**
+   * Every spell the character has learned — i.e. the master pool the
+   * Prepare Spells modal picks from. Populated by the Manage Spells
+   * modal (catalog → spellbook). For known-list classes (5.1 Sorcerer
+   * / Bard / Ranger / Warlock) this is the only list; the prepared/
+   * spellbook split collapses since every known spell is always cast-
+   * able. For prepare-list classes (Wizard, Cleric, etc.) this carries
+   * the wider pool the player chose during downtime / level-up, and
+   * `preparedSpells[]` carries today's active subset.
+   *
+   * Optional + nullable so legacy character rows (no spellbook field
+   * yet) stay readable — see `getSpellbook` for the normalization.
+   */
+  spellbook?: Dnd5ePreparedSpell[];
+}
+
+/**
+ * Resolve a character's full spellbook regardless of whether the row
+ * predates the Manage/Prepare split. New characters write to
+ * `resources.spellbook[]`; legacy characters only have
+ * `preparedSpells[]`, so we treat that as the spellbook too. Always
+ * dedupes by id so the merged shape stays stable when both fields
+ * are populated mid-migration.
+ */
+export function getSpellbook(resources: Dnd5eResources | null | undefined): Dnd5ePreparedSpell[] {
+  if (!resources) return [];
+  if (resources.spellbook && resources.spellbook.length > 0) {
+    return resources.spellbook;
+  }
+  return resources.preparedSpells ?? [];
 }
 
 export interface PartyViewSettings {

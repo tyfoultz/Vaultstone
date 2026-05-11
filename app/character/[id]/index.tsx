@@ -13,22 +13,25 @@ import {
   getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, supabase,
   getCampaignCharacterRules, resolveRuleValues,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius } from '@vaultstone/ui';
-import { getSrdContent } from '@vaultstone/content';
-import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature } from '@vaultstone/types';
-import { HpModal } from '../../components/character-sheet/HpModal';
-import { ConditionsPanel } from '../../components/character-sheet/ConditionsPanel';
-import { RollToast } from '../../components/character-sheet/RollToast';
-import type { RollResult } from '../../components/character-sheet/RollToast';
-import { CombatTab, ConditionsSection } from '../../components/character-sheet/CombatTab';
-import { SkillsTab } from '../../components/character-sheet/SkillsTab';
-import { AbilitiesTab } from '../../components/character-sheet/AbilitiesTab';
-import { SpellsTab } from '../../components/character-sheet/SpellsTab';
-import { GearTab } from '../../components/character-sheet/GearTab';
-import { LoreTab } from '../../components/character-sheet/LoreTab';
-import { FeatPickerModal } from '../../components/character-sheet/FeatPickerModal';
+import { getSrdContent, ContentResolver } from '@vaultstone/content';
+import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult, SkillResult } from '@vaultstone/types';
+import { getClassEntries, getSpellbook } from '@vaultstone/types';
+import { HpModal } from '../../../components/character-sheet/HpModal';
+import { ConditionsPanel } from '../../../components/character-sheet/ConditionsPanel';
+import { RollToast } from '../../../components/character-sheet/RollToast';
+import type { RollResult } from '../../../components/character-sheet/RollToast';
+import { CombatTab, ConditionsSection } from '../../../components/character-sheet/CombatTab';
+import { SkillsTab } from '../../../components/character-sheet/SkillsTab';
+import { AbilitiesTab } from '../../../components/character-sheet/AbilitiesTab';
+import { SpellsTab } from '../../../components/character-sheet/SpellsTab';
+import { GearTab } from '../../../components/character-sheet/GearTab';
+import { LoreTab } from '../../../components/character-sheet/LoreTab';
+import { FeatPickerModal } from '../../../components/character-sheet/FeatPickerModal';
+import { SpellPickerModal } from '../../../components/character-sheet/SpellPickerModal';
+import { ItemPickerModal } from '../../../components/character-sheet/ItemPickerModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
@@ -67,6 +70,237 @@ function profBonus(level: number) { return Math.floor((level - 1) / 4) + 2; }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function titleCase(s: string) { return s.split(' ').map(capitalize).join(' '); }
+
+// Humanize a content key for display when ContentResolver hasn't returned
+// yet (or doesn't carry the entry). SRD keys are slugs like `dwarf` or
+// `artificer-srd-2-0` and humanize cleanly. Imported keys are shaped like
+// `imported_dnd5e_2014_class_efa_artificer` — strip the leading metadata
+// segments (`imported`, system, srdVersion, type, source) so the trailing
+// slug is what the user sees. This is a fallback; the real name comes
+// from ContentResolver once the lookup resolves.
+function humanizeContentKey(key: string): string {
+  if (!key) return '';
+  let slug = key;
+  if (slug.startsWith('imported_')) {
+    const parts = slug.split('_');
+    if (parts.length > 5) slug = parts.slice(5).join('_');
+  }
+  slug = slug.replace(/-srd-[\d-]+$/i, '');
+  return slug.split(/[-_\s]+/).filter(Boolean).map(capitalize).join(' ');
+}
+
+// Spell prep limits surfaced under the Manage Spells / Prepare Spells
+// filters. Three buckets, each summed across multiclass entries:
+//
+//   - cantrips   : `cantrips` (5.2) → `cantripsKnown` (5.1)
+//   - spellbook  : `spellsKnown` (5.1 known-list classes only). For
+//                  prepare-list classes the spellbook is effectively
+//                  uncapped (a Wizard's spellbook holds whatever they
+//                  scribe), so this stays undefined for them and the
+//                  Manage Spells modal omits the denominator.
+//   - prepared   : `preparedSpells` (5.2; rebranded "known" for sorc
+//                  in 2024) → ability-mod + classLevel formula for
+//                  5.1 prepare-list classes (min 1).
+//
+// Returns undefined for any bucket no caster contributes to; that
+// signals the picker to drop the denominator instead of showing "0/0".
+const ABILITY_BY_NAME: Record<string, keyof Dnd5eAbilityScores> = {
+  intelligence: 'intelligence',
+  wisdom: 'wisdom',
+  charisma: 'charisma',
+  strength: 'strength',
+  dexterity: 'dexterity',
+  constitution: 'constitution',
+};
+
+// Class names whose 5.1 prep limit is `mod + class level` (min 1). The
+// rest either have a structured `spellsKnown` column (handled separately)
+// or use the 2024 `preparedSpells` column.
+const PREPARE_FORMULA_CLASSES_5_1 = new Set(['wizard', 'cleric', 'druid', 'paladin', 'artificer']);
+
+function computeSpellLimits(
+  stats: Dnd5eStats,
+  classResultsByKey: Record<string, ClassResult>,
+): { cantrips?: number; spellbook?: number; prepared?: number } {
+  const entries = getClassEntries(stats);
+  const scores = stats.abilityScores;
+  let cantrips = 0;
+  let spellbook = 0;
+  let prepared = 0;
+  let sawCantrip = false;
+  let sawSpellbook = false;
+  let sawPrepared = false;
+  for (const e of entries) {
+    const cls = classResultsByKey[e.classKey];
+    if (!cls?.spellcasting || !cls.progressionTable) continue;
+    const row = cls.progressionTable.find((r) => r.level === Math.min(e.level, 20));
+    if (!row) continue;
+
+    // Cantrips — try direct keys, then label match. Imported 5e.tools
+    // classes use `col2` keyed columns with "Cantrips" as the label.
+    const c = readProgressionValue(
+      cls, row,
+      ['cantrips', 'cantripsKnown'],
+      ['Cantrips Known', 'Cantrips'],
+    );
+    if (c !== null) { cantrips += c; sawCantrip = true; }
+
+    // Known-list classes carry `spellsKnown` (5.1 Sorcerer / Bard /
+    // Ranger / Warlock — Warlock 2014 had its own ad-hoc track too).
+    // For prepare-list classes the spellbook is uncapped, so we
+    // simply don't accumulate a number — sawSpellbook stays false
+    // and the Manage Spells modal omits the denominator.
+    const sk = readProgressionValue(
+      cls, row,
+      ['spellsKnown'],
+      ['Spells Known'],
+    );
+    if (sk !== null) { spellbook += sk; sawSpellbook = true; }
+
+    // Prepared — 2024 ships `preparedSpells`. Prepare-list 5.1
+    // classes don't, so we compute `mod + classLevel` (min 1) using
+    // the class's spellcasting ability + the character's score.
+    const pStructured = readProgressionValue(
+      cls, row,
+      ['preparedSpells'],
+      ['Prepared Spells'],
+    );
+    if (pStructured !== null) {
+      prepared += pStructured;
+      sawPrepared = true;
+    } else if (scores && cls.spellcastingAbility && PREPARE_FORMULA_CLASSES_5_1.has(cls.name.toLowerCase())) {
+      const abilityKey = ABILITY_BY_NAME[cls.spellcastingAbility.toLowerCase()];
+      if (abilityKey) {
+        const score = scores[abilityKey];
+        const mod = Math.floor((score - 10) / 2);
+        prepared += Math.max(1, mod + e.level);
+        sawPrepared = true;
+      }
+    }
+  }
+  return {
+    cantrips: sawCantrip ? cantrips : undefined,
+    spellbook: sawSpellbook ? spellbook : undefined,
+    prepared: sawPrepared ? prepared : undefined,
+  };
+}
+
+function parseProgressionInt(raw: string | number | undefined): number | null {
+  if (raw == null || raw === '—') return null;
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Read a progression-table value by trying each known column key, then
+// falling back to a label match through `progressionColumns`. Imported
+// 5e.tools classes (notably Artificer) use generic `col0`/`col1`/...
+// keys with the human label carrying the meaning ("Cantrips Known",
+// "Prepared Spells"), so a key-only probe misses them.
+function readProgressionValue(
+  cls: ClassResult,
+  row: { values: Record<string, string | number> },
+  candidateKeys: string[],
+  candidateLabels: string[],
+): number | null {
+  for (const k of candidateKeys) {
+    const v = parseProgressionInt(row.values[k]);
+    if (v !== null) return v;
+  }
+  if (cls.progressionColumns) {
+    for (const col of cls.progressionColumns) {
+      const labelLc = col.label.toLowerCase();
+      if (candidateLabels.some((cand) => labelLc === cand.toLowerCase() || labelLc.includes(cand.toLowerCase()))) {
+        const v = parseProgressionInt(row.values[col.key]);
+        if (v !== null) return v;
+      }
+    }
+  }
+  return null;
+}
+
+// Per-class spellcasting payload for the Spells tab. Mixes structured
+// data (always present — ability, cantrips known, prep limit) with the
+// class-shipped prose (optional — some classes ship only a thin "see
+// the PHB" stub, so we surface synthesized stats alongside whatever
+// prose exists). The synthesized core-stats grid renders above the
+// prose; a class with no prose still gets the actionable numbers.
+function spellcastingExplainersFor(
+  stats: Dnd5eStats,
+  classResultsByKey: Record<string, ClassResult>,
+): Array<{
+  className: string;
+  spellcastingAbility: string | null;
+  cantripsKnown?: number;
+  spellsKnownOrPrepared?: number;
+  preparedLabel?: string;
+  preparedFormula?: string;
+  description?: string;
+}> {
+  const out: Array<{
+    className: string;
+    spellcastingAbility: string | null;
+    cantripsKnown?: number;
+    spellsKnownOrPrepared?: number;
+    preparedLabel?: string;
+    preparedFormula?: string;
+    description?: string;
+  }> = [];
+  for (const e of getClassEntries(stats)) {
+    const cls = classResultsByKey[e.classKey];
+    if (!cls?.spellcasting) continue;
+
+    // Pull the canonical Spellcasting feature description for the
+    // prose. Falls back to undefined when missing — the synthesized
+    // stats above carry the load in that case.
+    const feat = (cls.features ?? []).find(
+      (f) => f.name.toLowerCase() === 'spellcasting' && f.level === 1,
+    ) ?? (cls.features ?? []).find((f) => f.name.toLowerCase() === 'spellcasting');
+
+    // Synthesized counts at this character's level for this class.
+    const row = cls.progressionTable?.find((r) => r.level === Math.min(e.level, 20));
+    const cantripsKnown = row
+      ? (readProgressionValue(cls, row, ['cantrips', 'cantripsKnown'], ['Cantrips Known', 'Cantrips']) ?? undefined)
+      : undefined;
+    const sk = row
+      ? readProgressionValue(cls, row, ['spellsKnown'], ['Spells Known'])
+      : null;
+    const ps = row
+      ? readProgressionValue(cls, row, ['preparedSpells'], ['Prepared Spells'])
+      : null;
+
+    let spellsKnownOrPrepared: number | undefined;
+    let preparedLabel: string | undefined;
+    let preparedFormula: string | undefined;
+    if (sk !== null) {
+      spellsKnownOrPrepared = sk;
+      preparedLabel = 'Spells Known';
+    } else if (ps !== null) {
+      spellsKnownOrPrepared = ps;
+      preparedLabel = 'Prepared Spells';
+    } else if (cls.spellcastingAbility && PREPARE_FORMULA_CLASSES_5_1.has(cls.name.toLowerCase())) {
+      // 5.1 prepare-list class — formula `mod + level (min 1)`.
+      const abilityKey = ABILITY_BY_NAME[cls.spellcastingAbility.toLowerCase()];
+      if (abilityKey && stats.abilityScores) {
+        const score = stats.abilityScores[abilityKey];
+        const mod = Math.floor((score - 10) / 2);
+        spellsKnownOrPrepared = Math.max(1, mod + e.level);
+        preparedLabel = 'Prepared Spells';
+        preparedFormula = `${cls.spellcastingAbility} mod + ${cls.name} level`;
+      }
+    }
+
+    out.push({
+      className: cls.name,
+      spellcastingAbility: cls.spellcastingAbility ?? null,
+      cantripsKnown,
+      spellsKnownOrPrepared,
+      preparedLabel,
+      preparedFormula,
+      description: feat?.description,
+    });
+  }
+  return out;
+}
 
 function StatCell({ icon, value, label, color, centered }: { icon: string; value: string; label: string; color: string; centered?: boolean }) {
   return (
@@ -376,6 +610,11 @@ export default function CharacterSheetScreen() {
   const [editFeature, setEditFeature] = useState<Dnd5eFeature | null>(null);
   const [featureCategory, setFeatureCategory] = useState<'classFeatures' | 'speciesTraits' | 'feats'>('classFeatures');
   const [featPickerOpen, setFeatPickerOpen] = useState(false);
+  const [spellPickerOpen, setSpellPickerOpen] = useState(false);
+  // 'short' | 'long' | null — tracks which rest the player is about to
+  // confirm. Resets to null on dismiss.
+  const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null);
+  const [itemPickerOpen, setItemPickerOpen] = useState(false);
   /** Campaign rule `enforce_feat_prerequisites` resolved from the
    *  character's linked campaign. Standalone characters fall through
    *  to true (the system's bundled default). */
@@ -394,6 +633,18 @@ export default function CharacterSheetScreen() {
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [logModal, setLogModal] = useState(false);
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Resolved content for the character's identity. ContentResolver merges
+  // SRD + homebrew + imported tiers (scoped to the character's campaign /
+  // pack opt-in) so imported homebrew flows through. The sheet uses these
+  // for live class/subclass/species feature rendering and for origin-feat
+  // detail, falling back to humanized keys while the lookup is in flight.
+  const [speciesResult, setSpeciesResult] = useState<SpeciesResult | null>(null);
+  const [classResultsByKey, setClassResultsByKey] = useState<Record<string, ClassResult>>({});
+  const [subclassResultsByKey, setSubclassResultsByKey] = useState<Record<string, SubclassResult>>({});
+  const [backgroundResult, setBackgroundResult] = useState<BackgroundResult | null>(null);
+  const [originFeatResult, setOriginFeatResult] = useState<FeatResult | null>(null);
+  const [conditionResults, setConditionResults] = useState<ConditionResult[]>([]);
+  const [skillResults, setSkillResults] = useState<SkillResult[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -464,14 +715,127 @@ export default function CharacterSheetScreen() {
     return () => { cancelled = true; };
   }, [character?.campaign_id]);
 
+  // Resolve content for the character's identity (species, class(es),
+  // subclass(es), background, origin feat) plus the SRD condition catalog.
+  // ContentResolver merges SRD + homebrew + imported tiers; we scope to
+  // the character's campaign + pack opt-in so imported homebrew flows
+  // through (mirrors the wizard / level-up flow). Names AND full payloads
+  // are kept so the sheet can render live features / traits / descriptions
+  // without snapshotting at creation time.
+  useEffect(() => {
+    const stats = character?.base_stats as Dnd5eStats | null;
+    if (!stats) return;
+    const speciesKey = stats.speciesKey;
+    const entries = getClassEntries(stats);
+    const classKeys = Array.from(new Set(entries.map((e) => e.classKey).filter(Boolean)));
+    const subclassKeys = Array.from(new Set(entries.map((e) => e.subclassKey).filter((k): k is string => !!k)));
+    const backgroundKey = stats.backgroundKey;
+    const originFeatName = stats.originFeat?.trim() || null;
+
+    let cancelled = false;
+    (async () => {
+      const includeHomebrew = !!character?.campaign_id || (character?.pack_ids ?? []).length > 0;
+      const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+      const tierArgs = {
+        system: 'dnd5e' as const,
+        srdVersion: stats.srdVersion,
+        tiers,
+        campaignId: character?.campaign_id ?? undefined,
+        packIds: !character?.campaign_id && (character?.pack_ids ?? []).length > 0
+          ? (character?.pack_ids as string[])
+          : undefined,
+      };
+      const [speciesResults, classResults, subclassResults, backgroundResults, featResults, conditionResultsAll, skillResultsAll] = await Promise.all([
+        speciesKey ? ContentResolver.search({ ...tierArgs, type: 'species' }) : Promise.resolve([]),
+        classKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'class' }) : Promise.resolve([]),
+        subclassKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'subclass' }) : Promise.resolve([]),
+        backgroundKey ? ContentResolver.search({ ...tierArgs, type: 'background' }) : Promise.resolve([]),
+        originFeatName ? ContentResolver.search({ ...tierArgs, type: 'feat' }) : Promise.resolve([]),
+        ContentResolver.search({ ...tierArgs, type: 'condition' }),
+        ContentResolver.search({ ...tierArgs, type: 'skill' }),
+      ]);
+      if (cancelled) return;
+
+      if (speciesKey) {
+        const hit = speciesResults.find((r) => r.key === speciesKey) as SpeciesResult | undefined;
+        setSpeciesResult(hit ?? null);
+      } else {
+        setSpeciesResult(null);
+      }
+
+      if (classKeys.length > 0) {
+        const map: Record<string, ClassResult> = {};
+        for (const k of classKeys) {
+          const hit = classResults.find((r) => r.key === k) as ClassResult | undefined;
+          if (hit) map[k] = hit;
+        }
+        setClassResultsByKey(map);
+      } else {
+        setClassResultsByKey({});
+      }
+
+      if (subclassKeys.length > 0) {
+        const map: Record<string, SubclassResult> = {};
+        const stripEdition = (s: string) => s.replace(/-srd-.*$/i, '');
+        for (const k of subclassKeys) {
+          // Subclass keys may diverge between editions; an exact match is
+          // best, fall back to a slug match so legacy stored keys still
+          // resolve.
+          const exact = subclassResults.find((r) => r.key === k);
+          const target = stripEdition(k);
+          const lenient = subclassResults.find((r) => stripEdition(r.key) === target);
+          const hit = (exact ?? lenient) as SubclassResult | undefined;
+          if (hit) map[k] = hit;
+        }
+        setSubclassResultsByKey(map);
+      } else {
+        setSubclassResultsByKey({});
+      }
+
+      if (backgroundKey) {
+        const hit = backgroundResults.find((r) => r.key === backgroundKey) as BackgroundResult | undefined;
+        setBackgroundResult(hit ?? null);
+      } else {
+        setBackgroundResult(null);
+      }
+
+      if (originFeatName) {
+        const lower = originFeatName.toLowerCase();
+        const hit = featResults.find((r) => r.name.toLowerCase() === lower) as FeatResult | undefined;
+        setOriginFeatResult(hit ?? null);
+      } else {
+        setOriginFeatResult(null);
+      }
+
+      setConditionResults(conditionResultsAll as ConditionResult[]);
+      setSkillResults(skillResultsAll as SkillResult[]);
+    })();
+    return () => { cancelled = true; };
+  }, [
+    character?.campaign_id,
+    character?.pack_ids,
+    (character?.base_stats as Dnd5eStats | null)?.speciesKey,
+    (character?.base_stats as Dnd5eStats | null)?.classKey,
+    (character?.base_stats as Dnd5eStats | null)?.classes,
+    (character?.base_stats as Dnd5eStats | null)?.backgroundKey,
+    (character?.base_stats as Dnd5eStats | null)?.originFeat,
+  ]);
+
   // Realtime: when another viewer (e.g. the DM via Party View) mutates this
   // character, merge the payload into local state so the sheet reflects the
   // change without a refresh. We intentionally don't sync the scratchpad
   // field — it has in-progress notes that would clobber local edits.
   useEffect(() => {
     if (!id) return;
+    // Per-mount channel name. supabase.channel(name) caches by name,
+    // so re-mounting the sheet (e.g. after the level-up wizard's
+    // router.replace) hands back the already-subscribed channel —
+    // and adding `.on('postgres_changes', ...)` to a subscribed
+    // channel throws. A unique name per mount sidesteps the cache
+    // entirely, mirroring the world-layout's pattern.
+    const channelName = `character:${id}:${Date.now()}`;
     const channel = supabase
-      .channel(`character:${id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -481,14 +845,23 @@ export default function CharacterSheetScreen() {
           filter: `id=eq.${id}`,
         },
         (payload) => {
-          const next = payload.new as Character;
-          setCharacter(next);
-          updateCharacterLocally(id, {
-            base_stats: next.base_stats,
-            resources: next.resources,
-            conditions: next.conditions,
-            name: next.name,
-          });
+          // Merge into existing state instead of replacing. Postgres logical
+          // replication marks unchanged TOASTed columns (large JSONB values
+          // stored out-of-line) as "unchanged" in the WAL, and Supabase
+          // Realtime surfaces those as `null` in `payload.new`. Our base_stats
+          // / resources columns easily exceed the TOAST threshold, so an
+          // UPDATE that touched only one of them returns the other as null
+          // here — replacing wholesale would clobber it client-side and trip
+          // the load gate on the next render. Merging + skipping nullish
+          // values keeps the prior value for any column the WAL didn't ship.
+          const next = payload.new as Partial<Character>;
+          const merge: Partial<Character> = {};
+          if (next.base_stats != null) merge.base_stats = next.base_stats;
+          if (next.resources != null) merge.resources = next.resources;
+          if (next.conditions != null) merge.conditions = next.conditions;
+          if (next.name != null) merge.name = next.name;
+          setCharacter((prev) => (prev ? ({ ...prev, ...merge } as Character) : prev));
+          updateCharacterLocally(id, merge);
         },
       )
       .subscribe();
@@ -501,6 +874,20 @@ export default function CharacterSheetScreen() {
   const manualMode = settings.manualMode;
   const prof = stats ? profBonus(stats.level) : 2;
   const scores = stats?.abilityScores;
+
+  // Header subtitle pieces — fall back to a humanized key while the
+  // ContentResolver lookup is in flight (or when the entry isn't in the
+  // tier we searched, e.g. a deleted homebrew pack). Multiclass shows
+  // each class joined with " / ".
+  const speciesLabel = stats?.speciesKey
+    ? (speciesResult?.name ?? humanizeContentKey(stats.speciesKey))
+    : '';
+  const classLabel = stats
+    ? getClassEntries(stats)
+        .map((e) => classResultsByKey[e.classKey]?.name ?? humanizeContentKey(e.classKey))
+        .filter(Boolean)
+        .join(' / ')
+    : '';
 
   function skillMod(skillName: string): number {
     if (!scores || !stats) return 0;
@@ -579,6 +966,84 @@ export default function CharacterSheetScreen() {
     if (Object.keys(patch).length > 0) {
       await updateCharacterState(character.id, patch);
     }
+  }
+
+  // Self-heal spell slots — characters bootstrapped before the slot
+  // reader learned alternate progression-table column shapes (notably
+  // imported homebrew classes like 5e.tools Artificer that ship
+  // `spell1` / `spell2` / ... instead of `1st` / `2nd` / ...) wrote
+  // an all-zero slot table to the row. Now that the reader handles
+  // those keys, recompute on first sheet load and persist if the
+  // recompute would add slots that aren't there. Owner-only so
+  // non-owner viewers don't accidentally trip the write.
+  useEffect(() => {
+    if (!isOwner) return;
+    const stats = character?.base_stats as Dnd5eStats | null;
+    const resources = character?.resources as Dnd5eResources | null;
+    if (!stats || !resources) return;
+    if (Object.keys(classResultsByKey).length === 0) return;
+    const entries = getClassEntries(stats);
+    const map = new Map(Object.entries(classResultsByKey));
+    const computed = spellSlotsForCharacter(entries, map);
+    const current = resources.spellSlots;
+    const computedHasSlots = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const)
+      .some((l) => computed[l].max > 0);
+    const currentHasSlots = current
+      ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => (current[l]?.max ?? 0) > 0)
+      : false;
+    // Only heal when the recompute would *add* slots — never wipe a
+    // pre-populated table the player may have customized.
+    if (!computedHasSlots || currentHasSlots) return;
+    persistResources({
+      ...resources,
+      spellSlots: computed,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner, classResultsByKey, character?.id]);
+
+  // Short Rest — restores resources whose recharge cadence is 'short'.
+  // Per 5e: Warlock pact slots (which we treat as a regular slot bucket,
+  // since the spellSlots reader merges pact slots into the same table)
+  // and any classResources flagged short-rest. Doesn't touch HP, slots
+  // generally, exhaustion, or hit dice — those are long-rest only or
+  // require explicit player action.
+  function handleShortRest() {
+    if (!resources || !canEditAny) return;
+    const next: Dnd5eResources = { ...resources };
+    if (resources.classResources && resources.classResources.length > 0) {
+      next.classResources = resources.classResources.map((r) =>
+        r.recharge === 'short' ? { ...r, current: r.max } : r,
+      );
+    }
+    persistResources(next);
+  }
+
+  // Long Rest — full reset: spell slots, hit dice (capped at total
+  // class levels), exhaustion -1, all classResources, death saves
+  // cleared. HP also restores to max. Concentration drops too. The
+  // player still triggers it manually because some campaigns gate
+  // long rests behind narrative beats.
+  function handleLongRest() {
+    if (!resources || !stats || !canEditAny) return;
+    const next: Dnd5eResources = { ...resources };
+    if (resources.spellSlots) {
+      const restored: typeof resources.spellSlots = { ...resources.spellSlots };
+      ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).forEach((l) => {
+        const slot = resources.spellSlots![l];
+        restored[l] = { max: slot.max, remaining: slot.max };
+      });
+      next.spellSlots = restored;
+    }
+    if (resources.classResources && resources.classResources.length > 0) {
+      next.classResources = resources.classResources.map((r) => ({ ...r, current: r.max }));
+    }
+    next.hpCurrent = stats.hpMax;
+    next.hpTemp = 0;
+    next.hitDiceRemaining = stats.level;
+    next.exhaustionLevel = Math.max(0, (resources.exhaustionLevel ?? 0) - 1);
+    next.deathSaves = { successes: 0, failures: 0 };
+    next.concentrationSpell = null;
+    persistResources(next);
   }
 
   async function handleDragEnd(newItems: CardItem[]) {
@@ -921,13 +1386,34 @@ export default function CharacterSheetScreen() {
     );
   }
 
-  if (error || !character || !stats || !resources || !scores) {
+  if (error || !character) {
     return (
       <View style={s.loadingContainer}>
         <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(drawer)/characters')} style={{ marginBottom: spacing.lg }}>
           <Text style={{ color: colors.brand, fontSize: 14 }}>← Back</Text>
         </TouchableOpacity>
         <Text style={{ color: colors.hpDanger }}>{error || 'Character not found.'}</Text>
+      </View>
+    );
+  }
+
+  // The row exists but its JSON payload is missing pieces the sheet needs to
+  // render. Surface a specific diagnostic instead of the generic "Character
+  // not found" — this state is recoverable from (open the row in a debug
+  // tool or finish creation) and lying about it confuses the player.
+  if (!stats || !resources || !scores) {
+    const missing = [
+      !stats && 'base stats',
+      !resources && 'resources',
+      stats && !scores && 'ability scores',
+    ].filter(Boolean).join(', ');
+    return (
+      <View style={s.loadingContainer}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(drawer)/characters')} style={{ marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.brand, fontSize: 14 }}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={{ color: colors.hpDanger, marginBottom: spacing.sm }}>This character is missing required data: {missing}.</Text>
+        <Text style={{ color: colors.outline, fontSize: 12 }}>Character ID: {character.id}</Text>
       </View>
     );
   }
@@ -976,6 +1462,7 @@ export default function CharacterSheetScreen() {
             canEditAny={canEditAny}
             equipment={equipment}
             isDesktop={isDesktop}
+            conditionCatalog={conditionResults}
             onRoll={handleRoll}
             onToggleCondition={handleToggleCondition}
             onSetExhaustion={handleSetExhaustion}
@@ -1001,16 +1488,35 @@ export default function CharacterSheetScreen() {
               });
             }}
             onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
+            onOpenManage={() => setSpellPickerOpen(true)}
+            spellbook={getSpellbook(resources)}
+            onTogglePrepared={(spell) => {
+              // Cantrips are auto-prepared by being in the spellbook;
+              // ignore toggles on them at the parent level too.
+              if (spell.level === 0) return;
+              const current = resources.preparedSpells ?? [];
+              const already = current.some((sp) => sp.id === spell.id);
+              const next = already
+                ? current.filter((sp) => sp.id !== spell.id)
+                : [...current, spell];
+              persistResources({ ...resources, preparedSpells: next });
+            }}
+            spellcastingExplainers={spellcastingExplainersFor(stats, classResultsByKey)}
           />
         );
       case 'skills':
-        return <SkillsTab stats={stats} scores={scores} prof={prof} onRoll={handleRoll} />;
+        return <SkillsTab stats={stats} scores={scores} prof={prof} onRoll={handleRoll} skillCatalog={skillResults} />;
       case 'traits':
         return (
           <AbilitiesTab
             stats={stats}
             resources={resources}
             isOwner={isOwner}
+            classResultsByKey={classResultsByKey}
+            subclassResultsByKey={subclassResultsByKey}
+            speciesResult={speciesResult}
+            backgroundResult={backgroundResult}
+            originFeatResult={originFeatResult}
             onToggleFeatureUse={toggleFeatureUse}
             onAddFeature={(cat) => {
               if (cat === 'feats') {
@@ -1042,6 +1548,11 @@ export default function CharacterSheetScreen() {
             onToggleEquipped={handleToggleEquipped}
             onUpdateNotes={(notes) => persistResources({ ...resources, notes })}
             onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
+            onOpenItemPicker={() => setItemPickerOpen(true)}
+            onRemoveItem={(id) => {
+              const next = (resources.equipment ?? []).filter((it) => it.id !== id);
+              persistResources({ ...resources, equipment: next });
+            }}
           />
         );
       case 'lore':
@@ -1109,12 +1620,22 @@ export default function CharacterSheetScreen() {
                     </TouchableOpacity>
                   )}
                   <Text style={s.deskSub} numberOfLines={1}>
-                    {capitalize(stats.speciesKey)} {capitalize(stats.classKey)}
+                    {[speciesLabel, classLabel].filter(Boolean).join(' ')}
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
                 </View>
 
                 <View style={s.deskHeaderIcons}>
+                  {isOwner && stats.level < 20 ? (
+                    <TouchableOpacity
+                      style={s.deskIconBtn}
+                      onPress={() => router.push(`/character/${id}/level-up`)}
+                      hitSlop={6}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity
                     style={[s.deskIconBtn, resources.inspiration && s.deskIconBtnActive]}
                     onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
@@ -1265,6 +1786,31 @@ export default function CharacterSheetScreen() {
                 </View>
               </View>
             </View>
+
+            {/* ── Rest ─────────────────────────────────────────────── */}
+            {canEditAny && (
+              <View style={s.deskSection}>
+                <Text style={s.deskSectionLabel}>Rest</Text>
+                <View style={s.deskRestRow}>
+                  <TouchableOpacity
+                    style={s.deskRestBtn}
+                    onPress={() => setRestConfirm('short')}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="campfire" size={14} color={colors.primary} />
+                    <Text style={s.deskRestBtnText}>Short Rest</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.deskRestBtn}
+                    onPress={() => setRestConfirm('long')}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="bed" size={14} color={colors.primary} />
+                    <Text style={s.deskRestBtnText}>Long Rest</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {/* ── Senses (passive skills) ───────────────────────────── */}
             <View style={s.deskSection}>
@@ -1424,9 +1970,19 @@ export default function CharacterSheetScreen() {
                 </TouchableOpacity>
               )}
               <Text style={s.chromeSub} numberOfLines={1}>
-                {capitalize(stats.speciesKey)} {capitalize(stats.classKey)} · Lv {stats.level}
+                {[speciesLabel, classLabel].filter(Boolean).join(' ')} · Lv {stats.level}
               </Text>
             </View>
+
+            {isOwner && stats.level < 20 ? (
+              <TouchableOpacity
+                onPress={() => router.push(`/character/${id}/level-up`)}
+                hitSlop={8}
+                style={s.settingsIconBtn}
+              >
+                <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
               style={[s.inspirationBtn, resources.inspiration && s.inspirationBtnActive]}
@@ -1769,6 +2325,135 @@ export default function CharacterSheetScreen() {
           packIds={character?.pack_ids ?? []}
           srdVersion={stats.srdVersion}
           onPick={(feature) => saveFeature('feats', feature)}
+        />
+      ) : null}
+
+      {/* Rest confirmation modal — gates short/long rest commits since
+          the underlying writes touch a lot of state (HP, slots, hit
+          dice, exhaustion) that's painful to undo. The body lists what
+          the rest will reset so the player knows what they're agreeing
+          to. */}
+      <Modal visible={!!restConfirm} transparent animationType="fade" onRequestClose={() => setRestConfirm(null)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setRestConfirm(null)}>
+          <Pressable style={s.restConfirmCard} onPress={() => {}}>
+            <View style={s.restConfirmHeader}>
+              <MaterialCommunityIcons
+                name={restConfirm === 'long' ? 'bed' : 'campfire'}
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={s.modalTitle}>
+                Take a {restConfirm === 'long' ? 'Long' : 'Short'} Rest?
+              </Text>
+            </View>
+            <Text style={s.restConfirmBody}>
+              {restConfirm === 'long' ? (
+                <>
+                  Restores spell slots, class resources, hit dice, and HP to maximum.
+                  Reduces exhaustion by 1 and clears death saves and concentration.
+                </>
+              ) : (
+                <>
+                  Restores class resources that recharge on a short rest. Doesn't
+                  touch HP, spell slots, or hit dice — those stay where they are.
+                </>
+              )}
+            </Text>
+            <View style={s.restConfirmActions}>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCancel]}
+                onPress={() => setRestConfirm(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.restConfirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCommit]}
+                onPress={() => {
+                  if (restConfirm === 'long') handleLongRest();
+                  else if (restConfirm === 'short') handleShortRest();
+                  setRestConfirm(null);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={s.restConfirmCommitText}>
+                  Take {restConfirm === 'long' ? 'Long' : 'Short'} Rest
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Catalog spell picker — wires the Spells tab's "MANAGE SPELLS"
+          affordance. Class scoping uses resolved class names so a
+          Wizard sees Wizard spells (and any homebrew spells the
+          character's pack opt-in surfaces). */}
+      {stats && resources ? (
+        <SpellPickerModal
+          visible={spellPickerOpen}
+          onClose={() => setSpellPickerOpen(false)}
+          classNames={Object.values(classResultsByKey).map((c) => c.name)}
+          existingKeys={new Set(getSpellbook(resources).map((s) => s.id))}
+          existingSpells={getSpellbook(resources)}
+          spellLimits={computeSpellLimits(stats, classResultsByKey)}
+          campaignId={character?.campaign_id ?? null}
+          packIds={character?.pack_ids ?? []}
+          srdVersion={stats.srdVersion}
+          onPick={(spell) => {
+            // Manage Spells writes to the spellbook (the master list).
+            // Cantrips also auto-prepare since 5e cantrips are always
+            // available; leveled spells flow to prepared via the
+            // separate Prepare Spells modal.
+            const currentBook = getSpellbook(resources);
+            const nextBook = [...currentBook, spell];
+            const isCantrip = spell.level === 0;
+            const nextPrepared = isCantrip
+              ? [...(resources.preparedSpells ?? []), spell]
+              : (resources.preparedSpells ?? []);
+            persistResources({
+              ...resources,
+              spellbook: nextBook,
+              preparedSpells: nextPrepared,
+            });
+          }}
+          onRemove={(spellId) => {
+            // Removing from the spellbook also removes from prepared
+            // (you can't have a prepared spell that isn't in your book).
+            const currentBook = getSpellbook(resources);
+            const nextBook = currentBook.filter((sp) => sp.id !== spellId);
+            const nextPrepared = (resources.preparedSpells ?? []).filter((sp) => sp.id !== spellId);
+            persistResources({
+              ...resources,
+              spellbook: nextBook,
+              preparedSpells: nextPrepared,
+            });
+          }}
+        />
+      ) : null}
+
+      {/* Catalog item picker — wires the Gear tab "+ Add" affordance.
+          Pulls from ContentResolver's items merge so SRD weapons +
+          armor + adventuring gear + magic items all appear, plus
+          anything imported via the character's homebrew packs. */}
+      {stats && resources ? (
+        <ItemPickerModal
+          visible={itemPickerOpen}
+          onClose={() => setItemPickerOpen(false)}
+          campaignId={character?.campaign_id ?? null}
+          packIds={character?.pack_ids ?? []}
+          srdVersion={stats.srdVersion}
+          onPick={(item) => {
+            // ID collisions across "add same item twice" — re-stamp on
+            // the second instance so React keys stay unique and the
+            // toggle/remove handlers don't double-fire.
+            const existing = resources.equipment ?? [];
+            const id = existing.some((e) => e.id === item.id)
+              ? `${item.id}-${Date.now()}`
+              : item.id;
+            const next = [...existing, { ...item, id }];
+            persistResources({ ...resources, equipment: next });
+          }}
         />
       ) : null}
 
@@ -2860,6 +3545,39 @@ const s = StyleSheet.create({
     marginBottom: spacing.md,
   },
 
+  // Short / Long rest confirm dialog. Inherits modalBackdrop above.
+  restConfirmCard: {
+    backgroundColor: colors.surface, borderRadius: 14,
+    borderColor: colors.border, borderWidth: 1,
+    width: '90%', maxWidth: 420, padding: spacing.lg,
+  },
+  restConfirmHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginBottom: spacing.md,
+  },
+  restConfirmBody: {
+    fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    lineHeight: 19, marginBottom: spacing.lg,
+  },
+  restConfirmActions: { flexDirection: 'row', gap: 10 },
+  restConfirmBtn: {
+    flex: 1, paddingVertical: 11, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  restConfirmCancel: {
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: 'transparent',
+  },
+  restConfirmCancelText: {
+    fontSize: 13, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, letterSpacing: 0.3,
+  },
+  restConfirmCommit: { backgroundColor: colors.primary },
+  restConfirmCommitText: {
+    fontSize: 13, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onPrimary, letterSpacing: 0.3,
+  },
+
   // Activity log
   logList: { maxHeight: 360 },
   logRow: {
@@ -2925,6 +3643,20 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 0,
     paddingVertical: 3, paddingHorizontal: 4,
     borderRadius: 6,
+  },
+  // Short / Long rest buttons in the desktop sidebar Rest section.
+  // Two-up flex row so they share width evenly; primary-bordered to
+  // signal they're action affordances, not info.
+  deskRestRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  deskRestBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 8, paddingHorizontal: 8,
+    borderWidth: 1, borderColor: colors.primary, borderRadius: 6,
+    backgroundColor: `${colors.primary}10`,
+  },
+  deskRestBtnText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.4,
   },
   deskAbilDot: {
     width: 7, height: 7, borderRadius: 4,

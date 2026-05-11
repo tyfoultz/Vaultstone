@@ -1,12 +1,20 @@
 import { useState, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, useWindowDimensions,
+  View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, useWindowDimensions, Pressable,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, radius } from '@vaultstone/ui';
+import { colors, fonts, radius, spacing, MarkdownText } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5ePreparedSpell } from '@vaultstone/types';
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
+
+function shortAbility(name: string): string {
+  const map: Record<string, string> = {
+    strength: 'STR', dexterity: 'DEX', constitution: 'CON',
+    intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
+  };
+  return map[name.toLowerCase()] ?? name.slice(0, 3).toUpperCase();
+}
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 function capitalize(str: string) { return str.charAt(0).toUpperCase() + str.slice(1); }
 
@@ -16,10 +24,11 @@ const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
   7: { max: 0, remaining: 0 }, 8: { max: 0, remaining: 0 }, 9: { max: 0, remaining: 0 },
 };
 
-const CHIP_LABELS = ['-0-', '1ST', '2ND', '3RD', '4TH', '5TH', '6TH', '7TH', '8TH', '9TH'];
+const CHIP_LABELS = ['CANTRIP', '1ST', '2ND', '3RD', '4TH', '5TH', '6TH', '7TH', '8TH', '9TH'];
 const LEVEL_LABELS = ['', '1ST LEVEL', '2ND LEVEL', '3RD LEVEL', '4TH LEVEL', '5TH LEVEL', '6TH LEVEL', '7TH LEVEL', '8TH LEVEL', '9TH LEVEL'];
 
 type FilterKey = 'all' | 'conc' | number;
+type StatusFilter = 'all' | 'prepared' | 'unprepared';
 
 interface Props {
   stats: Dnd5eStats;
@@ -29,15 +38,55 @@ interface Props {
   isOwner: boolean;
   onSpellSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
   onConcentrationClear?: () => void;
+  /** Open the catalog spell picker (Manage Spells). Adds/removes
+   *  spells from the character's spellbook. The parent owns the modal
+   *  so it can pass the campaign + pack scope into ContentResolver. */
+  onOpenManage?: () => void;
+  /** The character's full spellbook (every spell they've learned —
+   *  superset of preparedSpells). The Spells tab renders the whole
+   *  list with prepared/unprepared visual states; toggling a card
+   *  flips its status. Cantrips always render as prepared since 5e
+   *  cantrips are always cast-ready. */
+  spellbook?: Dnd5ePreparedSpell[];
+  /** Toggle a spell's prepared state (leveled only — cantrips are
+   *  auto-prepared by being in the spellbook). Caller writes
+   *  resources.preparedSpells with the new entry added or removed. */
+  onTogglePrepared?: (spell: Dnd5ePreparedSpell) => void;
+  /** Per-class spellcasting explainer payload — drives the "How
+   *  spellcasting works" panel. One entry per spellcasting class the
+   *  character has a level in; empty for non-casters. The synthesized
+   *  fields (ability, save DC, etc.) are derived from class data and
+   *  always present; `description` is the class-shipped prose, which
+   *  can be a thin pointer (5.1, imported homebrew) or a full ### body
+   *  (SRD 5.2). */
+  spellcastingExplainers?: Array<{
+    className: string;
+    /** Capitalized ability name (e.g. "Intelligence") or null when unknown. */
+    spellcastingAbility: string | null;
+    /** Cantrips known at this character's level for this class. */
+    cantripsKnown?: number;
+    /** Total leveled spells learnable / preparable at this level. */
+    spellsKnownOrPrepared?: number;
+    /** Short label for the cap above ("known" vs "prepared") + its formula
+     *  ("Intelligence mod + Artificer level"). */
+    preparedLabel?: string;
+    preparedFormula?: string;
+    /** Class-shipped prose. Optional — some entries (Artificer import)
+     *  ship only a stub pointing at the PHB. */
+    description?: string;
+  }>;
 }
 
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
+  onOpenManage, spellbook, onTogglePrepared, spellcastingExplainers,
 }: Props) {
+  const [explainerOpen, setExplainerOpen] = useState(false);
   const { width } = useWindowDimensions();
   const isWide = width >= 560;
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const spellAbility = stats.spellcastingAbility;
   const isSpellcaster = !!spellAbility;
@@ -45,48 +94,88 @@ export function SpellsTab({
   const preparedSpells = resources.preparedSpells ?? [];
   const concentration = resources.concentrationSpell ?? null;
 
+  // `stats.spellcastingAbility` is stored capitalized ("Intelligence")
+  // because that's how cls.spellcastingAbility ships from the SRD; the
+  // scores object's keys are lowercased. Normalize before lookup, else
+  // every caster reads as INT/WIS/CHA = 10 → mod +0.
   const spellMod = spellAbility
-    ? abilityMod(scores[spellAbility as keyof Dnd5eAbilityScores] ?? 10)
+    ? abilityMod(scores[spellAbility.toLowerCase() as keyof Dnd5eAbilityScores] ?? 10)
     : null;
   const spellDC = spellMod !== null ? 8 + prof + spellMod : null;
   const spellAttack = spellMod !== null ? prof + spellMod : null;
 
   const availableLevels = useMemo(() => {
     const levels = new Set<number>();
-    preparedSpells.forEach((s) => levels.add(s.level));
+    preparedSpells.forEach((sp) => levels.add(sp.level));
+    (spellbook ?? []).forEach((sp) => levels.add(sp.level));
     if (spellSlots) {
       ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).forEach((l) => {
         if (spellSlots[l].max > 0) levels.add(l);
       });
     }
     return [...levels].sort((a, b) => a - b);
-  }, [preparedSpells, spellSlots]);
+  }, [preparedSpells, spellbook, spellSlots]);
+
+  // Source list: prefer the full spellbook so unprepared spells render
+  // too. Falls back to preparedSpells when no spellbook was passed
+  // (keeps the component working for legacy callers / tests).
+  const sourceList = spellbook && spellbook.length > 0 ? spellbook : preparedSpells;
+
+  // Set of currently prepared spell ids for the status check on each row.
+  const preparedKeys = useMemo(
+    () => new Set(preparedSpells.map((sp) => sp.id)),
+    [preparedSpells],
+  );
+
+  // isPrepared — cantrips are always cast-ready, leveled spells need
+  // an explicit entry in preparedSpells.
+  const isPrepared = (sp: Dnd5ePreparedSpell) =>
+    sp.level === 0 || preparedKeys.has(sp.id);
 
   const filteredSpells = useMemo(() => {
-    let spells = preparedSpells;
+    let spells = sourceList;
     if (search.trim()) {
       const q = search.toLowerCase();
-      spells = spells.filter((s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.notes?.toLowerCase().includes(q) ||
-        s.school?.toLowerCase().includes(q) ||
-        s.source?.toLowerCase().includes(q)
+      spells = spells.filter((sp) =>
+        sp.name.toLowerCase().includes(q) ||
+        sp.notes?.toLowerCase().includes(q) ||
+        sp.school?.toLowerCase().includes(q) ||
+        sp.source?.toLowerCase().includes(q)
       );
     }
-    if (filter === 'conc') return spells.filter((s) => s.concentration);
-    if (filter !== 'all') return spells.filter((s) => s.level === filter);
+    if (filter === 'conc') spells = spells.filter((sp) => sp.concentration);
+    else if (filter !== 'all') spells = spells.filter((sp) => sp.level === filter);
+    if (statusFilter === 'prepared') spells = spells.filter(isPrepared);
+    else if (statusFilter === 'unprepared') spells = spells.filter((sp) => !isPrepared(sp));
     return spells;
-  }, [preparedSpells, search, filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceList, search, filter, statusFilter, preparedKeys]);
 
-  const cantrips = filteredSpells.filter((s) => s.level === 0);
+  const byName = (a: Dnd5ePreparedSpell, b: Dnd5ePreparedSpell) => a.name.localeCompare(b.name);
+  const cantrips = filteredSpells.filter((sp) => sp.level === 0).sort(byName);
   const leveledGroups = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((lvl) => ({
     level: lvl,
-    spells: filteredSpells.filter((s) => s.level === lvl),
+    spells: filteredSpells.filter((sp) => sp.level === lvl).sort(byName),
     slot: spellSlots?.[lvl] ?? null,
   })).filter((g) => {
     if (filter !== 'all' && filter !== 'conc' && filter !== g.level) return false;
     return g.spells.length > 0 || (g.slot && g.slot.max > 0);
   });
+
+  // Counts for the stats-row cells (CANTRIPS + PREPARED). Sum the limits
+  // across explainer entries so multiclass shows the total (e.g.
+  // Wizard 3 / Cleric 2 cantrip caps add). undefined limit → no
+  // denominator, just the count.
+  const totalCantripsKnown = preparedSpells.filter((s) => s.level === 0).length;
+  const totalLeveledPrepared = preparedSpells.filter((s) => s.level > 0).length;
+  const cantripLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
+    (acc, ex) => ex.cantripsKnown !== undefined ? (acc ?? 0) + ex.cantripsKnown : acc,
+    undefined,
+  );
+  const preparedLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
+    (acc, ex) => ex.spellsKnownOrPrepared !== undefined ? (acc ?? 0) + ex.spellsKnownOrPrepared : acc,
+    undefined,
+  );
 
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
@@ -94,11 +183,6 @@ export function SpellsTab({
       {/* ── Spellcasting stats header ── */}
       {spellAbility && (
         <View style={s.statsRow}>
-          <View style={s.statBlock}>
-            <Text style={s.statValue}>{spellMod !== null ? fmtMod(spellMod) : '—'}</Text>
-            <Text style={s.statLabel}>MODIFIER</Text>
-          </View>
-          <View style={s.statDivider} />
           <View style={s.statBlock}>
             <Text style={s.statValue}>{spellAttack !== null ? fmtMod(spellAttack) : '—'}</Text>
             <Text style={s.statLabel}>SPELL ATTACK</Text>
@@ -108,6 +192,93 @@ export function SpellsTab({
             <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
             <Text style={s.statLabel}>SAVE DC</Text>
           </View>
+          <View style={s.statDivider} />
+          <View style={s.statBlock}>
+            <Text style={[
+              s.statValue,
+              cantripLimit !== undefined && totalCantripsKnown >= cantripLimit && s.statValueAtLimit,
+            ]}>
+              {cantripLimit !== undefined
+                ? `${totalCantripsKnown}/${cantripLimit}`
+                : String(totalCantripsKnown)}
+            </Text>
+            <Text style={s.statLabel}>CANTRIPS</Text>
+          </View>
+          <View style={s.statDivider} />
+          <View style={s.statBlock}>
+            <Text style={[
+              s.statValue,
+              preparedLimit !== undefined && totalLeveledPrepared >= preparedLimit && s.statValueAtLimit,
+            ]}>
+              {preparedLimit !== undefined
+                ? `${totalLeveledPrepared}/${preparedLimit}`
+                : String(totalLeveledPrepared)}
+            </Text>
+            <Text style={s.statLabel}>PREPARED</Text>
+          </View>
+        </View>
+      )}
+
+      {/* ── How spellcasting works (collapsible per-class explainer) ── */}
+      {spellcastingExplainers && spellcastingExplainers.length > 0 && (
+        <View style={s.explainerCard}>
+          <TouchableOpacity
+            style={s.explainerHeader}
+            onPress={() => setExplainerOpen((v) => !v)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.primary} />
+            <Text style={s.explainerTitle}>
+              {spellcastingExplainers.length === 1
+                ? `How ${spellcastingExplainers[0].className} spellcasting works`
+                : 'How spellcasting works'}
+            </Text>
+            <MaterialCommunityIcons
+              name={explainerOpen ? 'chevron-up' : 'chevron-down'}
+              size={16}
+              color={colors.outline}
+            />
+          </TouchableOpacity>
+          {explainerOpen && (
+            <View style={s.explainerBody}>
+              {spellcastingExplainers.map((ex, i) => (
+                <View key={ex.className} style={i > 0 ? s.explainerSection : null}>
+                  {spellcastingExplainers.length > 1 && (
+                    <Text style={s.explainerClassLabel}>{ex.className.toUpperCase()}</Text>
+                  )}
+                  {/* Synthesized core stats — always shown so even classes
+                      with thin/missing prose (5.1 SRD, imported homebrew
+                      Artificer) surface the actual numbers a player needs
+                      at the table. */}
+                  <View style={s.synthGrid}>
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Ability" value={ex.spellcastingAbility} />
+                    )}
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Save DC" value={`8 + prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
+                    )}
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Spell Attack" value={`prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
+                    )}
+                    {ex.cantripsKnown !== undefined && (
+                      <SynthCell label="Cantrips Known" value={String(ex.cantripsKnown)} />
+                    )}
+                    {ex.spellsKnownOrPrepared !== undefined && ex.preparedLabel && (
+                      <SynthCell
+                        label={ex.preparedLabel}
+                        value={ex.preparedFormula
+                          ? `${ex.spellsKnownOrPrepared} (${ex.preparedFormula})`
+                          : String(ex.spellsKnownOrPrepared)}
+                      />
+                    )}
+                  </View>
+                  {ex.description ? (
+                    <MarkdownText style={s.explainerText}>{ex.description}</MarkdownText>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       )}
 
@@ -128,9 +299,11 @@ export function SpellsTab({
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity style={s.manageBtn} activeOpacity={0.7}>
-          <Text style={s.manageBtnText}>MANAGE SPELLS</Text>
-        </TouchableOpacity>
+        {isOwner && onOpenManage && (
+          <TouchableOpacity style={s.manageBtn} activeOpacity={0.7} onPress={onOpenManage}>
+            <Text style={s.manageBtnText}>MANAGE SPELLS</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── Level filter chips ── */}
@@ -151,10 +324,26 @@ export function SpellsTab({
         >
           <MaterialCommunityIcons
             name="diamond-stone"
-            size={12}
+            size={11}
             color={filter === 'conc' ? colors.onPrimary : colors.outline}
+            style={{ marginRight: 4 }}
           />
+          <Text style={[s.chipText, filter === 'conc' && s.chipTextActive]}>CONC</Text>
         </TouchableOpacity>
+
+        {/* Vertical divider so the prep-status filters read as a
+            distinct group from the level / conc filters. */}
+        <View style={s.chipDivider} />
+        <FilterChip
+          label="PREPARED"
+          active={statusFilter === 'prepared'}
+          onPress={() => setStatusFilter(statusFilter === 'prepared' ? 'all' : 'prepared')}
+        />
+        <FilterChip
+          label="UNPREPARED"
+          active={statusFilter === 'unprepared'}
+          onPress={() => setStatusFilter(statusFilter === 'unprepared' ? 'all' : 'unprepared')}
+        />
       </ScrollView>
 
       {/* ── Concentration banner ── */}
@@ -172,17 +361,17 @@ export function SpellsTab({
 
       {/* ── Cantrips ── */}
       {cantrips.length > 0 && (
-        <View style={s.section}>
-          <View style={s.sectionHead}>
-            <Text style={s.sectionHeadLabel}>CANTRIP</Text>
+        <View style={s.levelSection}>
+          <View style={s.levelHead}>
+            <Text style={s.levelTitle}>Cantrips</Text>
+            <Text style={s.levelSub}>At will</Text>
           </View>
-          <ColHeaders isWide={isWide} />
-          {cantrips.map((spell, i) => (
+          {cantrips.map((spell) => (
             <SpellRow
               key={spell.id}
               spell={spell}
-              isLast={i === cantrips.length - 1}
-              isWide={isWide}
+              prepared={true}
+              canToggle={false}
             />
           ))}
         </View>
@@ -190,11 +379,14 @@ export function SpellsTab({
 
       {/* ── Leveled spell groups ── */}
       {leveledGroups.map(({ level, spells, slot }) => (
-        <View key={level} style={s.section}>
-          <View style={s.sectionHead}>
-            <Text style={s.sectionHeadLabel}>{LEVEL_LABELS[level]}</Text>
+        <View key={level} style={s.levelSection}>
+          <View style={s.levelHead}>
+            <Text style={s.levelTitle}>{`${ordinal(level)} Level`}</Text>
             {slot && slot.max > 0 && (
-              <View style={s.slotRow}>
+              <Text style={s.levelSub}>{`${slot.remaining} of ${slot.max} slots`}</Text>
+            )}
+            {slot && slot.max > 0 && (
+              <View style={s.slotPipsRow}>
                 {Array.from({ length: slot.max }).map((_, i) => (
                   <TouchableOpacity
                     key={i}
@@ -204,26 +396,33 @@ export function SpellsTab({
                     }}
                     activeOpacity={isOwner ? 0.7 : 1}
                   >
-                    <View style={[s.slotBox, i < slot.remaining && s.slotBoxFull]} />
+                    <View style={[s.pip, i < slot.remaining && s.pipFilled]} />
                   </TouchableOpacity>
                 ))}
-                <Text style={s.slotsLabel}>SLOTS</Text>
               </View>
             )}
           </View>
-          {spells.length > 0 && <ColHeaders isWide={isWide} />}
-          {spells.map((spell, i) => (
-            <SpellRow
-              key={spell.id}
-              spell={spell}
-              isLast={i === spells.length - 1}
-              slot={slot}
-              isOwner={isOwner}
-              isWide={isWide}
-            />
-          ))}
+          {spells.map((spell) => {
+            const prep = isPrepared(spell);
+            const atLimit = preparedLimit !== undefined && totalLeveledPrepared >= preparedLimit;
+            return (
+              <SpellRow
+                key={spell.id}
+                spell={spell}
+                slot={slot}
+                prepared={prep}
+                canToggle={isOwner && !!onTogglePrepared}
+                onTogglePrepared={onTogglePrepared ? () => onTogglePrepared(spell) : undefined}
+                togglesBlocked={!prep && atLimit}
+              />
+            );
+          })}
           {spells.length === 0 && slot && slot.max > 0 && (
-            <Text style={s.emptyLevel}>No spells prepared at this level</Text>
+            <Text style={s.emptyLevel}>
+              {sourceList.length === 0
+                ? 'No spells of this level in your spellbook yet.'
+                : 'No spells of this level match your filters.'}
+            </Text>
           )}
         </View>
       ))}
@@ -243,7 +442,9 @@ export function SpellsTab({
           <MaterialCommunityIcons name="book-open-outline" size={32} color={colors.outlineVariant} />
           <Text style={s.emptyTitle}>No Spells Prepared</Text>
           <Text style={s.emptyBody}>
-            Spell management is coming soon. Slots and concentration are tracked above.
+            {isOwner && onOpenManage
+              ? 'Tap “Manage Spells” above to add spells from the catalog.'
+              : 'Slots and concentration are tracked above.'}
           </Text>
         </View>
       )}
@@ -263,76 +464,115 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
   );
 }
 
-function ColHeaders({ isWide }: { isWide: boolean }) {
+// 1 → "1st", 2 → "2nd", etc. — used in the level section header.
+function ordinal(n: number): string {
+  const suffixes = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (suffixes[(v - 20) % 10] ?? suffixes[v] ?? suffixes[0]);
+}
+
+function SpellRow({
+  spell, slot, prepared, canToggle, onTogglePrepared, togglesBlocked,
+}: {
+  spell: Dnd5ePreparedSpell;
+  slot?: { max: number; remaining: number } | null;
+  /** Whether this spell is currently prepared (cantrips: always true).
+   *  Drives the dim state + the cast button gate. */
+  prepared: boolean;
+  /** Whether the prepared toggle is interactive. Cantrips pass false
+   *  since they don't toggle; non-owners and view modes without an
+   *  onTogglePrepared also pass false. */
+  canToggle: boolean;
+  onTogglePrepared?: () => void;
+  /** True when adding this spell would exceed the prep cap. Disables
+   *  toggling on, but still allows toggling off (so the player can
+   *  swap). */
+  togglesBlocked?: boolean;
+}) {
+  const isCantrip = spell.level === 0;
+  const canCast = prepared && (isCantrip || (slot?.remaining ?? 0) > 0);
+  const toggleDisabled = !canToggle || (togglesBlocked && !prepared);
+
+  const Wrapper: typeof View | typeof Pressable = canToggle ? Pressable : View;
+  const wrapperProps = canToggle
+    ? { onPress: toggleDisabled ? undefined : onTogglePrepared }
+    : {};
+
   return (
-    <View style={s.colHead}>
-      <View style={s.colBadge} />
-      <Text style={[s.colLabel, s.colName]}>NAME</Text>
-      <Text style={[s.colLabel, s.colTime]}>TIME</Text>
-      <Text style={[s.colLabel, s.colRange]}>RANGE</Text>
-      {isWide && <Text style={[s.colLabel, s.colHit]}>HIT / DC</Text>}
-      {isWide && <Text style={[s.colLabel, s.colEffect]}>EFFECT</Text>}
-      <Text style={[s.colLabel, s.colNotes]}>NOTES</Text>
+    <Wrapper style={[s.spellCard, !prepared && s.spellCardDimmed]} {...wrapperProps}>
+      <View style={s.spellHead}>
+        {/* Status circle — tap-toggle hit area; cantrips render a filled
+            indicator with no toggle since they're always cast-ready. */}
+        <View style={[
+          s.statusCircle,
+          prepared && s.statusCircleOn,
+          isCantrip && s.statusCircleCantrip,
+        ]}>
+          {prepared ? (
+            <MaterialCommunityIcons
+              name={isCantrip ? 'infinity' : 'check'}
+              size={12}
+              color={colors.onPrimary}
+            />
+          ) : null}
+        </View>
+        <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
+        {spell.school ? (
+          <View style={s.schoolChip}>
+            <Text style={s.schoolChipText} numberOfLines={1}>{capitalize(spell.school)}</Text>
+          </View>
+        ) : null}
+        {spell.ritual ? (
+          <View style={s.badgeIcon}>
+            <Text style={s.badgeIconText}>R</Text>
+          </View>
+        ) : null}
+        {spell.concentration ? (
+          <View style={[s.badgeIcon, s.badgeIconConc]}>
+            <Text style={[s.badgeIconText, s.badgeIconTextConc]}>C</Text>
+          </View>
+        ) : null}
+        <View style={[s.castBtn, !canCast && s.castBtnDisabled, isCantrip && s.castBtnAtWill]}>
+          <Text style={[s.castBtnText, !canCast && s.castBtnTextDisabled, isCantrip && s.castBtnTextAtWill]}>
+            {isCantrip ? 'At Will' : prepared ? 'Cast' : 'Unprepared'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={s.metaStrip}>
+        {spell.castingTime ? <MetaItem label="Time" value={spell.castingTime} /> : null}
+        {spell.range ? <MetaItem label="Range" value={spell.range} /> : null}
+        {spell.components && spell.components.length > 0 ? (
+          <MetaItem label="Comp" value={spell.components.join(', ')} />
+        ) : null}
+        {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
+      </View>
+
+      {spell.description ? (
+        <Text style={s.descText}>{spell.description}</Text>
+      ) : (
+        <Text style={s.descMissing}>
+          No description on file — re-add this spell through Manage Spells to fetch the latest text.
+        </Text>
+      )}
+    </Wrapper>
+  );
+}
+
+function MetaItem({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.metaItem}>
+      <Text style={s.metaItemLabel}>{label}</Text>
+      <Text style={s.metaItemValue} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
 
-function SpellRow({
-  spell, isLast, slot, isOwner, isWide,
-}: {
-  spell: Dnd5ePreparedSpell;
-  isLast: boolean;
-  slot?: { max: number; remaining: number } | null;
-  isOwner?: boolean;
-  isWide?: boolean;
-}) {
-  const isCantrip = spell.level === 0;
-  const hasSlots = slot ? slot.remaining > 0 : false;
-
+function SynthCell({ label, value }: { label: string; value: string }) {
   return (
-    <View style={[s.spellRow, !isLast && s.spellRowBorder]}>
-
-      {/* Badge: AT WILL or USE */}
-      <View style={s.colBadge}>
-        {isCantrip ? (
-          <View style={s.badgeAtWill}>
-            <Text style={s.badgeAtWillText}>AT{'\n'}WILL</Text>
-          </View>
-        ) : (
-          <View style={[s.badgeUse, !hasSlots && s.badgeUsed]}>
-            <Text style={[s.badgeUseText, !hasSlots && s.badgeUsedText]}>USE</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Spell name + optional source line */}
-      <View style={s.colName}>
-        <View style={s.nameInner}>
-          <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
-          {spell.ritual && (
-            <MaterialCommunityIcons name="rotate-right" size={10} color={colors.outline} />
-          )}
-          {spell.concentration && (
-            <MaterialCommunityIcons name="diamond-stone" size={10} color={colors.outline} />
-          )}
-        </View>
-        {(spell.source || spell.school) && (
-          <Text style={s.spellSource} numberOfLines={1}>
-            {spell.source ?? capitalize(spell.school!)}
-          </Text>
-        )}
-      </View>
-
-      {/* Stat columns */}
-      <Text style={[s.cellText, s.colTime]} numberOfLines={1}>{spell.castingTime ?? '1A'}</Text>
-      <Text style={[s.cellText, s.colRange]} numberOfLines={1}>{spell.range ?? '—'}</Text>
-      {isWide && <Text style={[s.cellText, s.colHit]} numberOfLines={1}>{spell.hitDc ?? '—'}</Text>}
-      {isWide && (
-        <Text style={[s.cellText, s.colEffect]} numberOfLines={1}>
-          {spell.effectType ?? (spell.school ? capitalize(spell.school) : '—')}
-        </Text>
-      )}
-      <Text style={[s.cellText, s.colNotes]} numberOfLines={2}>{spell.notes ?? '—'}</Text>
+    <View style={s.synthCell}>
+      <Text style={s.synthLabel}>{label}</Text>
+      <Text style={s.synthValue}>{value}</Text>
     </View>
   );
 }
@@ -349,9 +589,65 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
   statBlock: { flex: 1, alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 26, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  statValue: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  statValueAtLimit: { color: colors.primary },
   statLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.5, color: colors.outline },
   statDivider: { width: StyleSheet.hairlineWidth, height: 30, backgroundColor: colors.outlineVariant, alignSelf: 'center' },
+
+  // How-spellcasting-works collapsible card. The default is collapsed
+  // because the prose is long; players who want the rules tap to open
+  // and the panel surfaces the canonical class-feature description with
+  // its ### subsections rendered through MarkdownText.
+  explainerCard: {
+    marginHorizontal: 12, marginTop: 10,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, overflow: 'hidden',
+  },
+  explainerHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 9,
+  },
+  explainerTitle: {
+    flex: 1, fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.6, color: colors.onSurface,
+  },
+  explainerBody: {
+    paddingHorizontal: 14, paddingTop: 4, paddingBottom: 14,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  explainerSection: { marginTop: 14, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant },
+  explainerClassLabel: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, color: colors.primary, marginBottom: 6,
+  },
+  explainerText: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 19,
+  },
+
+  // Synthesized core-stats grid above the prose. Two-column wrapping
+  // chips so the per-class essentials (ability, save DC, attack mod,
+  // cantrips known, prepared count) surface even when the source class
+  // ships only a thin "see the PHB" stub.
+  synthGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    marginBottom: 12,
+  },
+  synthCell: {
+    minWidth: 140,
+    paddingVertical: 6, paddingHorizontal: 10,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+  },
+  synthLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.outline, textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  synthValue: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurface, fontWeight: '600',
+  },
 
   // Search row
   searchRow: { flexDirection: 'row', gap: 8, padding: 12 },
@@ -363,6 +659,7 @@ const s = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 12, fontFamily: fonts.body, color: colors.onSurface },
   manageBtn: {
+    flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 12, paddingVertical: 7,
     borderWidth: 1.5, borderColor: colors.primary,
     borderRadius: radius.lg, justifyContent: 'center',
@@ -370,8 +667,13 @@ const s = StyleSheet.create({
   manageBtnText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, color: colors.primary },
 
   // Filter chips
-  filtersRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingBottom: 10 },
+  filtersRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingBottom: 10 },
+  chipDivider: {
+    width: StyleSheet.hairlineWidth, height: 18,
+    backgroundColor: colors.outlineVariant, marginHorizontal: 4,
+  },
   chip: {
+    flexDirection: 'row',
     paddingHorizontal: 10, paddingVertical: 5,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: 100, alignItems: 'center', justifyContent: 'center', minWidth: 36,
@@ -398,90 +700,129 @@ const s = StyleSheet.create({
   },
   concEndText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
 
-  // Spell sections
-  section: { marginTop: 6 },
-  sectionHead: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  // ── Level section + slot pips ───────────────────────────────────────────
+  levelSection: { paddingHorizontal: 12, marginTop: 18 },
+  levelHead: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    marginBottom: 10, paddingHorizontal: 4,
   },
-  sectionHeadLabel: {
-    fontSize: 12, fontFamily: fonts.label, fontWeight: '800', letterSpacing: 1.5, color: colors.primary,
+  levelTitle: {
+    fontFamily: fonts.headline, fontWeight: '600',
+    fontSize: 14, color: colors.onSurface,
+    textTransform: 'uppercase', letterSpacing: 1.4,
   },
-  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  slotBox: {
-    width: 16, height: 16, borderRadius: 2,
-    borderWidth: 1.5, borderColor: colors.outlineVariant,
+  levelSub: { fontSize: 11, color: colors.onSurfaceVariant, letterSpacing: 0.4 },
+  slotPipsRow: { marginLeft: 'auto', flexDirection: 'row', gap: 6 },
+  pip: {
+    width: 14, height: 14, borderRadius: 4,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
   },
-  slotBoxFull: { backgroundColor: colors.primary, borderColor: colors.primary },
-  slotsLabel: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.5, color: colors.outline, marginLeft: 2,
-  },
+  pipFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
 
-  // Column headers
-  colHead: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 5,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  // ── Spell card ──────────────────────────────────────────────────────────
+  spellCard: {
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 12,
+    paddingVertical: 14, paddingHorizontal: 16,
+    marginBottom: 10,
   },
-  colLabel: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.2, color: colors.outline,
+  // Unprepared spells dim ~50% so the prepared list visually pops while
+  // unprepared entries stay readable + scannable. Combined with the
+  // "Unprepared" cast button copy + hollow status circle, the row reads
+  // as "in your book but not prepared today".
+  spellCardDimmed: { opacity: 0.55 },
+  // Status circle to the left of the spell name. Hollow when
+  // unprepared, primary-filled when prepared. Cantrips render with an
+  // infinity glyph to signal "always available" rather than a check.
+  statusCircle: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.outline,
   },
-
-  // Column layout (shared between header + spell rows)
-  colBadge: { width: 50 },
-  colName: { flex: 1.5, minWidth: 80 },
-  colTime: { width: 38 },
-  colRange: { width: 68, paddingLeft: 4 },
-  colHit: { width: 56, paddingLeft: 4 },
-  colEffect: { width: 76, paddingLeft: 4 },
-  colNotes: { flex: 1, minWidth: 60, paddingLeft: 4 },
-
-  // Spell rows
-  spellRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 9,
-  },
-  spellRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-
-  // AT WILL badge (cantrips)
-  badgeAtWill: {
-    width: 36, alignItems: 'center',
-    paddingVertical: 3,
-    borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: 3,
-  },
-  badgeAtWillText: {
-    fontSize: 7, fontFamily: fonts.label, fontWeight: '800',
-    letterSpacing: 0.3, textAlign: 'center', lineHeight: 9, color: colors.outline,
-  },
-
-  // USE badge (leveled spells)
-  badgeUse: {
-    width: 36, alignItems: 'center',
-    paddingVertical: 5,
-    backgroundColor: colors.primary, borderRadius: 3,
-  },
-  badgeUsed: { backgroundColor: colors.surfaceContainerHighest, opacity: 0.55 },
-  badgeUseText: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '800',
-    letterSpacing: 0.5, color: colors.onPrimary,
-  },
-  badgeUsedText: { color: colors.outline },
-
-  // Spell name cell
-  nameInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statusCircleOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  statusCircleCantrip: { backgroundColor: colors.primary, borderColor: colors.primary, opacity: 0.85 },
+  spellHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   spellName: {
-    fontSize: 13, fontFamily: fonts.headline, fontWeight: '600',
-    color: colors.onSurface, fontStyle: 'italic', flexShrink: 1,
+    fontFamily: fonts.headline, fontWeight: '600',
+    fontSize: 16, color: colors.onSurface, letterSpacing: 0.1,
+    flexShrink: 1,
   },
-  spellSource: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '500',
-    color: colors.outline, marginTop: 1,
+  schoolChip: {
+    paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 999,
   },
-  cellText: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant },
+  schoolChipText: {
+    fontFamily: fonts.label, fontWeight: '600',
+    fontSize: 9, color: colors.onSurfaceVariant,
+    textTransform: 'uppercase', letterSpacing: 0.7,
+  },
+  badgeIcon: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  badgeIconText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant,
+  },
+  badgeIconConc: { borderColor: `${colors.primary}66` },
+  badgeIconTextConc: { color: colors.primary },
+  castBtn: {
+    marginLeft: 'auto',
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: colors.primaryContainer,
+    borderWidth: 1, borderColor: `${colors.primary}40`,
+  },
+  castBtnAtWill: {
+    backgroundColor: 'transparent',
+    borderColor: colors.outlineVariant,
+  },
+  castBtnDisabled: {
+    backgroundColor: colors.surfaceContainerHighest,
+    borderColor: colors.outlineVariant,
+    opacity: 0.6,
+  },
+  castBtnText: {
+    fontFamily: fonts.label, fontWeight: '600',
+    fontSize: 11, color: colors.primary,
+    textTransform: 'uppercase', letterSpacing: 1.1,
+  },
+  castBtnTextAtWill: { color: colors.onSurfaceVariant },
+  castBtnTextDisabled: { color: colors.outline },
+
+  metaStrip: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    gap: 18,
+    marginTop: 12,
+  },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaItemLabel: {
+    fontFamily: fonts.label, fontWeight: '600',
+    fontSize: 9, color: colors.outline,
+    textTransform: 'uppercase', letterSpacing: 0.7,
+  },
+  metaItemValue: {
+    fontSize: 13, color: colors.onSurfaceVariant, fontFamily: fonts.body,
+  },
+
+  descText: {
+    marginTop: 12, paddingTop: 12,
+    fontSize: 13, lineHeight: 20,
+    color: colors.onSurfaceVariant, fontFamily: fonts.body,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  descMissing: {
+    marginTop: 12, paddingTop: 12,
+    fontSize: 12, lineHeight: 18,
+    color: colors.outline, fontFamily: fonts.body, fontStyle: 'italic',
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
 
   // Empty
   emptyLevel: {

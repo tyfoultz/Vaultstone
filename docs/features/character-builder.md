@@ -90,10 +90,23 @@ What's surfaced:
 | 9 — Character sheet feat picker | ⬜ | Replace the freeform feat-add modal in `AbilitiesTab` with a catalog picker that runs the same prereq checker as the wizard. |
 | 10 — Docs | 🟡 In progress | This file + cross-references in `architecture.md` and `build-status.md`. |
 
+## Level-up arc (follow-up)
+
+A separate branch (`feature/character-leveling`) extends the
+character-builder arc with the level-up flow. Concrete shape:
+
+- **Multi-class data model.** `Dnd5eClassEntry[]` on `Dnd5eStats`, with the legacy `classKey` / `level` / `hitDie` fields kept as primary-class mirrors so existing readers (sheet header, party view, character list) work unchanged. `getClassEntries(stats)` and `getPrimaryClassEntry(stats)` in `@vaultstone/types` are the helpers that hide the migration shim.
+- **Pure leveling library.** `packages/systems/src/dnd5e/leveling.ts` — `spellSlotsForClassAtLevel`, `spellSlotsForCharacter` (handles multiclass caster-level summing), `hpGainForLevel`, `classFeaturesAtLevel`, `isSubclassUnlockLevel`, `isAsiLevel` (recognizes Fighter L6/L14, Rogue L10 bonus slots), `checkMulticlassPrereqs` (honors `multiclassing` rule).
+- **applyLevelUp.** `packages/systems/src/dnd5e/apply-level-up.ts` — pure state transition: `{stats, resources}` + `LevelUpPick` → new `{stats, resources}`. Used by both the level-up wizard and the `starting_level > 1` bootstrap.
+- **`starting_level > 1` bootstrap.** `app/character/new.tsx` `handleFinish` builds L1 then loops `applyLevelUp` 2..startingLevel with sensible defaults (max HP, all class features unlocked, no subclass / ASI / feat picked). Subclass + ASI picks are left as "owed" for the level-up wizard to resolve later.
+- **Level-up wizard route.** `app/character/[id]/level-up.tsx`. Steps adapt to character state: class pick (when `multiclassing` allows or character is multi-class), subclass (when leveling into the unlock level OR resolving an owed pick), HP (fixed/rolled), ASI/Feat (only at ASI levels), confirm.
+- **Multiclass entry on level-up.** Class step lists existing classes to advance plus new-class candidates, gated by `checkMulticlassPrereqs` honoring the campaign rule. `'enforced'` shows prereq violations as locked rows; `'relaxed'` shows prose but allows; `'disabled'` hides the new-class section entirely.
+- **Sheet integration.** Level Up button on the character sheet header (desktop and mobile chrome), visible to the owner when level < 20.
+
 ## Out of scope (this arc)
 
-- **Multiclassing-at-level-up enforcement.** The wizard creates a single L1 character today; multiclassing kicks in at L2+ via a level-up flow that doesn't exist yet. The campaign rule is stored and surfaced (in the rules summary card), but enforcement lands when the level-up flow lands.
-- **Hit point method enforcement.** Character-scoped rule (`scope: 'character'`); player's call to roll vs fixed at level-up. Belongs to the level-up flow.
+- **Spell pick step on level-up.** `applyLevelUp` recomputes spell slot totals automatically, so casters see correct slots after level-up; new known/prepared spells get added through the existing sheet spell tab. A dedicated spell-pick step is its own arc.
+- **Feat picker at ASI.** Scaffolded — UI in place, picker invocation deferred. Players pick ASI (+2 / +1+1) at level-up; feats get added via the sheet's feat picker as a follow-up.
 - **Tasha's content for SRD systems.** Tasha's Cauldron of Everything is not CC-BY licensed; bundled SRD ships no `class-feature-variant` entries. Homebrew packs may author them.
 
 ## Legal

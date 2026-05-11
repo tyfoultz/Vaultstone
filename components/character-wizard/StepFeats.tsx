@@ -64,11 +64,18 @@ export function StepFeats({ onPreviewChange, onAdvance }: Props) {
     })
       .then((r) => {
         const all = r as FeatResult[];
-        // L1 picker shows origin-category feats. General / fighting-style /
-        // epic-boon feats unlock later (ASI swaps, fighting-style features,
-        // or L19+); the wizard surfaces those in the level-up flow when
-        // it lands.
-        setList(all.filter((f) => f.category === 'origin'));
+        // L1 picker prefers origin-category feats per the 2024 SRD —
+        // every PC gets one at first level. But homebrew packs and
+        // 2014-style imports often don't tag entries as `origin`
+        // (5e.tools' /feat data is mostly 2014-era General feats),
+        // so when no origin feats are available we fall back to the
+        // full catalog. The prereq checker still hides feats whose
+        // prereqs the L1 character can't meet (e.g. "Level 4+",
+        // "Spellcasting feature"); fighting-style and epic-boon
+        // feats stay visible but the prereq check locks them out
+        // for non-applicable characters.
+        const origin = all.filter((f) => f.category === 'origin');
+        setList(origin.length > 0 ? origin : all);
       })
       .finally(() => setLoading(false));
   }, [srdVersion, campaignId, packIdsKey]);
@@ -157,8 +164,9 @@ export function StepFeats({ onPreviewChange, onAdvance }: Props) {
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
       <Text style={s.title}>Pick a starting feat</Text>
       <Text style={s.guidance}>
-        Origin feats represent the unique edge your character brings to the
-        adventuring life. {list.length} available.
+        {list.length > 0
+          ? `Origin feats represent the unique edge your character brings to the adventuring life. ${list.length} available.`
+          : 'No feats are available from your current content packs. Continue without picking one — you can add feats later from the character sheet.'}
       </Text>
       {!enforcePrereqs ? (
         <Text style={s.relaxedNote}>
@@ -208,6 +216,22 @@ export function StepFeats({ onPreviewChange, onAdvance }: Props) {
           );
         })}
       </View>
+
+      {/* Empty-state skip. The wizard parent's isStepComplete gate
+          requires chosenFeats.length > 0, which would soft-lock a
+          player whose pack ships no feats. Tapping skip records a
+          sentinel pick (the empty array stays empty; we route past
+          the gate by calling onAdvance directly) so they can finish
+          creation. */}
+      {list.length === 0 ? (
+        <TouchableOpacity
+          style={s.skipBtn}
+          onPress={() => onAdvance?.()}
+          activeOpacity={0.85}
+        >
+          <Text style={s.skipBtnText}>Skip — no feats available</Text>
+        </TouchableOpacity>
+      ) : null}
     </ScrollView>
   );
 }
@@ -298,6 +322,19 @@ const s = StyleSheet.create({
     fontStyle: 'italic', marginBottom: 12,
   },
   list: { gap: 8 },
+  skipBtn: {
+    alignSelf: 'center',
+    marginTop: spacing.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+  },
+  skipBtnText: {
+    fontSize: 13, fontFamily: fonts.body, fontWeight: '600',
+    color: colors.onSurfaceVariant,
+  },
   card: {
     backgroundColor: colors.surfaceContainer, borderWidth: 1,
     borderColor: colors.outlineVariant, borderRadius: radius.xl, padding: 12,

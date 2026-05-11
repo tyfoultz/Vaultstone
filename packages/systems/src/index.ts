@@ -6,6 +6,30 @@ export {
   type PrereqCheckResult,
 } from './dnd5e/prerequisites';
 export {
+  spellSlotsForClassAtLevel,
+  spellSlotsForCharacter,
+  casterTypeFor,
+  averageHpForDie,
+  hpGainForLevel,
+  classFeaturesAtLevel,
+  isSubclassUnlockLevel,
+  isAsiLevel,
+  checkMulticlassPrereqs,
+  proficiencyBonusForLevel,
+  totalLevel,
+  conModifier,
+  type SpellSlotsByLevel,
+  type CasterType,
+  type MulticlassCheckResult,
+} from './dnd5e/leveling';
+export {
+  applyLevelUp,
+  defaultHpGain,
+  unpackClassFeaturesForPick,
+  type LevelUpPick,
+  type ApplyLevelUpResult,
+} from './dnd5e/apply-level-up';
+export {
   resolveCreationSteps,
   type CreationStepContext,
 } from './resolve-creation-steps';

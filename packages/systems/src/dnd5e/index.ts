@@ -5,6 +5,30 @@ import { creationSteps } from './creation-steps';
 import { optionalRules } from './optional-rules';
 
 export { checkPrerequisites, type PrereqCharacter, type PrereqCheckResult } from './prerequisites';
+export {
+  spellSlotsForClassAtLevel,
+  spellSlotsForCharacter,
+  casterTypeFor,
+  averageHpForDie,
+  hpGainForLevel,
+  classFeaturesAtLevel,
+  isSubclassUnlockLevel,
+  isAsiLevel,
+  checkMulticlassPrereqs,
+  proficiencyBonusForLevel,
+  totalLevel,
+  conModifier,
+  type SpellSlotsByLevel,
+  type CasterType,
+  type MulticlassCheckResult,
+} from './leveling';
+export {
+  applyLevelUp,
+  defaultHpGain,
+  unpackClassFeaturesForPick,
+  type LevelUpPick,
+  type ApplyLevelUpResult,
+} from './apply-level-up';
 
 // Both editions share schema (attributes, resources, sheet, creation steps).
 // They diverge only in id / displayName / version / SRD-content filter.

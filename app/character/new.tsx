@@ -13,7 +13,15 @@ import {
   getCampaignCharacterRules,
   resolveRuleValues,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID, resolveCreationSteps } from '@vaultstone/systems';
+import {
+  BUNDLED_SYSTEMS_BY_ID,
+  resolveCreationSteps,
+  applyLevelUp,
+  classFeaturesAtLevel,
+  defaultHpGain,
+  unpackClassFeaturesForPick,
+  spellSlotsForClassAtLevel,
+} from '@vaultstone/systems';
 import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
 import { StepRuleset } from '../../components/character-wizard/StepRuleset';
@@ -26,69 +34,19 @@ import { StepAbilityScores } from '../../components/character-wizard/StepAbility
 import { StepReview } from '../../components/character-wizard/StepReview';
 import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
 import { CampaignRulesSummary } from '../../components/character-wizard/CampaignRulesSummary';
-import type { Dnd5eStats, Dnd5eResources, Dnd5eSpellSlotLevel, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
+import type { Dnd5eStats, Dnd5eResources, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
 
-// Initialize a character's spell-slot resource bag from the picked
-// class's progression table at the starting level. The progression
-// table carries per-level slot counts as `1st` / `2nd` / ... `9th`
-// columns for full + half casters, and as `spellSlots` (count) +
-// `slotLevel` (e.g. "1st") for Warlock pact magic — both shapes are
-// handled here. Non-spellcasters return null.
-//
-// Reading from the table beats the hardcoded full-caster lookup
-// this used to live as: half-casters (Paladin / Ranger) correctly
-// get no slots at L1 in 5.1 and 2/0 at L1 in 5.2; Warlock's pact
-// magic reads its 1-slot at L1 instead of being given the wrong
-// 2-slot full-caster row.
-const SLOT_COLUMNS: Array<{ key: string; level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 }> = [
-  { key: '1st', level: 1 }, { key: '2nd', level: 2 }, { key: '3rd', level: 3 },
-  { key: '4th', level: 4 }, { key: '5th', level: 5 }, { key: '6th', level: 6 },
-  { key: '7th', level: 7 }, { key: '8th', level: 8 }, { key: '9th', level: 9 },
-];
-
-const SLOT_LEVEL_LABEL_TO_NUMBER: Record<string, 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9> = {
-  '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5,
-  '6th': 6, '7th': 7, '8th': 8, '9th': 9,
-};
-
+// initSpellSlots used to ship a duplicate of the leveling library's
+// progression-table parser; replaced by `spellSlotsForClassAtLevel`
+// from `@vaultstone/systems` so the two paths agree on
+// half-caster / Warlock pact-magic / 5.1-vs-5.2 quirks. Non-spellcasters
+// resolve to null here so resources.spellSlots stays unset for them.
 function initSpellSlots(
   cls: ClassResult,
   level: number,
 ): Dnd5eResources['spellSlots'] {
   if (!cls.spellcasting) return null;
-  const row = (cls.progressionTable ?? []).find((r) => r.level === Math.min(level, 20));
-  const make = (max: number): Dnd5eSpellSlotLevel => ({ max, remaining: max });
-  const empty = make(0);
-  const slots: Dnd5eResources['spellSlots'] = {
-    1: empty, 2: empty, 3: empty, 4: empty, 5: empty,
-    6: empty, 7: empty, 8: empty, 9: empty,
-  };
-  if (!row) return slots;
-
-  // Full + half casters: read each `Nth` column directly. "—" / non-numeric
-  // values land at 0, which is correct for half-casters at L1 in 5.1.
-  let foundExplicitSlots = false;
-  for (const col of SLOT_COLUMNS) {
-    const raw = row.values[col.key];
-    const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''), 10);
-    if (Number.isFinite(n)) {
-      slots[col.level] = make(n);
-      if (n > 0) foundExplicitSlots = true;
-    }
-  }
-  // Warlock pact magic: `spellSlots` is the count, `slotLevel` ("1st" /
-  // "2nd" / etc.) names the slot level all of those slots cast at. Only
-  // applied when the per-level columns above didn't already populate.
-  if (!foundExplicitSlots) {
-    const countRaw = row.values['spellSlots'];
-    const slotLevelRaw = row.values['slotLevel'];
-    const count = typeof countRaw === 'number' ? countRaw : parseInt(String(countRaw ?? ''), 10);
-    const slotLevel = typeof slotLevelRaw === 'string' ? SLOT_LEVEL_LABEL_TO_NUMBER[slotLevelRaw] : undefined;
-    if (Number.isFinite(count) && count > 0 && slotLevel) {
-      slots[slotLevel] = make(count);
-    }
-  }
-  return slots;
+  return spellSlotsForClassAtLevel(cls, level);
 }
 
 // Wizard step list is sourced from the chosen system's
@@ -135,6 +93,7 @@ export default function NewCharacterScreen() {
       classKey: s.classKey,
       chosenSkills: s.chosenSkills,
       backgroundKey: s.backgroundKey,
+      backgroundSkillReplacements: s.backgroundSkillReplacements,
       chosenFeats: s.chosenFeats,
       abilityScores: s.abilityScores,
       characterName: s.characterName,
@@ -142,6 +101,7 @@ export default function NewCharacterScreen() {
       system: s.system,
       campaignId: s.campaignId,
       selectedPackIds: s.selectedPackIds,
+      startingLevel: s.startingLevel,
     }))
   );
   const resetDraft = useCharacterDraftStore((s) => s.resetDraft);
@@ -566,14 +526,47 @@ export default function NewCharacterScreen() {
         level: 1,
         speciesKey: draft.speciesKey,
         classKey: draft.classKey,
+        // Multi-class entry list. New characters always carry a
+        // single-element array describing the primary class; the
+        // level-up wizard appends more entries on multiclass. Legacy
+        // characters without this field still work via the
+        // getClassEntries() fallback in @vaultstone/types.
+        classes: [
+          {
+            classKey: draft.classKey,
+            level: 1,
+            subclassKey: null,
+            hitDie: cls.hitDie,
+            primary: true,
+          },
+        ],
         backgroundKey: draft.backgroundKey,
         srdVersion: draft.srdVersion,
         abilityScores: draft.abilityScores,
         savingThrowProficiencies: cls.savingThrows.map((s) => s.toLowerCase()),
-        skillProficiencies: [
-          ...bg.skillProficiencies.map((s) => s.toLowerCase()),
-          ...draft.chosenSkills.map((s) => s.toLowerCase()),
-        ],
+        // Merge class-chosen + background-granted skills, applying any
+        // collision replacements the player picked on StepBackground.
+        // The replacements map is keyed by lower-case original skill;
+        // when present the replacement skill takes the slot. A final
+        // dedupe via Set guards against pathological cases (e.g. a
+        // homebrew background with duplicate entries in its own
+        // skillProficiencies list).
+        skillProficiencies: (() => {
+          const out: string[] = [];
+          const seen = new Set<string>();
+          const push = (sk: string) => {
+            const lc = sk.toLowerCase();
+            if (seen.has(lc)) return;
+            seen.add(lc);
+            out.push(lc);
+          };
+          for (const sk of draft.chosenSkills) push(sk);
+          for (const sk of bg.skillProficiencies) {
+            const replacement = draft.backgroundSkillReplacements[sk.toLowerCase()];
+            push(replacement ?? sk);
+          }
+          return out;
+        })(),
         armorProficiencies: cls.armorProficiencies,
         weaponProficiencies: cls.weaponProficiencies,
         toolProficiencies: bg.toolProficiency ? [bg.toolProficiency] : [],
@@ -600,13 +593,50 @@ export default function NewCharacterScreen() {
         ...(featsForResources.length > 0 ? { feats: featsForResources } : {}),
       };
 
+      // ── starting_level > 1 bootstrap ─────────────────────────────
+      // The campaign's starting_level rule lands on the draft via
+      // bootstrap; we now run applyLevelUp() once per level above 1
+      // so the new character lands at the correct level with the
+      // right HP, spell slots, and class features. Sensible defaults
+      // (max HP, no ASI/feat picked, no subclass picked) are used at
+      // each level — the player can open the level-up wizard later
+      // to claim any pending picks (subclass at unlock level, ASI
+      // at L4/8/12/16/19).
+      let bootstrappedStats = base_stats;
+      let bootstrappedResources = resources;
+      const targetLevel = Math.min(20, Math.max(1, Math.floor(draft.startingLevel ?? 1)));
+      if (targetLevel > 1) {
+        const classByKey = new Map([[cls.key, cls]]);
+        for (let lvl = 2; lvl <= targetLevel; lvl++) {
+          const hpGain = defaultHpGain(bootstrappedStats, cls);
+          const featuresAtLevel = classFeaturesAtLevel(cls, lvl);
+          const result = applyLevelUp(
+            { stats: bootstrappedStats, resources: bootstrappedResources },
+            {
+              classKey: cls.key,
+              newMulticlassEntry: false,
+              hpGain,
+              // Subclass + ASI picks are intentionally skipped — the
+              // bootstrap doesn't have player input. The level-up
+              // wizard surfaces them as owed picks the player resolves
+              // when they open the character.
+              classFeaturesUnlocked: unpackClassFeaturesForPick(featuresAtLevel),
+            },
+            cls,
+            classByKey,
+          );
+          bootstrappedStats = result.stats;
+          bootstrappedResources = result.resources;
+        }
+      }
+
       const { data, error } = await createCharacter({
         user_id: user.id,
         campaign_id: draft.campaignId ?? null,
         name: draft.characterName.trim(),
         system: draft.system,
-        base_stats: base_stats as unknown as import('@vaultstone/types').Json,
-        resources: resources as unknown as import('@vaultstone/types').Json,
+        base_stats: bootstrappedStats as unknown as import('@vaultstone/types').Json,
+        resources: bootstrappedResources as unknown as import('@vaultstone/types').Json,
         // Standalone characters persist their pack opt-in here; campaign
         // characters get [] because they inherit packs from campaign_packs.
         pack_ids: draft.campaignId ? [] : draft.selectedPackIds,

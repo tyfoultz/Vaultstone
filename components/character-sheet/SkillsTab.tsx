@@ -1,6 +1,7 @@
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable } from 'react-native';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
-import type { Dnd5eStats, Dnd5eAbilityScores } from '@vaultstone/types';
+import type { Dnd5eStats, Dnd5eAbilityScores, SkillResult } from '@vaultstone/types';
 import type { RollResult } from './RollToast';
 
 const SKILL_ABILITY: Record<string, keyof Dnd5eAbilityScores> = {
@@ -27,9 +28,15 @@ interface Props {
   scores: Dnd5eAbilityScores;
   prof: number;
   onRoll: (result: RollResult) => void;
+  /** Optional ContentResolver skill catalog. When supplied, long-pressing
+   *  a skill row opens a description popover. Drives accessibility for
+   *  the rules text without forcing a full skill-list refactor. */
+  skillCatalog?: SkillResult[];
 }
 
-export function SkillsTab({ stats, scores, prof, onRoll }: Props) {
+export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog }: Props) {
+  const [detailFor, setDetailFor] = useState<{ name: string; description: string; ability: string } | null>(null);
+
   function skillBonus(name: string) {
     const abi = SKILL_ABILITY[name];
     const base = abilityMod(scores[abi]);
@@ -42,9 +49,19 @@ export function SkillsTab({ stats, scores, prof, onRoll }: Props) {
     onRoll({ label: name, rolls: [r], bonus, total: r + bonus, crit: r === 20, fumble: r === 1 });
   }
 
+  function openDetail(name: string) {
+    if (!skillCatalog) return;
+    // Skill catalog keys are slug-form ("animal-handling"), local names
+    // are space-form ("animal handling"). Match either.
+    const slug = name.replace(/\s+/g, '-');
+    const hit = skillCatalog.find((c) => c.key === slug || c.name.toLowerCase() === name.toLowerCase());
+    if (!hit) return;
+    setDetailFor({ name: hit.name, description: hit.description ?? '', ability: hit.ability });
+  }
+
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
-      <SectionLabel>SKILLS · TAP TO ROLL</SectionLabel>
+      <SectionLabel>{`SKILLS · TAP TO ROLL${skillCatalog ? ' · LONG-PRESS FOR DETAILS' : ''}`}</SectionLabel>
       <View style={s.skillsCard}>
         {ALL_SKILLS.map((name, i) => {
           const isProf = stats.skillProficiencies.includes(name);
@@ -56,6 +73,8 @@ export function SkillsTab({ stats, scores, prof, onRoll }: Props) {
               key={name}
               style={[s.skillRow, !isLast && s.skillRowBorder]}
               onPress={() => rollSkill(name)}
+              onLongPress={skillCatalog ? () => openDetail(name) : undefined}
+              delayLongPress={250}
               activeOpacity={0.7}
             >
               <View style={[s.profDot, isProf && s.profDotFilled]} />
@@ -70,6 +89,27 @@ export function SkillsTab({ stats, scores, prof, onRoll }: Props) {
           );
         })}
       </View>
+
+      <Modal visible={!!detailFor} transparent animationType="fade" onRequestClose={() => setDetailFor(null)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setDetailFor(null)}>
+          <Pressable style={s.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={s.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.modalTitle}>{detailFor?.name}</Text>
+                {detailFor && (
+                  <Text style={s.modalSub}>{ABILITY_SHORT[detailFor.ability as keyof Dnd5eAbilityScores] ?? detailFor.ability.toUpperCase()}</Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setDetailFor(null)} hitSlop={8}>
+                <Text style={s.modalClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            {detailFor?.description ? (
+              <Text style={s.modalDesc}>{detailFor.description}</Text>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Legend */}
       <View style={s.legend}>
@@ -162,4 +202,20 @@ const s = StyleSheet.create({
     borderRadius: 999,
   },
   langChipText: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurface },
+
+  modalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center', padding: spacing.lg,
+  },
+  modalCard: {
+    width: '100%', maxWidth: 480,
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.lg, padding: spacing.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  modalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: spacing.sm },
+  modalTitle: { fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  modalSub: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, color: colors.outline, marginTop: 2 },
+  modalClose: { fontSize: 13, color: colors.primary, fontFamily: fonts.label, fontWeight: '600' },
+  modalDesc: { fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 19 },
 });
