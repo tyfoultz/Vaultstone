@@ -172,9 +172,30 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
 
       setSpecies: (speciesKey) => set({ speciesKey, speciesAbilityChoices: {} }),
 
-      setClass: (classKey) => set({ classKey, chosenSkills: [], backgroundSkillReplacements: {} }),
+      setClass: (classKey) => set((state) => {
+        // Only reset chosen skills + background skill replacements
+        // when the class actually changes. Re-tapping the same class
+        // (or coming back to confirm) used to wipe the player's
+        // skill picks silently — that broke the background-step
+        // skill collision detector because chosenSkills would be []
+        // by the time the player got to the background step.
+        if (state.classKey === classKey) return { classKey };
+        return { classKey, chosenSkills: [], backgroundSkillReplacements: {} };
+      }),
 
-      setChosenSkills: (chosenSkills) => set({ chosenSkills, backgroundSkillReplacements: {} }),
+      setChosenSkills: (chosenSkills) => set((state) => {
+        // Only wipe background-skill replacements when the skill set
+        // changes in a way that could invalidate them. If every
+        // already-replaced skill is still in the new list, the
+        // replacements are still relevant — keep them.
+        const newLc = new Set(chosenSkills.map((c) => c.toLowerCase()));
+        const replacements = state.backgroundSkillReplacements;
+        const stillValid = Object.keys(replacements).every((sk) => newLc.has(sk));
+        return {
+          chosenSkills,
+          backgroundSkillReplacements: stillValid ? replacements : {},
+        };
+      }),
 
       setBackground: (backgroundKey) => set({ backgroundKey }),
 

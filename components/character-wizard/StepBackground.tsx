@@ -147,8 +147,17 @@ export function StepBackground({ onPreviewChange, onAdvance }: Props) {
         <View style={s.detailRows}>
           <DetailRow label="Skills" value={preview.skillProficiencies.join(', ')} />
           {preview.toolProficiency && <DetailRow label="Tool" value={preview.toolProficiency} />}
-          <DetailRow label="Ability Scores" value={`+2/+1 from ${abilityOpts}`} />
-          <DetailRowAccent label="Origin Feat" value={preview.originFeat} />
+          {/* Background ASI + origin feat are 2024-specific. 2014
+              backgrounds ship empty values for both; the wizard's
+              Ability Scores step handles ASI assignment via Custom
+              Origin when CYO is on. Surface the rows only when the
+              background actually carries the structured data. */}
+          {preview.abilityScoreOptions.length > 0 ? (
+            <DetailRow label="Ability Scores" value={`+2/+1 from ${abilityOpts}`} />
+          ) : null}
+          {preview.originFeat ? (
+            <DetailRowAccent label="Origin Feat" value={preview.originFeat} />
+          ) : null}
         </View>
 
         {conflicts.length > 0 ? (
