@@ -496,8 +496,20 @@ export interface SpeciesResult extends ContentResult {
   size: 'Small' | 'Medium' | 'Large';
   speed: number;
   traits: Array<{ name: string; description: string }>;
-  /** Fixed ASI granted by the species (SRD 5.1 style). Empty for SRD 2.0 species. */
+  /** Fixed ASI granted by the species (SRD 5.1 style). Empty for SRD 2.0
+   *  species (those use Custom Origin / `swapRules.abilityScores: true`
+   *  to let the player distribute their own ASIs). */
   abilityScoreIncreases: Array<{ ability: string; amount: number }>;
+  /**
+   * Player-choice ASIs layered on top of `abilityScoreIncreases`.
+   *  Each entry says "pick `count` abilities, each gets `+amount`,
+   *  from this set." Half-Elf 5.1 ships `[{ count: 2, amount: 1,
+   *  from: [non-CHA abilities] }]` on top of a fixed +2 CHA;
+   *  Variant Human (when we eventually add it) would use the same
+   *  shape. The character creation wizard surfaces a picker per entry.
+   *  Empty / undefined for species with no choice component.
+   */
+  abilityScoreChoices?: Array<{ count: number; amount: number; from: string[] }>;
   /**
    * Per-species permissions for the wizard's Customize Origin step.
    * 2014 species ship all-false (locked to defaults); 2024 species

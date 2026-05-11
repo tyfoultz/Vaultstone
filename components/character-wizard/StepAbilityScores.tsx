@@ -5,8 +5,14 @@ import { useShallow } from 'zustand/react/shallow';
 import {
   BUNDLED_SYSTEMS_BY_ID, getAbilityAttributes,
 } from '@vaultstone/systems';
+import { ContentResolver } from '@vaultstone/content';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
-import type { Dnd5eAbilityScores } from '@vaultstone/types';
+import type { Dnd5eAbilityScores, SpeciesResult } from '@vaultstone/types';
+
+const ABILITY_CODE: Record<string, string> = {
+  strength: 'STR', dexterity: 'DEX', constitution: 'CON',
+  intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
+};
 
 // The wizard's draft store stores ability scores in the D&D 5e
 // `Dnd5eAbilityScores` shape, which is structurally a
@@ -42,17 +48,50 @@ const METHODS = [
 ];
 
 export function StepAbilityScores() {
-  const { abilityScoreMethod, abilityScores, setAbilityScoreMethod, setAbilityScores, system, srdVersion } =
-    useCharacterDraftStore(
-      useShallow((s) => ({
-        abilityScoreMethod: s.abilityScoreMethod,
-        abilityScores: s.abilityScores,
-        setAbilityScoreMethod: s.setAbilityScoreMethod,
-        setAbilityScores: s.setAbilityScores,
-        system: s.system,
-        srdVersion: s.srdVersion,
-      }))
-    );
+  const {
+    abilityScoreMethod, abilityScores, setAbilityScoreMethod, setAbilityScores,
+    system, srdVersion, speciesKey, speciesAbilityChoices, setSpeciesAbilityChoices,
+    campaignId, selectedPackIds,
+  } = useCharacterDraftStore(
+    useShallow((s) => ({
+      abilityScoreMethod: s.abilityScoreMethod,
+      abilityScores: s.abilityScores,
+      setAbilityScoreMethod: s.setAbilityScoreMethod,
+      setAbilityScores: s.setAbilityScores,
+      system: s.system,
+      srdVersion: s.srdVersion,
+      speciesKey: s.speciesKey,
+      speciesAbilityChoices: s.speciesAbilityChoices,
+      setSpeciesAbilityChoices: s.setSpeciesAbilityChoices,
+      campaignId: s.campaignId,
+      selectedPackIds: s.selectedPackIds,
+    }))
+  );
+
+  // Resolve the picked species so the wizard can layer its ASI on
+  // top of the raw scores being assigned here. ContentResolver
+  // mirrors the StepSpecies scope (campaign packs or standalone
+  // opt-in) so imported homebrew species flow through.
+  const [species, setSpeciesResult] = useState<SpeciesResult | null>(null);
+  useEffect(() => {
+    if (!speciesKey) { setSpeciesResult(null); return; }
+    let cancelled = false;
+    const includeHomebrew = !!campaignId || selectedPackIds.length > 0;
+    const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+    ContentResolver.search({
+      type: 'species',
+      system: 'dnd5e',
+      srdVersion,
+      tiers,
+      campaignId: campaignId ?? undefined,
+      packIds: !campaignId && selectedPackIds.length > 0 ? selectedPackIds : undefined,
+    }).then((r) => {
+      if (cancelled) return;
+      const hit = (r as SpeciesResult[]).find((sp) => sp.key === speciesKey);
+      setSpeciesResult(hit ?? null);
+    });
+    return () => { cancelled = true; };
+  }, [speciesKey, srdVersion, campaignId, selectedPackIds.join(',')]);
 
   // Pull the raw-ability rows from the chosen system's `attributes[]`
   // schema. For D&D 5e (both editions) this is the canonical six —
@@ -309,7 +348,180 @@ export function StepAbilityScores() {
           ))}
         </>
       )}
+
+      {/* ── Species bonuses ─────────────────────────────────────────────────────
+          Layer the species' ASI on top of the raw scores assigned above.
+          Fixed bonuses (Dwarf +2 CON, etc.) render as a chip strip;
+          choice clauses (Half-Elf "+1 to two abilities") surface a
+          picker so the player can allocate. The "Final scores" preview
+          shows raw + chosen bonuses summed — that's the value the
+          wizard will write to the character when finalize fires. Empty
+          for species with no ASI data (2024 Custom Origin species). */}
+      {species && (species.abilityScoreIncreases.length > 0 || (species.abilityScoreChoices ?? []).length > 0) && (
+        <SpeciesAsiPanel
+          species={species}
+          abilityRows={abilityRows}
+          rawScores={scores}
+          choices={speciesAbilityChoices}
+          onChoicesChange={setSpeciesAbilityChoices}
+        />
+      )}
     </ScrollView>
+  );
+}
+
+// Sums the species' total bonus to a given ability — fixed
+// abilityScoreIncreases plus whatever the player has allocated through
+// abilityScoreChoices. Used by both the in-step preview and the
+// finalize-time application in app/character/new.tsx (re-exported for
+// reuse).
+export function speciesBonusFor(
+  species: SpeciesResult | null,
+  choices: Record<string, number>,
+  ability: string,
+): number {
+  if (!species) return 0;
+  const fixed = (species.abilityScoreIncreases ?? [])
+    .filter((a) => a.ability.toLowerCase() === ability.toLowerCase())
+    .reduce((acc, a) => acc + a.amount, 0);
+  const chosen = choices[ability] ?? 0;
+  return fixed + chosen;
+}
+
+// Whether the player has fully allocated every choice clause on the
+// species. False when one or more clauses still have unassigned counts.
+export function speciesChoicesComplete(
+  species: SpeciesResult | null,
+  choices: Record<string, number>,
+): boolean {
+  if (!species) return true;
+  const clauses = species.abilityScoreChoices ?? [];
+  if (clauses.length === 0) return true;
+  // Sum of chosen amounts must match each clause's total. We don't
+  // strictly validate per-clause here (clauses with non-overlapping
+  // 'from' sets get checked at the picker level) — total amount
+  // landing in `choices` equaling the cumulative max is sufficient
+  // for the simple Half-Elf case.
+  const cumulativeAmount = clauses.reduce((sum, c) => sum + c.count * c.amount, 0);
+  const allocated = Object.values(choices).reduce((sum, v) => sum + v, 0);
+  return allocated >= cumulativeAmount;
+}
+
+function SpeciesAsiPanel({
+  species, abilityRows, rawScores, choices, onChoicesChange,
+}: {
+  species: SpeciesResult;
+  abilityRows: Array<{ key: string; label: string; short: string; description: string }>;
+  rawScores: Record<string, number>;
+  choices: Record<string, number>;
+  onChoicesChange: (next: Record<string, number>) => void;
+}) {
+  const fixed = species.abilityScoreIncreases ?? [];
+  const clauses = species.abilityScoreChoices ?? [];
+
+  // Click a chip in a choice clause: toggle that ability's +1 (or +N)
+  // on/off. Respects the clause's `count` cap — if the player has
+  // already maxed out their picks, additional clicks no-op (except for
+  // clicks on already-selected abilities, which deselect).
+  function toggleChoice(clauseIdx: number, ability: string) {
+    const clause = clauses[clauseIdx];
+    if (!clause) return;
+    const lc = ability.toLowerCase();
+    const cur = choices[lc] ?? 0;
+    if (cur > 0) {
+      const next = { ...choices };
+      const remaining = cur - clause.amount;
+      if (remaining <= 0) delete next[lc];
+      else next[lc] = remaining;
+      onChoicesChange(next);
+      return;
+    }
+    // How many picks the player has already made under THIS clause —
+    // tracked by summing `choices` entries whose ability is in the
+    // clause's `from` set. (Multiple clauses with overlapping `from`
+    // sets aren't disambiguated by id today; the simple case Half-Elf
+    // ships only has one clause so this is fine.)
+    const allowed = clause.count * clause.amount;
+    const usedInThisClause = clause.from
+      .map((a) => choices[a] ?? 0)
+      .reduce((sum, v) => sum + v, 0);
+    if (usedInThisClause + clause.amount > allowed) return;
+    onChoicesChange({ ...choices, [lc]: cur + clause.amount });
+  }
+
+  return (
+    <View style={s.asiPanel}>
+      <Text style={s.asiPanelTitle}>{species.name} Bonuses</Text>
+      {fixed.length > 0 && (
+        <View style={s.asiChipRow}>
+          {fixed.map((a, i) => (
+            <View key={`${a.ability}-${i}`} style={s.asiFixedChip}>
+              <Text style={s.asiFixedChipText}>
+                {`+${a.amount} ${ABILITY_CODE[a.ability.toLowerCase()] ?? a.ability.slice(0, 3).toUpperCase()}`}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+      {clauses.map((clause, ci) => {
+        const usedInClause = clause.from
+          .map((a) => choices[a] ?? 0)
+          .reduce((sum, v) => sum + v, 0);
+        const allowed = clause.count * clause.amount;
+        return (
+          <View key={ci} style={{ marginTop: spacing.sm }}>
+            <Text style={s.asiClauseLabel}>
+              {`Pick ${clause.count}: +${clause.amount} (${usedInClause}/${allowed} allocated)`}
+            </Text>
+            <View style={s.asiChipRow}>
+              {clause.from.map((ab) => {
+                const lc = ab.toLowerCase();
+                const isOn = (choices[lc] ?? 0) > 0;
+                const atCap = !isOn && usedInClause >= allowed;
+                return (
+                  <TouchableOpacity
+                    key={ab}
+                    style={[s.asiChoiceChip, isOn && s.asiChoiceChipOn, atCap && s.asiChoiceChipDisabled]}
+                    onPress={() => toggleChoice(ci, ab)}
+                    activeOpacity={0.7}
+                    disabled={atCap}
+                  >
+                    <Text style={[s.asiChoiceChipText, isOn && s.asiChoiceChipTextOn]}>
+                      {ABILITY_CODE[lc] ?? ab.slice(0, 3).toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        );
+      })}
+
+      {/* Final-score preview — raw + bonus per ability, plus mod. The
+          mod cell carries the value the player will actually use at
+          the table, so it's the most useful preview. */}
+      <Text style={[s.asiClauseLabel, { marginTop: spacing.md }]}>Final scores</Text>
+      <View style={s.asiPreviewGrid}>
+        {abilityRows.map(({ key: ab, short }) => {
+          const raw = rawScores[ab] ?? 10;
+          const bonus = speciesBonusFor(species, choices, ab);
+          const total = raw + bonus;
+          const mod = Math.floor((total - 10) / 2);
+          return (
+            <View key={ab} style={s.asiPreviewCell}>
+              <Text style={s.asiPreviewLabel}>{short}</Text>
+              <Text style={s.asiPreviewTotal}>{total}</Text>
+              {bonus > 0 ? (
+                <Text style={s.asiPreviewBonus}>{`${raw} + ${bonus}`}</Text>
+              ) : (
+                <Text style={s.asiPreviewBonus}>{`${raw}`}</Text>
+              )}
+              <Text style={s.asiPreviewMod}>{mod >= 0 ? `+${mod}` : `${mod}`}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -357,6 +569,77 @@ function StepBtn({ children, onClick, onPress, disabled }: {
 }
 
 const s = StyleSheet.create({
+  // ── Species ASI panel ─────────────────────────────────────────────────
+  asiPanel: {
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: `${colors.primary}33`,
+    borderRadius: radius.xl,
+  },
+  asiPanelTitle: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, marginBottom: spacing.sm,
+  },
+  asiClauseLabel: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, letterSpacing: 0.4,
+    marginBottom: 6,
+  },
+  asiChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  asiFixedChip: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: colors.primaryContainer,
+    borderWidth: 1, borderColor: `${colors.primary}55`,
+    borderRadius: 999,
+  },
+  asiFixedChipText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.5,
+  },
+  asiChoiceChip: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 999,
+  },
+  asiChoiceChipOn: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: `${colors.primary}55`,
+  },
+  asiChoiceChipDisabled: { opacity: 0.4 },
+  asiChoiceChipText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant, letterSpacing: 0.5,
+  },
+  asiChoiceChipTextOn: { color: colors.primary },
+  asiPreviewGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4,
+  },
+  asiPreviewCell: {
+    flexGrow: 1, minWidth: 80,
+    paddingVertical: 8, paddingHorizontal: 10,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+  },
+  asiPreviewLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.outline, letterSpacing: 1.2,
+  },
+  asiPreviewTotal: {
+    fontSize: 18, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, marginTop: 2,
+  },
+  asiPreviewBonus: {
+    fontSize: 10, fontFamily: fonts.body, color: colors.outline, marginTop: 1,
+  },
+  asiPreviewMod: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.primary, marginTop: 2,
+  },
+
   container: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
   title: {
     fontSize: 26, fontFamily: fonts.headline, fontWeight: '700',

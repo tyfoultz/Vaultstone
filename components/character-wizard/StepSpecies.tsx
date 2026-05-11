@@ -92,6 +92,9 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
         <View style={s.detailRows}>
           <DetailRow label="Size" value={preview.size} />
           <DetailRow label="Speed" value={`${preview.speed} ft`} />
+          {formatAsiSummary(preview) ? (
+            <DetailRow label="ASI" value={formatAsiSummary(preview)} />
+          ) : null}
         </View>
         {preview.traits.length > 0 && (
           <>
@@ -154,6 +157,31 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
       </View>
     </ScrollView>
   );
+}
+
+// Short ability code used in the ASI summary line. 'strength' → STR.
+const ABILITY_CODE: Record<string, string> = {
+  strength: 'STR', dexterity: 'DEX', constitution: 'CON',
+  intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
+};
+
+// Compose a one-line summary of the species' ability score increases
+// for the detail card. Combines fixed bonuses (`abilityScoreIncreases`)
+// with player-choice clauses (`abilityScoreChoices`, e.g. Half-Elf's
+// "+1 to two abilities of your choice"). Returns '' when the species
+// has no structured ASI data (most 2024 species — Custom Origin handles
+// those at the wizard's ability scores step).
+function formatAsiSummary(sp: SpeciesResult): string {
+  const fixed = (sp.abilityScoreIncreases ?? []).map((a) => {
+    const code = ABILITY_CODE[a.ability.toLowerCase()] ?? a.ability.slice(0, 3).toUpperCase();
+    return `+${a.amount} ${code}`;
+  });
+  const choices = (sp.abilityScoreChoices ?? []).map((c) => {
+    if (c.from.length === 6) return `+${c.amount} to ${c.count} of your choice`;
+    if (c.from.length === 5) return `+${c.amount} to ${c.count} other abilities`;
+    return `+${c.amount} to ${c.count} (${c.from.length} options)`;
+  });
+  return [...fixed, ...choices].join(', ');
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {

@@ -86,7 +86,16 @@
         "description": "You have resistance to the damage type associated with your draconic ancestry."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "strength",
+        "amount": 2
+      },
+      {
+        "ability": "charisma",
+        "amount": 1
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -182,7 +191,12 @@
         "description": "Whenever you make an Intelligence (History) check related to the origin of stonework, you are considered proficient in the History skill and add double your proficiency bonus to the check, instead of your normal proficiency bonus."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "constitution",
+        "amount": 2
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -278,7 +292,12 @@
         "description": "Elves don't need to sleep. Instead, they meditate deeply, remaining semiconscious, for 4 hours a day. (The Common word for such meditation is “trance.”) While meditating, you can dream after a fashion; such dreams are actually mental exercises that have become reflexive through years of practice. After resting in this way, you gain the same benefit that a human does from 8 hours of sleep."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "dexterity",
+        "amount": 2
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -358,7 +377,12 @@
         "description": "You have advantage on all Intelligence, Wisdom, and Charisma saving throws against magic."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "intelligence",
+        "amount": 2
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -442,14 +466,32 @@
         "description": "You gain proficiency in two skills of your choice."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "charisma",
+        "amount": 2
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
       "skills": false
     },
     "description": "Your half-elf character has some qualities in common with elves and some that are unique to half-elves.",
-    "data": {}
+    "data": {},
+    "abilityScoreChoices": [
+      {
+        "count": 2,
+        "amount": 1,
+        "from": [
+          "strength",
+          "dexterity",
+          "constitution",
+          "intelligence",
+          "wisdom"
+        ]
+      }
+    ]
   },
   {
     "key": "half-orc-srd-5-1",
@@ -496,7 +538,16 @@
         "description": "When you score a critical hit with a melee weapon attack, you can roll one of the weapon's damage dice one additional time and add it to the extra damage of the critical hit."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "strength",
+        "amount": 2
+      },
+      {
+        "ability": "constitution",
+        "amount": 1
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -584,7 +635,12 @@
         "description": "You can move through the space of any creature that is of a size larger than yours."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "dexterity",
+        "amount": 2
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -622,7 +678,16 @@
         "description": "You can speak, read, and write one extra language of your choice."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "dexterity",
+        "amount": 2
+      },
+      {
+        "ability": "intelligence",
+        "amount": 1
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -652,7 +717,16 @@
         "description": "Your hit point maximum increases by 1, and it increases by 1 every time you gain a level."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "constitution",
+        "amount": 2
+      },
+      {
+        "ability": "wisdom",
+        "amount": 1
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -724,7 +798,32 @@
         "description": "You can speak, read, and write Common and one extra language of your choice. Humans typically learn the languages of other peoples they deal with, including obscure dialects. They are fond of sprinkling their speech with words borrowed from other tongues: Orc curses, Elvish musical expressions, Dwarvish military phrases, and so on."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "strength",
+        "amount": 1
+      },
+      {
+        "ability": "dexterity",
+        "amount": 1
+      },
+      {
+        "ability": "constitution",
+        "amount": 1
+      },
+      {
+        "ability": "intelligence",
+        "amount": 1
+      },
+      {
+        "ability": "wisdom",
+        "amount": 1
+      },
+      {
+        "ability": "charisma",
+        "amount": 1
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -754,7 +853,16 @@
         "description": "You can attempt to hide even when you are obscured only by a creature that is at least one size larger than you."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "dexterity",
+        "amount": 2
+      },
+      {
+        "ability": "charisma",
+        "amount": 1
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -822,7 +930,16 @@
         "description": "You have proficiency with artisan's tools (tinker's tools). Using those tools, you can spend 1 hour and 10 gp worth of materials to construct a Tiny clockwork device (AC 5, 1 hp). The device ceases to function after 24 hours (unless you spend 1 hour repairing it to keep the device functioning), or when you use your action to dismantle it; at that time, you can reclaim the materials used to create it. You can have up to three such devices active at a time.\n\nWhen you create a device, choose one of the following options:\n• _Clockwork Toy._ This toy is a clockwork animal, monster, or person, such as a frog, mouse, bird, dragon, or soldier. When placed on the ground, the toy moves 5 feet across the ground on each of your turns in a random direction. It makes noises as appropriate to the creature it represents.\n• _Fire Starter._ The device produces a miniature flame, which you can use to light a candle, torch, or campfire. Using the device requires your action.\n• _Music Box._ When opened, this music box plays a single song at a moderate volume. The box stops playing when it reaches the song's end or when it is closed."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "intelligence",
+        "amount": 2
+      },
+      {
+        "ability": "constitution",
+        "amount": 1
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,
@@ -906,7 +1023,16 @@
         "description": "You know the thaumaturgy cantrip. When you reach 3rd level, you can cast the hellish rebuke spell as a 2nd-level spell once with this trait and regain the ability to do so when you finish a long rest. When you reach 5th level, you can cast the darkness spell once with this trait and regain the ability to do so when you finish a long rest. Charisma is your spellcasting ability for these spells."
       }
     ],
-    "abilityScoreIncreases": [],
+    "abilityScoreIncreases": [
+      {
+        "ability": "charisma",
+        "amount": 2
+      },
+      {
+        "ability": "intelligence",
+        "amount": 1
+      }
+    ],
     "swapRules": {
       "abilityScores": false,
       "languages": false,

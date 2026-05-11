@@ -30,7 +30,7 @@ import { StepSpecies } from '../../components/character-wizard/StepSpecies';
 import { StepClass } from '../../components/character-wizard/StepClass';
 import { StepBackground } from '../../components/character-wizard/StepBackground';
 import { StepFeats } from '../../components/character-wizard/StepFeats';
-import { StepAbilityScores } from '../../components/character-wizard/StepAbilityScores';
+import { StepAbilityScores, speciesBonusFor } from '../../components/character-wizard/StepAbilityScores';
 import { StepReview } from '../../components/character-wizard/StepReview';
 import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
 import { CampaignRulesSummary } from '../../components/character-wizard/CampaignRulesSummary';
@@ -94,6 +94,7 @@ export default function NewCharacterScreen() {
       chosenSkills: s.chosenSkills,
       backgroundKey: s.backgroundKey,
       backgroundSkillReplacements: s.backgroundSkillReplacements,
+      speciesAbilityChoices: s.speciesAbilityChoices,
       chosenFeats: s.chosenFeats,
       abilityScores: s.abilityScores,
       characterName: s.characterName,
@@ -478,13 +479,28 @@ export default function NewCharacterScreen() {
       ]);
       const cls = (clsResults as ClassResult[]).find((c) => c.key === draft.classKey);
       const bg = (bgResults as BackgroundResult[]).find((b) => b.key === draft.backgroundKey);
-      const sp = speciesResults.find((s) => s.key === draft.speciesKey);
+      const sp = (speciesResults as SpeciesResult[]).find((s) => s.key === draft.speciesKey);
 
       if (!cls || !bg || !sp) {
         setSaveError('Could not load content. Please try again.');
         setSaving(false);
         return;
       }
+
+      // Layer the species' ASI on top of the player's raw assigned
+      // scores. Fixed bonuses (Dwarf +2 CON) live on
+      // species.abilityScoreIncreases; player-choice clauses (Half-Elf
+      // "+1 to two abilities") live in draft.speciesAbilityChoices,
+      // resolved through the wizard's Ability Scores step. 2024 Custom
+      // Origin species ship empty ASI data and a swap-everything rule,
+      // so this is a no-op for them. The null-gate above ensures
+      // draft.abilityScores is non-null at this point.
+      const adjustedAbilityScores = Object.fromEntries(
+        Object.entries(draft.abilityScores).map(([ability, score]) => [
+          ability,
+          score + speciesBonusFor(sp, draft.speciesAbilityChoices, ability),
+        ]),
+      ) as typeof draft.abilityScores;
 
       // Resolve picked feats into the character's `resources.feats[]`
       // shape. Skipped silently if the resolver couldn't find a feat —
@@ -542,7 +558,7 @@ export default function NewCharacterScreen() {
         ],
         backgroundKey: draft.backgroundKey,
         srdVersion: draft.srdVersion,
-        abilityScores: draft.abilityScores,
+        abilityScores: adjustedAbilityScores,
         savingThrowProficiencies: cls.savingThrows.map((s) => s.toLowerCase()),
         // Merge class-chosen + background-granted skills, applying any
         // collision replacements the player picked on StepBackground.

@@ -48,6 +48,15 @@ export interface CharacterDraft {
    */
   backgroundSkillReplacements: Record<string, string>;
 
+  /**
+   * Player picks for the species' `abilityScoreChoices` clauses (5.1
+   * Half-Elf and similar "+1 to two abilities of your choice" cases).
+   * Keyed by ability — value is the amount the player chose to add
+   * via the choice clause. Empty when the species ships no choices.
+   * Surfaced as ability pickers on the Ability Scores wizard step.
+   */
+  speciesAbilityChoices: Record<string, number>;
+
   // Step 4 — Ability Scores
   abilityScoreMethod: AbilityScoreMethod;
   abilityScores: Dnd5eAbilityScores | null;
@@ -111,6 +120,7 @@ interface CharacterDraftActions {
   setChosenSkills: (skills: string[]) => void;
   setBackground: (key: string) => void;
   setBackgroundSkillReplacements: (map: Record<string, string>) => void;
+  setSpeciesAbilityChoices: (map: Record<string, number>) => void;
   setChosenFeats: (keys: string[]) => void;
   setAbilityScoreMethod: (method: AbilityScoreMethod) => void;
   setAbilityScores: (scores: Dnd5eAbilityScores) => void;
@@ -138,6 +148,7 @@ const INITIAL_DRAFT: CharacterDraft = {
   chosenSkills: [],
   backgroundKey: null,
   backgroundSkillReplacements: {},
+  speciesAbilityChoices: {},
   chosenFeats: [],
   abilityScoreMethod: 'standard_array',
   abilityScores: null,
@@ -159,7 +170,7 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
 
       setRulesetMode: (rulesetMode) => set({ rulesetMode }),
 
-      setSpecies: (speciesKey) => set({ speciesKey }),
+      setSpecies: (speciesKey) => set({ speciesKey, speciesAbilityChoices: {} }),
 
       setClass: (classKey) => set({ classKey, chosenSkills: [], backgroundSkillReplacements: {} }),
 
@@ -168,6 +179,8 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
       setBackground: (backgroundKey) => set({ backgroundKey }),
 
       setBackgroundSkillReplacements: (backgroundSkillReplacements) => set({ backgroundSkillReplacements }),
+
+      setSpeciesAbilityChoices: (speciesAbilityChoices) => set({ speciesAbilityChoices }),
 
       setChosenFeats: (chosenFeats) => set({ chosenFeats }),
 
