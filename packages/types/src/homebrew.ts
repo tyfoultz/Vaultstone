@@ -160,15 +160,35 @@ export interface HomebrewSpeciesData {
   speed: number;
   description: string;
   /** Named feature blocks ("Darkvision", "Fey Ancestry"). Rendered
-   *  as a bullet list on the detail card. `level` is the character
-   *  level at which the trait unlocks — defaults to 1 when omitted. */
-  traits: Array<{ name: string; description: string; level?: number }>;
+   *  as a bullet list on the detail card.
+   *
+   *  - `level` is the character level at which the trait unlocks —
+   *    defaults to 1 when omitted.
+   *  - `options` turns a trait into a "pick one" group. When present
+   *    and non-empty, the wizard surfaces a picker; `description` acts
+   *    as the lead-in prose, then each option renders as a sub-bullet.
+   *    Selection wiring on the character draft is a follow-up; today
+   *    the form authors them and renderers display them read-only. */
+  traits: Array<{
+    name: string;
+    description: string;
+    level?: number;
+    options?: Array<{ name: string; description: string }>;
+  }>;
   /** Fixed ability score bonuses (Dwarf +2 CON style). Empty for
    *  Custom-Origin species that let the player pick on the wizard. */
   abilityScoreIncreases: Array<{ ability: string; amount: number }>;
   /** Player-choice ASI clauses ("+1 to two abilities of your choice"
    *  Half-Elf style). Optional. */
   abilityScoreChoices?: Array<{ count: number; amount: number; from: string[] }>;
+  /** Languages granted to every member of the species. Free-text so
+   *  homebrew can reference languages outside the SRD catalog. Empty
+   *  when the species grants no fixed languages. */
+  languagesFixed?: string[];
+  /** Player-choice language clauses ("Choose one extra language"). Each
+   *  entry says "pick `count` languages from `from` (or 'any')". Empty
+   *  / undefined when the species has no language choice. */
+  languagesChoices?: Array<{ count: number; from: string[] | 'any' }>;
   /** Per-species permissions for the wizard's Customize Origin step.
    *  Defaults to all-false (locked to fixed bonuses) when omitted —
    *  authored species opt into Custom Origin explicitly. */

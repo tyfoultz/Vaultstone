@@ -41,6 +41,29 @@ const ABILITY_LABEL: Record<string, string> = Object.fromEntries(
   ABILITIES.map((a) => [a.key, a.label]),
 );
 
+// Common SRD languages — used as chip-toggle suggestions on the species
+// language editor. Authors can add anything outside this list via the
+// "custom language" input. We don't pull these from the resolver since
+// there's no SRD language seed shipped yet.
+const COMMON_LANGUAGES: string[] = [
+  'Common',
+  'Dwarvish',
+  'Elvish',
+  'Giant',
+  'Gnomish',
+  'Goblin',
+  'Halfling',
+  'Orc',
+  'Abyssal',
+  'Celestial',
+  'Draconic',
+  'Deep Speech',
+  'Infernal',
+  'Primordial',
+  'Sylvan',
+  'Undercommon',
+];
+
 type Props = {
   pack: HomebrewPackRow;
   entry?: HomebrewContentRow;
@@ -57,6 +80,8 @@ const DEFAULTS: { name: string; data: HomebrewSpeciesData } = {
     traits: [],
     abilityScoreIncreases: [],
     abilityScoreChoices: [],
+    languagesFixed: [],
+    languagesChoices: [],
     // Default to all-false; new species don't auto-opt-in to Custom
     // Origin — the wizard's CYO step gates on this explicitly.
     swapRules: { abilityScores: false, languages: false, skills: false },
@@ -73,6 +98,7 @@ export function SpeciesFormModal({ pack, entry, onClose, onSaved }: Props) {
   const [data, setData] = useState<HomebrewSpeciesData>(initial.data);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [customLanguage, setCustomLanguage] = useState('');
 
   function patch<K extends keyof HomebrewSpeciesData>(key: K, value: HomebrewSpeciesData[K]) {
     setData((prev) => ({ ...prev, [key]: value }));
@@ -141,6 +167,74 @@ export function SpeciesFormModal({ pack, entry, onClose, onSaved }: Props) {
     patch('traits', next);
   }
 
+  // ── Trait options (multi-choice traits) ─────────────────────────────────
+  function addTraitOption(idx: number) {
+    const next = data.traits.slice();
+    const existing = next[idx].options ?? [];
+    next[idx] = { ...next[idx], options: [...existing, { name: '', description: '' }] };
+    patch('traits', next);
+  }
+  function removeTraitOption(idx: number, optIdx: number) {
+    const next = data.traits.slice();
+    const opts = (next[idx].options ?? []).filter((_, i) => i !== optIdx);
+    if (opts.length === 0) {
+      const { options: _drop, ...rest } = next[idx];
+      next[idx] = rest;
+    } else {
+      next[idx] = { ...next[idx], options: opts };
+    }
+    patch('traits', next);
+  }
+  function patchTraitOption(idx: number, optIdx: number, field: 'name' | 'description', value: string) {
+    const next = data.traits.slice();
+    const opts = (next[idx].options ?? []).slice();
+    opts[optIdx] = { ...opts[optIdx], [field]: value };
+    next[idx] = { ...next[idx], options: opts };
+    patch('traits', next);
+  }
+
+  // ── Languages ───────────────────────────────────────────────────────────
+  const fixedLanguages = data.languagesFixed ?? [];
+
+  function toggleFixedLanguage(lang: string) {
+    const has = fixedLanguages.includes(lang);
+    patch('languagesFixed', has ? fixedLanguages.filter((l) => l !== lang) : [...fixedLanguages, lang]);
+  }
+  function addCustomLanguage() {
+    const trimmed = customLanguage.trim();
+    if (!trimmed) return;
+    if (fixedLanguages.includes(trimmed)) { setCustomLanguage(''); return; }
+    patch('languagesFixed', [...fixedLanguages, trimmed]);
+    setCustomLanguage('');
+  }
+
+  const langClauses = data.languagesChoices ?? [];
+  function addLangClause() {
+    patch('languagesChoices', [...langClauses, { count: 1, from: 'any' as const }]);
+  }
+  function removeLangClause(i: number) {
+    patch('languagesChoices', langClauses.filter((_, idx) => idx !== i));
+  }
+  function patchLangClauseCount(i: number, raw: string) {
+    const next = langClauses.slice();
+    const n = Math.max(1, Math.min(5, parseInt(raw, 10) || 1));
+    next[i] = { ...next[i], count: n };
+    patch('languagesChoices', next);
+  }
+  function toggleLangClauseAny(i: number) {
+    const next = langClauses.slice();
+    next[i] = { ...next[i], from: next[i].from === 'any' ? [] : 'any' };
+    patch('languagesChoices', next);
+  }
+  function toggleLangClauseLang(i: number, lang: string) {
+    const next = langClauses.slice();
+    const cur = next[i].from;
+    if (cur === 'any') return; // ignore when "any" mode is on
+    const arr = cur.includes(lang) ? cur.filter((l) => l !== lang) : [...cur, lang];
+    next[i] = { ...next[i], from: arr };
+    patch('languagesChoices', next);
+  }
+
   // ── Custom Origin swap rules ────────────────────────────────────────────
   const swap = data.swapRules ?? { abilityScores: false, languages: false, skills: false };
   function toggleSwap(key: 'abilityScores' | 'languages' | 'skills') {
@@ -154,14 +248,32 @@ export function SpeciesFormModal({ pack, entry, onClose, onSaved }: Props) {
     // Drop empty trait rows so we don't ship junk to the resolver.
     const cleanTraits = data.traits
       .map((t) => {
-        const out: { name: string; description: string; level?: number } = {
+        const out: {
+          name: string;
+          description: string;
+          level?: number;
+          options?: Array<{ name: string; description: string }>;
+        } = {
           name: t.name.trim(),
           description: t.description.trim(),
         };
         if (typeof t.level === 'number' && t.level > 1) out.level = t.level;
+        const cleanOpts = (t.options ?? [])
+          .map((o) => ({ name: o.name.trim(), description: o.description.trim() }))
+          .filter((o) => o.name || o.description);
+        if (cleanOpts.length > 0) out.options = cleanOpts;
         return out;
       })
       .filter((t) => t.name || t.description);
+    const cleanFixedLangs = (data.languagesFixed ?? [])
+      .map((l) => l.trim())
+      .filter((l, i, arr) => l && arr.indexOf(l) === i);
+    const cleanLangChoices = (data.languagesChoices ?? [])
+      .map((c) => ({
+        count: c.count,
+        from: c.from === 'any' ? 'any' as const : c.from.filter((l, i, arr) => arr.indexOf(l) === i),
+      }))
+      .filter((c) => c.from === 'any' || c.from.length > 0);
     const final: HomebrewSpeciesData = {
       ...data,
       traits: cleanTraits,
@@ -171,6 +283,8 @@ export function SpeciesFormModal({ pack, entry, onClose, onSaved }: Props) {
         data.abilityScoreChoices && data.abilityScoreChoices.length > 0
           ? data.abilityScoreChoices
           : undefined,
+      languagesFixed: cleanFixedLangs.length > 0 ? cleanFixedLangs : undefined,
+      languagesChoices: cleanLangChoices.length > 0 ? cleanLangChoices : undefined,
       // traitsNotes is preserved if present (migration fallback), but
       // we never write new values to it from this form.
     };
@@ -373,9 +487,152 @@ export function SpeciesFormModal({ pack, entry, onClose, onSaved }: Props) {
             numberOfLines={3}
             style={{ minHeight: 80, textAlignVertical: 'top' }}
           />
+
+          {(trait.options ?? []).length > 0 ? (
+            <View style={styles.optionsList}>
+              <MetaLabel size="sm">Pick one of the following</MetaLabel>
+              {(trait.options ?? []).map((opt, optIdx) => (
+                <View key={optIdx} style={styles.optionBox}>
+                  <View style={styles.traitHeaderRow}>
+                    <View style={{ flex: 1 }}>
+                      <Input
+                        label={`Option ${optIdx + 1} name`}
+                        placeholder="Skilled"
+                        value={opt.name}
+                        onChangeText={(t) => patchTraitOption(idx, optIdx, 'name', t)}
+                      />
+                    </View>
+                    <Pressable
+                      onPress={() => removeTraitOption(idx, optIdx)}
+                      style={styles.traitRemoveBtn}
+                      accessibilityLabel="Remove option"
+                    >
+                      <Icon name="close" size={16} color={colors.onSurfaceVariant} />
+                    </Pressable>
+                  </View>
+                  <Input
+                    label="Option description"
+                    placeholder="You gain proficiency in any three skills of your choice."
+                    value={opt.description}
+                    onChangeText={(t) => patchTraitOption(idx, optIdx, 'description', t)}
+                    multiline
+                    numberOfLines={2}
+                    style={{ minHeight: 60, textAlignVertical: 'top' }}
+                  />
+                </View>
+              ))}
+            </View>
+          ) : null}
+          <GhostButton
+            label={(trait.options ?? []).length > 0 ? '+ Add another option' : '+ Add choice options'}
+            onPress={() => addTraitOption(idx)}
+          />
         </View>
       ))}
       <GhostButton label="+ Add trait" onPress={addTrait} />
+
+      <SectionHeader
+        title="Languages"
+        meta="Languages every member of this species knows, plus optional player-choice clauses."
+      />
+      <MetaLabel size="sm">Always known</MetaLabel>
+      <View style={styles.langChipRow}>
+        {COMMON_LANGUAGES.map((lang) => {
+          const on = fixedLanguages.includes(lang);
+          return (
+            <Pressable
+              key={lang}
+              onPress={() => toggleFixedLanguage(lang)}
+              style={[styles.langChip, on && styles.langChipOn]}
+            >
+              <Text
+                variant="body-sm"
+                style={{ color: on ? colors.onPrimary : colors.onSurface }}
+              >
+                {lang}
+              </Text>
+            </Pressable>
+          );
+        })}
+        {fixedLanguages
+          .filter((l) => !COMMON_LANGUAGES.includes(l))
+          .map((lang) => (
+            <Pressable
+              key={lang}
+              onPress={() => toggleFixedLanguage(lang)}
+              style={[styles.langChip, styles.langChipOn]}
+            >
+              <Text variant="body-sm" style={{ color: colors.onPrimary, marginRight: 4 }}>{lang}</Text>
+              <Icon name="close" size={12} color={colors.onPrimary} />
+            </Pressable>
+          ))}
+      </View>
+      <View style={styles.customLangRow}>
+        <View style={{ flex: 1 }}>
+          <Input
+            label="Add custom language"
+            placeholder="Slaad"
+            value={customLanguage}
+            onChangeText={setCustomLanguage}
+            onSubmitEditing={addCustomLanguage}
+          />
+        </View>
+        <GhostButton label="Add" onPress={addCustomLanguage} />
+      </View>
+
+      <MetaLabel size="sm" style={{ marginTop: spacing.sm }}>Player-choice clauses</MetaLabel>
+      {langClauses.map((c, i) => (
+        <View key={i} style={styles.clauseBox}>
+          <View style={styles.clauseRow}>
+            <View style={{ width: 110 }}>
+              <MetaLabel size="sm">Count</MetaLabel>
+              <Input
+                keyboardType="number-pad"
+                value={String(c.count)}
+                onChangeText={(t) => patchLangClauseCount(i, t)}
+              />
+            </View>
+            <Pressable onPress={() => toggleLangClauseAny(i)} style={styles.toggleRow}>
+              <View style={[styles.toggleBox, c.from === 'any' && styles.toggleBoxOn]}>
+                {c.from === 'any' ? <Icon name="check" size={14} color={colors.onPrimary} /> : null}
+              </View>
+              <Text variant="body-md" style={{ color: colors.onSurface }}>Any language</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => removeLangClause(i)}
+              style={styles.traitRemoveBtn}
+              accessibilityLabel="Remove clause"
+            >
+              <Icon name="close" size={16} color={colors.onSurfaceVariant} />
+            </Pressable>
+          </View>
+          {c.from !== 'any' ? (
+            <>
+              <MetaLabel size="sm" style={{ marginTop: spacing.sm }}>Pickable from</MetaLabel>
+              <View style={styles.langChipRow}>
+                {COMMON_LANGUAGES.map((lang) => {
+                  const on = c.from !== 'any' && c.from.includes(lang);
+                  return (
+                    <Pressable
+                      key={lang}
+                      onPress={() => toggleLangClauseLang(i, lang)}
+                      style={[styles.langChip, on && styles.langChipOn]}
+                    >
+                      <Text
+                        variant="body-sm"
+                        style={{ color: on ? colors.onPrimary : colors.onSurface }}
+                      >
+                        {lang}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+        </View>
+      ))}
+      <GhostButton label="+ Add language choice clause" onPress={addLangClause} />
 
       <SectionHeader
         title="Customize Your Origin"
@@ -440,6 +697,8 @@ function normalize(d: Partial<HomebrewSpeciesData>): HomebrewSpeciesData {
     traits: d.traits ?? [],
     abilityScoreIncreases: d.abilityScoreIncreases ?? [],
     abilityScoreChoices: d.abilityScoreChoices ?? [],
+    languagesFixed: d.languagesFixed ?? [],
+    languagesChoices: d.languagesChoices ?? [],
     swapRules: d.swapRules ?? { abilityScores: false, languages: false, skills: false },
     traitsNotes: d.traitsNotes,
   };
@@ -502,6 +761,36 @@ const styles = StyleSheet.create({
   },
   swapRow: { flexDirection: 'column', gap: spacing.xs + 2 },
   swapToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
+  optionsList: {
+    marginTop: spacing.sm,
+    paddingLeft: spacing.sm,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.primary + '55',
+    gap: spacing.sm,
+  },
+  optionBox: {
+    padding: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant + '33',
+  },
+  langChipRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4,
+  },
+  langChip: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: spacing.sm, paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  langChipOn: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  customLangRow: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginTop: spacing.sm,
+  },
   legacyBox: {
     padding: spacing.sm,
     backgroundColor: colors.surfaceContainerLowest,

@@ -123,16 +123,51 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
             <Text style={s.sectionLabel}>TRAITS</Text>
             <View style={s.traitList}>
               {preview.traits.map((t) => (
-                <Text key={t.name} style={s.traitItem}>
-                  <Text style={s.traitName}>
-                    {t.name}
-                    {t.level && t.level > 1 ? ` (Level ${t.level})` : ''}. </Text>
-                  <Text style={s.traitDesc}>{t.description}</Text>
-                </Text>
+                <View key={t.name}>
+                  <Text style={s.traitItem}>
+                    <Text style={s.traitName}>
+                      {t.name}
+                      {t.level && t.level > 1 ? ` (Level ${t.level})` : ''}. </Text>
+                    <Text style={s.traitDesc}>{t.description}</Text>
+                  </Text>
+                  {Array.isArray(t.options) && t.options.length > 0 ? (
+                    <View style={{ paddingLeft: 12, marginTop: 2 }}>
+                      <Text style={[s.traitDesc, { fontStyle: 'italic' }]}>Pick one:</Text>
+                      {t.options.map((o) => (
+                        <Text key={o.name} style={s.traitItem}>
+                          <Text style={s.traitName}>{`• ${o.name}. `}</Text>
+                          <Text style={s.traitDesc}>{o.description}</Text>
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
               ))}
             </View>
           </>
         )}
+        {(preview.languagesFixed && preview.languagesFixed.length > 0) ||
+         (preview.languagesChoices && preview.languagesChoices.length > 0) ? (
+          <>
+            <Text style={s.sectionLabel}>LANGUAGES</Text>
+            <View style={s.traitList}>
+              {preview.languagesFixed && preview.languagesFixed.length > 0 ? (
+                <Text style={s.traitItem}>
+                  <Text style={s.traitDesc}>{preview.languagesFixed.join(', ')}</Text>
+                </Text>
+              ) : null}
+              {(preview.languagesChoices ?? []).map((c, i) => (
+                <Text key={i} style={s.traitItem}>
+                  <Text style={s.traitDesc}>
+                    {c.from === 'any'
+                      ? `Plus ${c.count} language${c.count > 1 ? 's' : ''} of your choice.`
+                      : `Plus ${c.count} language${c.count > 1 ? 's' : ''} from: ${(c.from as string[]).join(', ')}.`}
+                  </Text>
+                </Text>
+              ))}
+            </View>
+          </>
+        ) : null}
         <View style={{ height: 12 }} />
         <CommitBar
           isChosen={isChosen}

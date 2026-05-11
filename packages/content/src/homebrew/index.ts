@@ -410,6 +410,12 @@ export function mapEntryToResult(
         ...(d.abilityScoreChoices && d.abilityScoreChoices.length > 0
           ? { abilityScoreChoices: d.abilityScoreChoices }
           : {}),
+        ...(d.languagesFixed && d.languagesFixed.length > 0
+          ? { languagesFixed: d.languagesFixed }
+          : {}),
+        ...(d.languagesChoices && d.languagesChoices.length > 0
+          ? { languagesChoices: d.languagesChoices }
+          : {}),
         ...(d.swapRules
           ? { swapRules: {
               abilityScores: d.swapRules.abilityScores ?? false,

@@ -664,7 +664,40 @@ export function SpeciesList({
                     {typeof t.level === 'number' && t.level > 1 ? ` (Level ${t.level})` : ''}
                   </Text>
                   <MarkdownText style={styles.bodyText}>{t.description}</MarkdownText>
+                  {Array.isArray(t.options) && t.options.length > 0 ? (
+                    <View style={{ paddingLeft: 12, marginTop: 4, gap: 4 }}>
+                      <Text variant="body-sm" tone="secondary">Pick one:</Text>
+                      {t.options.map((o: any, oi: number) => (
+                        <View key={oi}>
+                          <Text variant="body-sm" weight="semibold" style={{ color: colors.onSurface }}>
+                            {`• ${o.name}`}
+                          </Text>
+                          {o.description ? (
+                            <MarkdownText style={[styles.bodyText, { paddingLeft: 12 }]}>{o.description}</MarkdownText>
+                          ) : null}
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
+              ))}
+            </View>
+          ) : null}
+          {(Array.isArray((s as any).languagesFixed) && (s as any).languagesFixed.length > 0) ||
+           (Array.isArray((s as any).languagesChoices) && (s as any).languagesChoices.length > 0) ? (
+            <View style={styles.subBlock}>
+              <MetaLabel size="sm">Languages</MetaLabel>
+              {(s as any).languagesFixed && (s as any).languagesFixed.length > 0 ? (
+                <Text variant="body-sm" style={styles.bodyText}>
+                  {(s as any).languagesFixed.join(', ')}
+                </Text>
+              ) : null}
+              {((s as any).languagesChoices ?? []).map((c: any, i: number) => (
+                <Text key={i} variant="body-sm" tone="secondary" style={styles.bodyText}>
+                  {c.from === 'any'
+                    ? `Plus ${c.count} language${c.count > 1 ? 's' : ''} of your choice.`
+                    : `Plus ${c.count} language${c.count > 1 ? 's' : ''} chosen from: ${(c.from as string[]).join(', ')}.`}
+                </Text>
               ))}
             </View>
           ) : null}
