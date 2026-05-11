@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   },
   panelWrapper: {
     width: '100%',
-    maxWidth: 640,
+    maxWidth: 760,
     // Cap the wrapper height so the inner ScrollView has a bounded height
     // to scroll inside. Without this, content sized to itself and overflowed
     // the viewport.
