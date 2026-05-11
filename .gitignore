@@ -19,6 +19,11 @@ android/
 # Playwright MCP runtime artifacts (console logs + page snapshots)
 .playwright-mcp/
 
+# Playwright test runner output
+test-results/
+playwright-report/
+playwright/.cache/
+
 # Claude Code local scratch (plans, skills, sessions)
 .claude/
 

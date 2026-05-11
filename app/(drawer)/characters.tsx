@@ -26,13 +26,40 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// Turn a content key into a human label without going through
+// ContentResolver. Strips both SRD suffixes ("-srd-5-1", "-srd-2-0")
+// and homebrew-import prefixes ("imported_<system>_<edition>_<type>_<source>_"),
+// then title-cases the remaining hyphen/underscore segments.
+//
+// Examples:
+//   "human"                                            → "Human"
+//   "fighter-srd-5-1"                                  → "Fighter"
+//   "imported_dnd5e_2014_species_phb_dwarf"            → "Dwarf"
+//   "imported_dnd5e_2014_class_phb_fighter"            → "Fighter"
+function prettifyContentKey(key: string): string {
+  let s = key;
+  // Drop the imported-content prefix if present. We don't actually care
+  // which of the seven prefix segments come back — the meaningful name
+  // is whatever's after the source slug.
+  const importedMatch = s.match(/^imported_[^_]+_[^_]+_[^_]+_[^_]+_(.+)$/);
+  if (importedMatch) s = importedMatch[1];
+  // Strip SRD edition suffixes.
+  s = s.replace(/-srd-[\d-]+$/i, '');
+  // Title-case each hyphen/underscore segment.
+  return s
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map(capitalize)
+    .join(' ');
+}
+
 function getStats(character: Character) {
   const stats = character.base_stats as Record<string, unknown> | null;
   if (!stats) return { classKey: null, level: null, speciesKey: null };
   return {
-    classKey: typeof stats.classKey === 'string' ? capitalize(stats.classKey) : null,
+    classKey: typeof stats.classKey === 'string' ? prettifyContentKey(stats.classKey) : null,
     level: typeof stats.level === 'number' ? stats.level : null,
-    speciesKey: typeof stats.speciesKey === 'string' ? capitalize(stats.speciesKey) : null,
+    speciesKey: typeof stats.speciesKey === 'string' ? prettifyContentKey(stats.speciesKey) : null,
   };
 }
 
@@ -42,8 +69,8 @@ function draftLabel(draft: CharacterDraftRow) {
   const data = draft.data as Record<string, unknown> | null;
   const characterName = typeof data?.characterName === 'string' ? data.characterName.trim() : '';
   if (characterName) return characterName;
-  const classKey = typeof data?.classKey === 'string' ? capitalize(data.classKey) : null;
-  const speciesKey = typeof data?.speciesKey === 'string' ? capitalize(data.speciesKey) : null;
+  const classKey = typeof data?.classKey === 'string' ? prettifyContentKey(data.classKey) : null;
+  const speciesKey = typeof data?.speciesKey === 'string' ? prettifyContentKey(data.speciesKey) : null;
   if (classKey || speciesKey) return [speciesKey, classKey].filter(Boolean).join(' ');
   return 'Untitled draft';
 }
@@ -51,8 +78,8 @@ function draftLabel(draft: CharacterDraftRow) {
 /** Sub-line for a draft card — surface the wizard step they're on. */
 function draftSubtitle(draft: CharacterDraftRow) {
   const data = draft.data as Record<string, unknown> | null;
-  const speciesKey = typeof data?.speciesKey === 'string' ? capitalize(data.speciesKey) : null;
-  const classKey = typeof data?.classKey === 'string' ? capitalize(data.classKey) : null;
+  const speciesKey = typeof data?.speciesKey === 'string' ? prettifyContentKey(data.speciesKey) : null;
+  const classKey = typeof data?.classKey === 'string' ? prettifyContentKey(data.classKey) : null;
   const parts: string[] = [];
   if (speciesKey) parts.push(speciesKey);
   if (classKey) parts.push(classKey);

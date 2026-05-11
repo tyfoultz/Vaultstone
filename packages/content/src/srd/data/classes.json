@@ -483,7 +483,7 @@
         "Intimidation",
         "Nature",
         "Perception",
-        "And Survival"
+        "Survival"
       ]
     },
     "spellcasting": false,
@@ -2737,7 +2737,7 @@
         "Insight",
         "Medicine",
         "Persuasion",
-        "And Religion"
+        "Religion"
       ]
     },
     "spellcasting": true,
@@ -3968,7 +3968,7 @@
         "Nature",
         "Perception",
         "Religion",
-        "And Survival"
+        "Survival"
       ]
     },
     "spellcasting": true,
@@ -4879,7 +4879,7 @@
         "Insight",
         "Intimidation",
         "Perception",
-        "And Survival"
+        "Survival"
       ]
     },
     "spellcasting": false,
@@ -5629,7 +5629,7 @@
         "History",
         "Insight",
         "Religion",
-        "And Stealth"
+        "Stealth"
       ]
     },
     "spellcasting": false,
@@ -6497,7 +6497,7 @@
         "Intimidation",
         "Medicine",
         "Persuasion",
-        "And Religion"
+        "Religion"
       ]
     },
     "spellcasting": true,
@@ -7490,7 +7490,7 @@
         "Nature",
         "Perception",
         "Stealth",
-        "And Survival"
+        "Survival"
       ]
     },
     "spellcasting": true,
@@ -8385,7 +8385,7 @@
         "Performance",
         "Persuasion",
         "Sleight Of Hand",
-        "And Stealth"
+        "Stealth"
       ]
     },
     "spellcasting": false,
@@ -9310,7 +9310,7 @@
         "Insight",
         "Intimidation",
         "Persuasion",
-        "And Religion"
+        "Religion"
       ]
     },
     "spellcasting": true,
@@ -10313,7 +10313,7 @@
         "Intimidation",
         "Investigation",
         "Nature",
-        "And Religion"
+        "Religion"
       ]
     },
     "spellcasting": true,
@@ -11279,7 +11279,7 @@
         "Insight",
         "Investigation",
         "Medicine",
-        "And Religion"
+        "Religion"
       ]
     },
     "spellcasting": true,
