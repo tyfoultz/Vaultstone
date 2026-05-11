@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -14,7 +14,6 @@ import {
   listHomebrewEntries,
   deleteHomebrewEntry,
   listImportedContent,
-  listImportedSourceCards,
   deleteImportedEntriesBySourceLabel,
   exportHomebrewPack,
   type HomebrewPackRow,
@@ -65,6 +64,7 @@ import {
   ScreenHeader,
   Text,
 } from '@vaultstone/ui';
+import { usePackContentStore, selectPackCache } from '@vaultstone/store';
 
 type EditableField = 'name' | 'description';
 
@@ -103,10 +103,6 @@ export default function HomebrewPackDetailScreen() {
   const [confirmEntryId, setConfirmEntryId] = useState<string | null>(null);
   const [entryDeleting, setEntryDeleting] = useState<string | null>(null);
 
-  // Imported source cards — one per (pack, source_label). The user names
-  // each import inside the pack, so a single pack can hold multiple
-  // imports (e.g. "PHB", "Tasha's") rendered as cards.
-  const [sourceCards, setSourceCards] = useState<ImportedSourceCard[]>([]);
   // When set, only entries with this source_label render in the entries
   // list. Tapping a card filters; tapping again or hitting "Show all"
   // clears.
@@ -127,51 +123,106 @@ export default function HomebrewPackDetailScreen() {
   const [confirmCardLabel, setConfirmCardLabel] = useState<string | null>(null);
   const [cardDeleting, setCardDeleting] = useState<string | null>(null);
 
-  // Reload helper — runs the same Promise.all as the initial mount.
-  // Used after import / re-import / card-remove so the page reflects
-  // the new database state without remounting.
+  const cached = usePackContentStore((s) => selectPackCache(s, id));
+  const setPackContent = usePackContentStore((s) => s.setPackContent);
+
+  async function fetchPackContent(packId: string) {
+    const [packRes, entriesRes, importedRes] = await Promise.all([
+      getHomebrewPack(packId),
+      listHomebrewEntries(packId),
+      listImportedContent(packId),
+    ]);
+    if (packRes.error || !packRes.data) return null;
+    const authored = entriesRes.data ?? [];
+    const imported = importedRes.data ?? [];
+    setPackContent(packId, authored, imported);
+    return { pack: packRes.data, authored, imported };
+  }
+
+  // Reload after import / re-import / card-remove — always hits the DB.
   async function refresh() {
     if (!id) return;
-    const [packRes, entriesRes, importedRes, cardsRes] = await Promise.all([
-      getHomebrewPack(id),
-      listHomebrewEntries(id),
-      listImportedContent(id),
-      listImportedSourceCards(id),
-    ]);
-    if (packRes.error || !packRes.data) return;
-    setPack(packRes.data);
-    setEntries(entriesRes.data ?? []);
-    setImportedEntries(importedRes.data ?? []);
-    setSourceCards(cardsRes.data ?? []);
+    const result = await fetchPackContent(id);
+    if (!result) return;
+    setPack(result.pack);
+    setEntries(result.authored);
+    setImportedEntries(result.imported);
   }
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    Promise.all([
-      getHomebrewPack(id),
-      listHomebrewEntries(id),
-      listImportedContent(id),
-      listImportedSourceCards(id),
-    ]).then(([packRes, entriesRes, importedRes, cardsRes]) => {
-      if (cancelled) return;
-      if (packRes.error || !packRes.data) {
-        setError('Pack not found.');
-        setLoading(false);
-        return;
-      }
-      setPack(packRes.data);
-      setEntries(entriesRes.data ?? []);
-      setImportedEntries(importedRes.data ?? []);
-      setSourceCards(cardsRes.data ?? []);
-      setDraftName(packRes.data.name);
-      setDraftDescription(packRes.data.description ?? '');
+
+    if (cached) {
+      setEntries(cached.authored);
+      setImportedEntries(cached.imported);
       setLoading(false);
-    });
+      getHomebrewPack(id).then((packRes) => {
+        if (cancelled) return;
+        if (packRes.error || !packRes.data) {
+          setError('Pack not found.');
+          return;
+        }
+        setPack(packRes.data);
+        setDraftName(packRes.data.name);
+        setDraftDescription(packRes.data.description ?? '');
+      });
+    } else {
+      fetchPackContent(id).then((result) => {
+        if (cancelled) return;
+        if (!result) {
+          setError('Pack not found.');
+          setLoading(false);
+          return;
+        }
+        setPack(result.pack);
+        setEntries(result.authored);
+        setImportedEntries(result.imported);
+        setDraftName(result.pack.name);
+        setDraftDescription(result.pack.description ?? '');
+        setLoading(false);
+      });
+    }
+
     return () => {
       cancelled = true;
     };
   }, [id]);
+
+  const sourceCards = useMemo(() => {
+    const byLabel = new Map<string, ImportedSourceCard>();
+    for (const row of importedEntries) {
+      const label = row.source_label;
+      let card = byLabel.get(label);
+      if (!card) {
+        card = {
+          sourceLabel: label,
+          sourceUrl: row.source_url,
+          importedAt: row.imported_at,
+          entryCount: 0,
+          contentTypeCounts: {},
+          fluffPatchCount: 0,
+          fluffSourceName: null,
+        };
+        byLabel.set(label, card);
+      }
+      if (row.imported_at > card.importedAt) {
+        card.importedAt = row.imported_at;
+        card.sourceUrl = row.source_url;
+      }
+      card.entryCount += 1;
+      card.contentTypeCounts[row.content_type] =
+        (card.contentTypeCounts[row.content_type] ?? 0) + 1;
+      const fluffSource = (row.data as { fluffSource?: { fileName?: string } } | null)?.fluffSource;
+      if (fluffSource && typeof fluffSource.fileName === 'string') {
+        card.fluffPatchCount += 1;
+        card.fluffSourceName = fluffSource.fileName;
+      }
+    }
+    return [...byLabel.values()].sort((a, b) =>
+      a.sourceLabel.localeCompare(b.sourceLabel),
+    );
+  }, [importedEntries]);
 
   // Source-filter pass: a card tap narrows the entries list to one
   // import. Authored entries aren't tagged by source_label (different
