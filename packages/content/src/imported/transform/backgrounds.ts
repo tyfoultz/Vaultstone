@@ -98,7 +98,13 @@ export function transformBackgrounds(
         languages: extractLanguageCount(b.languageProficiencies),
         abilityScoreOptions: extractAbilityOptions(b.ability),
         originFeat: extractOriginFeat(b.feats),
-        startingEquipment: extractStartingEquipment(b.entries ?? []),
+        // Structured parser is the Phase 2 work for this feature.
+        // For now we surface the legacy freeform string through
+        // `startingEquipmentText` so the sheet still shows it; the
+        // array stays empty until a future commit fills it in from a
+        // parsed-string source.
+        startingEquipment: [],
+        startingEquipmentText: extractStartingEquipment(b.entries ?? []),
         srdVersions: srdVersionsForSource(b.source),
       };
     });

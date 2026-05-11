@@ -15,6 +15,7 @@ import { DetailModal, DetailSection, DetailSectionHeading } from '../../../compo
 import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
 import { SystemPacksRow } from '../../../components/game-systems/SystemPacksRow';
 import type { GameSystemDefinition } from '@vaultstone/types';
+import { normalizeStartingEquipmentItem } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
   SubclassResult, ConditionResult, RuleResult, SpellResult,
@@ -1153,11 +1154,15 @@ function ClassDetailModal({
                       >
                         Option {opt.label ?? String.fromCharCode(65 + i)}
                       </Text>
-                      {opt.items?.map((item, j) => (
-                        <Text key={j} variant="body-sm" family="body" style={styles.bodyText}>
-                          • {item}
-                        </Text>
-                      ))}
+                      {opt.items?.map((item, j) => {
+                        const n = normalizeStartingEquipmentItem(item);
+                        const label = n.qty && n.qty > 1 ? `${n.qty} × ${n.name}` : n.name;
+                        return (
+                          <Text key={j} variant="body-sm" family="body" style={styles.bodyText}>
+                            • {label}
+                          </Text>
+                        );
+                      })}
                       {goldLine ? (
                         <Text variant="body-sm" family="body" style={styles.bodyText}>
                           • {goldLine}

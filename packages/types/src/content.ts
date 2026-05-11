@@ -48,6 +48,55 @@ export type ContentType =
   | 'magic-item-category'
   | 'cover';
 
+/**
+ * A single item line inside a starting-equipment option. The legacy
+ * shape is a bare item name; the structured shape adds an optional
+ * resolved `itemKey` (so the wizard can grant the item directly to
+ * the character's inventory at creation) and `qty`. Authors and
+ * import transforms can mix the two — strings are valid forever.
+ */
+export type StartingEquipmentItem =
+  | string
+  | {
+      name: string;
+      /** Canonical item key from the items catalog, when known.
+       *  Untyped strings stay informational only. */
+      itemKey?: string;
+      qty?: number;
+    };
+
+/**
+ * One option within a starting-equipment block. Some classes /
+ * backgrounds present an A-or-B style choice with distinct item
+ * lists per option; the wizard surfaces these as a picker on the
+ * Review step.
+ */
+export interface StartingEquipmentEntry {
+  /** Free-text label ("A", "B", "Option A") — purely for display. */
+  label?: string;
+  items?: StartingEquipmentItem[];
+  /** Either a fixed amount (2024-style "15 GP") or a dice
+   *  expression (5.1-style "2d4 × 10 gp"). Dice expressions are
+   *  surfaced verbatim — the UI renders them as "Roll 2d4 × 10
+   *  gp" rather than evaluating to a fixed value. */
+  gold?: {
+    amount?: number;
+    dice?: string;
+    currency: 'cp' | 'sp' | 'ep' | 'gp' | 'pp';
+  };
+}
+
+/**
+ * Normalize a `StartingEquipmentItem` to its structured shape.
+ * Callers iterating over `items` should run their entries through
+ * this so the rest of the code can ignore the legacy-string variant.
+ */
+export function normalizeStartingEquipmentItem(
+  item: StartingEquipmentItem,
+): { name: string; itemKey?: string; qty?: number } {
+  return typeof item === 'string' ? { name: item } : item;
+}
+
 export interface ContentResult {
   key: string;
   name: string;
@@ -588,20 +637,13 @@ export interface ClassResult extends ContentResult {
   /**
    * Starting equipment options at character creation. Each option lists
    * concrete items; some options offer a flat gold alternative instead.
+   *
+   * `items` entries are typed as `StartingEquipmentItem` (item name +
+   * optional resolved catalog key + optional qty). Legacy data may
+   * carry `items` as a plain string array; consumers should normalize
+   * via the `normalizeStartingEquipmentItem` helper.
    */
-  startingEquipment?: Array<{
-    label?: string;
-    items?: string[];
-    /** Either a fixed amount (2024-style "15 GP") or a dice
-     *  expression (5.1-style "2d4 × 10 gp"). Dice expressions are
-     *  surfaced verbatim — the UI renders them as "Roll 2d4 × 10
-     *  gp" rather than evaluating to a fixed value. */
-    gold?: {
-      amount?: number;
-      dice?: string;
-      currency: 'cp' | 'sp' | 'ep' | 'gp' | 'pp';
-    };
-  }>;
+  startingEquipment?: StartingEquipmentEntry[];
   /** Free-text multiclass prerequisite (e.g. "Strength 13"). */
   multiclassPrerequisite?: string;
   /**
@@ -633,13 +675,25 @@ export interface BackgroundResult extends ContentResult {
   abilityScoreOptions: string[];
   originFeat: string;
   /**
-   * Starting equipment as a single human-readable string. 2024-edition
-   * backgrounds typically frame this as "Choose A or B: (A) … or (B) 50 GP";
-   * 2014-edition backgrounds list the gear directly. `null` when the source
-   * doesn't surface it (e.g. SRD 5.1 entries, which lack a structured
-   * equipment benefit).
+   * Starting equipment options at character creation. Same shape as
+   * `ClassResult.startingEquipment` — each option lists concrete items;
+   * some options offer a flat gold alternative instead.
+   *
+   * `items` entries are `StartingEquipmentItem` — author-supplied
+   * `itemKey` references resolve to the items catalog at character-
+   * creation time; bare strings stay informational.
+   *
+   * Empty array when the source doesn't surface equipment (e.g. SRD
+   * 5.1 backgrounds, which lack a structured equipment benefit). The
+   * legacy freeform string display rolled this up into a single
+   * sentence; the array form lets the wizard actually grant the items.
    */
-  startingEquipment: string | null;
+  startingEquipment: StartingEquipmentEntry[];
+  /** Legacy freeform display text. Kept for backwards compatibility
+   *  with pre-structured pack imports — the array above is now the
+   *  source of truth, this field is purely fallback display when the
+   *  array is empty. New authoring should set the array. */
+  startingEquipmentText?: string | null;
   srdVersions: string[];
 }
 

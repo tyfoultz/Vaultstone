@@ -82,7 +82,12 @@ function transformOne(bg) {
   // skills, tool, and origin feat. 2024 entries have no flavor prose
   // upstream, so this is often empty for 2.0 backgrounds — that's fine.
   const description = normalizeDescription(bg.desc);
-  const startingEquipment = equipment?.desc?.trim() || null;
+  // Phase 1 of the structured starting-equipment work: emit the array
+  // empty, and surface the legacy freeform paragraph under
+  // `startingEquipmentText` so the sheet still shows it. The Open5e
+  // backgrounds desc is natural language — parsing it into structured
+  // entries with item keys is Phase 2 work.
+  const startingEquipmentText = equipment?.desc?.trim() || null;
 
   return {
     key: `${slug}-srd-${VERSION_TO_SLUG[srdVersion]}`,
@@ -102,7 +107,8 @@ function transformOne(bg) {
       : 0,
     abilityScoreOptions: abilityOptions,
     originFeat: featBenefit?.desc?.trim() || '',
-    startingEquipment,
+    startingEquipment: [],
+    startingEquipmentText,
     description,
     data: {},
   };

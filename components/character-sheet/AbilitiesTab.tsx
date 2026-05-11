@@ -13,7 +13,7 @@ import type {
   BackgroundResult,
   FeatResult,
 } from '@vaultstone/types';
-import { getClassEntries } from '@vaultstone/types';
+import { getClassEntries, normalizeStartingEquipmentItem } from '@vaultstone/types';
 
 interface Props {
   stats: Dnd5eStats;
@@ -178,9 +178,39 @@ export function AbilitiesTab({
           {backgroundResult.languages > 0 && (
             <Text style={s.bgMeta}>Languages: +{backgroundResult.languages}</Text>
           )}
-          {backgroundResult.startingEquipment && (
-            <Text style={s.bgEquip}>{backgroundResult.startingEquipment}</Text>
-          )}
+          {backgroundResult.startingEquipment.length > 0 ? (
+            // Structured form: render each option's items + optional gold.
+            // Multiple options render as "Option A | Option B" with their
+            // contents on a single line each — same compact treatment the
+            // freeform string had before.
+            <Text style={s.bgEquip}>
+              {backgroundResult.startingEquipment
+                .map((opt) => {
+                  const parts: string[] = [];
+                  if (opt.items && opt.items.length > 0) {
+                    parts.push(opt.items.map((i) => {
+                      const n = normalizeStartingEquipmentItem(i);
+                      return n.qty && n.qty > 1 ? `${n.qty} × ${n.name}` : n.name;
+                    }).join(', '));
+                  }
+                  if (opt.gold) {
+                    if (opt.gold.dice) {
+                      parts.push(`${opt.gold.dice} ${opt.gold.currency}`);
+                    } else if (typeof opt.gold.amount === 'number') {
+                      parts.push(`${opt.gold.amount} ${opt.gold.currency}`);
+                    }
+                  }
+                  const inner = parts.join(' + ');
+                  return opt.label ? `${opt.label}: ${inner}` : inner;
+                })
+                .filter(Boolean)
+                .join('  /  ')}
+            </Text>
+          ) : backgroundResult.startingEquipmentText ? (
+            // Legacy freeform string from older imports that predate
+            // the structured shape. Render as-is.
+            <Text style={s.bgEquip}>{backgroundResult.startingEquipmentText}</Text>
+          ) : null}
         </View>
       )}
 

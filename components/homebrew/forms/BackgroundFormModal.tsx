@@ -80,11 +80,19 @@ export function BackgroundFormModal({ pack, entry, onClose, onSaved }: Props) {
     setSubmitting(true);
     setError('');
 
+    // `startingEquipment` is union-typed (legacy string | new array).
+    // This form still authors the freeform string today — Phase 2 of
+    // the structured-equipment work replaces this with an item picker.
+    // Trim only when it's a string; arrays pass through untouched.
+    const trimmedEquipment =
+      typeof data.startingEquipment === 'string'
+        ? (data.startingEquipment.trim() || null)
+        : data.startingEquipment;
     const finalData: HomebrewBackgroundData = {
       ...data,
       toolProficiency: data.toolProficiency?.trim() || null,
       originFeat: data.originFeat.trim(),
-      startingEquipment: data.startingEquipment?.trim() || null,
+      startingEquipment: trimmedEquipment,
     };
 
     if (entry) {
@@ -181,7 +189,10 @@ export function BackgroundFormModal({ pack, entry, onClose, onSaved }: Props) {
       <Input
         label="Starting equipment"
         placeholder="Brewer's supplies, a wineskin, 10 gp"
-        value={data.startingEquipment ?? ''}
+        // Legacy freeform field. If the entry was authored with a
+        // structured array (Phase 2 work), display a placeholder note
+        // here and leave the array editor as the source of truth.
+        value={typeof data.startingEquipment === 'string' ? data.startingEquipment : ''}
         onChangeText={(t) => patch('startingEquipment', t || null)}
         multiline
         numberOfLines={2}
