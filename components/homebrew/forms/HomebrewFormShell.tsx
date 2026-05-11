@@ -139,15 +139,20 @@ const styles = StyleSheet.create({
   // Middle band that owns scroll. flexShrink lets it consume only the
   // remaining space inside the bounded panel; the contentContainer holds
   // the form fields.
+  //
+  // The negative right margin pushes the ScrollView past the Card's
+  // right padding (spacing.xl) so the web scrollbar sits in that gutter
+  // instead of overlapping the rightmost form fields. The matching
+  // paddingRight on scrollContent restores breathing room for content
+  // and keeps the scrollbar separated from inputs.
   scroll: {
     flexShrink: 1,
+    marginRight: -spacing.xl,
   },
   scrollContent: {
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
-    // Reserve space for the web scrollbar so it doesn't overlap the
-    // rightmost form fields (remove buttons, level inputs, etc.).
-    paddingRight: spacing.sm,
+    paddingRight: spacing.xl,
   },
   body: {
     gap: spacing.md,
