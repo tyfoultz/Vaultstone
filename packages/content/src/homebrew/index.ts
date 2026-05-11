@@ -58,18 +58,22 @@ type ImportedContentRow = {
   source_page: number | null;
 };
 
-/**
- * Fetch all homebrew entries the authenticated user can read (RLS handles
- * the access check) and shape them into `*Result` records that look
- * indistinguishable from SRD content to downstream consumers. Filtering
- * by `query.system`, `query.type`, `query.search`, etc. happens after the
- * fetch — the dataset is small (a user's own packs), so a single
- * round-trip + in-memory filter is simpler than building dynamic SQL.
- *
- * Returns an empty array on auth failure or query error rather than
- * throwing — homebrew is additive content, and the SRD tier should still
- * surface even if the network is flaky.
- */
+// Module-level cache so concurrent/rapid search() calls (e.g. the system
+// page rendering 8+ content-type tabs) share a single DB round-trip
+// instead of each independently paginating through 3000+ rows.
+let _entryCache: {
+  key: string;
+  packs: HomebrewPackRow[];
+  authored: HomebrewContentRow[];
+  imported: ImportedContentRow[];
+  fetchedAt: number;
+} | null = null;
+const ENTRY_CACHE_TTL = 30_000;
+
+export function invalidateHomebrewCache() {
+  _entryCache = null;
+}
+
 export async function search(query: ContentQuery): Promise<ContentResult[]> {
   let allowedPackIds: Set<string> | null = null;
   if (query.campaignId) {
@@ -86,11 +90,6 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
     if (allowedPackIds.size === 0) return [];
   }
 
-  // Fetch packs with server-side system filter so the subsequent entry
-  // queries only touch packs for the requested game system.  Previously
-  // the system filter was applied in-memory after pulling every row the
-  // user can read — with 9k+ imported_content rows that meant ~20 MB of
-  // JSONB per resolver call and frequent PostgREST timeouts.
   let packsQuery = supabase
     .from('homebrew_packs')
     .select('id, owner_user_id, system, name');
@@ -108,18 +107,36 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   if (relevantPacks.length === 0) return [];
   const relevantPackIds = relevantPacks.map((p) => p.id);
 
-  const [authored, imported] = await Promise.all([
-    fetchAllPaginated<HomebrewContentRow>(
-      'homebrew_content',
-      'id, user_id, pack_id, content_type, name, data',
-      relevantPackIds,
-    ),
-    fetchAllPaginated<ImportedContentRow>(
-      'imported_content',
-      'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
-      relevantPackIds,
-    ),
-  ]);
+  const cacheKey = [...relevantPackIds].sort().join(',');
+  let authored: HomebrewContentRow[] | null;
+  let imported: ImportedContentRow[] | null;
+
+  if (
+    _entryCache
+    && _entryCache.key === cacheKey
+    && Date.now() - _entryCache.fetchedAt < ENTRY_CACHE_TTL
+  ) {
+    authored = _entryCache.authored;
+    imported = _entryCache.imported;
+  } else {
+    const [a, i] = await Promise.all([
+      fetchAllPaginated<HomebrewContentRow>(
+        'homebrew_content',
+        'id, user_id, pack_id, content_type, name, data',
+        relevantPackIds,
+      ),
+      fetchAllPaginated<ImportedContentRow>(
+        'imported_content',
+        'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
+        relevantPackIds,
+      ),
+    ]);
+    authored = a;
+    imported = i;
+    if (authored !== null && imported !== null) {
+      _entryCache = { key: cacheKey, packs: relevantPacks, authored, imported, fetchedAt: Date.now() };
+    }
+  }
 
   if (authored === null || imported === null) return [];
 

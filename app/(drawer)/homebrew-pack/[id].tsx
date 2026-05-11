@@ -28,7 +28,7 @@ import {
   ItemsList, CreaturesList, ConditionsList,
   SpeciesList, BackgroundsList, SubclassesList,
 } from '../../../components/content-tables/lists';
-import { mapEntryToResult, mapImportedEntryToResult } from '@vaultstone/content';
+import { mapEntryToResult, mapImportedEntryToResult, invalidateHomebrewCache } from '@vaultstone/content';
 import type {
   HomebrewContentType,
   ContentResult,
@@ -413,6 +413,7 @@ export default function HomebrewPackDetailScreen() {
     const { error: err } = await deleteImportedEntriesBySourceLabel(pack.id, sourceLabel);
     setCardDeleting(null);
     if (err) return;
+    invalidateHomebrewCache();
     setConfirmCardLabel(null);
     // Clear the filter if it pointed at the card we just removed.
     if (filterSourceLabel === sourceLabel) {
