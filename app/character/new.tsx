@@ -157,6 +157,14 @@ export default function NewCharacterScreen() {
         // Rehydrate over a clean baseline so any field missing from the
         // snapshot lands at its INITIAL_DRAFT default.
         hydrateFromSnapshot(snapshot as never);
+        // Restore the active step. The wizard parent keeps its own local
+        // `step` state (the store's `currentStep` is just for snapshotting),
+        // so without this the user always lands on step 0 even though they
+        // saved mid-wizard. Defer with a microtask so STEPS has time to
+        // resolve from the hydrated system; clamp anyway against the
+        // resolved length below.
+        const saved = typeof snapshot.currentStep === 'number' ? snapshot.currentStep : 0;
+        setPendingResumeStep(saved);
         setBootstrapping(false);
         return;
       }
@@ -250,6 +258,16 @@ export default function NewCharacterScreen() {
   }, [launchedCampaignId, draftCampaignRules, draft.system, draft.srdVersion]);
 
   const [step, setStep] = useState(0);
+  // Holds a step the resume flow wants to land on, applied once the
+  // STEPS list has resolved from the hydrated system (clamped to the
+  // resolved length so a stale value can't index past the end).
+  const [pendingResumeStep, setPendingResumeStep] = useState<number | null>(null);
+  useEffect(() => {
+    if (pendingResumeStep === null || STEPS.length === 0) return;
+    const clamped = Math.max(0, Math.min(pendingResumeStep, STEPS.length - 1));
+    setStep(clamped);
+    setPendingResumeStep(null);
+  }, [pendingResumeStep, STEPS.length]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [inPreview, setInPreview] = useState(false);
@@ -392,10 +410,13 @@ export default function NewCharacterScreen() {
     setDraftSaveError('');
 
     // Pull the entire CharacterDraft (not just the destructured `draft`
-    // we use for rendering) so every wizard field round-trips.
+    // we use for rendering) so every wizard field round-trips. The
+    // wizard parent owns `step` as local state (the store's
+    // `currentStep` is just a snapshot field), so use the local value
+    // here — otherwise saved drafts always record step 0.
     const snapshot = useCharacterDraftStore.getState();
     const data = {
-      currentStep: snapshot.currentStep,
+      currentStep: step,
       system: snapshot.system,
       srdVersion: snapshot.srdVersion,
       rulesetMode: snapshot.rulesetMode,

@@ -71,6 +71,56 @@ export async function fillAbilityScoresViaRoll(page: Page) {
   await page.getByText(/🎲 ROLL ALL|↺ REROLL ALL/).click();
 }
 
+// Standard 5e array values, listed in StepAbilityScores. Assign them to
+// the six abilities by tapping value → tapping the matching slot row.
+const STANDARD_ARRAY = [15, 14, 13, 12, 10, 8];
+const ABILITY_LABELS = [
+  'Strength',
+  'Dexterity',
+  'Constitution',
+  'Intelligence',
+  'Wisdom',
+  'Charisma',
+];
+
+// Push three abilities to 15 (full 27-point spend: 9 points each).
+// Defaults to STR/DEX/CON. Other three abilities stay at 8.
+export async function fillAbilityScoresViaPointBuy(
+  page: Page,
+  fifteens: string[] = ['Strength', 'Dexterity', 'Constitution'],
+) {
+  await page.getByText('Point Buy', { exact: true }).click();
+  for (const label of fifteens) {
+    // Each ability row has a "+" button. Click it 7 times (8 → 15).
+    const row = page.locator(`div:has-text("${label}")`).first();
+    const plus = row.getByText('+', { exact: true }).last();
+    for (let i = 0; i < 7; i++) {
+      await plus.click();
+    }
+  }
+}
+
+export async function fillAbilityScoresViaStandardArray(
+  page: Page,
+  assignment: Partial<Record<typeof ABILITY_LABELS[number], number>> = {},
+) {
+  await page.getByText('Array', { exact: true }).click();
+  // Default assignment: 15→STR, 14→DEX, 13→CON, 12→INT, 10→WIS, 8→CHA.
+  const defaultAssign: Record<string, number> = {
+    Strength: 15, Dexterity: 14, Constitution: 13,
+    Intelligence: 12, Wisdom: 10, Charisma: 8,
+  };
+  const final = { ...defaultAssign, ...assignment };
+  for (const label of ABILITY_LABELS) {
+    const value = final[label];
+    // Tap the value tile, then the row's slot.
+    await page.getByText(String(value), { exact: true }).first().click();
+    // Find the slot: the ability row containing the label, with a
+    // "Tap to assign" or "Assign N" button inside.
+    await page.locator(`div:has-text("${label}")`).getByText(/^(Tap to assign|Assign \d+)$/).first().click();
+  }
+}
+
 export async function fillReviewAndCreate(page: Page, characterName: string) {
   // Review step has a text input for character name.
   const nameInput = page.locator('input').filter({ hasNot: page.locator('[type="checkbox"]') }).first();
