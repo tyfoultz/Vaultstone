@@ -21,6 +21,8 @@ import {
   defaultHpGain,
   unpackClassFeaturesForPick,
   spellSlotsForClassAtLevel,
+  computeAsiContext,
+  applyAsiContext,
 } from '@vaultstone/systems';
 import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
@@ -30,7 +32,7 @@ import { StepSpecies } from '../../components/character-wizard/StepSpecies';
 import { StepClass } from '../../components/character-wizard/StepClass';
 import { StepBackground } from '../../components/character-wizard/StepBackground';
 import { StepFeats } from '../../components/character-wizard/StepFeats';
-import { StepAbilityScores, speciesBonusFor } from '../../components/character-wizard/StepAbilityScores';
+import { StepAbilityScores } from '../../components/character-wizard/StepAbilityScores';
 import { StepReview } from '../../components/character-wizard/StepReview';
 import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
 import { CampaignRulesSummary } from '../../components/character-wizard/CampaignRulesSummary';
@@ -487,20 +489,23 @@ export default function NewCharacterScreen() {
         return;
       }
 
-      // Layer the species' ASI on top of the player's raw assigned
-      // scores. Fixed bonuses (Dwarf +2 CON) live on
-      // species.abilityScoreIncreases; player-choice clauses (Half-Elf
-      // "+1 to two abilities") live in draft.speciesAbilityChoices,
-      // resolved through the wizard's Ability Scores step. 2024 Custom
-      // Origin species ship empty ASI data and a swap-everything rule,
-      // so this is a no-op for them. The null-gate above ensures
-      // draft.abilityScores is non-null at this point.
-      const adjustedAbilityScores = Object.fromEntries(
-        Object.entries(draft.abilityScores).map(([ability, score]) => [
-          ability,
-          score + speciesBonusFor(sp, draft.speciesAbilityChoices, ability),
-        ]),
-      ) as typeof draft.abilityScores;
+      // Resolve the ASI context — who grants the +2/+1 (species in
+      // 5.1, background in 5.2) and whether Customize Origin applies.
+      // Same helper the wizard's Ability Scores step uses, so the
+      // application here matches what the player saw in the preview.
+      const customizeOrigin =
+        (draftCampaignRules.customize_origin as boolean | undefined) !== false;
+      const asiContext = computeAsiContext({
+        species: sp,
+        background: bg,
+        srdVersion: draft.srdVersion,
+        customizeOrigin,
+      });
+      const adjustedAbilityScores = applyAsiContext(
+        asiContext,
+        draft.abilityScores,
+        draft.speciesAbilityChoices,
+      );
 
       // Resolve picked feats into the character's `resources.feats[]`
       // shape. Skipped silently if the resolver couldn't find a feat —

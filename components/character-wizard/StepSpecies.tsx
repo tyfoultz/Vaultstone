@@ -22,7 +22,7 @@ interface Props {
 }
 
 export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
-  const { srdVersion, speciesKey, setSpecies, campaignId, selectedPackIds } =
+  const { srdVersion, speciesKey, setSpecies, campaignId, selectedPackIds, campaignRules } =
     useCharacterDraftStore(
       useShallow((s) => ({
         srdVersion: s.srdVersion,
@@ -30,8 +30,11 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
         setSpecies: s.setSpecies,
         campaignId: s.campaignId,
         selectedPackIds: s.selectedPackIds,
+        campaignRules: s.campaignRules,
       }))
     );
+  const customizeOrigin = (campaignRules.customize_origin as boolean | undefined) !== false;
+  const is2024 = srdVersion === 'SRD_2.0';
 
   const [list, setList] = useState<SpeciesResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,9 +95,28 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
         <View style={s.detailRows}>
           <DetailRow label="Size" value={preview.size} />
           <DetailRow label="Speed" value={`${preview.speed} ft`} />
-          {formatAsiSummary(preview) ? (
-            <DetailRow label="ASI" value={formatAsiSummary(preview)} />
-          ) : null}
+          {(() => {
+            // ASI row resolves to one of three displays based on
+            // edition + CYO:
+            //   2024: species grants no ASI, but the player may swap
+            //     fixed listed bonuses via CYO on the AS step
+            //   5.1 + CYO off: literal listed bonuses apply
+            //   5.1 + CYO on: bonuses are reassignable on AS step
+            const asi = formatAsiSummary(preview);
+            if (is2024) {
+              return (
+                <DetailRow
+                  label="ASI"
+                  value="Background grants +2/+1 (assigned on Ability Scores step)"
+                />
+              );
+            }
+            if (!asi) return null;
+            const suffix = customizeOrigin
+              ? ' — reassignable on Ability Scores step (Custom Origin)'
+              : '';
+            return <DetailRow label="ASI" value={asi + suffix} />;
+          })()}
         </View>
         {preview.traits.length > 0 && (
           <>

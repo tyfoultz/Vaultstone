@@ -4,10 +4,11 @@ import { useCharacterDraftStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
 import {
   BUNDLED_SYSTEMS_BY_ID, getAbilityAttributes,
+  computeAsiContext, type AsiContext,
 } from '@vaultstone/systems';
 import { ContentResolver } from '@vaultstone/content';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
-import type { Dnd5eAbilityScores, SpeciesResult } from '@vaultstone/types';
+import type { BackgroundResult, Dnd5eAbilityScores, SpeciesResult } from '@vaultstone/types';
 
 const ABILITY_CODE: Record<string, string> = {
   strength: 'STR', dexterity: 'DEX', constitution: 'CON',
@@ -50,8 +51,9 @@ const METHODS = [
 export function StepAbilityScores() {
   const {
     abilityScoreMethod, abilityScores, setAbilityScoreMethod, setAbilityScores,
-    system, srdVersion, speciesKey, speciesAbilityChoices, setSpeciesAbilityChoices,
-    campaignId, selectedPackIds,
+    system, srdVersion, speciesKey, backgroundKey,
+    speciesAbilityChoices, setSpeciesAbilityChoices,
+    campaignId, selectedPackIds, campaignRules,
   } = useCharacterDraftStore(
     useShallow((s) => ({
       abilityScoreMethod: s.abilityScoreMethod,
@@ -61,37 +63,52 @@ export function StepAbilityScores() {
       system: s.system,
       srdVersion: s.srdVersion,
       speciesKey: s.speciesKey,
+      backgroundKey: s.backgroundKey,
       speciesAbilityChoices: s.speciesAbilityChoices,
       setSpeciesAbilityChoices: s.setSpeciesAbilityChoices,
       campaignId: s.campaignId,
       selectedPackIds: s.selectedPackIds,
+      campaignRules: s.campaignRules,
     }))
   );
 
-  // Resolve the picked species so the wizard can layer its ASI on
-  // top of the raw scores being assigned here. ContentResolver
-  // mirrors the StepSpecies scope (campaign packs or standalone
-  // opt-in) so imported homebrew species flow through.
+  // Resolve the picked species + background so the ASI context can
+  // figure out who grants the +2/+1 (species in 5.1, background in
+  // 5.2) and whether Customize Origin applies. ContentResolver
+  // mirrors the StepSpecies / StepBackground scope (campaign packs
+  // or standalone opt-in) so imported homebrew flows through.
   const [species, setSpeciesResult] = useState<SpeciesResult | null>(null);
+  const [background, setBackgroundResult] = useState<BackgroundResult | null>(null);
   useEffect(() => {
-    if (!speciesKey) { setSpeciesResult(null); return; }
     let cancelled = false;
     const includeHomebrew = !!campaignId || selectedPackIds.length > 0;
     const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
-    ContentResolver.search({
-      type: 'species',
-      system: 'dnd5e',
+    const tierArgs = {
+      system: 'dnd5e' as const,
       srdVersion,
       tiers,
       campaignId: campaignId ?? undefined,
       packIds: !campaignId && selectedPackIds.length > 0 ? selectedPackIds : undefined,
-    }).then((r) => {
+    };
+    Promise.all([
+      speciesKey ? ContentResolver.search({ ...tierArgs, type: 'species' }) : Promise.resolve([]),
+      backgroundKey ? ContentResolver.search({ ...tierArgs, type: 'background' }) : Promise.resolve([]),
+    ]).then(([sp, bg]) => {
       if (cancelled) return;
-      const hit = (r as SpeciesResult[]).find((sp) => sp.key === speciesKey);
-      setSpeciesResult(hit ?? null);
+      setSpeciesResult(((sp as SpeciesResult[]).find((s) => s.key === speciesKey)) ?? null);
+      setBackgroundResult(((bg as BackgroundResult[]).find((b) => b.key === backgroundKey)) ?? null);
     });
     return () => { cancelled = true; };
-  }, [speciesKey, srdVersion, campaignId, selectedPackIds.join(',')]);
+  }, [speciesKey, backgroundKey, srdVersion, campaignId, selectedPackIds.join(',')]);
+
+  // The ASI context — single source of truth for who grants the
+  // +2/+1 budget and how the player allocates it. Drives the panel
+  // below + the finalize math (via the same helper).
+  const customizeOrigin = (campaignRules.customize_origin as boolean | undefined) !== false;
+  const asiContext: AsiContext = useMemo(
+    () => computeAsiContext({ species, background, srdVersion, customizeOrigin }),
+    [species, background, srdVersion, customizeOrigin],
+  );
 
   // Pull the raw-ability rows from the chosen system's `attributes[]`
   // schema. For D&D 5e (both editions) this is the canonical six —
@@ -349,143 +366,141 @@ export function StepAbilityScores() {
         </>
       )}
 
-      {/* ── Species bonuses ─────────────────────────────────────────────────────
-          Layer the species' ASI on top of the raw scores assigned above.
-          Fixed bonuses (Dwarf +2 CON, etc.) render as a chip strip;
-          choice clauses (Half-Elf "+1 to two abilities") surface a
-          picker so the player can allocate. The "Final scores" preview
-          shows raw + chosen bonuses summed — that's the value the
-          wizard will write to the character when finalize fires. Empty
-          for species with no ASI data (2024 Custom Origin species). */}
-      {species && (species.abilityScoreIncreases.length > 0 || (species.abilityScoreChoices ?? []).length > 0) && (
-        <SpeciesAsiPanel
-          species={species}
+      {/* ── Ability Score Increases ─────────────────────────────────────────────
+          Single allocator driven by the resolved AsiContext. The
+          context resolves to one of four modes based on edition + CYO:
+
+            5.1 + CYO off → species-fixed (Dwarf +2 CON applies, plus
+                            any Half-Elf-style choice picker)
+            5.1 + CYO on  → species-custom-origin (player allocates the
+                            species ASI budget freely)
+            5.2 + CYO off → background-fixed (player picks +2/+1 from
+                            the background's listed three abilities)
+            5.2 + CYO on  → background-custom-origin (player picks +2/+1
+                            from any 6 abilities)
+
+          'none' hides the panel entirely (early-step state or a
+          non-caster homebrew with no ASI data). */}
+      {asiContext.mode !== 'none' && (
+        <AsiAllocatorPanel
+          context={asiContext}
           abilityRows={abilityRows}
           rawScores={scores}
-          choices={speciesAbilityChoices}
-          onChoicesChange={setSpeciesAbilityChoices}
+          picks={speciesAbilityChoices}
+          onPicksChange={setSpeciesAbilityChoices}
         />
       )}
-
-      {/* ── Custom Origin (Tasha's / 2024) ──────────────────────────────────────
-          Species with no structured ASI data fall through to the Custom
-          Origin model — the player picks either +2/+1 to two abilities
-          or +1/+1/+1 across three. Triggers in two cases:
-
-          1. SRD 2024 species that explicitly opt in via
-             swapRules.abilityScores: true (Tasha's rules rebaked as
-             baseline in 2024).
-          2. Imported races with empty abilityScoreIncreases AND no
-             abilityScoreChoices — covers Strixhaven-era / Tasha's-
-             aware homebrew (Owlin, etc.) which shipped without fixed
-             ASIs expecting the Custom Origin rules to apply. swapRules
-             is null on imports since 5e.tools doesn't carry it.
-
-          Stored in the same speciesAbilityChoices map so finalize
-          applies it like any other species bonus. */}
-      {species
-        && species.abilityScoreIncreases.length === 0
-        && (species.abilityScoreChoices ?? []).length === 0
-        && (species.swapRules?.abilityScores ?? species.tier === 'imported')
-        && (
-          <CustomOriginPanel
-            species={species}
-            abilityRows={abilityRows}
-            rawScores={scores}
-            choices={speciesAbilityChoices}
-            onChoicesChange={setSpeciesAbilityChoices}
-          />
-        )}
     </ScrollView>
   );
 }
 
-// Sums the species' total bonus to a given ability — fixed
-// abilityScoreIncreases plus whatever the player has allocated through
-// abilityScoreChoices. Used by both the in-step preview and the
-// finalize-time application in app/character/new.tsx (re-exported for
-// reuse).
-export function speciesBonusFor(
-  species: SpeciesResult | null,
-  choices: Record<string, number>,
-  ability: string,
-): number {
-  if (!species) return 0;
-  const fixed = (species.abilityScoreIncreases ?? [])
-    .filter((a) => a.ability.toLowerCase() === ability.toLowerCase())
-    .reduce((acc, a) => acc + a.amount, 0);
-  const chosen = choices[ability] ?? 0;
-  return fixed + chosen;
-}
-
-// Whether the player has fully allocated every choice clause on the
-// species. False when one or more clauses still have unassigned counts.
-export function speciesChoicesComplete(
-  species: SpeciesResult | null,
-  choices: Record<string, number>,
-): boolean {
-  if (!species) return true;
-  const clauses = species.abilityScoreChoices ?? [];
-  if (clauses.length === 0) return true;
-  // Sum of chosen amounts must match each clause's total. We don't
-  // strictly validate per-clause here (clauses with non-overlapping
-  // 'from' sets get checked at the picker level) — total amount
-  // landing in `choices` equaling the cumulative max is sufficient
-  // for the simple Half-Elf case.
-  const cumulativeAmount = clauses.reduce((sum, c) => sum + c.count * c.amount, 0);
-  const allocated = Object.values(choices).reduce((sum, v) => sum + v, 0);
-  return allocated >= cumulativeAmount;
-}
-
-function SpeciesAsiPanel({
-  species, abilityRows, rawScores, choices, onChoicesChange,
+// ASI allocator — single panel for all four resolution modes. Reads
+// the AsiContext and renders the right UX:
+//
+//   species-fixed       → read-only fixed bonus chips + Half-Elf-style
+//                         choice clause picker (Half-Elf still picks
+//                         their two +1s even with CYO off)
+//   species-custom-origin
+//   background-fixed    → 2024 background grants +2/+1 from the
+//                         listed three abilities; player picks which
+//                         gets the +2 and which gets a +1
+//   background-custom-origin → +2/+1 across any 6 abilities
+//
+// All four modes share the final-scores preview at the bottom so the
+// player always sees the actual values they'll commit.
+function AsiAllocatorPanel({
+  context, abilityRows, rawScores, picks, onPicksChange,
 }: {
-  species: SpeciesResult;
+  context: AsiContext;
   abilityRows: Array<{ key: string; label: string; short: string; description: string }>;
   rawScores: Record<string, number>;
-  choices: Record<string, number>;
-  onChoicesChange: (next: Record<string, number>) => void;
+  picks: Record<string, number>;
+  onPicksChange: (next: Record<string, number>) => void;
 }) {
-  const fixed = species.abilityScoreIncreases ?? [];
-  const clauses = species.abilityScoreChoices ?? [];
+  // Player-allocated modes use the same 3-point budget. The 2014
+  // species-custom-origin case can have a different budget if the
+  // species' fixed ASIs summed to more or less than 3, but in
+  // practice every 5.1 species totals exactly 3 (Dwarf +2 alone,
+  // Half-Orc +2/+1, Tiefling +2/+1, etc.) so we can treat the
+  // player-allocated UI as universal.
+  const isPlayerAllocated =
+    context.mode === 'species-custom-origin'
+    || context.mode === 'background-custom-origin'
+    || context.mode === 'background-fixed';
 
-  // Click a chip in a choice clause: toggle that ability's +1 (or +N)
-  // on/off. Respects the clause's `count` cap — if the player has
-  // already maxed out their picks, additional clicks no-op (except for
-  // clicks on already-selected abilities, which deselect).
-  function toggleChoice(clauseIdx: number, ability: string) {
-    const clause = clauses[clauseIdx];
-    if (!clause) return;
+  // For player-allocated modes: derive the active distribution from
+  // the current allocation. +2/+1 mode has one ability at 2; +1×3 has
+  // three abilities at 1 each.
+  const allocated = Object.entries(picks).filter(([, v]) => v > 0);
+  const mode21 = allocated.some(([, v]) => v === 2)
+    || (allocated.length === 0); // default
+  const detectedMode: '2-1' | '1-1-1' = mode21 ? '2-1' : '1-1-1';
+
+  function switchMode(next: '2-1' | '1-1-1') {
+    if (next === detectedMode) return;
+    onPicksChange({});
+  }
+
+  function togglePlayerAllocation(ability: string) {
     const lc = ability.toLowerCase();
-    const cur = choices[lc] ?? 0;
-    if (cur > 0) {
-      const next = { ...choices };
-      const remaining = cur - clause.amount;
-      if (remaining <= 0) delete next[lc];
-      else next[lc] = remaining;
-      onChoicesChange(next);
+    const allowedPool = context.allowedAbilities.map((a) => a.toLowerCase());
+    if (!allowedPool.includes(lc)) return;
+    const current = picks[lc] ?? 0;
+
+    if (detectedMode === '2-1') {
+      const has2 = allocated.find(([, v]) => v === 2);
+      const has1 = allocated.find(([, v]) => v === 1);
+      if (current === 0) {
+        if (!has2) onPicksChange({ ...picks, [lc]: 2 });
+        else if (!has1 && has2[0] !== lc) onPicksChange({ ...picks, [lc]: 1 });
+        return;
+      }
+      const next = { ...picks }; delete next[lc];
+      onPicksChange(next);
       return;
     }
-    // How many picks the player has already made under THIS clause —
-    // tracked by summing `choices` entries whose ability is in the
-    // clause's `from` set. (Multiple clauses with overlapping `from`
-    // sets aren't disambiguated by id today; the simple case Half-Elf
-    // ships only has one clause so this is fine.)
+    if (current === 0) {
+      if (allocated.length >= 3) return;
+      onPicksChange({ ...picks, [lc]: 1 });
+    } else {
+      const next = { ...picks }; delete next[lc];
+      onPicksChange(next);
+    }
+  }
+
+  // For species-fixed Half-Elf-style choice clauses, the player still
+  // picks ability slots even with CYO off. Toggle behavior mirrors
+  // the prior SpeciesAsiPanel since the clause shape is identical.
+  function toggleChoice(clauseIdx: number, ability: string) {
+    const clause = context.fixedChoices[clauseIdx];
+    if (!clause) return;
+    const lc = ability.toLowerCase();
+    const cur = picks[lc] ?? 0;
+    if (cur > 0) {
+      const next = { ...picks };
+      const remaining = cur - clause.amount;
+      if (remaining <= 0) delete next[lc]; else next[lc] = remaining;
+      onPicksChange(next);
+      return;
+    }
     const allowed = clause.count * clause.amount;
-    const usedInThisClause = clause.from
-      .map((a) => choices[a] ?? 0)
+    const usedInClause = clause.from
+      .map((a) => picks[a.toLowerCase()] ?? 0)
       .reduce((sum, v) => sum + v, 0);
-    if (usedInThisClause + clause.amount > allowed) return;
-    onChoicesChange({ ...choices, [lc]: cur + clause.amount });
+    if (usedInClause + clause.amount > allowed) return;
+    onPicksChange({ ...picks, [lc]: cur + clause.amount });
   }
 
   return (
     <View style={s.asiPanel}>
-      <Text style={s.asiPanelTitle}>{species.name} Bonuses</Text>
-      {fixed.length > 0 && (
-        <View style={s.asiChipRow}>
-          {fixed.map((a, i) => (
-            <View key={`${a.ability}-${i}`} style={s.asiFixedChip}>
+      <Text style={s.asiPanelTitle}>Ability Score Increases</Text>
+      <Text style={s.asiClauseLabel}>{context.sourceLabel}</Text>
+
+      {/* species-fixed: read-only chips for the fixed bonuses. */}
+      {context.mode === 'species-fixed' && context.fixedBonuses.length > 0 && (
+        <View style={[s.asiChipRow, { marginTop: spacing.sm }]}>
+          {context.fixedBonuses.map((a, i) => (
+            <View key={`fixed-${i}`} style={s.asiFixedChip}>
               <Text style={s.asiFixedChipText}>
                 {`+${a.amount} ${ABILITY_CODE[a.ability.toLowerCase()] ?? a.ability.slice(0, 3).toUpperCase()}`}
               </Text>
@@ -493,9 +508,11 @@ function SpeciesAsiPanel({
           ))}
         </View>
       )}
-      {clauses.map((clause, ci) => {
+
+      {/* species-fixed: per-clause picker (Half-Elf 5.1). */}
+      {context.mode === 'species-fixed' && context.fixedChoices.map((clause, ci) => {
         const usedInClause = clause.from
-          .map((a) => choices[a] ?? 0)
+          .map((a) => picks[a.toLowerCase()] ?? 0)
           .reduce((sum, v) => sum + v, 0);
         const allowed = clause.count * clause.amount;
         return (
@@ -506,7 +523,7 @@ function SpeciesAsiPanel({
             <View style={s.asiChipRow}>
               {clause.from.map((ab) => {
                 const lc = ab.toLowerCase();
-                const isOn = (choices[lc] ?? 0) > 0;
+                const isOn = (picks[lc] ?? 0) > 0;
                 const atCap = !isOn && usedInClause >= allowed;
                 return (
                   <TouchableOpacity
@@ -527,159 +544,64 @@ function SpeciesAsiPanel({
         );
       })}
 
-      {/* Final-score preview — raw + bonus per ability, plus mod. The
-          mod cell carries the value the player will actually use at
-          the table, so it's the most useful preview. */}
-      <Text style={[s.asiClauseLabel, { marginTop: spacing.md }]}>Final scores</Text>
-      <View style={s.asiPreviewGrid}>
-        {abilityRows.map(({ key: ab, short }) => {
-          const raw = rawScores[ab] ?? 10;
-          const bonus = speciesBonusFor(species, choices, ab);
-          const total = raw + bonus;
-          const mod = Math.floor((total - 10) / 2);
-          return (
-            <View key={ab} style={s.asiPreviewCell}>
-              <Text style={s.asiPreviewLabel}>{short}</Text>
-              <Text style={s.asiPreviewTotal}>{total}</Text>
-              {bonus > 0 ? (
-                <Text style={s.asiPreviewBonus}>{`${raw} + ${bonus}`}</Text>
-              ) : (
-                <Text style={s.asiPreviewBonus}>{`${raw}`}</Text>
-              )}
-              <Text style={s.asiPreviewMod}>{mod >= 0 ? `+${mod}` : `${mod}`}</Text>
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
-// Custom Origin panel — 2024 SRD species use this. The player toggles
-// between two allocation modes (+2/+1 across two abilities or +1/+1/+1
-// across three) and assigns the picks via chip taps. Storage lives in
-// the same speciesAbilityChoices map as fixed-bonus species, so the
-// finalize path is shared.
-type OriginMode = '2-1' | '1-1-1';
-function CustomOriginPanel({
-  species, abilityRows, rawScores, choices, onChoicesChange,
-}: {
-  species: SpeciesResult;
-  abilityRows: Array<{ key: string; label: string; short: string; description: string }>;
-  rawScores: Record<string, number>;
-  choices: Record<string, number>;
-  onChoicesChange: (next: Record<string, number>) => void;
-}) {
-  // Derive the active mode from the current allocation — total points
-  // alone disambiguate, since both modes spend exactly 3 points total
-  // BUT the +2 mode has one ability at 2 and another at 1, while the
-  // +1×3 mode has three abilities at 1 each. Default to '2-1' when
-  // nothing's allocated.
-  const allocated = Object.entries(choices).filter(([, v]) => v > 0);
-  const detectedMode: OriginMode = allocated.some(([, v]) => v === 2) ? '2-1'
-    : allocated.length >= 3 ? '1-1-1'
-    : '2-1';
-
-  function switchMode(next: OriginMode) {
-    if (next === detectedMode) return;
-    // Clear and reset whenever the player toggles the mode — mixing
-    // both shapes mid-allocation would produce a malformed state.
-    onChoicesChange({});
-  }
-
-  function toggle(ability: string) {
-    const lc = ability.toLowerCase();
-    const current = choices[lc] ?? 0;
-
-    if (detectedMode === '2-1') {
-      // Cycle: empty → +2 (if no +2 yet) → +1 (if no +1 yet) → empty.
-      const has2 = allocated.find(([, v]) => v === 2);
-      const has1 = allocated.find(([, v]) => v === 1);
-      if (current === 0) {
-        if (!has2) {
-          const next = { ...choices };
-          // If this ability already holds the +1, clearing it first
-          // would lose the assignment; just bump to +2.
-          next[lc] = 2;
-          onChoicesChange(next);
-        } else if (!has1 && has2[0] !== lc) {
-          onChoicesChange({ ...choices, [lc]: 1 });
-        }
-        return;
-      }
-      // Clear this ability.
-      const next = { ...choices };
-      delete next[lc];
-      onChoicesChange(next);
-      return;
-    }
-
-    // '1-1-1' mode.
-    if (current === 0) {
-      const used = allocated.length;
-      if (used >= 3) return;
-      onChoicesChange({ ...choices, [lc]: 1 });
-    } else {
-      const next = { ...choices };
-      delete next[lc];
-      onChoicesChange(next);
-    }
-  }
-
-  const used21 = allocated.find(([, v]) => v === 2) ? 'set' : '';
-  const used21Plus1 = allocated.find(([, v]) => v === 1) ? 'set' : '';
-  const usedCount111 = allocated.filter(([, v]) => v === 1).length;
-
-  return (
-    <View style={s.asiPanel}>
-      <Text style={s.asiPanelTitle}>{species.name} — Custom Origin</Text>
-      <Text style={s.asiClauseLabel}>
-        Choose how your ability scores increase
-      </Text>
-      <View style={s.asiChipRow}>
-        <TouchableOpacity
-          style={[s.originModeBtn, detectedMode === '2-1' && s.originModeBtnOn]}
-          onPress={() => switchMode('2-1')}
-        >
-          <Text style={[s.originModeText, detectedMode === '2-1' && s.originModeTextOn]}>+2 / +1</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.originModeBtn, detectedMode === '1-1-1' && s.originModeBtnOn]}
-          onPress={() => switchMode('1-1-1')}
-        >
-          <Text style={[s.originModeText, detectedMode === '1-1-1' && s.originModeTextOn]}>+1 / +1 / +1</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Text style={[s.asiClauseLabel, { marginTop: spacing.sm }]}>
-        {detectedMode === '2-1'
-          ? `Pick +2 (${used21 ? '1/1' : '0/1'}) and +1 (${used21Plus1 ? '1/1' : '0/1'}) to two different abilities`
-          : `Pick three abilities for +1 each (${usedCount111}/3)`}
-      </Text>
-      <View style={s.asiChipRow}>
-        {abilityRows.map(({ key: ab, short }) => {
-          const lc = ab.toLowerCase();
-          const cur = choices[lc] ?? 0;
-          return (
+      {/* player-allocated modes: distribution toggle + chip-tap picker. */}
+      {isPlayerAllocated && (
+        <>
+          <View style={[s.asiChipRow, { marginTop: spacing.sm }]}>
             <TouchableOpacity
-              key={ab}
-              style={[s.asiChoiceChip, cur > 0 && s.asiChoiceChipOn]}
-              onPress={() => toggle(ab)}
-              activeOpacity={0.7}
+              style={[s.originModeBtn, detectedMode === '2-1' && s.originModeBtnOn]}
+              onPress={() => switchMode('2-1')}
             >
-              <Text style={[s.asiChoiceChipText, cur > 0 && s.asiChoiceChipTextOn]}>
-                {short}{cur > 0 ? ` +${cur}` : ''}
-              </Text>
+              <Text style={[s.originModeText, detectedMode === '2-1' && s.originModeTextOn]}>+2 / +1</Text>
             </TouchableOpacity>
-          );
-        })}
-      </View>
+            <TouchableOpacity
+              style={[s.originModeBtn, detectedMode === '1-1-1' && s.originModeBtnOn]}
+              onPress={() => switchMode('1-1-1')}
+            >
+              <Text style={[s.originModeText, detectedMode === '1-1-1' && s.originModeTextOn]}>+1 / +1 / +1</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={[s.asiChipRow, { marginTop: spacing.sm }]}>
+            {abilityRows.map(({ key: ab, short }) => {
+              const lc = ab.toLowerCase();
+              const cur = picks[lc] ?? 0;
+              const inPool = context.allowedAbilities.length === 0
+                || context.allowedAbilities.includes(lc);
+              return (
+                <TouchableOpacity
+                  key={ab}
+                  style={[
+                    s.asiChoiceChip,
+                    cur > 0 && s.asiChoiceChipOn,
+                    !inPool && s.asiChoiceChipDisabled,
+                  ]}
+                  onPress={() => togglePlayerAllocation(ab)}
+                  activeOpacity={inPool ? 0.7 : 1}
+                  disabled={!inPool}
+                >
+                  <Text style={[s.asiChoiceChipText, cur > 0 && s.asiChoiceChipTextOn]}>
+                    {short}{cur > 0 ? ` +${cur}` : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      )}
 
+      {/* Final-score preview — raw + bonus per ability + mod. */}
       <Text style={[s.asiClauseLabel, { marginTop: spacing.md }]}>Final scores</Text>
       <View style={s.asiPreviewGrid}>
         {abilityRows.map(({ key: ab, short }) => {
           const raw = rawScores[ab] ?? 10;
-          const bonus = speciesBonusFor(species, choices, ab);
+          // Bonus = fixed (species-fixed mode only) + player picks.
+          const fixed = context.mode === 'species-fixed'
+            ? context.fixedBonuses
+              .filter((a) => a.ability.toLowerCase() === ab.toLowerCase())
+              .reduce((sum, a) => sum + a.amount, 0)
+            : 0;
+          const chosen = picks[ab.toLowerCase()] ?? 0;
+          const bonus = fixed + chosen;
           const total = raw + bonus;
           const mod = Math.floor((total - 10) / 2);
           return (
