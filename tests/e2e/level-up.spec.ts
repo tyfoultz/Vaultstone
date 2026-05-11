@@ -1,20 +1,30 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from './helpers/auth';
-import { openNewCharacterStandalone } from './helpers/wizard';
+import { openNewCharacterStandalone, fillAbilityScoresViaStandardArray } from './helpers/wizard';
 
 const PACK_NAME = '2014 Core + TCE + VGM';
 
+type AbilityName = 'Strength' | 'Dexterity' | 'Constitution' | 'Intelligence' | 'Wisdom' | 'Charisma';
+
 // Create a baseline L1 character via the wizard and return its
-// character-sheet URL ID. Used as setup for the level-up tests so each
-// test owns its own throwaway character.
-async function createL1Fighter(page: Page, name: string): Promise<string> {
+// character-sheet URL ID. Optionally pin ability scores via Standard
+// Array so prereqs (e.g. multiclass STR/INT 13+) are deterministic.
+async function createL1Character(
+  page: Page,
+  opts: {
+    name: string;
+    classKey: string;
+    classSkills: string[];
+    abilityAssignment?: Partial<Record<AbilityName, number>>;
+  },
+): Promise<string> {
   await openNewCharacterStandalone(page, { packName: PACK_NAME });
   await expect(page.getByText('Choose your species', { exact: true })).toBeVisible();
   await page.getByText('Dragonborn', { exact: true }).first().click();
   await page.getByText('Choose Dragonborn', { exact: true }).first().click();
   await expect(page.getByText('Choose your class', { exact: true })).toBeVisible();
-  await page.getByText('Fighter', { exact: true }).first().click();
-  for (const sk of ['Athletics', 'Intimidation']) {
+  await page.getByText(opts.classKey, { exact: true }).first().click();
+  for (const sk of opts.classSkills) {
     await page.getByText(sk, { exact: true }).first().click();
   }
   await page.getByText('Continue →', { exact: true }).first().click();
@@ -31,11 +41,17 @@ async function createL1Fighter(page: Page, name: string): Promise<string> {
     }
   }
   await expect(page.getByText('Assign ability scores', { exact: true })).toBeVisible();
-  await page.getByText('Roll 4d6', { exact: true }).click();
-  await page.getByText(/🎲 ROLL ALL/).click();
+  if (opts.abilityAssignment) {
+    // Standard Array path — gives deterministic scores so downstream
+    // prereqs (multiclass STR/INT 13+) are predictable.
+    await fillAbilityScoresViaStandardArray(page, opts.abilityAssignment);
+  } else {
+    await page.getByText('Roll 4d6', { exact: true }).click();
+    await page.getByText(/🎲 ROLL ALL/).click();
+  }
   await page.getByText('Continue →', { exact: true }).click();
   await expect(page.getByText('Review & name your character', { exact: true })).toBeVisible();
-  await page.getByPlaceholder('Enter a name…').fill(name);
+  await page.getByPlaceholder('Enter a name…').fill(opts.name);
   await page.getByText('Create Character', { exact: true }).click();
   // Match a real UUID (8-4-4-4-12 hex) so the regex doesn't fire on
   // the still-on-/character/new URL the moment we arrive at it.
@@ -50,6 +66,16 @@ async function createL1Fighter(page: Page, name: string): Promise<string> {
   return id;
 }
 
+// Thin wrapper for the existing Fighter cases — preserves their original
+// API (name → id) while delegating to the parameterized helper.
+async function createL1Fighter(page: Page, name: string): Promise<string> {
+  return createL1Character(page, {
+    name,
+    classKey: 'Fighter',
+    classSkills: ['Athletics', 'Intimidation'],
+  });
+}
+
 // Drive one level-up via the wizard at /character/<id>/level-up.
 // Defaults: existing class (skipped when only one class), fixed HP, no
 // subclass pick (caller passes one if the target level is the unlock
@@ -59,7 +85,8 @@ async function levelUpOnce(
   characterId: string,
   opts: {
     subclass?: string;            // required at unlock level (3 for Fighter 5.1)
-    asi?: Partial<Record<'Strength' | 'Dexterity' | 'Constitution' | 'Intelligence' | 'Wisdom' | 'Charisma', number>>;
+    asi?: Partial<Record<AbilityName, number>>;
+    multiclassInto?: string;      // pick this new class instead of the existing one
   } = {},
 ) {
   await page.goto(`/character/${characterId}/level-up`);
@@ -70,10 +97,20 @@ async function levelUpOnce(
   // for 2024 / typically off for 2014. We probe for the step's heading
   // and skip if absent.
   if (await page.getByText('Choose a class to level', { exact: true }).count() > 0) {
-    // Pick the first "Currently L? → L?" row — that's the existing
-    // class. With a single class, there's only one match.
-    await page.getByText(/^Currently L\d+ → L\d+$/).first().click();
+    if (opts.multiclassInto) {
+      // Pick a new class from the "Add a new class (multiclass)"
+      // section. The class card has the class name as its title.
+      await page.getByText(opts.multiclassInto, { exact: true }).first().click();
+    } else {
+      // Pick the first "Currently L? → L?" row — that's the existing
+      // class. With a single class, there's only one match.
+      await page.getByText(/^Currently L\d+ → L\d+$/).first().click();
+    }
     await page.getByText('Continue', { exact: true }).click();
+  } else if (opts.multiclassInto) {
+    throw new Error(
+      `multiclassInto=${opts.multiclassInto} requested but Class step did not render — multiclass may be disabled.`,
+    );
   }
 
   // Subclass step — only mounted at the unlock level (Fighter 5.1: L3).
@@ -164,5 +201,61 @@ test.describe('Level-up — 2014 + pack', () => {
     await levelUpOnce(page, charId, { subclass: 'Champion' });
     await levelUpOnce(page, charId, { asi: { Strength: 2 } });
     await expect(page.getByText('Level 4', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  // L1 Wizard → L2 Wizard. Validates the caster path — exercises spell-
+  // slot progression in `applyLevelUp` and the 2014 Wizard subclass
+  // unlock, which lands at L2 (unlike Fighter's L3). Picks School of
+  // Evocation, the SRD 5.1 Wizard subclass.
+  test('L1 → L2 Wizard: subclass unlocks at L2 + caster level advances', async ({ page }) => {
+    await signIn(page);
+    const charId = await createL1Character(page, {
+      name: `LU Wizard L1→L2 ${Date.now()}`,
+      classKey: 'Wizard',
+      classSkills: ['Arcana', 'History'],
+    });
+    await levelUpOnce(page, charId, { subclass: 'School of Evocation' });
+    await expect(page.getByText('Level 2', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  // L1 Fighter → L2 Wizard: multiclass. Requires the wizard's class
+  // step to surface the new-class branch. Standard Array picks the
+  // assignment so STR=13 (Fighter prereq, already met from creation)
+  // and INT=15 (Wizard multiclass prereq). Default `enforced`
+  // multiclassing gates by these.
+  // L1 → L5 Fighter. Compound flow — four `applyLevelUp` calls in
+  // sequence including the L3 subclass unlock and L4 ASI. Confirms the
+  // engine doesn't drift across repeated advances and the sheet ends
+  // up showing Level 5.
+  test('L1 → L5 Fighter: four advances including subclass + ASI', async ({ page }) => {
+    test.setTimeout(180_000);
+    await signIn(page);
+    const charId = await createL1Fighter(page, `LU L1→L5 ${Date.now()}`);
+    await levelUpOnce(page, charId);                            // L2
+    await levelUpOnce(page, charId, { subclass: 'Champion' });  // L3
+    await levelUpOnce(page, charId, { asi: { Strength: 2 } });  // L4
+    await levelUpOnce(page, charId);                            // L5
+    await expect(page.getByText('Level 5', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('L1 Fighter → L2 Wizard: multiclass adds a second class entry', async ({ page }) => {
+    await signIn(page);
+    const charId = await createL1Character(page, {
+      name: `LU Multi ${Date.now()}`,
+      classKey: 'Fighter',
+      classSkills: ['Athletics', 'Intimidation'],
+      // Standard Array: Strength 13, Intelligence 15 satisfies both
+      // single-class Fighter (no prereq) and Wizard multiclass (INT 13+).
+      abilityAssignment: {
+        Strength: 13,
+        Dexterity: 14,
+        Constitution: 12,
+        Intelligence: 15,
+        Wisdom: 10,
+        Charisma: 8,
+      },
+    });
+    await levelUpOnce(page, charId, { multiclassInto: 'Wizard' });
+    await expect(page.getByText('Level 2', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
   });
 });
