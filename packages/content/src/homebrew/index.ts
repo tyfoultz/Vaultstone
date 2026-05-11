@@ -393,6 +393,14 @@ export function mapEntryToResult(
     }
     case 'item': {
       const d = entry.data as HomebrewItemData;
+      // Cost: prefer the structured `cost` field; fall back to the
+      // legacy `costGold` for rows authored before the structured
+      // editor landed. Null when neither is set.
+      const cost = d.cost
+        ? d.cost
+        : typeof d.costGold === 'number'
+          ? { amount: d.costGold, currency: 'gp' as const }
+          : null;
       const result: ItemResult = {
         ...base,
         type: 'item',
@@ -401,15 +409,16 @@ export function mapEntryToResult(
         rarity: d.rarity,
         requiresAttunement: !!d.requiresAttunement,
         weight: d.weight,
-        cost: typeof d.costGold === 'number'
-          ? { amount: d.costGold, currency: 'gp' }
-          : null,
+        cost,
         properties: [
           ...(d.properties ?? []),
           ...(d.requiresAttunement && d.attunementCondition
             ? [`Attunement: ${d.attunementCondition}`]
             : []),
         ],
+        ...(d.packContents && d.packContents.length > 0
+          ? { packContents: d.packContents }
+          : {}),
         data: { magicItemKind: d.magicItemKind ?? null },
       };
       return result;

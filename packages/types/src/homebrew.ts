@@ -133,11 +133,20 @@ export interface HomebrewItemData {
   requiresAttunement: boolean;
   /** "by a wizard", "by a creature of evil alignment". Empty when no specific prereq. */
   attunementCondition?: string;
-  /** Cost in gold pieces (decimal allowed for cp/sp). 0 / null = no listed price. */
+  /** Structured cost — matches ItemResult.cost exactly, so the
+   *  resolver passes it through unchanged. Undefined / null means
+   *  no listed price. */
+  cost?: { amount: number; currency: 'cp' | 'sp' | 'ep' | 'gp' | 'pp' };
+  /** Legacy cost-in-gp field. The resolver falls back to this when
+   *  `cost` is missing; the form never writes new values to it. */
   costGold?: number;
   weight?: number;
   /** Free-form properties list — "Versatile (1d10)", "Disadvantage on Stealth". */
   properties: string[];
+  /** Structured contents for equipment packs (Burglar's Pack,
+   *  Explorer's Pack, etc.). Each entry is `{ name, quantity }` where
+   *  `name` is the already-resolved display form (e.g. "Candle"). */
+  packContents?: Array<{ name: string; quantity: number }>;
   description: string;
 }
 
