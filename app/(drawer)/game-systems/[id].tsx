@@ -1731,7 +1731,39 @@ export function BackgroundsList({
                 <Text variant="body-sm" family="body" style={styles.bodyText}>{bAny.originFeat}</Text>
               </View>
             ) : null}
-            {bAny.startingEquipment ? (
+            {/* Starting equipment is union-typed now (Phase 1):
+                  StartingEquipmentEntry[] — render structured
+                  string | null              — legacy fallback via MarkdownText
+                Newer rows ALSO carry `startingEquipmentText` for the
+                legacy display when the array is empty. */}
+            {Array.isArray(bAny.startingEquipment) && bAny.startingEquipment.length > 0 ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Starting equipment</MetaLabel>
+                <Text variant="body-sm" family="body" style={styles.bodyText}>
+                  {bAny.startingEquipment.map((opt: any) => {
+                    const parts: string[] = [];
+                    if (Array.isArray(opt.items) && opt.items.length > 0) {
+                      parts.push(opt.items.map((i: any) => {
+                        const n = normalizeStartingEquipmentItem(i);
+                        return n.qty && n.qty > 1 ? `${n.qty} × ${n.name}` : n.name;
+                      }).join(', '));
+                    }
+                    if (opt.gold) {
+                      if (opt.gold.dice) parts.push(`${opt.gold.dice} ${opt.gold.currency}`);
+                      else if (typeof opt.gold.amount === 'number') parts.push(`${opt.gold.amount} ${opt.gold.currency}`);
+                    }
+                    const inner = parts.join(' + ');
+                    return opt.label ? `${opt.label}: ${inner}` : inner;
+                  }).filter(Boolean).join('  /  ')}
+                </Text>
+              </View>
+            ) : typeof bAny.startingEquipmentText === 'string' && bAny.startingEquipmentText.length > 0 ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Starting equipment</MetaLabel>
+                <MarkdownText style={styles.bodyText}>{bAny.startingEquipmentText}</MarkdownText>
+              </View>
+            ) : typeof bAny.startingEquipment === 'string' && bAny.startingEquipment.length > 0 ? (
+              // Pre-Phase-1 homebrew rows still in the DB as plain strings.
               <View style={styles.subBlock}>
                 <MetaLabel size="sm">Starting equipment</MetaLabel>
                 <MarkdownText style={styles.bodyText}>{bAny.startingEquipment}</MarkdownText>
