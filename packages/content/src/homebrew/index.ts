@@ -82,15 +82,6 @@ type ImportedContentRow = {
  * surface even if the network is flaky.
  */
 export async function search(query: ContentQuery): Promise<ContentResult[]> {
-  // Build the optional pack allowlist before fetching entries. Two
-  // mutually-exclusive scopes:
-  //   - `campaignId` → packs the campaign has enabled (campaign_packs
-  //     join with enabled=true). Used by campaign-linked character flows.
-  //   - `packIds`    → an explicit set passed by the caller (typically
-  //     a standalone-character wizard where the user toggles which of
-  //     their own packs apply). Bypasses the campaign_packs lookup.
-  // When neither is set, all the authenticated user's accessible
-  // homebrew is returned (the Game Systems detail page reads this way).
   let allowedPackIds: Set<string> | null = null;
   if (query.campaignId) {
     const { data: enabled, error: enabledErr } = await supabase
@@ -103,70 +94,64 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
     if (allowedPackIds.size === 0) return [];
   } else if (query.packIds) {
     allowedPackIds = new Set(query.packIds);
-    // Empty list = no homebrew. Standalone characters who picked
-    // "include packs" but selected zero get SRD-only.
     if (allowedPackIds.size === 0) return [];
   }
 
-  // Fetch packs + both entry tables in parallel. Authored homebrew lives
-  // in homebrew_content; JSON imports live in imported_content. They share
-  // the same homebrew_packs parent. All RLS-gated.
-  //
-  // Both entry tables paginate because Supabase's default `.select()`
-  // caps responses at 1000 rows. A full 2024 PHB import (bestiary +
-  // items + spells + classes + ...) easily exceeds 1700 rows, so without
-  // pagination the resolver silently dropped imported entries and the
-  // system tabs / character wizard saw a truncated catalog.
-  const [packsRes, authored, imported] = await Promise.all([
-    supabase.from('homebrew_packs').select('id, owner_user_id, system, name'),
+  // Fetch packs with server-side system filter so the subsequent entry
+  // queries only touch packs for the requested game system.  Previously
+  // the system filter was applied in-memory after pulling every row the
+  // user can read — with 9k+ imported_content rows that meant ~20 MB of
+  // JSONB per resolver call and frequent PostgREST timeouts.
+  let packsQuery = supabase
+    .from('homebrew_packs')
+    .select('id, owner_user_id, system, name');
+  if (query.system) {
+    const accepted = [...compatibleSystemIds(query.system, query.srdVersion)];
+    packsQuery = packsQuery.in('system', accepted);
+  }
+  const packsRes = await packsQuery;
+  if (packsRes.error) return [];
+
+  const packs = (packsRes.data ?? []) as HomebrewPackRow[];
+  const relevantPacks = allowedPackIds
+    ? packs.filter((p) => allowedPackIds!.has(p.id))
+    : packs;
+  if (relevantPacks.length === 0) return [];
+  const relevantPackIds = relevantPacks.map((p) => p.id);
+
+  const [authored, imported] = await Promise.all([
     fetchAllPaginated<HomebrewContentRow>(
       'homebrew_content',
       'id, user_id, pack_id, content_type, name, data',
+      relevantPackIds,
     ),
     fetchAllPaginated<ImportedContentRow>(
       'imported_content',
       'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
+      relevantPackIds,
     ),
   ]);
 
-  if (packsRes.error || authored === null || imported === null) return [];
+  if (authored === null || imported === null) return [];
 
-  const packs = (packsRes.data ?? []) as HomebrewPackRow[];
-  const packById = new Map(packs.map((p) => [p.id, p]));
+  const packById = new Map(relevantPacks.map((p) => [p.id, p]));
 
   const results: ContentResult[] = [];
   for (const entry of authored) {
-    if (!entry.pack_id) continue; // legacy rows without a pack are skipped
-    if (allowedPackIds && !allowedPackIds.has(entry.pack_id)) continue;
+    if (!entry.pack_id) continue;
     const pack = packById.get(entry.pack_id);
     if (!pack) continue;
     const mapped = mapEntryToResult(entry, pack);
     if (mapped) results.push(mapped);
   }
   for (const entry of imported) {
-    if (allowedPackIds && !allowedPackIds.has(entry.pack_id)) continue;
     const pack = packById.get(entry.pack_id);
     if (!pack) continue;
     const mapped = mapImportedEntryToResult(entry, pack);
     if (mapped) results.push(mapped);
   }
 
-  // Apply remaining filters in-memory.
   let filtered = results;
-  if (query.system) {
-    // Edition-aware system match. The wizard passes the legacy
-    // `'dnd5e'` system id alongside an `srdVersion` (`SRD_5.1` /
-    // `SRD_2.0`); homebrew packs may be tagged with the legacy
-    // `'dnd5e'` or with the edition-specific `'dnd5e_2014'` /
-    // `'dnd5e_2024'`. Treat these as compatible: a 2024-edition
-    // wizard query matches packs tagged `'dnd5e'` or `'dnd5e_2024'`,
-    // and a 2014-edition wizard query matches `'dnd5e_2014'` (the
-    // legacy `'dnd5e'` alias was the 2024 default before the split,
-    // so it doesn't merge into the 2014 set). Other systems
-    // (custom, etc.) keep exact-match.
-    const accepted = compatibleSystemIds(query.system, query.srdVersion);
-    filtered = filtered.filter((r) => accepted.has(r.system));
-  }
   if (query.srdVersion) {
     // Edition filter, applied only to entries that *positively claim*
     // an edition. Three sources of `srdVersions` on homebrew results:
@@ -202,23 +187,12 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   return filtered;
 }
 
-/**
- * System-id compatibility table for homebrew filtering. The wizard
- * stores its system as the legacy `'dnd5e'` alias plus an edition
- * tag in `srdVersion`; packs may be tagged with the legacy alias OR
- * the edition-specific id. Mirrors the standalone pack picker's
- * SRD_VERSION_TO_SYSTEM_ID table in components/character-wizard/StepRuleset.tsx.
- *
- * Falls back to exact-match for unknown systems so we don't widen
- * non-D&D queries unintentionally.
- */
 function compatibleSystemIds(
   system: string,
   srdVersion: 'SRD_5.1' | 'SRD_2.0' | undefined,
 ): Set<string> {
   if (system === 'dnd5e') {
     if (srdVersion === 'SRD_5.1') return new Set(['dnd5e_2014']);
-    // 2.0 + unspecified default to 2024 (the legacy alias's pre-split posture).
     return new Set(['dnd5e', 'dnd5e_2024']);
   }
   if (system === 'dnd5e_2014') return new Set(['dnd5e_2014']);
@@ -226,17 +200,10 @@ function compatibleSystemIds(
   return new Set([system]);
 }
 
-/**
- * Fetch every row from a Supabase table the caller can read, paginating
- * past the default 1000-row response cap. Returns `null` on any error
- * so the caller can short-circuit to "no homebrew" rather than render a
- * partial catalog. The select shape is caller-supplied because the two
- * entry tables we read (homebrew_content, imported_content) project
- * different columns.
- */
 async function fetchAllPaginated<T>(
   table: 'homebrew_content' | 'imported_content',
   select: string,
+  packIds: string[],
 ): Promise<T[] | null> {
   const PAGE = 1000;
   const out: T[] = [];
@@ -244,6 +211,7 @@ async function fetchAllPaginated<T>(
     const { data, error } = await supabase
       .from(table)
       .select(select)
+      .in('pack_id', packIds)
       .range(offset, offset + PAGE - 1);
     if (error) return null;
     const rows = (data ?? []) as T[];
