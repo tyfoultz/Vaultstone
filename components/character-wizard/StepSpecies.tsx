@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet,
+  View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCharacterDraftStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
 import { ContentResolver } from '@vaultstone/content';
-import { colors, fonts, spacing, radius } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius, MarkdownText } from '@vaultstone/ui';
 import { WizardSigil } from './WizardSigil';
 import type { SpeciesResult } from '@vaultstone/types';
 
@@ -39,6 +39,10 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
   const [list, setList] = useState<SpeciesResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewKey, setPreviewKey] = useState<string | null>(null);
+  // Name-only inline filter. Case-insensitive substring match — empty
+  // query shows the full list. Useful once a homebrew pack pushes the
+  // picker past 50 entries.
+  const [query, setQuery] = useState('');
   // Stable string key for the effect dep — joining the array keeps the
   // hook from re-running on identical re-renders that produced a new
   // array reference but no actual change.
@@ -65,6 +69,19 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
   }, [srdVersion, campaignId, packIdsKey]);
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
+
+  // Filtered list memo runs above the loading early-return so the hook
+  // count stays stable across the loading→loaded transition (otherwise
+  // React crashes with "Rendered more hooks than during the previous
+  // render"). When `list` is still empty this just produces an empty
+  // filtered array — no UX impact.
+  const trimmedQuery = query.trim().toLowerCase();
+  const filteredList = useMemo(
+    () => (trimmedQuery
+      ? list.filter((sp) => sp.name.toLowerCase().includes(trimmedQuery))
+      : list),
+    [list, trimmedQuery],
+  );
 
   if (loading) {
     return <View style={s.loadingWrap}><ActivityIndicator color={colors.primary} /></View>;
@@ -124,20 +141,28 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
             <View style={s.traitList}>
               {preview.traits.map((t) => (
                 <View key={t.name}>
-                  <Text style={s.traitItem}>
-                    <Text style={s.traitName}>
-                      {t.name}
-                      {t.level && t.level > 1 ? ` (Level ${t.level})` : ''}. </Text>
-                    <Text style={s.traitDesc}>{t.description}</Text>
+                  {/* Trait name as a top-line heading. The description
+                      below goes through MarkdownText so embedded pipe
+                      tables (e.g. Dragonborn's Draconic Ancestry table)
+                      render as actual grids instead of raw `| Black |
+                      Acid |` text. */}
+                  <Text style={s.traitName}>
+                    {t.name}
+                    {t.level && t.level > 1 ? ` (Level ${t.level})` : ''}
                   </Text>
+                  <MarkdownText style={s.traitDesc}>
+                    {t.description}
+                  </MarkdownText>
                   {Array.isArray(t.options) && t.options.length > 0 ? (
                     <View style={{ paddingLeft: 12, marginTop: 2 }}>
                       <Text style={[s.traitDesc, { fontStyle: 'italic' }]}>Pick one:</Text>
                       {t.options.map((o) => (
-                        <Text key={o.name} style={s.traitItem}>
-                          <Text style={s.traitName}>{`• ${o.name}. `}</Text>
-                          <Text style={s.traitDesc}>{o.description}</Text>
-                        </Text>
+                        <View key={o.name}>
+                          <Text style={s.traitName}>{`• ${o.name}`}</Text>
+                          <MarkdownText style={s.traitDesc}>
+                            {o.description}
+                          </MarkdownText>
+                        </View>
                       ))}
                     </View>
                   ) : null}
@@ -185,8 +210,31 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
       <Text style={s.title}>Choose your species</Text>
       <Text style={s.guidance}>Your species shapes your body, senses and inherent gifts. {list.length} available.</Text>
+
+      <View style={s.searchRow}>
+        <MaterialCommunityIcons name="magnify" size={18} color={colors.outline} style={s.searchIcon} />
+        <TextInput
+          style={s.searchInput}
+          placeholder="Search species…"
+          placeholderTextColor={colors.outline}
+          value={query}
+          onChangeText={setQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {query.length > 0 ? (
+          <TouchableOpacity onPress={() => setQuery('')} style={s.searchClear} hitSlop={8}>
+            <MaterialCommunityIcons name="close-circle" size={16} color={colors.outline} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {filteredList.length === 0 ? (
+        <Text style={s.searchEmpty}>No species match "{query}".</Text>
+      ) : null}
+
       <View style={s.list}>
-        {list.map((sp) => {
+        {filteredList.map((sp) => {
           const selected = speciesKey === sp.key;
           const glyph = SPECIES_GLYPH[sp.key] ?? 'human';
           return (
@@ -302,6 +350,28 @@ const s = StyleSheet.create({
   guidance: {
     fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant,
     lineHeight: 19, marginBottom: 16,
+  },
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.xl,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 14, fontFamily: fonts.body,
+    color: colors.onSurface,
+  },
+  searchClear: { padding: 4 },
+  searchEmpty: {
+    fontSize: 13, fontFamily: fonts.body,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    paddingVertical: 12,
   },
   list: { gap: 10 },
   card: {
