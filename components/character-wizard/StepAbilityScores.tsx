@@ -367,16 +367,26 @@ export function StepAbilityScores() {
         />
       )}
 
-      {/* ── Custom Origin (2024) ────────────────────────────────────────────────
-          Species with swapRules.abilityScores: true and no fixed ASIs use
-          the 2024 Custom Origin model — the player picks either +2/+1 to
-          two abilities or +1/+1/+1 across three. Stored in the same
-          speciesAbilityChoices map so finalize applies it like any other
-          species bonus. */}
+      {/* ── Custom Origin (Tasha's / 2024) ──────────────────────────────────────
+          Species with no structured ASI data fall through to the Custom
+          Origin model — the player picks either +2/+1 to two abilities
+          or +1/+1/+1 across three. Triggers in two cases:
+
+          1. SRD 2024 species that explicitly opt in via
+             swapRules.abilityScores: true (Tasha's rules rebaked as
+             baseline in 2024).
+          2. Imported races with empty abilityScoreIncreases AND no
+             abilityScoreChoices — covers Strixhaven-era / Tasha's-
+             aware homebrew (Owlin, etc.) which shipped without fixed
+             ASIs expecting the Custom Origin rules to apply. swapRules
+             is null on imports since 5e.tools doesn't carry it.
+
+          Stored in the same speciesAbilityChoices map so finalize
+          applies it like any other species bonus. */}
       {species
         && species.abilityScoreIncreases.length === 0
         && (species.abilityScoreChoices ?? []).length === 0
-        && species.swapRules?.abilityScores
+        && (species.swapRules?.abilityScores ?? species.tier === 'imported')
         && (
           <CustomOriginPanel
             species={species}
