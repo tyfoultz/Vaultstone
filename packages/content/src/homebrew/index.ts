@@ -389,14 +389,34 @@ export function mapEntryToResult(
     }
     case 'species': {
       const d = entry.data as HomebrewSpeciesData;
+      // Traits: prefer the structured list; if the author hasn't
+      // migrated yet (only `traitsNotes` set on the row), surface
+      // the prose as a single "Trait Notes" block so the detail
+      // card still renders something.
+      const structuredTraits = d.traits ?? [];
+      const traits = structuredTraits.length > 0
+        ? structuredTraits
+        : d.traitsNotes && d.traitsNotes.trim()
+          ? [{ name: 'Trait Notes', description: d.traitsNotes.trim() }]
+          : [];
       const result: SpeciesResult = {
         ...base,
         type: 'species',
         description: d.description ?? '',
         size: d.size ?? 'Medium',
         speed: d.speed ?? 30,
-        traits: [],
-        abilityScoreIncreases: [],
+        traits,
+        abilityScoreIncreases: d.abilityScoreIncreases ?? [],
+        ...(d.abilityScoreChoices && d.abilityScoreChoices.length > 0
+          ? { abilityScoreChoices: d.abilityScoreChoices }
+          : {}),
+        ...(d.swapRules
+          ? { swapRules: {
+              abilityScores: d.swapRules.abilityScores ?? false,
+              languages: d.swapRules.languages ?? false,
+              skills: d.swapRules.skills ?? false,
+            } }
+          : {}),
       };
       return result;
     }

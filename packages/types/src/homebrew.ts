@@ -143,16 +143,41 @@ export interface HomebrewClassData {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Species — basic schema this round. Mirrors SpeciesResult except trait
-// name/description pairs become a free-form notes field for now (avoids
-// shipping a nested-array editor before the form ergonomics are settled).
+// Species — mirrors SpeciesResult so authored entries get the same
+// downstream treatment as SRD species. Traits are a structured list of
+// {name, description} pairs (rendered as named blocks on the species
+// detail card + character sheet), ASIs split into fixed and choice
+// clauses (Half-Elf "+1 to two of your choice" is a choice clause),
+// and swapRules opt the species into Custom Origin's player-choice ASI
+// allocator on the character creation wizard.
+//
+// `traitsNotes` is preserved for pre-structured rows — the resolver
+// surfaces it as a single fallback trait when `traits` is empty.
 // ─────────────────────────────────────────────────────────────────────────
 export interface HomebrewSpeciesData {
   size: 'Small' | 'Medium' | 'Large';
   /** Walking speed in feet. */
   speed: number;
   description: string;
-  /** Free-form prose: ASI, traits, languages — until structured editor lands. */
+  /** Named feature blocks ("Darkvision", "Fey Ancestry"). Rendered
+   *  as a bullet list on the detail card. */
+  traits: Array<{ name: string; description: string }>;
+  /** Fixed ability score bonuses (Dwarf +2 CON style). Empty for
+   *  Custom-Origin species that let the player pick on the wizard. */
+  abilityScoreIncreases: Array<{ ability: string; amount: number }>;
+  /** Player-choice ASI clauses ("+1 to two abilities of your choice"
+   *  Half-Elf style). Optional. */
+  abilityScoreChoices?: Array<{ count: number; amount: number; from: string[] }>;
+  /** Per-species permissions for the wizard's Customize Origin step.
+   *  Defaults to all-false (locked to fixed bonuses) when omitted —
+   *  authored species opt into Custom Origin explicitly. */
+  swapRules?: {
+    abilityScores?: boolean;
+    languages?: boolean;
+    skills?: boolean;
+  };
+  /** Legacy free-form notes from pre-structured rows. The resolver
+   *  surfaces it as a single fallback trait when `traits` is empty. */
   traitsNotes?: string;
 }
 
