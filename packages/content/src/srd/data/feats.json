@@ -70,7 +70,13 @@
       "You can take this feat more than once."
     ],
     "description": "",
-    "data": {}
+    "data": {},
+    "grants": {
+      "skills": {
+        "count": 3,
+        "from": "any"
+      }
+    }
   },
   {
     "key": "ability-score-improvement-srd-2-0",

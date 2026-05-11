@@ -100,6 +100,7 @@ export default function NewCharacterScreen() {
       backgroundSkillReplacements: s.backgroundSkillReplacements,
       speciesAbilityChoices: s.speciesAbilityChoices,
       chosenFeats: s.chosenFeats,
+      featPicks: s.featPicks,
       abilityScores: s.abilityScores,
       characterName: s.characterName,
       srdVersion: s.srdVersion,
@@ -426,6 +427,11 @@ export default function NewCharacterScreen() {
       classKey: snapshot.classKey,
       chosenSkills: snapshot.chosenSkills,
       backgroundKey: snapshot.backgroundKey,
+      // Feats + per-feat picks (Skilled grants a skill list, etc.).
+      // Round-tripping these lets save-draft resume hit StepFeats
+      // already populated.
+      chosenFeats: snapshot.chosenFeats,
+      featPicks: snapshot.featPicks,
       abilityScoreMethod: snapshot.abilityScoreMethod,
       abilityScores: snapshot.abilityScores,
       characterName: snapshot.characterName,
@@ -614,6 +620,17 @@ export default function NewCharacterScreen() {
           for (const sk of bg.skillProficiencies) {
             const replacement = draft.backgroundSkillReplacements[sk.toLowerCase()];
             push(replacement ?? sk);
+          }
+          // Feat-granted skills (Skilled, etc.) — picked on StepFeats
+          // and stored on the draft under `featPicks[featKey].skills`.
+          // Merge them last; the Set guards against the picker
+          // accidentally letting through a skill the player already has
+          // from class / background.
+          for (const featKey of draft.chosenFeats) {
+            const picks = draft.featPicks[featKey];
+            if (picks?.skills) {
+              for (const sk of picks.skills) push(sk);
+            }
           }
           return out;
         })(),

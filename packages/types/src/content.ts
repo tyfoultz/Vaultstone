@@ -207,6 +207,22 @@ export interface FeatResult extends ContentResult {
   prerequisitesRaw?: import('./character-builder').FeatPrerequisite[];
   /** Bullet-form benefits. */
   benefits: string[];
+  /**
+   * Structured grants that require player input. Some feats give the
+   * holder skill / language / tool proficiencies that must be picked
+   * at acquisition time (e.g. Skilled — "Gain proficiency in any
+   * combination of three skills or tools"). The wizard + level-up
+   * surfaces a picker for each populated field and merges the picks
+   * into the character's relevant proficiency lists.
+   *
+   * v1 ships `skills` only; other fields are placeholders for the
+   * follow-up work on Linguist / Magic Initiate / etc.
+   */
+  grants?: {
+    /** Player picks N from `from` (or "any" for the full skill list). */
+    skills?: { count: number; from: string[] | 'any' };
+    // TODO: languages, tools, cantrips, spells (Magic Initiate).
+  };
   srdVersions: string[];
 }
 

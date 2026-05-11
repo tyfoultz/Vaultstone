@@ -162,7 +162,32 @@ function transformOne(feat) {
     data: {},
   };
   if (prereqRaw.length > 0) out.prerequisitesRaw = prereqRaw;
+  const grants = grantsForFeat(slug);
+  if (grants) out.grants = grants;
   return out;
+}
+
+/**
+ * Structured grants for feats that ask the player to pick something
+ * at acquisition (skill / tool / language proficiencies, cantrips,
+ * etc.). The SRD prose is too varied to parse generically; we
+ * hardcode the known cases by slug. Returns undefined when the feat
+ * grants nothing player-driven (the common case).
+ *
+ * v1: skills only. Linguist / Magic Initiate / Prodigy follow once
+ * the wizard's pickers extend to languages / cantrips.
+ */
+function grantsForFeat(slug) {
+  switch (slug) {
+    case 'skilled':
+      // Skilled (5.1 + 2.0): "Gain proficiency in any combination of
+      // three skills or tools." We treat the picks as 3 skills for v1
+      // — the tool variant requires the wizard's picker to know about
+      // tool proficiencies, which it doesn't yet.
+      return { skills: { count: 3, from: 'any' } };
+    default:
+      return undefined;
+  }
 }
 
 function main() {
