@@ -17,6 +17,11 @@ import type {
   HomebrewFeatData,
   HomebrewClassData,
   HomebrewSpeciesData,
+  HomebrewBackgroundData,
+  HomebrewSubclassData,
+  HomebrewOptionalFeatureData,
+  HomebrewDeityData,
+  HomebrewConditionData,
 } from '@vaultstone/types';
 
 type HomebrewContentRow = Database['public']['Tables']['homebrew_content']['Row'];
@@ -28,12 +33,17 @@ type HomebrewContentUpdate = Database['public']['Tables']['homebrew_content']['U
  * stringify this into the row's `data` jsonb column.
  */
 export type HomebrewEntryDataInput =
-  | { contentType: 'spell';    data: HomebrewSpellData }
-  | { contentType: 'creature'; data: HomebrewCreatureData }
-  | { contentType: 'item';     data: HomebrewItemData }
-  | { contentType: 'feat';     data: HomebrewFeatData }
-  | { contentType: 'class';    data: HomebrewClassData }
-  | { contentType: 'species';  data: HomebrewSpeciesData };
+  | { contentType: 'spell';            data: HomebrewSpellData }
+  | { contentType: 'creature';         data: HomebrewCreatureData }
+  | { contentType: 'item';             data: HomebrewItemData }
+  | { contentType: 'feat';             data: HomebrewFeatData }
+  | { contentType: 'class';            data: HomebrewClassData }
+  | { contentType: 'species';          data: HomebrewSpeciesData }
+  | { contentType: 'background';       data: HomebrewBackgroundData }
+  | { contentType: 'subclass';         data: HomebrewSubclassData }
+  | { contentType: 'optional-feature'; data: HomebrewOptionalFeatureData }
+  | { contentType: 'deity';            data: HomebrewDeityData }
+  | { contentType: 'condition';        data: HomebrewConditionData };
 
 export async function listHomebrewEntries(packId: string) {
   return supabase
@@ -96,7 +106,9 @@ export async function updateHomebrewEntry(entryId: string, patch: {
   name?: string;
   data?:
     | HomebrewSpellData | HomebrewCreatureData | HomebrewItemData
-    | HomebrewFeatData | HomebrewClassData | HomebrewSpeciesData;
+    | HomebrewFeatData | HomebrewClassData | HomebrewSpeciesData
+    | HomebrewBackgroundData | HomebrewSubclassData
+    | HomebrewOptionalFeatureData | HomebrewDeityData | HomebrewConditionData;
 }) {
   const update: HomebrewContentUpdate = {};
   if (patch.name !== undefined) update.name = patch.name;

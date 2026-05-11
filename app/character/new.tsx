@@ -21,6 +21,8 @@ import {
   defaultHpGain,
   unpackClassFeaturesForPick,
   spellSlotsForClassAtLevel,
+  computeAsiContext,
+  applyAsiContext,
 } from '@vaultstone/systems';
 import { colors, fonts, spacing, radius, ContentWidth } from '@vaultstone/ui';
 import { ContentResolver } from '@vaultstone/content';
@@ -94,6 +96,7 @@ export default function NewCharacterScreen() {
       chosenSkills: s.chosenSkills,
       backgroundKey: s.backgroundKey,
       backgroundSkillReplacements: s.backgroundSkillReplacements,
+      speciesAbilityChoices: s.speciesAbilityChoices,
       chosenFeats: s.chosenFeats,
       abilityScores: s.abilityScores,
       characterName: s.characterName,
@@ -478,13 +481,31 @@ export default function NewCharacterScreen() {
       ]);
       const cls = (clsResults as ClassResult[]).find((c) => c.key === draft.classKey);
       const bg = (bgResults as BackgroundResult[]).find((b) => b.key === draft.backgroundKey);
-      const sp = speciesResults.find((s) => s.key === draft.speciesKey);
+      const sp = (speciesResults as SpeciesResult[]).find((s) => s.key === draft.speciesKey);
 
       if (!cls || !bg || !sp) {
         setSaveError('Could not load content. Please try again.');
         setSaving(false);
         return;
       }
+
+      // Resolve the ASI context — who grants the +2/+1 (species in
+      // 5.1, background in 5.2) and whether Customize Origin applies.
+      // Same helper the wizard's Ability Scores step uses, so the
+      // application here matches what the player saw in the preview.
+      const customizeOrigin =
+        (draftCampaignRules.customize_origin as boolean | undefined) !== false;
+      const asiContext = computeAsiContext({
+        species: sp,
+        background: bg,
+        srdVersion: draft.srdVersion,
+        customizeOrigin,
+      });
+      const adjustedAbilityScores = applyAsiContext(
+        asiContext,
+        draft.abilityScores,
+        draft.speciesAbilityChoices,
+      );
 
       // Resolve picked feats into the character's `resources.feats[]`
       // shape. Skipped silently if the resolver couldn't find a feat —
@@ -542,7 +563,7 @@ export default function NewCharacterScreen() {
         ],
         backgroundKey: draft.backgroundKey,
         srdVersion: draft.srdVersion,
-        abilityScores: draft.abilityScores,
+        abilityScores: adjustedAbilityScores,
         savingThrowProficiencies: cls.savingThrows.map((s) => s.toLowerCase()),
         // Merge class-chosen + background-granted skills, applying any
         // collision replacements the player picked on StepBackground.

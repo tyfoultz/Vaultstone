@@ -22,7 +22,7 @@ interface Props {
 }
 
 export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
-  const { srdVersion, speciesKey, setSpecies, campaignId, selectedPackIds } =
+  const { srdVersion, speciesKey, setSpecies, campaignId, selectedPackIds, campaignRules } =
     useCharacterDraftStore(
       useShallow((s) => ({
         srdVersion: s.srdVersion,
@@ -30,8 +30,11 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
         setSpecies: s.setSpecies,
         campaignId: s.campaignId,
         selectedPackIds: s.selectedPackIds,
+        campaignRules: s.campaignRules,
       }))
     );
+  const customizeOrigin = (campaignRules.customize_origin as boolean | undefined) !== false;
+  const is2024 = srdVersion === 'SRD_2.0';
 
   const [list, setList] = useState<SpeciesResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,20 +95,79 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
         <View style={s.detailRows}>
           <DetailRow label="Size" value={preview.size} />
           <DetailRow label="Speed" value={`${preview.speed} ft`} />
+          {(() => {
+            // ASI row resolves to one of three displays based on
+            // edition + CYO:
+            //   2024: species grants no ASI, but the player may swap
+            //     fixed listed bonuses via CYO on the AS step
+            //   5.1 + CYO off: literal listed bonuses apply
+            //   5.1 + CYO on: bonuses are reassignable on AS step
+            const asi = formatAsiSummary(preview);
+            if (is2024) {
+              return (
+                <DetailRow
+                  label="ASI"
+                  value="Background grants +2/+1 (assigned on Ability Scores step)"
+                />
+              );
+            }
+            if (!asi) return null;
+            const suffix = customizeOrigin
+              ? ' — reassignable on Ability Scores step (Custom Origin)'
+              : '';
+            return <DetailRow label="ASI" value={asi + suffix} />;
+          })()}
         </View>
         {preview.traits.length > 0 && (
           <>
             <Text style={s.sectionLabel}>TRAITS</Text>
             <View style={s.traitList}>
               {preview.traits.map((t) => (
-                <Text key={t.name} style={s.traitItem}>
-                  <Text style={s.traitName}>{t.name}. </Text>
-                  <Text style={s.traitDesc}>{t.description}</Text>
-                </Text>
+                <View key={t.name}>
+                  <Text style={s.traitItem}>
+                    <Text style={s.traitName}>
+                      {t.name}
+                      {t.level && t.level > 1 ? ` (Level ${t.level})` : ''}. </Text>
+                    <Text style={s.traitDesc}>{t.description}</Text>
+                  </Text>
+                  {Array.isArray(t.options) && t.options.length > 0 ? (
+                    <View style={{ paddingLeft: 12, marginTop: 2 }}>
+                      <Text style={[s.traitDesc, { fontStyle: 'italic' }]}>Pick one:</Text>
+                      {t.options.map((o) => (
+                        <Text key={o.name} style={s.traitItem}>
+                          <Text style={s.traitName}>{`• ${o.name}. `}</Text>
+                          <Text style={s.traitDesc}>{o.description}</Text>
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
               ))}
             </View>
           </>
         )}
+        {(preview.languagesFixed && preview.languagesFixed.length > 0) ||
+         (preview.languagesChoices && preview.languagesChoices.length > 0) ? (
+          <>
+            <Text style={s.sectionLabel}>LANGUAGES</Text>
+            <View style={s.traitList}>
+              {preview.languagesFixed && preview.languagesFixed.length > 0 ? (
+                <Text style={s.traitItem}>
+                  <Text style={s.traitDesc}>{preview.languagesFixed.join(', ')}</Text>
+                </Text>
+              ) : null}
+              {(preview.languagesChoices ?? []).map((c, i) => (
+                <Text key={i} style={s.traitItem}>
+                  <Text style={s.traitDesc}>
+                    {c.from === 'any'
+                      ? `Plus ${c.count} language${c.count > 1 ? 's' : ''} of your choice.`
+                      : `Plus ${c.count} language${c.count > 1 ? 's' : ''} from: ${(c.from as string[]).join(', ')}.`}
+                  </Text>
+                </Text>
+              ))}
+            </View>
+          </>
+        ) : null}
         <View style={{ height: 12 }} />
         <CommitBar
           isChosen={isChosen}
@@ -154,6 +216,31 @@ export function StepSpecies({ onPreviewChange, onAdvance }: Props) {
       </View>
     </ScrollView>
   );
+}
+
+// Short ability code used in the ASI summary line. 'strength' → STR.
+const ABILITY_CODE: Record<string, string> = {
+  strength: 'STR', dexterity: 'DEX', constitution: 'CON',
+  intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
+};
+
+// Compose a one-line summary of the species' ability score increases
+// for the detail card. Combines fixed bonuses (`abilityScoreIncreases`)
+// with player-choice clauses (`abilityScoreChoices`, e.g. Half-Elf's
+// "+1 to two abilities of your choice"). Returns '' when the species
+// has no structured ASI data (most 2024 species — Custom Origin handles
+// those at the wizard's ability scores step).
+function formatAsiSummary(sp: SpeciesResult): string {
+  const fixed = (sp.abilityScoreIncreases ?? []).map((a) => {
+    const code = ABILITY_CODE[a.ability.toLowerCase()] ?? a.ability.slice(0, 3).toUpperCase();
+    return `+${a.amount} ${code}`;
+  });
+  const choices = (sp.abilityScoreChoices ?? []).map((c) => {
+    if (c.from.length === 6) return `+${c.amount} to ${c.count} of your choice`;
+    if (c.from.length === 5) return `+${c.amount} to ${c.count} other abilities`;
+    return `+${c.amount} to ${c.count} (${c.from.length} options)`;
+  });
+  return [...fixed, ...choices].join(', ');
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {

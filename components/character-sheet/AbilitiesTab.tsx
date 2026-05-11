@@ -214,6 +214,7 @@ export function AbilitiesTab({
             name={t.name}
             description={t.description}
             accent={ACCENT_SPECIES}
+            level={t.level}
           />
         ))
       ) : !speciesResult ? (

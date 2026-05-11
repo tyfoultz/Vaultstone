@@ -21,12 +21,18 @@
 //
 // Ability score increases:
 //   - 2014 races declare `ability: [{con: 2}, {wis: 1}]` (fixed bonuses).
-//     We map to `abilityScoreIncreases: [{ability, amount}, ...]`.
+//     Map to `abilityScoreIncreases: [{ability, amount}, ...]`.
+//   - 2014 variant-human-style races declare a `choose` clause —
+//     `ability: [{ choose: { from: ['str','dex',...], count: 2, amount: 1 } }]`.
+//     Map to `abilityScoreChoices: [{count, amount, from}]` so the
+//     wizard's Ability Scores step can surface a picker. Combined
+//     with fixed bonuses on the same entry (Half-Elf: +2 CHA fixed +
+//     two non-CHA at +1).
 //   - 2024 races omit `ability` entirely (ASIs moved to backgrounds).
-//     Empty array, matching the SRD 2.0 bundle.
+//     Both arrays end up empty, matching the SRD 2.0 bundle.
 
 import type { SpeciesResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry, type RawEntryObject } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry, type RawEntryObject } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -109,6 +115,7 @@ function buildSpecies(
     page: r.page,
   };
   const { description, traits } = splitEntries(r.entries ?? []);
+  const { fixed, choices } = extractAbilityScoreData(r.ability);
   return {
     key: `imported_${systemId}_species_${slugify(r.source)}_${slugify(displayName)}`,
     name: displayName,
@@ -121,8 +128,9 @@ function buildSpecies(
     size: extractSize(r.size),
     speed: extractSpeed(r.speed),
     traits,
-    abilityScoreIncreases: extractAbilityScoreIncreases(r.ability),
-    srdVersions: [],
+    abilityScoreIncreases: fixed,
+    ...(choices.length > 0 ? { abilityScoreChoices: choices } : {}),
+    srdVersions: srdVersionsForSource(r.source),
   };
 }
 
@@ -166,28 +174,52 @@ const ABILITY_FULL_NAME: Record<string, string> = {
   cha: 'charisma',
 };
 
+type ExtractedAbility = {
+  fixed: SpeciesResult['abilityScoreIncreases'];
+  choices: NonNullable<SpeciesResult['abilityScoreChoices']>;
+};
+
 /**
- * Flatten the 2014-style fixed-ability-bonus array into our schema's
- * `[{ability, amount}, ...]` shape. 2024 races omit `ability` and end
- * up with an empty array. Choose-style entries (rare, 2014-era variant
- * humans) are dropped — our schema can't represent "choose 2 abilities
- * for +1 each" structurally and capturing it as text would diverge
- * from the SpeciesResult contract.
+ * Split a 5e.tools `ability` payload into the two SpeciesResult fields.
+ *
+ * Fixed bonuses: `{ con: 2 }` / `{ wis: 1 }` keys → `abilityScoreIncreases`.
+ *
+ * Choice clauses: `{ choose: { from, count, amount } }` → `abilityScoreChoices`.
+ * 5e.tools sometimes ships `count` and/or `amount` missing — defaults are
+ * count = 1, amount = 1 (matches the Variant Human pattern). The Half-Elf
+ * pattern is a SHORT `from` list (5 non-CHA abilities) with count = 2,
+ * amount = 1; we just pass the structure through.
+ *
+ * 2024 races omit `ability` entirely and end up with empty arrays.
  */
-function extractAbilityScoreIncreases(
-  ability: RawRace['ability'],
-): SpeciesResult['abilityScoreIncreases'] {
-  if (!ability || ability.length === 0) return [];
-  const out: SpeciesResult['abilityScoreIncreases'] = [];
+function extractAbilityScoreData(ability: RawRace['ability']): ExtractedAbility {
+  if (!ability || ability.length === 0) return { fixed: [], choices: [] };
+  const fixed: ExtractedAbility['fixed'] = [];
+  const choices: ExtractedAbility['choices'] = [];
   for (const group of ability) {
     for (const [key, value] of Object.entries(group)) {
+      if (key.toLowerCase() === 'choose') {
+        // Choose object — pull from / count / amount with defaults.
+        if (!value || typeof value !== 'object') continue;
+        const choose = value as { from?: string[]; count?: number; amount?: number };
+        const from = (choose.from ?? [])
+          .map((c) => ABILITY_FULL_NAME[c.toLowerCase()])
+          .filter((c): c is string => !!c);
+        if (from.length === 0) continue;
+        choices.push({
+          count: choose.count ?? 1,
+          amount: choose.amount ?? 1,
+          from,
+        });
+        continue;
+      }
       if (typeof value !== 'number') continue;
       const ab = ABILITY_FULL_NAME[key.toLowerCase()];
       if (!ab) continue;
-      out.push({ ability: ab, amount: value });
+      fixed.push({ ability: ab, amount: value });
     }
   }
-  return out;
+  return { fixed, choices };
 }
 
 /**

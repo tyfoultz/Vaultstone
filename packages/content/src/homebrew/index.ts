@@ -16,12 +16,23 @@ import type {
   FeatResult,
   ClassResult,
   SpeciesResult,
+  BackgroundResult,
+  SubclassResult,
+  OptionalFeatureResult,
+  OptionalFeatureKind,
+  DeityResult,
+  ConditionResult,
   HomebrewSpellData,
   HomebrewCreatureData,
   HomebrewItemData,
   HomebrewFeatData,
   HomebrewClassData,
   HomebrewSpeciesData,
+  HomebrewBackgroundData,
+  HomebrewSubclassData,
+  HomebrewOptionalFeatureData,
+  HomebrewDeityData,
+  HomebrewConditionData,
 } from '@vaultstone/types';
 
 type HomebrewPackRow = {
@@ -142,6 +153,20 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
 
   let filtered = results;
   if (query.srdVersion) {
+    // Edition filter, applied only to entries that *positively claim*
+    // an edition. Three sources of `srdVersions` on homebrew results:
+    //   - Authored homebrew (HomebrewSpeciesData / HomebrewClassData /
+    //     etc.) doesn't carry the field at all.
+    //   - 5e.tools imports tag from the source code via
+    //     `srdVersionsForSource` — X-prefixed books (XPHB, XDMG, XMM)
+    //     land as `['SRD_2.0']`, the SRD compendium lands as both,
+    //     everything else lands as `['SRD_5.1']`.
+    //   - Open5e snapshots (rare in the homebrew tier, but possible
+    //     for self-hosted SRD packs) emit `srdVersions: ['SRD_5.1']`
+    //     etc. matching the SRD reader's tagging.
+    // Treat both "no field" and "empty array" as "no claim" — pre-
+    // edition-tagging imports + authored homebrew land in either
+    // edition's wizard. Positively-claimed entries get filtered.
     const version = query.srdVersion;
     filtered = filtered.filter((r) => {
       const item = r as ContentResult & { srdVersions?: string[] };
@@ -205,6 +230,21 @@ async function fetchAllPaginated<T>(
  * the same shapes the SRD/imported tiers use, then pump them through
  * the shared content-table list components.
  */
+// Render a structured creature-speed object as the canonical display
+// line ("30 ft., fly 60 ft. (hover)"). Walking speed leads when set,
+// then non-walking modes in stat-block order. Empty object → "—".
+function buildSpeedDisplay(s: NonNullable<HomebrewCreatureData['speeds']>): string {
+  const parts: string[] = [];
+  if (typeof s.walk === 'number' && s.walk > 0) parts.push(`${s.walk} ft.`);
+  if (typeof s.fly === 'number' && s.fly > 0) {
+    parts.push(`fly ${s.fly} ft.${s.hover ? ' (hover)' : ''}`);
+  }
+  if (typeof s.swim === 'number' && s.swim > 0) parts.push(`swim ${s.swim} ft.`);
+  if (typeof s.climb === 'number' && s.climb > 0) parts.push(`climb ${s.climb} ft.`);
+  if (typeof s.burrow === 'number' && s.burrow > 0) parts.push(`burrow ${s.burrow} ft.`);
+  return parts.length > 0 ? parts.join(', ') : '—';
+}
+
 export function mapEntryToResult(
   entry: HomebrewContentRow,
   pack: HomebrewPackRow,
@@ -255,6 +295,22 @@ export function mapEntryToResult(
     }
     case 'creature': {
       const d = entry.data as HomebrewCreatureData;
+      // Synthesize a single fallback trait from `traitsNotes` when the
+      // structured `traits` array is empty — same migration pattern
+      // species uses. Authors who already moved their prose into the
+      // structured editor never hit this branch.
+      const structuredTraits = d.traits ?? [];
+      const traits = structuredTraits.length > 0
+        ? structuredTraits
+        : d.traitsNotes && d.traitsNotes.trim()
+          ? [{ name: 'Traits & Actions', description: d.traitsNotes.trim() }]
+          : undefined;
+      // Build a display speed string from `speeds` when present so
+      // existing UI that reads `speed` keeps working without changes.
+      // Legacy `speed` wins when no structured speeds are set.
+      const speedDisplay = d.speeds && Object.values(d.speeds).some((v) => v != null && v !== false)
+        ? buildSpeedDisplay(d.speeds)
+        : (d.speed ?? '30 ft.');
       const result: CreatureResult = {
         ...base,
         type: 'monster',
@@ -265,16 +321,54 @@ export function mapEntryToResult(
         alignment: d.alignment ?? '',
         ac: d.ac ?? 10,
         hp: d.hp ?? 1,
-        speed: d.speed ?? '30 ft.',
+        speed: speedDisplay,
         armorDetail: d.armorDetail,
         hitDice: d.hitDice,
         xp: d.xp,
+        proficiencyBonus: d.proficiencyBonus,
         abilityScores: d.abilityScores ?? { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+        abilityModifiers: d.abilityScores
+          ? {
+              str: Math.floor((d.abilityScores.str - 10) / 2),
+              dex: Math.floor((d.abilityScores.dex - 10) / 2),
+              con: Math.floor((d.abilityScores.con - 10) / 2),
+              int: Math.floor((d.abilityScores.int - 10) / 2),
+              wis: Math.floor((d.abilityScores.wis - 10) / 2),
+              cha: Math.floor((d.abilityScores.cha - 10) / 2),
+            }
+          : undefined,
+        ...(d.speeds ? { speeds: d.speeds } : {}),
+        ...(d.savingThrows && Object.keys(d.savingThrows).length > 0
+          ? { savingThrows: d.savingThrows } : {}),
+        ...(d.skills && Object.keys(d.skills).length > 0
+          ? { skills: d.skills } : {}),
+        ...(d.senses && Object.values(d.senses).some((v) => v != null)
+          ? { senses: d.senses } : {}),
+        ...(d.languages ? { languages: d.languages } : {}),
+        ...(d.damageResistances && d.damageResistances.length > 0
+          ? { damageResistances: d.damageResistances } : {}),
+        ...(d.damageImmunities && d.damageImmunities.length > 0
+          ? { damageImmunities: d.damageImmunities } : {}),
+        ...(d.damageVulnerabilities && d.damageVulnerabilities.length > 0
+          ? { damageVulnerabilities: d.damageVulnerabilities } : {}),
+        ...(d.conditionImmunities && d.conditionImmunities.length > 0
+          ? { conditionImmunities: d.conditionImmunities } : {}),
+        ...(traits ? { traits } : {}),
+        ...(d.actions && d.actions.length > 0 ? { actions: d.actions } : {}),
+        ...(d.environments && d.environments.length > 0 ? { environments: d.environments } : {}),
       };
       return result;
     }
     case 'item': {
       const d = entry.data as HomebrewItemData;
+      // Cost: prefer the structured `cost` field; fall back to the
+      // legacy `costGold` for rows authored before the structured
+      // editor landed. Null when neither is set.
+      const cost = d.cost
+        ? d.cost
+        : typeof d.costGold === 'number'
+          ? { amount: d.costGold, currency: 'gp' as const }
+          : null;
       const result: ItemResult = {
         ...base,
         type: 'item',
@@ -283,15 +377,16 @@ export function mapEntryToResult(
         rarity: d.rarity,
         requiresAttunement: !!d.requiresAttunement,
         weight: d.weight,
-        cost: typeof d.costGold === 'number'
-          ? { amount: d.costGold, currency: 'gp' }
-          : null,
+        cost,
         properties: [
           ...(d.properties ?? []),
           ...(d.requiresAttunement && d.attunementCondition
             ? [`Attunement: ${d.attunementCondition}`]
             : []),
         ],
+        ...(d.packContents && d.packContents.length > 0
+          ? { packContents: d.packContents }
+          : {}),
         data: { magicItemKind: d.magicItemKind ?? null },
       };
       return result;
@@ -332,14 +427,114 @@ export function mapEntryToResult(
     }
     case 'species': {
       const d = entry.data as HomebrewSpeciesData;
+      // Traits: prefer the structured list; if the author hasn't
+      // migrated yet (only `traitsNotes` set on the row), surface
+      // the prose as a single "Trait Notes" block so the detail
+      // card still renders something.
+      const structuredTraits = d.traits ?? [];
+      const traits = structuredTraits.length > 0
+        ? structuredTraits
+        : d.traitsNotes && d.traitsNotes.trim()
+          ? [{ name: 'Trait Notes', description: d.traitsNotes.trim() }]
+          : [];
       const result: SpeciesResult = {
         ...base,
         type: 'species',
         description: d.description ?? '',
         size: d.size ?? 'Medium',
         speed: d.speed ?? 30,
-        traits: [],
-        abilityScoreIncreases: [],
+        traits,
+        abilityScoreIncreases: d.abilityScoreIncreases ?? [],
+        ...(d.abilityScoreChoices && d.abilityScoreChoices.length > 0
+          ? { abilityScoreChoices: d.abilityScoreChoices }
+          : {}),
+        ...(d.languagesFixed && d.languagesFixed.length > 0
+          ? { languagesFixed: d.languagesFixed }
+          : {}),
+        ...(d.languagesChoices && d.languagesChoices.length > 0
+          ? { languagesChoices: d.languagesChoices }
+          : {}),
+        ...(d.swapRules
+          ? { swapRules: {
+              abilityScores: d.swapRules.abilityScores ?? false,
+              languages: d.swapRules.languages ?? false,
+              skills: d.swapRules.skills ?? false,
+            } }
+          : {}),
+      };
+      return result;
+    }
+    case 'background': {
+      const d = entry.data as HomebrewBackgroundData;
+      const result: BackgroundResult = {
+        ...base,
+        type: 'background',
+        description: d.description ?? '',
+        skillProficiencies: d.skillProficiencies ?? [],
+        toolProficiency: d.toolProficiency ?? null,
+        languages: d.languages ?? 0,
+        abilityScoreOptions: d.abilityScoreOptions ?? [],
+        originFeat: d.originFeat ?? '',
+        startingEquipment: d.startingEquipment ?? null,
+      };
+      return result;
+    }
+    case 'subclass': {
+      const d = entry.data as HomebrewSubclassData;
+      // Same migration pattern as species + creature: prefer structured
+      // features; fall back to a single "Features" block synthesized from
+      // featuresNotes when the row hasn't been migrated yet.
+      const structuredFeatures = d.features ?? [];
+      const features = structuredFeatures.length > 0
+        ? structuredFeatures
+        : d.featuresNotes && d.featuresNotes.trim()
+          ? [{ level: d.unlockLevel ?? 3, name: 'Features', description: d.featuresNotes.trim() }]
+          : undefined;
+      const result: SubclassResult = {
+        ...base,
+        type: 'subclass',
+        description: d.description ?? '',
+        parentClassKey: d.parentClassKey ?? '',
+        parentClassName: d.parentClassName,
+        unlockLevel: d.unlockLevel ?? 3,
+        ...(features ? { features } : {}),
+      };
+      return result;
+    }
+    case 'optional-feature': {
+      const d = entry.data as HomebrewOptionalFeatureData;
+      const result: OptionalFeatureResult = {
+        ...base,
+        type: 'optional-feature',
+        description: d.description ?? '',
+        kinds: (d.kinds ?? ['other']) as OptionalFeatureKind[],
+        prerequisites: d.prerequisites ?? '',
+        consumes: d.consumes,
+      };
+      return result;
+    }
+    case 'deity': {
+      const d = entry.data as HomebrewDeityData;
+      const result: DeityResult = {
+        ...base,
+        type: 'deity',
+        pantheon: d.pantheon ?? '',
+        title: d.title,
+        alignment: d.alignment,
+        domains: d.domains,
+        symbol: d.symbol,
+        plane: d.plane,
+        worshipers: d.worshipers,
+      };
+      return result;
+    }
+    case 'condition': {
+      const d = entry.data as HomebrewConditionData;
+      const result: ConditionResult = {
+        ...base,
+        type: 'condition',
+        description: d.description ?? '',
+        effects: d.effects ?? [],
       };
       return result;
     }

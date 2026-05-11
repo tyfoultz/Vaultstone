@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   },
   panelWrapper: {
     width: '100%',
-    maxWidth: 640,
+    maxWidth: 760,
     // Cap the wrapper height so the inner ScrollView has a bounded height
     // to scroll inside. Without this, content sized to itself and overflowed
     // the viewport.
@@ -139,12 +139,20 @@ const styles = StyleSheet.create({
   // Middle band that owns scroll. flexShrink lets it consume only the
   // remaining space inside the bounded panel; the contentContainer holds
   // the form fields.
+  //
+  // The negative right margin pushes the ScrollView past the Card's
+  // right padding (spacing.xl) so the web scrollbar sits in that gutter
+  // instead of overlapping the rightmost form fields. The matching
+  // paddingRight on scrollContent restores breathing room for content
+  // and keeps the scrollbar separated from inputs.
   scroll: {
     flexShrink: 1,
+    marginRight: -spacing.xl,
   },
   scrollContent: {
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
+    paddingRight: spacing.xl,
   },
   body: {
     gap: spacing.md,

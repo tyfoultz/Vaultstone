@@ -44,6 +44,7 @@ export function StepBackground({ onPreviewChange, onAdvance }: Props) {
     campaignId, selectedPackIds,
     chosenSkills,
     backgroundSkillReplacements, setBackgroundSkillReplacements,
+    campaignRules,
   } = useCharacterDraftStore(
     useShallow((s) => ({
       srdVersion: s.srdVersion,
@@ -54,8 +55,11 @@ export function StepBackground({ onPreviewChange, onAdvance }: Props) {
       chosenSkills: s.chosenSkills,
       backgroundSkillReplacements: s.backgroundSkillReplacements,
       setBackgroundSkillReplacements: s.setBackgroundSkillReplacements,
+      campaignRules: s.campaignRules,
     }))
   );
+  const customizeOrigin = (campaignRules.customize_origin as boolean | undefined) !== false;
+  const is2024 = srdVersion === 'SRD_2.0';
 
   const [list, setList] = useState<BackgroundResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,8 +151,38 @@ export function StepBackground({ onPreviewChange, onAdvance }: Props) {
         <View style={s.detailRows}>
           <DetailRow label="Skills" value={preview.skillProficiencies.join(', ')} />
           {preview.toolProficiency && <DetailRow label="Tool" value={preview.toolProficiency} />}
-          <DetailRow label="Ability Scores" value={`+2/+1 from ${abilityOpts}`} />
-          <DetailRowAccent label="Origin Feat" value={preview.originFeat} />
+          {(() => {
+            // ASI row resolves by edition + CYO:
+            //   2024 background: ships abilityScoreOptions, +2/+1 from
+            //     those 3 (CYO on broadens to any 6 — assignment on AS step)
+            //   5.1 background + CYO on: Tasha's lets the player take
+            //     +2/+1 from any 6 abilities (assignment on AS step)
+            //   5.1 background + CYO off: no background-granted ASI;
+            //     species handles it
+            if (is2024 && preview.abilityScoreOptions.length > 0) {
+              const note = customizeOrigin
+                ? ' (any abilities with Custom Origin — assigned on Ability Scores step)'
+                : ' (assigned on Ability Scores step)';
+              return (
+                <DetailRow
+                  label="Ability Scores"
+                  value={`+2/+1 from ${abilityOpts}${note}`}
+                />
+              );
+            }
+            if (!is2024 && customizeOrigin) {
+              return (
+                <DetailRow
+                  label="Ability Scores"
+                  value="+2/+1 from any abilities (Custom Origin — assigned on Ability Scores step)"
+                />
+              );
+            }
+            return null;
+          })()}
+          {preview.originFeat ? (
+            <DetailRowAccent label="Origin Feat" value={preview.originFeat} />
+          ) : null}
         </View>
 
         {conflicts.length > 0 ? (

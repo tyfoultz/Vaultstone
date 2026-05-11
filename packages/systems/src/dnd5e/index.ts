@@ -29,6 +29,13 @@ export {
   type LevelUpPick,
   type ApplyLevelUpResult,
 } from './apply-level-up';
+export {
+  computeAsiContext,
+  applyAsiContext,
+  asiContextComplete,
+  type AsiContext,
+  type AsiMode,
+} from './asi-context';
 
 // Both editions share schema (attributes, resources, sheet, creation steps).
 // They diverge only in id / displayName / version / SRD-content filter.

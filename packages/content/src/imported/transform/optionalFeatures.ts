@@ -27,7 +27,7 @@
 import type {
   OptionalFeatureResult, OptionalFeatureKind, ImportSource,
 } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ export function transformOptionalFeatures(
       // detail page; `prerequisites` is the human-readable form.
       data: f.prerequisite ? { prerequisitesRaw: f.prerequisite } : {},
       kinds,
-      srdVersions: [],
+      srdVersions: srdVersionsForSource(f.source),
     };
 
     if (prerequisites) result.prerequisites = prerequisites;

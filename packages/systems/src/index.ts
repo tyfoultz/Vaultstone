@@ -30,6 +30,13 @@ export {
   type ApplyLevelUpResult,
 } from './dnd5e/apply-level-up';
 export {
+  computeAsiContext,
+  applyAsiContext,
+  asiContextComplete,
+  type AsiContext,
+  type AsiMode,
+} from './dnd5e/asi-context';
+export {
   resolveCreationSteps,
   type CreationStepContext,
 } from './resolve-creation-steps';

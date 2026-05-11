@@ -52,6 +52,11 @@ import { FeatFormModal } from '../../../components/homebrew/forms/FeatFormModal'
 import { CreatureFormModal } from '../../../components/homebrew/forms/CreatureFormModal';
 import { ClassFormModal } from '../../../components/homebrew/forms/ClassFormModal';
 import { SpeciesFormModal } from '../../../components/homebrew/forms/SpeciesFormModal';
+import { BackgroundFormModal } from '../../../components/homebrew/forms/BackgroundFormModal';
+import { SubclassFormModal } from '../../../components/homebrew/forms/SubclassFormModal';
+import { OptionalFeatureFormModal } from '../../../components/homebrew/forms/OptionalFeatureFormModal';
+import { DeityFormModal } from '../../../components/homebrew/forms/DeityFormModal';
+import { ConditionFormModal } from '../../../components/homebrew/forms/ConditionFormModal';
 import {
   colors,
   spacing,
@@ -672,29 +677,38 @@ export default function HomebrewPackDetailScreen() {
             </View>
           </View>
 
-          {/* Empty-pack authoring entry point — when there are no
-              type tabs to render, surface every "+ Add X" button so
-              the user can seed the first authored entry. Once any
-              content exists, each type tab's table renders its own
-              scoped "+ Add X" via the headerExtra slot, so this row
-              hides. Hidden while a card filter is active so the
-              authoring affordance doesn't suggest writing into what
-              visually reads as imported scope. */}
-          {!filterSourceLabel && availableTypes.length === 0 ? (
-            <View style={styles.addRow}>
-              {(CONTENT_TYPES).map((ct) => (
-                <Pressable
-                  key={ct.key}
-                  onPress={() => openCreateForm(ct.key)}
-                  style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}
-                  accessibilityLabel={`Add ${ct.label.toLowerCase()}`}
-                >
-                  <Icon name={ct.icon} size={16} color={colors.primary} />
-                  <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.primary, letterSpacing: 1 }}>
-                    Add {ct.label}
-                  </Text>
-                </Pressable>
-              ))}
+          {/* Create Homebrew — dedicated authoring entry point.
+              Always visible (regardless of imports/authored counts)
+              so the user can author additional entries on top of an
+              imported pack. Hidden only when the player has filtered
+              to a specific imported source card, since "add new" then
+              reads as "add into that import's scope," which we don't
+              support (imports are immutable per re-import). */}
+          {!filterSourceLabel ? (
+            <View style={styles.createSection}>
+              <Text
+                variant="label-sm"
+                weight="bold"
+                uppercase
+                style={{ color: colors.onSurfaceVariant, letterSpacing: 1.25, marginBottom: spacing.xs }}
+              >
+                Create Homebrew
+              </Text>
+              <View style={[styles.addRow, { marginBottom: 0 }]}>
+                {(CONTENT_TYPES).map((ct) => (
+                  <Pressable
+                    key={ct.key}
+                    onPress={() => openCreateForm(ct.key)}
+                    style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}
+                    accessibilityLabel={`Add ${ct.label.toLowerCase()}`}
+                  >
+                    <Icon name={ct.icon} size={16} color={colors.primary} />
+                    <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.primary, letterSpacing: 1 }}>
+                      {ct.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
           ) : null}
 
@@ -827,6 +841,46 @@ export default function HomebrewPackDetailScreen() {
       ) : null}
       {pack && formOpen === 'species' ? (
         <SpeciesFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
+      {pack && formOpen === 'background' ? (
+        <BackgroundFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
+      {pack && formOpen === 'subclass' ? (
+        <SubclassFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
+      {pack && formOpen === 'optional-feature' ? (
+        <OptionalFeatureFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
+      {pack && formOpen === 'deity' ? (
+        <DeityFormModal
+          pack={pack}
+          entry={editingEntry ?? undefined}
+          onClose={() => { setFormOpen(null); setEditingEntry(null); }}
+          onSaved={handleEntrySaved}
+        />
+      ) : null}
+      {pack && formOpen === 'condition' ? (
+        <ConditionFormModal
           pack={pack}
           entry={editingEntry ?? undefined}
           onClose={() => { setFormOpen(null); setEditingEntry(null); }}
@@ -1143,14 +1197,21 @@ const CONTENT_TYPES: Array<{
   key: HomebrewContentType;
   label: string;
   pluralLabel: string;
-  icon: 'auto-awesome' | 'pets' | 'inventory' | 'stars' | 'school' | 'public';
+  icon:
+    | 'auto-awesome' | 'pets' | 'inventory' | 'stars' | 'school' | 'public'
+    | 'menu-book' | 'extension' | 'church' | 'flag' | 'mood-bad';
 }> = [
-  { key: 'spell',    label: 'Spell',    pluralLabel: 'Spells',    icon: 'auto-awesome' },
-  { key: 'creature', label: 'Creature', pluralLabel: 'Creatures', icon: 'pets' },
-  { key: 'item',     label: 'Item',     pluralLabel: 'Items',     icon: 'inventory' },
-  { key: 'feat',     label: 'Feat',     pluralLabel: 'Feats',     icon: 'stars' },
-  { key: 'class',    label: 'Class',    pluralLabel: 'Classes',   icon: 'school' },
-  { key: 'species',  label: 'Species',  pluralLabel: 'Species',   icon: 'public' },
+  { key: 'spell',            label: 'Spell',            pluralLabel: 'Spells',            icon: 'auto-awesome' },
+  { key: 'creature',         label: 'Creature',         pluralLabel: 'Creatures',         icon: 'pets' },
+  { key: 'item',             label: 'Item',             pluralLabel: 'Items',             icon: 'inventory' },
+  { key: 'feat',             label: 'Feat',             pluralLabel: 'Feats',             icon: 'stars' },
+  { key: 'class',            label: 'Class',            pluralLabel: 'Classes',           icon: 'school' },
+  { key: 'subclass',         label: 'Subclass',         pluralLabel: 'Subclasses',        icon: 'flag' },
+  { key: 'species',          label: 'Species',          pluralLabel: 'Species',           icon: 'public' },
+  { key: 'background',       label: 'Background',       pluralLabel: 'Backgrounds',       icon: 'menu-book' },
+  { key: 'optional-feature', label: 'Optional Feature', pluralLabel: 'Optional Features', icon: 'extension' },
+  { key: 'deity',            label: 'Deity',            pluralLabel: 'Deities',           icon: 'church' },
+  { key: 'condition',        label: 'Condition',        pluralLabel: 'Conditions',        icon: 'mood-bad' },
 ];
 
 // Group imported entries by content_type so they render under the same
@@ -1359,6 +1420,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.outlineVariant + '22',
     borderStyle: 'dashed',
+  },
+  // Create Homebrew section — wraps the type buttons in a small
+  // labeled card so the authoring affordance is obviously a creation
+  // surface even when the pack already has imported entries.
+  createSection: {
+    marginBottom: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
   },
   addRow: {
     flexDirection: 'row',

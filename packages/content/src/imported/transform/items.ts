@@ -27,7 +27,7 @@
 // import.
 
 import type { ItemResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -166,7 +166,7 @@ export function transformItems(
         requiresAttunement: !!it.reqAttune,
         rarity: normalizeRarity(it.rarity, isMagic),
         packContents: packContents.length > 0 ? packContents : undefined,
-        srdVersions: [],
+        srdVersions: srdVersionsForSource(it.source),
       };
     });
 }

@@ -495,9 +495,35 @@ export interface SpeciesResult extends ContentResult {
   type: 'species';
   size: 'Small' | 'Medium' | 'Large';
   speed: number;
-  traits: Array<{ name: string; description: string }>;
-  /** Fixed ASI granted by the species (SRD 5.1 style). Empty for SRD 2.0 species. */
+  traits: Array<{
+    name: string;
+    description: string;
+    level?: number;
+    /** When present, the trait offers a "pick one" group of options.
+     *  Renderers list the options as sub-bullets under the lead-in
+     *  description; wizard picker wiring is a follow-up. */
+    options?: Array<{ name: string; description: string }>;
+  }>;
+  /** Fixed ASI granted by the species (SRD 5.1 style). Empty for SRD 2.0
+   *  species (those use Custom Origin / `swapRules.abilityScores: true`
+   *  to let the player distribute their own ASIs). */
   abilityScoreIncreases: Array<{ ability: string; amount: number }>;
+  /**
+   * Player-choice ASIs layered on top of `abilityScoreIncreases`.
+   *  Each entry says "pick `count` abilities, each gets `+amount`,
+   *  from this set." Half-Elf 5.1 ships `[{ count: 2, amount: 1,
+   *  from: [non-CHA abilities] }]` on top of a fixed +2 CHA;
+   *  Variant Human (when we eventually add it) would use the same
+   *  shape. The character creation wizard surfaces a picker per entry.
+   *  Empty / undefined for species with no choice component.
+   */
+  abilityScoreChoices?: Array<{ count: number; amount: number; from: string[] }>;
+  /** Languages always granted by the species (free-text so homebrew
+   *  can reference languages outside the SRD catalog). Empty/undefined
+   *  when the species grants no fixed languages. */
+  languagesFixed?: string[];
+  /** Player-choice language clauses ("Choose one extra language"). */
+  languagesChoices?: Array<{ count: number; from: string[] | 'any' }>;
   /**
    * Per-species permissions for the wizard's Customize Origin step.
    * 2014 species ship all-false (locked to defaults); 2024 species
