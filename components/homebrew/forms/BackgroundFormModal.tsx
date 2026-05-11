@@ -10,9 +10,10 @@ import {
   type HomebrewPackRow,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
-import type { HomebrewBackgroundData } from '@vaultstone/types';
+import type { HomebrewBackgroundData, StartingEquipmentEntry } from '@vaultstone/types';
 import { HomebrewFormShell } from './HomebrewFormShell';
 import { ChipToggleRow } from './ChipToggleRow';
+import { StartingEquipmentEditor } from './StartingEquipmentEditor';
 
 const SKILLS = [
   'Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception',
@@ -60,6 +61,23 @@ export function BackgroundFormModal({ pack, entry, onClose, onSaved }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Scope the item picker to this pack's SRD edition + the pack itself
+  // so authors can reference both core items and other homebrew items
+  // they've authored. 2024 falls through to the SRD 2.0 catalog.
+  const srdVersion: 'SRD_5.1' | 'SRD_2.0' =
+    pack.system === 'dnd5e_2014' ? 'SRD_5.1' : 'SRD_2.0';
+
+  // Split the union-typed startingEquipment into two parallel editor
+  // slots so the form can show both surfaces simultaneously. Authors
+  // can move data from the freeform field to the structured editor at
+  // their own pace; on save we prefer the structured array.
+  const initialEquipmentArray: StartingEquipmentEntry[] =
+    Array.isArray(initial.data.startingEquipment) ? initial.data.startingEquipment : [];
+  const initialEquipmentText: string =
+    typeof initial.data.startingEquipment === 'string' ? initial.data.startingEquipment : '';
+  const [equipmentArray, setEquipmentArray] = useState<StartingEquipmentEntry[]>(initialEquipmentArray);
+  const [equipmentText, setEquipmentText] = useState<string>(initialEquipmentText);
+
   function patch<K extends keyof HomebrewBackgroundData>(key: K, value: HomebrewBackgroundData[K]) {
     setData((prev) => ({ ...prev, [key]: value }));
   }
@@ -80,19 +98,23 @@ export function BackgroundFormModal({ pack, entry, onClose, onSaved }: Props) {
     setSubmitting(true);
     setError('');
 
-    // `startingEquipment` is union-typed (legacy string | new array).
-    // This form still authors the freeform string today — Phase 2 of
-    // the structured-equipment work replaces this with an item picker.
-    // Trim only when it's a string; arrays pass through untouched.
-    const trimmedEquipment =
-      typeof data.startingEquipment === 'string'
-        ? (data.startingEquipment.trim() || null)
-        : data.startingEquipment;
+    // Reconcile the structured editor + the legacy freeform slot into
+    // a single union value. Prefer the array when it has content; fall
+    // back to the trimmed string; otherwise null. This is what writes
+    // to the union-typed `HomebrewBackgroundData.startingEquipment`.
+    let finalEquipment: HomebrewBackgroundData['startingEquipment'];
+    if (equipmentArray.length > 0) {
+      finalEquipment = equipmentArray;
+    } else {
+      const trimmed = equipmentText.trim();
+      finalEquipment = trimmed.length > 0 ? trimmed : null;
+    }
+
     const finalData: HomebrewBackgroundData = {
       ...data,
       toolProficiency: data.toolProficiency?.trim() || null,
       originFeat: data.originFeat.trim(),
-      startingEquipment: trimmedEquipment,
+      startingEquipment: finalEquipment,
     };
 
     if (entry) {
@@ -186,18 +208,36 @@ export function BackgroundFormModal({ pack, entry, onClose, onSaved }: Props) {
         onChangeText={(t) => patch('originFeat', t)}
       />
 
+      {/* Structured editor — preferred. The wizard's character-creation
+          finish flow resolves each item's `itemKey` against the items
+          catalog and grants the listed items + gold to the new
+          character's inventory. */}
+      <StartingEquipmentEditor
+        value={equipmentArray}
+        onChange={setEquipmentArray}
+        packIds={[pack.id]}
+        srdVersion={srdVersion}
+      />
+
+      {/* Legacy freeform fallback. Used when authoring a pre-structured
+          background or quickly noting equipment that doesn't map to
+          catalog items. The sheet renders this text verbatim; the
+          wizard does NOT grant items from it. Once the structured
+          editor above has content, this string is ignored on save. */}
       <Input
-        label="Starting equipment"
+        label="Starting equipment (freeform fallback)"
         placeholder="Brewer's supplies, a wineskin, 10 gp"
-        // Legacy freeform field. If the entry was authored with a
-        // structured array (Phase 2 work), display a placeholder note
-        // here and leave the array editor as the source of truth.
-        value={typeof data.startingEquipment === 'string' ? data.startingEquipment : ''}
-        onChangeText={(t) => patch('startingEquipment', t || null)}
+        value={equipmentText}
+        onChangeText={setEquipmentText}
         multiline
         numberOfLines={2}
         style={{ minHeight: 60, textAlignVertical: 'top' }}
       />
+      {equipmentArray.length > 0 && equipmentText.trim().length > 0 ? (
+        <Text variant="body-sm" tone="secondary">
+          The structured editor above takes precedence — this freeform note will be ignored on save.
+        </Text>
+      ) : null}
 
       <SectionHeader title="Description" meta="Required" />
       <Input

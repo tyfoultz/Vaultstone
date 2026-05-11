@@ -24,7 +24,7 @@
 //   skipped in v1 — resolving them needs a base lookup; the import
 //   doesn't crash, but those entries don't import.
 
-import type { BackgroundResult, ImportSource } from '@vaultstone/types';
+import type { BackgroundResult, ImportSource, StartingEquipmentEntry } from '@vaultstone/types';
 import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry, type RawEntryObject } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
@@ -98,13 +98,19 @@ export function transformBackgrounds(
         languages: extractLanguageCount(b.languageProficiencies),
         abilityScoreOptions: extractAbilityOptions(b.ability),
         originFeat: extractOriginFeat(b.feats),
-        // Structured parser is the Phase 2 work for this feature.
-        // For now we surface the legacy freeform string through
-        // `startingEquipmentText` so the sheet still shows it; the
-        // array stays empty until a future commit fills it in from a
-        // parsed-string source.
-        startingEquipment: [],
-        startingEquipmentText: extractStartingEquipment(b.entries ?? []),
+        // Two-pass: extract the freeform string from 5e.tools entries,
+        // then try to parse it into the structured shape. The parser is
+        // best-effort — when it can't make sense of the prose we leave
+        // the array empty and surface the original string through
+        // `startingEquipmentText` for display-only fallback.
+        ...(() => {
+          const text = extractStartingEquipment(b.entries ?? []);
+          if (!text) return { startingEquipment: [], startingEquipmentText: null };
+          const parsed = parseStartingEquipment(text);
+          return parsed.length > 0
+            ? { startingEquipment: parsed, startingEquipmentText: text }
+            : { startingEquipment: [], startingEquipmentText: text };
+        })(),
         srdVersions: srdVersionsForSource(b.source),
       };
     });
@@ -178,6 +184,114 @@ function extractStartingEquipment(entries: RawEntry[]): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Best-effort parse of a freeform starting-equipment paragraph into the
+ * structured shape. Returns an empty array when the input is too
+ * irregular to safely break apart — caller falls back to the original
+ * text under `startingEquipmentText` in that case.
+ *
+ * Handles the 2024-style "*Choose A or B:* (A) Foo, Bar, 8 GP; or (B)
+ * 50 GP" form cleanly. The 5.1 prose form ("a holy symbol, vestments,
+ * and a pouch containing 15 gp") gets a single-option parse with
+ * unkeyed item names — the wizard won't auto-grant them, but the
+ * structure is at least correct.
+ *
+ * Item names land with `name` only (no `itemKey`). Resolving names to
+ * catalog keys is the wizard's job — bare names render in the sheet
+ * but don't auto-populate inventory.
+ *
+ * Known weaknesses (acceptable for v1):
+ * - "X and 2d4 × 10 gp" with no comma before "and" is treated as a
+ *   single gold-bearing segment; the leading "X" is lost. The 5.1
+ *   convention is "X, and Y" with the Oxford comma — that case parses
+ *   correctly.
+ * - Item quantities embedded in prose ("5 sticks of incense") stay
+ *   inside the `name` field; no `qty` is split out.
+ */
+export function parseStartingEquipment(input: string): StartingEquipmentEntry[] {
+  const cleaned = input
+    // Strip leading "*Choose A or B:*" / "Choose one of:" prefixes.
+    .replace(/^\*?\s*Choose [^:]+:\*?\s*/i, '')
+    // Strip surrounding italics / bold marks.
+    .replace(/[*_]+/g, '')
+    .trim();
+  if (!cleaned) return [];
+
+  // 2024 form: "(A) ... ; or (B) ..." — split on the option markers.
+  const optionPattern = /\(([A-Z])\)\s*/g;
+  const matches = [...cleaned.matchAll(optionPattern)];
+  if (matches.length >= 2) {
+    const out: StartingEquipmentEntry[] = [];
+    for (let i = 0; i < matches.length; i++) {
+      const label = matches[i][1];
+      const start = matches[i].index! + matches[i][0].length;
+      const end = i + 1 < matches.length ? matches[i + 1].index! : cleaned.length;
+      let segment = cleaned.slice(start, end).trim();
+      // Drop trailing "; or" that connects to the next option.
+      segment = segment.replace(/[;,]\s*or\s*$/i, '').trim();
+      const opt = parseOptionSegment(segment);
+      out.push({ label, ...opt });
+    }
+    return out;
+  }
+
+  // Single option — flat list.
+  return [parseOptionSegment(cleaned)];
+}
+
+function parseOptionSegment(segment: string): StartingEquipmentEntry {
+  // Split on commas and semicolons. The Oxford "and" before the last
+  // entry is common in 5.1 prose ("X, Y, and Z") — normalize it to a
+  // comma so the split picks up the last entry.
+  const normalized = segment.replace(/,\s*and\s+/i, ', ');
+  const segments = normalized
+    .split(/[,;]/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  const items: { name: string }[] = [];
+  let gold: StartingEquipmentEntry['gold'] | undefined;
+
+  for (const seg of segments) {
+    const goldMatch = parseGoldSegment(seg);
+    if (goldMatch) {
+      gold = goldMatch;
+      continue;
+    }
+    items.push({ name: seg });
+  }
+
+  const out: StartingEquipmentEntry = {};
+  if (items.length > 0) out.items = items;
+  if (gold) out.gold = gold;
+  return out;
+}
+
+/**
+ * Match a single segment as a gold-or-currency clause. Handles:
+ *   "8 GP" / "50 gp" / "15 cp"           — fixed amount
+ *   "a pouch containing 15 gp"           — prose-wrapped fixed amount
+ *   "2d4 × 10 gp" / "2d4 x 10 gp"        — dice expression (5.1 style)
+ * Returns undefined when the segment doesn't read as a currency clause.
+ */
+function parseGoldSegment(segment: string): StartingEquipmentEntry['gold'] | undefined {
+  const currencyRe = /\b(cp|sp|ep|gp|pp)\b/i;
+  if (!currencyRe.test(segment)) return undefined;
+  const currency = segment.match(currencyRe)![1].toLowerCase() as 'cp' | 'sp' | 'ep' | 'gp' | 'pp';
+
+  // Dice form: "2d4 × 10 gp" / "2d4 x 10 gp"
+  const diceMatch = segment.match(/(\d+d\d+(?:\s*[×x]\s*\d+)?)/i);
+  if (diceMatch) {
+    return { dice: diceMatch[1].replace(/\s+/g, ' '), currency };
+  }
+  // Fixed amount.
+  const amountMatch = segment.match(/(\d+)\s*(?:cp|sp|ep|gp|pp)\b/i);
+  if (amountMatch) {
+    return { amount: parseInt(amountMatch[1], 10), currency };
+  }
+  return undefined;
 }
 
 
