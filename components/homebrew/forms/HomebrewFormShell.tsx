@@ -145,6 +145,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
+    // Reserve space for the web scrollbar so it doesn't overlap the
+    // rightmost form fields (remove buttons, level inputs, etc.).
+    paddingRight: spacing.sm,
   },
   body: {
     gap: spacing.md,

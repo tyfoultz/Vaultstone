@@ -215,28 +215,29 @@ export function SpeciesFormModal({ pack, entry, onClose, onSaved }: Props) {
         autoFocus={!entry}
       />
 
-      <View>
-        <MetaLabel size="sm">Size</MetaLabel>
-        <ChipToggleRow
-          options={SIZES}
-          values={[data.size]}
-          onChange={(next) => {
-            const picked = next.find((v) => v !== data.size) ?? data.size;
-            patch('size', picked);
-          }}
-        />
-      </View>
-
-      <View style={{ width: 160 }}>
-        <MetaLabel size="sm">Speed (ft.)</MetaLabel>
-        <Input
-          keyboardType="numeric"
-          value={String(data.speed)}
-          onChangeText={(t) => {
-            const n = parseInt(t, 10);
-            patch('speed', Number.isFinite(n) ? n : 0);
-          }}
-        />
+      <View style={styles.sizeSpeedRow}>
+        <View style={{ flex: 1 }}>
+          <MetaLabel size="sm">Size</MetaLabel>
+          <ChipToggleRow
+            options={SIZES}
+            values={[data.size]}
+            onChange={(next) => {
+              const picked = next.find((v) => v !== data.size) ?? data.size;
+              patch('size', picked);
+            }}
+          />
+        </View>
+        <View style={{ width: 140 }}>
+          <MetaLabel size="sm">Speed (ft.)</MetaLabel>
+          <Input
+            keyboardType="numeric"
+            value={String(data.speed)}
+            onChangeText={(t) => {
+              const n = parseInt(t, 10);
+              patch('speed', Number.isFinite(n) ? n : 0);
+            }}
+          />
+        </View>
       </View>
 
       <SectionHeader title="Description" meta="Required" />
@@ -445,6 +446,9 @@ function normalize(d: Partial<HomebrewSpeciesData>): HomebrewSpeciesData {
 }
 
 const styles = StyleSheet.create({
+  sizeSpeedRow: {
+    flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start',
+  },
   asiGrid: {
     flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs + 2,
   },
@@ -454,6 +458,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs + 2,
     borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.outlineVariant + '55',
+    // 3 rows per line. We subtract a few px from 33.33% so the
+    // sibling `gap` doesn't push the third column to wrap.
+    flexBasis: '32%',
+    flexGrow: 1,
     minWidth: 140,
   },
   asiLabel: { width: 38 },
