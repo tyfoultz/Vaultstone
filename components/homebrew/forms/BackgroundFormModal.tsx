@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { View } from 'react-native';
-import { Input, MetaLabel, SectionHeader } from '@vaultstone/ui';
+import { Input, MetaLabel, SectionHeader, Text, colors } from '@vaultstone/ui';
 import {
   createHomebrewEntry,
   updateHomebrewEntry,
@@ -68,6 +68,15 @@ export function BackgroundFormModal({ pack, entry, onClose, onSaved }: Props) {
     if (!user) return;
     if (!name.trim()) { setError('Background name is required.'); return; }
     if (!data.description.trim()) { setError('Description is required.'); return; }
+    // The 2024 ASI allocator expects exactly 3 eligible abilities (the
+    // player distributes +2/+1 or +1/+1/+1 across them). Allow zero for
+    // 5.1-style backgrounds that grant no ASI; anything in between would
+    // confuse the wizard's allocator.
+    const asiCount = data.abilityScoreOptions.length;
+    if (asiCount !== 0 && asiCount !== 3) {
+      setError('Pick exactly 3 ability score options (2024 style) or leave empty (5.1 style).');
+      return;
+    }
     setSubmitting(true);
     setError('');
 
@@ -144,12 +153,22 @@ export function BackgroundFormModal({ pack, entry, onClose, onSaved }: Props) {
       />
 
       <View>
-        <MetaLabel size="sm">Ability score options (2024 — pick the three abilities the +2/+1 distributes across)</MetaLabel>
+        <MetaLabel size="sm">Ability score options</MetaLabel>
+        <Text variant="body-sm" tone="secondary" style={{ marginTop: 2, marginBottom: 6 }}>
+          2024 style: pick exactly 3 abilities. The player chooses how to distribute
+          +2/+1 or +1/+1/+1 across them at character creation.
+          {'\n'}5.1 style: leave empty (5.1 backgrounds don&apos;t grant ASI).
+        </Text>
         <ChipToggleRow
           options={ABILITIES}
           values={data.abilityScoreOptions}
           onChange={(next) => patch('abilityScoreOptions', next)}
         />
+        {data.abilityScoreOptions.length > 0 && data.abilityScoreOptions.length !== 3 ? (
+          <Text variant="body-sm" style={{ color: colors.hpDanger, marginTop: 4 }}>
+            {`Pick exactly 3 abilities (currently ${data.abilityScoreOptions.length}), or clear all to ship a 5.1-style background.`}
+          </Text>
+        ) : null}
       </View>
 
       <Input
