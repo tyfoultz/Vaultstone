@@ -67,15 +67,57 @@ export interface HomebrewCreatureData {
   hp: number;
   /** "12d8 + 36" — free text expression. */
   hitDice?: string;
-  /** Free-text speed line: "30 ft., fly 60 ft.". */
+  /** Free-text speed line: "30 ft., fly 60 ft.". Kept for legacy rows
+   *  and as a display fallback when `speeds` is empty. New entries
+   *  should populate `speeds` instead — the resolver synthesizes the
+   *  display string from it when present. */
   speed: string;
+  /** Structured per-mode speeds in feet. `hover` is a boolean flag on
+   *  fliers; only set it when the creature hovers (Beholder, etc.). */
+  speeds?: { walk?: number; fly?: number; swim?: number; climb?: number; burrow?: number; hover?: boolean };
   /** "1/8" | "1/4" | "1/2" | numeric for whole CRs. */
   challengeRating: string;
   /** XP awarded — defaults populated by CR but editable. */
   xp?: number;
+  /** Proficiency bonus. When omitted the resolver derives it from CR
+   *  (CR 0-4 → +2, 5-8 → +3, …). Override for outliers. */
+  proficiencyBonus?: number;
   abilityScores: { str: number; dex: number; con: number; int: number; wis: number; cha: number };
+  /** Proficient saving throws. Keyed by ability — the value is the
+   *  final bonus the renderer shows ("Save: STR +5"). Authors enter
+   *  the total here directly; we don't auto-derive from prof bonus
+   *  because some creatures get bespoke bonuses. */
+  savingThrows?: Partial<Record<'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha', number>>;
+  /** Proficient skills — { skillKey: total bonus }. Snake_case skill keys
+   *  to match the canonical 5e list. */
+  skills?: Record<string, number>;
+  /** Special senses in feet. `passivePerception` overrides the
+   *  derived value when present. */
+  senses?: {
+    darkvision?: number;
+    blindsight?: number;
+    tremorsense?: number;
+    truesight?: number;
+    passivePerception?: number;
+  };
+  /** Free-text languages line ("Common, Draconic", "understands Common
+   *  but can't speak"). */
+  languages?: string;
+  damageResistances?: string[];
+  damageImmunities?: string[];
+  damageVulnerabilities?: string[];
+  conditionImmunities?: string[];
+  /** Always-on traits ("Pack Tactics", "Magic Resistance"). */
+  traits?: Array<{ name: string; description: string }>;
+  /** Activated abilities. `actionType` discriminates Action vs Bonus
+   *  Action vs Reaction vs Legendary Action — matches the
+   *  CreatureResult shape. */
+  actions?: Array<{ name: string; description: string; actionType?: string }>;
+  /** Environment tags ("forest", "underdark", "arctic"). */
+  environments?: string[];
   description: string;
-  /** Free-form notes for traits / actions until the structured editor lands. */
+  /** Legacy free-form notes from pre-structured rows. The resolver
+   *  surfaces it as a single fallback trait when `traits` is empty. */
   traitsNotes?: string;
 }
 

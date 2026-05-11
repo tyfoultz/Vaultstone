@@ -262,6 +262,21 @@ async function fetchAllPaginated<T>(
  * the same shapes the SRD/imported tiers use, then pump them through
  * the shared content-table list components.
  */
+// Render a structured creature-speed object as the canonical display
+// line ("30 ft., fly 60 ft. (hover)"). Walking speed leads when set,
+// then non-walking modes in stat-block order. Empty object → "—".
+function buildSpeedDisplay(s: NonNullable<HomebrewCreatureData['speeds']>): string {
+  const parts: string[] = [];
+  if (typeof s.walk === 'number' && s.walk > 0) parts.push(`${s.walk} ft.`);
+  if (typeof s.fly === 'number' && s.fly > 0) {
+    parts.push(`fly ${s.fly} ft.${s.hover ? ' (hover)' : ''}`);
+  }
+  if (typeof s.swim === 'number' && s.swim > 0) parts.push(`swim ${s.swim} ft.`);
+  if (typeof s.climb === 'number' && s.climb > 0) parts.push(`climb ${s.climb} ft.`);
+  if (typeof s.burrow === 'number' && s.burrow > 0) parts.push(`burrow ${s.burrow} ft.`);
+  return parts.length > 0 ? parts.join(', ') : '—';
+}
+
 export function mapEntryToResult(
   entry: HomebrewContentRow,
   pack: HomebrewPackRow,
@@ -312,6 +327,22 @@ export function mapEntryToResult(
     }
     case 'creature': {
       const d = entry.data as HomebrewCreatureData;
+      // Synthesize a single fallback trait from `traitsNotes` when the
+      // structured `traits` array is empty — same migration pattern
+      // species uses. Authors who already moved their prose into the
+      // structured editor never hit this branch.
+      const structuredTraits = d.traits ?? [];
+      const traits = structuredTraits.length > 0
+        ? structuredTraits
+        : d.traitsNotes && d.traitsNotes.trim()
+          ? [{ name: 'Traits & Actions', description: d.traitsNotes.trim() }]
+          : undefined;
+      // Build a display speed string from `speeds` when present so
+      // existing UI that reads `speed` keeps working without changes.
+      // Legacy `speed` wins when no structured speeds are set.
+      const speedDisplay = d.speeds && Object.values(d.speeds).some((v) => v != null && v !== false)
+        ? buildSpeedDisplay(d.speeds)
+        : (d.speed ?? '30 ft.');
       const result: CreatureResult = {
         ...base,
         type: 'monster',
@@ -322,11 +353,41 @@ export function mapEntryToResult(
         alignment: d.alignment ?? '',
         ac: d.ac ?? 10,
         hp: d.hp ?? 1,
-        speed: d.speed ?? '30 ft.',
+        speed: speedDisplay,
         armorDetail: d.armorDetail,
         hitDice: d.hitDice,
         xp: d.xp,
+        proficiencyBonus: d.proficiencyBonus,
         abilityScores: d.abilityScores ?? { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+        abilityModifiers: d.abilityScores
+          ? {
+              str: Math.floor((d.abilityScores.str - 10) / 2),
+              dex: Math.floor((d.abilityScores.dex - 10) / 2),
+              con: Math.floor((d.abilityScores.con - 10) / 2),
+              int: Math.floor((d.abilityScores.int - 10) / 2),
+              wis: Math.floor((d.abilityScores.wis - 10) / 2),
+              cha: Math.floor((d.abilityScores.cha - 10) / 2),
+            }
+          : undefined,
+        ...(d.speeds ? { speeds: d.speeds } : {}),
+        ...(d.savingThrows && Object.keys(d.savingThrows).length > 0
+          ? { savingThrows: d.savingThrows } : {}),
+        ...(d.skills && Object.keys(d.skills).length > 0
+          ? { skills: d.skills } : {}),
+        ...(d.senses && Object.values(d.senses).some((v) => v != null)
+          ? { senses: d.senses } : {}),
+        ...(d.languages ? { languages: d.languages } : {}),
+        ...(d.damageResistances && d.damageResistances.length > 0
+          ? { damageResistances: d.damageResistances } : {}),
+        ...(d.damageImmunities && d.damageImmunities.length > 0
+          ? { damageImmunities: d.damageImmunities } : {}),
+        ...(d.damageVulnerabilities && d.damageVulnerabilities.length > 0
+          ? { damageVulnerabilities: d.damageVulnerabilities } : {}),
+        ...(d.conditionImmunities && d.conditionImmunities.length > 0
+          ? { conditionImmunities: d.conditionImmunities } : {}),
+        ...(traits ? { traits } : {}),
+        ...(d.actions && d.actions.length > 0 ? { actions: d.actions } : {}),
+        ...(d.environments && d.environments.length > 0 ? { environments: d.environments } : {}),
       };
       return result;
     }
