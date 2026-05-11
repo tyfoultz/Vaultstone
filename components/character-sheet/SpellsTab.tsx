@@ -326,30 +326,27 @@ export function SpellsTab({
 
       {/* ── Cantrips ── */}
       {cantrips.length > 0 && (
-        <View style={s.section}>
-          <View style={s.sectionHead}>
-            <Text style={s.sectionHeadLabel}>CANTRIP</Text>
+        <View style={s.levelSection}>
+          <View style={s.levelHead}>
+            <Text style={s.levelTitle}>Cantrips</Text>
+            <Text style={s.levelSub}>At will</Text>
           </View>
-          <ColHeaders isWide={isWide} />
-          {cantrips.map((spell, i) => (
-            <SpellRow
-              key={spell.id}
-              spell={spell}
-              isLast={i === cantrips.length - 1}
-              isWide={isWide}
-              isOwner={isOwner}
-            />
+          {cantrips.map((spell) => (
+            <SpellRow key={spell.id} spell={spell} />
           ))}
         </View>
       )}
 
       {/* ── Leveled spell groups ── */}
       {leveledGroups.map(({ level, spells, slot }) => (
-        <View key={level} style={s.section}>
-          <View style={s.sectionHead}>
-            <Text style={s.sectionHeadLabel}>{LEVEL_LABELS[level]}</Text>
+        <View key={level} style={s.levelSection}>
+          <View style={s.levelHead}>
+            <Text style={s.levelTitle}>{`${ordinal(level)} Level`}</Text>
             {slot && slot.max > 0 && (
-              <View style={s.slotRow}>
+              <Text style={s.levelSub}>{`${slot.remaining} of ${slot.max} slots`}</Text>
+            )}
+            {slot && slot.max > 0 && (
+              <View style={s.slotPipsRow}>
                 {Array.from({ length: slot.max }).map((_, i) => (
                   <TouchableOpacity
                     key={i}
@@ -359,23 +356,14 @@ export function SpellsTab({
                     }}
                     activeOpacity={isOwner ? 0.7 : 1}
                   >
-                    <View style={[s.slotBox, i < slot.remaining && s.slotBoxFull]} />
+                    <View style={[s.pip, i < slot.remaining && s.pipFilled]} />
                   </TouchableOpacity>
                 ))}
-                <Text style={s.slotsLabel}>SLOTS</Text>
               </View>
             )}
           </View>
-          {spells.length > 0 && <ColHeaders isWide={isWide} />}
-          {spells.map((spell, i) => (
-            <SpellRow
-              key={spell.id}
-              spell={spell}
-              isLast={i === spells.length - 1}
-              slot={slot}
-              isOwner={isOwner}
-              isWide={isWide}
-            />
+          {spells.map((spell) => (
+            <SpellRow key={spell.id} spell={spell} slot={slot} />
           ))}
           {spells.length === 0 && slot && slot.max > 0 && (
             <Text style={s.emptyLevel}>No spells prepared at this level</Text>
@@ -420,108 +408,73 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
   );
 }
 
-function ColHeaders({ isWide }: { isWide: boolean }) {
-  return (
-    <View style={s.colHead}>
-      <View style={s.colBadge} />
-      <Text style={[s.colLabel, s.colName]}>NAME</Text>
-      <Text style={[s.colLabel, s.colTime]}>TIME</Text>
-      <Text style={[s.colLabel, s.colRange]}>RANGE</Text>
-      {isWide && <Text style={[s.colLabel, s.colHit]}>HIT / DC</Text>}
-      {isWide && <Text style={[s.colLabel, s.colEffect]}>EFFECT</Text>}
-      <Text style={[s.colLabel, s.colNotes]}>NOTES</Text>
-    </View>
-  );
+// 1 → "1st", 2 → "2nd", etc. — used in the level section header.
+function ordinal(n: number): string {
+  const suffixes = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (suffixes[(v - 20) % 10] ?? suffixes[v] ?? suffixes[0]);
 }
 
 function SpellRow({
-  spell, isLast, slot, isWide,
+  spell, slot,
 }: {
   spell: Dnd5ePreparedSpell;
-  isLast: boolean;
   slot?: { max: number; remaining: number } | null;
-  /** Reserved for future per-row actions; currently unused since removal
-   *  lives in the Manage Spells modal instead of inline. */
-  isOwner?: boolean;
-  isWide?: boolean;
 }) {
   const isCantrip = spell.level === 0;
-  const hasSlots = slot ? slot.remaining > 0 : false;
+  const canCast = isCantrip || (slot?.remaining ?? 0) > 0;
 
   return (
-    <View style={[!isLast && s.spellRowBorder, s.spellRowExpandedWrap]}>
-      <View style={s.spellRow}>
-
-        {/* Badge: AT WILL or USE */}
-        <View style={s.colBadge}>
-          {isCantrip ? (
-            <View style={s.badgeAtWill}>
-              <Text style={s.badgeAtWillText}>AT{'\n'}WILL</Text>
-            </View>
-          ) : (
-            <View style={[s.badgeUse, !hasSlots && s.badgeUsed]}>
-              <Text style={[s.badgeUseText, !hasSlots && s.badgeUsedText]}>USE</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Spell name + optional school chip */}
-        <View style={s.colName}>
-          <View style={s.nameInner}>
-            <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
-            {spell.ritual && (
-              <MaterialCommunityIcons name="rotate-right" size={10} color={colors.outline} />
-            )}
-            {spell.concentration && (
-              <MaterialCommunityIcons name="diamond-stone" size={10} color={colors.outline} />
-            )}
+    <View style={s.spellCard}>
+      <View style={s.spellHead}>
+        <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
+        {spell.school ? (
+          <View style={s.schoolChip}>
+            <Text style={s.schoolChipText} numberOfLines={1}>{capitalize(spell.school)}</Text>
           </View>
-        </View>
-
-        {/* Stat columns */}
-        <Text style={[s.cellText, s.colTime]} numberOfLines={1}>{spell.castingTime ?? '1A'}</Text>
-        <Text style={[s.cellText, s.colRange]} numberOfLines={1}>{spell.range ?? '—'}</Text>
-        {isWide && <Text style={[s.cellText, s.colHit]} numberOfLines={1}>{spell.hitDc ?? '—'}</Text>}
-        {isWide && spell.school ? (
-          <View style={s.colEffect}>
-            <View style={s.schoolChip}>
-              <Text style={s.schoolChipText} numberOfLines={1}>{capitalize(spell.school)}</Text>
-            </View>
-          </View>
-        ) : isWide ? (
-          <Text style={[s.cellText, s.colEffect]} numberOfLines={1}>—</Text>
         ) : null}
-        <Text style={[s.cellText, s.colNotes]} numberOfLines={2}>{spell.notes ?? '—'}</Text>
+        {spell.ritual ? (
+          <View style={s.badgeIcon}>
+            <Text style={s.badgeIconText}>R</Text>
+          </View>
+        ) : null}
+        {spell.concentration ? (
+          <View style={[s.badgeIcon, s.badgeIconConc]}>
+            <Text style={[s.badgeIconText, s.badgeIconTextConc]}>C</Text>
+          </View>
+        ) : null}
+        <View style={[s.castBtn, !canCast && s.castBtnDisabled, isCantrip && s.castBtnAtWill]}>
+          <Text style={[s.castBtnText, !canCast && s.castBtnTextDisabled, isCantrip && s.castBtnTextAtWill]}>
+            {isCantrip ? 'At Will' : 'Cast'}
+          </Text>
+        </View>
       </View>
 
-      <View style={s.spellRowExpansion}>
-          <View style={s.spellMetaGrid}>
-            {spell.castingTime ? <SpellMeta label="Casting Time" value={spell.castingTime} /> : null}
-            {spell.range ? <SpellMeta label="Range" value={spell.range} /> : null}
-            {spell.components && spell.components.length > 0 ? (
-              <SpellMeta label="Components" value={spell.components.join(', ')} />
-            ) : null}
-            {spell.duration ? <SpellMeta label="Duration" value={spell.duration} /> : null}
-            {spell.school ? <SpellMeta label="School" value={capitalize(spell.school)} /> : null}
-            {spell.source ? <SpellMeta label="Source" value={spell.source} /> : null}
-          </View>
-          {spell.description ? (
-            <Text style={s.spellDescription}>{spell.description}</Text>
-          ) : (
-            <Text style={s.spellDescriptionMissing}>
-              No description on file — re-add this spell through Manage Spells to fetch the latest text.
-            </Text>
-          )}
+      <View style={s.metaStrip}>
+        {spell.castingTime ? <MetaItem label="Time" value={spell.castingTime} /> : null}
+        {spell.range ? <MetaItem label="Range" value={spell.range} /> : null}
+        {spell.components && spell.components.length > 0 ? (
+          <MetaItem label="Comp" value={spell.components.join(', ')} />
+        ) : null}
+        {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
       </View>
+
+      {spell.description ? (
+        <Text style={s.descText}>{spell.description}</Text>
+      ) : (
+        <Text style={s.descMissing}>
+          No description on file — re-add this spell through Manage Spells to fetch the latest text.
+        </Text>
+      )}
     </View>
   );
 }
 
-function SpellMeta({ label, value }: { label: string; value: string }) {
+function MetaItem({ label, value }: { label: string; value: string }) {
   return (
-    <View style={s.spellMetaCell}>
-      <Text style={s.spellMetaLabel}>{label}</Text>
-      <Text style={s.spellMetaValue}>{value}</Text>
+    <View style={s.metaItem}>
+      <Text style={s.metaItemLabel}>{label}</Text>
+      <Text style={s.metaItemValue} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -654,135 +607,114 @@ const s = StyleSheet.create({
   },
   concEndText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
 
-  // Spell sections
-  section: { marginTop: 6 },
-  sectionHead: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  // ── Level section + slot pips ───────────────────────────────────────────
+  levelSection: { paddingHorizontal: 12, marginTop: 18 },
+  levelHead: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    marginBottom: 10, paddingHorizontal: 4,
   },
-  sectionHeadLabel: {
-    fontSize: 12, fontFamily: fonts.label, fontWeight: '800', letterSpacing: 1.5, color: colors.primary,
+  levelTitle: {
+    fontFamily: fonts.headline, fontWeight: '600',
+    fontSize: 14, color: colors.onSurface,
+    textTransform: 'uppercase', letterSpacing: 1.4,
   },
-  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  slotBox: {
-    width: 16, height: 16, borderRadius: 2,
-    borderWidth: 1.5, borderColor: colors.outlineVariant,
-  },
-  slotBoxFull: { backgroundColor: colors.primary, borderColor: colors.primary },
-  slotsLabel: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.5, color: colors.outline, marginLeft: 2,
-  },
-
-  // Column headers
-  colHead: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 5,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
-  },
-  colLabel: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.2, color: colors.outline,
-  },
-
-  // Column layout (shared between header + spell rows)
-  colBadge: { width: 50 },
-  colName: { flex: 1.5, minWidth: 80 },
-  colTime: { width: 38 },
-  colRange: { width: 68, paddingLeft: 4 },
-  colHit: { width: 56, paddingLeft: 4 },
-  colEffect: { width: 76, paddingLeft: 4 },
-  colNotes: { flex: 1, minWidth: 60, paddingLeft: 4 },
-
-  // Spell rows
-  spellRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 9,
-  },
-  spellRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  // When a row is expanded, the wrapper carries a darker canvas so the
-  // expansion + row read as one card (matches the Manage Spells modal).
-  spellRowExpandedWrap: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderBottomColor: 'transparent',
-  },
-  spellRowExpansion: {
-    paddingHorizontal: 18, paddingTop: 4, paddingBottom: 14,
-  },
-  spellMetaGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10,
-  },
-  spellMetaCell: {
-    minWidth: 120, paddingVertical: 4, paddingRight: 6,
-  },
-  spellMetaLabel: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.2, color: colors.outline, textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  spellMetaValue: {
-    fontSize: 12, fontFamily: fonts.body, color: colors.onSurface, fontWeight: '500',
-  },
-  spellDescription: {
-    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant,
-    lineHeight: 18,
-  },
-  spellDescriptionMissing: {
-    fontSize: 11, fontFamily: fonts.body, color: colors.outline,
-    fontStyle: 'italic', lineHeight: 16,
-  },
-  // School chip — replaces the plain "Conjuration" text in the EFFECT
-  // column. Visual hierarchy lift only; the data is unchanged.
-  schoolChip: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8, paddingVertical: 2,
+  levelSub: { fontSize: 11, color: colors.onSurfaceVariant, letterSpacing: 0.4 },
+  slotPipsRow: { marginLeft: 'auto', flexDirection: 'row', gap: 6 },
+  pip: {
+    width: 14, height: 14, borderRadius: 4,
     backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: 4,
+  },
+  pipFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
+
+  // ── Spell card ──────────────────────────────────────────────────────────
+  spellCard: {
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 12,
+    paddingVertical: 14, paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  spellHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  spellName: {
+    fontFamily: fonts.headline, fontWeight: '600',
+    fontSize: 16, color: colors.onSurface, letterSpacing: 0.1,
+    flexShrink: 1,
+  },
+  schoolChip: {
+    paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 999,
   },
   schoolChipText: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 0.6, color: colors.onSurfaceVariant, textTransform: 'uppercase',
+    fontFamily: fonts.label, fontWeight: '600',
+    fontSize: 9, color: colors.onSurfaceVariant,
+    textTransform: 'uppercase', letterSpacing: 0.7,
   },
-  removeBtn: { paddingHorizontal: 4, paddingVertical: 4, marginLeft: 4 },
+  badgeIcon: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  badgeIconText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant,
+  },
+  badgeIconConc: { borderColor: `${colors.primary}66` },
+  badgeIconTextConc: { color: colors.primary },
+  castBtn: {
+    marginLeft: 'auto',
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: colors.primaryContainer,
+    borderWidth: 1, borderColor: `${colors.primary}40`,
+  },
+  castBtnAtWill: {
+    backgroundColor: 'transparent',
+    borderColor: colors.outlineVariant,
+  },
+  castBtnDisabled: {
+    backgroundColor: colors.surfaceContainerHighest,
+    borderColor: colors.outlineVariant,
+    opacity: 0.6,
+  },
+  castBtnText: {
+    fontFamily: fonts.label, fontWeight: '600',
+    fontSize: 11, color: colors.primary,
+    textTransform: 'uppercase', letterSpacing: 1.1,
+  },
+  castBtnTextAtWill: { color: colors.onSurfaceVariant },
+  castBtnTextDisabled: { color: colors.outline },
 
-  // AT WILL badge (cantrips)
-  badgeAtWill: {
-    width: 36, alignItems: 'center',
-    paddingVertical: 3,
-    borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: 3,
+  metaStrip: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    gap: 18,
+    marginTop: 12,
   },
-  badgeAtWillText: {
-    fontSize: 7, fontFamily: fonts.label, fontWeight: '800',
-    letterSpacing: 0.3, textAlign: 'center', lineHeight: 9, color: colors.outline,
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaItemLabel: {
+    fontFamily: fonts.label, fontWeight: '600',
+    fontSize: 9, color: colors.outline,
+    textTransform: 'uppercase', letterSpacing: 0.7,
+  },
+  metaItemValue: {
+    fontSize: 13, color: colors.onSurfaceVariant, fontFamily: fonts.body,
   },
 
-  // USE badge (leveled spells)
-  badgeUse: {
-    width: 36, alignItems: 'center',
-    paddingVertical: 5,
-    backgroundColor: colors.primary, borderRadius: 3,
+  descText: {
+    marginTop: 12, paddingTop: 12,
+    fontSize: 13, lineHeight: 20,
+    color: colors.onSurfaceVariant, fontFamily: fonts.body,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
   },
-  badgeUsed: { backgroundColor: colors.surfaceContainerHighest, opacity: 0.55 },
-  badgeUseText: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '800',
-    letterSpacing: 0.5, color: colors.onPrimary,
+  descMissing: {
+    marginTop: 12, paddingTop: 12,
+    fontSize: 12, lineHeight: 18,
+    color: colors.outline, fontFamily: fonts.body, fontStyle: 'italic',
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
   },
-  badgeUsedText: { color: colors.outline },
-
-  // Spell name cell
-  nameInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  spellName: {
-    fontSize: 13, fontFamily: fonts.headline, fontWeight: '600',
-    color: colors.onSurface, fontStyle: 'italic', flexShrink: 1,
-  },
-  spellSource: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '500',
-    color: colors.outline, marginTop: 1,
-  },
-  cellText: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant },
 
   // Empty
   emptyLevel: {
