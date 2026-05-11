@@ -492,7 +492,14 @@ export function mapEntryToResult(
         languages: d.languages ?? 0,
         abilityScoreOptions: d.abilityScoreOptions ?? [],
         originFeat: d.originFeat ?? '',
-        startingEquipment: d.startingEquipment ?? null,
+        // Bridge legacy + structured. Older homebrew rows carry
+        // `startingEquipment` as a freeform string — we preserve it
+        // under `startingEquipmentText` so the sheet's fallback path
+        // can render it. Newly authored rows should set the array.
+        startingEquipment: Array.isArray(d.startingEquipment) ? d.startingEquipment : [],
+        startingEquipmentText: typeof d.startingEquipment === 'string'
+          ? d.startingEquipment
+          : null,
       };
       return result;
     }

@@ -27,17 +27,44 @@ interface Props {
   onAdvance?: () => void;
 }
 
+// Are the player-driven grants on a feat fully resolved? Used to gate
+// the commit button — players can't pick Skilled without first
+// choosing their three skills. Returns true for feats with no grants.
+function grantsSatisfied(
+  feat: FeatResult,
+  picks: { skills?: string[] } | undefined,
+): boolean {
+  const skillGrant = feat.grants?.skills;
+  if (skillGrant) {
+    const picked = picks?.skills ?? [];
+    if (picked.length < skillGrant.count) return false;
+  }
+  return true;
+}
+
+// Canonical 5e skill list — fallback when a feat grants `skills.from: 'any'`
+// (e.g. Skilled). Mirrors the homebrew background form's ALL_SKILLS so
+// the chip-pickers behave identically.
+const ALL_SKILLS = [
+  'Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception',
+  'History', 'Insight', 'Intimidation', 'Investigation', 'Medicine',
+  'Nature', 'Perception', 'Performance', 'Persuasion', 'Religion',
+  'Sleight of Hand', 'Stealth', 'Survival',
+];
+
 export function StepFeats({ onPreviewChange, onAdvance }: Props) {
   const {
-    srdVersion, chosenFeats, abilityScores, startingLevel,
-    setChosenFeats, campaignId, selectedPackIds, campaignRules,
+    srdVersion, chosenFeats, featPicks, abilityScores, startingLevel,
+    setChosenFeats, setFeatPicks, campaignId, selectedPackIds, campaignRules,
   } = useCharacterDraftStore(
     useShallow((s) => ({
       srdVersion: s.srdVersion,
       chosenFeats: s.chosenFeats,
+      featPicks: s.featPicks,
       abilityScores: s.abilityScores,
       startingLevel: s.startingLevel,
       setChosenFeats: s.setChosenFeats,
+      setFeatPicks: s.setFeatPicks,
       campaignId: s.campaignId,
       selectedPackIds: s.selectedPackIds,
       campaignRules: s.campaignRules,
@@ -139,11 +166,65 @@ export function StepFeats({ onPreviewChange, onAdvance }: Props) {
           </View>
         ) : null}
 
+        {/* Player-driven grants. Skilled (and similar) need the player
+            to pick N skills before the feat can be committed. */}
+        {preview.grants?.skills ? (() => {
+          // Capture into a non-nullable local so TS can narrow inside
+          // the inner closures (togglePick) — the outer `if (preview)`
+          // block doesn't propagate through the IIFE.
+          const previewFeat = preview;
+          const grant = previewFeat.grants!.skills!;
+          const picksForFeat = featPicks[previewFeat.key]?.skills ?? [];
+          const target = grant.count;
+          const allOptions = grant.from === 'any' ? ALL_SKILLS : grant.from;
+          function togglePick(skill: string) {
+            const has = picksForFeat.includes(skill);
+            const next = has
+              ? picksForFeat.filter((s) => s !== skill)
+              : (picksForFeat.length < target ? [...picksForFeat, skill] : picksForFeat);
+            setFeatPicks({ ...featPicks, [previewFeat.key]: { ...featPicks[previewFeat.key], skills: next } });
+          }
+          return (
+            <View style={s.benefits}>
+              <Text style={s.sectionLabel}>{`PICK ${target} SKILL${target === 1 ? '' : 'S'}`}</Text>
+              <Text style={[s.benefitItem, { marginBottom: 8 }]}>
+                {`${picksForFeat.length} of ${target} chosen.`}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {allOptions.map((skill) => {
+                  const picked = picksForFeat.includes(skill);
+                  const full = picksForFeat.length >= target && !picked;
+                  return (
+                    <TouchableOpacity
+                      key={skill}
+                      onPress={() => togglePick(skill)}
+                      disabled={full}
+                      style={[
+                        s.skillChip,
+                        picked && s.skillChipPicked,
+                        full && s.skillChipDisabled,
+                      ]}
+                    >
+                      <Text style={[s.skillChipText, picked && s.skillChipTextPicked]}>{skill}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })() : null}
+
         <View style={{ height: 12 }} />
         <CommitBar
           isChosen={isChosen}
-          locked={locked}
-          lockReason={locked && !check.ok ? check.reason : undefined}
+          locked={locked || !grantsSatisfied(preview, featPicks[preview.key])}
+          lockReason={
+            locked && !check.ok
+              ? check.reason
+              : !grantsSatisfied(preview, featPicks[preview.key])
+                ? `Pick ${preview.grants?.skills?.count ?? 0} skill(s) above before committing.`
+                : undefined
+          }
           commitLabel={`Choose ${preview.name}`}
           onCommit={() => {
             setChosenFeats([preview.key]);
@@ -399,6 +480,17 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', color: colors.outline, marginBottom: 6,
   },
   benefitItem: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurface, lineHeight: 18, marginBottom: 4 },
+  // Skill chip picker — mirrors StepClass's pill styling so the player
+  // sees the same affordance both places.
+  skillChip: {
+    paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  skillChipPicked: { backgroundColor: colors.primary, borderColor: colors.primary },
+  skillChipDisabled: { opacity: 0.35 },
+  skillChipText: { fontSize: 12, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurfaceVariant },
+  skillChipTextPicked: { color: colors.onPrimary },
   // Commit bar
   commitBar: { marginTop: 4, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.outlineVariant },
   commitHint: {

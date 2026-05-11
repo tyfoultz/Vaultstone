@@ -81,6 +81,15 @@ export interface CharacterDraft {
    */
   chosenFeats: string[];
 
+  /**
+   * Player picks for feats that grant something the player must
+   * choose at acquisition (Skilled → 3 skills, Linguist → 3 languages,
+   * etc.). Keyed by feat key; value carries the structured picks per
+   * grant category. Wizard finish merges these into the character's
+   * skill / language / tool proficiency lists.
+   */
+  featPicks: Record<string, { skills?: string[] }>;
+
   // Step 5 — Review & Finalize
   characterName: string;
 
@@ -122,6 +131,7 @@ interface CharacterDraftActions {
   setBackgroundSkillReplacements: (map: Record<string, string>) => void;
   setSpeciesAbilityChoices: (map: Record<string, number>) => void;
   setChosenFeats: (keys: string[]) => void;
+  setFeatPicks: (picks: Record<string, { skills?: string[] }>) => void;
   setAbilityScoreMethod: (method: AbilityScoreMethod) => void;
   setAbilityScores: (scores: Dnd5eAbilityScores) => void;
   setStartingLevel: (level: number) => void;
@@ -150,6 +160,7 @@ const INITIAL_DRAFT: CharacterDraft = {
   backgroundSkillReplacements: {},
   speciesAbilityChoices: {},
   chosenFeats: [],
+  featPicks: {},
   abilityScoreMethod: 'standard_array',
   abilityScores: null,
   startingLevel: 1,
@@ -203,7 +214,19 @@ export const useCharacterDraftStore = create<CharacterDraft & CharacterDraftActi
 
       setSpeciesAbilityChoices: (speciesAbilityChoices) => set({ speciesAbilityChoices }),
 
-      setChosenFeats: (chosenFeats) => set({ chosenFeats }),
+      setChosenFeats: (chosenFeats) => set((state) => {
+        // Drop any per-feat picks belonging to feats the player just
+        // dropped — keeps the picks bag from accruing stale entries
+        // across pick / deselect cycles.
+        const keep = new Set(chosenFeats);
+        const featPicks: Record<string, { skills?: string[] }> = {};
+        for (const [k, v] of Object.entries(state.featPicks)) {
+          if (keep.has(k)) featPicks[k] = v;
+        }
+        return { chosenFeats, featPicks };
+      }),
+
+      setFeatPicks: (featPicks) => set({ featPicks }),
 
       setAbilityScoreMethod: (abilityScoreMethod) =>
         set({ abilityScoreMethod, abilityScores: null }),

@@ -275,8 +275,16 @@ export interface HomebrewBackgroundData {
   /** Origin feat name granted automatically (2024 style). Empty for
    *  5.1-style backgrounds. */
   originFeat: string;
-  /** Optional starting equipment paragraph. */
-  startingEquipment: string | null;
+  /**
+   * Starting equipment. Two-shape union for backwards compatibility:
+   *  - `StartingEquipmentEntry[]` is the structured form (added with
+   *    the resolver/wizard-grants-inventory work). Authoring should
+   *    produce this shape going forward.
+   *  - `string | null` is the legacy freeform paragraph — older
+   *    homebrew rows in the DB still carry it; the resolver promotes
+   *    it onto `BackgroundResult.startingEquipmentText` for display.
+   */
+  startingEquipment: import('./content').StartingEquipmentEntry[] | string | null;
   description: string;
 }
 

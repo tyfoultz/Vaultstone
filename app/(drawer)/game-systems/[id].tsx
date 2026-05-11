@@ -15,6 +15,7 @@ import { DetailModal, DetailSection, DetailSectionHeading } from '../../../compo
 import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
 import { SystemPacksRow } from '../../../components/game-systems/SystemPacksRow';
 import type { GameSystemDefinition } from '@vaultstone/types';
+import { normalizeStartingEquipmentItem } from '@vaultstone/types';
 import type {
   SpeciesResult, ClassResult, BackgroundResult,
   SubclassResult, ConditionResult, RuleResult, SpellResult,
@@ -1153,11 +1154,15 @@ function ClassDetailModal({
                       >
                         Option {opt.label ?? String.fromCharCode(65 + i)}
                       </Text>
-                      {opt.items?.map((item, j) => (
-                        <Text key={j} variant="body-sm" family="body" style={styles.bodyText}>
-                          • {item}
-                        </Text>
-                      ))}
+                      {opt.items?.map((item, j) => {
+                        const n = normalizeStartingEquipmentItem(item);
+                        const label = n.qty && n.qty > 1 ? `${n.qty} × ${n.name}` : n.name;
+                        return (
+                          <Text key={j} variant="body-sm" family="body" style={styles.bodyText}>
+                            • {label}
+                          </Text>
+                        );
+                      })}
                       {goldLine ? (
                         <Text variant="body-sm" family="body" style={styles.bodyText}>
                           • {goldLine}
@@ -1726,7 +1731,39 @@ export function BackgroundsList({
                 <Text variant="body-sm" family="body" style={styles.bodyText}>{bAny.originFeat}</Text>
               </View>
             ) : null}
-            {bAny.startingEquipment ? (
+            {/* Starting equipment is union-typed now (Phase 1):
+                  StartingEquipmentEntry[] — render structured
+                  string | null              — legacy fallback via MarkdownText
+                Newer rows ALSO carry `startingEquipmentText` for the
+                legacy display when the array is empty. */}
+            {Array.isArray(bAny.startingEquipment) && bAny.startingEquipment.length > 0 ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Starting equipment</MetaLabel>
+                <Text variant="body-sm" family="body" style={styles.bodyText}>
+                  {bAny.startingEquipment.map((opt: any) => {
+                    const parts: string[] = [];
+                    if (Array.isArray(opt.items) && opt.items.length > 0) {
+                      parts.push(opt.items.map((i: any) => {
+                        const n = normalizeStartingEquipmentItem(i);
+                        return n.qty && n.qty > 1 ? `${n.qty} × ${n.name}` : n.name;
+                      }).join(', '));
+                    }
+                    if (opt.gold) {
+                      if (opt.gold.dice) parts.push(`${opt.gold.dice} ${opt.gold.currency}`);
+                      else if (typeof opt.gold.amount === 'number') parts.push(`${opt.gold.amount} ${opt.gold.currency}`);
+                    }
+                    const inner = parts.join(' + ');
+                    return opt.label ? `${opt.label}: ${inner}` : inner;
+                  }).filter(Boolean).join('  /  ')}
+                </Text>
+              </View>
+            ) : typeof bAny.startingEquipmentText === 'string' && bAny.startingEquipmentText.length > 0 ? (
+              <View style={styles.subBlock}>
+                <MetaLabel size="sm">Starting equipment</MetaLabel>
+                <MarkdownText style={styles.bodyText}>{bAny.startingEquipmentText}</MarkdownText>
+              </View>
+            ) : typeof bAny.startingEquipment === 'string' && bAny.startingEquipment.length > 0 ? (
+              // Pre-Phase-1 homebrew rows still in the DB as plain strings.
               <View style={styles.subBlock}>
                 <MetaLabel size="sm">Starting equipment</MetaLabel>
                 <MarkdownText style={styles.bodyText}>{bAny.startingEquipment}</MarkdownText>

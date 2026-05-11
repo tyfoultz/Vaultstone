@@ -36,7 +36,9 @@ import { StepAbilityScores } from '../../components/character-wizard/StepAbility
 import { StepReview } from '../../components/character-wizard/StepReview';
 import { SheetSoFar } from '../../components/character-wizard/SheetSoFar';
 import { CampaignRulesSummary } from '../../components/character-wizard/CampaignRulesSummary';
-import type { Dnd5eStats, Dnd5eResources, ClassResult, BackgroundResult, SpeciesResult } from '@vaultstone/types';
+import type { Dnd5eStats, Dnd5eResources, Dnd5eEquipmentItem, ClassResult, BackgroundResult, SpeciesResult, ItemResult } from '@vaultstone/types';
+import { normalizeStartingEquipmentItem } from '@vaultstone/types';
+import { itemResultToEquipment } from '../../components/character-sheet/ItemPickerModal';
 
 // initSpellSlots used to ship a duplicate of the leveling library's
 // progression-table parser; replaced by `spellSlotsForClassAtLevel`
@@ -98,6 +100,7 @@ export default function NewCharacterScreen() {
       backgroundSkillReplacements: s.backgroundSkillReplacements,
       speciesAbilityChoices: s.speciesAbilityChoices,
       chosenFeats: s.chosenFeats,
+      featPicks: s.featPicks,
       abilityScores: s.abilityScores,
       characterName: s.characterName,
       srdVersion: s.srdVersion,
@@ -424,6 +427,11 @@ export default function NewCharacterScreen() {
       classKey: snapshot.classKey,
       chosenSkills: snapshot.chosenSkills,
       backgroundKey: snapshot.backgroundKey,
+      // Feats + per-feat picks (Skilled grants a skill list, etc.).
+      // Round-tripping these lets save-draft resume hit StepFeats
+      // already populated.
+      chosenFeats: snapshot.chosenFeats,
+      featPicks: snapshot.featPicks,
       abilityScoreMethod: snapshot.abilityScoreMethod,
       abilityScores: snapshot.abilityScores,
       characterName: snapshot.characterName,
@@ -492,13 +500,19 @@ export default function NewCharacterScreen() {
         campaignId: draft.campaignId ?? undefined,
         packIds,
       } as const;
-      const [clsResults, bgResults, speciesResults, featResults] = await Promise.all([
+      const [clsResults, bgResults, speciesResults, featResults, itemResults] = await Promise.all([
         ContentResolver.search({ type: 'class',      ...tierArgs }),
         ContentResolver.search({ type: 'background', ...tierArgs }),
         ContentResolver.search({ type: 'species',    ...tierArgs }),
         draft.chosenFeats.length > 0
           ? ContentResolver.search({ type: 'feat', ...tierArgs })
           : Promise.resolve([]),
+        // Items catalog — needed when the chosen background carries
+        // structured starting equipment with `itemKey` references.
+        // Empty pull when the background has no structured items, but
+        // we can't know that until after we resolve the background;
+        // fetching unconditionally is simpler than re-coordinating.
+        ContentResolver.search({ type: 'item', ...tierArgs }),
       ]);
       const cls = (clsResults as ClassResult[]).find((c) => c.key === draft.classKey);
       const bg = (bgResults as BackgroundResult[]).find((b) => b.key === draft.backgroundKey);
@@ -607,6 +621,17 @@ export default function NewCharacterScreen() {
             const replacement = draft.backgroundSkillReplacements[sk.toLowerCase()];
             push(replacement ?? sk);
           }
+          // Feat-granted skills (Skilled, etc.) — picked on StepFeats
+          // and stored on the draft under `featPicks[featKey].skills`.
+          // Merge them last; the Set guards against the picker
+          // accidentally letting through a skill the player already has
+          // from class / background.
+          for (const featKey of draft.chosenFeats) {
+            const picks = draft.featPicks[featKey];
+            if (picks?.skills) {
+              for (const sk of picks.skills) push(sk);
+            }
+          }
           return out;
         })(),
         armorProficiencies: cls.armorProficiencies,
@@ -624,6 +649,46 @@ export default function NewCharacterScreen() {
         },
       };
 
+      // ── Background starting equipment → inventory + coins ──────────
+      // Resolve the background's structured starting equipment. When
+      // the background has multi-option entries (A or B) we pick the
+      // *first* option silently for v1 — the Review-step picker is a
+      // follow-up. Items with an `itemKey` get resolved against the
+      // catalog and converted to Dnd5eEquipmentItem; bare-name items
+      // are skipped (the sheet still surfaces them in the bg detail).
+      // Gold with a fixed `amount` accrues into starting coins; dice
+      // expressions are skipped — the player rolls those themselves.
+      const startingEquipmentArray = Array.isArray(bg.startingEquipment) ? bg.startingEquipment : [];
+      const chosenEquipmentOption = startingEquipmentArray[0];
+      const itemsByKey = new Map<string, ItemResult>(
+        (itemResults as ItemResult[]).map((it) => [it.key, it]),
+      );
+      const inventory: Dnd5eEquipmentItem[] = [];
+      const startingCoins = { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
+      if (chosenEquipmentOption) {
+        for (const itemRef of (chosenEquipmentOption.items ?? [])) {
+          const n = normalizeStartingEquipmentItem(itemRef);
+          if (!n.itemKey) continue;
+          const cataloged = itemsByKey.get(n.itemKey);
+          if (!cataloged) continue;
+          const eq = itemResultToEquipment(cataloged);
+          // Honor the authored qty by adding multiple inventory rows.
+          // Each row carries its own UUID via `eq.id` — the converter
+          // generates a fresh id per call, but we get a single eq per
+          // call here, so duplicate manually with a new id.
+          const qty = n.qty && n.qty > 0 ? n.qty : 1;
+          for (let i = 0; i < qty; i++) {
+            inventory.push({ ...eq, id: `${eq.id}-${i}` });
+          }
+        }
+        if (chosenEquipmentOption.gold && typeof chosenEquipmentOption.gold.amount === 'number') {
+          const c = chosenEquipmentOption.gold.currency;
+          startingCoins[c] += chosenEquipmentOption.gold.amount;
+        }
+      }
+      const totalCoinValue =
+        startingCoins.cp + startingCoins.sp + startingCoins.ep + startingCoins.gp + startingCoins.pp;
+
       const resources: Dnd5eResources = {
         hpCurrent: hpMax,
         hpTemp: 0,
@@ -633,6 +698,8 @@ export default function NewCharacterScreen() {
         exhaustionLevel: 0,
         spellSlots: initSpellSlots(cls, 1),
         ...(featsForResources.length > 0 ? { feats: featsForResources } : {}),
+        ...(inventory.length > 0 ? { equipment: inventory } : {}),
+        ...(totalCoinValue > 0 ? { coins: startingCoins } : {}),
       };
 
       // ── starting_level > 1 bootstrap ─────────────────────────────

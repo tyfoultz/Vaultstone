@@ -4,7 +4,7 @@ import { useCharacterDraftStore } from '@vaultstone/store';
 import { useShallow } from 'zustand/react/shallow';
 import { ContentResolver } from '@vaultstone/content';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
-import type { SpeciesResult, ClassResult, BackgroundResult, Dnd5eAbilityScores } from '@vaultstone/types';
+import type { SpeciesResult, ClassResult, BackgroundResult, FeatResult, Dnd5eAbilityScores } from '@vaultstone/types';
 
 const ATTRIBUTION = 'Content from the Systems Reference Document 5.1 / 2.0 is available under the Creative Commons Attribution 4.0 International License.';
 
@@ -30,6 +30,7 @@ export function StepReview() {
       srdVersion: s.srdVersion,
       abilityScores: s.abilityScores,
       chosenSkills: s.chosenSkills,
+      chosenFeats: s.chosenFeats,
       characterName: s.characterName,
       campaignId: s.campaignId,
       selectedPackIds: s.selectedPackIds,
@@ -41,6 +42,7 @@ export function StepReview() {
   const [species, setSpecies] = useState<SpeciesResult | null>(null);
   const [cls, setCls] = useState<ClassResult | null>(null);
   const [bg, setBg] = useState<BackgroundResult | null>(null);
+  const [feats, setFeats] = useState<FeatResult[]>([]);
 
   // Resolve through the same tier scoping the picker steps used. SRD-only
   // here renders raw keys ("homebrew_my-pack_class_warden") on the review
@@ -67,10 +69,22 @@ export function StepReview() {
       ContentResolver.search({ type: 'background', ...tierArgs })
         .then((r) => setBg((r as BackgroundResult[]).find((b) => b.key === draft.backgroundKey) ?? null));
     }
+    // Resolve any L1 feats the player picked on StepFeats so the Review
+    // step can show them by name + summary (previously they only showed
+    // up implicitly on the created sheet — invisible at confirmation).
+    if (draft.chosenFeats.length > 0) {
+      ContentResolver.search({ type: 'feat', ...tierArgs })
+        .then((r) => setFeats(
+          (r as FeatResult[]).filter((f) => draft.chosenFeats.includes(f.key)),
+        ));
+    } else {
+      setFeats([]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     draft.speciesKey, draft.classKey, draft.backgroundKey,
     draft.srdVersion, draft.campaignId, packIdsKey,
+    draft.chosenFeats.join(','),
   ]);
 
   const scores = draft.abilityScores;
@@ -119,6 +133,13 @@ export function StepReview() {
         <RevRow label="Species" value={species?.name ?? draft.speciesKey ?? '—'} detail={species ? `${species.size} · ${species.speed} ft` : undefined} />
         <RevRow label="Class" value={cls?.name ?? draft.classKey ?? '—'} detail={cls ? `d${cls.hitDie} hit die` : undefined} />
         <RevRow label="Background" value={bg?.name ?? draft.backgroundKey ?? '—'} detail={bg?.originFeat ? `Feat: ${bg.originFeat}` : undefined} accent={!!bg?.originFeat} />
+        {feats.length > 0 ? (
+          <RevRow
+            label={feats.length === 1 ? 'Starting feat' : 'Starting feats'}
+            value={feats.map((f) => f.name).join(', ')}
+            accent
+          />
+        ) : null}
       </ReviewSection>
 
       {/* Ability Scores section */}
