@@ -74,6 +74,13 @@ export async function updateCharacter(id: string, updates: CharacterUpdate) {
     .single();
 }
 
+export async function deleteCharacter(id: string) {
+  return supabase
+    .from('characters')
+    .delete()
+    .eq('id', id);
+}
+
 // Read-modify-write for resources.hpCurrent — the column is JSON, so we
 // merge rather than overwrite sibling fields (hpTemp, hitDice, etc.). The
 // read already gives us the old HP for free, so when a session context is

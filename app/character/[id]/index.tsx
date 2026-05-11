@@ -11,7 +11,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, supabase,
-  getCampaignCharacterRules, resolveRuleValues,
+  getCampaignCharacterRules, resolveRuleValues, deleteCharacter,
 } from '@vaultstone/api';
 import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
@@ -597,6 +597,10 @@ export default function CharacterSheetScreen() {
   const [error, setError] = useState('');
   const [hpModalVisible, setHpModalVisible] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
+  // Two-step delete: first tap arms the destructive confirm UI inside
+  // the same modal, second tap commits. Resets whenever the modal closes.
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -1140,6 +1144,23 @@ export default function CharacterSheetScreen() {
   function handleToggleManualMode() {
     if (!stats) return;
     persistStats({ ...stats, settings: { ...settings, manualMode: !manualMode } });
+  }
+
+  async function handleDeleteCharacter() {
+    if (!character) return;
+    setDeleting(true);
+    const { error: deleteError } = await deleteCharacter(character.id);
+    if (deleteError) {
+      setDeleting(false);
+      setError(deleteError.message);
+      return;
+    }
+    // Drop the row from the in-memory list so the destination screen
+    // doesn't briefly re-render the just-deleted card.
+    useCharacterStore.getState().setCharacters(
+      useCharacterStore.getState().characters.filter((c) => c.id !== character.id),
+    );
+    router.replace('/(drawer)/characters');
   }
 
   function startEditField(field: string, currentValue: string | number) {
@@ -2118,11 +2139,14 @@ export default function CharacterSheetScreen() {
 
       {/* Settings modal */}
       <Modal visible={settingsModal} transparent animationType="fade">
-        <Pressable style={s.modalBackdrop} onPress={() => setSettingsModal(false)}>
+        <Pressable
+          style={s.modalBackdrop}
+          onPress={() => { setSettingsModal(false); setDeleteArmed(false); }}
+        >
           <Pressable style={s.modalCard} onPress={() => {}}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Character Settings</Text>
-              <TouchableOpacity onPress={() => setSettingsModal(false)}>
+              <TouchableOpacity onPress={() => { setSettingsModal(false); setDeleteArmed(false); }}>
                 <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -2140,6 +2164,45 @@ export default function CharacterSheetScreen() {
                 trackColor={{ false: colors.border, true: colors.brand + '66' }}
                 thumbColor={manualMode ? colors.brand : colors.textSecondary}
               />
+            </View>
+
+            {/* Destructive zone. Two-step: first tap arms the row, the
+                second commits. Backdrop tap / close button disarms. */}
+            <View style={s.dangerZone}>
+              {!deleteArmed ? (
+                <TouchableOpacity
+                  style={s.deleteRow}
+                  onPress={() => setDeleteArmed(true)}
+                  activeOpacity={0.75}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.hpDanger} />
+                  <Text style={s.deleteRowText}>Delete Character</Text>
+                </TouchableOpacity>
+              ) : (
+                <View>
+                  <Text style={s.deleteConfirmText}>
+                    Delete {stats?.characterName ?? 'this character'}? This cannot be undone.
+                  </Text>
+                  <View style={s.deleteConfirmRow}>
+                    <TouchableOpacity
+                      style={s.deleteCancelBtn}
+                      onPress={() => setDeleteArmed(false)}
+                      disabled={deleting}
+                    >
+                      <Text style={s.deleteCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[s.deleteConfirmBtn, deleting && s.deleteConfirmBtnDisabled]}
+                      onPress={handleDeleteCharacter}
+                      disabled={deleting}
+                    >
+                      <Text style={s.deleteConfirmBtnText}>
+                        {deleting ? 'Deleting…' : 'Delete'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
           </Pressable>
         </Pressable>
@@ -3606,6 +3669,46 @@ const s = StyleSheet.create({
   },
   settingDesc: {
     fontSize: 13, color: colors.textSecondary, lineHeight: 18,
+  },
+
+  // Destructive zone — visually separated from the toggle rows above.
+  dangerZone: {
+    marginTop: spacing.lg,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant,
+  },
+  deleteRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.xs,
+  },
+  deleteRowText: {
+    fontSize: 14, fontWeight: '600', color: colors.hpDanger,
+  },
+  deleteConfirmText: {
+    fontSize: 13, color: colors.textPrimary, marginBottom: spacing.md,
+    lineHeight: 18,
+  },
+  deleteConfirmRow: {
+    flexDirection: 'row', gap: spacing.sm,
+  },
+  deleteCancelBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  deleteCancelText: {
+    fontSize: 14, fontWeight: '600', color: colors.textSecondary,
+  },
+  deleteConfirmBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: radius.lg,
+    backgroundColor: colors.hpDanger,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  deleteConfirmBtnDisabled: { opacity: 0.6 },
+  deleteConfirmBtnText: {
+    fontSize: 14, fontWeight: '700', color: colors.onPrimary,
+    letterSpacing: 0.3,
   },
 
   // Field edit
