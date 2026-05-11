@@ -3,7 +3,7 @@ export { ContentResolver } from './resolver';
 // ContentResolver and re-used by the pack detail page to hydrate
 // fetched rows into the shape the shared content-table list components
 // expect.
-export { mapEntryToResult, mapImportedEntryToResult } from './homebrew/index';
+export { mapEntryToResult, mapImportedEntryToResult, invalidateHomebrewCache } from './homebrew/index';
 export {
   getSrdCounts, getSrdCountsByVersion, getSrdContent,
   SEED_ONLY_TYPES, REFERENCE_TYPES,

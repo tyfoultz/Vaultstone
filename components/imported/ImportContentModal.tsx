@@ -21,6 +21,7 @@ import {
   transformSpecies, transformMonsters, transformClasses, transformFluff,
   transformSpellSourceLookup, transformOptionalFeatures, transformDeities,
   transformVariantRules, transformMagicVariants,
+  invalidateHomebrewCache,
 } from '@vaultstone/content';
 import type { ContentResult, ImportSource } from '@vaultstone/types';
 import {
@@ -483,6 +484,7 @@ export function ImportContentModal({
         }
       }
 
+      invalidateHomebrewCache();
       onImported();
       reset();
       onClose();
