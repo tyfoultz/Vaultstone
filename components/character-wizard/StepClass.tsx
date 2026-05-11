@@ -97,6 +97,19 @@ export function StepClass({ onPreviewChange, onAdvance }: Props) {
 
   const preview = previewKey ? classes.find((c) => c.key === previewKey) : null;
 
+  // Commit the class pick as soon as the player opens its detail view
+  // — moves the setClass call out of the commit handler, which used
+  // to wipe chosenSkills AFTER the player had already picked them.
+  // Now: opening the detail commits the class (chosenSkills resets
+  // if the class actually changed), the player ticks skills, and the
+  // "Choose <Class>" button just advances + leaves the store alone.
+  useEffect(() => {
+    if (preview && classKey !== preview.key) {
+      selectClass(preview.key);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview?.key]);
+
   if (preview) {
     const isChosen = classKey === preview.key;
     const glyph = CLASS_GLYPH[preview.key] ?? 'sword';
@@ -222,7 +235,7 @@ export function StepClass({ onPreviewChange, onAdvance }: Props) {
           commitLabel={`Choose ${preview.name}`}
           disabled={!allSkillsPicked}
           disabledLabel={!allSkillsPicked ? `Pick ${skillsNeeded - skillsPicked} more skill${skillsNeeded - skillsPicked !== 1 ? 's' : ''}` : undefined}
-          onCommit={() => { selectClass(preview.key); onAdvance?.(); }}
+          onCommit={() => { onAdvance?.(); }}
           onDeselect={() => { selectClass(null as any); setChosenSkills([]); setPreviewKey(null); }}
           onContinue={isChosen && allSkillsPicked ? onAdvance : undefined}
           onCancel={() => setPreviewKey(null)}
