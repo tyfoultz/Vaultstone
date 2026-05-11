@@ -20,7 +20,12 @@ export type HomebrewContentType =
   | 'item'
   | 'feat'
   | 'class'
-  | 'species';
+  | 'species'
+  | 'background'
+  | 'subclass'
+  | 'optional-feature'
+  | 'deity'
+  | 'condition';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Spell — full schema, everything the SRD spell view renders.
@@ -152,12 +157,124 @@ export interface HomebrewSpeciesData {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Background — character-creation field. Mirrors BackgroundResult except
+// `features` (the canonical background-shipped feature with name +
+// description) collapses to a single free-form description field for
+// the authoring pass. Once we ship a richer feature editor it can move
+// to a structured shape.
+// ─────────────────────────────────────────────────────────────────────────
+export interface HomebrewBackgroundData {
+  skillProficiencies: string[];
+  toolProficiency: string | null;
+  /** Bonus languages granted at creation (count, not names — picker
+   *  lives in the character creation wizard). 0 = none. */
+  languages: number;
+  /**
+   * Ability keys eligible for the 2024 +2/+1 distribution. Used by
+   * the wizard's Ability Scores step when CYO is off. Empty for
+   * 5.1-style backgrounds that grant no ASI.
+   */
+  abilityScoreOptions: string[];
+  /** Origin feat name granted automatically (2024 style). Empty for
+   *  5.1-style backgrounds. */
+  originFeat: string;
+  /** Optional starting equipment paragraph. */
+  startingEquipment: string | null;
+  description: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Subclass — paired with HomebrewClass. parentClassKey points at the
+// class (homebrew or SRD) the subclass branches from; the class detail
+// page filters its subclass list on this key. Features collapse to a
+// free-form notes field for now, same posture as HomebrewClass.
+// ─────────────────────────────────────────────────────────────────────────
+export interface HomebrewSubclassData {
+  /** Exact ClassResult.key the subclass attaches to. Edition-suffixed
+   *  for SRD classes ("barbarian-srd-2-0"); raw key for homebrew
+   *  classes. The wizard filters subclasses by this. */
+  parentClassKey: string;
+  /** Display-only name for the parent class ("Barbarian", "Wizard"). */
+  parentClassName?: string;
+  /** Level at which the subclass unlocks. 3 in 2024, varies in 5.1. */
+  unlockLevel: number;
+  description: string;
+  /** Free-form per-level features prose until the structured editor lands. */
+  featuresNotes?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Optional Feature — Eldritch Invocations, Metamagic Options, Battle
+// Master Maneuvers, Fighting Styles, Artificer Infusions, etc. Class-
+// gated choices that aren't ASI feats. The `kinds` array carries the
+// taxonomy buckets the SRD ships (one entry can belong to multiple,
+// e.g. a Fighting Style for both Fighter and Paladin).
+// ─────────────────────────────────────────────────────────────────────────
+export type HomebrewOptionalFeatureKind =
+  | 'invocation'
+  | 'metamagic'
+  | 'maneuver'
+  | 'fighting-style'
+  | 'pact-boon'
+  | 'artificer-infusion'
+  | 'arcane-shot'
+  | 'elemental-discipline'
+  | 'rune'
+  | 'class-feature-variant'
+  | 'other';
+
+export interface HomebrewOptionalFeatureData {
+  kinds: HomebrewOptionalFeatureKind[];
+  /** Display-form prereq line ("Warlock 2; a Warlock cantrip"). */
+  prerequisites?: string;
+  /** Class resource the feature consumes per use ("Sorcery Point",
+   *  "Superiority Die"). Undefined for at-will entries. */
+  consumes?: string;
+  description: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Deity — Cleric/Paladin patrons. Mostly flavor; mechanically only the
+// optional `domains[]` field matters (2014 Cleric subclass gating).
+// 2024 dropped domain locks, so 2024-flavor deities can leave `domains`
+// empty.
+// ─────────────────────────────────────────────────────────────────────────
+export interface HomebrewDeityData {
+  pantheon: string;
+  /** Honorific or domain gloss ("God of the sea and storms"). */
+  title?: string;
+  /** Alignment letter codes (LG, N, CE, …). Empty when omitted. */
+  alignment?: string[];
+  /** Cleric domains the deity grants. Empty for alignment-only deities. */
+  domains?: string[];
+  symbol?: string;
+  plane?: string;
+  worshipers?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Condition — a homebrew status effect that surfaces in the character
+// sheet's condition picker alongside SRD conditions. Effects render as
+// rule bullets in the description popover.
+// ─────────────────────────────────────────────────────────────────────────
+export interface HomebrewConditionData {
+  /** One bullet per mechanical effect. */
+  effects: string[];
+  description: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Discriminated union for read sites that need to fan out by content type.
 // ─────────────────────────────────────────────────────────────────────────
 export type HomebrewData =
-  | { contentType: 'spell';    data: HomebrewSpellData }
-  | { contentType: 'creature'; data: HomebrewCreatureData }
-  | { contentType: 'item';     data: HomebrewItemData }
-  | { contentType: 'feat';     data: HomebrewFeatData }
-  | { contentType: 'class';    data: HomebrewClassData }
-  | { contentType: 'species';  data: HomebrewSpeciesData };
+  | { contentType: 'spell';            data: HomebrewSpellData }
+  | { contentType: 'creature';         data: HomebrewCreatureData }
+  | { contentType: 'item';             data: HomebrewItemData }
+  | { contentType: 'feat';             data: HomebrewFeatData }
+  | { contentType: 'class';            data: HomebrewClassData }
+  | { contentType: 'species';          data: HomebrewSpeciesData }
+  | { contentType: 'background';       data: HomebrewBackgroundData }
+  | { contentType: 'subclass';         data: HomebrewSubclassData }
+  | { contentType: 'optional-feature'; data: HomebrewOptionalFeatureData }
+  | { contentType: 'deity';            data: HomebrewDeityData }
+  | { contentType: 'condition';        data: HomebrewConditionData };

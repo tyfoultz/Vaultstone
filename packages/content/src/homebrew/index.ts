@@ -16,12 +16,23 @@ import type {
   FeatResult,
   ClassResult,
   SpeciesResult,
+  BackgroundResult,
+  SubclassResult,
+  OptionalFeatureResult,
+  OptionalFeatureKind,
+  DeityResult,
+  ConditionResult,
   HomebrewSpellData,
   HomebrewCreatureData,
   HomebrewItemData,
   HomebrewFeatData,
   HomebrewClassData,
   HomebrewSpeciesData,
+  HomebrewBackgroundData,
+  HomebrewSubclassData,
+  HomebrewOptionalFeatureData,
+  HomebrewDeityData,
+  HomebrewConditionData,
 } from '@vaultstone/types';
 
 type HomebrewPackRow = {
@@ -386,6 +397,70 @@ export function mapEntryToResult(
         speed: d.speed ?? 30,
         traits: [],
         abilityScoreIncreases: [],
+      };
+      return result;
+    }
+    case 'background': {
+      const d = entry.data as HomebrewBackgroundData;
+      const result: BackgroundResult = {
+        ...base,
+        type: 'background',
+        description: d.description ?? '',
+        skillProficiencies: d.skillProficiencies ?? [],
+        toolProficiency: d.toolProficiency ?? null,
+        languages: d.languages ?? 0,
+        abilityScoreOptions: d.abilityScoreOptions ?? [],
+        originFeat: d.originFeat ?? '',
+        startingEquipment: d.startingEquipment ?? null,
+      };
+      return result;
+    }
+    case 'subclass': {
+      const d = entry.data as HomebrewSubclassData;
+      const result: SubclassResult = {
+        ...base,
+        type: 'subclass',
+        description: d.description ?? '',
+        parentClassKey: d.parentClassKey ?? '',
+        parentClassName: d.parentClassName,
+        unlockLevel: d.unlockLevel ?? 3,
+      };
+      return result;
+    }
+    case 'optional-feature': {
+      const d = entry.data as HomebrewOptionalFeatureData;
+      const result: OptionalFeatureResult = {
+        ...base,
+        type: 'optional-feature',
+        description: d.description ?? '',
+        kinds: (d.kinds ?? ['other']) as OptionalFeatureKind[],
+        prerequisites: d.prerequisites ?? '',
+        consumes: d.consumes,
+      };
+      return result;
+    }
+    case 'deity': {
+      const d = entry.data as HomebrewDeityData;
+      const result: DeityResult = {
+        ...base,
+        type: 'deity',
+        pantheon: d.pantheon ?? '',
+        title: d.title,
+        alignment: d.alignment,
+        domains: d.domains,
+        symbol: d.symbol,
+        plane: d.plane,
+        worshipers: d.worshipers,
+      };
+      return result;
+    }
+    case 'condition': {
+      const d = entry.data as HomebrewConditionData;
+      const result: ConditionResult = {
+        ...base,
+        type: 'condition',
+        description: d.description ?? '',
+        effects: d.effects ?? [],
       };
       return result;
     }
