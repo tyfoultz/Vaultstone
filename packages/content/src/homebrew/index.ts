@@ -504,6 +504,15 @@ export function mapEntryToResult(
     }
     case 'subclass': {
       const d = entry.data as HomebrewSubclassData;
+      // Same migration pattern as species + creature: prefer structured
+      // features; fall back to a single "Features" block synthesized from
+      // featuresNotes when the row hasn't been migrated yet.
+      const structuredFeatures = d.features ?? [];
+      const features = structuredFeatures.length > 0
+        ? structuredFeatures
+        : d.featuresNotes && d.featuresNotes.trim()
+          ? [{ level: d.unlockLevel ?? 3, name: 'Features', description: d.featuresNotes.trim() }]
+          : undefined;
       const result: SubclassResult = {
         ...base,
         type: 'subclass',
@@ -511,6 +520,7 @@ export function mapEntryToResult(
         parentClassKey: d.parentClassKey ?? '',
         parentClassName: d.parentClassName,
         unlockLevel: d.unlockLevel ?? 3,
+        ...(features ? { features } : {}),
       };
       return result;
     }

@@ -287,7 +287,11 @@ export interface HomebrewSubclassData {
   /** Level at which the subclass unlocks. 3 in 2024, varies in 5.1. */
   unlockLevel: number;
   description: string;
-  /** Free-form per-level features prose until the structured editor lands. */
+  /** Class abilities granted by the subclass at specific levels. Mirrors
+   *  SubclassResult.features exactly — the resolver passes it through. */
+  features?: Array<{ level: number; name: string; description: string }>;
+  /** Legacy free-form prose from pre-structured rows. The resolver
+   *  synthesizes a single fallback feature when `features` is empty. */
   featuresNotes?: string;
 }
 
