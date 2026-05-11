@@ -31,7 +31,6 @@ import { GearTab } from '../../../components/character-sheet/GearTab';
 import { LoreTab } from '../../../components/character-sheet/LoreTab';
 import { FeatPickerModal } from '../../../components/character-sheet/FeatPickerModal';
 import { SpellPickerModal } from '../../../components/character-sheet/SpellPickerModal';
-import { PrepareSpellsModal } from '../../../components/character-sheet/PrepareSpellsModal';
 import { ItemPickerModal } from '../../../components/character-sheet/ItemPickerModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
@@ -612,7 +611,6 @@ export default function CharacterSheetScreen() {
   const [featureCategory, setFeatureCategory] = useState<'classFeatures' | 'speciesTraits' | 'feats'>('classFeatures');
   const [featPickerOpen, setFeatPickerOpen] = useState(false);
   const [spellPickerOpen, setSpellPickerOpen] = useState(false);
-  const [preparePickerOpen, setPreparePickerOpen] = useState(false);
   // 'short' | 'long' | null — tracks which rest the player is about to
   // confirm. Resets to null on dismiss.
   const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null);
@@ -1491,8 +1489,18 @@ export default function CharacterSheetScreen() {
             }}
             onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
             onOpenManage={() => setSpellPickerOpen(true)}
-            onOpenPrepare={() => setPreparePickerOpen(true)}
-            canPrepare={getSpellbook(resources).some((sp) => sp.level > 0)}
+            spellbook={getSpellbook(resources)}
+            onTogglePrepared={(spell) => {
+              // Cantrips are auto-prepared by being in the spellbook;
+              // ignore toggles on them at the parent level too.
+              if (spell.level === 0) return;
+              const current = resources.preparedSpells ?? [];
+              const already = current.some((sp) => sp.id === spell.id);
+              const next = already
+                ? current.filter((sp) => sp.id !== spell.id)
+                : [...current, spell];
+              persistResources({ ...resources, preparedSpells: next });
+            }}
             spellcastingExplainers={spellcastingExplainersFor(stats, classResultsByKey)}
           />
         );
@@ -2421,20 +2429,6 @@ export default function CharacterSheetScreen() {
               preparedSpells: nextPrepared,
             });
           }}
-        />
-      ) : null}
-
-      {/* Prepare Spells modal — toggles which leveled spells from the
-          spellbook are active for casting today. Cantrips render as a
-          read-only band at the top since they don't get unprepared. */}
-      {stats && resources ? (
-        <PrepareSpellsModal
-          visible={preparePickerOpen}
-          onClose={() => setPreparePickerOpen(false)}
-          spellbook={getSpellbook(resources)}
-          prepared={resources.preparedSpells ?? []}
-          preparedLimit={computeSpellLimits(stats, classResultsByKey).prepared}
-          onChange={(next) => persistResources({ ...resources, preparedSpells: next })}
         />
       ) : null}
 

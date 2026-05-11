@@ -28,6 +28,7 @@ const CHIP_LABELS = ['CANTRIP', '1ST', '2ND', '3RD', '4TH', '5TH', '6TH', '7TH',
 const LEVEL_LABELS = ['', '1ST LEVEL', '2ND LEVEL', '3RD LEVEL', '4TH LEVEL', '5TH LEVEL', '6TH LEVEL', '7TH LEVEL', '8TH LEVEL', '9TH LEVEL'];
 
 type FilterKey = 'all' | 'conc' | number;
+type StatusFilter = 'all' | 'prepared' | 'unprepared';
 
 interface Props {
   stats: Dnd5eStats;
@@ -41,13 +42,16 @@ interface Props {
    *  spells from the character's spellbook. The parent owns the modal
    *  so it can pass the campaign + pack scope into ContentResolver. */
   onOpenManage?: () => void;
-  /** Open the Prepare Spells modal — picks today's active subset from
-   *  the spellbook. Hidden when the character has no leveled spells in
-   *  their spellbook (e.g. cantrip-only or non-caster). */
-  onOpenPrepare?: () => void;
-  /** Whether the character has any leveled spells available to prepare —
-   *  drives whether Prepare Spells button is shown at all. */
-  canPrepare?: boolean;
+  /** The character's full spellbook (every spell they've learned —
+   *  superset of preparedSpells). The Spells tab renders the whole
+   *  list with prepared/unprepared visual states; toggling a card
+   *  flips its status. Cantrips always render as prepared since 5e
+   *  cantrips are always cast-ready. */
+  spellbook?: Dnd5ePreparedSpell[];
+  /** Toggle a spell's prepared state (leveled only — cantrips are
+   *  auto-prepared by being in the spellbook). Caller writes
+   *  resources.preparedSpells with the new entry added or removed. */
+  onTogglePrepared?: (spell: Dnd5ePreparedSpell) => void;
   /** Per-class spellcasting explainer payload — drives the "How
    *  spellcasting works" panel. One entry per spellcasting class the
    *  character has a level in; empty for non-casters. The synthesized
@@ -75,13 +79,14 @@ interface Props {
 
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
-  onOpenManage, onOpenPrepare, canPrepare, spellcastingExplainers,
+  onOpenManage, spellbook, onTogglePrepared, spellcastingExplainers,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
   const { width } = useWindowDimensions();
   const isWide = width >= 560;
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const spellAbility = stats.spellcastingAbility;
   const isSpellcaster = !!spellAbility;
@@ -101,35 +106,56 @@ export function SpellsTab({
 
   const availableLevels = useMemo(() => {
     const levels = new Set<number>();
-    preparedSpells.forEach((s) => levels.add(s.level));
+    preparedSpells.forEach((sp) => levels.add(sp.level));
+    (spellbook ?? []).forEach((sp) => levels.add(sp.level));
     if (spellSlots) {
       ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).forEach((l) => {
         if (spellSlots[l].max > 0) levels.add(l);
       });
     }
     return [...levels].sort((a, b) => a - b);
-  }, [preparedSpells, spellSlots]);
+  }, [preparedSpells, spellbook, spellSlots]);
+
+  // Source list: prefer the full spellbook so unprepared spells render
+  // too. Falls back to preparedSpells when no spellbook was passed
+  // (keeps the component working for legacy callers / tests).
+  const sourceList = spellbook && spellbook.length > 0 ? spellbook : preparedSpells;
+
+  // Set of currently prepared spell ids for the status check on each row.
+  const preparedKeys = useMemo(
+    () => new Set(preparedSpells.map((sp) => sp.id)),
+    [preparedSpells],
+  );
+
+  // isPrepared — cantrips are always cast-ready, leveled spells need
+  // an explicit entry in preparedSpells.
+  const isPrepared = (sp: Dnd5ePreparedSpell) =>
+    sp.level === 0 || preparedKeys.has(sp.id);
 
   const filteredSpells = useMemo(() => {
-    let spells = preparedSpells;
+    let spells = sourceList;
     if (search.trim()) {
       const q = search.toLowerCase();
-      spells = spells.filter((s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.notes?.toLowerCase().includes(q) ||
-        s.school?.toLowerCase().includes(q) ||
-        s.source?.toLowerCase().includes(q)
+      spells = spells.filter((sp) =>
+        sp.name.toLowerCase().includes(q) ||
+        sp.notes?.toLowerCase().includes(q) ||
+        sp.school?.toLowerCase().includes(q) ||
+        sp.source?.toLowerCase().includes(q)
       );
     }
-    if (filter === 'conc') return spells.filter((s) => s.concentration);
-    if (filter !== 'all') return spells.filter((s) => s.level === filter);
+    if (filter === 'conc') spells = spells.filter((sp) => sp.concentration);
+    else if (filter !== 'all') spells = spells.filter((sp) => sp.level === filter);
+    if (statusFilter === 'prepared') spells = spells.filter(isPrepared);
+    else if (statusFilter === 'unprepared') spells = spells.filter((sp) => !isPrepared(sp));
     return spells;
-  }, [preparedSpells, search, filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceList, search, filter, statusFilter, preparedKeys]);
 
-  const cantrips = filteredSpells.filter((s) => s.level === 0);
+  const byName = (a: Dnd5ePreparedSpell, b: Dnd5ePreparedSpell) => a.name.localeCompare(b.name);
+  const cantrips = filteredSpells.filter((sp) => sp.level === 0).sort(byName);
   const leveledGroups = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((lvl) => ({
     level: lvl,
-    spells: filteredSpells.filter((s) => s.level === lvl),
+    spells: filteredSpells.filter((sp) => sp.level === lvl).sort(byName),
     slot: spellSlots?.[lvl] ?? null,
   })).filter((g) => {
     if (filter !== 'all' && filter !== 'conc' && filter !== g.level) return false;
@@ -273,11 +299,6 @@ export function SpellsTab({
             </TouchableOpacity>
           )}
         </View>
-        {isOwner && onOpenPrepare && canPrepare && (
-          <TouchableOpacity style={s.manageBtn} activeOpacity={0.7} onPress={onOpenPrepare}>
-            <Text style={s.manageBtnText}>PREPARE</Text>
-          </TouchableOpacity>
-        )}
         {isOwner && onOpenManage && (
           <TouchableOpacity style={s.manageBtn} activeOpacity={0.7} onPress={onOpenManage}>
             <Text style={s.manageBtnText}>MANAGE SPELLS</Text>
@@ -309,6 +330,20 @@ export function SpellsTab({
           />
           <Text style={[s.chipText, filter === 'conc' && s.chipTextActive]}>CONC</Text>
         </TouchableOpacity>
+
+        {/* Vertical divider so the prep-status filters read as a
+            distinct group from the level / conc filters. */}
+        <View style={s.chipDivider} />
+        <FilterChip
+          label="PREPARED"
+          active={statusFilter === 'prepared'}
+          onPress={() => setStatusFilter(statusFilter === 'prepared' ? 'all' : 'prepared')}
+        />
+        <FilterChip
+          label="UNPREPARED"
+          active={statusFilter === 'unprepared'}
+          onPress={() => setStatusFilter(statusFilter === 'unprepared' ? 'all' : 'unprepared')}
+        />
       </ScrollView>
 
       {/* ── Concentration banner ── */}
@@ -332,7 +367,12 @@ export function SpellsTab({
             <Text style={s.levelSub}>At will</Text>
           </View>
           {cantrips.map((spell) => (
-            <SpellRow key={spell.id} spell={spell} />
+            <SpellRow
+              key={spell.id}
+              spell={spell}
+              prepared={true}
+              canToggle={false}
+            />
           ))}
         </View>
       )}
@@ -362,11 +402,27 @@ export function SpellsTab({
               </View>
             )}
           </View>
-          {spells.map((spell) => (
-            <SpellRow key={spell.id} spell={spell} slot={slot} />
-          ))}
+          {spells.map((spell) => {
+            const prep = isPrepared(spell);
+            const atLimit = preparedLimit !== undefined && totalLeveledPrepared >= preparedLimit;
+            return (
+              <SpellRow
+                key={spell.id}
+                spell={spell}
+                slot={slot}
+                prepared={prep}
+                canToggle={isOwner && !!onTogglePrepared}
+                onTogglePrepared={onTogglePrepared ? () => onTogglePrepared(spell) : undefined}
+                togglesBlocked={!prep && atLimit}
+              />
+            );
+          })}
           {spells.length === 0 && slot && slot.max > 0 && (
-            <Text style={s.emptyLevel}>No spells prepared at this level</Text>
+            <Text style={s.emptyLevel}>
+              {sourceList.length === 0
+                ? 'No spells of this level in your spellbook yet.'
+                : 'No spells of this level match your filters.'}
+            </Text>
           )}
         </View>
       ))}
@@ -416,17 +472,50 @@ function ordinal(n: number): string {
 }
 
 function SpellRow({
-  spell, slot,
+  spell, slot, prepared, canToggle, onTogglePrepared, togglesBlocked,
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
+  /** Whether this spell is currently prepared (cantrips: always true).
+   *  Drives the dim state + the cast button gate. */
+  prepared: boolean;
+  /** Whether the prepared toggle is interactive. Cantrips pass false
+   *  since they don't toggle; non-owners and view modes without an
+   *  onTogglePrepared also pass false. */
+  canToggle: boolean;
+  onTogglePrepared?: () => void;
+  /** True when adding this spell would exceed the prep cap. Disables
+   *  toggling on, but still allows toggling off (so the player can
+   *  swap). */
+  togglesBlocked?: boolean;
 }) {
   const isCantrip = spell.level === 0;
-  const canCast = isCantrip || (slot?.remaining ?? 0) > 0;
+  const canCast = prepared && (isCantrip || (slot?.remaining ?? 0) > 0);
+  const toggleDisabled = !canToggle || (togglesBlocked && !prepared);
+
+  const Wrapper: typeof View | typeof Pressable = canToggle ? Pressable : View;
+  const wrapperProps = canToggle
+    ? { onPress: toggleDisabled ? undefined : onTogglePrepared }
+    : {};
 
   return (
-    <View style={s.spellCard}>
+    <Wrapper style={[s.spellCard, !prepared && s.spellCardDimmed]} {...wrapperProps}>
       <View style={s.spellHead}>
+        {/* Status circle — tap-toggle hit area; cantrips render a filled
+            indicator with no toggle since they're always cast-ready. */}
+        <View style={[
+          s.statusCircle,
+          prepared && s.statusCircleOn,
+          isCantrip && s.statusCircleCantrip,
+        ]}>
+          {prepared ? (
+            <MaterialCommunityIcons
+              name={isCantrip ? 'infinity' : 'check'}
+              size={12}
+              color={colors.onPrimary}
+            />
+          ) : null}
+        </View>
         <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
         {spell.school ? (
           <View style={s.schoolChip}>
@@ -445,7 +534,7 @@ function SpellRow({
         ) : null}
         <View style={[s.castBtn, !canCast && s.castBtnDisabled, isCantrip && s.castBtnAtWill]}>
           <Text style={[s.castBtnText, !canCast && s.castBtnTextDisabled, isCantrip && s.castBtnTextAtWill]}>
-            {isCantrip ? 'At Will' : 'Cast'}
+            {isCantrip ? 'At Will' : prepared ? 'Cast' : 'Unprepared'}
           </Text>
         </View>
       </View>
@@ -466,7 +555,7 @@ function SpellRow({
           No description on file — re-add this spell through Manage Spells to fetch the latest text.
         </Text>
       )}
-    </View>
+    </Wrapper>
   );
 }
 
@@ -578,7 +667,11 @@ const s = StyleSheet.create({
   manageBtnText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, color: colors.primary },
 
   // Filter chips
-  filtersRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingBottom: 10 },
+  filtersRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingBottom: 10 },
+  chipDivider: {
+    width: StyleSheet.hairlineWidth, height: 18,
+    backgroundColor: colors.outlineVariant, marginHorizontal: 4,
+  },
   chip: {
     flexDirection: 'row',
     paddingHorizontal: 10, paddingVertical: 5,
@@ -635,6 +728,21 @@ const s = StyleSheet.create({
     paddingVertical: 14, paddingHorizontal: 16,
     marginBottom: 10,
   },
+  // Unprepared spells dim ~50% so the prepared list visually pops while
+  // unprepared entries stay readable + scannable. Combined with the
+  // "Unprepared" cast button copy + hollow status circle, the row reads
+  // as "in your book but not prepared today".
+  spellCardDimmed: { opacity: 0.55 },
+  // Status circle to the left of the spell name. Hollow when
+  // unprepared, primary-filled when prepared. Cantrips render with an
+  // infinity glyph to signal "always available" rather than a check.
+  statusCircle: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.outline,
+  },
+  statusCircleOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  statusCircleCantrip: { backgroundColor: colors.primary, borderColor: colors.primary, opacity: 0.85 },
   spellHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   spellName: {
     fontFamily: fonts.headline, fontWeight: '600',
