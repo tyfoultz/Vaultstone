@@ -8,7 +8,7 @@
 // Trailing source is optional and defaults to subclassSource.
 
 import type { SubclassResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry, type RawEntryObject } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry, type RawEntryObject } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 // We don't import the full 5e.tools schema as a TypeScript type because the
@@ -197,9 +197,10 @@ export function transformSubclasses(
       parentClassName: sc.className,
       unlockLevel,
       features,
-      // Imported entries don't claim an SRD edition — that's reserved for
-      // bundled SRD content. The importSource carries provenance instead.
-      srdVersions: [],
+      // Edition tag derived from the source code (X-prefix = 2024,
+      // SRD = both, anything else = 5.1). importSource still carries
+      // the full provenance.
+      srdVersions: srdVersionsForSource(sc.source),
     };
   });
 }

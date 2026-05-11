@@ -32,7 +32,7 @@
 //     without losing the rarity-band fallback the UI already shows
 
 import type { ItemResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -264,7 +264,7 @@ function expandOne(variant: RawVariant, base: BaseItem, systemId: string): ItemR
     properties: properties.length > 0 ? properties : undefined,
     requiresAttunement,
     rarity: normalizeRarity(inherits.rarity),
-    srdVersions: [],
+    srdVersions: srdVersionsForSource(source),
   };
 }
 

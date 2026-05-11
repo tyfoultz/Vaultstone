@@ -158,19 +158,19 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   }
   if (query.srdVersion) {
     // Edition filter, applied only to entries that *positively claim*
-    // a different edition. Three sources of `srdVersions` on homebrew
-    // results:
+    // an edition. Three sources of `srdVersions` on homebrew results:
     //   - Authored homebrew (HomebrewSpeciesData / HomebrewClassData /
     //     etc.) doesn't carry the field at all.
-    //   - 5e.tools imports emit `srdVersions: []` regardless of source
-    //     book — the upstream data doesn't tag entries by which SRD
-    //     edition they appear in.
+    //   - 5e.tools imports tag from the source code via
+    //     `srdVersionsForSource` — X-prefixed books (XPHB, XDMG, XMM)
+    //     land as `['SRD_2.0']`, the SRD compendium lands as both,
+    //     everything else lands as `['SRD_5.1']`.
     //   - Open5e snapshots (rare in the homebrew tier, but possible
     //     for self-hosted SRD packs) emit `srdVersions: ['SRD_5.1']`
     //     etc. matching the SRD reader's tagging.
-    // Only the third case should be filtered. Treat both "no field"
-    // and "empty array" as "no claim" — the entry was authored without
-    // edition metadata, so it lands in either edition's wizard.
+    // Treat both "no field" and "empty array" as "no claim" — pre-
+    // edition-tagging imports + authored homebrew land in either
+    // edition's wizard. Positively-claimed entries get filtered.
     const version = query.srdVersion;
     filtered = filtered.filter((r) => {
       const item = r as ContentResult & { srdVersions?: string[] };

@@ -32,7 +32,7 @@
 //     Both arrays end up empty, matching the SRD 2.0 bundle.
 
 import type { SpeciesResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry, type RawEntryObject } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry, type RawEntryObject } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -130,7 +130,7 @@ function buildSpecies(
     traits,
     abilityScoreIncreases: fixed,
     ...(choices.length > 0 ? { abilityScoreChoices: choices } : {}),
-    srdVersions: [],
+    srdVersions: srdVersionsForSource(r.source),
   };
 }
 

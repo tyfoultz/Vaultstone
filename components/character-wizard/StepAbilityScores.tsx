@@ -366,6 +366,26 @@ export function StepAbilityScores() {
           onChoicesChange={setSpeciesAbilityChoices}
         />
       )}
+
+      {/* ── Custom Origin (2024) ────────────────────────────────────────────────
+          Species with swapRules.abilityScores: true and no fixed ASIs use
+          the 2024 Custom Origin model — the player picks either +2/+1 to
+          two abilities or +1/+1/+1 across three. Stored in the same
+          speciesAbilityChoices map so finalize applies it like any other
+          species bonus. */}
+      {species
+        && species.abilityScoreIncreases.length === 0
+        && (species.abilityScoreChoices ?? []).length === 0
+        && species.swapRules?.abilityScores
+        && (
+          <CustomOriginPanel
+            species={species}
+            abilityRows={abilityRows}
+            rawScores={scores}
+            choices={speciesAbilityChoices}
+            onChoicesChange={setSpeciesAbilityChoices}
+          />
+        )}
     </ScrollView>
   );
 }
@@ -525,6 +545,151 @@ function SpeciesAsiPanel({
   );
 }
 
+// Custom Origin panel — 2024 SRD species use this. The player toggles
+// between two allocation modes (+2/+1 across two abilities or +1/+1/+1
+// across three) and assigns the picks via chip taps. Storage lives in
+// the same speciesAbilityChoices map as fixed-bonus species, so the
+// finalize path is shared.
+type OriginMode = '2-1' | '1-1-1';
+function CustomOriginPanel({
+  species, abilityRows, rawScores, choices, onChoicesChange,
+}: {
+  species: SpeciesResult;
+  abilityRows: Array<{ key: string; label: string; short: string; description: string }>;
+  rawScores: Record<string, number>;
+  choices: Record<string, number>;
+  onChoicesChange: (next: Record<string, number>) => void;
+}) {
+  // Derive the active mode from the current allocation — total points
+  // alone disambiguate, since both modes spend exactly 3 points total
+  // BUT the +2 mode has one ability at 2 and another at 1, while the
+  // +1×3 mode has three abilities at 1 each. Default to '2-1' when
+  // nothing's allocated.
+  const allocated = Object.entries(choices).filter(([, v]) => v > 0);
+  const detectedMode: OriginMode = allocated.some(([, v]) => v === 2) ? '2-1'
+    : allocated.length >= 3 ? '1-1-1'
+    : '2-1';
+
+  function switchMode(next: OriginMode) {
+    if (next === detectedMode) return;
+    // Clear and reset whenever the player toggles the mode — mixing
+    // both shapes mid-allocation would produce a malformed state.
+    onChoicesChange({});
+  }
+
+  function toggle(ability: string) {
+    const lc = ability.toLowerCase();
+    const current = choices[lc] ?? 0;
+
+    if (detectedMode === '2-1') {
+      // Cycle: empty → +2 (if no +2 yet) → +1 (if no +1 yet) → empty.
+      const has2 = allocated.find(([, v]) => v === 2);
+      const has1 = allocated.find(([, v]) => v === 1);
+      if (current === 0) {
+        if (!has2) {
+          const next = { ...choices };
+          // If this ability already holds the +1, clearing it first
+          // would lose the assignment; just bump to +2.
+          next[lc] = 2;
+          onChoicesChange(next);
+        } else if (!has1 && has2[0] !== lc) {
+          onChoicesChange({ ...choices, [lc]: 1 });
+        }
+        return;
+      }
+      // Clear this ability.
+      const next = { ...choices };
+      delete next[lc];
+      onChoicesChange(next);
+      return;
+    }
+
+    // '1-1-1' mode.
+    if (current === 0) {
+      const used = allocated.length;
+      if (used >= 3) return;
+      onChoicesChange({ ...choices, [lc]: 1 });
+    } else {
+      const next = { ...choices };
+      delete next[lc];
+      onChoicesChange(next);
+    }
+  }
+
+  const used21 = allocated.find(([, v]) => v === 2) ? 'set' : '';
+  const used21Plus1 = allocated.find(([, v]) => v === 1) ? 'set' : '';
+  const usedCount111 = allocated.filter(([, v]) => v === 1).length;
+
+  return (
+    <View style={s.asiPanel}>
+      <Text style={s.asiPanelTitle}>{species.name} — Custom Origin</Text>
+      <Text style={s.asiClauseLabel}>
+        Choose how your ability scores increase
+      </Text>
+      <View style={s.asiChipRow}>
+        <TouchableOpacity
+          style={[s.originModeBtn, detectedMode === '2-1' && s.originModeBtnOn]}
+          onPress={() => switchMode('2-1')}
+        >
+          <Text style={[s.originModeText, detectedMode === '2-1' && s.originModeTextOn]}>+2 / +1</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.originModeBtn, detectedMode === '1-1-1' && s.originModeBtnOn]}
+          onPress={() => switchMode('1-1-1')}
+        >
+          <Text style={[s.originModeText, detectedMode === '1-1-1' && s.originModeTextOn]}>+1 / +1 / +1</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={[s.asiClauseLabel, { marginTop: spacing.sm }]}>
+        {detectedMode === '2-1'
+          ? `Pick +2 (${used21 ? '1/1' : '0/1'}) and +1 (${used21Plus1 ? '1/1' : '0/1'}) to two different abilities`
+          : `Pick three abilities for +1 each (${usedCount111}/3)`}
+      </Text>
+      <View style={s.asiChipRow}>
+        {abilityRows.map(({ key: ab, short }) => {
+          const lc = ab.toLowerCase();
+          const cur = choices[lc] ?? 0;
+          return (
+            <TouchableOpacity
+              key={ab}
+              style={[s.asiChoiceChip, cur > 0 && s.asiChoiceChipOn]}
+              onPress={() => toggle(ab)}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.asiChoiceChipText, cur > 0 && s.asiChoiceChipTextOn]}>
+                {short}{cur > 0 ? ` +${cur}` : ''}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <Text style={[s.asiClauseLabel, { marginTop: spacing.md }]}>Final scores</Text>
+      <View style={s.asiPreviewGrid}>
+        {abilityRows.map(({ key: ab, short }) => {
+          const raw = rawScores[ab] ?? 10;
+          const bonus = speciesBonusFor(species, choices, ab);
+          const total = raw + bonus;
+          const mod = Math.floor((total - 10) / 2);
+          return (
+            <View key={ab} style={s.asiPreviewCell}>
+              <Text style={s.asiPreviewLabel}>{short}</Text>
+              <Text style={s.asiPreviewTotal}>{total}</Text>
+              {bonus > 0 ? (
+                <Text style={s.asiPreviewBonus}>{`${raw} + ${bonus}`}</Text>
+              ) : (
+                <Text style={s.asiPreviewBonus}>{`${raw}`}</Text>
+              )}
+              <Text style={s.asiPreviewMod}>{mod >= 0 ? `+${mod}` : `${mod}`}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function AbilityRow({ label, short, description, right }: {
   label: string;
   short: string;
@@ -639,6 +804,21 @@ const s = StyleSheet.create({
     fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
     color: colors.primary, marginTop: 2,
   },
+  originModeBtn: {
+    paddingHorizontal: 14, paddingVertical: 8,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 999,
+  },
+  originModeBtnOn: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: `${colors.primary}55`,
+  },
+  originModeText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant, letterSpacing: 0.5,
+  },
+  originModeTextOn: { color: colors.primary },
 
   container: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
   title: {

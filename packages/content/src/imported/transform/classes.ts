@@ -43,7 +43,7 @@
 //     cleanly in the UI.
 
 import type { ClassResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry, type RawEntryObject } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry, type RawEntryObject } from './entries';
 import { stripMarkup } from './markup';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
@@ -367,7 +367,7 @@ function buildClass(
     startingEquipment: startingEquipment.length > 0 ? startingEquipment : undefined,
     multiclassPrerequisite,
     multiclassProficiencies,
-    srdVersions: [],
+    srdVersions: srdVersionsForSource(c.source),
   };
 }
 

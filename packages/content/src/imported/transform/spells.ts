@@ -20,7 +20,7 @@
 //   until that index is wired in. SRD class detail still works.
 
 import type { SpellResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -122,8 +122,8 @@ export function transformSpells(
       // matches the SpellResult shape; class spell-list surfaces will
       // skip imported spells until a separate class-spell index lands.
       classes: [],
-      // Imported entries don't claim an SRD edition.
-      srdVersions: [],
+      // Edition tag derived from source code (X-prefix = 2024).
+      srdVersions: srdVersionsForSource(s.source),
     };
   });
 }

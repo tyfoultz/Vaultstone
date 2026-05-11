@@ -38,7 +38,7 @@
 //     are flattened to bare names; the note is dropped.
 
 import type { CreatureResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -193,7 +193,7 @@ export function transformMonsters(
         traits,
         actions,
         environments: m.environment?.map(titleCase),
-        srdVersions: [],
+        srdVersions: srdVersionsForSource(m.source),
       };
     });
 }

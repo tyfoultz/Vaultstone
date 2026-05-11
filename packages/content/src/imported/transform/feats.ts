@@ -15,7 +15,7 @@
 //   benefits entry with the flattened prose.
 
 import type { FeatResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry, type RawEntryObject } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry, type RawEntryObject } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -122,9 +122,10 @@ export function transformFeats(
       category: mapCategory(f.category),
       prerequisites: formatPrerequisites(f.prerequisite),
       benefits: allBenefits,
-      // Imported entries don't claim an SRD edition — provenance lives
-      // on importSource.
-      srdVersions: [],
+      // Edition tag derived from the source code (X-prefix = 2024,
+      // SRD = both, anything else = 5.1). The richer provenance still
+      // lives on importSource.
+      srdVersions: srdVersionsForSource(f.source),
     };
   });
 }

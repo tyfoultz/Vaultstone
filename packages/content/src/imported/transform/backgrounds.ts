@@ -25,7 +25,7 @@
 //   doesn't crash, but those entries don't import.
 
 import type { BackgroundResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry, type RawEntryObject } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry, type RawEntryObject } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -99,7 +99,7 @@ export function transformBackgrounds(
         abilityScoreOptions: extractAbilityOptions(b.ability),
         originFeat: extractOriginFeat(b.feats),
         startingEquipment: extractStartingEquipment(b.entries ?? []),
-        srdVersions: [],
+        srdVersions: srdVersionsForSource(b.source),
       };
     });
 }

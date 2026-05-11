@@ -20,7 +20,7 @@
 //   FR/Dragonlance/etc.), so the entry key includes pantheon.
 
 import type { DeityResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -91,7 +91,7 @@ export function transformDeities(
       importSource,
       data: {},
       pantheon: d.pantheon,
-      srdVersions: [],
+      srdVersions: srdVersionsForSource(d.source),
     };
 
     if (d.title) result.title = d.title;

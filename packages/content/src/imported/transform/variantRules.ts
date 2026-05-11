@@ -20,7 +20,7 @@
 // variants/optionals under their own sub-tab.
 
 import type { VariantRuleResult, ImportSource } from '@vaultstone/types';
-import { entriesToText, slugify, sourceLongName, type RawEntry } from './entries';
+import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry } from './entries';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 
@@ -77,7 +77,7 @@ export function transformVariantRules(
       importSource,
       data: {},
       kind: mapKind(r.ruleType),
-      srdVersions: [],
+      srdVersions: srdVersionsForSource(r.source),
     } satisfies VariantRuleResult;
   });
 }

@@ -163,6 +163,35 @@ export function sourceLongName(code: string): string {
   }
 }
 
+/**
+ * Map a 5e.tools source code to the SRD edition tag(s) the entry
+ * should carry. Anything in the `X*` family (XPHB / XDMG / XMM) is
+ * 2024; the SRD compendium is dual-edition; everything else defaults
+ * to 2014 (5.1). Content can opt-out by handing in an empty array.
+ *
+ * This is a heuristic — the 5e.tools data doesn't carry an explicit
+ * "edition" field, so we lean on the X-prefix convention WotC adopted
+ * for the 2024 line. Most homebrew packs ship pre-2024 content under
+ * normal source codes (PHB / TCE / etc.) and land as 5.1.
+ */
+export function srdVersionsForSource(code: string): string[] {
+  const up = (code ?? '').toUpperCase();
+  if (!up) return [];
+  if (up === 'SRD') return ['SRD_5.1', 'SRD_2.0'];
+  // X-prefixed 2024 sourcebooks (XPHB, XDMG, XMM, XGE-2024 if it ever
+  // ships). XGE the 2017 Xanathar's IS NOT X-prefixed; it's just XGE.
+  // Disambiguate explicitly to avoid false positives.
+  const TWO_FOURTEEN_THREE_LETTER = new Set(['XGE', 'XMP']);
+  if (up.startsWith('X') && up.length >= 4 && !TWO_FOURTEEN_THREE_LETTER.has(up)) {
+    return ['SRD_2.0'];
+  }
+  // Explicit known 2024 codes that don't follow the X-prefix rule
+  // (the modern Monsters of the Multiverse reprint is 2024-adjacent;
+  // listed here so we don't surprise homebrew packs that lean on it).
+  if (up === 'MPMM') return ['SRD_2.0'];
+  return ['SRD_5.1'];
+}
+
 export function slugify(s: string): string {
   return s
     .toLowerCase()
