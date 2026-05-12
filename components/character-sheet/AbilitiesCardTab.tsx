@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Pressable, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
-import type { Dnd5eAbility, Dnd5eResources } from '@vaultstone/types';
+import type { Dnd5eAbility, Dnd5eResources, ClassResult, SubclassResult, SpeciesResult } from '@vaultstone/types';
 
 interface Props {
   resources: Dnd5eResources;
   isOwner: boolean;
+  classResultsByKey: Record<string, ClassResult>;
+  subclassResultsByKey: Record<string, SubclassResult>;
+  speciesResult: SpeciesResult | null;
+  characterLevel: number;
   onUpdateAbilities: (abilities: Dnd5eAbility[]) => void;
 }
 
@@ -24,10 +28,46 @@ const RECHARGE_LABELS: Record<string, string> = {
   dawn: 'Dawn',
 };
 
-export function AbilitiesCardTab({ resources, isOwner, onUpdateAbilities }: Props) {
+type ImportableFeature = {
+  name: string;
+  description: string;
+  source: string;
+  level?: number;
+};
+
+export function AbilitiesCardTab({ resources, isOwner, classResultsByKey, subclassResultsByKey, speciesResult, characterLevel, onUpdateAbilities }: Props) {
   const abilities = resources.abilities ?? [];
   const [editModal, setEditModal] = useState(false);
   const [editAbility, setEditAbility] = useState<Dnd5eAbility | null>(null);
+  const [importModal, setImportModal] = useState(false);
+
+  const importableFeatures = useMemo(() => {
+    const features: ImportableFeature[] = [];
+    const existingNames = new Set(abilities.map((a) => a.name.toLowerCase()));
+
+    for (const cls of Object.values(classResultsByKey)) {
+      for (const f of cls.features ?? []) {
+        if (f.level <= characterLevel && !existingNames.has(f.name.toLowerCase())) {
+          features.push({ name: f.name, description: f.description ?? '', source: `${cls.name} L${f.level}`, level: f.level });
+        }
+      }
+    }
+    for (const sc of Object.values(subclassResultsByKey)) {
+      for (const f of sc.features ?? []) {
+        if (f.level <= characterLevel && !existingNames.has(f.name.toLowerCase())) {
+          features.push({ name: f.name, description: f.description, source: `${sc.name} L${f.level}`, level: f.level });
+        }
+      }
+    }
+    if (speciesResult) {
+      for (const t of speciesResult.traits ?? []) {
+        if (!existingNames.has(t.name.toLowerCase())) {
+          features.push({ name: t.name, description: t.description, source: speciesResult.name });
+        }
+      }
+    }
+    return features;
+  }, [classResultsByKey, subclassResultsByKey, speciesResult, characterLevel, abilities]);
 
   function handleUse(id: string, delta: number) {
     const updated = abilities.map((a) => {
@@ -54,7 +94,20 @@ export function AbilitiesCardTab({ resources, isOwner, onUpdateAbilities }: Prop
     setEditAbility(null);
   }
 
-  function handleRestoreAll(rechargeType: 'short' | 'long' | 'dawn') {
+  function handleImport(features: ImportableFeature[]) {
+    const newAbilities: Dnd5eAbility[] = features.map((f) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: f.name,
+      description: f.description,
+      source: f.source,
+      actionType: 'action',
+      uses: null,
+    }));
+    onUpdateAbilities([...abilities, ...newAbilities]);
+    setImportModal(false);
+  }
+
+  function handleRestoreAll(rechargeType: 'short' | 'long') {
     const updated = abilities.map((a) => {
       if (!a.uses) return a;
       if (rechargeType === 'short' && a.uses.recharge === 'short') {
@@ -73,19 +126,13 @@ export function AbilitiesCardTab({ resources, isOwner, onUpdateAbilities }: Prop
       <View style={s.headerRow}>
         <SectionLabel>ABILITIES</SectionLabel>
         <View style={{ flexDirection: 'row', gap: 6 }}>
-          {isOwner ? (
+          {isOwner && abilities.some((a) => a.uses) ? (
             <>
-              <TouchableOpacity
-                style={s.restBtn}
-                onPress={() => handleRestoreAll('short')}
-              >
+              <TouchableOpacity style={s.restBtn} onPress={() => handleRestoreAll('short')}>
                 <MaterialCommunityIcons name="weather-sunset-up" size={12} color={colors.outline} />
                 <Text style={s.restBtnText}>Short Rest</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={s.restBtn}
-                onPress={() => handleRestoreAll('long')}
-              >
+              <TouchableOpacity style={s.restBtn} onPress={() => handleRestoreAll('long')}>
                 <MaterialCommunityIcons name="weather-night" size={12} color={colors.outline} />
                 <Text style={s.restBtnText}>Long Rest</Text>
               </TouchableOpacity>
@@ -113,23 +160,31 @@ export function AbilitiesCardTab({ resources, isOwner, onUpdateAbilities }: Prop
       ))}
 
       {isOwner ? (
-        <TouchableOpacity
-          style={s.addBtn}
-          onPress={() => {
-            setEditAbility({
-              id: Date.now().toString(),
-              name: '',
-              description: '',
-              source: 'Custom',
-              actionType: 'action',
-              uses: null,
-            });
-            setEditModal(true);
-          }}
-        >
-          <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
-          <Text style={s.addBtnText}>Add ability</Text>
-        </TouchableOpacity>
+        <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
+          {importableFeatures.length > 0 ? (
+            <TouchableOpacity style={s.importBtn} onPress={() => setImportModal(true)}>
+              <MaterialCommunityIcons name="download-outline" size={16} color={colors.secondary} />
+              <Text style={s.importBtnText}>Import from class features ({importableFeatures.length})</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            style={s.addBtn}
+            onPress={() => {
+              setEditAbility({
+                id: Date.now().toString(),
+                name: '',
+                description: '',
+                source: 'Custom',
+                actionType: 'action',
+                uses: null,
+              });
+              setEditModal(true);
+            }}
+          >
+            <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
+            <Text style={s.addBtnText}>Add custom ability</Text>
+          </TouchableOpacity>
+        </View>
       ) : null}
 
       {editModal && editAbility ? (
@@ -141,7 +196,100 @@ export function AbilitiesCardTab({ resources, isOwner, onUpdateAbilities }: Prop
           onClose={() => { setEditModal(false); setEditAbility(null); }}
         />
       ) : null}
+
+      {importModal ? (
+        <ImportFeaturesModal
+          features={importableFeatures}
+          onImport={handleImport}
+          onClose={() => setImportModal(false)}
+        />
+      ) : null}
     </ScrollView>
+  );
+}
+
+function ImportFeaturesModal({ features, onImport, onClose }: {
+  features: ImportableFeature[];
+  onImport: (picked: ImportableFeature[]) => void;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  function toggle(name: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelected(new Set(features.map((f) => f.name)));
+  }
+
+  const picked = features.filter((f) => selected.has(f.name));
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.modalBackdrop} onPress={onClose}>
+        <Pressable style={[s.modalCard, { maxHeight: '85%' }]} onPress={() => {}}>
+          <Text style={s.modalTitle}>Import Class Features</Text>
+          <Text style={{ fontSize: 12, fontFamily: fonts.body, color: colors.outline, marginBottom: spacing.sm }}>
+            Select features to add to your Abilities tab. You can configure use tracking after importing.
+          </Text>
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm }}>
+            <TouchableOpacity onPress={selectAll}>
+              <Text style={{ fontSize: 12, fontFamily: fonts.label, fontWeight: '700', color: colors.primary }}>Select all</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 12, fontFamily: fonts.label, fontWeight: '600', color: colors.outline }}>
+              {selected.size} selected
+            </Text>
+          </View>
+
+          <ScrollView style={{ maxHeight: 400 }}>
+            {features.map((f) => {
+              const isSelected = selected.has(f.name);
+              return (
+                <TouchableOpacity
+                  key={f.name}
+                  style={[s.importRow, isSelected && s.importRowSelected]}
+                  onPress={() => toggle(f.name)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name={isSelected ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                    size={18}
+                    color={isSelected ? colors.primary : colors.outline}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.importRowName}>{f.name}</Text>
+                    <Text style={s.importRowSource}>{f.source}</Text>
+                    {f.description ? (
+                      <Text style={s.importRowDesc} numberOfLines={2}>{f.description}</Text>
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <View style={s.modalFooter}>
+            <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
+              <Text style={s.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.saveBtn, selected.size === 0 && { opacity: 0.5 }]}
+              onPress={() => selected.size > 0 && onImport(picked)}
+              disabled={selected.size === 0}
+            >
+              <Text style={s.saveBtnText}>Import {selected.size > 0 ? `(${selected.size})` : ''}</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -423,7 +571,7 @@ const s = StyleSheet.create({
   cardDesc: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 10 },
 
   usesRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  pipsRow: { flexDirection: 'row', gap: 5 },
+  pipsRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
   pip: {
     width: 14, height: 14, borderRadius: 3,
     borderWidth: 1.5, borderColor: colors.outlineVariant,
@@ -440,14 +588,31 @@ const s = StyleSheet.create({
   editRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, alignSelf: 'flex-end' },
   editText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', color: colors.outline },
 
+  importBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 10,
+    borderWidth: 1, borderColor: colors.secondary + '66',
+    borderRadius: radius.lg, backgroundColor: colors.secondary + '08',
+  },
+  importBtnText: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.secondary },
+
   addBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 10,
     borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary + '66',
     borderRadius: radius.lg, backgroundColor: colors.primary + '08',
-    marginTop: spacing.xs,
   },
   addBtnText: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.primary },
+
+  importRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.xs,
+    borderRadius: radius.lg, marginBottom: 2,
+  },
+  importRowSelected: { backgroundColor: colors.primary + '11' },
+  importRowName: { fontSize: 13, fontFamily: fonts.body, fontWeight: '700', color: colors.onSurface },
+  importRowSource: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', color: colors.outline, marginTop: 1 },
+  importRowDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, marginTop: 2, lineHeight: 15 },
 
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',

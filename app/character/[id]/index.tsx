@@ -1664,7 +1664,11 @@ export default function CharacterSheetScreen() {
         return (
           <AbilitiesCardTab
             resources={resources}
-            isOwner={isOwner}
+            isOwner={canEditAny}
+            classResultsByKey={classResultsByKey}
+            subclassResultsByKey={subclassResultsByKey}
+            speciesResult={speciesResult}
+            characterLevel={stats.level}
             onUpdateAbilities={(abilities) => persistResources({ ...resources, abilities })}
           />
         );
