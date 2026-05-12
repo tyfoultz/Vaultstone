@@ -705,9 +705,24 @@ export default function CharacterSheetScreen() {
   // RPC-whitelisted session-state fields (HP, conditions, slots, etc.)
   // while non-owner / non-DM viewers stay read-only.
   useEffect(() => {
-    if (!id || !authUser?.id) return;
+    if (!id || !authUser?.id || !character) return;
     let cancelled = false;
     (async () => {
+      // Check two paths: (1) the character's campaign_id directly,
+      // (2) the campaign_members linkage via character_id. Path 1
+      // covers characters that exist in a campaign but haven't been
+      // linked in the membership row yet.
+      if (character.campaign_id) {
+        const { data: camp } = await supabase
+          .from('campaigns')
+          .select('dm_user_id')
+          .eq('id', character.campaign_id)
+          .single();
+        if (!cancelled && camp?.dm_user_id === authUser.id) {
+          setIsDmOfLinkedCampaign(true);
+          return;
+        }
+      }
       const { data } = await supabase
         .from('campaign_members')
         .select('campaigns!inner(dm_user_id)')
@@ -719,7 +734,7 @@ export default function CharacterSheetScreen() {
       setIsDmOfLinkedCampaign(isDm);
     })();
     return () => { cancelled = true; };
-  }, [id, authUser?.id]);
+  }, [id, authUser?.id, character?.campaign_id]);
 
   // Resolve the campaign's enforce_feat_prerequisites rule so the
   // FeatPickerModal knows whether to gate prereq-bearing feats.
