@@ -671,7 +671,7 @@ function SubclassPickStep({
   onChoose: (k: string) => void;
   targetLevel: number;
 }) {
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(chosen);
   const [showAllFeatures, setShowAllFeatures] = useState<Record<string, boolean>>({});
   const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
   const stripImportedClass = (k: string) =>
@@ -701,7 +701,7 @@ function SubclassPickStep({
           return (
             <View key={sc.key}>
               <Pressable
-                onPress={() => onChoose(sc.key)}
+                onPress={() => { onChoose(sc.key); setExpandedKey(sc.key); }}
                 style={[s.classCard, selected && s.classCardSelected, { marginBottom: 0 }]}
               >
                 <View style={{ flex: 1 }}>

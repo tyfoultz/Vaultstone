@@ -133,6 +133,9 @@ export interface Dnd5eStats {
   /** hitDie + CON modifier, computed and stored at creation/level-up. */
   hpMax: number;
 
+  /** Skills with expertise (double proficiency bonus). */
+  skillExpertise?: string[];
+
   /** Player's pick-one selections for species traits with options.
    *  Keyed by trait name → chosen option name. */
   traitChoices?: Record<string, string>;

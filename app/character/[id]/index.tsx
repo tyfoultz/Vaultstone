@@ -1558,7 +1558,20 @@ export default function CharacterSheetScreen() {
           />
         );
       case 'skills':
-        return <SkillsTab stats={stats} scores={scores} prof={prof} onRoll={handleRoll} skillCatalog={skillResults} />;
+        return (
+          <SkillsTab
+            stats={stats}
+            scores={scores}
+            prof={prof}
+            onRoll={handleRoll}
+            skillCatalog={skillResults}
+            isOwner={isOwner}
+            onUpdateProficiencies={(profs, exp) => {
+              if (!stats) return;
+              persistStats({ ...stats, skillProficiencies: profs, skillExpertise: exp });
+            }}
+          />
+        );
       case 'traits':
         return (
           <AbilitiesTab
