@@ -27,6 +27,7 @@ import {
   getCampaignCharacterRules,
   resolveRuleValues,
   removeCampaignMember,
+  deleteCampaign,
   uploadCampaignCover,
   type HomebrewPackRow,
 } from '@vaultstone/api';
@@ -109,6 +110,8 @@ export function CampaignPageV2({ campaignId }: Props) {
    *  campaigns list. */
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [loadingFlags, setLoadingFlags] = useState({ campaign: true, world: true, members: true, rules: true });
   // Bumped to refresh derived surfaces (window pane, party list) after
   // a write that affects them (e.g. clear scene, add member).
@@ -301,6 +304,17 @@ export function CampaignPageV2({ campaignId }: Props) {
     }
   }
 
+  async function handleDeleteCampaign() {
+    if (!campaign || deleting) return;
+    setDeleting(true);
+    const { error } = await deleteCampaign(campaign.id);
+    setDeleting(false);
+    if (!error) {
+      removeCampaignFromStore(campaign.id);
+      router.replace('/(drawer)/campaigns' as Href);
+    }
+  }
+
   if (stillLoading || !campaign) {
     return (
       <View style={s.loadingContainer}>
@@ -327,16 +341,18 @@ export function CampaignPageV2({ campaignId }: Props) {
                 else router.replace('/(drawer)/campaigns' as Href);
               }}
             />
-            {/* Players (non-DM) can leave the campaign. The DM
-                doesn't get this affordance — leaving as DM means
-                deleting the campaign, which is its own destructive
-                flow (TODO: surface a DM "delete campaign" action
-                somewhere — currently a follow-up). */}
             {!isDM && phase !== 'setup' ? (
               <GhostButton
                 label="Leave"
                 icon="logout"
                 onPress={() => setLeaveConfirmOpen(true)}
+              />
+            ) : null}
+            {isDM ? (
+              <GhostButton
+                label="Delete"
+                icon="delete-outline"
+                onPress={() => setDeleteConfirmOpen(true)}
               />
             ) : null}
           </View>
@@ -368,6 +384,33 @@ export function CampaignPageV2({ campaignId }: Props) {
           >
             <Text variant="label-sm" weight="semibold" uppercase style={{ color: '#fff', letterSpacing: 1 }}>
               {leaving ? 'Leaving…' : 'Leave'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {deleteConfirmOpen ? (
+        <View style={s.confirmBanner}>
+          <Icon name="warning" size={18} color={colors.hpDanger} />
+          <Text variant="body-sm" family="body" style={{ flex: 1, color: colors.onSurface }}>
+            Permanently delete <Text weight="bold">{campaign.name}</Text>? All sessions, members, and
+            linked data will be removed. This cannot be undone.
+          </Text>
+          <Pressable
+            onPress={() => setDeleteConfirmOpen(false)}
+            style={[s.bannerBtn, s.bannerCancel]}
+          >
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: colors.onSurfaceVariant, letterSpacing: 1 }}>
+              Cancel
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={handleDeleteCampaign}
+            disabled={deleting}
+            style={[s.bannerBtn, s.bannerDanger]}
+          >
+            <Text variant="label-sm" weight="semibold" uppercase style={{ color: '#fff', letterSpacing: 1 }}>
+              {deleting ? 'Deleting…' : 'Delete'}
             </Text>
           </Pressable>
         </View>

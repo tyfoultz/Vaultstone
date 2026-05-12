@@ -166,6 +166,13 @@ export async function updateCampaign(
   return supabase.from('campaigns').update(patch).eq('id', campaignId);
 }
 
+export async function deleteCampaign(campaignId: string) {
+  return supabase
+    .from('campaigns')
+    .delete()
+    .eq('id', campaignId);
+}
+
 const ALLOWED_COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export async function uploadCampaignCover(campaignId: string, fileUri: string, mimeType: string) {

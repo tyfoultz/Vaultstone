@@ -435,6 +435,7 @@ function LevelUpFlow({
             subclasses={subclasses}
             chosen={chosenSubclassKey}
             onChoose={setChosenSubclassKey}
+            targetLevel={newClassLevel}
           />
         ) : null}
 
@@ -662,22 +663,16 @@ function ClassPickStep({
 }
 
 function SubclassPickStep({
-  cls, subclasses, chosen, onChoose,
+  cls, subclasses, chosen, onChoose, targetLevel,
 }: {
   cls: ClassResult;
   subclasses: SubclassResult[];
   chosen: string | null;
   onChoose: (k: string) => void;
+  targetLevel: number;
 }) {
-  // Filter subclasses to those targeting the leveling class. Match
-  // exact `parentClassKey` first, then fall back to:
-  //   - suffix-stripped slug equality (`cleric` ↔ `cleric-srd-2-0`)
-  //   - `parentClassName` matching the class's display name
-  // The fallbacks matter because imported classes are keyed
-  // `imported_<system>_class_<source>_<slug>` while their imported
-  // subclasses set `parentClassKey: <slug>-srd-X-X`. Without the
-  // name fallback, importing a homebrew Artificer + its subclasses
-  // produces zero matches and the wizard can't surface the picks.
+  const [expandedKey, setExpandedKey] = useState<string | null>(chosen);
+  const [showAllFeatures, setShowAllFeatures] = useState<Record<string, boolean>>({});
   const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
   const stripImportedClass = (k: string) =>
     k.replace(/^imported_[^_]+_class_[^_]+_/, '').toLowerCase();
@@ -698,22 +693,81 @@ function SubclassPickStep({
       <View style={{ gap: spacing.sm }}>
         {matching.map((sc) => {
           const selected = chosen === sc.key;
+          const isExpanded = expandedKey === sc.key;
+          const features = sc.features ?? [];
+          const currentFeatures = features.filter((f) => f.level <= targetLevel);
+          const laterFeatures = features.filter((f) => f.level > targetLevel);
+          const showAll = showAllFeatures[sc.key] ?? false;
           return (
-            <Pressable
-              key={sc.key}
-              onPress={() => onChoose(sc.key)}
-              style={[s.classCard, selected && s.classCardSelected]}
-            >
-              <View style={{ flex: 1 }}>
-                <Text variant="title-sm" family="headline" weight="bold">{sc.name}</Text>
-                {sc.description ? (
-                  <Text variant="label-sm" tone="secondary" numberOfLines={3}>
-                    {sc.description}
-                  </Text>
-                ) : null}
-              </View>
-              {selected ? <Icon name="check" size={18} color={colors.primary} /> : null}
-            </Pressable>
+            <View key={sc.key}>
+              <Pressable
+                onPress={() => { onChoose(sc.key); setExpandedKey(sc.key); }}
+                style={[s.classCard, selected && s.classCardSelected, { marginBottom: 0 }]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text variant="title-sm" family="headline" weight="bold">{sc.name}</Text>
+                  {sc.description ? (
+                    <Text variant="label-sm" tone="secondary" numberOfLines={isExpanded ? undefined : 3}>
+                      {sc.description}
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                  {selected ? <Icon name="check" size={18} color={colors.primary} /> : null}
+                  {features.length > 0 ? (
+                    <Pressable
+                      onPress={(e) => { e.stopPropagation(); setExpandedKey(isExpanded ? null : sc.key); }}
+                      hitSlop={8}
+                    >
+                      <Icon name={isExpanded ? 'expand-less' : 'expand-more'} size={20} color={colors.outline} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              </Pressable>
+              {isExpanded && features.length > 0 ? (
+                <View style={s.subclassFeatures}>
+                  {currentFeatures.length > 0 ? (
+                    <>
+                      <Text variant="label-sm" weight="bold" uppercase style={{ color: colors.outline, letterSpacing: 1 }}>
+                        Level {targetLevel} features
+                      </Text>
+                      {currentFeatures.map((f, i) => (
+                        <View key={i} style={s.subclassFeatureRow}>
+                          <Text variant="body-sm" weight="bold" style={{ color: colors.onSurface }}>
+                            L{f.level} · {f.name}
+                          </Text>
+                          <Text variant="label-sm" style={{ color: colors.onSurfaceVariant, marginTop: 2 }}>
+                            {f.description}
+                          </Text>
+                        </View>
+                      ))}
+                    </>
+                  ) : null}
+                  {laterFeatures.length > 0 ? (
+                    <>
+                      <Pressable
+                        onPress={() => setShowAllFeatures((p) => ({ ...p, [sc.key]: !showAll }))}
+                        style={s.showAllBtn}
+                      >
+                        <Text variant="label-sm" weight="semibold" style={{ color: colors.outline }}>
+                          {showAll ? 'Hide higher-level features' : `Show all features (L${laterFeatures[0]!.level}+) ›`}
+                        </Text>
+                      </Pressable>
+                      {showAll ? laterFeatures.map((f, i) => (
+                        <View key={`later-${i}`} style={[s.subclassFeatureRow, { opacity: 0.7 }]}>
+                          <Text variant="body-sm" weight="bold" style={{ color: colors.onSurface }}>
+                            L{f.level} · {f.name}
+                          </Text>
+                          <Text variant="label-sm" style={{ color: colors.onSurfaceVariant, marginTop: 2 }}>
+                            {f.description}
+                          </Text>
+                        </View>
+                      )) : null}
+                    </>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
           );
         })}
         {matching.length === 0 ? (
@@ -1027,7 +1081,7 @@ function nonZeroAlloc(a: Record<AbilityKey, number>): Partial<Record<AbilityKey,
 const s = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.surfaceCanvas },
   container: { padding: spacing.md, paddingBottom: spacing.xl },
-  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceCanvas },
   errorWrap: { padding: spacing.lg, alignItems: 'center' },
   classCard: {
     flexDirection: 'row',
@@ -1135,5 +1189,20 @@ const s = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
+  },
+  subclassFeatures: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.sm,
+    marginTop: 2,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.primary + '44',
+    marginLeft: spacing.sm,
+  },
+  subclassFeatureRow: {
+    paddingVertical: spacing.xs,
+  },
+  showAllBtn: {
+    paddingVertical: spacing.xs,
   },
 });

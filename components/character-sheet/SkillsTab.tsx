@@ -28,19 +28,23 @@ interface Props {
   scores: Dnd5eAbilityScores;
   prof: number;
   onRoll: (result: RollResult) => void;
-  /** Optional ContentResolver skill catalog. When supplied, long-pressing
-   *  a skill row opens a description popover. Drives accessibility for
-   *  the rules text without forcing a full skill-list refactor. */
   skillCatalog?: SkillResult[];
+  isOwner?: boolean;
+  onUpdateProficiencies?: (proficiencies: string[], expertise: string[]) => void;
 }
 
-export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog }: Props) {
+export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog, isOwner, onUpdateProficiencies }: Props) {
   const [detailFor, setDetailFor] = useState<{ name: string; description: string; ability: string } | null>(null);
+  const [editMode, setEditMode] = useState(false);
+
+  const expertise = stats.skillExpertise ?? [];
 
   function skillBonus(name: string) {
     const abi = SKILL_ABILITY[name];
     const base = abilityMod(scores[abi]);
-    return base + (stats.skillProficiencies.includes(name) ? prof : 0);
+    const isProf = stats.skillProficiencies.includes(name);
+    const isExpert = expertise.includes(name);
+    return base + (isExpert ? prof * 2 : isProf ? prof : 0);
   }
 
   function rollSkill(name: string) {
@@ -59,12 +63,46 @@ export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog }: Props) 
     setDetailFor({ name: hit.name, description: hit.description ?? '', ability: hit.ability });
   }
 
+  function toggleProficiency(name: string) {
+    if (!onUpdateProficiencies) return;
+    const profs = [...stats.skillProficiencies];
+    const exp = [...expertise];
+    const isProf = profs.includes(name);
+    const isExpert = exp.includes(name);
+    if (isExpert) {
+      // expertise → remove expertise (keep proficiency)
+      onUpdateProficiencies(profs, exp.filter((s) => s !== name));
+    } else if (isProf) {
+      // proficient → expertise
+      onUpdateProficiencies(profs, [...exp, name]);
+    } else {
+      // untrained → proficient
+      onUpdateProficiencies([...profs, name], exp);
+    }
+  }
+
+  function removeProficiency(name: string) {
+    if (!onUpdateProficiencies) return;
+    onUpdateProficiencies(
+      stats.skillProficiencies.filter((s) => s !== name),
+      expertise.filter((s) => s !== name),
+    );
+  }
+
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
-      <SectionLabel>{`SKILLS · TAP TO ROLL${skillCatalog ? ' · LONG-PRESS FOR DETAILS' : ''}`}</SectionLabel>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <SectionLabel>{editMode ? 'EDIT PROFICIENCIES · TAP TO CYCLE' : `SKILLS · TAP TO ROLL${skillCatalog ? ' · LONG-PRESS FOR DETAILS' : ''}`}</SectionLabel>
+        {isOwner && onUpdateProficiencies ? (
+          <TouchableOpacity onPress={() => setEditMode(!editMode)} style={s.editBtn}>
+            <Text style={s.editBtnText}>{editMode ? 'Done' : 'Edit'}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
       <View style={s.skillsCard}>
         {ALL_SKILLS.map((name, i) => {
           const isProf = stats.skillProficiencies.includes(name);
+          const isExpert = expertise.includes(name);
           const bonus = skillBonus(name);
           const abi = SKILL_ABILITY[name];
           const isLast = i === ALL_SKILLS.length - 1;
@@ -72,17 +110,19 @@ export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog }: Props) 
             <TouchableOpacity
               key={name}
               style={[s.skillRow, !isLast && s.skillRowBorder]}
-              onPress={() => rollSkill(name)}
-              onLongPress={skillCatalog ? () => openDetail(name) : undefined}
+              onPress={editMode ? () => toggleProficiency(name) : () => rollSkill(name)}
+              onLongPress={editMode ? () => removeProficiency(name) : skillCatalog ? () => openDetail(name) : undefined}
               delayLongPress={250}
               activeOpacity={0.7}
             >
-              <View style={[s.profDot, isProf && s.profDotFilled]} />
+              <View style={[s.profDot, isProf && s.profDotFilled, isExpert && s.profDotExpert]} />
               <View style={s.skillNameWrap}>
                 <Text style={[s.skillName, isProf && s.skillNameProf]}>
                   {name.charAt(0).toUpperCase() + name.slice(1)}
                 </Text>
-                <Text style={s.skillAbi}>{ABILITY_SHORT[abi]}</Text>
+                <Text style={s.skillAbi}>
+                  {ABILITY_SHORT[abi]}{isExpert ? ' · EXP' : ''}
+                </Text>
               </View>
               <Text style={[s.skillBonus, isProf && s.skillBonusProf]}>{fmtMod(bonus)}</Text>
             </TouchableOpacity>
@@ -111,8 +151,11 @@ export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog }: Props) 
         </Pressable>
       </Modal>
 
-      {/* Legend */}
       <View style={s.legend}>
+        <View style={s.legendItem}>
+          <View style={[s.profDot, s.profDotExpert]} />
+          <Text style={s.legendText}>Expertise</Text>
+        </View>
         <View style={s.legendItem}>
           <View style={[s.profDot, s.profDotFilled]} />
           <Text style={s.legendText}>Proficient</Text>
@@ -121,6 +164,9 @@ export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog }: Props) 
           <View style={s.profDot} />
           <Text style={s.legendText}>Untrained</Text>
         </View>
+        {editMode ? (
+          <Text style={[s.legendText, { marginLeft: 8 }]}>Long-press to remove</Text>
+        ) : null}
       </View>
 
       <View style={{ height: 16 }} />
@@ -162,6 +208,9 @@ const s = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.outline, flexShrink: 0,
   },
   profDotFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
+  profDotExpert: { backgroundColor: '#e6a255', borderColor: '#e6a255' },
+  editBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100, borderWidth: 1, borderColor: colors.outlineVariant, marginBottom: 10 },
+  editBtnText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
   skillNameWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   skillName: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant },
   skillNameProf: { color: colors.onSurface, fontWeight: '600' },

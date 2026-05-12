@@ -133,6 +133,13 @@ export interface Dnd5eStats {
   /** hitDie + CON modifier, computed and stored at creation/level-up. */
   hpMax: number;
 
+  /** Skills with expertise (double proficiency bonus). */
+  skillExpertise?: string[];
+
+  /** Player's pick-one selections for species traits with options.
+   *  Keyed by trait name → chosen option name. */
+  traitChoices?: Record<string, string>;
+
   /** Per-character settings. Optional for backwards compat with existing characters. */
   settings?: CharacterSettings;
 }
@@ -212,6 +219,15 @@ export interface Dnd5eFeature {
   uses?: { current: number; max: number; recharge: 'short' | 'long' } | null;
   /** If set, surfaces this feature in the Combat tab Actions section */
   actionType?: 'action' | 'bonus' | 'reaction' | 'free';
+}
+
+export interface Dnd5eAbility {
+  id: string;
+  name: string;
+  description: string;
+  source: string;
+  actionType?: 'action' | 'bonus' | 'reaction' | 'free' | 'passive';
+  uses?: { current: number; max: number; recharge: 'short' | 'long' | 'dawn' } | null;
 }
 
 export interface Dnd5eSpellSlotLevel {
@@ -371,6 +387,9 @@ export interface Dnd5eResources {
    * yet) stay readable — see `getSpellbook` for the normalization.
    */
   spellbook?: Dnd5ePreparedSpell[];
+  /** Tracked abilities — class features, racial abilities, item-granted
+   *  powers, etc. with optional use counters and recharge tracking. */
+  abilities?: Dnd5eAbility[];
 }
 
 /**

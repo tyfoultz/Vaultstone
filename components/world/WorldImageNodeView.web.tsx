@@ -6,7 +6,7 @@ import {
   updateWorldImageCaption,
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
-import { colors, ImageCropModal, spacing } from '@vaultstone/ui';
+import { colors, ImageCropModal, spacing, type AspectPreset } from '@vaultstone/ui';
 import { commitPin, decidePinFlow, type PinSlot } from './pinImageWithCrop';
 
 type SignedUrlEntry = { url: string; expiresAt: number };
@@ -83,6 +83,7 @@ export function WorldImageNodeView(props: NodeViewProps) {
     campaignId: string;
     slot: PinSlot;
     aspect: [number, number];
+    presets: AspectPreset[];
     signedUrl: string;
   } | null>(null);
   const [dmCampaigns, setDmCampaigns] = useState<DMCampaign[] | null>(null);
@@ -173,22 +174,20 @@ export function WorldImageNodeView(props: NodeViewProps) {
   async function pinSlot(slot: PinSlot, campaignId: string) {
     if (!imageId) return;
     setSaving(true);
-    const decision = await decidePinFlow({ imageId, slot });
+    const decision = await decidePinFlow({ imageId, slot, sourceWidth: width, sourceHeight: height });
     setSaving(false);
     setMenuOpen(false);
     if (!decision) return;
-    // Always show the crop modal — even matching aspects benefit
-    // from the user confirming framing (the slot might want a
-    // specific subject in frame, not the source's whole canvas).
     setPendingPin({
       campaignId,
       slot,
       aspect: decision.aspect,
+      presets: decision.presets,
       signedUrl: decision.signedUrl,
     });
   }
 
-  async function handlePinCropConfirm(croppedBlobUri: string) {
+  async function handlePinCropConfirm(croppedBlobUri: string, finalAspect?: [number, number]) {
     if (!pendingPin || !worldId || !imageId) return;
     await commitPin({
       campaignId: pendingPin.campaignId,
@@ -197,7 +196,7 @@ export function WorldImageNodeView(props: NodeViewProps) {
       sourceImageId: imageId,
       sourceWidth: width,
       sourceHeight: height,
-      aspect: pendingPin.aspect,
+      aspect: finalAspect ?? pendingPin.aspect,
       croppedBlobUri,
     });
     setPendingPin(null);
@@ -298,11 +297,8 @@ export function WorldImageNodeView(props: NodeViewProps) {
           visible
           imageUri={pendingPin.signedUrl}
           aspect={pendingPin.aspect}
-          usageHint={
-            pendingPin.slot === 'scene'
-              ? 'Scene fills the campaign window pane background (16:9).'
-              : 'Subject overlays the top-right of the scene (9:16 portrait).'
-          }
+          presets={pendingPin.presets}
+          usageHint="Choose an aspect ratio, then frame the image."
           onCancel={() => setPendingPin(null)}
           onConfirm={handlePinCropConfirm}
         />
