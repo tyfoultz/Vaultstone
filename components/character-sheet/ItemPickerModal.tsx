@@ -117,7 +117,7 @@ export function ItemPickerModal({
                 />
               </View>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipsRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipsRow} style={{ flexGrow: 0 }}>
                 {(Object.keys(CATEGORY_LABELS) as CategoryFilter[]).map((cat) => (
                   <Chip
                     key={cat}
