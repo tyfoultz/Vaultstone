@@ -63,6 +63,28 @@ type ActivityInput = ActivityEntry extends infer U
     : never
   : never;
 
+// Module-level cache for resolved content so the sheet doesn't show
+// "Resolving…" placeholders on every remount (e.g. after level-up).
+type ContentCache = {
+  speciesResult: SpeciesResult | null;
+  classResultsByKey: Record<string, ClassResult>;
+  subclassResultsByKey: Record<string, SubclassResult>;
+  backgroundResult: BackgroundResult | null;
+  originFeatResult: FeatResult | null;
+  conditionResults: ConditionResult[];
+  skillResults: SkillResult[];
+  fetchedAt: number;
+};
+const _contentCache = new Map<string, ContentCache>();
+const CONTENT_CACHE_TTL = 5 * 60_000;
+
+function getCachedContent(charId: string): ContentCache | null {
+  const c = _contentCache.get(charId);
+  if (!c) return null;
+  if (Date.now() - c.fetchedAt > CONTENT_CACHE_TTL) return null;
+  return c;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
@@ -637,18 +659,14 @@ export default function CharacterSheetScreen() {
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [logModal, setLogModal] = useState(false);
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Resolved content for the character's identity. ContentResolver merges
-  // SRD + homebrew + imported tiers (scoped to the character's campaign /
-  // pack opt-in) so imported homebrew flows through. The sheet uses these
-  // for live class/subclass/species feature rendering and for origin-feat
-  // detail, falling back to humanized keys while the lookup is in flight.
-  const [speciesResult, setSpeciesResult] = useState<SpeciesResult | null>(null);
-  const [classResultsByKey, setClassResultsByKey] = useState<Record<string, ClassResult>>({});
-  const [subclassResultsByKey, setSubclassResultsByKey] = useState<Record<string, SubclassResult>>({});
-  const [backgroundResult, setBackgroundResult] = useState<BackgroundResult | null>(null);
-  const [originFeatResult, setOriginFeatResult] = useState<FeatResult | null>(null);
-  const [conditionResults, setConditionResults] = useState<ConditionResult[]>([]);
-  const [skillResults, setSkillResults] = useState<SkillResult[]>([]);
+  const _cached = typeof id === 'string' ? getCachedContent(id) : null;
+  const [speciesResult, setSpeciesResult] = useState<SpeciesResult | null>(_cached?.speciesResult ?? null);
+  const [classResultsByKey, setClassResultsByKey] = useState<Record<string, ClassResult>>(_cached?.classResultsByKey ?? {});
+  const [subclassResultsByKey, setSubclassResultsByKey] = useState<Record<string, SubclassResult>>(_cached?.subclassResultsByKey ?? {});
+  const [backgroundResult, setBackgroundResult] = useState<BackgroundResult | null>(_cached?.backgroundResult ?? null);
+  const [originFeatResult, setOriginFeatResult] = useState<FeatResult | null>(_cached?.originFeatResult ?? null);
+  const [conditionResults, setConditionResults] = useState<ConditionResult[]>(_cached?.conditionResults ?? []);
+  const [skillResults, setSkillResults] = useState<SkillResult[]>(_cached?.skillResults ?? []);
 
   useEffect(() => {
     if (!id) return;
@@ -813,6 +831,20 @@ export default function CharacterSheetScreen() {
 
       setConditionResults(conditionResultsAll as ConditionResult[]);
       setSkillResults(skillResultsAll as SkillResult[]);
+
+      if (typeof id === 'string') {
+        const specHit = speciesKey ? speciesResults.find((r) => r.key === speciesKey) as SpeciesResult | undefined : null;
+        _contentCache.set(id, {
+          speciesResult: specHit ?? null,
+          classResultsByKey: classKeys.length > 0 ? Object.fromEntries(classKeys.map((k) => [k, classResults.find((r) => r.key === k)]).filter(([, v]) => v) as [string, ClassResult][]) : {},
+          subclassResultsByKey: subclassKeys.length > 0 ? (() => { const m: Record<string, SubclassResult> = {}; const strip = (ss: string) => ss.replace(/-srd-.*$/i, ''); for (const k of subclassKeys) { const hit = (subclassResults.find((r) => r.key === k) ?? subclassResults.find((r) => strip(r.key) === strip(k))) as SubclassResult | undefined; if (hit) m[k] = hit; } return m; })() : {},
+          backgroundResult: backgroundKey ? (backgroundResults.find((r) => r.key === backgroundKey) as BackgroundResult | undefined) ?? null : null,
+          originFeatResult: originFeatName ? (featResults.find((r) => r.name.toLowerCase() === originFeatName.toLowerCase()) as FeatResult | undefined) ?? null : null,
+          conditionResults: conditionResultsAll as ConditionResult[],
+          skillResults: skillResultsAll as SkillResult[],
+          fetchedAt: Date.now(),
+        });
+      }
     })();
     return () => { cancelled = true; };
   }, [

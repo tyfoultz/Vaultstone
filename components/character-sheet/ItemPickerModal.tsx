@@ -346,11 +346,11 @@ const s = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 13, fontFamily: fonts.body, color: colors.onSurface },
 
-  chipsRow: { flexDirection: 'row', gap: 6, paddingBottom: spacing.sm },
+  chipsRow: { flexDirection: 'row', gap: 6, paddingBottom: spacing.sm, alignItems: 'flex-start' },
   chip: {
     paddingHorizontal: 10, paddingVertical: 5,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: 100,
+    borderRadius: 100, alignSelf: 'flex-start',
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
