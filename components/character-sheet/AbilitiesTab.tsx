@@ -46,8 +46,8 @@ export function AbilitiesTab({
   classResultsByKey, subclassResultsByKey, speciesResult, backgroundResult, originFeatResult,
   onToggleFeatureUse, onAddFeature, onEditFeature, onTraitChoice,
 }: Props) {
-  const customClassFeatures = resources.classFeatures ?? [];
-  const customSpeciesTraits = resources.speciesTraits ?? [];
+  const allCustomClassFeatures = resources.classFeatures ?? [];
+  const allCustomSpeciesTraits = resources.speciesTraits ?? [];
   const feats = resources.feats ?? [];
   const entries = getClassEntries(stats);
 
@@ -78,6 +78,33 @@ export function AbilitiesTab({
       })
       .filter((g): g is { entry: Dnd5eClassEntry; sub: SubclassResult; features: NonNullable<SubclassResult['features']> } => g !== null);
   }, [entries, subclassResultsByKey]);
+
+  const resolvedClassFeatureNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const g of classGroups) {
+      for (const f of g.features) names.add(f.name.toLowerCase());
+    }
+    for (const g of subclassGroups) {
+      for (const f of g.features) names.add(f.name.toLowerCase());
+    }
+    return names;
+  }, [classGroups, subclassGroups]);
+
+  const customClassFeatures = useMemo(
+    () => allCustomClassFeatures.filter((f) => !resolvedClassFeatureNames.has(f.name.toLowerCase())),
+    [allCustomClassFeatures, resolvedClassFeatureNames],
+  );
+
+  const resolvedSpeciesTraitNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const t of speciesResult?.traits ?? []) names.add(t.name.toLowerCase());
+    return names;
+  }, [speciesResult]);
+
+  const customSpeciesTraits = useMemo(
+    () => allCustomSpeciesTraits.filter((f) => !resolvedSpeciesTraitNames.has(f.name.toLowerCase())),
+    [allCustomSpeciesTraits, resolvedSpeciesTraitNames],
+  );
 
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
