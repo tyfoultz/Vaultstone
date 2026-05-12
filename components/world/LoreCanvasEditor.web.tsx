@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from '@vaultstone/store';
 import { ImageCropModal } from '@vaultstone/ui';
 import { commitPin, decidePinFlow, type PinSlot } from './pinImageWithCrop';
+import type { AspectPreset } from '@vaultstone/ui';
 
 type CanvasBlock = {
   id: string;
@@ -545,6 +546,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     sourceHeight: number;
     slot: PinSlot;
     aspect: [number, number];
+    presets: AspectPreset[];
     signedUrl: string;
   } | null>(null);
   const onChangeRef = useRef(onChange);
@@ -1548,15 +1550,13 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     const decision = await decidePinFlow({
       imageId: imageMenu.imageId,
       slot,
+      sourceWidth,
+      sourceHeight,
     });
     setImageMenuSaving(false);
     setImageMenu(null);
     if (!decision) return;
 
-    // Hand off to the crop modal. The user always confirms
-    // framing — even when the source aspect matches the slot,
-    // they may want to focus on a particular subject within
-    // the frame.
     setPendingPin({
       campaignId,
       sourceImageId: imageMenu.imageId,
@@ -1564,11 +1564,12 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       sourceHeight,
       slot,
       aspect: decision.aspect,
+      presets: decision.presets,
       signedUrl: decision.signedUrl,
     });
   }
 
-  async function handlePinCropConfirm(croppedBlobUri: string) {
+  async function handlePinCropConfirm(croppedBlobUri: string, finalAspect?: [number, number]) {
     if (!pendingPin || !worldId) return;
     await commitPin({
       campaignId: pendingPin.campaignId,
@@ -1577,7 +1578,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       sourceImageId: pendingPin.sourceImageId,
       sourceWidth: pendingPin.sourceWidth,
       sourceHeight: pendingPin.sourceHeight,
-      aspect: pendingPin.aspect,
+      aspect: finalAspect ?? pendingPin.aspect,
       croppedBlobUri,
     });
     setPendingPin(null);
@@ -2006,11 +2007,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           visible
           imageUri={pendingPin.signedUrl}
           aspect={pendingPin.aspect}
-          usageHint={
-            pendingPin.slot === 'scene'
-              ? 'Scene fills the campaign window pane background (16:9).'
-              : 'Subject overlays the top-right of the scene (9:16 portrait).'
-          }
+          presets={pendingPin.presets}
+          usageHint="Choose an aspect ratio, then frame the image."
           onCancel={() => setPendingPin(null)}
           onConfirm={handlePinCropConfirm}
         />

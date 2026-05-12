@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Modal, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, StyleSheet, Platform, Pressable } from 'react-native';
 import { colors, spacing } from './tokens';
 
 // react-easy-crop is web-only; lazy-import to avoid errors on native
@@ -16,13 +16,21 @@ interface CropArea {
   height: number;
 }
 
+export type AspectPreset = {
+  label: string;
+  aspect: [number, number];
+};
+
 interface Props {
   visible: boolean;
   imageUri: string;
   aspect?: [number, number];
+  /** Preset buttons shown above the crop area so the user can switch
+   *  aspect ratio. When omitted, the crop locks to `aspect`. */
+  presets?: AspectPreset[];
   /** Where the cropped image will appear — shown as a hint below the crop area */
   usageHint?: string;
-  onConfirm: (croppedUri: string) => void;
+  onConfirm: (croppedUri: string, finalAspect?: [number, number]) => void;
   onCancel: () => void;
 }
 
@@ -49,21 +57,28 @@ async function getCroppedBlob(imageSrc: string, crop: CropArea): Promise<string>
   });
 }
 
-export function ImageCropModal({ visible, imageUri, aspect = [16, 9], usageHint, onConfirm, onCancel }: Props) {
+export function ImageCropModal({ visible, imageUri, aspect = [16, 9], presets, usageHint, onConfirm, onCancel }: Props) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
+  const [activeAspect, setActiveAspect] = useState<[number, number]>(aspect);
 
-  const aspectRatio = aspect[0] / aspect[1];
+  const aspectRatio = activeAspect[0] / activeAspect[1];
 
   const onCropComplete = useCallback((_: unknown, areaPixels: CropArea) => {
     setCroppedAreaPixels(areaPixels);
   }, []);
 
+  function handlePresetPick(preset: AspectPreset) {
+    setActiveAspect(preset.aspect);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+  }
+
   async function handleConfirm() {
     if (!croppedAreaPixels) return;
     const croppedUri = await getCroppedBlob(imageUri, croppedAreaPixels);
-    onConfirm(croppedUri);
+    onConfirm(croppedUri, activeAspect);
   }
 
   if (!Cropper) return null;
@@ -72,6 +87,24 @@ export function ImageCropModal({ visible, imageUri, aspect = [16, 9], usageHint,
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
         <View style={styles.container}>
+          {presets && presets.length > 0 ? (
+            <View style={styles.presetRow}>
+              {presets.map((p) => {
+                const isActive = p.aspect[0] === activeAspect[0] && p.aspect[1] === activeAspect[1];
+                return (
+                  <Pressable
+                    key={p.label}
+                    onPress={() => handlePresetPick(p)}
+                    style={[styles.presetBtn, isActive && styles.presetBtnActive]}
+                  >
+                    <Text style={[styles.presetLabel, isActive && styles.presetLabelActive]}>
+                      {p.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
           <View style={[styles.cropArea, { aspectRatio }]}>
             <Cropper
               image={imageUri}
@@ -129,6 +162,35 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 12,
     overflow: 'hidden',
+  },
+  presetRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    flexWrap: 'wrap',
+  },
+  presetBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.background + '88',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  presetBtnActive: {
+    backgroundColor: colors.brand + '33',
+    borderColor: colors.brand,
+  },
+  presetLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  presetLabelActive: {
+    color: colors.brand,
   },
   cropArea: {
     position: 'relative',

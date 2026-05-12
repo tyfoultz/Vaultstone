@@ -1,8 +1,8 @@
 // Campaign window pane — DM-pinned imagery shared with the table.
 //
 // Rendered above the rest of the campaign page. Two slots:
-//   • Scene (16:9 background)
-//   • Subject (9:16 portrait, top-right overlay on scene)
+//   • Scene (background — adapts to pinned image aspect, capped at 3:4)
+//   • Subject (portrait overlay, top-right on scene — adapts to aspect)
 //
 // Pulls state from `getCampaignWindowPane`. When no scene is pinned
 // the renderer falls back to the campaign's linked-world banner;
@@ -12,26 +12,33 @@
 // DM-only controls (clear scene / clear subject) appear inline when
 // the viewer is the DM. Pinning happens elsewhere — on world canvas
 // images via the right-click → Pin to Scene / Pin as Subject flow.
+//
+// A pop-out button (web only) opens a fullscreen in-app modal
+// showing the image at its native size.
 
 import { useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import {
   getCampaignWindowPane,
   setCampaignSceneImage,
   setCampaignSubjectImage,
   type CampaignWindowPaneState,
+  type WindowPaneSlot,
 } from '@vaultstone/api';
 import { colors, Icon, MetaLabel, radius, spacing, Text } from '@vaultstone/ui';
 
+const MIN_ASPECT = 3 / 4; // portrait cap
+const FALLBACK_ASPECT = 16 / 9;
+
+function clampedAspect(slot: WindowPaneSlot | null, fallback: number): number {
+  if (!slot || !slot.width || !slot.height) return fallback;
+  const native = slot.width / slot.height;
+  return Math.max(native, MIN_ASPECT);
+}
+
 type Props = {
   campaignId: string;
-  /** When true, renders DM clear-pin controls. Should match
-   *  `campaign.dm_user_id === user.id` from the caller. */
   isDM: boolean;
-  /** Bumped by the parent when something pin-related changes
-   *  (e.g. the DM just pinned a new image from the canvas). The
-   *  pane refetches when this number ticks so the new pin shows
-   *  without a remount. */
   refreshTick?: number;
 };
 
@@ -39,6 +46,7 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
   const [state, setState] = useState<CampaignWindowPaneState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<'scene' | 'subject' | null>(null);
+  const [popoutSlot, setPopoutSlot] = useState<WindowPaneSlot | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,17 +77,24 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
     setBusy(null);
   }
 
-  // Choose what fills the scene slot. Order: pinned scene → world
-  // banner → empty placeholder.
   const sceneSrc = state?.scene?.signedUrl ?? state?.fallback?.signedUrl ?? null;
   const sceneCaption = state?.scene?.caption ?? '';
   const sceneIsFallback = !state?.scene && !!state?.fallback;
   const subject = state?.subject ?? null;
 
+  const sceneAspect = clampedAspect(state?.scene ?? null, FALLBACK_ASPECT);
+  const subjectNative = subject && subject.width && subject.height
+    ? subject.width / subject.height
+    : 9 / 16;
+  const subjectAspect = Math.max(subjectNative, MIN_ASPECT);
+
+  const isWeb = Platform.OS === 'web';
+  const sceneNeedsPopout = state?.scene && state.scene.width && state.scene.height
+    && (state.scene.width / state.scene.height) < MIN_ASPECT;
+
   return (
     <View style={styles.container}>
-      <View style={styles.frame}>
-        {/* Scene background */}
+      <View style={[styles.frame, { aspectRatio: sceneAspect }]}>
         {loading ? (
           <View style={styles.placeholder}>
             <Text variant="body-sm" family="body" style={{ color: colors.outline }}>
@@ -107,20 +122,25 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
           </View>
         )}
 
-        {/* Fallback indicator chip — surfaces when the scene is
-            using the world banner because no scene is pinned. Only
-            shown to the DM so players don't see the "this is a
-            fallback" plumbing. */}
         {sceneIsFallback && isDM ? (
           <View style={styles.fallbackChip}>
             <MetaLabel size="sm">World banner</MetaLabel>
           </View>
         ) : null}
 
-        {/* Subject overlay — anchored top-right, 9:16. Drops out
-            entirely when no subject is pinned. */}
+        {/* Pop-out button — web only, shown when a scene is pinned */}
+        {isWeb && state?.scene ? (
+          <Pressable
+            onPress={() => setPopoutSlot(state.scene)}
+            style={({ pressed }) => [styles.popoutBtn, pressed && { opacity: 0.85 }]}
+            accessibilityLabel="View full size"
+          >
+            <Icon name="open-in-full" size={16} color={colors.onSurface} />
+          </Pressable>
+        ) : null}
+
         {subject ? (
-          <View style={styles.subjectFrame}>
+          <View style={[styles.subjectFrame, { aspectRatio: subjectAspect }]}>
             <Image
               source={{ uri: subject.signedUrl }}
               style={styles.subject}
@@ -133,6 +153,16 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
                   {subject.caption}
                 </Text>
               </View>
+            ) : null}
+            {/* Subject pop-out — web only */}
+            {isWeb ? (
+              <Pressable
+                onPress={() => setPopoutSlot(subject)}
+                style={({ pressed }) => [styles.subjectPopout, pressed && { opacity: 0.85 }]}
+                accessibilityLabel="View subject full size"
+              >
+                <Icon name="open-in-full" size={12} color={colors.onSurface} />
+              </Pressable>
             ) : null}
             {isDM ? (
               <Pressable
@@ -148,7 +178,6 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
         ) : null}
       </View>
 
-      {/* Scene caption strip below the pane. */}
       {sceneCaption ? (
         <View style={styles.sceneCaptionStrip}>
           <Text variant="body-sm" family="body" style={styles.sceneCaptionText}>
@@ -157,9 +186,6 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
         </View>
       ) : null}
 
-      {/* DM pin controls — only the clear-scene action lives here.
-          Pinning new images happens on the world canvas (right-
-          click). When nothing is pinned, the bar hides. */}
       {isDM && state?.scene ? (
         <View style={styles.controls}>
           <Pressable
@@ -174,6 +200,33 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
           </Pressable>
         </View>
       ) : null}
+
+      {/* Fullscreen pop-out modal — web only */}
+      {popoutSlot ? (
+        <Modal visible transparent animationType="fade">
+          <Pressable style={styles.popoutBackdrop} onPress={() => setPopoutSlot(null)}>
+            <Pressable style={styles.popoutContainer} onPress={() => {}}>
+              <Image
+                source={{ uri: popoutSlot.signedUrl }}
+                style={styles.popoutImage}
+                resizeMode="contain"
+                accessibilityLabel={popoutSlot.alt}
+              />
+              {popoutSlot.caption ? (
+                <Text variant="body-md" family="body" style={styles.popoutCaption}>
+                  {popoutSlot.caption}
+                </Text>
+              ) : null}
+            </Pressable>
+            <Pressable
+              onPress={() => setPopoutSlot(null)}
+              style={({ pressed }) => [styles.popoutClose, pressed && { opacity: 0.85 }]}
+            >
+              <Icon name="close" size={24} color={colors.onSurface} />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -182,7 +235,6 @@ const styles = StyleSheet.create({
   container: { gap: spacing.xs },
   frame: {
     position: 'relative',
-    aspectRatio: 16 / 9,
     borderRadius: radius.lg,
     overflow: 'hidden',
     backgroundColor: colors.surfaceContainer,
@@ -208,12 +260,24 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.full,
   },
+  popoutBtn: {
+    position: 'absolute',
+    bottom: spacing.sm,
+    right: spacing.sm,
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHigh + 'CC',
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '88',
+  },
   subjectFrame: {
     position: 'absolute',
     top: spacing.sm,
     right: spacing.sm,
     bottom: spacing.sm,
-    aspectRatio: 9 / 16,
     borderRadius: radius.lg,
     overflow: 'hidden',
     borderWidth: 1,
@@ -236,6 +300,17 @@ const styles = StyleSheet.create({
   subjectCaptionText: {
     color: colors.onSurface,
     fontStyle: 'italic',
+  },
+  subjectPopout: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHigh + 'CC',
   },
   subjectClear: {
     position: 'absolute',
@@ -275,5 +350,43 @@ const styles = StyleSheet.create({
   clearBtnText: {
     color: colors.onSurfaceVariant,
     letterSpacing: 0.5,
+  },
+
+  // Pop-out modal
+  popoutBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  popoutContainer: {
+    maxWidth: '95%',
+    maxHeight: '90%',
+    alignItems: 'center',
+  },
+  popoutImage: {
+    width: '100%',
+    height: '100%',
+    maxWidth: 1200,
+    maxHeight: '85vh' as any,
+  },
+  popoutCaption: {
+    color: colors.onSurface,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    opacity: 0.8,
+  },
+  popoutClose: {
+    position: 'absolute',
+    top: spacing.lg,
+    right: spacing.lg,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHigh + 'AA',
   },
 });
