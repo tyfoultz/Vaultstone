@@ -31,6 +31,9 @@ const CATEGORY_LABELS: Record<CategoryFilter, string> = {
   'magic-item': 'Magic',
 };
 
+let _itemCache: { key: string; items: ItemResult[]; ts: number } | null = null;
+const ITEM_CACHE_TTL = 5 * 60_000;
+
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -43,18 +46,25 @@ type Props = {
 export function ItemPickerModal({
   visible, onClose, campaignId, packIds, srdVersion, onPick,
 }: Props) {
-  const [list, setList] = useState<ItemResult[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `${srdVersion ?? ''}:${campaignId ?? ''}:${(packIds ?? []).join(',')}`;
+  const cached = _itemCache && _itemCache.key === cacheKey && Date.now() - _itemCache.ts < ITEM_CACHE_TTL ? _itemCache.items : null;
+  const [list, setList] = useState<ItemResult[]>(cached ?? []);
+  const [loading, setLoading] = useState(!cached);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [previewKey, setPreviewKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) return;
-    setLoading(true);
     setSearch('');
     setCategory('all');
     setPreviewKey(null);
+    if (_itemCache && _itemCache.key === cacheKey && Date.now() - _itemCache.ts < ITEM_CACHE_TTL) {
+      setList(_itemCache.items);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     const includeHomebrew = !!campaignId || (packIds?.length ?? 0) > 0;
     const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
     ContentResolver.search({
@@ -65,7 +75,11 @@ export function ItemPickerModal({
       campaignId: campaignId ?? undefined,
       packIds: !campaignId && packIds && packIds.length > 0 ? packIds : undefined,
     })
-      .then((r) => setList(r as ItemResult[]))
+      .then((r) => {
+        const items = r as ItemResult[];
+        _itemCache = { key: cacheKey, items, ts: Date.now() };
+        setList(items);
+      })
       .finally(() => setLoading(false));
   }, [visible, srdVersion, campaignId, (packIds ?? []).join(',')]);
 
