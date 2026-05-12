@@ -178,11 +178,7 @@ export function AbilitiesTab({
           {backgroundResult.languages > 0 && (
             <Text style={s.bgMeta}>Languages: +{backgroundResult.languages}</Text>
           )}
-          {backgroundResult.startingEquipment.length > 0 ? (
-            // Structured form: render each option's items + optional gold.
-            // Multiple options render as "Option A | Option B" with their
-            // contents on a single line each — same compact treatment the
-            // freeform string had before.
+          {Array.isArray(backgroundResult.startingEquipment) && backgroundResult.startingEquipment.length > 0 ? (
             <Text style={s.bgEquip}>
               {backgroundResult.startingEquipment
                 .map((opt) => {
