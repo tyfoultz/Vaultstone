@@ -206,12 +206,27 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
         <Modal visible transparent animationType="fade">
           <Pressable style={styles.popoutBackdrop} onPress={() => setPopoutSlot(null)}>
             <Pressable style={styles.popoutContainer} onPress={() => {}}>
-              <Image
-                source={{ uri: popoutSlot.signedUrl }}
-                style={styles.popoutImage}
-                resizeMode="contain"
-                accessibilityLabel={popoutSlot.alt}
-              />
+              {/* Use native <img> on web for proper contain-within-viewport behavior */}
+              {isWeb ? (
+                <img
+                  src={popoutSlot.signedUrl}
+                  alt={popoutSlot.alt}
+                  style={{
+                    maxWidth: '90vw',
+                    maxHeight: '85vh',
+                    objectFit: 'contain',
+                    borderRadius: 8,
+                  }}
+                  draggable={false}
+                />
+              ) : (
+                <Image
+                  source={{ uri: popoutSlot.signedUrl }}
+                  style={styles.popoutImage}
+                  resizeMode="contain"
+                  accessibilityLabel={popoutSlot.alt}
+                />
+              )}
               {popoutSlot.caption ? (
                 <Text variant="body-md" family="body" style={styles.popoutCaption}>
                   {popoutSlot.caption}
@@ -361,15 +376,11 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   popoutContainer: {
-    maxWidth: '95%',
-    maxHeight: '90%',
     alignItems: 'center',
   },
   popoutImage: {
     width: '100%',
     height: '100%',
-    maxWidth: 1200,
-    maxHeight: '85vh' as any,
   },
   popoutCaption: {
     color: colors.onSurface,
