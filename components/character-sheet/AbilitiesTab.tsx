@@ -32,6 +32,7 @@ interface Props {
   onToggleFeatureUse: (cat: 'classFeatures' | 'speciesTraits' | 'feats', id: string, delta: number) => void;
   onAddFeature: (cat: 'classFeatures' | 'speciesTraits' | 'feats') => void;
   onEditFeature: (cat: 'classFeatures' | 'speciesTraits' | 'feats', feature: Dnd5eFeature) => void;
+  onTraitChoice?: (traitName: string, optionName: string) => void;
 }
 
 const ACCENT_CLASS = colors.primary;
@@ -43,7 +44,7 @@ const ACCENT_BG = '#7dd3fc';
 export function AbilitiesTab({
   stats, resources, isOwner,
   classResultsByKey, subclassResultsByKey, speciesResult, backgroundResult, originFeatResult,
-  onToggleFeatureUse, onAddFeature, onEditFeature,
+  onToggleFeatureUse, onAddFeature, onEditFeature, onTraitChoice,
 }: Props) {
   const customClassFeatures = resources.classFeatures ?? [];
   const customSpeciesTraits = resources.speciesTraits ?? [];
@@ -241,6 +242,9 @@ export function AbilitiesTab({
             description={t.description}
             accent={ACCENT_SPECIES}
             level={t.level}
+            options={t.options}
+            selectedOption={stats.traitChoices?.[t.name]}
+            onPickOption={isOwner && onTraitChoice ? (opt) => onTraitChoice(t.name, opt) : undefined}
           />
         ))
       ) : !speciesResult ? (
@@ -392,35 +396,73 @@ function SectionSubRow({ label, accent, onAdd }: {
 
 // Read-only feature card driven by ContentResolver data. No edit / use
 // affordances — the source is the catalog entry, not player state.
-function ContentFeatureCard({ name, description, accent, level, subtitle, indented }: {
+function ContentFeatureCard({ name, description, accent, level, subtitle, indented, options, selectedOption, onPickOption }: {
   name: string;
   description?: string;
   accent: string;
   level?: number;
   subtitle?: string;
   indented?: boolean;
+  options?: Array<{ name: string; description: string }>;
+  selectedOption?: string;
+  onPickOption?: (optionName: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const hasOptions = Array.isArray(options) && options.length > 0;
   return (
     <View style={[s.featureCard, indented && s.featureCardIndent]}>
       <TouchableOpacity style={s.featureHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
         <View style={[s.accentBar, { backgroundColor: accent }]} />
         <View style={s.featureHeaderText}>
           <Text style={s.featureName}>{name}</Text>
-          {(subtitle || level) && (
+          {selectedOption ? (
+            <Text style={s.featureUses}>{selectedOption}</Text>
+          ) : (subtitle || level) ? (
             <Text style={s.featureUses}>{subtitle ?? (level ? `Level ${level}` : '')}</Text>
-          )}
+          ) : null}
         </View>
         <MaterialCommunityIcons
-          name="chevron-right"
+          name={open ? 'chevron-down' : 'chevron-right'}
           size={16}
           color={colors.outline}
-          style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}
         />
       </TouchableOpacity>
-      {open && description ? (
+      {open ? (
         <View style={s.featureBody}>
-          <Text style={s.featureDesc}>{description}</Text>
+          {description ? <Text style={s.featureDesc}>{description}</Text> : null}
+          {hasOptions ? (
+            <View style={s.traitOptionsBlock}>
+              <Text style={s.traitOptionsLabel}>
+                {selectedOption ? 'Selected:' : 'Pick one:'}
+              </Text>
+              {options.map((opt) => {
+                const isSelected = selectedOption === opt.name;
+                return (
+                  <TouchableOpacity
+                    key={opt.name}
+                    style={[s.traitOption, isSelected && s.traitOptionSelected]}
+                    onPress={() => onPickOption?.(opt.name)}
+                    disabled={!onPickOption}
+                    activeOpacity={0.7}
+                  >
+                    <View style={s.traitOptionHeader}>
+                      <MaterialCommunityIcons
+                        name={isSelected ? 'radiobox-marked' : 'radiobox-blank'}
+                        size={16}
+                        color={isSelected ? accent : colors.outline}
+                      />
+                      <Text style={[s.traitOptionName, isSelected && { color: accent }]}>
+                        {opt.name}
+                      </Text>
+                    </View>
+                    {opt.description ? (
+                      <Text style={s.traitOptionDesc}>{opt.description}</Text>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -667,4 +709,30 @@ const s = StyleSheet.create({
   },
   profItemName: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, fontWeight: '600' },
   profItemSrc: { fontSize: 8, fontFamily: fonts.label, fontWeight: '600', color: colors.outline, letterSpacing: 0.6, marginTop: 1 },
+
+  traitOptionsBlock: { marginTop: 10, gap: 6 },
+  traitOptionsLabel: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
+    marginBottom: 2,
+  },
+  traitOption: {
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, padding: 10,
+  },
+  traitOptionSelected: {
+    borderColor: colors.secondary + '88',
+    backgroundColor: colors.secondary + '0d',
+  },
+  traitOptionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  traitOptionName: {
+    fontSize: 13, fontFamily: fonts.body, fontWeight: '700', color: colors.onSurface,
+  },
+  traitOptionDesc: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    lineHeight: 16, marginTop: 4, paddingLeft: 24,
+  },
 });

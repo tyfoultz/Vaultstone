@@ -1556,6 +1556,14 @@ export default function CharacterSheetScreen() {
               setEditFeature(feature);
               setFeatureModal(true);
             }}
+            onTraitChoice={(traitName, optionName) => {
+              if (!stats) return;
+              const updated = {
+                ...stats,
+                traitChoices: { ...stats.traitChoices, [traitName]: optionName },
+              };
+              persistStats(updated);
+            }}
           />
         );
       case 'gear':

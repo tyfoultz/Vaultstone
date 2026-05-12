@@ -133,6 +133,10 @@ export interface Dnd5eStats {
   /** hitDie + CON modifier, computed and stored at creation/level-up. */
   hpMax: number;
 
+  /** Player's pick-one selections for species traits with options.
+   *  Keyed by trait name → chosen option name. */
+  traitChoices?: Record<string, string>;
+
   /** Per-character settings. Optional for backwards compat with existing characters. */
   settings?: CharacterSettings;
 }
