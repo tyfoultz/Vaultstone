@@ -15,7 +15,7 @@ import {
 } from '@vaultstone/api';
 import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
-import { colors, spacing, fonts, radius } from '@vaultstone/ui';
+import { colors, spacing, fonts, radius, ImageCropModal } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
 import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult, SkillResult } from '@vaultstone/types';
 import { getClassEntries, getSpellbook } from '@vaultstone/types';
@@ -32,10 +32,11 @@ import { LoreTab } from '../../../components/character-sheet/LoreTab';
 import { FeatPickerModal } from '../../../components/character-sheet/FeatPickerModal';
 import { SpellPickerModal } from '../../../components/character-sheet/SpellPickerModal';
 import { ItemPickerModal } from '../../../components/character-sheet/ItemPickerModal';
+import { AbilitiesCardTab } from '../../../components/character-sheet/AbilitiesCardTab';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
-type TabId = 'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore';
+type TabId = 'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore' | 'abilities';
 type TabLayoutState = {
   left: TabId[];
   right: TabId[];
@@ -44,7 +45,7 @@ type TabLayoutState = {
 };
 const DEFAULT_TAB_LAYOUT: TabLayoutState = {
   left: ['combat', 'spells', 'gear'],
-  right: ['skills', 'traits', 'lore'],
+  right: ['skills', 'traits', 'abilities', 'lore'],
   activeLeft: 'combat',
   activeRight: 'skills',
 };
@@ -456,12 +457,13 @@ function describeEntry(e: ActivityEntry): EntryDescriptor {
 // ─── TabPane (desktop two-column support) ──────────────────────────────────
 
 const ALL_TAB_DEFS: { id: TabId; icon: any; label: string }[] = [
-  { id: 'combat',  icon: 'sword-cross',             label: 'Combat' },
-  { id: 'spells',  icon: 'auto-fix',                label: 'Spells' },
-  { id: 'skills',  icon: 'star-outline',            label: 'Skills' },
-  { id: 'traits',  icon: 'lightning-bolt-outline',  label: 'Traits' },
-  { id: 'gear',    icon: 'bag-personal-outline',    label: 'Gear' },
-  { id: 'lore',    icon: 'book-open-outline',       label: 'Lore' },
+  { id: 'combat',    icon: 'sword-cross',             label: 'Combat' },
+  { id: 'spells',    icon: 'auto-fix',                label: 'Spells' },
+  { id: 'skills',    icon: 'star-outline',            label: 'Skills' },
+  { id: 'traits',    icon: 'lightning-bolt-outline',  label: 'Traits' },
+  { id: 'abilities', icon: 'flash-outline',           label: 'Abilities' },
+  { id: 'gear',      icon: 'bag-personal-outline',    label: 'Gear' },
+  { id: 'lore',      icon: 'book-open-outline',       label: 'Lore' },
 ];
 const TAB_ORDER: Record<TabId, number> = Object.fromEntries(
   ALL_TAB_DEFS.map((d, i) => [d.id, i])
@@ -1089,18 +1091,35 @@ export default function CharacterSheetScreen() {
     persistStats({ ...stats, settings: newSettings });
   }
 
+  const [portraitCropUri, setPortraitCropUri] = useState<string | null>(null);
+
   async function handlePickPortrait() {
     if (!character) return;
+    const isWeb = Platform.OS === 'web';
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: !isWeb,
       aspect: [1, 1],
       quality: 0.7,
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
+    if (isWeb) {
+      setPortraitCropUri(asset.uri);
+    } else {
+      await uploadPortrait(asset.uri, asset.mimeType ?? 'image/jpeg');
+    }
+  }
+
+  async function handlePortraitCropConfirm(croppedUri: string) {
+    setPortraitCropUri(null);
+    await uploadPortrait(croppedUri, 'image/jpeg');
+  }
+
+  async function uploadPortrait(uri: string, mime: string) {
+    if (!character) return;
     setPortraitUploading(true);
-    const { url } = await uploadCharacterPortrait(character.id, asset.uri, asset.mimeType ?? 'image/jpeg');
+    const { url } = await uploadCharacterPortrait(character.id, uri, mime);
     setPortraitUploading(false);
     if (url) {
       const updated = { ...character, avatar_url: url };
@@ -1483,20 +1502,22 @@ export default function CharacterSheetScreen() {
 
   // ── Tab definitions — right rail is activity log, Skills is its own tab ──
   const DESKTOP_TAB_DEFS = [
-    { id: 'combat',  icon: 'sword-cross' as const,        label: 'Combat' },
-    { id: 'spells',  icon: 'auto-fix' as const,           label: 'Spells' },
-    { id: 'skills',  icon: 'star-outline' as const,       label: 'Skills' },
-    { id: 'traits',  icon: 'lightning-bolt-outline' as const, label: 'Traits' },
-    { id: 'gear',    icon: 'bag-personal-outline' as const, label: 'Gear' },
-    { id: 'lore',    icon: 'book-open-outline' as const,  label: 'Lore' },
+    { id: 'combat',    icon: 'sword-cross' as const,        label: 'Combat' },
+    { id: 'spells',    icon: 'auto-fix' as const,           label: 'Spells' },
+    { id: 'skills',    icon: 'star-outline' as const,       label: 'Skills' },
+    { id: 'traits',    icon: 'lightning-bolt-outline' as const, label: 'Traits' },
+    { id: 'abilities', icon: 'flash-outline' as const,      label: 'Abilities' },
+    { id: 'gear',      icon: 'bag-personal-outline' as const, label: 'Gear' },
+    { id: 'lore',      icon: 'book-open-outline' as const,  label: 'Lore' },
   ];
   const MOBILE_TAB_DEFS = [
-    { id: 'combat',  icon: 'sword-cross' as const,        label: 'Combat' },
-    { id: 'spells',  icon: 'auto-fix' as const,           label: 'Spells' },
-    { id: 'skills',  icon: 'star-outline' as const,       label: 'Skills' },
-    { id: 'traits',  icon: 'lightning-bolt-outline' as const, label: 'Traits' },
-    { id: 'gear',    icon: 'bag-personal-outline' as const, label: 'Gear' },
-    { id: 'lore',    icon: 'book-open-outline' as const,  label: 'Lore' },
+    { id: 'combat',    icon: 'sword-cross' as const,        label: 'Combat' },
+    { id: 'spells',    icon: 'auto-fix' as const,           label: 'Spells' },
+    { id: 'skills',    icon: 'star-outline' as const,       label: 'Skills' },
+    { id: 'traits',    icon: 'lightning-bolt-outline' as const, label: 'Traits' },
+    { id: 'abilities', icon: 'flash-outline' as const,      label: 'Abilities' },
+    { id: 'gear',      icon: 'bag-personal-outline' as const, label: 'Gear' },
+    { id: 'lore',      icon: 'book-open-outline' as const,  label: 'Lore' },
   ];
   const TAB_DEFS = isDesktop ? DESKTOP_TAB_DEFS : MOBILE_TAB_DEFS;
 
@@ -1627,6 +1648,14 @@ export default function CharacterSheetScreen() {
               const next = (resources.equipment ?? []).filter((it) => it.id !== id);
               persistResources({ ...resources, equipment: next });
             }}
+          />
+        );
+      case 'abilities':
+        return (
+          <AbilitiesCardTab
+            resources={resources}
+            isOwner={isOwner}
+            onUpdateAbilities={(abilities) => persistResources({ ...resources, abilities })}
           />
         );
       case 'lore':
@@ -2570,6 +2599,18 @@ export default function CharacterSheetScreen() {
             const next = [...existing, { ...item, id }];
             persistResources({ ...resources, equipment: next });
           }}
+        />
+      ) : null}
+
+      {/* Portrait crop modal — web only */}
+      {portraitCropUri ? (
+        <ImageCropModal
+          visible
+          imageUri={portraitCropUri}
+          aspect={[1, 1]}
+          usageHint="Crop your character portrait."
+          onCancel={() => setPortraitCropUri(null)}
+          onConfirm={handlePortraitCropConfirm}
         />
       ) : null}
 

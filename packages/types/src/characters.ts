@@ -221,6 +221,15 @@ export interface Dnd5eFeature {
   actionType?: 'action' | 'bonus' | 'reaction' | 'free';
 }
 
+export interface Dnd5eAbility {
+  id: string;
+  name: string;
+  description: string;
+  source: string;
+  actionType?: 'action' | 'bonus' | 'reaction' | 'free' | 'passive';
+  uses?: { current: number; max: number; recharge: 'short' | 'long' | 'dawn' } | null;
+}
+
 export interface Dnd5eSpellSlotLevel {
   max: number;
   remaining: number;
@@ -378,6 +387,9 @@ export interface Dnd5eResources {
    * yet) stay readable — see `getSpellbook` for the normalization.
    */
   spellbook?: Dnd5ePreparedSpell[];
+  /** Tracked abilities — class features, racial abilities, item-granted
+   *  powers, etc. with optional use counters and recharge tracking. */
+  abilities?: Dnd5eAbility[];
 }
 
 /**

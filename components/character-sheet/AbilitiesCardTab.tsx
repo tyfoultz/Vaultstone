@@ -1,0 +1,493 @@
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Pressable, StyleSheet } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, fonts, spacing, radius } from '@vaultstone/ui';
+import type { Dnd5eAbility, Dnd5eResources } from '@vaultstone/types';
+
+interface Props {
+  resources: Dnd5eResources;
+  isOwner: boolean;
+  onUpdateAbilities: (abilities: Dnd5eAbility[]) => void;
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  action: 'Action',
+  bonus: 'Bonus Action',
+  reaction: 'Reaction',
+  free: 'Free',
+  passive: 'Passive',
+};
+
+const RECHARGE_LABELS: Record<string, string> = {
+  short: 'Short Rest',
+  long: 'Long Rest',
+  dawn: 'Dawn',
+};
+
+export function AbilitiesCardTab({ resources, isOwner, onUpdateAbilities }: Props) {
+  const abilities = resources.abilities ?? [];
+  const [editModal, setEditModal] = useState(false);
+  const [editAbility, setEditAbility] = useState<Dnd5eAbility | null>(null);
+
+  function handleUse(id: string, delta: number) {
+    const updated = abilities.map((a) => {
+      if (a.id !== id || !a.uses) return a;
+      const next = Math.max(0, Math.min(a.uses.max, a.uses.current + delta));
+      return { ...a, uses: { ...a.uses, current: next } };
+    });
+    onUpdateAbilities(updated);
+  }
+
+  function handleSave(ability: Dnd5eAbility) {
+    const exists = abilities.some((a) => a.id === ability.id);
+    const updated = exists
+      ? abilities.map((a) => (a.id === ability.id ? ability : a))
+      : [...abilities, ability];
+    onUpdateAbilities(updated);
+    setEditModal(false);
+    setEditAbility(null);
+  }
+
+  function handleDelete(id: string) {
+    onUpdateAbilities(abilities.filter((a) => a.id !== id));
+    setEditModal(false);
+    setEditAbility(null);
+  }
+
+  function handleRestoreAll(rechargeType: 'short' | 'long' | 'dawn') {
+    const updated = abilities.map((a) => {
+      if (!a.uses) return a;
+      if (rechargeType === 'short' && a.uses.recharge === 'short') {
+        return { ...a, uses: { ...a.uses, current: a.uses.max } };
+      }
+      if (rechargeType === 'long') {
+        return { ...a, uses: { ...a.uses, current: a.uses.max } };
+      }
+      return a;
+    });
+    onUpdateAbilities(updated);
+  }
+
+  return (
+    <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
+      <View style={s.headerRow}>
+        <SectionLabel>ABILITIES</SectionLabel>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {isOwner ? (
+            <>
+              <TouchableOpacity
+                style={s.restBtn}
+                onPress={() => handleRestoreAll('short')}
+              >
+                <MaterialCommunityIcons name="weather-sunset-up" size={12} color={colors.outline} />
+                <Text style={s.restBtnText}>Short Rest</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.restBtn}
+                onPress={() => handleRestoreAll('long')}
+              >
+                <MaterialCommunityIcons name="weather-night" size={12} color={colors.outline} />
+                <Text style={s.restBtnText}>Long Rest</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
+        </View>
+      </View>
+
+      {abilities.length === 0 ? (
+        <View style={s.emptyWrap}>
+          <MaterialCommunityIcons name="lightning-bolt-outline" size={28} color={colors.outline} />
+          <Text style={s.emptyText}>No abilities tracked yet.</Text>
+          <Text style={s.emptyHint}>Add class features, racial abilities, or item powers to track uses during play.</Text>
+        </View>
+      ) : null}
+
+      {abilities.map((ability) => (
+        <AbilityCard
+          key={ability.id}
+          ability={ability}
+          isOwner={isOwner}
+          onUse={(d) => handleUse(ability.id, d)}
+          onEdit={() => { setEditAbility({ ...ability }); setEditModal(true); }}
+        />
+      ))}
+
+      {isOwner ? (
+        <TouchableOpacity
+          style={s.addBtn}
+          onPress={() => {
+            setEditAbility({
+              id: Date.now().toString(),
+              name: '',
+              description: '',
+              source: 'Custom',
+              actionType: 'action',
+              uses: null,
+            });
+            setEditModal(true);
+          }}
+        >
+          <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
+          <Text style={s.addBtnText}>Add ability</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {editModal && editAbility ? (
+        <AbilityEditModal
+          ability={editAbility}
+          isNew={!abilities.some((a) => a.id === editAbility.id)}
+          onSave={handleSave}
+          onDelete={() => handleDelete(editAbility.id)}
+          onClose={() => { setEditModal(false); setEditAbility(null); }}
+        />
+      ) : null}
+    </ScrollView>
+  );
+}
+
+function AbilityCard({ ability, isOwner, onUse, onEdit }: {
+  ability: Dnd5eAbility;
+  isOwner: boolean;
+  onUse: (delta: number) => void;
+  onEdit: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const hasUses = !!ability.uses;
+  return (
+    <View style={s.card}>
+      <TouchableOpacity style={s.cardHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
+        <View style={s.cardAccent} />
+        <View style={{ flex: 1 }}>
+          <Text style={s.cardName}>{ability.name}</Text>
+          <View style={s.cardMeta}>
+            {ability.actionType ? (
+              <Text style={s.cardMetaText}>{ACTION_LABELS[ability.actionType] ?? ability.actionType}</Text>
+            ) : null}
+            {ability.source ? (
+              <Text style={s.cardMetaText}>· {ability.source}</Text>
+            ) : null}
+            {ability.uses ? (
+              <Text style={s.cardMetaText}>· {ability.uses.recharge === 'short' ? 'SR' : ability.uses.recharge === 'long' ? 'LR' : 'Dawn'}</Text>
+            ) : null}
+          </View>
+        </View>
+        {hasUses ? (
+          <View style={s.usesCompact}>
+            <Text style={s.usesCompactText}>{ability.uses!.current}/{ability.uses!.max}</Text>
+          </View>
+        ) : null}
+        <MaterialCommunityIcons
+          name={open ? 'chevron-down' : 'chevron-right'}
+          size={16}
+          color={colors.outline}
+        />
+      </TouchableOpacity>
+
+      {open ? (
+        <View style={s.cardBody}>
+          {ability.description ? (
+            <Text style={s.cardDesc}>{ability.description}</Text>
+          ) : null}
+
+          {hasUses && isOwner ? (
+            <View style={s.usesRow}>
+              <View style={s.pipsRow}>
+                {Array.from({ length: ability.uses!.max }, (_, i) => (
+                  <View
+                    key={i}
+                    style={[s.pip, i < ability.uses!.current && s.pipFilled]}
+                  />
+                ))}
+              </View>
+              <View style={s.usesBtns}>
+                <TouchableOpacity style={s.usesBtn} onPress={() => onUse(-1)}>
+                  <Text style={s.usesBtnText}>Use</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.usesBtn} onPress={() => onUse(1)}>
+                  <Text style={s.usesBtnText}>Restore</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+
+          {isOwner ? (
+            <TouchableOpacity style={s.editRow} onPress={onEdit}>
+              <MaterialCommunityIcons name="pencil-outline" size={12} color={colors.outline} />
+              <Text style={s.editText}>Edit</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function AbilityEditModal({ ability, isNew, onSave, onDelete, onClose }: {
+  ability: Dnd5eAbility;
+  isNew: boolean;
+  onSave: (a: Dnd5eAbility) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState(ability);
+  const [hasUses, setHasUses] = useState(!!ability.uses);
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.modalBackdrop} onPress={onClose}>
+        <Pressable style={s.modalCard} onPress={() => {}}>
+          <ScrollView>
+            <Text style={s.modalTitle}>{isNew ? 'Add Ability' : 'Edit Ability'}</Text>
+
+            <Text style={s.label}>Name</Text>
+            <TextInput
+              style={s.input}
+              value={draft.name}
+              onChangeText={(t) => setDraft({ ...draft, name: t })}
+              placeholder="e.g. Rage"
+              placeholderTextColor={colors.outline}
+            />
+
+            <Text style={s.label}>Description</Text>
+            <TextInput
+              style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]}
+              value={draft.description}
+              onChangeText={(t) => setDraft({ ...draft, description: t })}
+              placeholder="What this ability does…"
+              placeholderTextColor={colors.outline}
+              multiline
+            />
+
+            <Text style={s.label}>Source</Text>
+            <TextInput
+              style={s.input}
+              value={draft.source}
+              onChangeText={(t) => setDraft({ ...draft, source: t })}
+              placeholder="e.g. Barbarian L1"
+              placeholderTextColor={colors.outline}
+            />
+
+            <Text style={s.label}>Action Type</Text>
+            <View style={s.chipRow}>
+              {(['action', 'bonus', 'reaction', 'free', 'passive'] as const).map((t) => (
+                <TouchableOpacity
+                  key={t}
+                  style={[s.chip, draft.actionType === t && s.chipActive]}
+                  onPress={() => setDraft({ ...draft, actionType: t })}
+                >
+                  <Text style={[s.chipText, draft.actionType === t && s.chipTextActive]}>
+                    {ACTION_LABELS[t]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={s.toggleRow}>
+              <Text style={s.label}>Track Uses</Text>
+              <TouchableOpacity
+                style={[s.toggle, hasUses && s.toggleOn]}
+                onPress={() => {
+                  setHasUses(!hasUses);
+                  if (!hasUses) {
+                    setDraft({ ...draft, uses: { current: 2, max: 2, recharge: 'long' } });
+                  } else {
+                    setDraft({ ...draft, uses: null });
+                  }
+                }}
+              >
+                <Text style={s.toggleText}>{hasUses ? 'ON' : 'OFF'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {hasUses && draft.uses ? (
+              <View style={{ gap: spacing.sm }}>
+                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.label}>Max Uses</Text>
+                    <TextInput
+                      style={s.input}
+                      value={String(draft.uses.max)}
+                      onChangeText={(t) => {
+                        const n = parseInt(t) || 0;
+                        setDraft({ ...draft, uses: { ...draft.uses!, max: n, current: Math.min(draft.uses!.current, n) } });
+                      }}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.label}>Current</Text>
+                    <TextInput
+                      style={s.input}
+                      value={String(draft.uses.current)}
+                      onChangeText={(t) => {
+                        const n = parseInt(t) || 0;
+                        setDraft({ ...draft, uses: { ...draft.uses!, current: Math.min(n, draft.uses!.max) } });
+                      }}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                </View>
+                <Text style={s.label}>Recharges On</Text>
+                <View style={s.chipRow}>
+                  {(['short', 'long', 'dawn'] as const).map((r) => (
+                    <TouchableOpacity
+                      key={r}
+                      style={[s.chip, draft.uses?.recharge === r && s.chipActive]}
+                      onPress={() => setDraft({ ...draft, uses: { ...draft.uses!, recharge: r } })}
+                    >
+                      <Text style={[s.chipText, draft.uses?.recharge === r && s.chipTextActive]}>
+                        {RECHARGE_LABELS[r]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            <View style={s.modalFooter}>
+              {!isNew ? (
+                <TouchableOpacity onPress={onDelete}>
+                  <Text style={s.deleteText}>Delete</Text>
+                </TouchableOpacity>
+              ) : <View />}
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
+                  <Text style={s.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.saveBtn, !draft.name.trim() && { opacity: 0.5 }]}
+                  onPress={() => draft.name.trim() && onSave(draft)}
+                  disabled={!draft.name.trim()}
+                >
+                  <Text style={s.saveBtnText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <View style={s.sectionRow}>
+      <Text style={s.sectionLabel}>{children}</Text>
+      <View style={s.sectionLine} />
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { paddingHorizontal: spacing.md, paddingTop: 14 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, textTransform: 'uppercase', color: colors.primary,
+  },
+  sectionLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.primary + '44' },
+
+  restBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 100, borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  restBtnText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
+
+  emptyWrap: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.xs },
+  emptyText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurfaceVariant },
+  emptyHint: { fontSize: 12, fontFamily: fonts.body, color: colors.outline, textAlign: 'center', paddingHorizontal: spacing.lg },
+
+  card: {
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.sm,
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
+  cardAccent: { width: 3, height: 28, borderRadius: 2, backgroundColor: colors.primary },
+  cardName: { fontSize: 14, fontFamily: fonts.body, fontWeight: '700', color: colors.onSurface },
+  cardMeta: { flexDirection: 'row', gap: 4, marginTop: 2 },
+  cardMetaText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', color: colors.outline },
+  usesCompact: {
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 100, backgroundColor: colors.primary + '22',
+  },
+  usesCompactText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
+
+  cardBody: {
+    paddingHorizontal: 16, paddingBottom: 12,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  cardDesc: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 10 },
+
+  usesRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pipsRow: { flexDirection: 'row', gap: 5 },
+  pip: {
+    width: 14, height: 14, borderRadius: 3,
+    borderWidth: 1.5, borderColor: colors.outlineVariant,
+  },
+  pipFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
+  usesBtns: { flexDirection: 'row', gap: 6 },
+  usesBtn: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+  },
+  usesBtnText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '600', color: colors.onSurfaceVariant },
+
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, alignSelf: 'flex-end' },
+  editText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', color: colors.outline },
+
+  addBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 10,
+    borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary + '66',
+    borderRadius: radius.lg, backgroundColor: colors.primary + '08',
+    marginTop: spacing.xs,
+  },
+  addBtnText: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.primary },
+
+  modalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: spacing.md,
+  },
+  modalCard: {
+    width: '100%', maxWidth: 440, maxHeight: '85%',
+    backgroundColor: colors.surface, borderRadius: 14, padding: spacing.md,
+  },
+  modalTitle: { fontSize: 18, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface, marginBottom: spacing.md },
+
+  label: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.outline, marginTop: spacing.sm, marginBottom: 4 },
+  input: {
+    backgroundColor: colors.surfaceContainer, borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 8,
+    fontSize: 13, fontFamily: fonts.body, color: colors.onSurface,
+  },
+
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: 100,
+  },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
+  chipTextActive: { color: colors.onPrimary },
+
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
+  toggle: {
+    paddingHorizontal: 12, paddingVertical: 5,
+    borderRadius: 100, borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  toggleOn: { backgroundColor: colors.primary + '33', borderColor: colors.primary },
+  toggleText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.onSurfaceVariant },
+
+  modalFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.lg },
+  deleteText: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.hpDanger },
+  cancelBtn: { paddingHorizontal: 16, paddingVertical: 8 },
+  cancelBtnText: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurfaceVariant },
+  saveBtn: { backgroundColor: colors.primary, borderRadius: radius.lg, paddingHorizontal: 20, paddingVertical: 8 },
+  saveBtnText: { fontSize: 13, fontFamily: fonts.body, fontWeight: '700', color: colors.onPrimary },
+});
