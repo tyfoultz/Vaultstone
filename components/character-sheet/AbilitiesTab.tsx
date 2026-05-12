@@ -408,7 +408,9 @@ function ContentFeatureCard({ name, description, accent, level, subtitle, indent
   onPickOption?: (optionName: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [showAllOptions, setShowAllOptions] = useState(false);
   const hasOptions = Array.isArray(options) && options.length > 0;
+  const selectedEntry = hasOptions ? options.find((o) => o.name === selectedOption) : null;
   return (
     <View style={[s.featureCard, indented && s.featureCardIndent]}>
       <TouchableOpacity style={s.featureHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
@@ -432,35 +434,61 @@ function ContentFeatureCard({ name, description, accent, level, subtitle, indent
           {description ? <Text style={s.featureDesc}>{description}</Text> : null}
           {hasOptions ? (
             <View style={s.traitOptionsBlock}>
-              <Text style={s.traitOptionsLabel}>
-                {selectedOption ? 'Selected:' : 'Pick one:'}
-              </Text>
-              {options.map((opt) => {
-                const isSelected = selectedOption === opt.name;
-                return (
-                  <TouchableOpacity
-                    key={opt.name}
-                    style={[s.traitOption, isSelected && s.traitOptionSelected]}
-                    onPress={() => onPickOption?.(opt.name)}
-                    disabled={!onPickOption}
-                    activeOpacity={0.7}
-                  >
+              {selectedEntry && !showAllOptions ? (
+                <>
+                  <View style={[s.traitOption, s.traitOptionSelected]}>
                     <View style={s.traitOptionHeader}>
-                      <MaterialCommunityIcons
-                        name={isSelected ? 'radiobox-marked' : 'radiobox-blank'}
-                        size={16}
-                        color={isSelected ? accent : colors.outline}
-                      />
-                      <Text style={[s.traitOptionName, isSelected && { color: accent }]}>
-                        {opt.name}
-                      </Text>
+                      <MaterialCommunityIcons name="radiobox-marked" size={16} color={accent} />
+                      <Text style={[s.traitOptionName, { color: accent }]}>{selectedEntry.name}</Text>
                     </View>
-                    {opt.description ? (
-                      <Text style={s.traitOptionDesc}>{opt.description}</Text>
+                    {selectedEntry.description ? (
+                      <Text style={s.traitOptionDesc}>{selectedEntry.description}</Text>
                     ) : null}
-                  </TouchableOpacity>
-                );
-              })}
+                  </View>
+                  {onPickOption ? (
+                    <TouchableOpacity onPress={() => setShowAllOptions(true)} activeOpacity={0.7}>
+                      <Text style={[s.traitOptionsLabel, { color: colors.outline, marginTop: 4 }]}>
+                        Show all options ›
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <Text style={s.traitOptionsLabel}>
+                    {selectedOption ? 'Pick one:' : 'Pick one:'}
+                  </Text>
+                  {options.map((opt) => {
+                    const isSelected = selectedOption === opt.name;
+                    return (
+                      <TouchableOpacity
+                        key={opt.name}
+                        style={[s.traitOption, isSelected && s.traitOptionSelected]}
+                        onPress={() => {
+                          onPickOption?.(opt.name);
+                          setShowAllOptions(false);
+                        }}
+                        disabled={!onPickOption}
+                        activeOpacity={0.7}
+                      >
+                        <View style={s.traitOptionHeader}>
+                          <MaterialCommunityIcons
+                            name={isSelected ? 'radiobox-marked' : 'radiobox-blank'}
+                            size={16}
+                            color={isSelected ? accent : colors.outline}
+                          />
+                          <Text style={[s.traitOptionName, isSelected && { color: accent }]}>
+                            {opt.name}
+                          </Text>
+                        </View>
+                        {opt.description ? (
+                          <Text style={s.traitOptionDesc}>{opt.description}</Text>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </>
+              )}
             </View>
           ) : null}
         </View>
