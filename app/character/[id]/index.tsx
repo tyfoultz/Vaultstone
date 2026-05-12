@@ -683,7 +683,17 @@ export default function CharacterSheetScreen() {
           setCardItems(st.settings.cardOrder.map((id) => ({ id: id as CardId })));
         }
         if (st?.settings?.tabLayout) {
-          setTabLayout(st.settings.tabLayout as TabLayoutState);
+          const saved = st.settings.tabLayout as TabLayoutState;
+          const allSaved = [...saved.left, ...saved.right];
+          if (!allSaved.includes('abilities')) {
+            const loreIdx = saved.right.indexOf('lore');
+            if (loreIdx >= 0) {
+              saved.right.splice(loreIdx, 0, 'abilities');
+            } else {
+              saved.right.push('abilities');
+            }
+          }
+          setTabLayout(saved);
         }
       }
       setLoading(false);
@@ -2159,7 +2169,7 @@ export default function CharacterSheetScreen() {
               <TouchableOpacity
                 key={tab.id}
                 style={[s.tabBtn, activeTab === tab.id && s.tabBtnActive]}
-                onPress={() => setActiveTab(tab.id as 'combat' | 'spells' | 'skills' | 'traits' | 'gear' | 'lore')}
+                onPress={() => setActiveTab(tab.id as TabId)}
                 activeOpacity={0.7}
               >
                 <MaterialCommunityIcons

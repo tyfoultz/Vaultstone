@@ -193,12 +193,14 @@ export async function uploadCharacterPortrait(characterId: string, fileUri: stri
     .from('campaign-assets')
     .getPublicUrl(path);
 
+  const versionedUrl = `${publicUrl}?v=${Date.now()}`;
+
   const { error: updateError } = await supabase
     .from('characters')
-    .update({ avatar_url: publicUrl })
+    .update({ avatar_url: versionedUrl })
     .eq('id', characterId);
 
   if (updateError) return { url: null, error: updateError };
 
-  return { url: publicUrl, error: null };
+  return { url: versionedUrl, error: null };
 }
