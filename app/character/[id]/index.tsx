@@ -613,7 +613,7 @@ const paneStyle = StyleSheet.create({
 export default function CharacterSheetScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { updateCharacterLocally } = useCharacterStore();
+  const { updateCharacterLocally, setActiveCharacter } = useCharacterStore();
   const authUser = useAuthStore((state) => state.user);
 
   const { width } = useWindowDimensions();
@@ -680,6 +680,7 @@ export default function CharacterSheetScreen() {
       if (err) setError('Failed to load character.');
       else {
         setCharacter(data);
+        if (data) setActiveCharacter(data);
         const res = data?.resources as Dnd5eResources | null;
         if (res?.notes) setScratchpad(res.notes);
         const st = data?.base_stats as Dnd5eStats | null;

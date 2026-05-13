@@ -61,7 +61,7 @@ import {
   type Json,
   type SubclassResult,
 } from '@vaultstone/types';
-import { useAuthStore } from '@vaultstone/store';
+import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { FeatPickerModal } from '../../../components/character-sheet/FeatPickerModal';
 
 const ABILITIES: AbilityKey[] = [
@@ -80,6 +80,7 @@ export default function LevelUpScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
+  const cachedCharacter = useCharacterStore((s) => s.activeCharacter);
 
   // ── Character + content load ──
   const [stats, setStats] = useState<Dnd5eStats | null>(null);
@@ -96,12 +97,18 @@ export default function LevelUpScreen() {
     if (!id) return;
     let cancelled = false;
     (async () => {
-      const { data, error } = await getCharacterById(id);
-      if (cancelled) return;
-      if (error || !data) {
-        setLoadError('Could not load character.');
-        setLoading(false);
-        return;
+      // Use the store's cached character when available (just navigated
+      // from the character sheet), otherwise fall back to a fresh fetch.
+      let data = cachedCharacter?.id === id ? cachedCharacter : null;
+      if (!data) {
+        const res = await getCharacterById(id);
+        if (cancelled) return;
+        if (res.error || !res.data) {
+          setLoadError('Could not load character.');
+          setLoading(false);
+          return;
+        }
+        data = res.data;
       }
       const baseStats = data.base_stats as unknown as Dnd5eStats;
       const baseResources = data.resources as unknown as Dnd5eResources;
@@ -1008,6 +1015,23 @@ function ConfirmStep({
   const sub = effectiveSubKey ? subclasses.find((s) => s.key === effectiveSubKey) : null;
   const subFeatures = sub?.features?.filter((f) => f.level === newClassLevel) ?? [];
 
+  // Diff the class progression table between old and new level to
+  // surface value changes (Rages 3→4, Prof. Bonus +3→+4, etc.)
+  const progressionChanges: Array<{ label: string; from: string; to: string }> = [];
+  if (!isMulticlassEntry && cls.progressionTable && cls.progressionColumns) {
+    const oldRow = cls.progressionTable.find((r) => r.level === newClassLevel - 1);
+    const newRow = cls.progressionTable.find((r) => r.level === newClassLevel);
+    if (oldRow && newRow) {
+      for (const col of cls.progressionColumns) {
+        const oldVal = String(oldRow.values[col.key] ?? '');
+        const newVal = String(newRow.values[col.key] ?? '');
+        if (oldVal !== newVal && newVal && newVal !== '—') {
+          progressionChanges.push({ label: col.label, from: oldVal || '—', to: newVal });
+        }
+      }
+    }
+  }
+
   return (
     <Card tier="container" padding="md" style={{ gap: spacing.sm }}>
       <Row label="Class">{isMulticlassEntry ? `${cls.name} (new class)` : `${cls.name} L${newClassLevel}`}</Row>
@@ -1020,6 +1044,19 @@ function ConfirmStep({
             .map(([k, n]) => `${ABILITY_SHORT[k as AbilityKey]} +${n}`)
             .join(', ') || '—'}
         </Row>
+      ) : null}
+      {progressionChanges.length > 0 ? (
+        <View style={{ marginTop: spacing.xs }}>
+          <MetaLabel size="sm">Progression changes</MetaLabel>
+          {progressionChanges.map((c) => (
+            <Text key={c.label} variant="body-sm" style={{ marginTop: 2 }}>
+              <Text weight="bold">{c.label}</Text>{' '}
+              <Text tone="secondary">{c.from}</Text>
+              <Text tone="secondary"> → </Text>
+              <Text weight="semibold">{c.to}</Text>
+            </Text>
+          ))}
+        </View>
       ) : null}
       {features.length > 0 ? (
         <View style={{ marginTop: spacing.xs }}>
