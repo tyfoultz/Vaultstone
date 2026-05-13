@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { AccentToken } from '@vaultstone/types';
-import { Icon, MetaLabel, Text, colors, spacing } from '@vaultstone/ui';
+import { Icon, MetaLabel, Text, colors, spacing, useBreakpoint } from '@vaultstone/ui';
 
 import { ACCENT_SWATCH, toMaterialIcon } from './helpers';
 
@@ -39,6 +39,7 @@ type Props = {
 // count). The old `meta` string prop was a single accent kicker; it's
 // replaced by `metaPills` so the row can mirror the handoff exactly.
 export function PageHead({ icon, title, accentToken, meta, metaPills, actions, onIconPress, onTitleDoubleClick }: Props) {
+  const { isMobile } = useBreakpoint();
   const swatch = ACCENT_SWATCH[accentToken];
   const materialName = toMaterialIcon(icon);
 
@@ -71,7 +72,8 @@ export function PageHead({ icon, title, accentToken, meta, metaPills, actions, o
             variant="display-md"
             family="serif-display"
             weight="medium"
-            style={styles.title}
+            style={isMobile ? styles.titleMobile : styles.title}
+            numberOfLines={isMobile ? 2 : undefined}
           >
             {title}
           </Text>
@@ -132,6 +134,12 @@ const styles = StyleSheet.create({
     fontSize: 42,
     lineHeight: 44,
     letterSpacing: -0.8,
+  },
+  titleMobile: {
+    color: colors.onSurface,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.4,
   },
   metaRow: {
     flexDirection: 'row',

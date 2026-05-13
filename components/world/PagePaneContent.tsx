@@ -46,7 +46,7 @@ import { EditLockBanner } from './EditLockBanner';
 import { PageHead } from './PageHead';
 import { OrphanBanner } from './OrphanBanner';
 import { PlayerViewToggle } from './PlayerViewToggle';
-import { FactsModal } from './FactsModal';
+
 import { LoreCanvasEditor } from './LoreCanvasEditor';
 import { ShareModal } from './ShareModal';
 import { StructuredFieldsForm } from './StructuredFieldsForm';
@@ -122,7 +122,7 @@ export function PagePaneContent({
   const isWorldOwner = !!world && !!myUserId && world.owner_user_id === myUserId;
   const [shareOpen, setShareOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [factsOpen, setFactsOpen] = useState(false);
+
   const [editingTitle, setEditingTitle] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const removePage = usePagesStore((s) => s.removePage);
@@ -593,16 +593,6 @@ export function PagePaneContent({
                 meta={`${kindLabel} · ${section.name}`}
                 accentToken={template.accentToken}
                 onTitleDoubleClick={() => setEditingTitle(true)}
-                actions={
-                  isLore && template.fields.length > 0 && isWorldOwner ? (
-                    <Pressable onPress={() => setFactsOpen(true)} style={styles.factsChip}>
-                      <Icon name="info-outline" size={14} color={colors.primary} />
-                      <Text variant="label-sm" weight="semibold" style={{ color: colors.primary }}>
-                        Facts
-                      </Text>
-                    </Pressable>
-                  ) : undefined
-                }
               />
             )
           }
@@ -720,15 +710,6 @@ export function PagePaneContent({
         <ShareModal page={page} onClose={() => setShareOpen(false)} />
       ) : null}
 
-      {template.fields.length > 0 ? (
-        <FactsModal
-          visible={factsOpen}
-          page={page}
-          template={template}
-          onClose={() => setFactsOpen(false)}
-          onSaveStateChange={setSaveState}
-        />
-      ) : null}
     </View>
   );
 }
@@ -777,18 +758,7 @@ const styles = StyleSheet.create({
   disabledEditor: {
     opacity: 0.55,
   },
-  factsChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 4,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.primary + '44',
-    backgroundColor: colors.primaryContainer + '22',
-  },
+
   shareBtn: {
     flexDirection: 'row',
     alignItems: 'center',
