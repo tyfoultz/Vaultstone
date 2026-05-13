@@ -325,15 +325,17 @@ function spellcastingExplainersFor(
   return out;
 }
 
-function StatCell({ icon, value, label, color, centered }: { icon: string; value: string; label: string; color: string; centered?: boolean }) {
+function StatCell({ icon, value, label, color, centered, editable, onPress }: { icon: string; value: string; label: string; color: string; centered?: boolean; editable?: boolean; onPress?: () => void }) {
+  const Wrapper = editable && onPress ? TouchableOpacity : View;
   return (
-    <View style={[statCellStyle.cell, centered && statCellStyle.cellCentered]}>
+    <Wrapper style={[statCellStyle.cell, centered && statCellStyle.cellCentered, editable && statCellStyle.cellEditable]} onPress={onPress} activeOpacity={0.7}>
       <MaterialCommunityIcons name={icon as any} size={16} color={color} style={{ opacity: 0.75 }} />
       <View style={statCellStyle.text}>
         <Text style={[statCellStyle.value, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
         <Text style={statCellStyle.label}>{label}</Text>
       </View>
-    </View>
+      {editable && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
+    </Wrapper>
   );
 }
 const statCellStyle = StyleSheet.create({
@@ -345,6 +347,7 @@ const statCellStyle = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
   },
   cellCentered: { justifyContent: 'center' },
+  cellEditable: { borderColor: colors.primary, borderStyle: 'dashed' as any },
   text: { flex: 1, minWidth: 0, gap: 1 },
   value: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 17 },
   label: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.outline },
@@ -651,6 +654,7 @@ export default function CharacterSheetScreen() {
   const [hpQuickInput, setHpQuickInput] = useState('');
   const [scratchpad, setScratchpad] = useState('');
   const [isDmOfLinkedCampaign, setIsDmOfLinkedCampaign] = useState(false);
+  const [linkedCampaignName, setLinkedCampaignName] = useState<string | null>(null);
   const [portraitUploading, setPortraitUploading] = useState(false);
   const [editLayout, setEditLayout] = useState(false);
   const [cardItems, setCardItems] = useState<CardItem[]>(DEFAULT_CARD_ORDER.map((id) => ({ id })));
@@ -715,9 +719,10 @@ export default function CharacterSheetScreen() {
       if (character.campaign_id) {
         const { data: camp } = await supabase
           .from('campaigns')
-          .select('dm_user_id')
+          .select('dm_user_id, name')
           .eq('id', character.campaign_id)
           .single();
+        if (!cancelled && camp?.name) setLinkedCampaignName(camp.name);
         if (!cancelled && camp?.dm_user_id === authUser.id) {
           setIsDmOfLinkedCampaign(true);
           return;
@@ -965,8 +970,10 @@ export default function CharacterSheetScreen() {
   }
 
   const equipment: Dnd5eEquipmentItem[] = resources?.equipment ?? [];
-  const ac = scores ? getEquippedAC() : 10;
-  const initiative = scores ? abilityMod(scores.dexterity) : 0;
+  const computedAC = scores ? getEquippedAC() : 10;
+  const ac = stats?.acOverride ?? computedAC;
+  const computedInitiative = scores ? abilityMod(scores.dexterity) : 0;
+  const initiative = stats?.initiativeOverride ?? computedInitiative;
   const passivePerception = 10 + skillMod('perception');
 
   function hpColor(): string {
@@ -1287,6 +1294,13 @@ export default function CharacterSheetScreen() {
     } else if (editingField === 'speed') {
       if (isNaN(num) || num < 0) { setEditingField(null); return; }
       persistStats({ ...stats, speed: num });
+    } else if (editingField === 'ac') {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      persistStats({ ...stats, acOverride: num });
+    } else if (editingField === 'initiative') {
+      const signed = parseInt(val, 10);
+      if (isNaN(signed)) { setEditingField(null); return; }
+      persistStats({ ...stats, initiativeOverride: signed });
     } else if (editingField === 'hpMax') {
       if (isNaN(num) || num < 1) { setEditingField(null); return; }
       persistStats({ ...stats, hpMax: num });
@@ -1938,17 +1952,20 @@ export default function CharacterSheetScreen() {
               <View style={s.deskStatGrid}>
                 {/* Row 1: AC solo */}
                 <View style={s.deskStatRow}>
-                  <StatCell icon="shield-outline" value={String(ac)} label="Armor Class" color={colors.secondary} centered />
+                  <StatCell icon="shield-outline" value={String(ac)} label="Armor Class" color={colors.secondary} centered
+                    editable={manualMode} onPress={manualMode ? () => startEditField('ac', ac) : undefined} />
                 </View>
                 {/* Row 2: Speed | Initiative */}
                 <View style={s.deskStatRow}>
-                  <StatCell icon="run-fast"       value={`${stats.speed} ft`} label="Speed"      color={colors.onSurface} />
-                  <StatCell icon="lightning-bolt" value={fmtMod(initiative)}  label="Initiative" color={colors.onSurface} />
+                  <StatCell icon="run-fast" value={`${stats.speed} ft`} label="Speed" color={colors.onSurface}
+                    editable={manualMode} onPress={manualMode ? () => startEditField('speed', stats.speed) : undefined} />
+                  <StatCell icon="lightning-bolt" value={fmtMod(initiative)} label="Initiative" color={colors.onSurface}
+                    editable={manualMode} onPress={manualMode ? () => startEditField('initiative', initiative) : undefined} />
                 </View>
                 {/* Row 3: Prof | Hit Die */}
                 <View style={s.deskStatRow}>
-                  <StatCell icon="star-four-points" value={fmtMod(prof)}       label="Prof"    color={colors.onSurface} />
-                  <StatCell icon="dice-d8-outline"  value={`d${stats.hitDie}`} label="Hit Die" color={colors.onSurface} />
+                  <StatCell icon="star-four-points" value={fmtMod(prof)} label="Prof" color={colors.onSurface} />
+                  <StatCell icon="dice-d8-outline" value={`d${stats.hitDie}`} label="Hit Die" color={colors.onSurface} />
                 </View>
               </View>
             </View>
@@ -1986,11 +2003,24 @@ export default function CharacterSheetScreen() {
                 const isProficient = stats.skillProficiencies?.includes(skill) ?? false;
                 const passive = 10 + abilityMod(scores[abi]) + (isProficient ? prof : 0);
                 return (
-                  <View key={skill} style={s.deskAbilityRow}>
+                  <TouchableOpacity
+                    key={skill}
+                    style={s.deskAbilityRow}
+                    activeOpacity={manualMode ? 0.7 : 1}
+                    onPress={manualMode ? () => {
+                      const profs = [...(stats.skillProficiencies ?? [])];
+                      if (isProficient) {
+                        persistStats({ ...stats, skillProficiencies: profs.filter((s) => s !== skill) });
+                      } else {
+                        profs.push(skill);
+                        persistStats({ ...stats, skillProficiencies: profs });
+                      }
+                    } : undefined}
+                  >
                     <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
                     <Text style={s.deskAbilName}>Passive {capitalize(skill)}</Text>
                     <Text style={[s.deskAbilSaveVal, isProficient && { color: colors.primary }]}>{passive}</Text>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -2006,7 +2036,20 @@ export default function CharacterSheetScreen() {
                   <TouchableOpacity
                     key={key}
                     style={s.deskAbilityRow}
-                    onPress={() => handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [Math.floor(Math.random() * 20) + 1], bonus: saveBonus, total: Math.floor(Math.random() * 20) + 1 + saveBonus })}
+                    onPress={() => {
+                      if (manualMode) {
+                        const profs = [...(stats.savingThrowProficiencies ?? [])];
+                        if (isProficient) {
+                          persistStats({ ...stats, savingThrowProficiencies: profs.filter((s) => s !== key) });
+                        } else {
+                          profs.push(key);
+                          persistStats({ ...stats, savingThrowProficiencies: profs });
+                        }
+                      } else {
+                        const r = Math.floor(Math.random() * 20) + 1;
+                        handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [r], bonus: saveBonus, total: r + saveBonus, crit: r === 20, fumble: r === 1 });
+                      }
+                    }}
                     activeOpacity={0.7}
                   >
                     <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
@@ -2019,16 +2062,22 @@ export default function CharacterSheetScreen() {
 
             {/* ── Campaign link ─────────────────────────────────────── */}
             <View style={{ flex: 1 }} />
-            <View style={s.deskCampSection}>
+            <TouchableOpacity
+              style={s.deskCampSection}
+              activeOpacity={character?.campaign_id ? 0.7 : 1}
+              onPress={() => character?.campaign_id && router.push(`/campaign/${character.campaign_id}`)}
+            >
               <View style={s.deskCampCard}>
                 <MaterialCommunityIcons name="castle" size={16} color={colors.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.deskCampCardLbl}>Campaign</Text>
-                  <Text style={s.deskCampCardName} numberOfLines={1}>Not linked</Text>
+                  <Text style={s.deskCampCardName} numberOfLines={1}>
+                    {linkedCampaignName ?? 'Not linked'}
+                  </Text>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} style={{ opacity: 0.6 }} />
               </View>
-            </View>
+            </TouchableOpacity>
 
           </View>
 
@@ -2367,7 +2416,11 @@ export default function CharacterSheetScreen() {
         <Pressable style={s.modalBackdrop} onPress={() => setEditingField(null)}>
           <Pressable style={s.modalCard} onPress={() => {}}>
             <Text style={s.modalTitle}>
-              {editingField === 'hpCurrent' ? 'Edit Hit Points' : `Edit ${editingField ? (ABILITY_SHORT[editingField as keyof Dnd5eAbilityScores] || capitalize(editingField)) : ''}`}
+              {editingField === 'hpCurrent' ? 'Edit Hit Points'
+                : editingField === 'ac' ? 'Edit Armor Class'
+                : editingField === 'initiative' ? 'Edit Initiative'
+                : editingField === 'hpMax' ? 'Edit HP Max'
+                : `Edit ${editingField ? (ABILITY_SHORT[editingField as keyof Dnd5eAbilityScores] || capitalize(editingField)) : ''}`}
             </Text>
             {editingField === 'hpCurrent' ? (
               <>

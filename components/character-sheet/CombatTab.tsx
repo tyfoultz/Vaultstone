@@ -413,8 +413,6 @@ export function CombatTab({
           label="Hit Dice"
           value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`}
           suffix={`d${stats.hitDie}`}
-          editable={manualMode}
-          onPress={manualMode && onEditField ? () => onEditField('hitDiceRemaining', resources.hitDiceRemaining ?? stats.level) : undefined}
         />
         <PassiveCard
           label="Speed"
