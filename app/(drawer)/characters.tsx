@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
@@ -213,9 +213,12 @@ export default function CharactersScreen() {
         style={[styles.card, { flex: 1 / numColumns }]}
         onPress={() => router.push(`/character/${char.id}`)}
       >
-        {/* Avatar placeholder */}
         <View style={styles.avatarArea}>
-          <MaterialCommunityIcons name="account-outline" size={48} color={colors.border} />
+          {char.avatar_url ? (
+            <Image source={{ uri: char.avatar_url }} style={styles.avatarImage} />
+          ) : (
+            <MaterialCommunityIcons name="account-outline" size={48} color={colors.border} />
+          )}
         </View>
 
         <View style={styles.cardBody}>
@@ -385,6 +388,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   cardBody: {
     padding: spacing.md,
