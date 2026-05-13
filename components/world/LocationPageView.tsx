@@ -14,11 +14,12 @@ import {
   releasePageEdit,
   trashPage,
   updatePage,
+  type BacklinkRow,
+  type EventSummaryRow,
   type MapPin,
   type WorldMap,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
-import type { TimelineEvent } from '@vaultstone/types';
 import {
   selectSectionsForWorld,
   useAuthStore,
@@ -334,7 +335,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
     [allPages, page.id],
   );
 
-  const [backlinks, setBacklinks] = useState<WorldPage[]>([]);
+  const [backlinks, setBacklinks] = useState<BacklinkRow[]>([]);
   const [backlinksLoaded, setBacklinksLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -342,7 +343,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
     void (async () => {
       const { data } = await getPagesLinkingTo(worldId, page.id);
       if (!cancelled) {
-        setBacklinks(data ?? []);
+        setBacklinks((data ?? []) as BacklinkRow[]);
         setBacklinksLoaded(true);
       }
     })();
@@ -371,7 +372,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
   }, [page.id]);
 
   // Seen in play — timeline events that reference this page
-  const [seenInPlay, setSeenInPlay] = useState<TimelineEvent[]>([]);
+  const [seenInPlay, setSeenInPlay] = useState<EventSummaryRow[]>([]);
   const [seenLoaded, setSeenLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -379,7 +380,7 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
     void (async () => {
       const { data } = await getEventsReferencingPage(worldId, page.id);
       if (!cancelled) {
-        setSeenInPlay((data ?? []) as TimelineEvent[]);
+        setSeenInPlay((data ?? []) as EventSummaryRow[]);
         setSeenLoaded(true);
       }
     })();

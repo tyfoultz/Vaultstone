@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Icon, colors, radius, spacing, useBreakpoint } from '@vaultstone/ui';
 import {
+  compressImageBlob,
   createWorldImage,
   getCampaignsForWorld,
   getWorldImageSignedUrlById,
@@ -20,6 +21,12 @@ type CanvasBlock = {
   width: number;
   height?: number;
   html: string;
+  revision?: number;
+};
+
+type HistorySnapshot = {
+  blocks: CanvasBlock[];
+  htmlMap: Record<string, string>;
 };
 
 type MentionablePage = {
@@ -575,6 +582,90 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     if (!(b.id in htmlRef.current)) htmlRef.current[b.id] = b.html;
   }
 
+  // ── Undo / redo history ────────────────────────────────────────────
+  const historyRef = useRef<HistorySnapshot[]>([{
+    blocks: (initialBlocks ?? []).map(b => ({ ...b })),
+    htmlMap: Object.fromEntries((initialBlocks ?? []).map(b => [b.id, b.html])),
+  }]);
+  const historyPosRef = useRef(0);
+  const isUndoRedoRef = useRef(false);
+
+  function takeSnapshot(): HistorySnapshot {
+    return {
+      blocks: blocksRef.current.map(b => ({ ...b })),
+      htmlMap: { ...htmlRef.current },
+    };
+  }
+
+  function commitToHistory() {
+    if (isUndoRedoRef.current) return;
+    const snap = takeSnapshot();
+    const pos = historyPosRef.current;
+    historyRef.current = historyRef.current.slice(0, pos + 1);
+    historyRef.current.push(snap);
+    historyPosRef.current = historyRef.current.length - 1;
+    if (historyRef.current.length > 50) {
+      historyRef.current.shift();
+      historyPosRef.current--;
+    }
+  }
+
+  function applySnapshot(snap: HistorySnapshot) {
+    isUndoRedoRef.current = true;
+    htmlRef.current = { ...snap.htmlMap };
+    const restored = snap.blocks.map(b => ({ ...b, revision: (b.revision ?? 0) + 1 }));
+    setBlocks(restored);
+    setFocusedId(null);
+    if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
+    changeTimerRef.current = setTimeout(() => {
+      changeTimerRef.current = null;
+      const final = restored.map(b => ({ ...b, html: htmlRef.current[b.id] ?? b.html }));
+      onChangeRef.current(final, blocksToPlainText(final), extractRefsFromBlocks(final));
+      isUndoRedoRef.current = false;
+    }, 100);
+  }
+
+  function applyUndo() {
+    if (historyPosRef.current <= 0) return;
+    if (changeTimerRef.current) {
+      clearTimeout(changeTimerRef.current);
+      changeTimerRef.current = null;
+      commitToHistory();
+    }
+    historyPosRef.current--;
+    applySnapshot(historyRef.current[historyPosRef.current]);
+  }
+
+  function applyRedo() {
+    if (historyPosRef.current >= historyRef.current.length - 1) return;
+    historyPosRef.current++;
+    applySnapshot(historyRef.current[historyPosRef.current]);
+  }
+
+  async function copySelectedImage() {
+    const sel = canvasRef.current?.querySelector('img.lore-img-selected') as HTMLImageElement | null;
+    if (!sel) return false;
+    try {
+      const res = await fetch(sel.src);
+      const blob = await res.blob();
+      if (blob.type === 'image/png') {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        return true;
+      }
+      const bitmap = await createImageBitmap(blob);
+      const cvs = document.createElement('canvas');
+      cvs.width = bitmap.width;
+      cvs.height = bitmap.height;
+      cvs.getContext('2d')!.drawImage(bitmap, 0, 0);
+      const pngBlob = await new Promise<Blob | null>((r) => cvs.toBlob(r, 'image/png'));
+      if (pngBlob) {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+        return true;
+      }
+    } catch { /* clipboard API or CORS blocked */ }
+    return false;
+  }
+
   // Load the list of campaigns the auth'd user DMs that are linked
   // to this world. Cached on the component since the menu is the
   // only consumer; re-fetched once per world. A user not DM'ing
@@ -711,7 +802,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   }, [mentionablePages, blocks]);
 
   function buildSnapshot(base?: CanvasBlock[]): CanvasBlock[] {
-    return (base ?? blocksRef.current).map((b) => ({
+    return (base ?? blocksRef.current).map(({ revision: _, ...b }) => ({
       ...b,
       html: htmlRef.current[b.id] ?? b.html,
     }));
@@ -729,6 +820,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   function emitChange(next?: CanvasBlock[]) {
     if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
     changeTimerRef.current = setTimeout(() => {
+      commitToHistory();
       const final = buildSnapshot(next);
       onChangeRef.current(final, blocksToPlainText(final), extractRefsFromBlocks(final));
     }, 800);
@@ -1040,22 +1132,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   } | null> {
     if (!worldId || !pageId) return null;
 
-    // Probe natural dimensions client-side first so we have an
-    // accurate display size + can persist them on the
-    // world_images row (the row stores the original dimensions
-    // the way BodyEditor's WorldImageNode does).
-    const dims = await new Promise<{ w: number; h: number } | null>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-        img.onerror = () => resolve(null);
-        img.src = reader.result as string;
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
-    });
-    if (!dims) return null;
+    const { blob: compressed, width: cw, height: ch } = await compressImageBlob(file);
+    if (cw === 0 && ch === 0) return null;
 
     const imageId = crypto.randomUUID();
     const filename = file.name && file.name.length > 0 ? file.name : 'image';
@@ -1063,8 +1141,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       worldId,
       imageId,
       filename,
-      body: file,
-      contentType: file.type || 'image/jpeg',
+      body: compressed,
+      contentType: 'image/jpeg',
     });
     if (uploadErr) return null;
 
@@ -1073,10 +1151,10 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       world_id: worldId,
       page_id: pageId,
       image_key: key,
-      width: dims.w,
-      height: dims.h,
-      byte_size: file.size,
-      content_type: file.type || 'image/jpeg',
+      width: cw,
+      height: ch,
+      byte_size: compressed.size,
+      content_type: 'image/jpeg',
     });
     if (rowErr) return null;
 
@@ -1088,8 +1166,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     // (so existing canvas layouts don't shift dramatically when
     // the new path lands). Height tracks the natural aspect ratio.
     const maxW = 480;
-    const w = Math.min(dims.w, maxW);
-    const h = Math.round(w * (dims.h / dims.w));
+    const w = Math.min(cw, maxW);
+    const h = Math.round(w * (ch / cw));
     // data-world-image-caption starts empty; the right-click
     // editor sets it on the rendered <img> after the user types
     // and saves. The DB row is the source of truth — this attr
@@ -1410,7 +1488,28 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     };
     function onKeyDown(e: KeyboardEvent) {
       if (!(e.ctrlKey || e.metaKey)) return;
-      const cmd = SHORTCUTS[e.key.toLowerCase()];
+      const key = e.key.toLowerCase();
+
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault(); e.stopPropagation();
+        applyUndo();
+        return;
+      }
+      if ((key === 'z' && e.shiftKey) || key === 'y') {
+        e.preventDefault(); e.stopPropagation();
+        applyRedo();
+        return;
+      }
+      if (key === 'c') {
+        const hasSelectedImg = !!canvasRef.current?.querySelector('img.lore-img-selected');
+        if (hasSelectedImg) {
+          e.preventDefault(); e.stopPropagation();
+          void copySelectedImage();
+        }
+        return;
+      }
+
+      const cmd = SHORTCUTS[key];
       if (cmd) {
         e.preventDefault();
         e.stopPropagation();
@@ -1825,7 +1924,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
         <div style={{ position: 'absolute', top: 0, left: 0, width: 1, height: contentHeight, pointerEvents: 'none' }} />
         {blocks.map((block) => (
           <div
-            key={block.id}
+            key={`${block.id}-${block.revision ?? 0}`}
             data-block-id={block.id}
             className={`lore-block ${focusedId === block.id ? 'lore-block-focused' : ''} ${draggingId === block.id ? 'lore-block-dragging' : ''}`}
             style={{

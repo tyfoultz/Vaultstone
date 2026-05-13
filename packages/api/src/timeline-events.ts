@@ -2,6 +2,8 @@ import type { Json, TimelineEvent } from '@vaultstone/types';
 
 import { supabase } from './client';
 
+export type EventSummaryRow = Pick<TimelineEvent, 'id' | 'title' | 'body_text' | 'body_refs' | 'source_session_id' | 'date_values' | 'created_at'>;
+
 export async function getEventsForTimeline(timelinePageId: string) {
   return supabase
     .from('timeline_events')
@@ -75,7 +77,7 @@ export async function trashTimelineEvent(eventId: string) {
 export async function getEventsReferencingPage(worldId: string, pageId: string) {
   return supabase
     .from('timeline_events')
-    .select('*')
+    .select('id, title, body_text, body_refs, source_session_id, date_values, created_at')
     .eq('world_id', worldId)
     .is('deleted_at', null)
     .contains('body_refs', [pageId])

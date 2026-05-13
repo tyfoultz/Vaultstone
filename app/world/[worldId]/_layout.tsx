@@ -147,7 +147,13 @@ export default function WorldLayout() {
         filter: `world_id=eq.${worldId}`,
       }, (payload) => {
         const row = payload.new as WorldPage;
-        usePagesStore.getState().updatePage(row.id, row);
+        const existing = usePagesStore.getState().byWorldId[worldId]?.find((p) => p.id === row.id);
+        if (existing?.body != null && row.body == null) {
+          const { body: _b, body_text: _bt, body_refs: _br, ...safe } = row;
+          usePagesStore.getState().updatePage(row.id, safe);
+        } else {
+          usePagesStore.getState().updatePage(row.id, row);
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };

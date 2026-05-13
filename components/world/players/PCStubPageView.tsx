@@ -17,6 +17,8 @@ import {
   trashPage,
   updatePage,
   uploadWorldImage,
+  type BacklinkRow,
+  type EventSummaryRow,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
 import {
@@ -26,7 +28,7 @@ import {
   usePagesStore,
   useSectionsStore,
 } from '@vaultstone/store';
-import type { Database, Json, TemplateKey, WorldPage, Dnd5eStats, Dnd5eResources, TimelineEvent } from '@vaultstone/types';
+import type { Database, Json, TemplateKey, WorldPage, Dnd5eStats, Dnd5eResources } from '@vaultstone/types';
 import {
   Card,
   GhostButton,
@@ -345,12 +347,12 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
   const [rightTab, setRightTab] = useState<'info' | 'sub'>('info');
   const [rightCollapsed, setRightCollapsed] = useState(!!splitMode);
   const subpages = useMemo(() => (allPages ?? []).filter((p) => p.parent_page_id === page.id).sort((a, b) => a.sort_order - b.sort_order), [allPages, page.id]);
-  const [backlinks, setBacklinks] = useState<WorldPage[]>([]);
+  const [backlinks, setBacklinks] = useState<BacklinkRow[]>([]);
   const [backlinksLoaded, setBacklinksLoaded] = useState(false);
-  useEffect(() => { let c = false; setBacklinksLoaded(false); void (async () => { const { data } = await getPagesLinkingTo(worldId, page.id); if (!c) { setBacklinks(data ?? []); setBacklinksLoaded(true); } })(); return () => { c = true; }; }, [page.id, worldId]);
-  const [seenInPlay, setSeenInPlay] = useState<TimelineEvent[]>([]);
+  useEffect(() => { let c = false; setBacklinksLoaded(false); void (async () => { const { data } = await getPagesLinkingTo(worldId, page.id); if (!c) { setBacklinks((data ?? []) as BacklinkRow[]); setBacklinksLoaded(true); } })(); return () => { c = true; }; }, [page.id, worldId]);
+  const [seenInPlay, setSeenInPlay] = useState<EventSummaryRow[]>([]);
   const [seenLoaded, setSeenLoaded] = useState(false);
-  useEffect(() => { let c = false; setSeenLoaded(false); void (async () => { const { data } = await getEventsReferencingPage(worldId, page.id); if (!c) { setSeenInPlay((data ?? []) as TimelineEvent[]); setSeenLoaded(true); } })(); return () => { c = true; }; }, [page.id, worldId]);
+  useEffect(() => { let c = false; setSeenLoaded(false); void (async () => { const { data } = await getEventsReferencingPage(worldId, page.id); if (!c) { setSeenInPlay((data ?? []) as EventSummaryRow[]); setSeenLoaded(true); } })(); return () => { c = true; }; }, [page.id, worldId]);
 
   const mentionedPages = useMemo(() => {
     const refs = page.body_refs ?? [];

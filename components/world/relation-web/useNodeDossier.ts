@@ -1,23 +1,15 @@
 import { useEffect, useState } from 'react';
-import { getPagesLinkingTo, getEventsReferencingPage } from '@vaultstone/api';
-import type { WorldPage } from '@vaultstone/types';
-
-type TimelineEvent = {
-  id: string;
-  title: string;
-  date_values: Record<string, string> | null;
-  timeline_page_id: string;
-};
+import { getPagesLinkingTo, getEventsReferencingPage, type BacklinkRow, type EventSummaryRow } from '@vaultstone/api';
 
 export type DossierData = {
-  backlinks: WorldPage[];
-  timelineEvents: TimelineEvent[];
+  backlinks: BacklinkRow[];
+  timelineEvents: EventSummaryRow[];
   loading: boolean;
 };
 
 export function useNodeDossier(worldId: string, pageId: string | null): DossierData {
-  const [backlinks, setBacklinks] = useState<WorldPage[]>([]);
-  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [backlinks, setBacklinks] = useState<BacklinkRow[]>([]);
+  const [timelineEvents, setTimelineEvents] = useState<EventSummaryRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -36,8 +28,8 @@ export function useNodeDossier(worldId: string, pageId: string | null): DossierD
         getEventsReferencingPage(worldId, pageId),
       ]);
       if (cancelled) return;
-      setBacklinks((blRes.data ?? []) as WorldPage[]);
-      setTimelineEvents((evRes.data ?? []) as TimelineEvent[]);
+      setBacklinks((blRes.data ?? []) as BacklinkRow[]);
+      setTimelineEvents((evRes.data ?? []) as EventSummaryRow[]);
       setLoading(false);
     })();
 
