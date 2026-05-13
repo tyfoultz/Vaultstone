@@ -99,6 +99,7 @@ interface Props {
    *  imported conditions surface alongside SRD ones. Falls back to the
    *  edition-filtered bundled list when null/empty. */
   conditionCatalog?: ConditionResult[] | null;
+  liveActionFeatures?: Dnd5eFeature[];
   onOpenHpModal?: () => void;
   onEditField?: (field: string, currentValue: number | string) => void;
   onRoll: (result: RollResult) => void;
@@ -125,7 +126,7 @@ function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void
 export function CombatTab({
   stats, resources, scores, prof,
   activeConditions, canEditAny, equipment, isDesktop, manualMode, conditionCatalog,
-  onRoll, onEditField, onToggleCondition, onSetExhaustion, getAttackBonus,
+  liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, getAttackBonus,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
 
@@ -138,12 +139,16 @@ export function CombatTab({
   const classResources = resources.classResources ?? [];
   const exhaustionLevel = resources.exhaustionLevel ?? 0;
 
-  // Gather all features with an actionType from class, species, feats
-  const allFeatures = [
+  // Gather all features with an actionType. Live ContentResolver
+  // features (with actionType tags from SRD data) take priority;
+  // stored resources fill in any custom/homebrew entries.
+  const liveIds = new Set((liveActionFeatures ?? []).map((f) => f.id));
+  const storedFeatures = [
     ...(resources.classFeatures ?? []),
     ...(resources.speciesTraits ?? []),
     ...(resources.feats ?? []),
-  ].filter((f) => f.actionType);
+  ].filter((f) => f.actionType && !liveIds.has(f.id));
+  const allFeatures = [...(liveActionFeatures ?? []), ...storedFeatures];
 
   const featureActions   = allFeatures.filter((f) => f.actionType === 'action');
   const featureBonus     = allFeatures.filter((f) => f.actionType === 'bonus');

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import {
@@ -977,6 +977,34 @@ export default function CharacterSheetScreen() {
   const initiative = stats?.initiativeOverride ?? computedInitiative;
   const passivePerception = 10 + skillMod('perception');
 
+  const liveActionFeatures: Dnd5eFeature[] = useMemo(() => {
+    if (!stats) return [];
+    const entries = getClassEntries(stats);
+    const features: Dnd5eFeature[] = [];
+    const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    for (const entry of entries) {
+      const cls = classResultsByKey[entry.classKey];
+      if (cls) {
+        for (const f of cls.features ?? []) {
+          if (f.actionType && f.level <= entry.level) {
+            features.push({ id: `class-${cls.key}-${slugify(f.name)}`, name: f.name, description: f.description ?? '', actionType: f.actionType });
+          }
+        }
+      }
+      if (entry.subclassKey) {
+        const sc = subclassResultsByKey[entry.subclassKey];
+        if (sc) {
+          for (const f of sc.features ?? []) {
+            if (f.actionType && f.level <= entry.level) {
+              features.push({ id: `sub-${sc.key}-${slugify(f.name)}`, name: f.name, description: f.description ?? '', actionType: f.actionType });
+            }
+          }
+        }
+      }
+    }
+    return features;
+  }, [stats, classResultsByKey, subclassResultsByKey]);
+
   function hpColor(): string {
     if (!resources || !stats) return colors.textPrimary;
     if (resources.hpCurrent === 0) return colors.hpDanger;
@@ -1598,6 +1626,7 @@ export default function CharacterSheetScreen() {
             isDesktop={isDesktop}
             manualMode={manualMode}
             conditionCatalog={conditionResults}
+            liveActionFeatures={liveActionFeatures}
             onRoll={handleRoll}
             onEditField={manualMode ? startEditField : undefined}
             onToggleCondition={handleToggleCondition}

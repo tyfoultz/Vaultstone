@@ -383,7 +383,7 @@ export interface SubclassResult extends ContentResult {
   /** Level at which a character chooses this subclass branch. */
   unlockLevel: number;
   /** Featured class abilities granted by this subclass at specific levels. */
-  features?: Array<{ level: number; name: string; description: string }>;
+  features?: Array<{ level: number; name: string; description: string; actionType?: 'action' | 'bonus' | 'reaction' | 'free' }>;
   srdVersions: string[];
 }
 
@@ -635,7 +635,7 @@ export interface ClassResult extends ContentResult {
    * "Thaumaturge" are sub-options of "Divine Order"). Renderers indent
    * children under the parent and slot them immediately after it.
    */
-  features?: Array<{ level: number; name: string; description?: string; parentName?: string }>;
+  features?: Array<{ level: number; name: string; description?: string; parentName?: string; actionType?: 'action' | 'bonus' | 'reaction' | 'free' }>;
   /**
    * Class progression-table column definitions, paired with `progressionTable`
    * rows. Columns are class-specific (Rages / Rage Damage for Barbarian,
