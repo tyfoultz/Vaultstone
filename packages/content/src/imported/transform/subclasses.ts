@@ -9,7 +9,7 @@
 
 import type { SubclassResult, ImportSource } from '@vaultstone/types';
 import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry, type RawEntryObject } from './entries';
-import { abilityFullName } from './classes';
+import { abilityFullName, buildProgression, type RawClassTableGroup } from './classes';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 // We don't import the full 5e.tools schema as a TypeScript type because the
@@ -26,6 +26,7 @@ type RawSubclass = {
   subclassFeatures?: Array<string | { subclassFeature?: string; gainSubclassFeature?: boolean }>;
   spellcastingAbility?: string;
   casterProgression?: string;
+  subclassTableGroups?: RawClassTableGroup[];
 };
 
 const CASTER_PROGRESSION_MAP: Record<string, 'full' | 'half' | 'third' | 'pact'> = {
@@ -203,6 +204,7 @@ export function transformSubclasses(
       ? abilityFullName(sc.spellcastingAbility)
       : undefined;
     const spellList = SPELL_LIST_CLASS[sc.name.toLowerCase()] ?? undefined;
+    const { columns: progCols, table: progTable } = buildProgression(sc.subclassTableGroups);
 
     return {
       key: `imported_${systemId}_subclass_${slugify(sc.source)}_${slugify(sc.className)}_${slugify(shortName)}`,
@@ -217,6 +219,7 @@ export function transformSubclasses(
       parentClassName: sc.className,
       unlockLevel,
       features,
+      ...(progCols.length > 0 ? { progressionColumns: progCols, progressionTable: progTable } : {}),
       ...(casterProg ? { spellcasting: true, casterProgression: casterProg } : {}),
       ...(scAbility ? { spellcastingAbility: scAbility } : {}),
       ...(spellList ? { spellListClass: spellList } : {}),

@@ -384,6 +384,9 @@ export interface SubclassResult extends ContentResult {
   unlockLevel: number;
   /** Featured class abilities granted by this subclass at specific levels. */
   features?: Array<{ level: number; name: string; description: string; actionType?: 'action' | 'bonus' | 'reaction' | 'free' }>;
+  /** Subclass-specific progression table (e.g. AT/EK spellcasting table). */
+  progressionColumns?: Array<{ key: string; label: string }>;
+  progressionTable?: Array<{ level: number; values: Record<string, string | number> }>;
   /** Whether this subclass grants spellcasting (e.g. Arcane Trickster, Eldritch Knight). */
   spellcasting?: boolean;
   /** Spellcasting ability granted by the subclass ("Intelligence"). */

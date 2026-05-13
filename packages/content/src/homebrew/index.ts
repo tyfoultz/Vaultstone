@@ -522,6 +522,8 @@ export function mapEntryToResult(
         parentClassName: d.parentClassName,
         unlockLevel: d.unlockLevel ?? 3,
         ...(features ? { features } : {}),
+        ...(d.progressionColumns ? { progressionColumns: d.progressionColumns } : {}),
+        ...(d.progressionTable ? { progressionTable: d.progressionTable } : {}),
         ...(d.spellcasting ? { spellcasting: d.spellcasting } : {}),
         ...(d.spellcastingAbility ? { spellcastingAbility: d.spellcastingAbility } : {}),
         ...(d.casterProgression ? { casterProgression: d.casterProgression } : {}),

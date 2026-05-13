@@ -325,15 +325,31 @@ function spellcastingExplainersFor(
       const scFeat = sub?.features?.find(
         (f) => f.name.toLowerCase() === 'spellcasting' || f.name.toLowerCase().includes('spellcasting'),
       );
-      // Third-caster cantrips/spells known progression (AT & EK)
-      const thirdCasterCantrips: Record<number, number> = {
-        3: 3, 4: 3, 5: 3, 6: 3, 7: 3, 8: 3, 9: 3, 10: 4, 11: 4, 12: 4, 13: 4, 14: 4, 15: 4, 16: 4, 17: 4, 18: 4, 19: 4, 20: 4,
-      };
-      const thirdCasterSpellsKnown: Record<number, number> = {
-        3: 3, 4: 4, 5: 4, 6: 4, 7: 5, 8: 6, 9: 6, 10: 7, 11: 8, 12: 8, 13: 9, 14: 10, 15: 10, 16: 11, 17: 11, 18: 11, 19: 12, 20: 13,
-      };
-      const cantripsKnown = subCasting.casterProgression === 'third' ? thirdCasterCantrips[e.level] : undefined;
-      const spellsKnown = subCasting.casterProgression === 'third' ? thirdCasterSpellsKnown[e.level] : undefined;
+      let cantripsKnown: number | undefined;
+      let spellsKnown: number | undefined;
+      // Read from the subclass's progression table when available
+      const subRow = sub?.progressionTable?.find((r) => r.level === Math.min(e.level, 20));
+      if (subRow && sub?.progressionColumns) {
+        const readSubVal = (keys: string[], labels: string[]): number | undefined => {
+          for (const k of keys) { const v = parseProgressionInt(subRow.values[k]); if (v !== null) return v; }
+          for (const col of sub!.progressionColumns!) {
+            const lc = col.label.toLowerCase();
+            if (labels.some((l) => lc === l.toLowerCase() || lc.includes(l.toLowerCase()))) {
+              const v = parseProgressionInt(subRow.values[col.key]); if (v !== null) return v;
+            }
+          }
+          return undefined;
+        };
+        cantripsKnown = readSubVal(['cantrips', 'cantripsKnown'], ['Cantrips Known', 'Cantrips']);
+        spellsKnown = readSubVal(['spellsKnown'], ['Spells Known']);
+      }
+      // Fallback for existing imports without progression tables
+      if (cantripsKnown === undefined && spellsKnown === undefined && subCasting.casterProgression === 'third') {
+        const thirdCantrips: Record<number, number> = { 3:3,4:3,5:3,6:3,7:3,8:3,9:3,10:4,11:4,12:4,13:4,14:4,15:4,16:4,17:4,18:4,19:4,20:4 };
+        const thirdSpells: Record<number, number> = { 3:3,4:4,5:4,6:4,7:5,8:6,9:6,10:7,11:8,12:8,13:9,14:10,15:10,16:11,17:11,18:11,19:12,20:13 };
+        cantripsKnown = thirdCantrips[e.level];
+        spellsKnown = thirdSpells[e.level];
+      }
       out.push({
         className: sub?.name ?? cls?.name ?? 'Subclass',
         spellcastingAbility: subCasting.ability,
