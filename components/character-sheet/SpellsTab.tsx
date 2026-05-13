@@ -420,6 +420,7 @@ export function SpellsTab({
                 canToggle={isOwner && !!onTogglePrepared}
                 onTogglePrepared={onTogglePrepared ? () => onTogglePrepared(spell) : undefined}
                 togglesBlocked={!prep && atLimit}
+                onCast={isOwner && onSpellSlotChange ? () => onSpellSlotChange(level, -1) : undefined}
               />
             );
           })}
@@ -481,32 +482,41 @@ function SpellSlotTable({ spellSlots, isOwner, onSlotChange }: {
       {expanded && (
         <View style={s.slotTableBody}>
           <View style={s.slotTableRow}>
-            <Text style={[s.slotTableCell, s.slotTableHeader, { flex: 1.5 }]}>Level</Text>
+            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
+              <Text style={s.slotTableHeader}>Slot Level</Text>
+            </View>
             {activeLevels.map((l) => (
-              <Text key={l} style={[s.slotTableCell, s.slotTableHeader]}>{ordinal(l)}</Text>
+              <View key={l} style={s.slotTableCell}>
+                <Text style={s.slotTableHeader}>{ordinal(l)}</Text>
+              </View>
             ))}
           </View>
           <View style={s.slotTableRow}>
-            <Text style={[s.slotTableCell, s.slotTableLabel, { flex: 1.5 }]}>Total</Text>
+            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
+              <Text style={s.slotTableLabel}>Total</Text>
+            </View>
             {activeLevels.map((l) => (
-              <Text key={l} style={s.slotTableCell}>{spellSlots[l].max}</Text>
+              <View key={l} style={s.slotTableCell}>
+                <Text style={s.slotTableCellText}>{spellSlots[l].max}</Text>
+              </View>
             ))}
           </View>
           <View style={s.slotTableRow}>
-            <Text style={[s.slotTableCell, s.slotTableLabel, { flex: 1.5 }]}>Used</Text>
-            {activeLevels.map((l) => {
-              const used = spellSlots[l].max - spellSlots[l].remaining;
-              return (
-                <TouchableOpacity
-                  key={l}
-                  style={s.slotTableCell}
-                  onPress={isOwner && onSlotChange ? () => onSlotChange(l, used > 0 ? 1 : -1) : undefined}
-                  activeOpacity={isOwner ? 0.7 : 1}
-                >
-                  <Text style={[s.slotTableCellText, used > 0 && { color: colors.primary }]}>{used}</Text>
-                </TouchableOpacity>
-              );
-            })}
+            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
+              <Text style={s.slotTableLabel}>Remaining</Text>
+            </View>
+            {activeLevels.map((l) => (
+              <TouchableOpacity
+                key={l}
+                style={s.slotTableCell}
+                onPress={isOwner && onSlotChange ? () => onSlotChange(l, spellSlots[l].remaining > 0 ? -1 : 1) : undefined}
+                activeOpacity={isOwner ? 0.7 : 1}
+              >
+                <Text style={[s.slotTableCellText, spellSlots[l].remaining > 0 ? { color: colors.primary } : { color: colors.hpDanger }]}>
+                  {spellSlots[l].remaining}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       )}
@@ -530,7 +540,7 @@ function ordinal(n: number): string {
 }
 
 function SpellRow({
-  spell, slot, prepared, canToggle, onTogglePrepared, togglesBlocked,
+  spell, slot, prepared, canToggle, onTogglePrepared, togglesBlocked, onCast,
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
@@ -538,6 +548,7 @@ function SpellRow({
   canToggle: boolean;
   onTogglePrepared?: () => void;
   togglesBlocked?: boolean;
+  onCast?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isCantrip = spell.level === 0;
@@ -582,11 +593,15 @@ function SpellRow({
             <Text style={[s.badgeIconText, s.badgeIconTextConc]}>C</Text>
           </View>
         ) : null}
-        <View style={[s.castBtn, !canCast && s.castBtnDisabled, isCantrip && s.castBtnAtWill]}>
+        <TouchableOpacity
+          style={[s.castBtn, !canCast && s.castBtnDisabled, isCantrip && s.castBtnAtWill]}
+          onPress={canCast && !isCantrip && onCast ? (e) => { e.stopPropagation(); onCast(); } : undefined}
+          activeOpacity={canCast && !isCantrip ? 0.7 : 1}
+        >
           <Text style={[s.castBtnText, !canCast && s.castBtnTextDisabled, isCantrip && s.castBtnTextAtWill]}>
             {isCantrip ? 'At Will' : prepared ? 'Cast' : 'Unprepared'}
           </Text>
-        </View>
+        </TouchableOpacity>
         <MaterialCommunityIcons
           name={expanded ? 'chevron-down' : 'chevron-right'}
           size={16}
@@ -711,24 +726,28 @@ const s = StyleSheet.create({
 
   // Spell slot overview table
   slotTableBody: {
-    paddingHorizontal: 12, paddingBottom: 12,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+    borderTopWidth: 1, borderTopColor: colors.outlineVariant,
   },
   slotTableRow: {
     flexDirection: 'row', alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
   slotTableCell: {
-    flex: 1, paddingVertical: 6, alignItems: 'center' as const, justifyContent: 'center' as const,
+    flex: 1, paddingVertical: 8, alignItems: 'center' as const, justifyContent: 'center' as const,
+    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.outlineVariant,
+  },
+  slotTableCellFirst: {
+    flex: 1.5,
   },
   slotTableHeader: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '700' as const,
-    letterSpacing: 0.5, textTransform: 'uppercase' as const, color: colors.outline,
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700' as const,
+    letterSpacing: 0.5, textTransform: 'uppercase' as const, color: colors.primary,
   },
   slotTableLabel: {
-    fontSize: 10, fontFamily: fonts.label, fontWeight: '600' as const, color: colors.onSurfaceVariant,
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600' as const, color: colors.onSurface,
   },
   slotTableCellText: {
-    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700' as const, color: colors.onSurface,
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700' as const, color: colors.onSurface,
     textAlign: 'center' as const,
   },
 
