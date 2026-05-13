@@ -286,10 +286,10 @@ export function CombatTab({
 
           {/* Actions */}
           <CardBlock title="Actions">
-            <ActionGroup label="Actions" items={actions} />
-            {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} />}
-            {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} accent />}
-            {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} />}
+            <ActionGroup label="Actions" items={actions} color={colors.primary} />
+            {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
+            {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} color={colors.hpDanger} />}
+            {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} color={colors.outline} />}
           </CardBlock>
 
       </ScrollView>
@@ -611,37 +611,47 @@ export function ConditionsSection({
   );
 }
 
-function ActionGroup({ label, items, accent }: { label: string; items: Dnd5eFeature[]; accent?: boolean }) {
-  const [collapsed, setCollapsed] = useState(false);
+function ActionGroup({ label, items, color }: { label: string; items: Dnd5eFeature[]; color: string }) {
   return (
     <View style={s.actionGroup}>
-      <TouchableOpacity style={s.actionGroupHead} onPress={() => setCollapsed((v) => !v)} activeOpacity={0.7}>
-        <View style={[s.actionGroupBar, accent && s.actionGroupBarAccent]} />
-        <Text style={[s.actionGroupLabel, accent && s.actionGroupLabelAccent]}>{label}</Text>
+      <View style={s.actionGroupHead}>
+        <View style={[s.actionGroupBar, { backgroundColor: color }]} />
+        <Text style={[s.actionGroupLabel, { color }]}>{label}</Text>
         <Text style={s.actionGroupCount}>{items.length}</Text>
-        <MaterialCommunityIcons
-          name={collapsed ? 'chevron-down' : 'chevron-up'}
-          size={13}
-          color={colors.outline}
-        />
-      </TouchableOpacity>
-      {!collapsed && items.map((item) => <ActionRow key={item.id} feature={item} />)}
+      </View>
+      <View style={s.actionCards}>
+        {items.map((item) => <ActionRow key={item.id} feature={item} color={color} />)}
+      </View>
     </View>
   );
 }
 
-function ActionRow({ feature }: { feature: Dnd5eFeature }) {
-  const isSrd = SRD_ACTION_KEYS.has(feature.id);
+function ActionRow({ feature, color }: { feature: Dnd5eFeature; color: string }) {
+  const [expanded, setExpanded] = useState(false);
   return (
-    <View style={s.actionRow}>
-      <View style={s.actionRowHeader}>
-        <Text style={[s.actionName, isSrd && s.actionNameSrd]}>{feature.name}</Text>
-        {feature.uses && (
-          <Text style={s.actionUses}>{feature.uses.current}/{feature.uses.max}</Text>
-        )}
+    <TouchableOpacity
+      style={s.actionCard}
+      onPress={() => setExpanded((v) => !v)}
+      activeOpacity={0.7}
+    >
+      <View style={s.actionCardHeader}>
+        <View style={[s.actionCardBar, { backgroundColor: color }]} />
+        <View style={{ flex: 1 }}>
+          <Text style={s.actionCardName}>{feature.name}</Text>
+          {feature.uses && (
+            <Text style={[s.actionCardMeta, { color }]}>{feature.uses.current}/{feature.uses.max} uses</Text>
+          )}
+        </View>
+        <MaterialCommunityIcons
+          name={expanded ? 'chevron-down' : 'chevron-right'}
+          size={16}
+          color={colors.outline}
+        />
       </View>
-      <Text style={s.actionDesc}>{feature.description}</Text>
-    </View>
+      {expanded && feature.description ? (
+        <Text style={s.actionCardDesc}>{feature.description}</Text>
+      ) : null}
+    </TouchableOpacity>
   );
 }
 
@@ -873,26 +883,31 @@ const s = StyleSheet.create({
   emptyHint: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic' },
 
   // Actions
-  actionGroup: { marginBottom: 2 },
+  actionGroup: { marginBottom: 8 },
   actionGroupHead: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingTop: 8, paddingBottom: 5,
+    paddingHorizontal: 2, paddingTop: 4, paddingBottom: 6,
   },
-  actionGroupBar: { width: 3, height: 12, borderRadius: 2, backgroundColor: colors.outlineVariant },
-  actionGroupBarAccent: { backgroundColor: colors.hpDanger },
-  actionGroupLabel: { flex: 1, fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline },
-  actionGroupLabelAccent: { color: colors.hpDanger },
+  actionGroupBar: { width: 3, height: 12, borderRadius: 2 },
+  actionGroupLabel: { flex: 1, fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
   actionGroupCount: { fontSize: 9, fontFamily: fonts.label, color: colors.outline },
-  actionRow: {
-    paddingHorizontal: 10, paddingVertical: 9,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
-    gap: 3,
+  actionCards: { gap: 4 },
+  actionCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, overflow: 'hidden',
   },
-  actionRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  actionName: { flex: 1, fontSize: 12, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
-  actionNameSrd: { color: colors.onSurfaceVariant },
-  actionUses: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
-  actionDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, lineHeight: 16 },
+  actionCardHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10, paddingRight: 10,
+  },
+  actionCardBar: { width: 3, alignSelf: 'stretch', borderRadius: 0 },
+  actionCardName: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  actionCardMeta: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', marginTop: 1 },
+  actionCardDesc: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 18,
+    paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2,
+  },
 
   // Mobile ability scores
   abilityGrid: { flexDirection: 'row', gap: 6 },
