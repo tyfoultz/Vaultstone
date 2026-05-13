@@ -982,12 +982,20 @@ export default function CharacterSheetScreen() {
     const entries = getClassEntries(stats);
     const features: Dnd5eFeature[] = [];
     const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const inferActionType = (f: { actionType?: string; description?: string }): 'bonus' | 'reaction' | undefined => {
+      if (f.actionType === 'bonus' || f.actionType === 'reaction') return f.actionType;
+      const desc = (f.description ?? '').toLowerCase();
+      if (desc.includes('bonus action')) return 'bonus';
+      if (desc.includes('use your reaction') || desc.includes('as a reaction')) return 'reaction';
+      return undefined;
+    };
     for (const entry of entries) {
       const cls = classResultsByKey[entry.classKey];
       if (cls) {
         for (const f of cls.features ?? []) {
-          if (f.actionType && f.level <= entry.level) {
-            features.push({ id: `class-${cls.key}-${slugify(f.name)}`, name: f.name, description: f.description ?? '', actionType: f.actionType });
+          const at = inferActionType(f);
+          if (at && f.level <= entry.level) {
+            features.push({ id: `class-${cls.key}-${slugify(f.name)}`, name: f.name, description: f.description ?? '', actionType: at });
           }
         }
       }
@@ -995,8 +1003,9 @@ export default function CharacterSheetScreen() {
         const sc = subclassResultsByKey[entry.subclassKey];
         if (sc) {
           for (const f of sc.features ?? []) {
-            if (f.actionType && f.level <= entry.level) {
-              features.push({ id: `sub-${sc.key}-${slugify(f.name)}`, name: f.name, description: f.description ?? '', actionType: f.actionType });
+            const at = inferActionType(f);
+            if (at && f.level <= entry.level) {
+              features.push({ id: `sub-${sc.key}-${slugify(f.name)}`, name: f.name, description: f.description ?? '', actionType: at });
             }
           }
         }
