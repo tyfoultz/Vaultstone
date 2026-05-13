@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { getCachedSignedUrl, setCachedSignedUrl } from './signed-url-cache';
 import type { Database } from '@vaultstone/types';
 
 export type WorldImage = Database['public']['Tables']['world_images']['Row'];
@@ -6,6 +7,7 @@ type WorldImageInsert = Database['public']['Tables']['world_images']['Insert'];
 
 const STORAGE_CAP_BYTES = 500 * 1024 * 1024; // 500 MB
 const WARN_THRESHOLD = 0.8;
+const SIGNED_URL_TTL = 24 * 60 * 60; // 24 hours
 
 export async function uploadWorldImage(params: {
   worldId: string;
@@ -26,17 +28,21 @@ export async function createWorldImage(insert: WorldImageInsert) {
   return supabase.from('world_images').insert(insert).select('*').single();
 }
 
-export async function getWorldImageSignedUrl(imageKey: string, expiresInSeconds = 60 * 60) {
-  return supabase.storage.from('world-images').createSignedUrl(imageKey, expiresInSeconds);
+export async function getWorldImageSignedUrl(imageKey: string, expiresInSeconds = SIGNED_URL_TTL) {
+  const cached = getCachedSignedUrl(`wi:${imageKey}`);
+  if (cached) return { data: { signedUrl: cached }, error: null };
+
+  const result = await supabase.storage.from('world-images').createSignedUrl(imageKey, expiresInSeconds);
+  if (result.data?.signedUrl) {
+    setCachedSignedUrl(`wi:${imageKey}`, result.data.signedUrl, expiresInSeconds);
+  }
+  return result;
 }
 
-const imageSignedUrlCache = new Map<string, { signedUrl: string; expiresAt: number }>();
+export async function getWorldImageSignedUrlById(imageId: string, expiresInSeconds = SIGNED_URL_TTL) {
+  const cached = getCachedSignedUrl(`wi-id:${imageId}`);
+  if (cached) return { data: { signedUrl: cached }, error: null };
 
-export async function getWorldImageSignedUrlById(imageId: string, expiresInSeconds = 60 * 60) {
-  const cached = imageSignedUrlCache.get(imageId);
-  if (cached && cached.expiresAt > Date.now()) {
-    return { data: { signedUrl: cached.signedUrl }, error: null };
-  }
   const { data: row, error: rowErr } = await supabase
     .from('world_images')
     .select('image_key')
@@ -46,18 +52,17 @@ export async function getWorldImageSignedUrlById(imageId: string, expiresInSecon
   if (rowErr || !row) return { data: null, error: rowErr };
   const result = await supabase.storage.from('world-images').createSignedUrl(row.image_key, expiresInSeconds);
   if (result.data?.signedUrl) {
-    imageSignedUrlCache.set(imageId, {
-      signedUrl: result.data.signedUrl,
-      expiresAt: Date.now() + (expiresInSeconds - 60) * 1000,
-    });
+    setCachedSignedUrl(`wi-id:${imageId}`, result.data.signedUrl, expiresInSeconds);
   }
   return result;
 }
 
+const IMAGE_LIST_COLUMNS = 'id, world_id, page_id, image_key, caption, created_at';
+
 export async function listImagesForPage(pageId: string) {
   return supabase
     .from('world_images')
-    .select('*')
+    .select(IMAGE_LIST_COLUMNS)
     .eq('page_id', pageId)
     .is('deleted_at', null)
     .order('created_at', { ascending: true });

@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { getCachedSignedUrl, setCachedSignedUrl } from './signed-url-cache';
 import type { Database } from '@vaultstone/types';
 
 export type WorldMap = Database['public']['Tables']['world_maps']['Row'];
@@ -81,21 +82,15 @@ export async function uploadMapImage(params: {
   return { data, error, key };
 }
 
-// Signed URL for a stored map image. 1-hour TTL is generous for pan/zoom
-// sessions; refetched on mount so stale sessions retry cleanly.
-const signedUrlCache = new Map<string, { signedUrl: string; expiresAt: number }>();
+const MAP_SIGNED_URL_TTL = 24 * 60 * 60; // 24 hours
 
-export async function getMapImageSignedUrl(imageKey: string, expiresInSeconds = 60 * 60) {
-  const cached = signedUrlCache.get(imageKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return { data: { signedUrl: cached.signedUrl }, error: null };
-  }
+export async function getMapImageSignedUrl(imageKey: string, expiresInSeconds = MAP_SIGNED_URL_TTL) {
+  const cached = getCachedSignedUrl(`map:${imageKey}`);
+  if (cached) return { data: { signedUrl: cached }, error: null };
+
   const result = await supabase.storage.from('world-maps').createSignedUrl(imageKey, expiresInSeconds);
   if (result.data?.signedUrl) {
-    signedUrlCache.set(imageKey, {
-      signedUrl: result.data.signedUrl,
-      expiresAt: Date.now() + (expiresInSeconds - 60) * 1000,
-    });
+    setCachedSignedUrl(`map:${imageKey}`, result.data.signedUrl, expiresInSeconds);
   }
   return result;
 }

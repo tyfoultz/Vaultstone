@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getCampaigns, getCampaignMembers, getMyCharacters } from '@vaultstone/api';
+import { getCampaigns, getMemberCountsForCampaigns, getMyCharacters } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
@@ -35,18 +35,12 @@ export default function HomeScreen() {
     let done = 0;
     const check = () => { done++; if (done >= 2) setLoading(false); };
 
-    // Campaigns
+    // Campaigns — single batched count query instead of N individual member fetches
     getCampaigns().then(async ({ data }) => {
       const active = (data ?? []).filter((c) => !c.is_archived);
       setCampaigns(active);
-      const counts: Record<string, number> = {};
-      await Promise.all(
-        active.map(async (c) => {
-          const { data: members } = await getCampaignMembers(c.id);
-          counts[c.id] = members?.length ?? 0;
-        }),
-      );
-      setMemberCounts(counts);
+      const { data: counts } = await getMemberCountsForCampaigns(active.map((c) => c.id));
+      setMemberCounts(counts ?? {});
       check();
     });
 

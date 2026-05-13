@@ -169,7 +169,7 @@ export function NodeDetailCard({ node, page, connectedEdges, nodeById, worldId, 
               Timeline ({timelineEvents.length})
             </MetaLabel>
             {timelineEvents.slice(0, 8).map((ev) => {
-              const dateVals = ev.date_values;
+              const dateVals = ev.date_values as Record<string, string> | null;
               const eraLabel = dateVals?.era || dateVals?.Era || '';
               return (
                 <View key={ev.id} style={styles.edgeRow}>

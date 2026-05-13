@@ -2,6 +2,8 @@ import type { PageKind, TemplateKey, WorldPage } from '@vaultstone/types';
 
 import { supabase } from './client';
 
+export type BacklinkRow = Pick<WorldPage, 'id' | 'title' | 'page_kind'>;
+
 const PAGE_LIST_COLUMNS = [
   'id', 'world_id', 'section_id', 'parent_page_id', 'campaign_id',
   'title', 'page_kind', 'template_key', 'template_version',
@@ -144,7 +146,7 @@ export async function movePage(input: {
 export async function getPagesLinkingTo(worldId: string, pageId: string) {
   return supabase
     .from('world_pages')
-    .select('*')
+    .select('id, title, page_kind')
     .eq('world_id', worldId)
     .is('deleted_at', null)
     .contains('body_refs', [pageId])

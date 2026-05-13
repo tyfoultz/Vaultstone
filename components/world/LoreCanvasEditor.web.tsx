@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Icon, colors, radius, spacing, useBreakpoint } from '@vaultstone/ui';
 import {
+  compressImageBlob,
   createWorldImage,
   getCampaignsForWorld,
   getWorldImageSignedUrlById,
@@ -1131,22 +1132,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   } | null> {
     if (!worldId || !pageId) return null;
 
-    // Probe natural dimensions client-side first so we have an
-    // accurate display size + can persist them on the
-    // world_images row (the row stores the original dimensions
-    // the way BodyEditor's WorldImageNode does).
-    const dims = await new Promise<{ w: number; h: number } | null>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-        img.onerror = () => resolve(null);
-        img.src = reader.result as string;
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
-    });
-    if (!dims) return null;
+    const { blob: compressed, width: cw, height: ch } = await compressImageBlob(file);
+    if (cw === 0 && ch === 0) return null;
 
     const imageId = crypto.randomUUID();
     const filename = file.name && file.name.length > 0 ? file.name : 'image';
@@ -1154,8 +1141,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       worldId,
       imageId,
       filename,
-      body: file,
-      contentType: file.type || 'image/jpeg',
+      body: compressed,
+      contentType: 'image/jpeg',
     });
     if (uploadErr) return null;
 
@@ -1164,10 +1151,10 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       world_id: worldId,
       page_id: pageId,
       image_key: key,
-      width: dims.w,
-      height: dims.h,
-      byte_size: file.size,
-      content_type: file.type || 'image/jpeg',
+      width: cw,
+      height: ch,
+      byte_size: compressed.size,
+      content_type: 'image/jpeg',
     });
     if (rowErr) return null;
 
@@ -1179,8 +1166,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     // (so existing canvas layouts don't shift dramatically when
     // the new path lands). Height tracks the natural aspect ratio.
     const maxW = 480;
-    const w = Math.min(dims.w, maxW);
-    const h = Math.round(w * (dims.h / dims.w));
+    const w = Math.min(cw, maxW);
+    const h = Math.round(w * (ch / cw));
     // data-world-image-caption starts empty; the right-click
     // editor sets it on the rendered <img> after the user types
     // and saves. The DB row is the source of truth — this attr

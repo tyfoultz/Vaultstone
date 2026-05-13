@@ -1,6 +1,8 @@
 export { supabase } from './client';
 export * from './auth';
 export * from './profiles';
+export * from './compress-image';
+export * from './signed-url-cache';
 export * from './campaigns';
 export * from './characters';
 export * from './character-drafts';
