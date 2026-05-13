@@ -140,6 +140,8 @@ export interface Dnd5eStats {
 
   /** Skills with expertise (double proficiency bonus). */
   skillExpertise?: string[];
+  /** Tools with expertise (double proficiency bonus). */
+  toolExpertise?: string[];
 
   /** Player's pick-one selections for species traits with options.
    *  Keyed by trait name → chosen option name. */

@@ -1653,6 +1653,10 @@ export default function CharacterSheetScreen() {
               if (!stats) return;
               persistStats({ ...stats, skillProficiencies: profs, skillExpertise: exp });
             }}
+            onUpdateToolProficiencies={(profs, exp) => {
+              if (!stats) return;
+              persistStats({ ...stats, toolProficiencies: profs, toolExpertise: exp });
+            }}
           />
         );
       case 'traits':

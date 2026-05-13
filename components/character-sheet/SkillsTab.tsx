@@ -31,13 +31,16 @@ interface Props {
   skillCatalog?: SkillResult[];
   isOwner?: boolean;
   onUpdateProficiencies?: (proficiencies: string[], expertise: string[]) => void;
+  onUpdateToolProficiencies?: (proficiencies: string[], expertise: string[]) => void;
 }
 
-export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog, isOwner, onUpdateProficiencies }: Props) {
+export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog, isOwner, onUpdateProficiencies, onUpdateToolProficiencies }: Props) {
   const [detailFor, setDetailFor] = useState<{ name: string; description: string; ability: string } | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [toolEditMode, setToolEditMode] = useState(false);
 
   const expertise = stats.skillExpertise ?? [];
+  const toolExpertise = stats.toolExpertise ?? [];
 
   function skillBonus(name: string) {
     const abi = SKILL_ABILITY[name];
@@ -87,6 +90,18 @@ export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog, isOwner, 
       stats.skillProficiencies.filter((s) => s !== name),
       expertise.filter((s) => s !== name),
     );
+  }
+
+  function toggleToolExpertise(name: string) {
+    if (!onUpdateToolProficiencies) return;
+    const profs = [...stats.toolProficiencies];
+    const exp = [...toolExpertise];
+    const isExpert = exp.includes(name);
+    if (isExpert) {
+      onUpdateToolProficiencies(profs, exp.filter((t) => t !== name));
+    } else {
+      onUpdateToolProficiencies(profs, [...exp, name]);
+    }
   }
 
   return (
@@ -168,6 +183,44 @@ export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog, isOwner, 
           <Text style={[s.legendText, { marginLeft: 8 }]}>Long-press to remove</Text>
         ) : null}
       </View>
+
+      {/* ── Tool Proficiencies ── */}
+      {stats.toolProficiencies.length > 0 ? (
+        <>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
+            <SectionLabel>{toolEditMode ? 'TOOLS · TAP TO TOGGLE EXPERTISE' : 'TOOL PROFICIENCIES'}</SectionLabel>
+            {isOwner && onUpdateToolProficiencies ? (
+              <TouchableOpacity onPress={() => setToolEditMode(!toolEditMode)} style={s.editBtn}>
+                <Text style={s.editBtnText}>{toolEditMode ? 'Done' : 'Edit'}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <View style={s.skillsCard}>
+            {stats.toolProficiencies.map((name, i) => {
+              const isExpert = toolExpertise.includes(name);
+              const bonus = prof * (isExpert ? 2 : 1);
+              const isLast = i === stats.toolProficiencies.length - 1;
+              return (
+                <TouchableOpacity
+                  key={name}
+                  style={[s.skillRow, !isLast && s.skillRowBorder]}
+                  onPress={toolEditMode ? () => toggleToolExpertise(name) : undefined}
+                  activeOpacity={toolEditMode ? 0.7 : 1}
+                >
+                  <View style={[s.profDot, s.profDotFilled, isExpert && s.profDotExpert]} />
+                  <View style={s.skillNameWrap}>
+                    <Text style={[s.skillName, s.skillNameProf]}>
+                      {name.charAt(0).toUpperCase() + name.slice(1)}
+                    </Text>
+                    {isExpert ? <Text style={s.skillAbi}>EXP</Text> : null}
+                  </View>
+                  <Text style={[s.skillBonus, s.skillBonusProf]}>{fmtMod(bonus)}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
 
       <View style={{ height: 16 }} />
     </ScrollView>
