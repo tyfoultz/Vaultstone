@@ -220,6 +220,11 @@ export function SpellsTab({
         </View>
       )}
 
+      {/* ── Spell slots overview table ── */}
+      {spellSlots && ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => spellSlots[l].max > 0) && (
+        <SpellSlotTable spellSlots={spellSlots} isOwner={isOwner} onSlotChange={onSpellSlotChange} />
+      )}
+
       {/* ── How spellcasting works (collapsible per-class explainer) ── */}
       {spellcastingExplainers && spellcastingExplainers.length > 0 && (
         <View style={s.explainerCard}>
@@ -457,6 +462,58 @@ export function SpellsTab({
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
+function SpellSlotTable({ spellSlots, isOwner, onSlotChange }: {
+  spellSlots: Record<number, { max: number; remaining: number }>;
+  isOwner: boolean;
+  onSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const activeLevels = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((l) => spellSlots[l].max > 0);
+  if (activeLevels.length === 0) return null;
+
+  return (
+    <View style={s.explainerCard}>
+      <TouchableOpacity style={s.explainerHeader} onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
+        <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.primary} />
+        <Text style={s.explainerTitle}>Spell Slots by Level</Text>
+        <MaterialCommunityIcons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.outline} />
+      </TouchableOpacity>
+      {expanded && (
+        <View style={s.slotTableBody}>
+          <View style={s.slotTableRow}>
+            <Text style={[s.slotTableCell, s.slotTableHeader, { flex: 1.5 }]}>Level</Text>
+            {activeLevels.map((l) => (
+              <Text key={l} style={[s.slotTableCell, s.slotTableHeader]}>{ordinal(l)}</Text>
+            ))}
+          </View>
+          <View style={s.slotTableRow}>
+            <Text style={[s.slotTableCell, s.slotTableLabel, { flex: 1.5 }]}>Total</Text>
+            {activeLevels.map((l) => (
+              <Text key={l} style={s.slotTableCell}>{spellSlots[l].max}</Text>
+            ))}
+          </View>
+          <View style={s.slotTableRow}>
+            <Text style={[s.slotTableCell, s.slotTableLabel, { flex: 1.5 }]}>Used</Text>
+            {activeLevels.map((l) => {
+              const used = spellSlots[l].max - spellSlots[l].remaining;
+              return (
+                <TouchableOpacity
+                  key={l}
+                  style={s.slotTableCell}
+                  onPress={isOwner && onSlotChange ? () => onSlotChange(l, used > 0 ? 1 : -1) : undefined}
+                  activeOpacity={isOwner ? 0.7 : 1}
+                >
+                  <Text style={[s.slotTableCellText, used > 0 && { color: colors.primary }]}>{used}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <TouchableOpacity style={[s.chip, active && s.chipActive]} onPress={onPress} activeOpacity={0.7}>
@@ -477,33 +534,25 @@ function SpellRow({
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
-  /** Whether this spell is currently prepared (cantrips: always true).
-   *  Drives the dim state + the cast button gate. */
   prepared: boolean;
-  /** Whether the prepared toggle is interactive. Cantrips pass false
-   *  since they don't toggle; non-owners and view modes without an
-   *  onTogglePrepared also pass false. */
   canToggle: boolean;
   onTogglePrepared?: () => void;
-  /** True when adding this spell would exceed the prep cap. Disables
-   *  toggling on, but still allows toggling off (so the player can
-   *  swap). */
   togglesBlocked?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const isCantrip = spell.level === 0;
   const canCast = prepared && (isCantrip || (slot?.remaining ?? 0) > 0);
   const toggleDisabled = !canToggle || (togglesBlocked && !prepared);
 
-  const Wrapper: typeof View | typeof Pressable = canToggle ? Pressable : View;
-  const wrapperProps = canToggle
-    ? { onPress: toggleDisabled ? undefined : onTogglePrepared }
-    : {};
-
   return (
-    <Wrapper style={[s.spellCard, !prepared && s.spellCardDimmed]} {...wrapperProps}>
-      <View style={s.spellHead}>
-        {/* Status circle — tap-toggle hit area; cantrips render a filled
-            indicator with no toggle since they're always cast-ready. */}
+    <View style={[s.spellCard, !prepared && s.spellCardDimmed]}>
+      <TouchableOpacity
+        style={s.spellHead}
+        onPress={() => setExpanded((v) => !v)}
+        onLongPress={canToggle && !toggleDisabled ? onTogglePrepared : undefined}
+        delayLongPress={300}
+        activeOpacity={0.7}
+      >
         <View style={[
           s.statusCircle,
           prepared && s.statusCircleOn,
@@ -538,25 +587,35 @@ function SpellRow({
             {isCantrip ? 'At Will' : prepared ? 'Cast' : 'Unprepared'}
           </Text>
         </View>
-      </View>
+        <MaterialCommunityIcons
+          name={expanded ? 'chevron-down' : 'chevron-right'}
+          size={16}
+          color={colors.outline}
+          style={{ marginLeft: 4 }}
+        />
+      </TouchableOpacity>
 
-      <View style={s.metaStrip}>
-        {spell.castingTime ? <MetaItem label="Time" value={spell.castingTime} /> : null}
-        {spell.range ? <MetaItem label="Range" value={spell.range} /> : null}
-        {spell.components && spell.components.length > 0 ? (
-          <MetaItem label="Comp" value={spell.components.join(', ')} />
-        ) : null}
-        {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
-      </View>
+      {expanded ? (
+        <>
+          <View style={s.metaStrip}>
+            {spell.castingTime ? <MetaItem label="Time" value={spell.castingTime} /> : null}
+            {spell.range ? <MetaItem label="Range" value={spell.range} /> : null}
+            {spell.components && spell.components.length > 0 ? (
+              <MetaItem label="Comp" value={spell.components.join(', ')} />
+            ) : null}
+            {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
+          </View>
 
-      {spell.description ? (
-        <Text style={s.descText}>{spell.description}</Text>
-      ) : (
-        <Text style={s.descMissing}>
-          No description on file — re-add this spell through Manage Spells to fetch the latest text.
-        </Text>
-      )}
-    </Wrapper>
+          {spell.description ? (
+            <Text style={s.descText}>{spell.description}</Text>
+          ) : (
+            <Text style={s.descMissing}>
+              No description on file — re-add this spell through Manage Spells to fetch the latest text.
+            </Text>
+          )}
+        </>
+      ) : null}
+    </View>
   );
 }
 
@@ -648,6 +707,29 @@ const s = StyleSheet.create({
   },
   synthValue: {
     fontSize: 12, fontFamily: fonts.body, color: colors.onSurface, fontWeight: '600',
+  },
+
+  // Spell slot overview table
+  slotTableBody: {
+    paddingHorizontal: 12, paddingBottom: 12,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  slotTableRow: {
+    flexDirection: 'row', alignItems: 'center',
+  },
+  slotTableCell: {
+    flex: 1, paddingVertical: 6, alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  slotTableHeader: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700' as const,
+    letterSpacing: 0.5, textTransform: 'uppercase' as const, color: colors.outline,
+  },
+  slotTableLabel: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600' as const, color: colors.onSurfaceVariant,
+  },
+  slotTableCellText: {
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700' as const, color: colors.onSurface,
+    textAlign: 'center' as const,
   },
 
   // Search row
