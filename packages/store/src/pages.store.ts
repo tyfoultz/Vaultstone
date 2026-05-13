@@ -18,12 +18,21 @@ export const usePagesStore = create<PagesState>()(persist((set) => ({
   byWorldId: {},
 
   setPagesForWorld: (worldId, pages) =>
-    set((state) => ({
-      byWorldId: {
-        ...state.byWorldId,
-        [worldId]: [...pages].sort(sortByOrder),
-      },
-    })),
+    set((state) => {
+      const existing = state.byWorldId[worldId];
+      if (!existing || existing.length === 0) {
+        return { byWorldId: { ...state.byWorldId, [worldId]: [...pages].sort(sortByOrder) } };
+      }
+      const bodyByid = new Map<string, Pick<WorldPage, 'body' | 'body_text' | 'body_refs' | 'structured_fields'>>();
+      for (const p of existing) {
+        if (p.body != null) bodyByid.set(p.id, { body: p.body, body_text: p.body_text, body_refs: p.body_refs, structured_fields: p.structured_fields });
+      }
+      const merged = pages.map((p) => {
+        const cached = bodyByid.get(p.id);
+        return cached && p.body == null ? { ...p, ...cached } : p;
+      });
+      return { byWorldId: { ...state.byWorldId, [worldId]: merged.sort(sortByOrder) } };
+    }),
 
   addPage: (page) =>
     set((state) => {
