@@ -110,20 +110,7 @@ export default function LevelUpScreen() {
       setCampaignId(data.campaign_id ?? null);
       setPackIds((data.pack_ids ?? []) as string[]);
 
-      // Resolve campaign rules (multiclassing, enforce_feat_prerequisites).
-      // Standalone characters fall through to the system defaults via the
-      // resolveRuleValues fallback logic.
-      if (data.campaign_id) {
-        const sysId = baseStats.srdVersion === 'SRD_5.1' ? 'dnd5e_2014' : 'dnd5e_2024';
-        const sys = BUNDLED_SYSTEMS_BY_ID[sysId];
-        const { data: bag } = await getCampaignCharacterRules(data.campaign_id);
-        if (sys && bag && !cancelled) {
-          setCampaignRules(resolveRuleValues(sys.optionalRules, bag));
-        }
-      }
-
-      // Resolve content. Always pull homebrew when there's a campaign or
-      // an explicit pack opt-in; mirrors the wizard's scoping pattern.
+      // Campaign rules and content resolution are independent — run in parallel.
       const includeHomebrew = !!data.campaign_id || (data.pack_ids ?? []).length > 0;
       const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
       const tierArgs = {
@@ -133,7 +120,19 @@ export default function LevelUpScreen() {
         campaignId: data.campaign_id ?? undefined,
         packIds: !data.campaign_id && (data.pack_ids ?? []).length > 0 ? (data.pack_ids as string[]) : undefined,
       };
-      const [clsResults, subResults] = await Promise.all([
+
+      const [, clsResults, subResults] = await Promise.all([
+        // Campaign rules (standalone characters resolve instantly)
+        (async () => {
+          if (!data.campaign_id) return;
+          const sysId = baseStats.srdVersion === 'SRD_5.1' ? 'dnd5e_2014' : 'dnd5e_2024';
+          const sys = BUNDLED_SYSTEMS_BY_ID[sysId];
+          const { data: bag } = await getCampaignCharacterRules(data.campaign_id);
+          if (sys && bag && !cancelled) {
+            setCampaignRules(resolveRuleValues(sys.optionalRules, bag));
+          }
+        })(),
+        // Content resolution
         ContentResolver.search({ type: 'class', ...tierArgs }),
         ContentResolver.search({ type: 'subclass', ...tierArgs }),
       ]);
