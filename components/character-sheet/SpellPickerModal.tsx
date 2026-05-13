@@ -18,6 +18,9 @@ import type { Dnd5ePreparedSpell, SpellResult } from '@vaultstone/types';
 
 const LEVEL_LABELS = ['Cantrip', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 
+let _spellCache: { key: string; spells: SpellResult[]; fetchedAt: number } | null = null;
+const SPELL_CACHE_TTL = 5 * 60 * 1000;
+
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -75,7 +78,6 @@ export function SpellPickerModal({
 
   useEffect(() => {
     if (!visible) return;
-    setLoading(true);
     setSearch('');
     setLevelFilter('all');
     setStatusFilter('all');
@@ -84,6 +86,13 @@ export function SpellPickerModal({
     setExpandedKey(null);
     setFilterMenuOpen(false);
     setStatusMenuOpen(false);
+    const cacheKey = `${srdVersion}|${campaignId ?? ''}|${(packIds ?? []).join(',')}`;
+    if (_spellCache && _spellCache.key === cacheKey && Date.now() - _spellCache.fetchedAt < SPELL_CACHE_TTL) {
+      setList(_spellCache.spells);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     const includeHomebrew = !!campaignId || (packIds?.length ?? 0) > 0;
     const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
     ContentResolver.search({
@@ -94,7 +103,11 @@ export function SpellPickerModal({
       campaignId: campaignId ?? undefined,
       packIds: !campaignId && packIds && packIds.length > 0 ? packIds : undefined,
     })
-      .then((r) => setList(r as SpellResult[]))
+      .then((r) => {
+        const spells = r as SpellResult[];
+        _spellCache = { key: cacheKey, spells, fetchedAt: Date.now() };
+        setList(spells);
+      })
       .finally(() => setLoading(false));
   }, [visible, srdVersion, campaignId, (packIds ?? []).join(',')]);
 
@@ -239,7 +252,7 @@ export function SpellPickerModal({
             </View>
           ) : (
             <>
-              <View style={s.controlsRow}>
+              <View style={s.searchRow}>
                 <View style={s.searchBox}>
                   <MaterialCommunityIcons name="magnify" size={16} color={colors.outline} />
                   <TextInput
@@ -250,6 +263,8 @@ export function SpellPickerModal({
                     onChangeText={setSearch}
                   />
                 </View>
+              </View>
+              <View style={s.controlsRow}>
                 <LevelFilterDropdown
                   value={levelFilter}
                   availableLevels={availableLevels}
@@ -683,6 +698,9 @@ const s = StyleSheet.create({
   },
   loadingWrap: { paddingVertical: 40, alignItems: 'center' },
 
+  searchRow: {
+    marginBottom: spacing.sm,
+  },
   controlsRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     marginBottom: spacing.sm, flexWrap: 'wrap',

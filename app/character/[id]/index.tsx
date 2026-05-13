@@ -322,13 +322,24 @@ function spellcastingExplainersFor(
         description: feat?.description,
       });
     } else if (subCasting) {
-      // Subclass-granted spellcasting (Arcane Trickster, Eldritch Knight)
       const scFeat = sub?.features?.find(
         (f) => f.name.toLowerCase() === 'spellcasting' || f.name.toLowerCase().includes('spellcasting'),
       );
+      // Third-caster cantrips/spells known progression (AT & EK)
+      const thirdCasterCantrips: Record<number, number> = {
+        3: 3, 4: 3, 5: 3, 6: 3, 7: 3, 8: 3, 9: 3, 10: 4, 11: 4, 12: 4, 13: 4, 14: 4, 15: 4, 16: 4, 17: 4, 18: 4, 19: 4, 20: 4,
+      };
+      const thirdCasterSpellsKnown: Record<number, number> = {
+        3: 3, 4: 4, 5: 4, 6: 4, 7: 5, 8: 6, 9: 6, 10: 7, 11: 8, 12: 8, 13: 9, 14: 10, 15: 10, 16: 11, 17: 11, 18: 11, 19: 12, 20: 13,
+      };
+      const cantripsKnown = subCasting.casterProgression === 'third' ? thirdCasterCantrips[e.level] : undefined;
+      const spellsKnown = subCasting.casterProgression === 'third' ? thirdCasterSpellsKnown[e.level] : undefined;
       out.push({
         className: sub?.name ?? cls?.name ?? 'Subclass',
         spellcastingAbility: subCasting.ability,
+        cantripsKnown,
+        spellsKnownOrPrepared: spellsKnown,
+        preparedLabel: spellsKnown !== undefined ? 'Spells Known' : undefined,
         description: scFeat?.description,
       });
     }
