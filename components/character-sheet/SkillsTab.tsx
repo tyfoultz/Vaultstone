@@ -188,7 +188,7 @@ export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog, isOwner, 
       {stats.toolProficiencies.length > 0 ? (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
-            <SectionLabel>{toolEditMode ? 'TOOLS · TAP TO TOGGLE EXPERTISE' : 'TOOL PROFICIENCIES'}</SectionLabel>
+            <SectionLabel>{toolEditMode ? 'TOOLS · TAP TO TOGGLE EXPERTISE' : 'TOOLS · TAP TO ROLL'}</SectionLabel>
             {isOwner && onUpdateToolProficiencies ? (
               <TouchableOpacity onPress={() => setToolEditMode(!toolEditMode)} style={s.editBtn}>
                 <Text style={s.editBtnText}>{toolEditMode ? 'Done' : 'Edit'}</Text>
@@ -204,8 +204,11 @@ export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog, isOwner, 
                 <TouchableOpacity
                   key={name}
                   style={[s.skillRow, !isLast && s.skillRowBorder]}
-                  onPress={toolEditMode ? () => toggleToolExpertise(name) : undefined}
-                  activeOpacity={toolEditMode ? 0.7 : 1}
+                  onPress={toolEditMode ? () => toggleToolExpertise(name) : () => {
+                    const r = Math.floor(Math.random() * 20) + 1;
+                    onRoll({ label: name, rolls: [r], bonus, total: r + bonus, crit: r === 20, fumble: r === 1 });
+                  }}
+                  activeOpacity={0.7}
                 >
                   <View style={[s.profDot, s.profDotFilled, isExpert && s.profDotExpert]} />
                   <View style={s.skillNameWrap}>
