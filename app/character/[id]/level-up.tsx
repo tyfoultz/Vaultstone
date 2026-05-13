@@ -353,11 +353,25 @@ function LevelUpFlow({
       ? defaultHpGain(stats, leveledClass, { rolledValue: hpRoll })
       : defaultHpGain(stats, leveledClass);
 
+    // Gather subclass features at this level
+    const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
+    const existingEntry = entries.find((e) =>
+      e.classKey === effectiveClassKey || stripEdition(e.classKey) === stripEdition(effectiveClassKey),
+    );
+    const effectiveSubKey = chosenSubclassKey ?? existingEntry?.subclassKey ?? null;
+    const sub = effectiveSubKey ? subclasses.find((s) => s.key === effectiveSubKey) : null;
+    const subFeaturesAtLevel = sub?.features?.filter((f) => f.level === newClassLevel) ?? [];
+
+    const allFeatures = [
+      ...unpackClassFeaturesForPick(featuresAtLevel),
+      ...subFeaturesAtLevel.map((f) => ({ name: f.name, description: f.description })),
+    ];
+
     const pick: LevelUpPick = {
       classKey: leveledClass.key,
       newMulticlassEntry: isMulticlassEntry,
       hpGain,
-      classFeaturesUnlocked: unpackClassFeaturesForPick(featuresAtLevel),
+      classFeaturesUnlocked: allFeatures,
       ...(showSubclassStep && chosenSubclassKey ? { subclassKey: chosenSubclassKey } : {}),
       ...(showAsiStep && asiKind === 'asi' ? {
         abilityScoreImprovement: nonZeroAlloc(asiAllocation),
@@ -469,6 +483,8 @@ function LevelUpFlow({
             newClassLevel={newClassLevel}
             isMulticlassEntry={isMulticlassEntry}
             stats={stats}
+            entries={entries}
+            effectiveClassKey={effectiveClassKey}
             hpMethod={hpMethod}
             hpRoll={hpRoll}
             asiKind={asiKind}
@@ -961,13 +977,15 @@ function AsiStep({
 }
 
 function ConfirmStep({
-  cls, newClassLevel, isMulticlassEntry, stats, hpMethod, hpRoll,
-  asiKind, asiAllocation, chosenSubclassKey, subclasses,
+  cls, newClassLevel, isMulticlassEntry, stats, entries, effectiveClassKey,
+  hpMethod, hpRoll, asiKind, asiAllocation, chosenSubclassKey, subclasses,
 }: {
   cls: ClassResult;
   newClassLevel: number;
   isMulticlassEntry: boolean;
   stats: Dnd5eStats;
+  entries: Dnd5eClassEntry[];
+  effectiveClassKey: string;
   hpMethod: 'fixed' | 'rolled';
   hpRoll: number | null;
   asiKind: AsiKind;
@@ -980,7 +998,16 @@ function ConfirmStep({
     ? defaultHpGain(stats, cls, { rolledValue: hpRoll })
     : defaultHpGain(stats, cls);
   const features = classFeaturesAtLevel(cls, newClassLevel);
-  const sub = chosenSubclassKey ? subclasses.find((s) => s.key === chosenSubclassKey) : null;
+
+  // Resolve the effective subclass: newly picked at this level, or
+  // already stored on the class entry from a prior level-up.
+  const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
+  const existingEntry = entries.find((e) =>
+    e.classKey === effectiveClassKey || stripEdition(e.classKey) === stripEdition(effectiveClassKey),
+  );
+  const effectiveSubKey = chosenSubclassKey ?? existingEntry?.subclassKey ?? null;
+  const sub = effectiveSubKey ? subclasses.find((s) => s.key === effectiveSubKey) : null;
+  const subFeatures = sub?.features?.filter((f) => f.level === newClassLevel) ?? [];
 
   return (
     <Card tier="container" padding="md" style={{ gap: spacing.sm }}>
@@ -999,6 +1026,16 @@ function ConfirmStep({
         <View style={{ marginTop: spacing.xs }}>
           <MetaLabel size="sm">New class features</MetaLabel>
           {features.map((f) => (
+            <Text key={f.name} variant="body-sm" style={{ marginTop: 2 }}>
+              <Text weight="bold">{f.name}.</Text> <Text tone="secondary">{stripTablesForPreview(f.description ?? '')}</Text>
+            </Text>
+          ))}
+        </View>
+      ) : null}
+      {subFeatures.length > 0 ? (
+        <View style={{ marginTop: spacing.xs }}>
+          <MetaLabel size="sm">New subclass features ({sub!.name})</MetaLabel>
+          {subFeatures.map((f) => (
             <Text key={f.name} variant="body-sm" style={{ marginTop: 2 }}>
               <Text weight="bold">{f.name}.</Text> <Text tone="secondary">{stripTablesForPreview(f.description ?? '')}</Text>
             </Text>
