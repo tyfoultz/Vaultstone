@@ -80,6 +80,7 @@ export default function PageDetailScreen() {
 
   return (
     <PagePaneContent
+      key={pageId}
       pageId={pageId}
       worldId={worldId}
     />

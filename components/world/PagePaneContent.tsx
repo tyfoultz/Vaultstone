@@ -127,9 +127,16 @@ export function PagePaneContent({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const removePage = usePagesStore((s) => s.removePage);
 
+  // Reset body-loaded flag whenever the page changes so a stale `true`
+  // from a previous page can't skip the fetch for the new one.
+  useEffect(() => {
+    setBodyLoaded(false);
+  }, [pageId]);
+
   // Lazy-load page body (excluded from page list fetch to save egress)
   useEffect(() => {
-    if (!page || page.body != null) { setBodyLoaded(true); return; }
+    if (!page) return;
+    if (page.body != null) { setBodyLoaded(true); return; }
     let cancelled = false;
     getPage(pageId).then(({ data }) => {
       if (cancelled || !data) return;
