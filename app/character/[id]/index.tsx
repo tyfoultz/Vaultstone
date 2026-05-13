@@ -13,7 +13,7 @@ import {
   getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, uploadCharacterCardImage, supabase,
   getCampaignCharacterRules, resolveRuleValues, deleteCharacter,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, getEffectiveSpellcastingAbility } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius, ImageCropModal } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
@@ -250,6 +250,7 @@ function readProgressionValue(
 function spellcastingExplainersFor(
   stats: Dnd5eStats,
   classResultsByKey: Record<string, ClassResult>,
+  subclassResultsByKey?: Record<string, SubclassResult>,
 ): Array<{
   className: string;
   spellcastingAbility: string | null;
@@ -270,57 +271,67 @@ function spellcastingExplainersFor(
   }> = [];
   for (const e of getClassEntries(stats)) {
     const cls = classResultsByKey[e.classKey];
-    if (!cls?.spellcasting) continue;
+    const sub = e.subclassKey && subclassResultsByKey ? subclassResultsByKey[e.subclassKey] : undefined;
+    const subCasting = resolveSubclassCasting(sub);
 
-    // Pull the canonical Spellcasting feature description for the
-    // prose. Falls back to undefined when missing — the synthesized
-    // stats above carry the load in that case.
-    const feat = (cls.features ?? []).find(
-      (f) => f.name.toLowerCase() === 'spellcasting' && f.level === 1,
-    ) ?? (cls.features ?? []).find((f) => f.name.toLowerCase() === 'spellcasting');
+    if (!cls?.spellcasting && !subCasting) continue;
 
-    // Synthesized counts at this character's level for this class.
-    const row = cls.progressionTable?.find((r) => r.level === Math.min(e.level, 20));
-    const cantripsKnown = row
-      ? (readProgressionValue(cls, row, ['cantrips', 'cantripsKnown'], ['Cantrips Known', 'Cantrips']) ?? undefined)
-      : undefined;
-    const sk = row
-      ? readProgressionValue(cls, row, ['spellsKnown'], ['Spells Known'])
-      : null;
-    const ps = row
-      ? readProgressionValue(cls, row, ['preparedSpells'], ['Prepared Spells'])
-      : null;
+    if (cls?.spellcasting) {
+      const feat = (cls.features ?? []).find(
+        (f) => f.name.toLowerCase() === 'spellcasting' && f.level === 1,
+      ) ?? (cls.features ?? []).find((f) => f.name.toLowerCase() === 'spellcasting');
 
-    let spellsKnownOrPrepared: number | undefined;
-    let preparedLabel: string | undefined;
-    let preparedFormula: string | undefined;
-    if (sk !== null) {
-      spellsKnownOrPrepared = sk;
-      preparedLabel = 'Spells Known';
-    } else if (ps !== null) {
-      spellsKnownOrPrepared = ps;
-      preparedLabel = 'Prepared Spells';
-    } else if (cls.spellcastingAbility && PREPARE_FORMULA_CLASSES_5_1.has(cls.name.toLowerCase())) {
-      // 5.1 prepare-list class — formula `mod + level (min 1)`.
-      const abilityKey = ABILITY_BY_NAME[cls.spellcastingAbility.toLowerCase()];
-      if (abilityKey && stats.abilityScores) {
-        const score = stats.abilityScores[abilityKey];
-        const mod = Math.floor((score - 10) / 2);
-        spellsKnownOrPrepared = Math.max(1, mod + e.level);
+      const row = cls.progressionTable?.find((r) => r.level === Math.min(e.level, 20));
+      const cantripsKnown = row
+        ? (readProgressionValue(cls, row, ['cantrips', 'cantripsKnown'], ['Cantrips Known', 'Cantrips']) ?? undefined)
+        : undefined;
+      const sk = row
+        ? readProgressionValue(cls, row, ['spellsKnown'], ['Spells Known'])
+        : null;
+      const ps = row
+        ? readProgressionValue(cls, row, ['preparedSpells'], ['Prepared Spells'])
+        : null;
+
+      let spellsKnownOrPrepared: number | undefined;
+      let preparedLabel: string | undefined;
+      let preparedFormula: string | undefined;
+      if (sk !== null) {
+        spellsKnownOrPrepared = sk;
+        preparedLabel = 'Spells Known';
+      } else if (ps !== null) {
+        spellsKnownOrPrepared = ps;
         preparedLabel = 'Prepared Spells';
-        preparedFormula = `${cls.spellcastingAbility} mod + ${cls.name} level`;
+      } else if (cls.spellcastingAbility && PREPARE_FORMULA_CLASSES_5_1.has(cls.name.toLowerCase())) {
+        const abilityKey = ABILITY_BY_NAME[cls.spellcastingAbility.toLowerCase()];
+        if (abilityKey && stats.abilityScores) {
+          const score = stats.abilityScores[abilityKey];
+          const mod = Math.floor((score - 10) / 2);
+          spellsKnownOrPrepared = Math.max(1, mod + e.level);
+          preparedLabel = 'Prepared Spells';
+          preparedFormula = `${cls.spellcastingAbility} mod + ${cls.name} level`;
+        }
       }
-    }
 
-    out.push({
-      className: cls.name,
-      spellcastingAbility: cls.spellcastingAbility ?? null,
-      cantripsKnown,
-      spellsKnownOrPrepared,
-      preparedLabel,
-      preparedFormula,
-      description: feat?.description,
-    });
+      out.push({
+        className: cls.name,
+        spellcastingAbility: cls.spellcastingAbility ?? null,
+        cantripsKnown,
+        spellsKnownOrPrepared,
+        preparedLabel,
+        preparedFormula,
+        description: feat?.description,
+      });
+    } else if (subCasting) {
+      // Subclass-granted spellcasting (Arcane Trickster, Eldritch Knight)
+      const scFeat = sub?.features?.find(
+        (f) => f.name.toLowerCase() === 'spellcasting' || f.name.toLowerCase().includes('spellcasting'),
+      );
+      out.push({
+        className: sub?.name ?? cls?.name ?? 'Subclass',
+        spellcastingAbility: subCasting.ability,
+        description: scFeat?.description,
+      });
+    }
   }
   return out;
 }
@@ -1092,22 +1103,21 @@ export default function CharacterSheetScreen() {
     if (Object.keys(classResultsByKey).length === 0) return;
     const entries = getClassEntries(stats);
     const map = new Map(Object.entries(classResultsByKey));
-    const computed = spellSlotsForCharacter(entries, map);
+    const subMap = new Map(Object.entries(subclassResultsByKey));
+    const computed = spellSlotsForCharacter(entries, map, subMap);
     const current = resources.spellSlots;
     const computedHasSlots = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const)
       .some((l) => computed[l].max > 0);
     const currentHasSlots = current
       ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => (current[l]?.max ?? 0) > 0)
       : false;
-    // Only heal when the recompute would *add* slots — never wipe a
-    // pre-populated table the player may have customized.
     if (!computedHasSlots || currentHasSlots) return;
     persistResources({
       ...resources,
       spellSlots: computed,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOwner, classResultsByKey, character?.id]);
+  }, [isOwner, classResultsByKey, subclassResultsByKey, character?.id]);
 
   // Short Rest — restores resources whose recharge cadence is 'short'.
   // Per 5e: Warlock pact slots (which we treat as a regular slot bucket,
@@ -1652,6 +1662,7 @@ export default function CharacterSheetScreen() {
             scores={scores}
             prof={prof}
             isOwner={isOwner}
+            effectiveSpellcastingAbility={getEffectiveSpellcastingAbility(stats, classResultsByKey, subclassResultsByKey)}
             onSpellSlotChange={(level, delta) => {
               if (!resources.spellSlots) return;
               const slot = resources.spellSlots[level];
@@ -1675,7 +1686,7 @@ export default function CharacterSheetScreen() {
                 : [...current, spell];
               persistResources({ ...resources, preparedSpells: next });
             }}
-            spellcastingExplainers={spellcastingExplainersFor(stats, classResultsByKey)}
+            spellcastingExplainers={spellcastingExplainersFor(stats, classResultsByKey, subclassResultsByKey)}
           />
         );
       case 'skills':
@@ -2705,7 +2716,12 @@ export default function CharacterSheetScreen() {
         <SpellPickerModal
           visible={spellPickerOpen}
           onClose={() => setSpellPickerOpen(false)}
-          classNames={Object.values(classResultsByKey).map((c) => c.name)}
+          classNames={[
+            ...Object.values(classResultsByKey).map((c) => c.name),
+            ...Object.values(subclassResultsByKey)
+              .map((sc) => resolveSubclassCasting(sc)?.spellListClass)
+              .filter((n): n is string => !!n),
+          ]}
           existingKeys={new Set(getSpellbook(resources).map((s) => s.id))}
           existingSpells={getSpellbook(resources)}
           spellLimits={computeSpellLimits(stats, classResultsByKey)}

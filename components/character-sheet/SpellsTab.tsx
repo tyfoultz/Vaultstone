@@ -36,6 +36,7 @@ interface Props {
   scores: Dnd5eAbilityScores;
   prof: number;
   isOwner: boolean;
+  effectiveSpellcastingAbility?: string | null;
   onSpellSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
   onConcentrationClear?: () => void;
   /** Open the catalog spell picker (Manage Spells). Adds/removes
@@ -78,7 +79,7 @@ interface Props {
 }
 
 export function SpellsTab({
-  stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
+  stats, resources, scores, prof, isOwner, effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
   onOpenManage, spellbook, onTogglePrepared, spellcastingExplainers,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
@@ -88,7 +89,7 @@ export function SpellsTab({
   const [filter, setFilter] = useState<FilterKey>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-  const spellAbility = stats.spellcastingAbility;
+  const spellAbility = effectiveSpellcastingAbility ?? stats.spellcastingAbility;
   const isSpellcaster = !!spellAbility;
   const spellSlots = resources.spellSlots ?? (isSpellcaster ? DEFAULT_SLOTS : null);
   const preparedSpells = resources.preparedSpells ?? [];

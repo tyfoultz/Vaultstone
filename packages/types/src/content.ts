@@ -384,6 +384,14 @@ export interface SubclassResult extends ContentResult {
   unlockLevel: number;
   /** Featured class abilities granted by this subclass at specific levels. */
   features?: Array<{ level: number; name: string; description: string; actionType?: 'action' | 'bonus' | 'reaction' | 'free' }>;
+  /** Whether this subclass grants spellcasting (e.g. Arcane Trickster, Eldritch Knight). */
+  spellcasting?: boolean;
+  /** Spellcasting ability granted by the subclass ("Intelligence"). */
+  spellcastingAbility?: string | null;
+  /** Caster progression for spell slot computation. */
+  casterProgression?: 'full' | 'half' | 'third' | 'pact';
+  /** Base class whose spell list this subclass draws from ("Wizard"). */
+  spellListClass?: string;
   srdVersions: string[];
 }
 

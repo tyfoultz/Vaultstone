@@ -17,6 +17,7 @@ import type {
   Dnd5eFeature,
   Dnd5eResources,
   Dnd5eStats,
+  SubclassResult,
 } from '@vaultstone/types';
 import { getClassEntries } from '@vaultstone/types';
 import {
@@ -136,6 +137,7 @@ export function applyLevelUp(
   pick: LevelUpPick,
   cls: ClassResult,
   classByKey: Map<string, ClassResult>,
+  subclassByKey?: Map<string, SubclassResult>,
 ): ApplyLevelUpResult {
   // Clone everything we'll mutate so the inputs stay untouched.
   const stats: Dnd5eStats = { ...before.stats };
@@ -217,7 +219,7 @@ export function applyLevelUp(
   resources.hitDiceRemaining = (resources.hitDiceRemaining ?? 0) + 1;
 
   // ── Spell slots (recompute from full multiclass picture) ──
-  resources.spellSlots = spellSlotsForCharacter(entries, classByKey);
+  resources.spellSlots = spellSlotsForCharacter(entries, classByKey, subclassByKey);
 
   // ── Class features unlocked at this level ──
   if (pick.classFeaturesUnlocked && pick.classFeaturesUnlocked.length > 0) {

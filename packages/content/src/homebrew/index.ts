@@ -522,6 +522,10 @@ export function mapEntryToResult(
         parentClassName: d.parentClassName,
         unlockLevel: d.unlockLevel ?? 3,
         ...(features ? { features } : {}),
+        ...(d.spellcasting ? { spellcasting: d.spellcasting } : {}),
+        ...(d.spellcastingAbility ? { spellcastingAbility: d.spellcastingAbility } : {}),
+        ...(d.casterProgression ? { casterProgression: d.casterProgression } : {}),
+        ...(d.spellListClass ? { spellListClass: d.spellListClass } : {}),
       };
       return result;
     }

@@ -389,11 +389,13 @@ function LevelUpFlow({
     };
 
     const classByKey = new Map(classes.map((c) => [c.key, c]));
+    const subclassByKey = new Map(subclasses.map((s) => [s.key, s]));
     const result = applyLevelUp(
       { stats, resources },
       pick,
       leveledClass,
       classByKey,
+      subclassByKey,
     );
 
     const { error } = await updateCharacter(characterId, {

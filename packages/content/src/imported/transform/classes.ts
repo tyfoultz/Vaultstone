@@ -411,7 +411,7 @@ const ABILITY_FULL_NAME: Record<string, string> = {
   cha: 'Charisma',
 };
 
-function abilityFullName(code: string): string {
+export function abilityFullName(code: string): string {
   return ABILITY_FULL_NAME[code.toLowerCase()] ?? code;
 }
 

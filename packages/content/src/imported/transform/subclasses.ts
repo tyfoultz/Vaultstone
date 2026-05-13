@@ -9,6 +9,7 @@
 
 import type { SubclassResult, ImportSource } from '@vaultstone/types';
 import { entriesToText, slugify, sourceLongName, srdVersionsForSource, type RawEntry, type RawEntryObject } from './entries';
+import { abilityFullName } from './classes';
 
 // ── Source-side type sketches ─────────────────────────────────────────────
 // We don't import the full 5e.tools schema as a TypeScript type because the
@@ -23,6 +24,17 @@ type RawSubclass = {
   classSource?: string;
   page?: number;
   subclassFeatures?: Array<string | { subclassFeature?: string; gainSubclassFeature?: boolean }>;
+  spellcastingAbility?: string;
+  casterProgression?: string;
+};
+
+const CASTER_PROGRESSION_MAP: Record<string, 'full' | 'half' | 'third' | 'pact'> = {
+  full: 'full', half: 'half', '1/3': 'third', third: 'third', pact: 'pact',
+};
+
+const SPELL_LIST_CLASS: Record<string, string> = {
+  'arcane trickster': 'Wizard',
+  'eldritch knight': 'Wizard',
 };
 
 type RawSubclassFeature = {
@@ -184,6 +196,14 @@ export function transformSubclasses(
     const editionSuffix = is2024Source(sc.source) ? 'srd-2-0' : 'srd-5-1';
     const parentClassKey = `${slugify(sc.className)}-${editionSuffix}`;
 
+    const casterProg = sc.casterProgression
+      ? CASTER_PROGRESSION_MAP[sc.casterProgression] ?? undefined
+      : undefined;
+    const scAbility = sc.spellcastingAbility
+      ? abilityFullName(sc.spellcastingAbility)
+      : undefined;
+    const spellList = SPELL_LIST_CLASS[sc.name.toLowerCase()] ?? undefined;
+
     return {
       key: `imported_${systemId}_subclass_${slugify(sc.source)}_${slugify(sc.className)}_${slugify(shortName)}`,
       name: sc.name,
@@ -197,9 +217,9 @@ export function transformSubclasses(
       parentClassName: sc.className,
       unlockLevel,
       features,
-      // Edition tag derived from the source code (X-prefix = 2024,
-      // SRD = both, anything else = 5.1). importSource still carries
-      // the full provenance.
+      ...(casterProg ? { spellcasting: true, casterProgression: casterProg } : {}),
+      ...(scAbility ? { spellcastingAbility: scAbility } : {}),
+      ...(spellList ? { spellListClass: spellList } : {}),
       srdVersions: srdVersionsForSource(sc.source),
     };
   });

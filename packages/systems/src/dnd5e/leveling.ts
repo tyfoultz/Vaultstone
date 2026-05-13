@@ -13,8 +13,11 @@ import type {
   Dnd5eAbilityScores,
   Dnd5eClassEntry,
   Dnd5eSpellSlotLevel,
+  Dnd5eStats,
   MulticlassPrereq,
+  SubclassResult,
 } from '@vaultstone/types';
+import { getClassEntries } from '@vaultstone/types';
 
 // ── Spell slot table columns (mirrored from app/character/new.tsx) ──────
 
@@ -159,6 +162,57 @@ export function casterTypeFor(cls: ClassResult): CasterType | null {
   return t ?? 'full';
 }
 
+// ── Subclass-granted spellcasting ─────────────────────────────────────────
+
+type SubclassCastingInfo = {
+  casterProgression: CasterType;
+  ability: string;
+  spellListClass: string;
+};
+
+const KNOWN_CASTER_SUBCLASSES: Record<string, SubclassCastingInfo> = {
+  'arcane trickster': { casterProgression: 'third', ability: 'Intelligence', spellListClass: 'Wizard' },
+  'eldritch knight':  { casterProgression: 'third', ability: 'Intelligence', spellListClass: 'Wizard' },
+};
+
+export function resolveSubclassCasting(sub?: SubclassResult | null): SubclassCastingInfo | null {
+  if (!sub) return null;
+  if (sub.casterProgression && sub.spellcastingAbility) {
+    return {
+      casterProgression: sub.casterProgression,
+      ability: sub.spellcastingAbility,
+      spellListClass: sub.spellListClass ?? sub.name,
+    };
+  }
+  return KNOWN_CASTER_SUBCLASSES[sub.name.toLowerCase()] ?? null;
+}
+
+export function casterTypeForEntry(
+  cls: ClassResult,
+  sub?: SubclassResult | null,
+): CasterType | null {
+  const classType = casterTypeFor(cls);
+  if (classType) return classType;
+  const subCasting = resolveSubclassCasting(sub);
+  return subCasting?.casterProgression ?? null;
+}
+
+export function getEffectiveSpellcastingAbility(
+  stats: Dnd5eStats,
+  classResultsByKey: Record<string, ClassResult>,
+  subclassResultsByKey: Record<string, SubclassResult>,
+): string | null {
+  if (stats.spellcastingAbility) return stats.spellcastingAbility;
+  for (const entry of getClassEntries(stats)) {
+    if (entry.subclassKey) {
+      const sub = subclassResultsByKey[entry.subclassKey];
+      const casting = resolveSubclassCasting(sub);
+      if (casting) return casting.ability;
+    }
+  }
+  return null;
+}
+
 /**
  * Compute the merged multiclass spell slot table for a character's
  * full set of class entries. Single-class casters get their class's
@@ -178,26 +232,38 @@ export function casterTypeFor(cls: ClassResult): CasterType | null {
 export function spellSlotsForCharacter(
   entries: Dnd5eClassEntry[],
   classByKey: Map<string, ClassResult>,
+  subclassByKey?: Map<string, SubclassResult>,
 ): SpellSlotsByLevel {
   // Single-class shortcut: read the class's own table directly so
   // edition-specific oddities (Paladin/Ranger 5.1 L1 = 0) are
   // preserved instead of being normalized to the multiclass table.
+  // Skip the shortcut when the subclass grants casting (the class
+  // table has no spell columns for Fighter/Rogue).
   if (entries.length === 1) {
     const e = entries[0];
     const cls = classByKey.get(e.classKey);
     if (!cls) return cloneSlots(EMPTY_SLOTS);
-    return spellSlotsForClassAtLevel(cls, e.level);
+    const sub = e.subclassKey && subclassByKey ? subclassByKey.get(e.subclassKey) : undefined;
+    const t = casterTypeForEntry(cls, sub);
+    if (t && cls.spellcasting) {
+      return spellSlotsForClassAtLevel(cls, e.level);
+    }
+    // Fall through to the multiclass path for subclass-only casters
+    // so the third-caster math applies.
+    if (!t) return cloneSlots(EMPTY_SLOTS);
   }
 
-  // Multi-class: sum the multiclass caster level from full + half +
-  // third casters, then read the standard full-caster slot row for
-  // that level. Warlock pact slots add on top.
+  // Multi-class (or single-class subclass caster): sum the multiclass
+  // caster level from full + half + third casters, then read the
+  // standard full-caster slot row for that level. Warlock pact slots
+  // add on top.
   let casterLevel = 0;
   let pactSlots: SpellSlotsByLevel | null = null;
   for (const e of entries) {
     const cls = classByKey.get(e.classKey);
     if (!cls) continue;
-    const t = casterTypeFor(cls);
+    const sub = e.subclassKey && subclassByKey ? subclassByKey.get(e.subclassKey) : undefined;
+    const t = casterTypeForEntry(cls, sub);
     if (t === 'full')  casterLevel += e.level;
     if (t === 'half')  casterLevel += Math.floor(e.level / 2);
     if (t === 'third') casterLevel += Math.floor(e.level / 3);
