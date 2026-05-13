@@ -1581,8 +1581,10 @@ export default function CharacterSheetScreen() {
             canEditAny={canEditAny}
             equipment={equipment}
             isDesktop={isDesktop}
+            manualMode={manualMode}
             conditionCatalog={conditionResults}
             onRoll={handleRoll}
+            onEditField={manualMode ? startEditField : undefined}
             onToggleCondition={handleToggleCondition}
             onSetExhaustion={handleSetExhaustion}
             getAttackBonus={getAttackBonus}
@@ -1774,7 +1776,13 @@ export default function CharacterSheetScreen() {
                   <Text style={s.deskSub} numberOfLines={1}>
                     {[speciesLabel, classLabel].filter(Boolean).join(' ')}
                   </Text>
-                  <Text style={s.deskLevel}>Level {stats.level}</Text>
+                  {manualMode ? (
+                    <TouchableOpacity onPress={() => startEditField('level', stats.level)} activeOpacity={0.7}>
+                      <Text style={[s.deskLevel, { textDecorationLine: 'underline', textDecorationStyle: 'dashed' }]}>Level {stats.level}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={s.deskLevel}>Level {stats.level}</Text>
+                  )}
                 </View>
 
                 <View style={s.deskHeaderIcons}>
@@ -1824,13 +1832,19 @@ export default function CharacterSheetScreen() {
 
                   <TouchableOpacity
                     style={s.deskHpNumsCenter}
-                    onPress={() => canEditAny && setHpModalVisible(true)}
+                    onPress={() => canEditAny && (manualMode ? startEditField('hpCurrent', resources.hpCurrent) : setHpModalVisible(true))}
                     onLongPress={() => canEditAny && setHpModalVisible(true)}
                     activeOpacity={0.7}
                   >
                     <Text style={[s.deskHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
                     <Text style={s.deskHpSep}>/</Text>
-                    <Text style={s.deskHpMax}>{stats.hpMax}</Text>
+                    {manualMode ? (
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation(); startEditField('hpMax', stats.hpMax); }} activeOpacity={0.7}>
+                        <Text style={[s.deskHpMax, { textDecorationLine: 'underline', textDecorationStyle: 'dashed' }]}>{stats.hpMax}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={s.deskHpMax}>{stats.hpMax}</Text>
+                    )}
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -2122,7 +2136,15 @@ export default function CharacterSheetScreen() {
                 </TouchableOpacity>
               )}
               <Text style={s.chromeSub} numberOfLines={1}>
-                {[speciesLabel, classLabel].filter(Boolean).join(' ')} · Lv {stats.level}
+                {[speciesLabel, classLabel].filter(Boolean).join(' ')} ·{' '}
+                {manualMode ? (
+                  <Text
+                    style={{ textDecorationLine: 'underline', textDecorationStyle: 'dashed' }}
+                    onPress={() => startEditField('level', stats.level)}
+                  >Lv {stats.level}</Text>
+                ) : (
+                  <>Lv {stats.level}</>
+                )}
               </Text>
             </View>
 

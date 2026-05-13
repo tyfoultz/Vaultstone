@@ -113,7 +113,7 @@ export default function CharactersScreen() {
         .select('character_id, campaigns(name)')
         .eq('user_id', user.id)
         .not('character_id', 'is', null),
-    ]).then(([chars, draftsRes, memberships]) => {
+    ]).then(async ([chars, draftsRes, memberships]) => {
       if (cancelled) return;
       if (chars.error) {
         setError('Failed to load characters.');
@@ -126,6 +126,24 @@ export default function CharactersScreen() {
       for (const row of (memberships.data ?? []) as unknown as MembershipRow[]) {
         if (row.character_id && row.campaigns?.name) {
           map[row.character_id] = row.campaigns.name;
+        }
+      }
+      // Fallback: characters linked via characters.campaign_id without a campaign_members row
+      const unmappedCampaignIds = new Set<string>();
+      for (const c of chars.data ?? []) {
+        if (c.campaign_id && !map[c.id]) unmappedCampaignIds.add(c.campaign_id);
+      }
+      if (unmappedCampaignIds.size > 0) {
+        const { data: campaigns } = await supabase
+          .from('campaigns')
+          .select('id, name')
+          .in('id', [...unmappedCampaignIds]);
+        const nameById: Record<string, string> = {};
+        for (const camp of campaigns ?? []) nameById[camp.id] = camp.name;
+        for (const c of chars.data ?? []) {
+          if (c.campaign_id && !map[c.id] && nameById[c.campaign_id]) {
+            map[c.id] = nameById[c.campaign_id];
+          }
         }
       }
       setCampaignMap(map);

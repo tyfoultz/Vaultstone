@@ -89,12 +89,14 @@ interface Props {
   canEditAny: boolean;
   equipment: Dnd5eEquipmentItem[];
   isDesktop?: boolean;
+  manualMode?: boolean;
   /** ContentResolver condition catalog scoped to the character's
    *  campaign/packs. When supplied, drives the picker so homebrew /
    *  imported conditions surface alongside SRD ones. Falls back to the
    *  edition-filtered bundled list when null/empty. */
   conditionCatalog?: ConditionResult[] | null;
   onOpenHpModal?: () => void;
+  onEditField?: (field: string, currentValue: number | string) => void;
   onRoll: (result: RollResult) => void;
   onToggleCondition: (c: string) => void;
   onSetExhaustion: (level: number) => void;
@@ -118,8 +120,8 @@ function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void
 
 export function CombatTab({
   stats, resources, scores, prof,
-  activeConditions, canEditAny, equipment, isDesktop, conditionCatalog,
-  onRoll, onToggleCondition, onSetExhaustion, getAttackBonus,
+  activeConditions, canEditAny, equipment, isDesktop, manualMode, conditionCatalog,
+  onRoll, onEditField, onToggleCondition, onSetExhaustion, getAttackBonus,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
 
@@ -156,24 +158,25 @@ export function CombatTab({
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
 
           {/* Ability Scores */}
-          <CardBlock title="Ability Scores">
+          <CardBlock title="Ability Scores" hint={manualMode ? 'TAP TO EDIT' : undefined}>
             <View style={s.hexRow}>
               {ABILITY_KEYS.map((key) => {
                 const score = scores[key];
                 const mod = abilityMod(score);
-                // stats.spellcastingAbility ships capitalized
-                // ("Intelligence"); ABILITY_KEYS are lowercase.
                 const isSpellMod = stats.spellcastingAbility?.toLowerCase() === key;
                 return (
                   <TouchableOpacity
                     key={key}
-                    style={[s.hex, isSpellMod && s.hexSpell]}
-                    onPress={() => rollD20(`${ABILITY_SHORT[key]} check`, mod, onRoll)}
+                    style={[s.hex, isSpellMod && s.hexSpell, manualMode && s.hexEditable]}
+                    onPress={() => manualMode && onEditField
+                      ? onEditField(key, score)
+                      : rollD20(`${ABILITY_SHORT[key]} check`, mod, onRoll)}
                     activeOpacity={0.7}
                   >
                     <Text style={[s.hexName, isSpellMod && { color: colors.primary }]}>{ABILITY_SHORT[key]}</Text>
                     <Text style={[s.hexMod, isSpellMod && { color: colors.primary }]}>{fmtMod(mod)}</Text>
                     <Text style={s.hexRaw}>{score}</Text>
+                    {manualMode && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
                   </TouchableOpacity>
                 );
               })}
@@ -291,7 +294,7 @@ export function CombatTab({
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
       {/* Ability scores */}
-      <SectionLabel>ABILITIES · TAP TO CHECK</SectionLabel>
+      <SectionLabel>{manualMode ? 'ABILITIES · TAP TO EDIT' : 'ABILITIES · TAP TO CHECK'}</SectionLabel>
       <View style={s.abilityGrid}>
         {ABILITY_KEYS.map((abi) => {
           const score = scores[abi];
@@ -299,8 +302,10 @@ export function CombatTab({
           return (
             <TouchableOpacity
               key={abi}
-              style={s.abilityTile}
-              onPress={() => rollD20(`${ABILITY_SHORT[abi]} check`, m, onRoll)}
+              style={[s.abilityTile, manualMode && s.hexEditable]}
+              onPress={() => manualMode && onEditField
+                ? onEditField(abi, score)
+                : rollD20(`${ABILITY_SHORT[abi]} check`, m, onRoll)}
               activeOpacity={0.7}
             >
               <Text style={s.abilityShort}>{ABILITY_SHORT[abi]}</Text>
@@ -404,8 +409,20 @@ export function CombatTab({
       <SectionLabel style={{ marginTop: 14 }}>PASSIVES</SectionLabel>
       <View style={s.passivesRow}>
         <PassiveCard label="Perception" value={passivePerception} />
-        <PassiveCard label="Hit Dice" value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`} suffix={`d${stats.hitDie}`} />
-        <PassiveCard label="Speed" value={stats.speed} suffix=" ft" />
+        <PassiveCard
+          label="Hit Dice"
+          value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`}
+          suffix={`d${stats.hitDie}`}
+          editable={manualMode}
+          onPress={manualMode && onEditField ? () => onEditField('hitDiceRemaining', resources.hitDiceRemaining ?? stats.level) : undefined}
+        />
+        <PassiveCard
+          label="Speed"
+          value={stats.speed}
+          suffix=" ft"
+          editable={manualMode}
+          onPress={manualMode && onEditField ? () => onEditField('speed', stats.speed) : undefined}
+        />
       </View>
 
       <View style={{ height: 16 }} />
@@ -643,14 +660,16 @@ function SectionLabel({ children, style, accent }: { children: string; style?: a
 }
 
 
-function PassiveCard({ label, value, suffix }: { label: string; value: number | string; suffix?: string }) {
+function PassiveCard({ label, value, suffix, editable, onPress }: { label: string; value: number | string; suffix?: string; editable?: boolean; onPress?: () => void }) {
+  const Wrapper = editable && onPress ? TouchableOpacity : View;
   return (
-    <View style={s.passiveCard}>
+    <Wrapper style={[s.passiveCard, editable && s.hexEditable]} onPress={onPress} activeOpacity={0.7}>
       <Text style={s.passiveLabel}>{label}</Text>
       <Text style={s.passiveValue}>
         {value}{suffix ? <Text style={s.passiveSuffix}>{suffix}</Text> : null}
       </Text>
-    </View>
+      {editable && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
+    </Wrapper>
   );
 }
 
@@ -806,6 +825,7 @@ const s = StyleSheet.create({
     alignItems: 'center', paddingVertical: 8, paddingHorizontal: 2,
   },
   hexSpell: { borderColor: colors.primaryContainer },
+  hexEditable: { borderColor: colors.primary, borderStyle: 'dashed' as any },
   hexName: { fontSize: 9, fontFamily: fonts.label, fontWeight: '800', letterSpacing: 1, color: colors.outline },
   hexMod: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 26, marginTop: 2 },
   hexRaw: { fontSize: 9, color: colors.outline },
