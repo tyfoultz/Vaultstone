@@ -10,7 +10,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, supabase,
+  getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, uploadCharacterCardImage, supabase,
   getCampaignCharacterRules, resolveRuleValues, deleteCharacter,
 } from '@vaultstone/api';
 import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter } from '@vaultstone/systems';
@@ -1117,6 +1117,8 @@ export default function CharacterSheetScreen() {
   }
 
   const [portraitCropUri, setPortraitCropUri] = useState<string | null>(null);
+  const [cardCropUri, setCardCropUri] = useState<string | null>(null);
+  const originalPickUriRef = useRef<string | null>(null);
 
   async function handlePickPortrait() {
     if (!character) return;
@@ -1129,6 +1131,7 @@ export default function CharacterSheetScreen() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
+    originalPickUriRef.current = asset.uri;
     if (isWeb) {
       setPortraitCropUri(asset.uri);
     } else {
@@ -1139,6 +1142,23 @@ export default function CharacterSheetScreen() {
   async function handlePortraitCropConfirm(croppedUri: string) {
     setPortraitCropUri(null);
     await uploadPortrait(croppedUri, 'image/jpeg');
+    if (originalPickUriRef.current) {
+      setCardCropUri(originalPickUriRef.current);
+    }
+  }
+
+  async function handleCardCropConfirm(croppedUri: string) {
+    setCardCropUri(null);
+    originalPickUriRef.current = null;
+    if (!character) return;
+    setPortraitUploading(true);
+    const { url } = await uploadCharacterCardImage(character.id, croppedUri, 'image/jpeg');
+    setPortraitUploading(false);
+    if (url) {
+      const updated = { ...character, avatar_card_url: url };
+      setCharacter(updated);
+      updateCharacterLocally(character.id, { avatar_card_url: url });
+    }
   }
 
   async function uploadPortrait(uri: string, mime: string) {
@@ -2640,6 +2660,18 @@ export default function CharacterSheetScreen() {
           usageHint="Crop your character portrait."
           onCancel={() => setPortraitCropUri(null)}
           onConfirm={handlePortraitCropConfirm}
+        />
+      ) : null}
+
+      {/* Card crop modal — offered after portrait crop */}
+      {cardCropUri ? (
+        <ImageCropModal
+          visible
+          imageUri={cardCropUri}
+          aspect={[2, 1]}
+          usageHint="Crop for the character card on the Characters page."
+          onCancel={() => { setCardCropUri(null); originalPickUriRef.current = null; }}
+          onConfirm={handleCardCropConfirm}
         />
       ) : null}
 
