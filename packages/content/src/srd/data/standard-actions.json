@@ -163,5 +163,27 @@
     "srdVersions": ["SRD_5.1", "SRD_2.0"],
     "description": "When a creature you can see leaves your reach, you can spend your Reaction to make one melee attack against it (with the weapon you have in hand or an unarmed strike).",
     "data": {}
+  },
+  {
+    "key": "two-weapon-fighting",
+    "name": "Two-Weapon Fighting",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "bonus-action",
+    "srdVersions": ["SRD_5.1"],
+    "description": "When you take the Attack action and attack with a light melee weapon in one hand, you can use a bonus action to attack with a different light melee weapon in the other hand. You don't add your ability modifier to the damage of the bonus attack, unless that modifier is negative.",
+    "data": {}
+  },
+  {
+    "key": "nick-offhand",
+    "name": "Nick Offhand Attack",
+    "type": "standard-action",
+    "tier": "srd",
+    "system": "dnd5e",
+    "actionEconomy": "bonus-action",
+    "srdVersions": ["SRD_2.0"],
+    "description": "When you take the Attack action and attack with a weapon that has the Light property, you can make one extra attack as a bonus action later on the same turn with a different Light weapon. You don't add your ability modifier to the extra attack's damage unless that modifier is negative.",
+    "data": {}
   }
 ]

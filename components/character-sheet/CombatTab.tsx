@@ -50,6 +50,7 @@ const SRD_ACTION_KEYS = new Set([
   'attack', 'dash', 'disengage', 'dodge', 'help', 'hide', 'ready', 'search',
   'use-an-object', 'utilize', 'cast-a-spell', 'magic',
   'influence', 'study', 'opportunity-attack',
+  'two-weapon-fighting', 'nick-offhand',
 ]);
 
 /**
@@ -60,24 +61,27 @@ const SRD_ACTION_KEYS = new Set([
  */
 function srdActionsFor(srdVersion: SrdVersion | null | undefined, isSpellcaster: boolean): {
   actions: Dnd5eFeature[];
+  bonusActions: Dnd5eFeature[];
   reactions: Dnd5eFeature[];
 } {
   const all = getSrdContent(srdVersion ?? 'SRD_2.0').standardActions;
-  const toFeature = (a: { key: string; name: string; description?: string }, slot: 'action' | 'reaction'): Dnd5eFeature => ({
+  const toFeature = (a: { key: string; name: string; description?: string }, slot: 'action' | 'bonus' | 'reaction'): Dnd5eFeature => ({
     id: a.key,
     name: a.name,
     description: a.description ?? '',
-    actionType: slot === 'action' ? 'action' : 'reaction',
+    actionType: slot,
   });
   const actions = all
     .filter((a) => a.actionEconomy === 'action')
-    // Non-casters drop the Magic / Cast a Spell row. Either name maps depending on edition.
     .filter((a) => isSpellcaster || (a.key !== 'magic' && a.key !== 'cast-a-spell'))
     .map((a) => toFeature(a, 'action'));
+  const bonusActions = all
+    .filter((a) => a.actionEconomy === 'bonus-action')
+    .map((a) => toFeature(a, 'bonus'));
   const reactions = all
     .filter((a) => a.actionEconomy === 'reaction')
     .map((a) => toFeature(a, 'reaction'));
-  return { actions, reactions };
+  return { actions, bonusActions, reactions };
 }
 
 interface Props {
@@ -146,9 +150,9 @@ export function CombatTab({
   const featureReactions = allFeatures.filter((f) => f.actionType === 'reaction');
   const featureFree      = allFeatures.filter((f) => f.actionType === 'free');
 
-  const { actions: srdActions, reactions: srdReactions } = srdActionsFor(stats.srdVersion, isSpellcaster);
+  const { actions: srdActions, bonusActions: srdBonusActions, reactions: srdReactions } = srdActionsFor(stats.srdVersion, isSpellcaster);
   const actions     = [...srdActions, ...featureActions];
-  const bonuses     = featureBonus;
+  const bonuses     = [...srdBonusActions, ...featureBonus];
   const reactions   = [...srdReactions, ...featureReactions];
   const freeActions = featureFree;
 
