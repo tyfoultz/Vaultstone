@@ -1363,9 +1363,6 @@ export default function CharacterSheetScreen() {
           ? { hpMax: stats.hitDie + abilityMod(num) + (stats.level - 1) * (Math.floor(stats.hitDie / 2) + 1 + abilityMod(num)) }
           : {}),
       });
-    } else if (editingField === 'level') {
-      if (isNaN(num) || num < 1 || num > 20) { setEditingField(null); return; }
-      persistStats({ ...stats, level: num });
     } else if (editingField === 'speed') {
       if (isNaN(num) || num < 0) { setEditingField(null); return; }
       persistStats({ ...stats, speed: num });
@@ -1871,13 +1868,7 @@ export default function CharacterSheetScreen() {
                   <Text style={s.deskSub} numberOfLines={1}>
                     {[speciesLabel, classLabel].filter(Boolean).join(' ')}
                   </Text>
-                  {manualMode ? (
-                    <TouchableOpacity onPress={() => startEditField('level', stats.level)} activeOpacity={0.7}>
-                      <Text style={[s.deskLevel, { textDecorationLine: 'underline', textDecorationStyle: 'dashed' }]}>Level {stats.level}</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Text style={s.deskLevel}>Level {stats.level}</Text>
-                  )}
+                  <Text style={s.deskLevel}>Level {stats.level}</Text>
                 </View>
 
                 <View style={s.deskHeaderIcons}>
@@ -2267,14 +2258,7 @@ export default function CharacterSheetScreen() {
               )}
               <Text style={s.chromeSub} numberOfLines={1}>
                 {[speciesLabel, classLabel].filter(Boolean).join(' ')} ·{' '}
-                {manualMode ? (
-                  <Text
-                    style={{ textDecorationLine: 'underline', textDecorationStyle: 'dashed' }}
-                    onPress={() => startEditField('level', stats.level)}
-                  >Lv {stats.level}</Text>
-                ) : (
-                  <>Lv {stats.level}</>
-                )}
+                <>Lv {stats.level}</>
               </Text>
             </View>
 
@@ -2438,7 +2422,7 @@ export default function CharacterSheetScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.settingLabel}>Manual Mode</Text>
                 <Text style={s.settingDesc}>
-                  Edit all stats freely — ability scores, level, speed, HP max, and more.
+                  Edit all stats freely — ability scores, speed, HP max, and more.
                 </Text>
               </View>
               <Switch
