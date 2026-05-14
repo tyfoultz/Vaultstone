@@ -803,6 +803,7 @@ export interface Database {
           aspect_ratio: number;
           byte_size: number;
           sort_order: number;
+          visible_to_players: boolean;
           deleted_at: string | null;
           hard_delete_after: string | null;
           created_at: string;
@@ -820,6 +821,7 @@ export interface Database {
           aspect_ratio: number;
           byte_size: number;
           sort_order?: number;
+          visible_to_players?: boolean;
           deleted_at?: string | null;
           hard_delete_after?: string | null;
           created_at?: string;
@@ -833,10 +835,31 @@ export interface Database {
           aspect_ratio?: number;
           byte_size?: number;
           sort_order?: number;
+          visible_to_players?: boolean;
           owner_page_id?: string | null;
           campaign_id?: string | null;
           deleted_at?: string | null;
           hard_delete_after?: string | null;
+        };
+        Relationships: [];
+      };
+      world_map_permissions: {
+        Row: {
+          map_id: string;
+          user_id: string;
+          permission: Database['public']['Enums']['world_page_permission_level'];
+          granted_by: string;
+          granted_at: string;
+        };
+        Insert: {
+          map_id: string;
+          user_id: string;
+          permission?: Database['public']['Enums']['world_page_permission_level'];
+          granted_by: string;
+          granted_at?: string;
+        };
+        Update: {
+          permission?: Database['public']['Enums']['world_page_permission_level'];
         };
         Relationships: [];
       };

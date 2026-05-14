@@ -38,7 +38,7 @@ export async function createMap(insert: WorldMapInsert) {
 
 export async function updateMap(
   mapId: string,
-  patch: Partial<Pick<WorldMap, 'label' | 'owner_page_id' | 'campaign_id' | 'sort_order'>>,
+  patch: Partial<Pick<WorldMap, 'label' | 'owner_page_id' | 'campaign_id' | 'sort_order' | 'visible_to_players'>>,
 ) {
   return supabase.from('world_maps').update(patch).eq('id', mapId).select('*').single();
 }
