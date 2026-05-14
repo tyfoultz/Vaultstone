@@ -151,6 +151,7 @@ export interface Database {
           conditions: string[];
           pack_ids: string[];
           avatar_url: string | null;
+          avatar_card_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -165,6 +166,7 @@ export interface Database {
           conditions?: string[];
           pack_ids?: string[];
           avatar_url?: string | null;
+          avatar_card_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -179,6 +181,7 @@ export interface Database {
           conditions?: string[];
           pack_ids?: string[];
           avatar_url?: string | null;
+          avatar_card_url?: string | null;
           updated_at?: string;
         };
         Relationships: [];

@@ -383,7 +383,18 @@ export interface SubclassResult extends ContentResult {
   /** Level at which a character chooses this subclass branch. */
   unlockLevel: number;
   /** Featured class abilities granted by this subclass at specific levels. */
-  features?: Array<{ level: number; name: string; description: string }>;
+  features?: Array<{ level: number; name: string; description: string; actionType?: 'action' | 'bonus' | 'reaction' | 'free' }>;
+  /** Subclass-specific progression table (e.g. AT/EK spellcasting table). */
+  progressionColumns?: Array<{ key: string; label: string }>;
+  progressionTable?: Array<{ level: number; values: Record<string, string | number> }>;
+  /** Whether this subclass grants spellcasting (e.g. Arcane Trickster, Eldritch Knight). */
+  spellcasting?: boolean;
+  /** Spellcasting ability granted by the subclass ("Intelligence"). */
+  spellcastingAbility?: string | null;
+  /** Caster progression for spell slot computation. */
+  casterProgression?: 'full' | 'half' | 'third' | 'pact';
+  /** Base class whose spell list this subclass draws from ("Wizard"). */
+  spellListClass?: string;
   srdVersions: string[];
 }
 
@@ -635,7 +646,7 @@ export interface ClassResult extends ContentResult {
    * "Thaumaturge" are sub-options of "Divine Order"). Renderers indent
    * children under the parent and slot them immediately after it.
    */
-  features?: Array<{ level: number; name: string; description?: string; parentName?: string }>;
+  features?: Array<{ level: number; name: string; description?: string; parentName?: string; actionType?: 'action' | 'bonus' | 'reaction' | 'free' }>;
   /**
    * Class progression-table column definitions, paired with `progressionTable`
    * rows. Columns are class-specific (Rages / Rage Damage for Barbarian,

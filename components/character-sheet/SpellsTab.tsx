@@ -36,6 +36,7 @@ interface Props {
   scores: Dnd5eAbilityScores;
   prof: number;
   isOwner: boolean;
+  effectiveSpellcastingAbility?: string | null;
   onSpellSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
   onConcentrationClear?: () => void;
   /** Open the catalog spell picker (Manage Spells). Adds/removes
@@ -78,7 +79,7 @@ interface Props {
 }
 
 export function SpellsTab({
-  stats, resources, scores, prof, isOwner, onSpellSlotChange, onConcentrationClear,
+  stats, resources, scores, prof, isOwner, effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
   onOpenManage, spellbook, onTogglePrepared, spellcastingExplainers,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
@@ -88,7 +89,7 @@ export function SpellsTab({
   const [filter, setFilter] = useState<FilterKey>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-  const spellAbility = stats.spellcastingAbility;
+  const spellAbility = effectiveSpellcastingAbility ?? stats.spellcastingAbility;
   const isSpellcaster = !!spellAbility;
   const spellSlots = resources.spellSlots ?? (isSpellcaster ? DEFAULT_SLOTS : null);
   const preparedSpells = resources.preparedSpells ?? [];
@@ -217,6 +218,11 @@ export function SpellsTab({
             <Text style={s.statLabel}>PREPARED</Text>
           </View>
         </View>
+      )}
+
+      {/* ── Spell slots overview table ── */}
+      {spellSlots && ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => spellSlots[l].max > 0) && (
+        <SpellSlotTable spellSlots={spellSlots} isOwner={isOwner} onSlotChange={onSpellSlotChange} />
       )}
 
       {/* ── How spellcasting works (collapsible per-class explainer) ── */}
@@ -414,6 +420,7 @@ export function SpellsTab({
                 canToggle={isOwner && !!onTogglePrepared}
                 onTogglePrepared={onTogglePrepared ? () => onTogglePrepared(spell) : undefined}
                 togglesBlocked={!prep && atLimit}
+                onCast={isOwner && onSpellSlotChange ? () => onSpellSlotChange(level, -1) : undefined}
               />
             );
           })}
@@ -456,6 +463,67 @@ export function SpellsTab({
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
+function SpellSlotTable({ spellSlots, isOwner, onSlotChange }: {
+  spellSlots: Record<number, { max: number; remaining: number }>;
+  isOwner: boolean;
+  onSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const activeLevels = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((l) => spellSlots[l].max > 0);
+  if (activeLevels.length === 0) return null;
+
+  return (
+    <View style={s.explainerCard}>
+      <TouchableOpacity style={s.explainerHeader} onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
+        <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.primary} />
+        <Text style={s.explainerTitle}>Spell Slots by Level</Text>
+        <MaterialCommunityIcons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.outline} />
+      </TouchableOpacity>
+      {expanded && (
+        <View style={s.slotTableBody}>
+          <View style={s.slotTableRow}>
+            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
+              <Text style={s.slotTableHeader}>Slot Level</Text>
+            </View>
+            {activeLevels.map((l) => (
+              <View key={l} style={s.slotTableCell}>
+                <Text style={s.slotTableHeader}>{ordinal(l)}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={s.slotTableRow}>
+            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
+              <Text style={s.slotTableLabel}>Total</Text>
+            </View>
+            {activeLevels.map((l) => (
+              <View key={l} style={s.slotTableCell}>
+                <Text style={s.slotTableCellText}>{spellSlots[l].max}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={s.slotTableRow}>
+            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
+              <Text style={s.slotTableLabel}>Remaining</Text>
+            </View>
+            {activeLevels.map((l) => (
+              <TouchableOpacity
+                key={l}
+                style={s.slotTableCell}
+                onPress={isOwner && onSlotChange ? () => onSlotChange(l, spellSlots[l].remaining > 0 ? -1 : 1) : undefined}
+                activeOpacity={isOwner ? 0.7 : 1}
+              >
+                <Text style={[s.slotTableCellText, spellSlots[l].remaining > 0 ? { color: colors.primary } : { color: colors.hpDanger }]}>
+                  {spellSlots[l].remaining}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <TouchableOpacity style={[s.chip, active && s.chipActive]} onPress={onPress} activeOpacity={0.7}>
@@ -472,37 +540,30 @@ function ordinal(n: number): string {
 }
 
 function SpellRow({
-  spell, slot, prepared, canToggle, onTogglePrepared, togglesBlocked,
+  spell, slot, prepared, canToggle, onTogglePrepared, togglesBlocked, onCast,
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
-  /** Whether this spell is currently prepared (cantrips: always true).
-   *  Drives the dim state + the cast button gate. */
   prepared: boolean;
-  /** Whether the prepared toggle is interactive. Cantrips pass false
-   *  since they don't toggle; non-owners and view modes without an
-   *  onTogglePrepared also pass false. */
   canToggle: boolean;
   onTogglePrepared?: () => void;
-  /** True when adding this spell would exceed the prep cap. Disables
-   *  toggling on, but still allows toggling off (so the player can
-   *  swap). */
   togglesBlocked?: boolean;
+  onCast?: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const isCantrip = spell.level === 0;
   const canCast = prepared && (isCantrip || (slot?.remaining ?? 0) > 0);
   const toggleDisabled = !canToggle || (togglesBlocked && !prepared);
 
-  const Wrapper: typeof View | typeof Pressable = canToggle ? Pressable : View;
-  const wrapperProps = canToggle
-    ? { onPress: toggleDisabled ? undefined : onTogglePrepared }
-    : {};
-
   return (
-    <Wrapper style={[s.spellCard, !prepared && s.spellCardDimmed]} {...wrapperProps}>
-      <View style={s.spellHead}>
-        {/* Status circle — tap-toggle hit area; cantrips render a filled
-            indicator with no toggle since they're always cast-ready. */}
+    <View style={[s.spellCard, !prepared && s.spellCardDimmed]}>
+      <TouchableOpacity
+        style={s.spellHead}
+        onPress={() => setExpanded((v) => !v)}
+        onLongPress={canToggle && !toggleDisabled ? onTogglePrepared : undefined}
+        delayLongPress={300}
+        activeOpacity={0.7}
+      >
         <View style={[
           s.statusCircle,
           prepared && s.statusCircleOn,
@@ -532,30 +593,44 @@ function SpellRow({
             <Text style={[s.badgeIconText, s.badgeIconTextConc]}>C</Text>
           </View>
         ) : null}
-        <View style={[s.castBtn, !canCast && s.castBtnDisabled, isCantrip && s.castBtnAtWill]}>
+        <TouchableOpacity
+          style={[s.castBtn, !canCast && s.castBtnDisabled, isCantrip && s.castBtnAtWill]}
+          onPress={canCast && !isCantrip && onCast ? (e) => { e.stopPropagation(); onCast(); } : undefined}
+          activeOpacity={canCast && !isCantrip ? 0.7 : 1}
+        >
           <Text style={[s.castBtnText, !canCast && s.castBtnTextDisabled, isCantrip && s.castBtnTextAtWill]}>
             {isCantrip ? 'At Will' : prepared ? 'Cast' : 'Unprepared'}
           </Text>
-        </View>
-      </View>
+        </TouchableOpacity>
+        <MaterialCommunityIcons
+          name={expanded ? 'chevron-down' : 'chevron-right'}
+          size={16}
+          color={colors.outline}
+          style={{ marginLeft: 4 }}
+        />
+      </TouchableOpacity>
 
-      <View style={s.metaStrip}>
-        {spell.castingTime ? <MetaItem label="Time" value={spell.castingTime} /> : null}
-        {spell.range ? <MetaItem label="Range" value={spell.range} /> : null}
-        {spell.components && spell.components.length > 0 ? (
-          <MetaItem label="Comp" value={spell.components.join(', ')} />
-        ) : null}
-        {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
-      </View>
+      {expanded ? (
+        <>
+          <View style={s.metaStrip}>
+            {spell.castingTime ? <MetaItem label="Time" value={spell.castingTime} /> : null}
+            {spell.range ? <MetaItem label="Range" value={spell.range} /> : null}
+            {spell.components && spell.components.length > 0 ? (
+              <MetaItem label="Comp" value={spell.components.join(', ')} />
+            ) : null}
+            {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
+          </View>
 
-      {spell.description ? (
-        <Text style={s.descText}>{spell.description}</Text>
-      ) : (
-        <Text style={s.descMissing}>
-          No description on file — re-add this spell through Manage Spells to fetch the latest text.
-        </Text>
-      )}
-    </Wrapper>
+          {spell.description ? (
+            <Text style={s.descText}>{spell.description}</Text>
+          ) : (
+            <Text style={s.descMissing}>
+              No description on file — re-add this spell through Manage Spells to fetch the latest text.
+            </Text>
+          )}
+        </>
+      ) : null}
+    </View>
   );
 }
 
@@ -647,6 +722,33 @@ const s = StyleSheet.create({
   },
   synthValue: {
     fontSize: 12, fontFamily: fonts.body, color: colors.onSurface, fontWeight: '600',
+  },
+
+  // Spell slot overview table
+  slotTableBody: {
+    borderTopWidth: 1, borderTopColor: colors.outlineVariant,
+  },
+  slotTableRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  },
+  slotTableCell: {
+    flex: 1, paddingVertical: 8, alignItems: 'center' as const, justifyContent: 'center' as const,
+    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.outlineVariant,
+  },
+  slotTableCellFirst: {
+    flex: 1.5,
+  },
+  slotTableHeader: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700' as const,
+    letterSpacing: 0.5, textTransform: 'uppercase' as const, color: colors.primary,
+  },
+  slotTableLabel: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600' as const, color: colors.onSurface,
+  },
+  slotTableCellText: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700' as const, color: colors.onSurface,
+    textAlign: 'center' as const,
   },
 
   // Search row

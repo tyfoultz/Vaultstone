@@ -18,6 +18,9 @@ import type { Dnd5ePreparedSpell, SpellResult } from '@vaultstone/types';
 
 const LEVEL_LABELS = ['Cantrip', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 
+let _spellCache: { key: string; spells: SpellResult[]; fetchedAt: number } | null = null;
+const SPELL_CACHE_TTL = 5 * 60 * 1000;
+
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -64,6 +67,8 @@ export function SpellPickerModal({
   // to spells already on the character's preparedSpells, 'unadded' hides
   // those so the player can scan only candidates.
   const [statusFilter, setStatusFilter] = useState<'all' | 'added' | 'unadded'>('all');
+  const [classFilter, setClassFilter] = useState<string | 'all'>('all');
+  const [schoolFilter, setSchoolFilter] = useState<string | 'all'>('all');
   // Single-open inline expansion. Tapping the same row again collapses;
   // tapping a different row swaps the expansion (only one open at a time
   // so the list doesn't grow unbounded as the player browses).
@@ -73,13 +78,21 @@ export function SpellPickerModal({
 
   useEffect(() => {
     if (!visible) return;
-    setLoading(true);
     setSearch('');
     setLevelFilter('all');
     setStatusFilter('all');
+    setClassFilter('all');
+    setSchoolFilter('all');
     setExpandedKey(null);
     setFilterMenuOpen(false);
     setStatusMenuOpen(false);
+    const cacheKey = `${srdVersion}|${campaignId ?? ''}|${(packIds ?? []).join(',')}`;
+    if (_spellCache && _spellCache.key === cacheKey && Date.now() - _spellCache.fetchedAt < SPELL_CACHE_TTL) {
+      setList(_spellCache.spells);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     const includeHomebrew = !!campaignId || (packIds?.length ?? 0) > 0;
     const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
     ContentResolver.search({
@@ -90,7 +103,11 @@ export function SpellPickerModal({
       campaignId: campaignId ?? undefined,
       packIds: !campaignId && packIds && packIds.length > 0 ? packIds : undefined,
     })
-      .then((r) => setList(r as SpellResult[]))
+      .then((r) => {
+        const spells = r as SpellResult[];
+        _spellCache = { key: cacheKey, spells, fetchedAt: Date.now() };
+        setList(spells);
+      })
       .finally(() => setLoading(false));
   }, [visible, srdVersion, campaignId, (packIds ?? []).join(',')]);
 
@@ -103,12 +120,12 @@ export function SpellPickerModal({
     const q = search.trim().toLowerCase();
     return list
       .filter((s) => {
-        // Class filter — the spell either has no class metadata (rare;
-        // usually homebrew) or matches one of the character's classes.
         if (s.classes.length === 0) return true;
         if (classNamesLc.size === 0) return true;
         return s.classes.some((cn) => classNamesLc.has(cn.toLowerCase()));
       })
+      .filter((s) => classFilter === 'all' || s.classes.some((cn) => cn.toLowerCase() === classFilter.toLowerCase()))
+      .filter((s) => schoolFilter === 'all' || s.school.toLowerCase() === schoolFilter.toLowerCase())
       .filter((s) => levelFilter === 'all' || s.level === levelFilter)
       .filter((s) => {
         if (statusFilter === 'all') return true;
@@ -121,7 +138,27 @@ export function SpellPickerModal({
         || (s.description ?? '').toLowerCase().includes(q),
       )
       .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
-  }, [list, search, levelFilter, statusFilter, existingKeys, classNamesLc]);
+  }, [list, search, levelFilter, statusFilter, classFilter, schoolFilter, existingKeys, classNamesLc]);
+
+  const availableClasses = useMemo(() => {
+    const set = new Set<string>();
+    for (const sp of list) {
+      for (const cn of sp.classes) {
+        if (classNamesLc.size === 0 || classNamesLc.has(cn.toLowerCase())) set.add(cn);
+      }
+    }
+    return [...set].sort();
+  }, [list, classNamesLc]);
+
+  const availableSchools = useMemo(() => {
+    const set = new Set<string>();
+    for (const sp of list) {
+      if (sp.classes.length === 0 || classNamesLc.size === 0 || sp.classes.some((cn) => classNamesLc.has(cn.toLowerCase()))) {
+        if (sp.school) set.add(sp.school);
+      }
+    }
+    return [...set].sort();
+  }, [list, classNamesLc]);
 
   // Levels actually present in the (class-filtered) catalog drive the
   // dropdown options — no point listing 9th-level when the character has
@@ -215,7 +252,7 @@ export function SpellPickerModal({
             </View>
           ) : (
             <>
-              <View style={s.controlsRow}>
+              <View style={s.searchRow}>
                 <View style={s.searchBox}>
                   <MaterialCommunityIcons name="magnify" size={16} color={colors.outline} />
                   <TextInput
@@ -226,6 +263,8 @@ export function SpellPickerModal({
                     onChangeText={setSearch}
                   />
                 </View>
+              </View>
+              <View style={s.controlsRow}>
                 <LevelFilterDropdown
                   value={levelFilter}
                   availableLevels={availableLevels}
@@ -238,6 +277,20 @@ export function SpellPickerModal({
                   onChange={setStatusFilter}
                   onOpenNativeMenu={() => setStatusMenuOpen(true)}
                   label={statusLabel}
+                />
+                {availableClasses.length > 1 && (
+                  <StringFilterDropdown
+                    value={classFilter}
+                    options={availableClasses}
+                    onChange={setClassFilter}
+                    allLabel="All Classes"
+                  />
+                )}
+                <StringFilterDropdown
+                  value={schoolFilter}
+                  options={availableSchools}
+                  onChange={setSchoolFilter}
+                  allLabel="All Schools"
                 />
               </View>
 
@@ -543,6 +596,46 @@ function StatusFilterDropdown({
   );
 }
 
+function StringFilterDropdown({
+  value, options, onChange, allLabel,
+}: {
+  value: string | 'all';
+  options: string[];
+  onChange: (next: string | 'all') => void;
+  allLabel: string;
+}) {
+  if (Platform.OS === 'web') {
+    return (
+      <View style={s.filterBtn}>
+        <Text style={s.filterBtnLabel} numberOfLines={1}>{value === 'all' ? allLabel : value}</Text>
+        <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
+        {(() => {
+          const Select = 'select' as any;
+          const Option = 'option' as any;
+          return (
+            <Select
+              style={s.htmlSelect}
+              value={value}
+              onChange={(e: { target: { value: string } }) => onChange(e.target.value === 'all' ? 'all' : e.target.value)}
+            >
+              <Option value="all">{allLabel}</Option>
+              {options.map((opt) => (
+                <Option key={opt} value={opt}>{opt}</Option>
+              ))}
+            </Select>
+          );
+        })()}
+      </View>
+    );
+  }
+  return (
+    <View style={s.filterBtn}>
+      <Text style={s.filterBtnLabel} numberOfLines={1}>{value === 'all' ? allLabel : value}</Text>
+      <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
+    </View>
+  );
+}
+
 function FilterMenuItem({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <TouchableOpacity style={[s.menuItem, active && s.menuItemActive]} onPress={onPress} activeOpacity={0.7}>
@@ -605,9 +698,12 @@ const s = StyleSheet.create({
   },
   loadingWrap: { paddingVertical: 40, alignItems: 'center' },
 
+  searchRow: {
+    marginBottom: spacing.sm,
+  },
   controlsRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.sm, flexWrap: 'wrap',
   },
   searchBox: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -652,6 +748,7 @@ const s = StyleSheet.create({
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     opacity: 0, cursor: 'pointer', appearance: 'none',
     border: 0, background: 'transparent', width: '100%', height: '100%',
+    color: colors.onSurface, fontSize: 12,
   } as any,
   filterBtnLabel: {
     flex: 1, fontSize: 12, fontFamily: fonts.label, fontWeight: '600',

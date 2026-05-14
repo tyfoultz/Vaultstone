@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import {
@@ -10,10 +10,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, supabase,
+  getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, uploadCharacterCardImage, supabase,
   getCampaignCharacterRules, resolveRuleValues, deleteCharacter,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, getEffectiveSpellcastingAbility } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius, ImageCropModal } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
@@ -250,6 +250,7 @@ function readProgressionValue(
 function spellcastingExplainersFor(
   stats: Dnd5eStats,
   classResultsByKey: Record<string, ClassResult>,
+  subclassResultsByKey?: Record<string, SubclassResult>,
 ): Array<{
   className: string;
   spellcastingAbility: string | null;
@@ -270,70 +271,109 @@ function spellcastingExplainersFor(
   }> = [];
   for (const e of getClassEntries(stats)) {
     const cls = classResultsByKey[e.classKey];
-    if (!cls?.spellcasting) continue;
+    const sub = e.subclassKey && subclassResultsByKey ? subclassResultsByKey[e.subclassKey] : undefined;
+    const subCasting = resolveSubclassCasting(sub);
 
-    // Pull the canonical Spellcasting feature description for the
-    // prose. Falls back to undefined when missing — the synthesized
-    // stats above carry the load in that case.
-    const feat = (cls.features ?? []).find(
-      (f) => f.name.toLowerCase() === 'spellcasting' && f.level === 1,
-    ) ?? (cls.features ?? []).find((f) => f.name.toLowerCase() === 'spellcasting');
+    if (!cls?.spellcasting && !subCasting) continue;
 
-    // Synthesized counts at this character's level for this class.
-    const row = cls.progressionTable?.find((r) => r.level === Math.min(e.level, 20));
-    const cantripsKnown = row
-      ? (readProgressionValue(cls, row, ['cantrips', 'cantripsKnown'], ['Cantrips Known', 'Cantrips']) ?? undefined)
-      : undefined;
-    const sk = row
-      ? readProgressionValue(cls, row, ['spellsKnown'], ['Spells Known'])
-      : null;
-    const ps = row
-      ? readProgressionValue(cls, row, ['preparedSpells'], ['Prepared Spells'])
-      : null;
+    if (cls?.spellcasting) {
+      const feat = (cls.features ?? []).find(
+        (f) => f.name.toLowerCase() === 'spellcasting' && f.level === 1,
+      ) ?? (cls.features ?? []).find((f) => f.name.toLowerCase() === 'spellcasting');
 
-    let spellsKnownOrPrepared: number | undefined;
-    let preparedLabel: string | undefined;
-    let preparedFormula: string | undefined;
-    if (sk !== null) {
-      spellsKnownOrPrepared = sk;
-      preparedLabel = 'Spells Known';
-    } else if (ps !== null) {
-      spellsKnownOrPrepared = ps;
-      preparedLabel = 'Prepared Spells';
-    } else if (cls.spellcastingAbility && PREPARE_FORMULA_CLASSES_5_1.has(cls.name.toLowerCase())) {
-      // 5.1 prepare-list class — formula `mod + level (min 1)`.
-      const abilityKey = ABILITY_BY_NAME[cls.spellcastingAbility.toLowerCase()];
-      if (abilityKey && stats.abilityScores) {
-        const score = stats.abilityScores[abilityKey];
-        const mod = Math.floor((score - 10) / 2);
-        spellsKnownOrPrepared = Math.max(1, mod + e.level);
+      const row = cls.progressionTable?.find((r) => r.level === Math.min(e.level, 20));
+      const cantripsKnown = row
+        ? (readProgressionValue(cls, row, ['cantrips', 'cantripsKnown'], ['Cantrips Known', 'Cantrips']) ?? undefined)
+        : undefined;
+      const sk = row
+        ? readProgressionValue(cls, row, ['spellsKnown'], ['Spells Known'])
+        : null;
+      const ps = row
+        ? readProgressionValue(cls, row, ['preparedSpells'], ['Prepared Spells'])
+        : null;
+
+      let spellsKnownOrPrepared: number | undefined;
+      let preparedLabel: string | undefined;
+      let preparedFormula: string | undefined;
+      if (sk !== null) {
+        spellsKnownOrPrepared = sk;
+        preparedLabel = 'Spells Known';
+      } else if (ps !== null) {
+        spellsKnownOrPrepared = ps;
         preparedLabel = 'Prepared Spells';
-        preparedFormula = `${cls.spellcastingAbility} mod + ${cls.name} level`;
+      } else if (cls.spellcastingAbility && PREPARE_FORMULA_CLASSES_5_1.has(cls.name.toLowerCase())) {
+        const abilityKey = ABILITY_BY_NAME[cls.spellcastingAbility.toLowerCase()];
+        if (abilityKey && stats.abilityScores) {
+          const score = stats.abilityScores[abilityKey];
+          const mod = Math.floor((score - 10) / 2);
+          spellsKnownOrPrepared = Math.max(1, mod + e.level);
+          preparedLabel = 'Prepared Spells';
+          preparedFormula = `${cls.spellcastingAbility} mod + ${cls.name} level`;
+        }
       }
-    }
 
-    out.push({
-      className: cls.name,
-      spellcastingAbility: cls.spellcastingAbility ?? null,
-      cantripsKnown,
-      spellsKnownOrPrepared,
-      preparedLabel,
-      preparedFormula,
-      description: feat?.description,
-    });
+      out.push({
+        className: cls.name,
+        spellcastingAbility: cls.spellcastingAbility ?? null,
+        cantripsKnown,
+        spellsKnownOrPrepared,
+        preparedLabel,
+        preparedFormula,
+        description: feat?.description,
+      });
+    } else if (subCasting) {
+      const scFeat = sub?.features?.find(
+        (f) => f.name.toLowerCase() === 'spellcasting' || f.name.toLowerCase().includes('spellcasting'),
+      );
+      let cantripsKnown: number | undefined;
+      let spellsKnown: number | undefined;
+      // Read from the subclass's progression table when available
+      const subRow = sub?.progressionTable?.find((r) => r.level === Math.min(e.level, 20));
+      if (subRow && sub?.progressionColumns) {
+        const readSubVal = (keys: string[], labels: string[]): number | undefined => {
+          for (const k of keys) { const v = parseProgressionInt(subRow.values[k]); if (v !== null) return v; }
+          for (const col of sub!.progressionColumns!) {
+            const lc = col.label.toLowerCase();
+            if (labels.some((l) => lc === l.toLowerCase() || lc.includes(l.toLowerCase()))) {
+              const v = parseProgressionInt(subRow.values[col.key]); if (v !== null) return v;
+            }
+          }
+          return undefined;
+        };
+        cantripsKnown = readSubVal(['cantrips', 'cantripsKnown'], ['Cantrips Known', 'Cantrips']);
+        spellsKnown = readSubVal(['spellsKnown'], ['Spells Known']);
+      }
+      // Fallback for existing imports without progression tables
+      if (cantripsKnown === undefined && spellsKnown === undefined && subCasting.casterProgression === 'third') {
+        const thirdCantrips: Record<number, number> = { 3:3,4:3,5:3,6:3,7:3,8:3,9:3,10:4,11:4,12:4,13:4,14:4,15:4,16:4,17:4,18:4,19:4,20:4 };
+        const thirdSpells: Record<number, number> = { 3:3,4:4,5:4,6:4,7:5,8:6,9:6,10:7,11:8,12:8,13:9,14:10,15:10,16:11,17:11,18:11,19:12,20:13 };
+        cantripsKnown = thirdCantrips[e.level];
+        spellsKnown = thirdSpells[e.level];
+      }
+      out.push({
+        className: sub?.name ?? cls?.name ?? 'Subclass',
+        spellcastingAbility: subCasting.ability,
+        cantripsKnown,
+        spellsKnownOrPrepared: spellsKnown,
+        preparedLabel: spellsKnown !== undefined ? 'Spells Known' : undefined,
+        description: scFeat?.description,
+      });
+    }
   }
   return out;
 }
 
-function StatCell({ icon, value, label, color, centered }: { icon: string; value: string; label: string; color: string; centered?: boolean }) {
+function StatCell({ icon, value, label, color, centered, editable, onPress }: { icon: string; value: string; label: string; color: string; centered?: boolean; editable?: boolean; onPress?: () => void }) {
+  const Wrapper = editable && onPress ? TouchableOpacity : View;
   return (
-    <View style={[statCellStyle.cell, centered && statCellStyle.cellCentered]}>
+    <Wrapper style={[statCellStyle.cell, centered && statCellStyle.cellCentered, editable && statCellStyle.cellEditable]} onPress={onPress} activeOpacity={0.7}>
       <MaterialCommunityIcons name={icon as any} size={16} color={color} style={{ opacity: 0.75 }} />
       <View style={statCellStyle.text}>
         <Text style={[statCellStyle.value, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
         <Text style={statCellStyle.label}>{label}</Text>
       </View>
-    </View>
+      {editable && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
+    </Wrapper>
   );
 }
 const statCellStyle = StyleSheet.create({
@@ -345,6 +385,7 @@ const statCellStyle = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
   },
   cellCentered: { justifyContent: 'center' },
+  cellEditable: { borderColor: colors.primary, borderStyle: 'dashed' as any },
   text: { flex: 1, minWidth: 0, gap: 1 },
   value: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 17 },
   label: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.outline },
@@ -610,7 +651,7 @@ const paneStyle = StyleSheet.create({
 export default function CharacterSheetScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { updateCharacterLocally } = useCharacterStore();
+  const { updateCharacterLocally, setActiveCharacter } = useCharacterStore();
   const authUser = useAuthStore((state) => state.user);
 
   const { width } = useWindowDimensions();
@@ -651,6 +692,7 @@ export default function CharacterSheetScreen() {
   const [hpQuickInput, setHpQuickInput] = useState('');
   const [scratchpad, setScratchpad] = useState('');
   const [isDmOfLinkedCampaign, setIsDmOfLinkedCampaign] = useState(false);
+  const [linkedCampaignName, setLinkedCampaignName] = useState<string | null>(null);
   const [portraitUploading, setPortraitUploading] = useState(false);
   const [editLayout, setEditLayout] = useState(false);
   const [cardItems, setCardItems] = useState<CardItem[]>(DEFAULT_CARD_ORDER.map((id) => ({ id })));
@@ -676,6 +718,7 @@ export default function CharacterSheetScreen() {
       if (err) setError('Failed to load character.');
       else {
         setCharacter(data);
+        if (data) setActiveCharacter(data);
         const res = data?.resources as Dnd5eResources | null;
         if (res?.notes) setScratchpad(res.notes);
         const st = data?.base_stats as Dnd5eStats | null;
@@ -715,9 +758,10 @@ export default function CharacterSheetScreen() {
       if (character.campaign_id) {
         const { data: camp } = await supabase
           .from('campaigns')
-          .select('dm_user_id')
+          .select('dm_user_id, name')
           .eq('id', character.campaign_id)
           .single();
+        if (!cancelled && camp?.name) setLinkedCampaignName(camp.name);
         if (!cancelled && camp?.dm_user_id === authUser.id) {
           setIsDmOfLinkedCampaign(true);
           return;
@@ -965,9 +1009,48 @@ export default function CharacterSheetScreen() {
   }
 
   const equipment: Dnd5eEquipmentItem[] = resources?.equipment ?? [];
-  const ac = scores ? getEquippedAC() : 10;
-  const initiative = scores ? abilityMod(scores.dexterity) : 0;
+  const computedAC = scores ? getEquippedAC() : 10;
+  const ac = stats?.acOverride ?? computedAC;
+  const computedInitiative = scores ? abilityMod(scores.dexterity) : 0;
+  const initiative = stats?.initiativeOverride ?? computedInitiative;
   const passivePerception = 10 + skillMod('perception');
+
+  const liveActionFeatures: Dnd5eFeature[] = useMemo(() => {
+    if (!stats) return [];
+    const entries = getClassEntries(stats);
+    const features: Dnd5eFeature[] = [];
+    const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const inferActionType = (f: { actionType?: string; description?: string }): 'bonus' | 'reaction' | undefined => {
+      if (f.actionType === 'bonus' || f.actionType === 'reaction') return f.actionType;
+      const desc = (f.description ?? '').toLowerCase();
+      if (desc.includes('bonus action')) return 'bonus';
+      if (desc.includes('use your reaction') || desc.includes('as a reaction')) return 'reaction';
+      return undefined;
+    };
+    for (const entry of entries) {
+      const cls = classResultsByKey[entry.classKey];
+      if (cls) {
+        for (const f of cls.features ?? []) {
+          const at = inferActionType(f);
+          if (at && f.level <= entry.level) {
+            features.push({ id: `class-${cls.key}-${slugify(f.name)}`, name: f.name, description: f.description ?? '', actionType: at });
+          }
+        }
+      }
+      if (entry.subclassKey) {
+        const sc = subclassResultsByKey[entry.subclassKey];
+        if (sc) {
+          for (const f of sc.features ?? []) {
+            const at = inferActionType(f);
+            if (at && f.level <= entry.level) {
+              features.push({ id: `sub-${sc.key}-${slugify(f.name)}`, name: f.name, description: f.description ?? '', actionType: at });
+            }
+          }
+        }
+      }
+    }
+    return features;
+  }, [stats, classResultsByKey, subclassResultsByKey]);
 
   function hpColor(): string {
     if (!resources || !stats) return colors.textPrimary;
@@ -1047,22 +1130,21 @@ export default function CharacterSheetScreen() {
     if (Object.keys(classResultsByKey).length === 0) return;
     const entries = getClassEntries(stats);
     const map = new Map(Object.entries(classResultsByKey));
-    const computed = spellSlotsForCharacter(entries, map);
+    const subMap = new Map(Object.entries(subclassResultsByKey));
+    const computed = spellSlotsForCharacter(entries, map, subMap);
     const current = resources.spellSlots;
     const computedHasSlots = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const)
       .some((l) => computed[l].max > 0);
     const currentHasSlots = current
       ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => (current[l]?.max ?? 0) > 0)
       : false;
-    // Only heal when the recompute would *add* slots — never wipe a
-    // pre-populated table the player may have customized.
     if (!computedHasSlots || currentHasSlots) return;
     persistResources({
       ...resources,
       spellSlots: computed,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOwner, classResultsByKey, character?.id]);
+  }, [isOwner, classResultsByKey, subclassResultsByKey, character?.id]);
 
   // Short Rest — restores resources whose recharge cadence is 'short'.
   // Per 5e: Warlock pact slots (which we treat as a regular slot bucket,
@@ -1117,6 +1199,8 @@ export default function CharacterSheetScreen() {
   }
 
   const [portraitCropUri, setPortraitCropUri] = useState<string | null>(null);
+  const [cardCropUri, setCardCropUri] = useState<string | null>(null);
+  const originalPickUriRef = useRef<string | null>(null);
 
   async function handlePickPortrait() {
     if (!character) return;
@@ -1129,6 +1213,7 @@ export default function CharacterSheetScreen() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
+    originalPickUriRef.current = asset.uri;
     if (isWeb) {
       setPortraitCropUri(asset.uri);
     } else {
@@ -1139,6 +1224,23 @@ export default function CharacterSheetScreen() {
   async function handlePortraitCropConfirm(croppedUri: string) {
     setPortraitCropUri(null);
     await uploadPortrait(croppedUri, 'image/jpeg');
+    if (originalPickUriRef.current) {
+      setCardCropUri(originalPickUriRef.current);
+    }
+  }
+
+  async function handleCardCropConfirm(croppedUri: string) {
+    setCardCropUri(null);
+    originalPickUriRef.current = null;
+    if (!character) return;
+    setPortraitUploading(true);
+    const { url } = await uploadCharacterCardImage(character.id, croppedUri, 'image/jpeg');
+    setPortraitUploading(false);
+    if (url) {
+      const updated = { ...character, avatar_card_url: url };
+      setCharacter(updated);
+      updateCharacterLocally(character.id, { avatar_card_url: url });
+    }
   }
 
   async function uploadPortrait(uri: string, mime: string) {
@@ -1267,6 +1369,13 @@ export default function CharacterSheetScreen() {
     } else if (editingField === 'speed') {
       if (isNaN(num) || num < 0) { setEditingField(null); return; }
       persistStats({ ...stats, speed: num });
+    } else if (editingField === 'ac') {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      persistStats({ ...stats, acOverride: num });
+    } else if (editingField === 'initiative') {
+      const signed = parseInt(val, 10);
+      if (isNaN(signed)) { setEditingField(null); return; }
+      persistStats({ ...stats, initiativeOverride: signed });
     } else if (editingField === 'hpMax') {
       if (isNaN(num) || num < 1) { setEditingField(null); return; }
       persistStats({ ...stats, hpMax: num });
@@ -1561,8 +1670,11 @@ export default function CharacterSheetScreen() {
             canEditAny={canEditAny}
             equipment={equipment}
             isDesktop={isDesktop}
+            manualMode={manualMode}
             conditionCatalog={conditionResults}
+            liveActionFeatures={liveActionFeatures}
             onRoll={handleRoll}
+            onEditField={manualMode ? startEditField : undefined}
             onToggleCondition={handleToggleCondition}
             onSetExhaustion={handleSetExhaustion}
             getAttackBonus={getAttackBonus}
@@ -1577,6 +1689,7 @@ export default function CharacterSheetScreen() {
             scores={scores}
             prof={prof}
             isOwner={isOwner}
+            effectiveSpellcastingAbility={getEffectiveSpellcastingAbility(stats, classResultsByKey, subclassResultsByKey)}
             onSpellSlotChange={(level, delta) => {
               if (!resources.spellSlots) return;
               const slot = resources.spellSlots[level];
@@ -1600,7 +1713,7 @@ export default function CharacterSheetScreen() {
                 : [...current, spell];
               persistResources({ ...resources, preparedSpells: next });
             }}
-            spellcastingExplainers={spellcastingExplainersFor(stats, classResultsByKey)}
+            spellcastingExplainers={spellcastingExplainersFor(stats, classResultsByKey, subclassResultsByKey)}
           />
         );
       case 'skills':
@@ -1615,6 +1728,10 @@ export default function CharacterSheetScreen() {
             onUpdateProficiencies={(profs, exp) => {
               if (!stats) return;
               persistStats({ ...stats, skillProficiencies: profs, skillExpertise: exp });
+            }}
+            onUpdateToolProficiencies={(profs, exp) => {
+              if (!stats) return;
+              persistStats({ ...stats, toolProficiencies: profs, toolExpertise: exp });
             }}
           />
         );
@@ -1754,7 +1871,13 @@ export default function CharacterSheetScreen() {
                   <Text style={s.deskSub} numberOfLines={1}>
                     {[speciesLabel, classLabel].filter(Boolean).join(' ')}
                   </Text>
-                  <Text style={s.deskLevel}>Level {stats.level}</Text>
+                  {manualMode ? (
+                    <TouchableOpacity onPress={() => startEditField('level', stats.level)} activeOpacity={0.7}>
+                      <Text style={[s.deskLevel, { textDecorationLine: 'underline', textDecorationStyle: 'dashed' }]}>Level {stats.level}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={s.deskLevel}>Level {stats.level}</Text>
+                  )}
                 </View>
 
                 <View style={s.deskHeaderIcons}>
@@ -1804,13 +1927,19 @@ export default function CharacterSheetScreen() {
 
                   <TouchableOpacity
                     style={s.deskHpNumsCenter}
-                    onPress={() => canEditAny && setHpModalVisible(true)}
+                    onPress={() => canEditAny && (manualMode ? startEditField('hpCurrent', resources.hpCurrent) : setHpModalVisible(true))}
                     onLongPress={() => canEditAny && setHpModalVisible(true)}
                     activeOpacity={0.7}
                   >
                     <Text style={[s.deskHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
                     <Text style={s.deskHpSep}>/</Text>
-                    <Text style={s.deskHpMax}>{stats.hpMax}</Text>
+                    {manualMode ? (
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation(); startEditField('hpMax', stats.hpMax); }} activeOpacity={0.7}>
+                        <Text style={[s.deskHpMax, { textDecorationLine: 'underline', textDecorationStyle: 'dashed' }]}>{stats.hpMax}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={s.deskHpMax}>{stats.hpMax}</Text>
+                    )}
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -1904,17 +2033,20 @@ export default function CharacterSheetScreen() {
               <View style={s.deskStatGrid}>
                 {/* Row 1: AC solo */}
                 <View style={s.deskStatRow}>
-                  <StatCell icon="shield-outline" value={String(ac)} label="Armor Class" color={colors.secondary} centered />
+                  <StatCell icon="shield-outline" value={String(ac)} label="Armor Class" color={colors.secondary} centered
+                    editable={manualMode} onPress={manualMode ? () => startEditField('ac', ac) : undefined} />
                 </View>
                 {/* Row 2: Speed | Initiative */}
                 <View style={s.deskStatRow}>
-                  <StatCell icon="run-fast"       value={`${stats.speed} ft`} label="Speed"      color={colors.onSurface} />
-                  <StatCell icon="lightning-bolt" value={fmtMod(initiative)}  label="Initiative" color={colors.onSurface} />
+                  <StatCell icon="run-fast" value={`${stats.speed} ft`} label="Speed" color={colors.onSurface}
+                    editable={manualMode} onPress={manualMode ? () => startEditField('speed', stats.speed) : undefined} />
+                  <StatCell icon="lightning-bolt" value={fmtMod(initiative)} label="Initiative" color={colors.onSurface}
+                    editable={manualMode} onPress={manualMode ? () => startEditField('initiative', initiative) : undefined} />
                 </View>
                 {/* Row 3: Prof | Hit Die */}
                 <View style={s.deskStatRow}>
-                  <StatCell icon="star-four-points" value={fmtMod(prof)}       label="Prof"    color={colors.onSurface} />
-                  <StatCell icon="dice-d8-outline"  value={`d${stats.hitDie}`} label="Hit Die" color={colors.onSurface} />
+                  <StatCell icon="star-four-points" value={fmtMod(prof)} label="Prof" color={colors.onSurface} />
+                  <StatCell icon="dice-d8-outline" value={`d${stats.hitDie}`} label="Hit Die" color={colors.onSurface} />
                 </View>
               </View>
             </View>
@@ -1952,11 +2084,24 @@ export default function CharacterSheetScreen() {
                 const isProficient = stats.skillProficiencies?.includes(skill) ?? false;
                 const passive = 10 + abilityMod(scores[abi]) + (isProficient ? prof : 0);
                 return (
-                  <View key={skill} style={s.deskAbilityRow}>
+                  <TouchableOpacity
+                    key={skill}
+                    style={s.deskAbilityRow}
+                    activeOpacity={manualMode ? 0.7 : 1}
+                    onPress={manualMode ? () => {
+                      const profs = [...(stats.skillProficiencies ?? [])];
+                      if (isProficient) {
+                        persistStats({ ...stats, skillProficiencies: profs.filter((s) => s !== skill) });
+                      } else {
+                        profs.push(skill);
+                        persistStats({ ...stats, skillProficiencies: profs });
+                      }
+                    } : undefined}
+                  >
                     <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
                     <Text style={s.deskAbilName}>Passive {capitalize(skill)}</Text>
                     <Text style={[s.deskAbilSaveVal, isProficient && { color: colors.primary }]}>{passive}</Text>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -1972,7 +2117,20 @@ export default function CharacterSheetScreen() {
                   <TouchableOpacity
                     key={key}
                     style={s.deskAbilityRow}
-                    onPress={() => handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [Math.floor(Math.random() * 20) + 1], bonus: saveBonus, total: Math.floor(Math.random() * 20) + 1 + saveBonus })}
+                    onPress={() => {
+                      if (manualMode) {
+                        const profs = [...(stats.savingThrowProficiencies ?? [])];
+                        if (isProficient) {
+                          persistStats({ ...stats, savingThrowProficiencies: profs.filter((s) => s !== key) });
+                        } else {
+                          profs.push(key);
+                          persistStats({ ...stats, savingThrowProficiencies: profs });
+                        }
+                      } else {
+                        const r = Math.floor(Math.random() * 20) + 1;
+                        handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [r], bonus: saveBonus, total: r + saveBonus, crit: r === 20, fumble: r === 1 });
+                      }
+                    }}
                     activeOpacity={0.7}
                   >
                     <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
@@ -1985,16 +2143,22 @@ export default function CharacterSheetScreen() {
 
             {/* ── Campaign link ─────────────────────────────────────── */}
             <View style={{ flex: 1 }} />
-            <View style={s.deskCampSection}>
+            <TouchableOpacity
+              style={s.deskCampSection}
+              activeOpacity={character?.campaign_id ? 0.7 : 1}
+              onPress={() => character?.campaign_id && router.push(`/campaign/${character.campaign_id}`)}
+            >
               <View style={s.deskCampCard}>
                 <MaterialCommunityIcons name="castle" size={16} color={colors.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.deskCampCardLbl}>Campaign</Text>
-                  <Text style={s.deskCampCardName} numberOfLines={1}>Not linked</Text>
+                  <Text style={s.deskCampCardName} numberOfLines={1}>
+                    {linkedCampaignName ?? 'Not linked'}
+                  </Text>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} style={{ opacity: 0.6 }} />
               </View>
-            </View>
+            </TouchableOpacity>
 
           </View>
 
@@ -2102,7 +2266,15 @@ export default function CharacterSheetScreen() {
                 </TouchableOpacity>
               )}
               <Text style={s.chromeSub} numberOfLines={1}>
-                {[speciesLabel, classLabel].filter(Boolean).join(' ')} · Lv {stats.level}
+                {[speciesLabel, classLabel].filter(Boolean).join(' ')} ·{' '}
+                {manualMode ? (
+                  <Text
+                    style={{ textDecorationLine: 'underline', textDecorationStyle: 'dashed' }}
+                    onPress={() => startEditField('level', stats.level)}
+                  >Lv {stats.level}</Text>
+                ) : (
+                  <>Lv {stats.level}</>
+                )}
               </Text>
             </View>
 
@@ -2325,7 +2497,11 @@ export default function CharacterSheetScreen() {
         <Pressable style={s.modalBackdrop} onPress={() => setEditingField(null)}>
           <Pressable style={s.modalCard} onPress={() => {}}>
             <Text style={s.modalTitle}>
-              {editingField === 'hpCurrent' ? 'Edit Hit Points' : `Edit ${editingField ? (ABILITY_SHORT[editingField as keyof Dnd5eAbilityScores] || capitalize(editingField)) : ''}`}
+              {editingField === 'hpCurrent' ? 'Edit Hit Points'
+                : editingField === 'ac' ? 'Edit Armor Class'
+                : editingField === 'initiative' ? 'Edit Initiative'
+                : editingField === 'hpMax' ? 'Edit HP Max'
+                : `Edit ${editingField ? (ABILITY_SHORT[editingField as keyof Dnd5eAbilityScores] || capitalize(editingField)) : ''}`}
             </Text>
             {editingField === 'hpCurrent' ? (
               <>
@@ -2567,7 +2743,12 @@ export default function CharacterSheetScreen() {
         <SpellPickerModal
           visible={spellPickerOpen}
           onClose={() => setSpellPickerOpen(false)}
-          classNames={Object.values(classResultsByKey).map((c) => c.name)}
+          classNames={[
+            ...Object.values(classResultsByKey).map((c) => c.name),
+            ...Object.values(subclassResultsByKey)
+              .map((sc) => resolveSubclassCasting(sc)?.spellListClass)
+              .filter((n): n is string => !!n),
+          ]}
           existingKeys={new Set(getSpellbook(resources).map((s) => s.id))}
           existingSpells={getSpellbook(resources)}
           spellLimits={computeSpellLimits(stats, classResultsByKey)}
@@ -2640,6 +2821,18 @@ export default function CharacterSheetScreen() {
           usageHint="Crop your character portrait."
           onCancel={() => setPortraitCropUri(null)}
           onConfirm={handlePortraitCropConfirm}
+        />
+      ) : null}
+
+      {/* Card crop modal — offered after portrait crop */}
+      {cardCropUri ? (
+        <ImageCropModal
+          visible
+          imageUri={cardCropUri}
+          aspect={[2, 1]}
+          usageHint="Crop for the character card on the Characters page."
+          onCancel={() => { setCardCropUri(null); originalPickUriRef.current = null; }}
+          onConfirm={handleCardCropConfirm}
         />
       ) : null}
 

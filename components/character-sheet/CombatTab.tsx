@@ -50,6 +50,7 @@ const SRD_ACTION_KEYS = new Set([
   'attack', 'dash', 'disengage', 'dodge', 'help', 'hide', 'ready', 'search',
   'use-an-object', 'utilize', 'cast-a-spell', 'magic',
   'influence', 'study', 'opportunity-attack',
+  'two-weapon-fighting', 'nick-offhand',
 ]);
 
 /**
@@ -60,24 +61,27 @@ const SRD_ACTION_KEYS = new Set([
  */
 function srdActionsFor(srdVersion: SrdVersion | null | undefined, isSpellcaster: boolean): {
   actions: Dnd5eFeature[];
+  bonusActions: Dnd5eFeature[];
   reactions: Dnd5eFeature[];
 } {
   const all = getSrdContent(srdVersion ?? 'SRD_2.0').standardActions;
-  const toFeature = (a: { key: string; name: string; description?: string }, slot: 'action' | 'reaction'): Dnd5eFeature => ({
+  const toFeature = (a: { key: string; name: string; description?: string }, slot: 'action' | 'bonus' | 'reaction'): Dnd5eFeature => ({
     id: a.key,
     name: a.name,
     description: a.description ?? '',
-    actionType: slot === 'action' ? 'action' : 'reaction',
+    actionType: slot,
   });
   const actions = all
     .filter((a) => a.actionEconomy === 'action')
-    // Non-casters drop the Magic / Cast a Spell row. Either name maps depending on edition.
     .filter((a) => isSpellcaster || (a.key !== 'magic' && a.key !== 'cast-a-spell'))
     .map((a) => toFeature(a, 'action'));
+  const bonusActions = all
+    .filter((a) => a.actionEconomy === 'bonus-action')
+    .map((a) => toFeature(a, 'bonus'));
   const reactions = all
     .filter((a) => a.actionEconomy === 'reaction')
     .map((a) => toFeature(a, 'reaction'));
-  return { actions, reactions };
+  return { actions, bonusActions, reactions };
 }
 
 interface Props {
@@ -89,12 +93,15 @@ interface Props {
   canEditAny: boolean;
   equipment: Dnd5eEquipmentItem[];
   isDesktop?: boolean;
+  manualMode?: boolean;
   /** ContentResolver condition catalog scoped to the character's
    *  campaign/packs. When supplied, drives the picker so homebrew /
    *  imported conditions surface alongside SRD ones. Falls back to the
    *  edition-filtered bundled list when null/empty. */
   conditionCatalog?: ConditionResult[] | null;
+  liveActionFeatures?: Dnd5eFeature[];
   onOpenHpModal?: () => void;
+  onEditField?: (field: string, currentValue: number | string) => void;
   onRoll: (result: RollResult) => void;
   onToggleCondition: (c: string) => void;
   onSetExhaustion: (level: number) => void;
@@ -118,8 +125,8 @@ function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void
 
 export function CombatTab({
   stats, resources, scores, prof,
-  activeConditions, canEditAny, equipment, isDesktop, conditionCatalog,
-  onRoll, onToggleCondition, onSetExhaustion, getAttackBonus,
+  activeConditions, canEditAny, equipment, isDesktop, manualMode, conditionCatalog,
+  liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, getAttackBonus,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
 
@@ -132,21 +139,25 @@ export function CombatTab({
   const classResources = resources.classResources ?? [];
   const exhaustionLevel = resources.exhaustionLevel ?? 0;
 
-  // Gather all features with an actionType from class, species, feats
-  const allFeatures = [
+  // Gather all features with an actionType. Live ContentResolver
+  // features (with actionType tags from SRD data) take priority;
+  // stored resources fill in any custom/homebrew entries.
+  const liveIds = new Set((liveActionFeatures ?? []).map((f) => f.id));
+  const storedFeatures = [
     ...(resources.classFeatures ?? []),
     ...(resources.speciesTraits ?? []),
     ...(resources.feats ?? []),
-  ].filter((f) => f.actionType);
+  ].filter((f) => f.actionType && !liveIds.has(f.id));
+  const allFeatures = [...(liveActionFeatures ?? []), ...storedFeatures];
 
   const featureActions   = allFeatures.filter((f) => f.actionType === 'action');
   const featureBonus     = allFeatures.filter((f) => f.actionType === 'bonus');
   const featureReactions = allFeatures.filter((f) => f.actionType === 'reaction');
   const featureFree      = allFeatures.filter((f) => f.actionType === 'free');
 
-  const { actions: srdActions, reactions: srdReactions } = srdActionsFor(stats.srdVersion, isSpellcaster);
+  const { actions: srdActions, bonusActions: srdBonusActions, reactions: srdReactions } = srdActionsFor(stats.srdVersion, isSpellcaster);
   const actions     = [...srdActions, ...featureActions];
-  const bonuses     = featureBonus;
+  const bonuses     = [...srdBonusActions, ...featureBonus];
   const reactions   = [...srdReactions, ...featureReactions];
   const freeActions = featureFree;
 
@@ -156,24 +167,25 @@ export function CombatTab({
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
 
           {/* Ability Scores */}
-          <CardBlock title="Ability Scores">
+          <CardBlock title="Ability Scores" hint={manualMode ? 'TAP TO EDIT' : undefined}>
             <View style={s.hexRow}>
               {ABILITY_KEYS.map((key) => {
                 const score = scores[key];
                 const mod = abilityMod(score);
-                // stats.spellcastingAbility ships capitalized
-                // ("Intelligence"); ABILITY_KEYS are lowercase.
                 const isSpellMod = stats.spellcastingAbility?.toLowerCase() === key;
                 return (
                   <TouchableOpacity
                     key={key}
-                    style={[s.hex, isSpellMod && s.hexSpell]}
-                    onPress={() => rollD20(`${ABILITY_SHORT[key]} check`, mod, onRoll)}
+                    style={[s.hex, isSpellMod && s.hexSpell, manualMode && s.hexEditable]}
+                    onPress={() => manualMode && onEditField
+                      ? onEditField(key, score)
+                      : rollD20(`${ABILITY_SHORT[key]} check`, mod, onRoll)}
                     activeOpacity={0.7}
                   >
                     <Text style={[s.hexName, isSpellMod && { color: colors.primary }]}>{ABILITY_SHORT[key]}</Text>
                     <Text style={[s.hexMod, isSpellMod && { color: colors.primary }]}>{fmtMod(mod)}</Text>
                     <Text style={s.hexRaw}>{score}</Text>
+                    {manualMode && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
                   </TouchableOpacity>
                 );
               })}
@@ -274,10 +286,10 @@ export function CombatTab({
 
           {/* Actions */}
           <CardBlock title="Actions">
-            <ActionGroup label="Actions" items={actions} />
-            {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} />}
-            {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} accent />}
-            {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} />}
+            <ActionGroup label="Actions" items={actions} color={colors.primary} />
+            {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
+            {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} color={colors.hpDanger} />}
+            {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} color={colors.outline} />}
           </CardBlock>
 
       </ScrollView>
@@ -291,7 +303,7 @@ export function CombatTab({
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
       {/* Ability scores */}
-      <SectionLabel>ABILITIES · TAP TO CHECK</SectionLabel>
+      <SectionLabel>{manualMode ? 'ABILITIES · TAP TO EDIT' : 'ABILITIES · TAP TO CHECK'}</SectionLabel>
       <View style={s.abilityGrid}>
         {ABILITY_KEYS.map((abi) => {
           const score = scores[abi];
@@ -299,8 +311,10 @@ export function CombatTab({
           return (
             <TouchableOpacity
               key={abi}
-              style={s.abilityTile}
-              onPress={() => rollD20(`${ABILITY_SHORT[abi]} check`, m, onRoll)}
+              style={[s.abilityTile, manualMode && s.hexEditable]}
+              onPress={() => manualMode && onEditField
+                ? onEditField(abi, score)
+                : rollD20(`${ABILITY_SHORT[abi]} check`, m, onRoll)}
               activeOpacity={0.7}
             >
               <Text style={s.abilityShort}>{ABILITY_SHORT[abi]}</Text>
@@ -404,8 +418,18 @@ export function CombatTab({
       <SectionLabel style={{ marginTop: 14 }}>PASSIVES</SectionLabel>
       <View style={s.passivesRow}>
         <PassiveCard label="Perception" value={passivePerception} />
-        <PassiveCard label="Hit Dice" value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`} suffix={`d${stats.hitDie}`} />
-        <PassiveCard label="Speed" value={stats.speed} suffix=" ft" />
+        <PassiveCard
+          label="Hit Dice"
+          value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`}
+          suffix={`d${stats.hitDie}`}
+        />
+        <PassiveCard
+          label="Speed"
+          value={stats.speed}
+          suffix=" ft"
+          editable={manualMode}
+          onPress={manualMode && onEditField ? () => onEditField('speed', stats.speed) : undefined}
+        />
       </View>
 
       <View style={{ height: 16 }} />
@@ -587,37 +611,47 @@ export function ConditionsSection({
   );
 }
 
-function ActionGroup({ label, items, accent }: { label: string; items: Dnd5eFeature[]; accent?: boolean }) {
-  const [collapsed, setCollapsed] = useState(false);
+function ActionGroup({ label, items, color }: { label: string; items: Dnd5eFeature[]; color: string }) {
   return (
     <View style={s.actionGroup}>
-      <TouchableOpacity style={s.actionGroupHead} onPress={() => setCollapsed((v) => !v)} activeOpacity={0.7}>
-        <View style={[s.actionGroupBar, accent && s.actionGroupBarAccent]} />
-        <Text style={[s.actionGroupLabel, accent && s.actionGroupLabelAccent]}>{label}</Text>
+      <View style={s.actionGroupHead}>
+        <View style={[s.actionGroupBar, { backgroundColor: color }]} />
+        <Text style={[s.actionGroupLabel, { color }]}>{label}</Text>
         <Text style={s.actionGroupCount}>{items.length}</Text>
-        <MaterialCommunityIcons
-          name={collapsed ? 'chevron-down' : 'chevron-up'}
-          size={13}
-          color={colors.outline}
-        />
-      </TouchableOpacity>
-      {!collapsed && items.map((item) => <ActionRow key={item.id} feature={item} />)}
+      </View>
+      <View style={s.actionCards}>
+        {items.map((item) => <ActionRow key={item.id} feature={item} color={color} />)}
+      </View>
     </View>
   );
 }
 
-function ActionRow({ feature }: { feature: Dnd5eFeature }) {
-  const isSrd = SRD_ACTION_KEYS.has(feature.id);
+function ActionRow({ feature, color }: { feature: Dnd5eFeature; color: string }) {
+  const [expanded, setExpanded] = useState(false);
   return (
-    <View style={s.actionRow}>
-      <View style={s.actionRowHeader}>
-        <Text style={[s.actionName, isSrd && s.actionNameSrd]}>{feature.name}</Text>
-        {feature.uses && (
-          <Text style={s.actionUses}>{feature.uses.current}/{feature.uses.max}</Text>
-        )}
+    <TouchableOpacity
+      style={s.actionCard}
+      onPress={() => setExpanded((v) => !v)}
+      activeOpacity={0.7}
+    >
+      <View style={s.actionCardHeader}>
+        <View style={[s.actionCardBar, { backgroundColor: color }]} />
+        <View style={{ flex: 1 }}>
+          <Text style={s.actionCardName}>{feature.name}</Text>
+          {feature.uses && (
+            <Text style={[s.actionCardMeta, { color }]}>{feature.uses.current}/{feature.uses.max} uses</Text>
+          )}
+        </View>
+        <MaterialCommunityIcons
+          name={expanded ? 'chevron-down' : 'chevron-right'}
+          size={16}
+          color={colors.outline}
+        />
       </View>
-      <Text style={s.actionDesc}>{feature.description}</Text>
-    </View>
+      {expanded && feature.description ? (
+        <Text style={s.actionCardDesc}>{feature.description}</Text>
+      ) : null}
+    </TouchableOpacity>
   );
 }
 
@@ -643,14 +677,16 @@ function SectionLabel({ children, style, accent }: { children: string; style?: a
 }
 
 
-function PassiveCard({ label, value, suffix }: { label: string; value: number | string; suffix?: string }) {
+function PassiveCard({ label, value, suffix, editable, onPress }: { label: string; value: number | string; suffix?: string; editable?: boolean; onPress?: () => void }) {
+  const Wrapper = editable && onPress ? TouchableOpacity : View;
   return (
-    <View style={s.passiveCard}>
+    <Wrapper style={[s.passiveCard, editable && s.hexEditable]} onPress={onPress} activeOpacity={0.7}>
       <Text style={s.passiveLabel}>{label}</Text>
       <Text style={s.passiveValue}>
         {value}{suffix ? <Text style={s.passiveSuffix}>{suffix}</Text> : null}
       </Text>
-    </View>
+      {editable && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
+    </Wrapper>
   );
 }
 
@@ -806,6 +842,7 @@ const s = StyleSheet.create({
     alignItems: 'center', paddingVertical: 8, paddingHorizontal: 2,
   },
   hexSpell: { borderColor: colors.primaryContainer },
+  hexEditable: { borderColor: colors.primary, borderStyle: 'dashed' as any },
   hexName: { fontSize: 9, fontFamily: fonts.label, fontWeight: '800', letterSpacing: 1, color: colors.outline },
   hexMod: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 26, marginTop: 2 },
   hexRaw: { fontSize: 9, color: colors.outline },
@@ -846,26 +883,31 @@ const s = StyleSheet.create({
   emptyHint: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic' },
 
   // Actions
-  actionGroup: { marginBottom: 2 },
+  actionGroup: { marginBottom: 8 },
   actionGroupHead: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingTop: 8, paddingBottom: 5,
+    paddingHorizontal: 2, paddingTop: 4, paddingBottom: 6,
   },
-  actionGroupBar: { width: 3, height: 12, borderRadius: 2, backgroundColor: colors.outlineVariant },
-  actionGroupBarAccent: { backgroundColor: colors.hpDanger },
-  actionGroupLabel: { flex: 1, fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline },
-  actionGroupLabelAccent: { color: colors.hpDanger },
+  actionGroupBar: { width: 3, height: 12, borderRadius: 2 },
+  actionGroupLabel: { flex: 1, fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
   actionGroupCount: { fontSize: 9, fontFamily: fonts.label, color: colors.outline },
-  actionRow: {
-    paddingHorizontal: 10, paddingVertical: 9,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
-    gap: 3,
+  actionCards: { gap: 4 },
+  actionCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, overflow: 'hidden',
   },
-  actionRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  actionName: { flex: 1, fontSize: 12, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
-  actionNameSrd: { color: colors.onSurfaceVariant },
-  actionUses: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
-  actionDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, lineHeight: 16 },
+  actionCardHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10, paddingRight: 10,
+  },
+  actionCardBar: { width: 3, alignSelf: 'stretch', borderRadius: 0 },
+  actionCardName: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  actionCardMeta: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', marginTop: 1 },
+  actionCardDesc: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 18,
+    paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2,
+  },
 
   // Mobile ability scores
   abilityGrid: { flexDirection: 'row', gap: 6 },

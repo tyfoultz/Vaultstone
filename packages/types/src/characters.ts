@@ -133,8 +133,15 @@ export interface Dnd5eStats {
   /** hitDie + CON modifier, computed and stored at creation/level-up. */
   hpMax: number;
 
+  /** Manual-mode override for AC (bypasses equipment-based calculation). */
+  acOverride?: number;
+  /** Manual-mode override for initiative bonus. */
+  initiativeOverride?: number;
+
   /** Skills with expertise (double proficiency bonus). */
   skillExpertise?: string[];
+  /** Tools with expertise (double proficiency bonus). */
+  toolExpertise?: string[];
 
   /** Player's pick-one selections for species traits with options.
    *  Keyed by trait name → chosen option name. */

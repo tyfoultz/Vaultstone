@@ -17,6 +17,7 @@ import type {
   Dnd5eFeature,
   Dnd5eResources,
   Dnd5eStats,
+  SubclassResult,
 } from '@vaultstone/types';
 import { getClassEntries } from '@vaultstone/types';
 import {
@@ -83,7 +84,7 @@ export interface LevelUpPick {
    * `classFeaturesAtLevel(cls, level)`. (Skipping is allowed — the
    * sheet recomputes features from class+level on its own.)
    */
-  classFeaturesUnlocked?: Array<{ name: string; description: string }>;
+  classFeaturesUnlocked?: Array<{ name: string; description: string; actionType?: 'action' | 'bonus' | 'reaction' | 'free' }>;
 }
 
 /**
@@ -136,6 +137,7 @@ export function applyLevelUp(
   pick: LevelUpPick,
   cls: ClassResult,
   classByKey: Map<string, ClassResult>,
+  subclassByKey?: Map<string, SubclassResult>,
 ): ApplyLevelUpResult {
   // Clone everything we'll mutate so the inputs stay untouched.
   const stats: Dnd5eStats = { ...before.stats };
@@ -217,17 +219,16 @@ export function applyLevelUp(
   resources.hitDiceRemaining = (resources.hitDiceRemaining ?? 0) + 1;
 
   // ── Spell slots (recompute from full multiclass picture) ──
-  resources.spellSlots = spellSlotsForCharacter(entries, classByKey);
+  resources.spellSlots = spellSlotsForCharacter(entries, classByKey, subclassByKey);
 
   // ── Class features unlocked at this level ──
   if (pick.classFeaturesUnlocked && pick.classFeaturesUnlocked.length > 0) {
     const existing = resources.classFeatures ?? [];
     const additions: Dnd5eFeature[] = pick.classFeaturesUnlocked.map((f) => ({
-      // Use a stable key so re-imports / starting_level bootstraps
-      // don't double-add the same feature on the same class+level.
       id: `class-${pick.classKey}-${slugify(f.name)}`,
       name: f.name,
       description: f.description,
+      ...(f.actionType ? { actionType: f.actionType } : {}),
     }));
     const seen = new Set(existing.map((f) => f.id));
     resources.classFeatures = [

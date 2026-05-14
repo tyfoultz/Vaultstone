@@ -122,7 +122,7 @@ type RawClass = {
   _copy?: { name?: string; source?: string };
 };
 
-type RawClassTableGroup = {
+export type RawClassTableGroup = {
   title?: string;
   colLabels?: string[];
   /** Plain row data — array of cells per level. Cells may be strings,
@@ -411,7 +411,7 @@ const ABILITY_FULL_NAME: Record<string, string> = {
   cha: 'Charisma',
 };
 
-function abilityFullName(code: string): string {
+export function abilityFullName(code: string): string {
   return ABILITY_FULL_NAME[code.toLowerCase()] ?? code;
 }
 
@@ -600,7 +600,7 @@ function formatCell(cell: RawCell): string | number {
   return '—';
 }
 
-function buildProgression(groups: RawClassTableGroup[] | undefined): {
+export function buildProgression(groups: RawClassTableGroup[] | undefined): {
   columns: NonNullable<ClassResult['progressionColumns']>;
   table: NonNullable<ClassResult['progressionTable']>;
 } {

@@ -61,7 +61,7 @@ import {
   type Json,
   type SubclassResult,
 } from '@vaultstone/types';
-import { useAuthStore } from '@vaultstone/store';
+import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { FeatPickerModal } from '../../../components/character-sheet/FeatPickerModal';
 
 const ABILITIES: AbilityKey[] = [
@@ -80,6 +80,7 @@ export default function LevelUpScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
+  const cachedCharacter = useCharacterStore((s) => s.activeCharacter);
 
   // ── Character + content load ──
   const [stats, setStats] = useState<Dnd5eStats | null>(null);
@@ -96,12 +97,18 @@ export default function LevelUpScreen() {
     if (!id) return;
     let cancelled = false;
     (async () => {
-      const { data, error } = await getCharacterById(id);
-      if (cancelled) return;
-      if (error || !data) {
-        setLoadError('Could not load character.');
-        setLoading(false);
-        return;
+      // Use the store's cached character when available (just navigated
+      // from the character sheet), otherwise fall back to a fresh fetch.
+      let data = cachedCharacter?.id === id ? cachedCharacter : null;
+      if (!data) {
+        const res = await getCharacterById(id);
+        if (cancelled) return;
+        if (res.error || !res.data) {
+          setLoadError('Could not load character.');
+          setLoading(false);
+          return;
+        }
+        data = res.data;
       }
       const baseStats = data.base_stats as unknown as Dnd5eStats;
       const baseResources = data.resources as unknown as Dnd5eResources;
@@ -110,20 +117,7 @@ export default function LevelUpScreen() {
       setCampaignId(data.campaign_id ?? null);
       setPackIds((data.pack_ids ?? []) as string[]);
 
-      // Resolve campaign rules (multiclassing, enforce_feat_prerequisites).
-      // Standalone characters fall through to the system defaults via the
-      // resolveRuleValues fallback logic.
-      if (data.campaign_id) {
-        const sysId = baseStats.srdVersion === 'SRD_5.1' ? 'dnd5e_2014' : 'dnd5e_2024';
-        const sys = BUNDLED_SYSTEMS_BY_ID[sysId];
-        const { data: bag } = await getCampaignCharacterRules(data.campaign_id);
-        if (sys && bag && !cancelled) {
-          setCampaignRules(resolveRuleValues(sys.optionalRules, bag));
-        }
-      }
-
-      // Resolve content. Always pull homebrew when there's a campaign or
-      // an explicit pack opt-in; mirrors the wizard's scoping pattern.
+      // Campaign rules and content resolution are independent — run in parallel.
       const includeHomebrew = !!data.campaign_id || (data.pack_ids ?? []).length > 0;
       const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
       const tierArgs = {
@@ -133,7 +127,19 @@ export default function LevelUpScreen() {
         campaignId: data.campaign_id ?? undefined,
         packIds: !data.campaign_id && (data.pack_ids ?? []).length > 0 ? (data.pack_ids as string[]) : undefined,
       };
-      const [clsResults, subResults] = await Promise.all([
+
+      const [, clsResults, subResults] = await Promise.all([
+        // Campaign rules (standalone characters resolve instantly)
+        (async () => {
+          if (!data.campaign_id) return;
+          const sysId = baseStats.srdVersion === 'SRD_5.1' ? 'dnd5e_2014' : 'dnd5e_2024';
+          const sys = BUNDLED_SYSTEMS_BY_ID[sysId];
+          const { data: bag } = await getCampaignCharacterRules(data.campaign_id);
+          if (sys && bag && !cancelled) {
+            setCampaignRules(resolveRuleValues(sys.optionalRules, bag));
+          }
+        })(),
+        // Content resolution
         ContentResolver.search({ type: 'class', ...tierArgs }),
         ContentResolver.search({ type: 'subclass', ...tierArgs }),
       ]);
@@ -353,11 +359,25 @@ function LevelUpFlow({
       ? defaultHpGain(stats, leveledClass, { rolledValue: hpRoll })
       : defaultHpGain(stats, leveledClass);
 
+    // Gather subclass features at this level
+    const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
+    const existingEntry = entries.find((e) =>
+      e.classKey === effectiveClassKey || stripEdition(e.classKey) === stripEdition(effectiveClassKey),
+    );
+    const effectiveSubKey = chosenSubclassKey ?? existingEntry?.subclassKey ?? null;
+    const sub = effectiveSubKey ? subclasses.find((s) => s.key === effectiveSubKey) : null;
+    const subFeaturesAtLevel = sub?.features?.filter((f) => f.level === newClassLevel) ?? [];
+
+    const allFeatures = [
+      ...unpackClassFeaturesForPick(featuresAtLevel),
+      ...subFeaturesAtLevel.map((f) => ({ name: f.name, description: f.description })),
+    ];
+
     const pick: LevelUpPick = {
       classKey: leveledClass.key,
       newMulticlassEntry: isMulticlassEntry,
       hpGain,
-      classFeaturesUnlocked: unpackClassFeaturesForPick(featuresAtLevel),
+      classFeaturesUnlocked: allFeatures,
       ...(showSubclassStep && chosenSubclassKey ? { subclassKey: chosenSubclassKey } : {}),
       ...(showAsiStep && asiKind === 'asi' ? {
         abilityScoreImprovement: nonZeroAlloc(asiAllocation),
@@ -369,11 +389,13 @@ function LevelUpFlow({
     };
 
     const classByKey = new Map(classes.map((c) => [c.key, c]));
+    const subclassByKey = new Map(subclasses.map((s) => [s.key, s]));
     const result = applyLevelUp(
       { stats, resources },
       pick,
       leveledClass,
       classByKey,
+      subclassByKey,
     );
 
     const { error } = await updateCharacter(characterId, {
@@ -469,6 +491,8 @@ function LevelUpFlow({
             newClassLevel={newClassLevel}
             isMulticlassEntry={isMulticlassEntry}
             stats={stats}
+            entries={entries}
+            effectiveClassKey={effectiveClassKey}
             hpMethod={hpMethod}
             hpRoll={hpRoll}
             asiKind={asiKind}
@@ -961,13 +985,15 @@ function AsiStep({
 }
 
 function ConfirmStep({
-  cls, newClassLevel, isMulticlassEntry, stats, hpMethod, hpRoll,
-  asiKind, asiAllocation, chosenSubclassKey, subclasses,
+  cls, newClassLevel, isMulticlassEntry, stats, entries, effectiveClassKey,
+  hpMethod, hpRoll, asiKind, asiAllocation, chosenSubclassKey, subclasses,
 }: {
   cls: ClassResult;
   newClassLevel: number;
   isMulticlassEntry: boolean;
   stats: Dnd5eStats;
+  entries: Dnd5eClassEntry[];
+  effectiveClassKey: string;
   hpMethod: 'fixed' | 'rolled';
   hpRoll: number | null;
   asiKind: AsiKind;
@@ -980,7 +1006,33 @@ function ConfirmStep({
     ? defaultHpGain(stats, cls, { rolledValue: hpRoll })
     : defaultHpGain(stats, cls);
   const features = classFeaturesAtLevel(cls, newClassLevel);
-  const sub = chosenSubclassKey ? subclasses.find((s) => s.key === chosenSubclassKey) : null;
+
+  // Resolve the effective subclass: newly picked at this level, or
+  // already stored on the class entry from a prior level-up.
+  const stripEdition = (k: string) => k.replace(/-srd-.*$/i, '').toLowerCase();
+  const existingEntry = entries.find((e) =>
+    e.classKey === effectiveClassKey || stripEdition(e.classKey) === stripEdition(effectiveClassKey),
+  );
+  const effectiveSubKey = chosenSubclassKey ?? existingEntry?.subclassKey ?? null;
+  const sub = effectiveSubKey ? subclasses.find((s) => s.key === effectiveSubKey) : null;
+  const subFeatures = sub?.features?.filter((f) => f.level === newClassLevel) ?? [];
+
+  // Diff the class progression table between old and new level to
+  // surface value changes (Rages 3→4, Prof. Bonus +3→+4, etc.)
+  const progressionChanges: Array<{ label: string; from: string; to: string }> = [];
+  if (!isMulticlassEntry && cls.progressionTable && cls.progressionColumns) {
+    const oldRow = cls.progressionTable.find((r) => r.level === newClassLevel - 1);
+    const newRow = cls.progressionTable.find((r) => r.level === newClassLevel);
+    if (oldRow && newRow) {
+      for (const col of cls.progressionColumns) {
+        const oldVal = String(oldRow.values[col.key] ?? '');
+        const newVal = String(newRow.values[col.key] ?? '');
+        if (oldVal !== newVal && newVal && newVal !== '—') {
+          progressionChanges.push({ label: col.label, from: oldVal || '—', to: newVal });
+        }
+      }
+    }
+  }
 
   return (
     <Card tier="container" padding="md" style={{ gap: spacing.sm }}>
@@ -995,10 +1047,33 @@ function ConfirmStep({
             .join(', ') || '—'}
         </Row>
       ) : null}
+      {progressionChanges.length > 0 ? (
+        <View style={{ marginTop: spacing.xs }}>
+          <MetaLabel size="sm">Progression changes</MetaLabel>
+          {progressionChanges.map((c) => (
+            <Text key={c.label} variant="body-sm" style={{ marginTop: 2 }}>
+              <Text weight="bold">{c.label}</Text>{' '}
+              <Text tone="secondary">{c.from}</Text>
+              <Text tone="secondary"> → </Text>
+              <Text weight="semibold">{c.to}</Text>
+            </Text>
+          ))}
+        </View>
+      ) : null}
       {features.length > 0 ? (
         <View style={{ marginTop: spacing.xs }}>
           <MetaLabel size="sm">New class features</MetaLabel>
           {features.map((f) => (
+            <Text key={f.name} variant="body-sm" style={{ marginTop: 2 }}>
+              <Text weight="bold">{f.name}.</Text> <Text tone="secondary">{stripTablesForPreview(f.description ?? '')}</Text>
+            </Text>
+          ))}
+        </View>
+      ) : null}
+      {subFeatures.length > 0 ? (
+        <View style={{ marginTop: spacing.xs }}>
+          <MetaLabel size="sm">New subclass features ({sub!.name})</MetaLabel>
+          {subFeatures.map((f) => (
             <Text key={f.name} variant="body-sm" style={{ marginTop: 2 }}>
               <Text weight="bold">{f.name}.</Text> <Text tone="secondary">{stripTablesForPreview(f.description ?? '')}</Text>
             </Text>

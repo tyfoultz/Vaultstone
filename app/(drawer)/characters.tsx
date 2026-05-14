@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Image, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
@@ -7,10 +7,11 @@ import {
   supabase,
   listCharacterDrafts,
   deleteCharacterDraft,
+  uploadCharacterCardImage,
   type CharacterDraftRow,
 } from '@vaultstone/api';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
-import { colors, spacing } from '@vaultstone/ui';
+import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
 type Character = Database['public']['Tables']['characters']['Row'];
@@ -96,6 +97,7 @@ export default function CharactersScreen() {
   const [error, setError] = useState('');
   const [campaignMap, setCampaignMap] = useState<Record<string, string>>({});
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
+  const [cropTarget, setCropTarget] = useState<{ id: string; uri: string } | null>(null);
   const { width } = useWindowDimensions();
 
   const numColumns = width > 900 ? 3 : width > 560 ? 2 : 1;
@@ -111,7 +113,7 @@ export default function CharactersScreen() {
         .select('character_id, campaigns(name)')
         .eq('user_id', user.id)
         .not('character_id', 'is', null),
-    ]).then(([chars, draftsRes, memberships]) => {
+    ]).then(async ([chars, draftsRes, memberships]) => {
       if (cancelled) return;
       if (chars.error) {
         setError('Failed to load characters.');
@@ -126,6 +128,24 @@ export default function CharactersScreen() {
           map[row.character_id] = row.campaigns.name;
         }
       }
+      // Fallback: characters linked via characters.campaign_id without a campaign_members row
+      const unmappedCampaignIds = new Set<string>();
+      for (const c of chars.data ?? []) {
+        if (c.campaign_id && !map[c.id]) unmappedCampaignIds.add(c.campaign_id);
+      }
+      if (unmappedCampaignIds.size > 0) {
+        const { data: campaigns } = await supabase
+          .from('campaigns')
+          .select('id, name')
+          .in('id', [...unmappedCampaignIds]);
+        const nameById: Record<string, string> = {};
+        for (const camp of campaigns ?? []) nameById[camp.id] = camp.name;
+        for (const c of chars.data ?? []) {
+          if (c.campaign_id && !map[c.id] && nameById[c.campaign_id]) {
+            map[c.id] = nameById[c.campaign_id];
+          }
+        }
+      }
       setCampaignMap(map);
       setLoading(false);
     });
@@ -138,6 +158,16 @@ export default function CharactersScreen() {
     setDeletingDraftId(null);
     if (error) return;
     setDrafts((prev) => prev.filter((d) => d.id !== draftId));
+  }
+
+  async function handleCardCropConfirm(croppedUri: string) {
+    if (!cropTarget) return;
+    const charId = cropTarget.id;
+    setCropTarget(null);
+    const { url } = await uploadCharacterCardImage(charId, croppedUri, 'image/jpeg');
+    if (url) {
+      setCharacters(characters.map((c) => c.id === charId ? { ...c, avatar_card_url: url } : c));
+    }
   }
 
   function renderItem({ item }: { item: ListItem }) {
@@ -207,15 +237,33 @@ export default function CharactersScreen() {
     const char = item.row;
     const { classKey, level, speciesKey } = getStats(char);
     const campaignName = campaignMap[char.id];
+    const cardImageUrl = char.avatar_card_url ?? char.avatar_url;
 
     return (
       <TouchableOpacity
         style={[styles.card, { flex: 1 / numColumns }]}
         onPress={() => router.push(`/character/${char.id}`)}
       >
-        {/* Avatar placeholder */}
         <View style={styles.avatarArea}>
-          <MaterialCommunityIcons name="account-outline" size={48} color={colors.border} />
+          {cardImageUrl ? (
+            <>
+              <Image source={{ uri: cardImageUrl }} style={styles.avatarImage} />
+              {Platform.OS === 'web' && char.avatar_url && (
+                <TouchableOpacity
+                  style={styles.cropBtn}
+                  hitSlop={4}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    setCropTarget({ id: char.id, uri: char.avatar_url! });
+                  }}
+                >
+                  <MaterialCommunityIcons name="crop" size={14} color="#fff" />
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
+            <MaterialCommunityIcons name="account-outline" size={48} color={colors.border} />
+          )}
         </View>
 
         <View style={styles.cardBody}>
@@ -282,6 +330,17 @@ export default function CharactersScreen() {
         columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
         contentContainerStyle={styles.list}
       />
+
+      {cropTarget ? (
+        <ImageCropModal
+          visible
+          imageUri={cropTarget.uri}
+          aspect={[2, 1]}
+          usageHint="Adjust how your portrait appears on the character card."
+          onCancel={() => setCropTarget(null)}
+          onConfirm={handleCardCropConfirm}
+        />
+      ) : null}
     </View>
   );
 }
@@ -383,6 +442,22 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 2 / 1,
     backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  cropBtn: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },
