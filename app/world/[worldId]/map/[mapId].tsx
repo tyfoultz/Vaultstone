@@ -24,6 +24,7 @@ import {
 import type { WorldPage } from '@vaultstone/types';
 import { GhostButton, GradientButton, Icon, Text, colors, radius, spacing, useBreakpoint } from '@vaultstone/ui';
 
+import { MapShareModal } from '../../../../components/world/MapShareModal';
 import { MapBreadcrumbs } from '../../../../components/world/map/MapBreadcrumbs';
 import { MapCanvas, type MapCanvasHandle } from '../../../../components/world/map/MapCanvas';
 import { MapUploadModal } from '../../../../components/world/map/MapUploadModal';
@@ -70,6 +71,7 @@ export default function WorldMapScreen() {
   const [editor, setEditor] = useState<PinEditorInitial | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [previewPin, setPreviewPin] = useState<MapPin | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const [liveScale, setLiveScale] = useState(storedViewport?.scale ?? 1);
   const [canvasSize, setCanvasSize] = useState<{ w: number; h: number } | null>(null);
   const canvasRef = useRef<MapCanvasHandle | null>(null);
@@ -253,6 +255,17 @@ export default function WorldMapScreen() {
 
   const pagesForEditor = useMemo(() => worldPages, [worldPages]);
 
+  const visiblePageIds = useMemo(
+    () => new Set(worldPages.map((p) => p.id)),
+    [worldPages],
+  );
+  const visiblePins = useMemo(
+    () => isOwner
+      ? pins
+      : pins.filter((p) => !p.linked_page_id || visiblePageIds.has(p.linked_page_id)),
+    [pins, isOwner, visiblePageIds],
+  );
+
   const subMapIdByPageId = useMemo(() => {
     const m = new Map<string, string>();
     for (const wm of allMaps) {
@@ -350,7 +363,7 @@ export default function WorldMapScreen() {
             onCanvasRightClick={isOwner ? handleCanvasRightClick : undefined}
           >
             <PinLayer
-              pins={pins}
+              pins={visiblePins}
               pinTypes={pinTypes}
               imageWidth={map.image_width}
               imageHeight={map.image_height}
@@ -358,6 +371,13 @@ export default function WorldMapScreen() {
               onPinPress={handlePinPress}
             />
           </MapCanvas>
+        ) : null}
+
+        {/* Share button — positioned near the Reset View button (top-right) */}
+        {!isMobile && isOwner && map ? (
+          <View style={styles.shareBtn} pointerEvents="box-none">
+            <GhostButton label="Share" icon="share" onPress={() => setShareOpen(true)} />
+          </View>
         ) : null}
 
         {/* Filter bar: full chips on desktop, single button on mobile */}
@@ -477,6 +497,14 @@ export default function WorldMapScreen() {
         />
       ) : null}
 
+      {shareOpen && map ? (
+        <MapShareModal
+          map={map}
+          onClose={() => setShareOpen(false)}
+          onUpdate={(patch) => setMap((prev) => prev ? { ...prev, ...patch } : prev)}
+        />
+      ) : null}
+
       {/* Mobile filter + pin list overlay */}
       {isMobile && filterMenuOpen ? (
         <Modal visible transparent animationType="slide" onRequestClose={() => setFilterMenuOpen(false)}>
@@ -520,11 +548,11 @@ export default function WorldMapScreen() {
                   ALL PLACES
                 </Text>
                 <Text variant="label-sm" style={{ color: colors.outlineVariant }}>
-                  {pins.filter((p) => visibleTypes.has(p.pin_type)).length} pins
+                  {visiblePins.filter((p) => visibleTypes.has(p.pin_type)).length} pins
                 </Text>
               </View>
               <ScrollView style={{ maxHeight: 300 }}>
-                {pins
+                {visiblePins
                   .filter((p) => visibleTypes.has(p.pin_type))
                   .map((pin) => {
                     const pt = pinTypes.find((t) => t.key === pin.pin_type);
@@ -568,6 +596,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceCanvas,
+  },
+  shareBtn: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md + 120,
+    zIndex: 3,
   },
   toolbar: {
     position: 'absolute',
