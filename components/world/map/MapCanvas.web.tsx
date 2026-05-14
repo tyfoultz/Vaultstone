@@ -22,6 +22,7 @@ type Props = {
   onViewportChange?: (v: MapStackViewport) => void;
   onCanvasClick?: (args: { xPct: number; yPct: number }) => void;
   onCanvasRightClick?: (args: { xPct: number; yPct: number }) => void;
+  topBarExtra?: ReactNode;
   children?: ReactNode;
 };
 
@@ -36,6 +37,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     onViewportChange,
     onCanvasClick,
     onCanvasRightClick,
+    topBarExtra,
     children,
   },
   ref,
@@ -140,8 +142,13 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
                 top: spacing.md,
                 right: spacing.md,
                 zIndex: 2,
+                display: 'flex',
+                flexDirection: 'row',
+                gap: 8,
+                alignItems: 'center',
               }}
             >
+              {topBarExtra}
               <GhostButton label="Reset view" onPress={() => {
                 transformRef.current?.centerView(minScale, 200);
               }} />

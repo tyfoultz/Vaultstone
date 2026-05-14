@@ -361,6 +361,7 @@ export default function WorldMapScreen() {
             }}
             onCanvasClick={placementMode ? handleCanvasClick : undefined}
             onCanvasRightClick={isOwner ? handleCanvasRightClick : undefined}
+            topBarExtra={isOwner ? <GhostButton label="Share" icon="share" onPress={() => setShareOpen(true)} /> : undefined}
           >
             <PinLayer
               pins={visiblePins}
@@ -371,13 +372,6 @@ export default function WorldMapScreen() {
               onPinPress={handlePinPress}
             />
           </MapCanvas>
-        ) : null}
-
-        {/* Share button — positioned near the Reset View button (top-right) */}
-        {!isMobile && isOwner && map ? (
-          <View style={styles.shareBtn} pointerEvents="box-none">
-            <GhostButton label="Share" icon="share" onPress={() => setShareOpen(true)} />
-          </View>
         ) : null}
 
         {/* Filter bar: full chips on desktop, single button on mobile */}
@@ -596,12 +590,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceCanvas,
-  },
-  shareBtn: {
-    position: 'absolute',
-    top: spacing.md,
-    right: spacing.md + 120,
-    zIndex: 3,
   },
   toolbar: {
     position: 'absolute',
