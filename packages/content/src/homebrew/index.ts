@@ -6,6 +6,7 @@
 // rest of the app (Game Systems tabs, character creation, etc.) doesn't
 // need to know homebrew has a different storage path than SRD.
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@vaultstone/api';
 import type {
   ContentResult,
@@ -72,6 +73,9 @@ type ImportedContentRow = {
 // Module-level cache so concurrent/rapid search() calls (e.g. the system
 // page rendering 8+ content-type tabs) share a single DB round-trip
 // instead of each independently paginating through 3000+ rows.
+// Persisted to AsyncStorage so the cache survives page refreshes and
+// app restarts — imported content rarely changes, so a 24-hour TTL is safe.
+// The cache is manually invalidated on import/delete regardless of TTL.
 let _entryCache: {
   key: string;
   packs: HomebrewPackRow[];
@@ -79,10 +83,44 @@ let _entryCache: {
   imported: ImportedContentRow[];
   fetchedAt: number;
 } | null = null;
-const ENTRY_CACHE_TTL = 30_000;
+const ENTRY_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const STORAGE_KEY_PREFIX = 'vaultstone:homebrew-cache:v1:';
+let _diskHydrated = false;
 
 export function invalidateHomebrewCache() {
+  const oldKey = _entryCache?.key;
   _entryCache = null;
+  _diskHydrated = false;
+  if (oldKey) {
+    AsyncStorage.removeItem(STORAGE_KEY_PREFIX + oldKey).catch(() => {});
+  }
+}
+
+async function hydrateFromDisk(cacheKey: string): Promise<boolean> {
+  if (_diskHydrated) return false;
+  _diskHydrated = true;
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY_PREFIX + cacheKey);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      parsed.key === cacheKey &&
+      typeof parsed.fetchedAt === 'number' &&
+      Date.now() - parsed.fetchedAt < ENTRY_CACHE_TTL
+    ) {
+      _entryCache = parsed;
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+function persistToDisk(cache: NonNullable<typeof _entryCache>) {
+  try {
+    const json = JSON.stringify(cache);
+    AsyncStorage.setItem(STORAGE_KEY_PREFIX + cache.key, json).catch(() => {});
+  } catch {}
 }
 
 export async function search(query: ContentQuery): Promise<ContentResult[]> {
@@ -129,6 +167,9 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   ) {
     authored = _entryCache.authored;
     imported = _entryCache.imported;
+  } else if (await hydrateFromDisk(cacheKey)) {
+    authored = _entryCache!.authored;
+    imported = _entryCache!.imported;
   } else {
     const [a, i] = await Promise.all([
       fetchAllPaginated<HomebrewContentRow>(
@@ -145,7 +186,9 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
     authored = a;
     imported = i;
     if (authored !== null && imported !== null) {
-      _entryCache = { key: cacheKey, packs: relevantPacks, authored, imported, fetchedAt: Date.now() };
+      const entry = { key: cacheKey, packs: relevantPacks, authored, imported, fetchedAt: Date.now() };
+      _entryCache = entry;
+      persistToDisk(entry);
     }
   }
 

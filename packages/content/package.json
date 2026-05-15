@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "dependencies": {
+    "@react-native-async-storage/async-storage": "*",
     "@vaultstone/api": "*",
     "@vaultstone/types": "*"
   }
