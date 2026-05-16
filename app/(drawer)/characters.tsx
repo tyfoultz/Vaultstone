@@ -239,15 +239,19 @@ export default function CharactersScreen() {
     const campaignName = campaignMap[char.id];
     const cardImageUrl = char.avatar_card_url ?? char.avatar_url;
 
+    const avatarUrl = (char as { avatar_url?: string | null }).avatar_url ?? null;
     return (
       <TouchableOpacity
         style={[styles.card, { flex: 1 / numColumns }]}
         onPress={() => router.push(`/character/${char.id}`)}
       >
+        {/* 3:4 portrait area — matches the character sheet frame. The
+            card-specific crop lives at `avatar_card_url`; falls back
+            to a neutral placeholder when no portrait is uploaded. */}
         <View style={styles.avatarArea}>
           {cardImageUrl ? (
             <>
-              <Image source={{ uri: cardImageUrl }} style={styles.avatarImage} />
+              <Image source={{ uri: cardImageUrl }} style={styles.avatarImage} resizeMode="cover" />
               {Platform.OS === 'web' && char.avatar_url && (
                 <TouchableOpacity
                   style={styles.cropBtn}
@@ -430,25 +434,31 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 
-  // Card
+  // Card — row layout. 3:4 portrait on the left, body fills the rest.
+  // Capped max-width so a sparse grid (e.g. only "New Character"
+  // visible) doesn't stretch a single card across the full row.
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: 14,
     overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    maxWidth: 480,
   },
   avatarArea: {
-    width: '100%',
-    aspectRatio: 2 / 1,
+    // 3:4 portrait — matches the character sheet's frame.
+    width: 120, height: 160,
     backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    flexShrink: 0,
   },
   avatarImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
   },
   cropBtn: {
     position: 'absolute',
@@ -463,6 +473,8 @@ const styles = StyleSheet.create({
   },
   cardBody: {
     padding: spacing.md,
+    flex: 1, minWidth: 0,
+    justifyContent: 'center',
   },
   cardName: {
     fontSize: 18,

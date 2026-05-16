@@ -621,6 +621,19 @@ export default function NewCharacterScreen() {
             const replacement = draft.backgroundSkillReplacements[sk.toLowerCase()];
             push(replacement ?? sk);
           }
+          // Species-trait skill grants — fixed only (Owlin's Silent
+          // Feathers → Stealth, Wood Elf's Keen Senses → Perception,
+          // etc.). When count === from.length the wizard merges the
+          // whole list automatically. Player-pick traits (count <
+          // from.length, e.g. Half-Elf Skill Versatility) need a picker
+          // — that's follow-up work.
+          for (const trait of sp.traits ?? []) {
+            const skillGrant = trait.grants?.skills;
+            if (!skillGrant) continue;
+            if (skillGrant.from.length === skillGrant.count) {
+              for (const sk of skillGrant.from) push(sk);
+            }
+          }
           // Feat-granted skills (Skilled, etc.) — picked on StepFeats
           // and stored on the draft under `featPicks[featKey].skills`.
           // Merge them last; the Set guards against the picker
@@ -698,6 +711,10 @@ export default function NewCharacterScreen() {
         exhaustionLevel: 0,
         spellSlots: initSpellSlots(cls, 1),
         ...(featsForResources.length > 0 ? { feats: featsForResources } : {}),
+        // Mirror the draft's per-feat picks (Skilled granted skills,
+        // etc.) onto the created character so the Traits tab can show
+        // which choices have been resolved.
+        ...(Object.keys(draft.featPicks).length > 0 ? { featPicks: draft.featPicks } : {}),
         ...(inventory.length > 0 ? { equipment: inventory } : {}),
         ...(totalCoinValue > 0 ? { coins: startingCoins } : {}),
       };

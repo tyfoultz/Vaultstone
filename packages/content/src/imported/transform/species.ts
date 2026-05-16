@@ -257,10 +257,13 @@ function splitEntries(entries: RawEntry[]): {
     const obj = e as RawEntryObject;
     if (obj.name && (obj.type === 'entries' || obj.type === undefined)) {
       seenNamedBlock = true;
-      traits.push({
+      const trait: SpeciesResult['traits'][number] = {
         name: obj.name,
         description: entriesToText(obj.entries ?? []).trim(),
-      });
+      };
+      const grants = grantsForTrait(obj.name);
+      if (grants) trait.grants = grants;
+      traits.push(trait);
       continue;
     }
     // Lists, tables, unnamed nested entries — render and append to the
@@ -277,4 +280,37 @@ function splitEntries(entries: RawEntry[]): {
     description: leadParts.join('\n\n').trim(),
     traits,
   };
+}
+
+/**
+ * Structured grants for species traits that award skill proficiencies.
+ * Mirrors the feat-side `grantsForFeat` — natural-language descriptions
+ * vary too much to parse generically, so we hardcode by trait name.
+ *
+ * v1: fixed grants only (count === from.length). Player-pick traits
+ * like Half-Elf "Skill Versatility" (2 skills from any) need a wizard
+ * picker and lands separately. Unknown traits return undefined and
+ * stay description-only.
+ */
+function grantsForTrait(traitName: string): { skills?: { count: number; from: string[] } } | undefined {
+  const norm = traitName.trim().toLowerCase();
+  switch (norm) {
+    case 'silent feathers':           // Owlin → Stealth
+      return { skills: { count: 1, from: ['Stealth'] } };
+    case 'keen senses':                // Wood Elf / Elf → Perception
+      return { skills: { count: 1, from: ['Perception'] } };
+    case "cat's talent":               // Tabaxi → Perception + Stealth
+    case 'cats talent':
+      return { skills: { count: 2, from: ['Perception', 'Stealth'] } };
+    case 'natural illusionist':        // Forest Gnome — not skills, but reserved
+      return undefined;
+    case 'menacing':                   // Half-Orc → Intimidation
+      return { skills: { count: 1, from: ['Intimidation'] } };
+    case 'keen mind':                  // (homebrew) — not skills
+      return undefined;
+    case 'sneaky':                     // Lightfoot Halfling → Stealth (proficiency-equivalent prose)
+      return undefined;                // SRD prose grants advantage not proficiency; leaving false
+    default:
+      return undefined;
+  }
 }

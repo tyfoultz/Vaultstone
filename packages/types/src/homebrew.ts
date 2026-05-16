@@ -168,6 +168,15 @@ export interface HomebrewFeatData {
   prerequisitesRaw?: import('./character-builder').FeatPrerequisite[];
   /** Bullet-form benefits. */
   benefits: string[];
+  /**
+   * Structured grants requiring player input at acquisition. Mirrors
+   * `FeatResult.grants` — populated for imported feats with known
+   * shapes (Skilled → pick 3 skills) so the wizard surfaces the
+   * inline picker on the homebrew tier the same way it does for SRD.
+   */
+  grants?: {
+    skills?: { count: number; from: string[] | 'any' };
+  };
   description: string;
 }
 
@@ -225,6 +234,12 @@ export interface HomebrewSpeciesData {
     description: string;
     level?: number;
     options?: Array<{ name: string; description: string }>;
+    /** Structured grants this trait awards (e.g. Silent Feathers
+     *  granting Stealth). Mirrors `SpeciesResult.traits[].grants`;
+     *  the homebrew resolver passes it through unchanged. */
+    grants?: {
+      skills?: { count: number; from: string[] };
+    };
   }>;
   /** Fixed ability score bonuses (Dwarf +2 CON style). Empty for
    *  Custom-Origin species that let the player pick on the wizard. */

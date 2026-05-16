@@ -579,6 +579,17 @@ export interface SpeciesResult extends ContentResult {
      *  Renderers list the options as sub-bullets under the lead-in
      *  description; wizard picker wiring is a follow-up. */
     options?: Array<{ name: string; description: string }>;
+    /**
+     * Structured grants this trait awards. Mirrors `FeatResult.grants`.
+     * Fixed grants (count === from.length, e.g. Silent Feathers granting
+     * Stealth) are applied automatically by the wizard finish flow;
+     * player-pick grants (count < from.length, e.g. Half-Elf Skill
+     * Versatility) need a picker — future work. v1 wires only the
+     * auto-applied path; `from: 'any'` is unsupported on traits.
+     */
+    grants?: {
+      skills?: { count: number; from: string[] };
+    };
   }>;
   /** Fixed ASI granted by the species (SRD 5.1 style). Empty for SRD 2.0
    *  species (those use Custom Origin / `swapRules.abilityScores: true`

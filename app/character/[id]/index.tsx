@@ -709,6 +709,12 @@ export default function CharacterSheetScreen() {
   const [subclassResultsByKey, setSubclassResultsByKey] = useState<Record<string, SubclassResult>>(_cached?.subclassResultsByKey ?? {});
   const [backgroundResult, setBackgroundResult] = useState<BackgroundResult | null>(_cached?.backgroundResult ?? null);
   const [originFeatResult, setOriginFeatResult] = useState<FeatResult | null>(_cached?.originFeatResult ?? null);
+  // Catalog lookup for all feats the character has on resources.feats —
+  // surfaced to the Traits tab so it can render the per-feat
+  // grant-pickers (Skilled → "Pick 3 Skills" affordance) without
+  // refetching. Keyed by feat catalog key (`Dnd5eFeature.id`) which
+  // the wizard sets from `FeatResult.key`.
+  const [featResultsByKey, setFeatResultsByKey] = useState<Map<string, FeatResult>>(new Map());
   const [conditionResults, setConditionResults] = useState<ConditionResult[]>(_cached?.conditionResults ?? []);
   const [skillResults, setSkillResults] = useState<SkillResult[]>(_cached?.skillResults ?? []);
 
@@ -817,6 +823,7 @@ export default function CharacterSheetScreen() {
   // without snapshotting at creation time.
   useEffect(() => {
     const stats = character?.base_stats as Dnd5eStats | null;
+    const charResources = character?.resources as Dnd5eResources | null;
     if (!stats) return;
     const speciesKey = stats.speciesKey;
     const entries = getClassEntries(stats);
@@ -824,6 +831,10 @@ export default function CharacterSheetScreen() {
     const subclassKeys = Array.from(new Set(entries.map((e) => e.subclassKey).filter((k): k is string => !!k)));
     const backgroundKey = stats.backgroundKey;
     const originFeatName = stats.originFeat?.trim() || null;
+    // Any feats on the character — L1-feat picks, ASI feats, etc.
+    // Their catalog entries are needed for the Traits-tab grant pickers
+    // (Skilled), so trigger the feats fetch when any exist.
+    const hasFeats = (charResources?.feats ?? []).length > 0;
 
     let cancelled = false;
     (async () => {
@@ -843,7 +854,7 @@ export default function CharacterSheetScreen() {
         classKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'class' }) : Promise.resolve([]),
         subclassKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'subclass' }) : Promise.resolve([]),
         backgroundKey ? ContentResolver.search({ ...tierArgs, type: 'background' }) : Promise.resolve([]),
-        originFeatName ? ContentResolver.search({ ...tierArgs, type: 'feat' }) : Promise.resolve([]),
+        (originFeatName || hasFeats) ? ContentResolver.search({ ...tierArgs, type: 'feat' }) : Promise.resolve([]),
         ContentResolver.search({ ...tierArgs, type: 'condition' }),
         ContentResolver.search({ ...tierArgs, type: 'skill' }),
       ]);
@@ -899,6 +910,11 @@ export default function CharacterSheetScreen() {
       } else {
         setOriginFeatResult(null);
       }
+      // Build a key->result lookup for all loaded feats. The Traits
+      // tab reads this to surface `grants` pickers on each feat row.
+      const byKey = new Map<string, FeatResult>();
+      for (const r of (featResults as FeatResult[])) byKey.set(r.key, r);
+      setFeatResultsByKey(byKey);
 
       setConditionResults(conditionResultsAll as ConditionResult[]);
       setSkillResults(skillResultsAll as SkillResult[]);
@@ -926,6 +942,9 @@ export default function CharacterSheetScreen() {
     (character?.base_stats as Dnd5eStats | null)?.classes,
     (character?.base_stats as Dnd5eStats | null)?.backgroundKey,
     (character?.base_stats as Dnd5eStats | null)?.originFeat,
+    // Refire when the feat list count changes (added / removed via the
+    // sheet's FeatPickerModal) so featResultsByKey reflects the new set.
+    ((character?.resources as Dnd5eResources | null)?.feats ?? []).length,
   ]);
 
   // Realtime: when another viewer (e.g. the DM via Party View) mutates this
@@ -1208,7 +1227,10 @@ export default function CharacterSheetScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: !isWeb,
-      aspect: [1, 1],
+      // 3:4 portrait crop — matches the card-style frame the sheet
+      // renders. On native, the OS picker enforces this aspect. On
+      // web, the post-pick ImageCropModal handles the crop.
+      aspect: [3, 4],
       quality: 0.7,
     });
     if (result.canceled || !result.assets[0]) return;
@@ -1631,7 +1653,7 @@ export default function CharacterSheetScreen() {
 
   const hpRatio = Math.max(0, Math.min(1, resources.hpCurrent / stats.hpMax));
 
-  // ── Tab definitions — right rail is activity log, Skills is its own tab ──
+  // ── Tab definitions. ──
   const DESKTOP_TAB_DEFS = [
     { id: 'combat',    icon: 'sword-cross' as const,        label: 'Combat' },
     { id: 'spells',    icon: 'auto-fix' as const,           label: 'Spells' },
@@ -1743,6 +1765,36 @@ export default function CharacterSheetScreen() {
             speciesResult={speciesResult}
             backgroundResult={backgroundResult}
             originFeatResult={originFeatResult}
+            featResultsByKey={featResultsByKey}
+            onSaveFeatPicks={(featKey, picks) => {
+              if (!stats || !resources) return;
+              // Update both `resources.featPicks` (source of truth)
+              // and `base_stats.skillProficiencies` (merged display
+              // for the Skills tab). The Skills tab reads
+              // skillProficiencies directly, so the merged form makes
+              // existing display code work unchanged.
+              //
+              // Recompute skills as: (existing skills) minus (the
+              // previous picks for this feat) plus (the new picks).
+              // That way deselecting Acrobatics on Skilled actually
+              // removes it, instead of leaving stale grants behind.
+              const prev = resources.featPicks?.[featKey];
+              const nextFeatPicks = { ...(resources.featPicks ?? {}), [featKey]: picks };
+              const removed = new Set((prev?.skills ?? []).map((s) => s.toLowerCase()));
+              const baseline = (stats.skillProficiencies ?? []).filter((s) => !removed.has(s.toLowerCase()));
+              const merged = new Set(baseline.map((s) => s.toLowerCase()));
+              for (const sk of (picks.skills ?? [])) merged.add(sk.toLowerCase());
+              const nextStats: Dnd5eStats = {
+                ...stats,
+                skillProficiencies: Array.from(merged),
+              };
+              const nextResources: Dnd5eResources = {
+                ...resources,
+                featPicks: nextFeatPicks,
+              };
+              persistStats(nextStats);
+              persistResources(nextResources);
+            }}
             onToggleFeatureUse={toggleFeatureUse}
             onAddFeature={(cat) => {
               if (cat === 'feats') {
@@ -3125,13 +3177,16 @@ const s = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLowest,
   },
   backBtn: { padding: 4 },
+  // 3:4 card frame. Width fixed; height = width × 4/3. Square corners
+  // would scream "iPhone Photos thumbnail", so we keep a small radius
+  // for the rounded-card look used elsewhere on the sheet.
   chromePortrait: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 42, height: 56, borderRadius: 4,
     backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1, borderColor: colors.outlineVariant,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
   },
-  chromePortraitImg: { width: 36, height: 36, borderRadius: 18 },
+  chromePortraitImg: { width: 42, height: 56, borderRadius: 4 },
   chromeIdentity: { flex: 1, minWidth: 0 },
   chromeName: {
     fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
@@ -3237,13 +3292,16 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-start',
     paddingHorizontal: 14, gap: 10,
   },
+  // 3:4 card frame on the desktop header (75 × 100). The
+  // deskIdentityRow uses `alignItems: 'flex-start'` so the taller
+  // portrait sits flush with the top of the name/level block.
   deskPortrait: {
-    width: 48, height: 48, borderRadius: 24, flexShrink: 0,
+    width: 75, height: 100, borderRadius: 6, flexShrink: 0,
     backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1, borderColor: colors.outlineVariant,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  deskPortraitImg: { width: 48, height: 48, borderRadius: 24 },
+  deskPortraitImg: { width: 75, height: 100, borderRadius: 6 },
   deskNameBlock: { flex: 1, minWidth: 0, paddingTop: 2 },
   deskName: {
     fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',

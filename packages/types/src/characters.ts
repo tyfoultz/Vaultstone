@@ -334,6 +334,16 @@ export interface Dnd5eResources {
   speciesTraits?: Dnd5eFeature[];
   /** Feats. */
   feats?: Dnd5eFeature[];
+  /**
+   * Per-feat player picks for feats that grant something the player
+   * must choose at acquisition (Skilled → 3 skills, etc.). Same shape
+   * as the wizard's `CharacterDraft.featPicks`. The sheet's Traits tab
+   * exposes a picker for any feat with unresolved grants; the picks
+   * also mirror into `base_stats.skillProficiencies` so the Skills tab
+   * reflects them. Keyed by feat key. Undefined when no feat needs
+   * picks.
+   */
+  featPicks?: Record<string, { skills?: string[] }>;
   /** Coin pouch. */
   coins?: {
     cp: number;

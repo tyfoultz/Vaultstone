@@ -421,6 +421,13 @@ export function mapEntryToResult(
       if (d.prerequisitesRaw && d.prerequisitesRaw.length > 0) {
         result.prerequisitesRaw = d.prerequisitesRaw;
       }
+      // Pass through player-driven grants (Skilled → 3 skills, etc.).
+      // Imported feats with a known shape carry `grants` on
+      // `data.grants`; without this passthrough StepFeats never sees
+      // the grant and the inline picker doesn't surface.
+      if (d.grants) {
+        result.grants = d.grants;
+      }
       return result;
     }
     case 'class': {
