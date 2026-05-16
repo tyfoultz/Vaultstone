@@ -1,4 +1,5 @@
 import type { WorldPage, WorldSection } from '@vaultstone/types';
+import type { WorldMap } from '@vaultstone/api';
 
 // Client-side mirror of the `user_can_view_page` Postgres helper for a
 // generic "player" (not world owner, not on a campaign). The server-side
@@ -28,4 +29,9 @@ export function isSectionVisibleToPlayersPreview(section: WorldSection): boolean
   if (section.deleted_at) return false;
   if (section.force_hidden_from_players) return false;
   return true;
+}
+
+export function isMapVisibleToPlayersPreview(map: WorldMap): boolean {
+  if (map.deleted_at) return false;
+  return map.visible_to_players;
 }

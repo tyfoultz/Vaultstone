@@ -1,4 +1,4 @@
-import type { WorldPagePermissionLevel } from '@vaultstone/types';
+import type { WorldPagePermissionLevel, WorldMapPermission } from '@vaultstone/types';
 
 import { supabase } from './client';
 
@@ -104,4 +104,53 @@ export async function getProfilesByIds(userIds: string[]) {
     .from('profiles')
     .select('id, display_name, avatar_url')
     .in('id', userIds);
+}
+
+// ── Map permissions ─────────────────────────────────────────────────────
+
+export async function listMapPermissions(mapId: string) {
+  return supabase
+    .from('world_map_permissions')
+    .select('*')
+    .eq('map_id', mapId);
+}
+
+export async function grantMapPermission(input: {
+  mapId: string;
+  userId: string;
+  permission: WorldPagePermissionLevel;
+  grantedBy: string;
+}) {
+  return supabase
+    .from('world_map_permissions')
+    .upsert({
+      map_id: input.mapId,
+      user_id: input.userId,
+      permission: input.permission,
+      granted_by: input.grantedBy,
+    })
+    .select()
+    .single();
+}
+
+export async function updateMapPermission(input: {
+  mapId: string;
+  userId: string;
+  permission: WorldPagePermissionLevel;
+}) {
+  return supabase
+    .from('world_map_permissions')
+    .update({ permission: input.permission })
+    .eq('map_id', input.mapId)
+    .eq('user_id', input.userId)
+    .select()
+    .single();
+}
+
+export async function revokeMapPermission(mapId: string, userId: string) {
+  return supabase
+    .from('world_map_permissions')
+    .delete()
+    .eq('map_id', mapId)
+    .eq('user_id', userId);
 }

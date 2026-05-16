@@ -72,6 +72,8 @@ export type WorldPageUpdate = Database['public']['Tables']['world_pages']['Updat
 export type WorldPagePermission = Database['public']['Tables']['world_page_permissions']['Row'];
 export type WorldPagePermissionLevel = Database['public']['Enums']['world_page_permission_level'];
 
+export type WorldMapPermission = Database['public']['Tables']['world_map_permissions']['Row'];
+
 export interface WorldPageTreeNode {
   page: WorldPage;
   children: WorldPageTreeNode[];

@@ -35,7 +35,8 @@ import { RecentlyDeletedModal } from './RecentlyDeletedModal';
 import { LensDropdown } from './LensDropdown';
 import { MapUploadModal } from './map/MapUploadModal';
 import { useMapDnd } from './useMapDnd';
-import { isSectionVisibleToPlayersPreview } from './playerViewFilters';
+import { MapShareModal } from './MapShareModal';
+import { isSectionVisibleToPlayersPreview, isMapVisibleToPlayersPreview } from './playerViewFilters';
 import { SidebarDndProvider } from './SidebarDndContext';
 import { SidebarSection } from './SidebarSection';
 import { WorldSearchDrawer } from './WorldSearchDrawer';
@@ -400,6 +401,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
           primaryMapId={world.primary_map_id}
           activeMapId={pathname.match(/\/world\/[^/]+\/map\/([^/]+)/)?.[1] ?? null}
           isOwner={isOwner}
+          playerView={playerView}
           onAddMap={() => setMapUploadOpen(true)}
           onSetPrimary={(mapId) => {
             storeUpdateWorld(world.id, { primary_map_id: mapId });
@@ -515,19 +517,23 @@ function SidebarMapRow({ map, worldId, active, isPrimary, onContextMenu, onDrop 
         >
           {map.label || 'Untitled map'}
         </Text>
+        {map.visible_to_players ? (
+          <Icon name="visibility" size={11} color={colors.player} />
+        ) : null}
       </Pressable>
       {dropPosition === 'after' && dropLine}
     </View>
   );
 }
 
-function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, isOwner, onAddMap, onSetPrimary }: {
+function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, isOwner, playerView, onAddMap, onSetPrimary }: {
   maps: WorldMap[];
   setMaps: React.Dispatch<React.SetStateAction<WorldMap[]>>;
   worldId: string;
   primaryMapId: string | null;
   activeMapId: string | null;
   isOwner: boolean;
+  playerView: boolean;
   onAddMap: () => void;
   onSetPrimary: (mapId: string | null) => void;
 }) {
@@ -537,6 +543,12 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
   const toggle = useSidebarCollapseStore((s) => s.toggle);
   const [menuState, setMenuState] = useState<{ map: WorldMap; anchor: { x: number; y: number } } | null>(null);
   const [renameMap, setRenameMap] = useState<WorldMap | null>(null);
+  const [shareMap, setShareMap] = useState<WorldMap | null>(null);
+
+  const visibleMaps = useMemo(
+    () => playerView ? maps.filter(isMapVisibleToPlayersPreview) : maps,
+    [maps, playerView],
+  );
 
   async function handleRenameMap(map: WorldMap, newLabel: string) {
     const trimmed = newLabel.trim();
@@ -611,17 +623,17 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
         ) : null}
       </View>
       {!collapsed ? (
-        maps.length === 0 ? (
+        visibleMaps.length === 0 ? (
           <Text
             variant="body-sm"
             tone="secondary"
             style={{ paddingLeft: spacing.sm, paddingVertical: 4, color: colors.outline }}
           >
-            No maps yet.
+            {playerView ? 'No shared maps.' : 'No maps yet.'}
           </Text>
         ) : (
           <View>
-            {maps.map((m) => (
+            {visibleMaps.map((m) => (
               <SidebarMapRow
                 key={m.id}
                 map={m}
@@ -644,6 +656,7 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
           isOwner={isOwner}
           onClose={() => setMenuState(null)}
           onRename={() => { setRenameMap(menuState.map); setMenuState(null); }}
+          onShare={() => { setShareMap(menuState.map); setMenuState(null); }}
           onSetPrimary={() => { handleSetPrimary(menuState.map); setMenuState(null); }}
           onDelete={() => { handleDeleteMap(menuState.map); setMenuState(null); }}
         />
@@ -656,22 +669,32 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
           onClose={() => setRenameMap(null)}
         />
       ) : null}
+
+      {shareMap ? (
+        <MapShareModal
+          map={shareMap}
+          onClose={() => setShareMap(null)}
+          onUpdate={(patch) => setMaps((prev) => prev.map((m) => m.id === shareMap.id ? { ...m, ...patch } : m))}
+        />
+      ) : null}
     </View>
   );
 }
 
-function MapContextMenu({ anchor, map, isPrimary, isOwner, onClose, onRename, onSetPrimary, onDelete }: {
+function MapContextMenu({ anchor, map, isPrimary, isOwner, onClose, onRename, onShare, onSetPrimary, onDelete }: {
   anchor: { x: number; y: number };
   map: WorldMap;
   isPrimary: boolean;
   isOwner: boolean;
   onClose: () => void;
   onRename: () => void;
+  onShare: () => void;
   onSetPrimary: () => void;
   onDelete: () => void;
 }) {
   const items: Array<{ label: string; icon: string; onPress: () => void; disabled?: boolean; destructive?: boolean } | 'divider'> = [
     { label: 'Rename', icon: 'edit', onPress: onRename },
+    { label: 'Share', icon: 'share', onPress: onShare },
     { label: isPrimary ? 'Primary map' : 'Set as primary map', icon: 'star', onPress: onSetPrimary, disabled: isPrimary },
     'divider',
     { label: 'Delete map', icon: 'delete', onPress: onDelete, destructive: true },
