@@ -12,6 +12,16 @@ interface Props {
   speciesResult: SpeciesResult | null;
   characterLevel: number;
   onUpdateAbilities: (abilities: Dnd5eAbility[]) => void;
+  /** When true, render the tab body inside a View instead of its own
+   *  ScrollView so it can be embedded as a section of a larger tab
+   *  (e.g. nested inside the Combat tab's scroll). The outer parent
+   *  is then responsible for scrolling. */
+  embedded?: boolean;
+  /** When true (typically together with `embedded`), suppress the
+   *  internal "ABILITIES" SectionLabel because the host is already
+   *  providing the section title (e.g. a CardBlock wrapper). The rest
+   *  buttons still render, right-aligned. */
+  headerless?: boolean;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -35,7 +45,10 @@ type ImportableFeature = {
   level?: number;
 };
 
-export function AbilitiesCardTab({ resources, isOwner, classResultsByKey, subclassResultsByKey, speciesResult, characterLevel, onUpdateAbilities }: Props) {
+export function AbilitiesCardTab({
+  resources, isOwner, classResultsByKey, subclassResultsByKey, speciesResult,
+  characterLevel, onUpdateAbilities, embedded, headerless,
+}: Props) {
   const abilities = resources.abilities ?? [];
   const [editModal, setEditModal] = useState(false);
   const [editAbility, setEditAbility] = useState<Dnd5eAbility | null>(null);
@@ -121,25 +134,41 @@ export function AbilitiesCardTab({ resources, isOwner, classResultsByKey, subcla
     onUpdateAbilities(updated);
   }
 
+  const Outer = embedded ? View : ScrollView;
+  const outerProps = embedded
+    ? {} // host owns padding (e.g. the CombatTab CardBlock body)
+    : { contentContainerStyle: s.container, showsVerticalScrollIndicator: false };
+
+  // Rest buttons appear whether the header is shown or not — the host
+  // (e.g. CardBlock in CombatTab desktop) provides the title, but rest
+  // controls are content actions and stay with the body.
+  const restButtons = isOwner && abilities.some((a) => a.uses) ? (
+    <View style={{ flexDirection: 'row', gap: 6 }}>
+      <TouchableOpacity style={s.restBtn} onPress={() => handleRestoreAll('short')}>
+        <MaterialCommunityIcons name="weather-sunset-up" size={12} color={colors.outline} />
+        <Text style={s.restBtnText}>Short Rest</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={s.restBtn} onPress={() => handleRestoreAll('long')}>
+        <MaterialCommunityIcons name="weather-night" size={12} color={colors.outline} />
+        <Text style={s.restBtnText}>Long Rest</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null;
+
   return (
-    <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
-      <View style={s.headerRow}>
-        <SectionLabel>ABILITIES</SectionLabel>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
-          {isOwner && abilities.some((a) => a.uses) ? (
-            <>
-              <TouchableOpacity style={s.restBtn} onPress={() => handleRestoreAll('short')}>
-                <MaterialCommunityIcons name="weather-sunset-up" size={12} color={colors.outline} />
-                <Text style={s.restBtnText}>Short Rest</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.restBtn} onPress={() => handleRestoreAll('long')}>
-                <MaterialCommunityIcons name="weather-night" size={12} color={colors.outline} />
-                <Text style={s.restBtnText}>Long Rest</Text>
-              </TouchableOpacity>
-            </>
-          ) : null}
+    <Outer {...outerProps}>
+      {headerless ? (
+        restButtons ? (
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 6 }}>
+            {restButtons}
+          </View>
+        ) : null
+      ) : (
+        <View style={s.headerRow}>
+          <SectionLabel>ABILITIES</SectionLabel>
+          {restButtons}
         </View>
-      </View>
+      )}
 
       {abilities.length === 0 ? (
         <View style={s.emptyWrap}>
@@ -204,7 +233,7 @@ export function AbilitiesCardTab({ resources, isOwner, classResultsByKey, subcla
           onClose={() => setImportModal(false)}
         />
       ) : null}
-    </ScrollView>
+    </Outer>
   );
 }
 

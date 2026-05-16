@@ -1,0 +1,1045 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vaultstone — Party View cards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Noir tokens — mirrored from packages/ui/src/tokens.ts */
+:root {
+  --surface-canvas: #121416;
+  --surface-low: #1a1c1e;
+  --surface-container: #1e2022;
+  --surface-high: #282a2c;
+  --surface-highest: #333537;
+  --surface-lowest: #0c0e10;
+
+  --primary: #d3bbff;
+  --primary-container: #6d28d9;
+  --primary-glow: rgba(211, 187, 255, 0.16);
+  --secondary: #adc6ff;
+  --tertiary: #cebdff;
+
+  --on-surface: #e2e2e5;
+  --on-surface-variant: #ccc3d7;
+  --outline: #958da1;
+  --outline-faint: rgba(74, 68, 85, 0.5);
+
+  --hp-healthy: #1d9e75;
+  --hp-warning: #ef9f27;
+  --hp-danger: #e24b4a;
+
+  --gm: #e6a255;
+  --gm-glow: rgba(230, 162, 85, 0.18);
+  --player: #4ec8c0;
+
+  --font-headline: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Manrope', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--surface-canvas);
+  color: var(--on-surface);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 1540px;
+  margin: 0 auto;
+  padding: 40px 32px 80px;
+}
+.page h1 {
+  font-family: var(--font-headline);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.page .eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--outline);
+  margin-bottom: 6px;
+}
+.page .sub {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  margin-top: 6px;
+  max-width: 760px;
+}
+
+.section-block {
+  margin-top: 48px;
+}
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 18px;
+}
+.section-title {
+  font-family: var(--font-headline);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+.section-meta { font-size: 12px; color: var(--outline); }
+
+.frame-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--outline);
+  margin-bottom: 10px;
+}
+
+.notes {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+}
+.notes .nt { font-family: var(--font-headline); font-weight: 700; color: var(--on-surface); margin-bottom: 6px; font-size: 13px; }
+.notes ul { list-style: none; padding: 0; }
+.notes li { padding: 4px 0; font-size: 12px; color: var(--on-surface-variant); display: flex; gap: 8px; align-items: baseline; }
+.notes li::before { content: ''; width: 4px; height: 4px; border-radius: 999px; background: var(--primary); flex-shrink: 0; margin-top: 7px; }
+
+/* ───────────────────────────────────────────────────────────────────────
+   COMPACT CARD — designed to live in a dense grid
+   Layout: 3:4 portrait on the left, vitals stack on the right.
+   Fixed width so 4–6 cards fit comfortably across a desktop screen.
+─────────────────────────────────────────────────────────────────────── */
+.party-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.pcc {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.pcc::before {
+  /* subtle accent stripe on the left edge */
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--outline-faint);
+}
+.pcc.healthy::before { background: var(--hp-healthy); }
+.pcc.bloodied::before { background: var(--hp-warning); }
+.pcc.dying::before { background: var(--hp-danger); }
+.pcc.unconscious {
+  background: linear-gradient(135deg, rgba(226,75,74,0.06), var(--surface-container));
+  border-color: rgba(226,75,74,0.4);
+}
+.pcc.offline { opacity: 0.55; }
+
+.pcc-portrait {
+  width: 84px;
+  height: 112px; /* 3:4 */
+  border-radius: 6px;
+  border: 1px solid var(--outline-faint);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)),
+    radial-gradient(at 50% 30%, #4d3a8c, #1a1430 70%);
+  position: relative;
+  overflow: hidden;
+}
+.pcc-portrait.alt-a { background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)), radial-gradient(at 50% 30%, #6c4423, #2a1308 70%); }
+.pcc-portrait.alt-b { background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)), radial-gradient(at 50% 30%, #2a5e88, #0d2034 70%); }
+.pcc-portrait.alt-c { background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)), radial-gradient(at 50% 30%, #5e7d2a, #21320d 70%); }
+.pcc-portrait.alt-d { background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)), radial-gradient(at 50% 30%, #983b3b, #2a0808 70%); }
+
+.pcc-presence {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 2px solid var(--surface-container);
+  background: var(--hp-healthy);
+}
+.pcc-presence.offline { background: var(--outline); }
+
+.pcc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.pcc-namerow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pcc-name {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--on-surface);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pcc-lvl {
+  font-family: var(--font-headline);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  background: var(--primary-glow);
+  border: 1px solid rgba(211,187,255,0.3);
+  padding: 1px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.pcc-sub {
+  font-size: 11px;
+  color: var(--outline);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* HP block — the biggest, most visually weighted element */
+.pcc-hp {
+  margin-top: 4px;
+}
+.pcc-hp-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.pcc-hp-num {
+  font-family: var(--font-headline);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1;
+}
+.pcc-hp-max {
+  font-size: 12px;
+  color: var(--outline);
+}
+.pcc-hp-temp {
+  font-family: var(--font-headline);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--secondary);
+  background: rgba(173,198,255,0.12);
+  border: 1px solid rgba(173,198,255,0.3);
+  padding: 0 6px;
+  border-radius: 999px;
+}
+.pcc-hp-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.pcc-hp-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--hp-healthy), #2bcf95);
+  border-radius: 999px;
+}
+.pcc.bloodied .pcc-hp-bar > span { background: linear-gradient(90deg, var(--hp-warning), #f4b85e); }
+.pcc.dying .pcc-hp-bar > span { background: linear-gradient(90deg, var(--hp-danger), #ff7575); }
+
+/* Stat triplet — AC / Speed / Init under the HP */
+.pcc-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+.pcc-stat {
+  text-align: center;
+  padding: 4px 0;
+  border-radius: 6px;
+  background: var(--surface-low);
+  border: 1px solid var(--outline-faint);
+}
+.pcc-stat .lbl { font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--outline); }
+.pcc-stat .num { font-family: var(--font-headline); font-size: 13px; font-weight: 700; color: var(--on-surface); }
+
+/* Conditions / status — appears below stats when present */
+.pcc-status-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.pcc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid var(--outline-faint);
+  background: var(--surface-low);
+  color: var(--on-surface-variant);
+}
+.pcc-chip.concentrate { color: var(--primary); background: var(--primary-glow); border-color: rgba(211,187,255,0.3); }
+.pcc-chip.condition { color: var(--hp-warning); background: rgba(239,159,39,0.1); border-color: rgba(239,159,39,0.3); }
+.pcc-chip.condition.danger { color: var(--hp-danger); background: rgba(226,75,74,0.1); border-color: rgba(226,75,74,0.35); }
+.pcc-chip.inspire { color: var(--gm); background: var(--gm-glow); border-color: rgba(230,162,85,0.35); }
+.pcc-chip.dying { color: var(--hp-danger); background: rgba(226,75,74,0.16); border-color: rgba(226,75,74,0.4); }
+
+/* Death saves pips (only when dying) */
+.deathsaves {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+.deathsaves .group { display: flex; gap: 4px; align-items: center; }
+.deathsaves .lbl { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--outline); }
+.dpip { width: 8px; height: 8px; border-radius: 999px; border: 1px solid var(--outline-faint); }
+.dpip.success { background: var(--hp-healthy); border-color: var(--hp-healthy); }
+.dpip.failure { background: var(--hp-danger); border-color: var(--hp-danger); }
+
+/* Recent damage / heal flash — would animate in via Realtime */
+.pcc-flash {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-family: var(--font-headline);
+  font-weight: 800;
+  font-size: 13px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  opacity: 0.95;
+}
+.pcc-flash.dmg { color: white; background: var(--hp-danger); }
+.pcc-flash.heal { color: white; background: var(--hp-healthy); }
+
+/* ───────────────────────────────────────────────────────────────────────
+   EXPANDED CARD — adds spell slots, saves, init/conc detail, mini-log
+─────────────────────────────────────────────────────────────────────── */
+.party-grid-expanded {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+  gap: 16px;
+}
+
+.pccx {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 14px;
+  padding: 14px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.pccx::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--outline-faint);
+}
+.pccx.healthy::before { background: var(--hp-healthy); }
+.pccx.bloodied::before { background: var(--hp-warning); }
+.pccx.dying::before { background: var(--hp-danger); }
+
+.pccx-portrait {
+  width: 112px;
+  height: 149px;
+  border-radius: 8px;
+  border: 1px solid var(--outline-faint);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)),
+    radial-gradient(at 50% 30%, #4d3a8c, #1a1430 70%);
+  position: relative;
+  overflow: hidden;
+}
+.pccx-portrait.alt-a { background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)), radial-gradient(at 50% 30%, #6c4423, #2a1308 70%); }
+.pccx-portrait.alt-b { background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)), radial-gradient(at 50% 30%, #2a5e88, #0d2034 70%); }
+.pccx-portrait.alt-c { background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)), radial-gradient(at 50% 30%, #983b3b, #2a0808 70%); }
+
+.pccx-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.pccx-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pccx-name {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+.pccx-sub {
+  font-size: 12px;
+  color: var(--outline);
+  margin-top: 2px;
+}
+.pccx-lvl {
+  font-family: var(--font-headline);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  background: var(--primary-glow);
+  border: 1px solid rgba(211,187,255,0.3);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* Expanded HP — slightly larger bar + temp on its own row */
+.pccx-hp {
+  background: var(--surface-low);
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--outline-faint);
+}
+.pccx-hp-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.pccx-hp-row .vital-label {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--outline);
+}
+.pccx-hp-num {
+  font-family: var(--font-headline);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+.pccx-hp-max { font-size: 13px; color: var(--outline); margin-left: 4px; }
+.pccx-hp-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.pccx-hp-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--hp-healthy), #2bcf95);
+  border-radius: 999px;
+}
+.pccx.bloodied .pccx-hp-bar > span { background: linear-gradient(90deg, var(--hp-warning), #f4b85e); }
+.pccx.dying .pccx-hp-bar > span { background: linear-gradient(90deg, var(--hp-danger), #ff7575); }
+
+/* Stats grid — 5 cells (AC, Speed, Init, Prof, Insp) */
+.pccx-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.pccx-stat {
+  text-align: center;
+  padding: 6px 0;
+  border-radius: 8px;
+  background: var(--surface-low);
+  border: 1px solid var(--outline-faint);
+}
+.pccx-stat .lbl { font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--outline); }
+.pccx-stat .num { font-family: var(--font-headline); font-size: 16px; font-weight: 700; color: var(--on-surface); margin-top: 1px; }
+.pccx-stat.insp .num { color: var(--gm); }
+
+/* Saves strip */
+.pccx-saves {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+.pccx-save {
+  text-align: center;
+  padding: 5px 0;
+  border-radius: 6px;
+  background: var(--surface-low);
+  border: 1px solid var(--outline-faint);
+}
+.pccx-save.prof { border-color: rgba(211,187,255,0.35); background: linear-gradient(135deg, rgba(211,187,255,0.06), var(--surface-low)); }
+.pccx-save .ab { font-size: 8px; letter-spacing: 0.12em; color: var(--outline); }
+.pccx-save .mod { font-family: var(--font-headline); font-size: 12px; font-weight: 700; color: var(--on-surface); }
+.pccx-save.prof .mod { color: var(--primary); }
+
+/* Spell slots — caster only */
+.pccx-slots {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-low);
+  border: 1px solid var(--outline-faint);
+}
+.pccx-slots .ttl {
+  font-family: var(--font-headline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--outline);
+}
+.pccx-slots .lvl {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.pccx-slots .lvl .num {
+  font-family: var(--font-headline);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--outline);
+  margin-right: 2px;
+}
+.spip { width: 9px; height: 9px; border-radius: 2px; border: 1px solid var(--outline-faint); background: transparent; }
+.spip.full { background: var(--primary); border-color: var(--primary); }
+
+/* Concentration / condition row */
+.pccx-status {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Mini-log */
+.pccx-log {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+.pccx-log-row {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--on-surface-variant);
+}
+.pccx-log-row .g { color: var(--outline); }
+.pccx-log-row.heal .g { color: var(--hp-healthy); }
+.pccx-log-row.dmg .g { color: var(--hp-danger); }
+.pccx-log-row strong { color: var(--on-surface); }
+.pccx-log-row .ts { font-size: 10px; color: var(--outline); }
+
+/* Mobile single-column rendering */
+@media (max-width: 720px) {
+  .party-grid { grid-template-columns: 1fr; }
+  .party-grid-expanded { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+<header>
+  <div class="eyebrow">Vaultstone · design exploration</div>
+  <h1>Party-view cards — compact + expanded</h1>
+  <p class="sub">
+    Two card shapes for the campaign party view. Compact for dense at-a-glance
+    scanning during a session, expanded for between-encounter context. Both
+    consume the same character data and would update live via the existing
+    Supabase Realtime channel (<code>character_updates</code> for HP / temp /
+    conditions / spell slots, server-pushed inside the wizard / level-up /
+    sheet edits already shipping today).
+  </p>
+</header>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     COMPACT CARDS
+════════════════════════════════════════════════════════════════════ -->
+<section class="section-block">
+  <div class="section-head">
+    <span class="section-title">Compact (default grid)</span>
+    <span class="section-meta">~280–340px wide · fits 4–6 per row on desktop, 2 on tablet, 1 on phone</span>
+  </div>
+  <div class="frame-label">Live demo · 4 party members at different states</div>
+
+  <div class="party-grid">
+
+    <!-- Healthy caster, concentrating -->
+    <div class="pcc healthy">
+      <div class="pcc-portrait">
+        <span class="pcc-presence"></span>
+      </div>
+      <div class="pcc-body">
+        <div class="pcc-namerow">
+          <span class="pcc-name">Oz</span>
+          <span class="pcc-lvl">L3</span>
+        </div>
+        <div class="pcc-sub">Owlin Artificer · Archaeologist</div>
+
+        <div class="pcc-hp">
+          <div class="pcc-hp-row">
+            <div>
+              <span class="pcc-hp-num">24</span>
+              <span class="pcc-hp-max">/ 31</span>
+            </div>
+            <span class="pcc-hp-temp">+5 TEMP</span>
+          </div>
+          <div class="pcc-hp-bar"><span style="width:78%"></span></div>
+        </div>
+
+        <div class="pcc-stats">
+          <div class="pcc-stat"><div class="lbl">AC</div><div class="num">15</div></div>
+          <div class="pcc-stat"><div class="lbl">SPD</div><div class="num">30</div></div>
+          <div class="pcc-stat"><div class="lbl">INIT</div><div class="num">+2</div></div>
+        </div>
+
+        <div class="pcc-status-row">
+          <span class="pcc-chip concentrate" title="Concentrating on Faerie Fire">✦ FAERIE FIRE</span>
+          <span class="pcc-chip inspire">★ INSP</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bloodied martial with damage flash + condition -->
+    <div class="pcc bloodied">
+      <div class="pcc-flash dmg">−8</div>
+      <div class="pcc-portrait alt-a">
+        <span class="pcc-presence"></span>
+      </div>
+      <div class="pcc-body">
+        <div class="pcc-namerow">
+          <span class="pcc-name">Garruk Ironbeard</span>
+          <span class="pcc-lvl">L3</span>
+        </div>
+        <div class="pcc-sub">Dwarf Fighter · Soldier</div>
+
+        <div class="pcc-hp">
+          <div class="pcc-hp-row">
+            <div>
+              <span class="pcc-hp-num">14</span>
+              <span class="pcc-hp-max">/ 33</span>
+            </div>
+          </div>
+          <div class="pcc-hp-bar"><span style="width:42%"></span></div>
+        </div>
+
+        <div class="pcc-stats">
+          <div class="pcc-stat"><div class="lbl">AC</div><div class="num">18</div></div>
+          <div class="pcc-stat"><div class="lbl">SPD</div><div class="num">25</div></div>
+          <div class="pcc-stat"><div class="lbl">INIT</div><div class="num">+1</div></div>
+        </div>
+
+        <div class="pcc-status-row">
+          <span class="pcc-chip condition">Frightened</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Healed flash, healthy -->
+    <div class="pcc healthy">
+      <div class="pcc-flash heal">+8</div>
+      <div class="pcc-portrait alt-b">
+        <span class="pcc-presence"></span>
+      </div>
+      <div class="pcc-body">
+        <div class="pcc-namerow">
+          <span class="pcc-name">Lira Moonwhisper</span>
+          <span class="pcc-lvl">L3</span>
+        </div>
+        <div class="pcc-sub">Half-Elf Cleric · Acolyte</div>
+
+        <div class="pcc-hp">
+          <div class="pcc-hp-row">
+            <div>
+              <span class="pcc-hp-num">27</span>
+              <span class="pcc-hp-max">/ 27</span>
+            </div>
+          </div>
+          <div class="pcc-hp-bar"><span style="width:100%"></span></div>
+        </div>
+
+        <div class="pcc-stats">
+          <div class="pcc-stat"><div class="lbl">AC</div><div class="num">16</div></div>
+          <div class="pcc-stat"><div class="lbl">SPD</div><div class="num">30</div></div>
+          <div class="pcc-stat"><div class="lbl">INIT</div><div class="num">+0</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dying — overrides visual hierarchy -->
+    <div class="pcc dying unconscious">
+      <div class="pcc-portrait alt-c">
+        <span class="pcc-presence offline"></span>
+      </div>
+      <div class="pcc-body">
+        <div class="pcc-namerow">
+          <span class="pcc-name">Thistle</span>
+          <span class="pcc-lvl">L3</span>
+        </div>
+        <div class="pcc-sub">Halfling Rogue · Criminal</div>
+
+        <div class="pcc-hp">
+          <div class="pcc-hp-row">
+            <div>
+              <span class="pcc-hp-num">0</span>
+              <span class="pcc-hp-max">/ 22</span>
+            </div>
+          </div>
+          <div class="pcc-hp-bar"><span style="width:0%"></span></div>
+        </div>
+
+        <div class="pcc-status-row">
+          <span class="pcc-chip dying">⚠ UNCONSCIOUS</span>
+        </div>
+
+        <div class="deathsaves">
+          <div class="group">
+            <span class="lbl">SUCC</span>
+            <span class="dpip success"></span>
+            <span class="dpip success"></span>
+            <span class="dpip"></span>
+          </div>
+          <div class="group">
+            <span class="lbl">FAIL</span>
+            <span class="dpip failure"></span>
+            <span class="dpip"></span>
+            <span class="dpip"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <div class="nt">Compact card — what it surfaces, in priority order</div>
+    <ul>
+      <li><strong>Edge stripe</strong> turns red/orange/green based on HP %, so the DM can scan a wall of cards and see who's in trouble without reading numbers.</li>
+      <li><strong>HP bar</strong> is the dominant element. Temp HP rides above as a blue pill, not folded into the same number.</li>
+      <li><strong>AC / Speed / Init</strong> as a 3-cell strip — the second-most-asked stats at the table.</li>
+      <li><strong>Concentration</strong> gets an explicit pill with the spell name. Crucial for DM (saves on hit) and for ally healers ("don't waste the heal").</li>
+      <li><strong>Conditions</strong> render as warning pills only when present. Empty by default.</li>
+      <li><strong>Death saves</strong> swap in when HP === 0, replacing the conditions row. Successes/failures pip-by-pip so the DM doesn't have to open the sheet.</li>
+      <li><strong>Damage / heal flash</strong> appears top-right for 2–3s after a Realtime tick, then fades. The actual HP number updates with a brief highlight underneath.</li>
+      <li><strong>Presence dot</strong> on the portrait shows online/offline (gray when the player closed the tab).</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     EXPANDED CARDS
+════════════════════════════════════════════════════════════════════ -->
+<section class="section-block">
+  <div class="section-head">
+    <span class="section-title">Expanded (detail view)</span>
+    <span class="section-meta">~440–520px wide · 2 per row on wide desktop, 1 on tablet/phone</span>
+  </div>
+  <div class="frame-label">Live demo · same 4 party members, expanded form</div>
+
+  <div class="party-grid-expanded">
+
+    <!-- Oz expanded — caster with spell slots -->
+    <div class="pccx healthy">
+      <div class="pccx-portrait"></div>
+      <div class="pccx-body">
+        <div class="pccx-header">
+          <div>
+            <div class="pccx-name">Oz</div>
+            <div class="pccx-sub">Owlin Artificer · Archaeologist · INT spellcasting</div>
+          </div>
+          <span class="pccx-lvl">L3</span>
+        </div>
+
+        <div class="pccx-hp">
+          <div class="pccx-hp-row">
+            <span class="vital-label">Hit Points</span>
+            <span style="color:var(--secondary);font-size:11px;font-weight:700">+5 TEMP</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:2px">
+            <div><span class="pccx-hp-num">24</span><span class="pccx-hp-max">/ 31</span></div>
+            <span class="pcc-chip concentrate">✦ FAERIE FIRE</span>
+          </div>
+          <div class="pccx-hp-bar"><span style="width:78%"></span></div>
+        </div>
+
+        <div class="pccx-stats">
+          <div class="pccx-stat"><div class="lbl">AC</div><div class="num">15</div></div>
+          <div class="pccx-stat"><div class="lbl">SPD</div><div class="num">30</div></div>
+          <div class="pccx-stat"><div class="lbl">INIT</div><div class="num">+2</div></div>
+          <div class="pccx-stat"><div class="lbl">PROF</div><div class="num">+2</div></div>
+          <div class="pccx-stat insp"><div class="lbl">INSP</div><div class="num">●</div></div>
+        </div>
+
+        <div class="pccx-saves">
+          <div class="pccx-save"><div class="ab">STR</div><div class="mod">+0</div></div>
+          <div class="pccx-save"><div class="ab">DEX</div><div class="mod">+2</div></div>
+          <div class="pccx-save prof"><div class="ab">CON</div><div class="mod">+3</div></div>
+          <div class="pccx-save prof"><div class="ab">INT</div><div class="mod">+5</div></div>
+          <div class="pccx-save"><div class="ab">WIS</div><div class="mod">+1</div></div>
+          <div class="pccx-save"><div class="ab">CHA</div><div class="mod">-1</div></div>
+        </div>
+
+        <div class="pccx-slots">
+          <span class="ttl">Slots</span>
+          <span class="lvl"><span class="num">1</span><span class="spip full"></span><span class="spip full"></span><span class="spip"></span></span>
+          <span class="lvl"><span class="num">2</span><span class="spip"></span><span class="spip"></span></span>
+        </div>
+
+        <div class="pccx-log">
+          <div class="pccx-log-row heal"><span class="g">❤</span><span><strong>+8 HP</strong> from Healing Word (Lira)</span><span class="ts">2m ago</span></div>
+          <div class="pccx-log-row dmg"><span class="g">⚔</span><span><strong>−6 HP</strong> goblin arrow</span><span class="ts">3m ago</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Garruk expanded — martial, bloodied, no spells -->
+    <div class="pccx bloodied">
+      <div class="pccx-portrait alt-a"></div>
+      <div class="pccx-body">
+        <div class="pccx-header">
+          <div>
+            <div class="pccx-name">Garruk Ironbeard</div>
+            <div class="pccx-sub">Dwarf Fighter (Champion) · Soldier · STR martial</div>
+          </div>
+          <span class="pccx-lvl">L3</span>
+        </div>
+
+        <div class="pccx-hp">
+          <div class="pccx-hp-row">
+            <span class="vital-label">Hit Points</span>
+            <span style="font-size:11px;font-weight:700;color:var(--hp-warning)">BLOODIED</span>
+          </div>
+          <div style="margin-top:2px"><span class="pccx-hp-num">14</span><span class="pccx-hp-max">/ 33</span></div>
+          <div class="pccx-hp-bar"><span style="width:42%"></span></div>
+        </div>
+
+        <div class="pccx-stats">
+          <div class="pccx-stat"><div class="lbl">AC</div><div class="num">18</div></div>
+          <div class="pccx-stat"><div class="lbl">SPD</div><div class="num">25</div></div>
+          <div class="pccx-stat"><div class="lbl">INIT</div><div class="num">+1</div></div>
+          <div class="pccx-stat"><div class="lbl">PROF</div><div class="num">+2</div></div>
+          <div class="pccx-stat"><div class="lbl">INSP</div><div class="num" style="color:var(--outline)">○</div></div>
+        </div>
+
+        <div class="pccx-saves">
+          <div class="pccx-save prof"><div class="ab">STR</div><div class="mod">+5</div></div>
+          <div class="pccx-save"><div class="ab">DEX</div><div class="mod">+1</div></div>
+          <div class="pccx-save prof"><div class="ab">CON</div><div class="mod">+4</div></div>
+          <div class="pccx-save"><div class="ab">INT</div><div class="mod">-1</div></div>
+          <div class="pccx-save"><div class="ab">WIS</div><div class="mod">+1</div></div>
+          <div class="pccx-save"><div class="ab">CHA</div><div class="mod">+0</div></div>
+        </div>
+
+        <div class="pccx-status">
+          <span class="pcc-chip condition">Frightened</span>
+          <span class="pcc-chip" title="Second Wind available">Second Wind · ready</span>
+        </div>
+
+        <div class="pccx-log">
+          <div class="pccx-log-row dmg"><span class="g">⚔</span><span><strong>−8 HP</strong> from goblin shaman fireball</span><span class="ts">just now</span></div>
+          <div class="pccx-log-row"><span class="g">⚄</span><span>WIS save <strong>13</strong> vs Frightful Presence — failed</span><span class="ts">just now</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lira expanded — healer caster -->
+    <div class="pccx healthy">
+      <div class="pccx-portrait alt-b"></div>
+      <div class="pccx-body">
+        <div class="pccx-header">
+          <div>
+            <div class="pccx-name">Lira Moonwhisper</div>
+            <div class="pccx-sub">Half-Elf Cleric (Life) · Acolyte · WIS spellcasting</div>
+          </div>
+          <span class="pccx-lvl">L3</span>
+        </div>
+
+        <div class="pccx-hp">
+          <div class="pccx-hp-row">
+            <span class="vital-label">Hit Points</span>
+          </div>
+          <div style="margin-top:2px"><span class="pccx-hp-num">27</span><span class="pccx-hp-max">/ 27</span></div>
+          <div class="pccx-hp-bar"><span style="width:100%"></span></div>
+        </div>
+
+        <div class="pccx-stats">
+          <div class="pccx-stat"><div class="lbl">AC</div><div class="num">16</div></div>
+          <div class="pccx-stat"><div class="lbl">SPD</div><div class="num">30</div></div>
+          <div class="pccx-stat"><div class="lbl">INIT</div><div class="num">+0</div></div>
+          <div class="pccx-stat"><div class="lbl">PROF</div><div class="num">+2</div></div>
+          <div class="pccx-stat insp"><div class="lbl">INSP</div><div class="num">●</div></div>
+        </div>
+
+        <div class="pccx-saves">
+          <div class="pccx-save"><div class="ab">STR</div><div class="mod">+0</div></div>
+          <div class="pccx-save"><div class="ab">DEX</div><div class="mod">+0</div></div>
+          <div class="pccx-save"><div class="ab">CON</div><div class="mod">+2</div></div>
+          <div class="pccx-save"><div class="ab">INT</div><div class="mod">+1</div></div>
+          <div class="pccx-save prof"><div class="ab">WIS</div><div class="mod">+5</div></div>
+          <div class="pccx-save prof"><div class="ab">CHA</div><div class="mod">+3</div></div>
+        </div>
+
+        <div class="pccx-slots">
+          <span class="ttl">Slots</span>
+          <span class="lvl"><span class="num">1</span><span class="spip"></span><span class="spip full"></span><span class="spip full"></span><span class="spip full"></span></span>
+          <span class="lvl"><span class="num">2</span><span class="spip"></span><span class="spip"></span></span>
+        </div>
+
+        <div class="pccx-log">
+          <div class="pccx-log-row"><span class="g">✦</span><span>Cast <strong>Healing Word</strong> on Oz (+8 HP)</span><span class="ts">2m ago</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thistle expanded — dying -->
+    <div class="pccx dying">
+      <div class="pccx-portrait alt-c"></div>
+      <div class="pccx-body">
+        <div class="pccx-header">
+          <div>
+            <div class="pccx-name">Thistle</div>
+            <div class="pccx-sub">Halfling Rogue (Thief) · Criminal · DEX martial</div>
+          </div>
+          <span class="pccx-lvl">L3</span>
+        </div>
+
+        <div class="pccx-hp">
+          <div class="pccx-hp-row">
+            <span class="vital-label">Hit Points</span>
+            <span style="font-size:11px;font-weight:700;color:var(--hp-danger)">UNCONSCIOUS · DYING</span>
+          </div>
+          <div style="margin-top:2px"><span class="pccx-hp-num">0</span><span class="pccx-hp-max">/ 22</span></div>
+          <div class="pccx-hp-bar"><span style="width:0%"></span></div>
+
+          <div class="deathsaves">
+            <div class="group">
+              <span class="lbl">SUCC</span>
+              <span class="dpip success"></span>
+              <span class="dpip success"></span>
+              <span class="dpip"></span>
+            </div>
+            <div class="group">
+              <span class="lbl">FAIL</span>
+              <span class="dpip failure"></span>
+              <span class="dpip"></span>
+              <span class="dpip"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pccx-stats">
+          <div class="pccx-stat"><div class="lbl">AC</div><div class="num">14</div></div>
+          <div class="pccx-stat"><div class="lbl">SPD</div><div class="num">25</div></div>
+          <div class="pccx-stat"><div class="lbl">INIT</div><div class="num">+4</div></div>
+          <div class="pccx-stat"><div class="lbl">PROF</div><div class="num">+2</div></div>
+          <div class="pccx-stat"><div class="lbl">INSP</div><div class="num" style="color:var(--outline)">○</div></div>
+        </div>
+
+        <div class="pccx-log">
+          <div class="pccx-log-row dmg"><span class="g">⚔</span><span><strong>Dropped to 0 HP</strong> from goblin boss</span><span class="ts">28s ago</span></div>
+          <div class="pccx-log-row"><span class="g">⚄</span><span>Death save <strong>14</strong> — success</span><span class="ts">23s ago</span></div>
+          <div class="pccx-log-row dmg"><span class="g">⚄</span><span>Death save <strong>8</strong> — failure</span><span class="ts">18s ago</span></div>
+          <div class="pccx-log-row"><span class="g">⚄</span><span>Death save <strong>17</strong> — success</span><span class="ts">just now</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <div class="nt">Expanded card — what it adds over compact</div>
+    <ul>
+      <li><strong>Five-cell stat strip</strong> (AC / Speed / Init / Prof / Insp) replaces the three-cell compact strip — same data, all visible without expansion.</li>
+      <li><strong>Saves row</strong> (six mods) — DM can call out a Wisdom save and see who's at-risk without flipping sheets.</li>
+      <li><strong>Spell slots</strong> render as pip-rows per level, only for casters. Drained slots show empty; the cleric's L1 row at <code>○●●●</code> tells you they've burned 1 of 4 first-level slots.</li>
+      <li><strong>Mini-log</strong> shows the last 2–4 events on this character — damage, heals, saves, ability uses. Drives "what just happened to Thistle?" answers at a glance.</li>
+      <li><strong>Concentration</strong> can sit either as a chip in the HP block (Oz's Faerie Fire) or in the status row (Garruk's Second Wind ready) — both shown.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     OPEN DECISIONS
+════════════════════════════════════════════════════════════════════ -->
+<section class="section-block">
+  <div class="section-head">
+    <span class="section-title">Open decisions</span>
+    <span class="section-meta">react to any of these</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px">
+
+    <div class="notes" style="margin: 0">
+      <div class="nt">How does a player toggle between compact and expanded?</div>
+      <ul>
+        <li>Page-level toggle (one switch for all cards)</li>
+        <li>Per-card click-to-expand (hover on desktop, tap on mobile)</li>
+        <li>Auto-expand based on session state (dying → expanded; full HP → compact)</li>
+        <li>DM controls toggle for all players</li>
+      </ul>
+    </div>
+
+    <div class="notes" style="margin: 0">
+      <div class="nt">What renders during combat vs out-of-session?</div>
+      <ul>
+        <li>Out-of-session: hide damage/heal flashes, mini-log, death saves</li>
+        <li>In-session: surface initiative order on cards (highlight current turn)</li>
+        <li>Both: keep HP / AC / temp / concentration visible</li>
+      </ul>
+    </div>
+
+    <div class="notes" style="margin: 0">
+      <div class="nt">Click target — what happens when you tap a card?</div>
+      <ul>
+        <li>Opens the full character sheet</li>
+        <li>Opens a quick-action sheet (apply damage / heal / condition)</li>
+        <li>Toggles expanded state inline</li>
+        <li>DM-only: opens HP-modifier dialog directly</li>
+      </ul>
+    </div>
+
+    <div class="notes" style="margin: 0">
+      <div class="nt">Privacy — what does each player see of the others?</div>
+      <ul>
+        <li>All vitals public (current behavior on PCStub pages)</li>
+        <li>HP redacted to <em>healthy / bloodied / down</em> labels for non-DM viewers</li>
+        <li>DM sees full state; players see compact-only of their own party</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+</div>
+</body>
+</html>

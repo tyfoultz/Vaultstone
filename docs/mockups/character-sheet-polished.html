@@ -1,0 +1,1337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vaultstone — Character Sheet (Polished)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ───────────────────────────────────────────────────────────────────────
+   Vaultstone Noir tokens (mirrored from packages/ui/src/tokens.ts)
+─────────────────────────────────────────────────────────────────────── */
+:root {
+  --surface: #282a2c;
+  --surface-canvas: #121416;
+  --surface-low: #1a1c1e;
+  --surface-container: #1e2022;
+  --surface-high: #282a2c;
+  --surface-highest: #333537;
+  --surface-lowest: #0c0e10;
+
+  --primary: #d3bbff;
+  --primary-container: #6d28d9;
+  --on-primary: #3f008d;
+  --primary-glow: rgba(211, 187, 255, 0.16);
+
+  --secondary: #adc6ff;
+  --tertiary: #cebdff;
+
+  --on-surface: #e2e2e5;
+  --on-surface-variant: #ccc3d7;
+  --outline: #958da1;
+  --outline-variant: #4a4455;
+  --outline-faint: rgba(74, 68, 85, 0.5);
+
+  --hp-healthy: #1d9e75;
+  --hp-warning: #ef9f27;
+  --hp-danger: #e24b4a;
+
+  --gm: #e6a255;
+  --gm-container: #4a2a10;
+  --gm-glow: rgba(230, 162, 85, 0.18);
+
+  --player: #4ec8c0;
+  --player-container: #0b3c39;
+
+  --font-headline: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Manrope', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--surface-canvas);
+  color: var(--on-surface);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+   Mockup page chrome — annotations, frame headers, side-by-side layout
+─────────────────────────────────────────────────────────────────────── */
+.page {
+  max-width: 1640px;
+  margin: 0 auto;
+  padding: 40px 32px 80px;
+}
+.page-header {
+  margin-bottom: 36px;
+}
+.page-eyebrow {
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--outline);
+}
+.page-title {
+  font-family: var(--font-headline);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--on-surface);
+  margin-top: 6px;
+}
+.page-sub {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  margin-top: 6px;
+  max-width: 640px;
+}
+
+.mockup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 40px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .mockup-grid { grid-template-columns: 1fr; }
+}
+
+.mockup-frame {
+  border: 1px solid var(--outline-faint);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-canvas);
+  position: relative;
+}
+.mockup-frame-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--outline);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--outline-faint);
+  background: var(--surface-lowest);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mockup-frame-label .dim { color: var(--outline); opacity: 0.7; }
+
+/* ───────────────────────────────────────────────────────────────────────
+   Shared sheet primitives
+─────────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+  border-radius: 12px;
+  padding: 16px;
+}
+.card-elevated {
+  background: var(--surface-high);
+}
+
+.meta {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--outline);
+}
+.label {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--on-surface-variant);
+}
+.headline {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.divider {
+  height: 1px;
+  background: var(--outline-faint);
+  margin: 16px 0;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--outline-faint);
+  background: var(--surface-low);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+}
+.pill.accent {
+  border-color: rgba(211, 187, 255, 0.4);
+  background: var(--primary-glow);
+  color: var(--primary);
+}
+.pill.gm {
+  border-color: rgba(230, 162, 85, 0.45);
+  background: var(--gm-glow);
+  color: var(--gm);
+}
+
+/* Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--primary-container), #4a18a3);
+  color: white;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(211, 187, 255, 0.3);
+  cursor: pointer;
+}
+.btn-ghost {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--outline-faint);
+  background: transparent;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+   DESKTOP layout
+─────────────────────────────────────────────────────────────────────── */
+.desktop {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 880px;
+  background: var(--surface-canvas);
+}
+
+.desktop-back {
+  padding: 14px 22px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--outline);
+}
+
+/* Header — identity strip with portrait, name, level chip, action rail */
+.desktop-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 8px 22px 18px;
+  border-bottom: 1px solid var(--outline-faint);
+}
+.portrait {
+  width: 96px;
+  height: 128px;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)),
+    radial-gradient(at 50% 30%, #4d3a8c, #1a1430 70%);
+  border: 1px solid var(--outline-faint);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.portrait::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.55));
+}
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.identity-eyebrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.identity-name {
+  font-family: var(--font-headline);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--on-surface);
+  line-height: 1.1;
+}
+.identity-line {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+}
+.identity-line strong { color: var(--on-surface); font-weight: 600; }
+
+.action-rail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lvlchip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--primary-glow);
+  border: 1px solid rgba(211, 187, 255, 0.35);
+}
+.lvlchip-meta { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--primary); opacity: 0.8; }
+.lvlchip-num { font-family: var(--font-headline); font-size: 22px; font-weight: 700; color: var(--primary); line-height: 1; margin-top: 2px; }
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--outline-faint);
+  background: var(--surface-low);
+  color: var(--on-surface-variant);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+.icon-btn.accent { color: var(--primary); border-color: rgba(211,187,255,0.3); background: var(--primary-glow); }
+
+/* Vitals strip — sits under the header, owns HP / AC / Speed / Init / Insp */
+.vitals {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--outline-faint);
+}
+.vital {
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--outline-faint);
+  background: var(--surface-container);
+}
+.vital-label { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--outline); margin-bottom: 6px; }
+.vital-row { display: flex; align-items: baseline; gap: 8px; }
+.vital-num { font-family: var(--font-headline); font-size: 28px; font-weight: 700; color: var(--on-surface); }
+.vital-sub { font-size: 12px; color: var(--on-surface-variant); }
+.vital.hp { background: linear-gradient(135deg, rgba(29,158,117,0.08), rgba(29,158,117,0)); border-color: rgba(29,158,117,0.35); }
+.vital.hp .vital-num { color: var(--hp-healthy); }
+.vital.ac .vital-num { color: var(--secondary); }
+.vital.speed .vital-num { color: var(--tertiary); }
+.hp-bar {
+  margin-top: 10px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+.hp-bar > span {
+  display: block;
+  height: 100%;
+  width: 78%;
+  background: linear-gradient(90deg, var(--hp-healthy), #2bcf95);
+  border-radius: 999px;
+}
+
+/* Body — three-column workspace */
+.workspace {
+  display: grid;
+  grid-template-columns: 220px 1fr 320px;
+  gap: 0;
+  flex: 1;
+}
+
+/* Left rail — abilities + saves */
+.rail-left {
+  border-right: 1px solid var(--outline-faint);
+  padding: 18px 16px 22px;
+  background: linear-gradient(180deg, var(--surface-canvas), var(--surface-canvas) 40%, var(--surface-low));
+}
+.abilities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ability {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--outline-faint);
+  background: var(--surface-container);
+}
+.ability .left { display: flex; flex-direction: column; gap: 2px; }
+.ability-name { font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--on-surface-variant); }
+.ability-score { font-family: var(--font-headline); font-size: 12px; color: var(--outline); }
+.ability-mod {
+  font-family: var(--font-headline);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--on-surface);
+  min-width: 38px;
+  text-align: right;
+}
+.ability.save-prof {
+  border-color: rgba(211,187,255,0.35);
+  background: linear-gradient(135deg, rgba(211,187,255,0.06), var(--surface-container));
+}
+.ability.save-prof .ability-mod { color: var(--primary); }
+
+.save-toggle-row {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Middle column — tabbed core/spells/traits/gear/lore */
+.tabbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 18px 0;
+  border-bottom: 1px solid var(--outline-faint);
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--outline);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: linear-gradient(180deg, var(--primary-glow), transparent);
+}
+.tab .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--gm); display: inline-block; }
+
+.tabpanel {
+  padding: 20px 18px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* Section — used inside tabs */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.section-head .title {
+  font-family: var(--font-headline);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+}
+.section-head .hint { font-size: 11px; color: var(--outline); }
+
+/* Conditions row */
+.conds {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cond { background: var(--surface-low); border: 1px dashed var(--outline-faint); }
+.cond.active {
+  background: linear-gradient(135deg, rgba(226,75,74,0.16), rgba(226,75,74,0.04));
+  border: 1px solid rgba(226,75,74,0.5);
+  color: #ffb4ab;
+}
+
+/* Actions / weapons list */
+.actions-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+}
+.actions-row .name { font-family: var(--font-headline); font-weight: 700; font-size: 13px; color: var(--on-surface); }
+.actions-row .name small { display: block; color: var(--outline); font-family: var(--font-body); font-weight: 500; font-size: 10px; letter-spacing: 0.04em; }
+.actions-row .stat { font-family: var(--font-headline); font-weight: 700; font-size: 13px; color: var(--on-surface); }
+.actions-row .stat .meta { display: block; font-size: 9px; }
+.roll {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: var(--primary-glow);
+  border: 1px solid rgba(211,187,255,0.35);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* Skill grid */
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.skill {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+}
+.skill .pip {
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--outline-faint);
+}
+.skill.prof .pip { background: var(--primary); border-color: var(--primary); }
+.skill.expert .pip { background: var(--gm); border-color: var(--gm); box-shadow: 0 0 0 2px rgba(230,162,85,0.2); }
+.skill .name { font-size: 12px; font-weight: 500; color: var(--on-surface); }
+.skill .ab { font-size: 9px; letter-spacing: 0.12em; color: var(--outline); text-transform: uppercase; }
+.skill .mod { font-family: var(--font-headline); font-weight: 700; font-size: 13px; color: var(--on-surface); min-width: 22px; text-align: right; }
+
+/* Passive row */
+.passives {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.passive {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-low);
+  border: 1px solid var(--outline-faint);
+}
+.passive .label { font-size: 10px; }
+.passive .num { font-family: var(--font-headline); font-weight: 700; color: var(--on-surface); }
+
+/* Right rail — quick context (campaign, conditions summary, activity) */
+.rail-right {
+  border-left: 1px solid var(--outline-faint);
+  padding: 18px 16px 22px;
+  background: linear-gradient(180deg, var(--surface-canvas), var(--surface-canvas) 60%, var(--surface-low));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.campaign-card {
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+}
+.campaign-name {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  color: var(--on-surface);
+  font-size: 13px;
+}
+.campaign-meta { font-size: 11px; color: var(--outline); margin-top: 4px; }
+
+.activity-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.log-row {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-low);
+  border: 1px solid var(--outline-faint);
+}
+.log-row .glyph {
+  width: 26px; height: 26px;
+  border-radius: 999px;
+  background: var(--surface-container);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+}
+.log-row.crit .glyph { background: var(--primary-glow); color: var(--primary); }
+.log-row.heal .glyph { background: rgba(29,158,117,0.18); color: var(--hp-healthy); }
+.log-row .text { font-size: 12px; color: var(--on-surface-variant); }
+.log-row .text strong { color: var(--on-surface); }
+.log-row .ts { font-size: 10px; color: var(--outline); }
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.quick-actions .btn-ghost { width: 100%; text-align: center; padding: 8px 0; }
+
+/* ───────────────────────────────────────────────────────────────────────
+   MOBILE layout
+─────────────────────────────────────────────────────────────────────── */
+.mobile-frame {
+  width: 380px;
+}
+.mobile {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-canvas);
+  min-height: 800px;
+}
+.mobile-chrome {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--outline-faint);
+  align-items: center;
+}
+.mobile-chrome .back { color: var(--on-surface-variant); }
+.mobile-chrome .portrait-small {
+  width: 42px; height: 56px;
+  border-radius: 6px;
+  border: 1px solid var(--outline-faint);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.4)),
+    radial-gradient(at 50% 30%, #4d3a8c, #1a1430 70%);
+}
+.mobile-chrome .name {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  color: var(--on-surface);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.mobile-chrome .sub { font-size: 10px; color: var(--outline); margin-top: 1px; }
+.mobile-chrome .lvlup {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: var(--primary-glow);
+  border: 1px solid rgba(211,187,255,0.3);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile vitals — single row, three cards */
+.m-vitals {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 8px;
+  padding: 12px 14px;
+}
+.m-vital {
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+}
+.m-vital.hp { background: linear-gradient(135deg, rgba(29,158,117,0.10), rgba(29,158,117,0)); border-color: rgba(29,158,117,0.35); }
+.m-vital .lbl { font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--outline); }
+.m-vital .num { font-family: var(--font-headline); font-size: 20px; font-weight: 700; color: var(--on-surface); line-height: 1.1; margin-top: 2px; }
+.m-vital.hp .num { color: var(--hp-healthy); }
+.m-vital .sub { font-size: 10px; color: var(--on-surface-variant); }
+
+/* Mobile ability row — horizontal scroll */
+.m-abilities {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px 12px;
+  overflow-x: auto;
+}
+.m-ability {
+  flex: 0 0 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 6px;
+  border-radius: 10px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+}
+.m-ability.prof { border-color: rgba(211,187,255,0.4); background: linear-gradient(135deg, rgba(211,187,255,0.08), var(--surface-container)); }
+.m-ability .ab { font-size: 9px; letter-spacing: 0.16em; color: var(--outline); }
+.m-ability .mod { font-family: var(--font-headline); font-size: 18px; font-weight: 700; color: var(--on-surface); }
+.m-ability.prof .mod { color: var(--primary); }
+.m-ability .score { font-size: 10px; color: var(--outline); }
+
+/* Mobile tab bar (sticky bottom) */
+.m-tabs {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 8px;
+  border-top: 1px solid var(--outline-faint);
+  background: var(--surface-lowest);
+  position: sticky;
+  bottom: 0;
+}
+.m-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--outline);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.m-tab .ic { font-size: 16px; }
+.m-tab.active { color: var(--primary); }
+
+/* Mobile section content */
+.m-content {
+  padding: 8px 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
+/* Mobile compact row primitives */
+.row-card {
+  border-radius: 10px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+  padding: 12px;
+}
+.row-card .head { display: flex; align-items: center; justify-content: space-between; }
+
+.m-skills-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.m-skill {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface-low);
+  border: 1px solid var(--outline-faint);
+  border-radius: 8px;
+  font-size: 11px;
+}
+.m-skill .pip {
+  width: 6px; height: 6px; border-radius: 999px;
+  border: 1px solid var(--outline-faint);
+}
+.m-skill.prof .pip { background: var(--primary); border-color: var(--primary); }
+.m-skill .mod { font-family: var(--font-headline); font-weight: 700; color: var(--on-surface); }
+
+.m-action {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface-low);
+  border-radius: 8px;
+  border: 1px solid var(--outline-faint);
+}
+.m-action .nm { font-family: var(--font-headline); font-weight: 700; font-size: 12px; }
+.m-action .nm small { display: block; color: var(--outline); font-size: 9px; font-weight: 500; letter-spacing: 0.04em; }
+.m-action .roll { width: 28px; height: 28px; font-size: 12px; }
+
+/* ───────────────────────────────────────────────────────────────────────
+   Annotation callouts (right column on the page)
+─────────────────────────────────────────────────────────────────────── */
+.notes {
+  position: sticky;
+  top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.note {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-faint);
+}
+.note-title {
+  font-family: var(--font-headline);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--on-surface);
+  margin-bottom: 6px;
+}
+.note-body {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  line-height: 1.55;
+}
+.note ul { list-style: none; padding: 0; margin-top: 6px; }
+.note li {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  padding: 4px 0;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.note li::before {
+  content: '';
+  width: 4px; height: 4px;
+  border-radius: 999px;
+  background: var(--primary);
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+
+/* Inline icon glyphs (CSS-only) */
+.ic {
+  width: 1em; height: 1em;
+  display: inline-block;
+  vertical-align: middle;
+}
+.glyph-skull::before { content: '☠'; }
+.glyph-shield::before { content: '🛡'; }
+.glyph-bolt::before { content: '⚡'; }
+.glyph-dice::before { content: '⚄'; }
+.glyph-heart::before { content: '❤'; }
+.glyph-spark::before { content: '✦'; }
+.glyph-eye::before { content: '👁'; }
+.glyph-book::before { content: '📖'; }
+.glyph-sword::before { content: '⚔'; }
+.glyph-bag::before { content: '🎒'; }
+.glyph-feat::before { content: '✦'; }
+.glyph-flame::before { content: '🔥'; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<header class="page-header">
+  <div class="page-eyebrow">Vaultstone · design exploration</div>
+  <h1 class="page-title">Character sheet — polished pass</h1>
+  <p class="page-sub">
+    Aesthetic-first take using the Noir tokens. Same data and tab structure
+    as the current sheet (Core merging Combat + Skills), but with stronger
+    typography hierarchy, deeper card depth, accent treatments on saves /
+    level-up / vitals, and a dedicated quick-context rail on desktop. Not
+    pixel-perfect — these are sketches to react to.
+  </p>
+</header>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     DESKTOP MOCKUP
+════════════════════════════════════════════════════════════════════ -->
+<div class="mockup-grid">
+<section class="mockup-frame">
+  <header class="mockup-frame-label">
+    <span>Desktop · ~1280 viewport · Core tab</span>
+    <span class="dim">Default left rail / middle workspace / right rail</span>
+  </header>
+
+  <div class="desktop">
+    <div class="desktop-back">← Back to characters</div>
+
+    <!-- Identity header -->
+    <header class="desktop-header">
+      <div class="portrait" aria-hidden="true"></div>
+
+      <div class="identity">
+        <div class="identity-eyebrow">
+          <span class="meta">Player Character</span>
+          <span class="pill">Owlin · Artificer 3</span>
+          <span class="pill accent">Lawful Good</span>
+        </div>
+        <div class="identity-name">Oz</div>
+        <div class="identity-line">
+          <strong>Archaeologist</strong> background ·
+          Proficiency <strong>+2</strong> ·
+          Inspiration <strong style="color:var(--gm)">●</strong>
+        </div>
+      </div>
+
+      <div class="action-rail">
+        <div class="lvlchip">
+          <span class="lvlchip-meta">Level</span>
+          <span class="lvlchip-num">3</span>
+        </div>
+        <button class="icon-btn accent" title="Level up"><span class="ic glyph-spark"></span></button>
+        <button class="icon-btn" title="Activity log"><span class="ic glyph-book"></span></button>
+        <button class="icon-btn" title="Settings">⚙</button>
+      </div>
+    </header>
+
+    <!-- Vitals strip -->
+    <div class="vitals">
+      <div class="vital hp">
+        <div class="vital-label">Hit Points</div>
+        <div class="vital-row">
+          <span class="vital-num">24</span>
+          <span class="vital-sub">/ 31</span>
+          <span style="margin-left:auto" class="pill" title="Temp HP">+5 temp</span>
+        </div>
+        <div class="hp-bar"><span></span></div>
+      </div>
+      <div class="vital ac">
+        <div class="vital-label">Armor Class</div>
+        <div class="vital-row"><span class="vital-num">15</span></div>
+      </div>
+      <div class="vital">
+        <div class="vital-label">Initiative</div>
+        <div class="vital-row"><span class="vital-num">+2</span></div>
+      </div>
+      <div class="vital speed">
+        <div class="vital-label">Speed</div>
+        <div class="vital-row"><span class="vital-num">30</span><span class="vital-sub">fly 30</span></div>
+      </div>
+      <div class="vital">
+        <div class="vital-label">Prof. Bonus</div>
+        <div class="vital-row"><span class="vital-num">+2</span></div>
+      </div>
+    </div>
+
+    <!-- 3-column workspace -->
+    <div class="workspace">
+      <!-- Left rail — abilities + saves -->
+      <aside class="rail-left">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span class="meta">Ability Scores</span>
+          <span class="label" style="color:var(--outline)">Saves</span>
+        </div>
+        <div class="abilities-list">
+          <div class="ability">
+            <div class="left">
+              <span class="ability-name">STR</span>
+              <span class="ability-score">10</span>
+            </div>
+            <div class="ability-mod">+0</div>
+          </div>
+          <div class="ability">
+            <div class="left">
+              <span class="ability-name">DEX</span>
+              <span class="ability-score">14</span>
+            </div>
+            <div class="ability-mod">+2</div>
+          </div>
+          <div class="ability save-prof">
+            <div class="left">
+              <span class="ability-name">CON</span>
+              <span class="ability-score">13</span>
+            </div>
+            <div class="ability-mod">+3</div>
+          </div>
+          <div class="ability save-prof">
+            <div class="left">
+              <span class="ability-name">INT</span>
+              <span class="ability-score">17</span>
+            </div>
+            <div class="ability-mod">+5</div>
+          </div>
+          <div class="ability">
+            <div class="left">
+              <span class="ability-name">WIS</span>
+              <span class="ability-score">12</span>
+            </div>
+            <div class="ability-mod">+1</div>
+          </div>
+          <div class="ability">
+            <div class="left">
+              <span class="ability-name">CHA</span>
+              <span class="ability-score">8</span>
+            </div>
+            <div class="ability-mod">-1</div>
+          </div>
+        </div>
+
+        <div class="save-toggle-row">
+          <span class="meta" style="font-size:9px">Show saves</span>
+          <span class="pill accent">on</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="meta">Senses</div>
+        <div style="margin-top:8px;font-size:12px;color:var(--on-surface-variant);line-height:1.6">
+          Darkvision 120 ft.<br>
+          Passive Perception <strong style="color:var(--on-surface)">11</strong>
+        </div>
+      </aside>
+
+      <!-- Middle workspace -->
+      <main>
+        <!-- Tab bar -->
+        <div class="tabbar">
+          <span class="tab active"><span class="ic glyph-sword"></span> Core</span>
+          <span class="tab"><span class="ic glyph-flame"></span> Spells <span class="dot" title="2 cantrips owed"></span></span>
+          <span class="tab"><span class="ic glyph-feat"></span> Traits</span>
+          <span class="tab"><span class="ic glyph-bag"></span> Gear</span>
+          <span class="tab"><span class="ic glyph-book"></span> Lore</span>
+        </div>
+
+        <!-- Tab content -->
+        <div class="tabpanel">
+          <!-- Conditions -->
+          <section class="section">
+            <div class="section-head">
+              <span class="title">Conditions</span>
+              <span class="hint">tap to toggle</span>
+            </div>
+            <div class="conds">
+              <span class="pill cond">Blinded</span>
+              <span class="pill cond">Charmed</span>
+              <span class="pill cond active">Frightened</span>
+              <span class="pill cond">Grappled</span>
+              <span class="pill cond">Poisoned</span>
+              <span class="pill cond">Prone</span>
+              <span class="pill cond">+ 7 more</span>
+            </div>
+          </section>
+
+          <!-- Actions / weapons -->
+          <section class="section">
+            <div class="section-head">
+              <span class="title">Actions</span>
+              <span class="hint">attacks + features</span>
+            </div>
+            <div class="actions-row">
+              <div class="name">Light Crossbow <small>1d8 piercing · 80 / 320 ft.</small></div>
+              <div class="stat">+5<span class="meta">atk</span></div>
+              <div class="stat">1d8+2<span class="meta">dmg</span></div>
+              <button class="roll" title="Roll attack">⚄</button>
+            </div>
+            <div class="actions-row">
+              <div class="name">Dagger <small>1d4 piercing · finesse, thrown 20/60</small></div>
+              <div class="stat">+4<span class="meta">atk</span></div>
+              <div class="stat">1d4+2<span class="meta">dmg</span></div>
+              <button class="roll" title="Roll attack">⚄</button>
+            </div>
+            <div class="actions-row" style="background:var(--surface-low);border-style:dashed;">
+              <div class="name">Magical Tinkering <small>Bonus action · INT save DC 13</small></div>
+              <div class="stat" style="color:var(--gm)">Feature</div>
+              <div></div>
+              <button class="roll" title="Use">⚄</button>
+            </div>
+          </section>
+
+          <!-- Skills -->
+          <section class="section">
+            <div class="section-head">
+              <span class="title">Skills</span>
+              <span class="hint">3 proficient · 1 expertise</span>
+            </div>
+            <div class="skills-grid">
+              <div class="skill"><span class="pip"></span><div><div class="name">Acrobatics</div><div class="ab">DEX</div></div><span></span><span class="mod">+2</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Animal Handling</div><div class="ab">WIS</div></div><span></span><span class="mod">+1</span></div>
+              <div class="skill prof"><span class="pip"></span><div><div class="name">Arcana</div><div class="ab">INT</div></div><span></span><span class="mod">+7</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Athletics</div><div class="ab">STR</div></div><span></span><span class="mod">+0</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Deception</div><div class="ab">CHA</div></div><span></span><span class="mod">-1</span></div>
+              <div class="skill prof"><span class="pip"></span><div><div class="name">History</div><div class="ab">INT</div></div><span></span><span class="mod">+5</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Insight</div><div class="ab">WIS</div></div><span></span><span class="mod">+1</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Intimidation</div><div class="ab">CHA</div></div><span></span><span class="mod">-1</span></div>
+              <div class="skill expert"><span class="pip"></span><div><div class="name">Investigation</div><div class="ab">INT</div></div><span></span><span class="mod">+9</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Medicine</div><div class="ab">WIS</div></div><span></span><span class="mod">+1</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Nature</div><div class="ab">INT</div></div><span></span><span class="mod">+3</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Perception</div><div class="ab">WIS</div></div><span></span><span class="mod">+1</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Performance</div><div class="ab">CHA</div></div><span></span><span class="mod">-1</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Persuasion</div><div class="ab">CHA</div></div><span></span><span class="mod">-1</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Religion</div><div class="ab">INT</div></div><span></span><span class="mod">+3</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Sleight of Hand</div><div class="ab">DEX</div></div><span></span><span class="mod">+2</span></div>
+              <div class="skill prof"><span class="pip"></span><div><div class="name">Stealth</div><div class="ab">DEX</div></div><span></span><span class="mod">+4</span></div>
+              <div class="skill"><span class="pip"></span><div><div class="name">Survival</div><div class="ab">WIS</div></div><span></span><span class="mod">+1</span></div>
+            </div>
+
+            <div class="passives">
+              <div class="passive"><span class="label">Passive Perception</span><span class="num">11</span></div>
+              <div class="passive"><span class="label">Passive Investigation</span><span class="num">19</span></div>
+              <div class="passive"><span class="label">Passive Insight</span><span class="num">11</span></div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <!-- Right rail -->
+      <aside class="rail-right">
+        <div>
+          <div class="meta" style="margin-bottom:8px">Campaign</div>
+          <div class="campaign-card">
+            <div class="campaign-name">Lost Mines of Phandelver</div>
+            <div class="campaign-meta">DM: Tyler · Session 7 · Sun 7pm</div>
+            <div style="display:flex;gap:6px;margin-top:10px;">
+              <span class="pill">Party of 4</span>
+              <span class="pill gm">In session</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span class="meta">Activity</span>
+            <span class="label">today</span>
+          </div>
+          <div class="activity-log">
+            <div class="log-row heal">
+              <span class="glyph">❤</span>
+              <span class="text">Healed <strong>+8 HP</strong> from Healing Word</span>
+              <span class="ts">2m</span>
+            </div>
+            <div class="log-row crit">
+              <span class="glyph">✦</span>
+              <span class="text">Critical hit <strong>+12 dmg</strong> on Light Crossbow</span>
+              <span class="ts">11m</span>
+            </div>
+            <div class="log-row">
+              <span class="glyph">⚄</span>
+              <span class="text">DEX save <strong>14</strong> vs goblin's net</span>
+              <span class="ts">18m</span>
+            </div>
+            <div class="log-row">
+              <span class="glyph">⚔</span>
+              <span class="text">Damage <strong>−6 HP</strong> from goblin arrow</span>
+              <span class="ts">23m</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="meta" style="margin-bottom:8px">Quick actions</div>
+          <div class="quick-actions">
+            <button class="btn-ghost">Short Rest</button>
+            <button class="btn-ghost">Long Rest</button>
+            <button class="btn-ghost">Roll d20</button>
+            <button class="btn-ghost">Manage Spells</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     NOTES on the desktop pass
+════════════════════════════════════════════════════════════════════ -->
+<aside class="notes">
+  <div class="note">
+    <div class="note-title">Desktop changes worth reacting to</div>
+    <div class="note-body">
+      <ul>
+        <li><strong>Vitals strip</strong> moved up to live directly under the identity row — HP, AC, Init, Speed, Prof. Most-glanced data is always in the same spot regardless of tab.</li>
+        <li><strong>Ability rail</strong> stays narrow on the left, saves shown via accented border + colored mod. No separate "Saves" sub-section needed.</li>
+        <li><strong>Right rail</strong> now carries campaign context + recent activity log + quick rest buttons. Replaces the current Skills-on-the-right pane.</li>
+        <li><strong>Level-up</strong> is an accented icon in the action rail — the chip displays the current level so the tap target is unambiguous.</li>
+        <li><strong>Tab dots</strong> show "owed picks" (e.g. unspent cantrips on Spells) without expanding the tab.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <div class="note-title">Direction still up for grabs</div>
+    <div class="note-body">
+      <ul>
+        <li>Whether the right rail should be collapsible (currently always-on).</li>
+        <li>Where the "edit name / portrait" affordance lands — currently nowhere visible.</li>
+        <li>Inspiration as a glow-pip vs an explicit toggle.</li>
+        <li>How the Conditions row should behave at scale (16+ conditions): chip wrap as shown, or a separate modal.</li>
+      </ul>
+    </div>
+  </div>
+</aside>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     MOBILE MOCKUP
+════════════════════════════════════════════════════════════════════ -->
+<div class="mockup-grid" style="margin-top:60px">
+
+<section class="mockup-frame mobile-frame">
+  <header class="mockup-frame-label">
+    <span>Mobile · 380w · Core tab</span>
+    <span class="dim">Sticky bottom tab bar</span>
+  </header>
+
+  <div class="mobile">
+    <header class="mobile-chrome">
+      <span class="back">←</span>
+      <div class="portrait-small" aria-hidden="true"></div>
+      <div>
+        <div class="name">Oz</div>
+        <div class="sub">Owlin Artificer · Lvl 3</div>
+      </div>
+      <span class="lvlup" title="Level up">✦</span>
+    </header>
+
+    <div class="m-vitals">
+      <div class="m-vital hp">
+        <div class="lbl">Hit Points</div>
+        <div class="num">24 / 31</div>
+        <div class="sub">+5 temp</div>
+        <div class="hp-bar" style="margin-top:6px;height:5px;"><span></span></div>
+      </div>
+      <div class="m-vital">
+        <div class="lbl">AC</div>
+        <div class="num" style="color:var(--secondary)">15</div>
+        <div class="sub">init +2</div>
+      </div>
+      <div class="m-vital">
+        <div class="lbl">Speed</div>
+        <div class="num" style="color:var(--tertiary)">30</div>
+        <div class="sub">fly 30</div>
+      </div>
+    </div>
+
+    <div class="m-abilities">
+      <div class="m-ability"><span class="ab">STR</span><span class="mod">+0</span><span class="score">10</span></div>
+      <div class="m-ability"><span class="ab">DEX</span><span class="mod">+2</span><span class="score">14</span></div>
+      <div class="m-ability prof"><span class="ab">CON</span><span class="mod">+3</span><span class="score">13</span></div>
+      <div class="m-ability prof"><span class="ab">INT</span><span class="mod">+5</span><span class="score">17</span></div>
+      <div class="m-ability"><span class="ab">WIS</span><span class="mod">+1</span><span class="score">12</span></div>
+      <div class="m-ability"><span class="ab">CHA</span><span class="mod">-1</span><span class="score">8</span></div>
+    </div>
+
+    <div class="m-content">
+      <!-- Conditions -->
+      <section class="row-card">
+        <div class="head">
+          <span class="meta">Conditions</span>
+          <span class="label">tap to toggle</span>
+        </div>
+        <div class="conds" style="margin-top:8px">
+          <span class="pill cond active">Frightened</span>
+          <span class="pill cond">+ 14 more</span>
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <section>
+        <div class="head" style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+          <span class="meta">Actions</span>
+          <span class="label">attacks + features</span>
+        </div>
+        <div class="m-action" style="margin-bottom:6px">
+          <div class="nm">Light Crossbow <small>1d8 pierce</small></div>
+          <div class="stat" style="font-family:var(--font-headline);font-weight:700;color:var(--on-surface)">+5 / 1d8+2</div>
+          <button class="roll" title="Roll">⚄</button>
+        </div>
+        <div class="m-action" style="margin-bottom:6px">
+          <div class="nm">Dagger <small>1d4 finesse</small></div>
+          <div class="stat" style="font-family:var(--font-headline);font-weight:700;color:var(--on-surface)">+4 / 1d4+2</div>
+          <button class="roll" title="Roll">⚄</button>
+        </div>
+        <div class="m-action" style="background:var(--surface-container);border-style:dashed;">
+          <div class="nm">Magical Tinkering <small>Bonus action</small></div>
+          <div style="color:var(--gm);font-size:11px;font-weight:700">Feature</div>
+          <button class="roll" title="Use">⚄</button>
+        </div>
+      </section>
+
+      <!-- Skills (compact 2-column) -->
+      <section>
+        <div class="head" style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+          <span class="meta">Skills</span>
+          <span class="label">3 prof · 1 exp</span>
+        </div>
+        <div class="m-skills-grid">
+          <div class="m-skill prof"><span class="pip"></span><span>Arcana</span><span class="mod">+7</span></div>
+          <div class="m-skill prof"><span class="pip"></span><span>History</span><span class="mod">+5</span></div>
+          <div class="m-skill" style="border-color:rgba(230,162,85,0.5);background:rgba(230,162,85,0.06)"><span class="pip" style="background:var(--gm);border-color:var(--gm)"></span><span>Investigation</span><span class="mod" style="color:var(--gm)">+9</span></div>
+          <div class="m-skill prof"><span class="pip"></span><span>Stealth</span><span class="mod">+4</span></div>
+          <div class="m-skill"><span class="pip"></span><span>Acrobatics</span><span class="mod">+2</span></div>
+          <div class="m-skill"><span class="pip"></span><span>Perception</span><span class="mod">+1</span></div>
+          <div class="m-skill"><span class="pip"></span><span>Insight</span><span class="mod">+1</span></div>
+          <div class="m-skill"><span class="pip"></span><span>Athletics</span><span class="mod">+0</span></div>
+        </div>
+        <button class="btn-ghost" style="margin-top:8px;width:100%">Show all 18 skills</button>
+      </section>
+
+      <!-- Quick rest row -->
+      <section style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn-ghost">Short Rest</button>
+        <button class="btn-ghost">Long Rest</button>
+      </section>
+    </div>
+
+    <!-- Sticky tab bar -->
+    <nav class="m-tabs">
+      <span class="m-tab active"><span class="ic glyph-sword"></span>Core</span>
+      <span class="m-tab"><span class="ic glyph-flame"></span>Spells</span>
+      <span class="m-tab"><span class="ic glyph-feat"></span>Traits</span>
+      <span class="m-tab"><span class="ic glyph-bag"></span>Gear</span>
+      <span class="m-tab"><span class="ic glyph-book"></span>Lore</span>
+    </nav>
+  </div>
+</section>
+
+<aside class="notes">
+  <div class="note">
+    <div class="note-title">Mobile changes worth reacting to</div>
+    <div class="note-body">
+      <ul>
+        <li><strong>Header compresses</strong> portrait + name + level-up into one row. Identity stays compact so vitals + abilities fit on first scroll.</li>
+        <li><strong>Ability row scrolls horizontally</strong> — six tiles, swipable, less vertical real estate than a 2×3 grid.</li>
+        <li><strong>Skills shows top 8 by default</strong>, expand button reveals the full 18. Most sheets are read-only browsing for skills; the long list is rarely scanned in full on phone.</li>
+        <li><strong>Bottom tab bar is sticky</strong>, replaces the current top tab strip — same Core/Spells/Traits/Gear/Lore.</li>
+        <li><strong>Conditions collapse</strong> to active-only + a "+ N more" affordance to open a sheet picker.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <div class="note-title">What I deliberately didn't change</div>
+    <div class="note-body">
+      Tab structure stays as the new Core/Spells/Traits/Gear/Lore set. Section content
+      (actions, skills, conditions, etc.) is the same data your tabs already render. The
+      polish is in <em>density, hierarchy, accent treatment, and stickiness of vitals</em>
+      — not in adding or moving features.
+    </div>
+  </div>
+</aside>
+</div>
+
+</div>
+</body>
+</html>

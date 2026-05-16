@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Prepared Spells — Mockup Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --surface: #121416;
+    --surface-container: #1e2022;
+    --surface-container-high: #282a2c;
+    --surface-container-highest: #333537;
+    --primary: #d3bbff;
+    --primary-container: #6d28d9;
+    --on-primary: #3f008d;
+    --on-surface: #e2e2e5;
+    --on-surface-variant: #ccc3d7;
+    --outline: #958da1;
+    --outline-variant: #4a4455;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: 'Manrope', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  body {
+    background:
+      radial-gradient(1100px 700px at 30% 20%, rgba(109, 40, 217, 0.10), transparent 60%),
+      radial-gradient(900px 600px at 80% 90%, rgba(109, 40, 217, 0.08), transparent 60%),
+      var(--surface);
+    padding: 60px 24px;
+  }
+  .container {
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  .eyebrow {
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--primary);
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 40px;
+    margin: 0 0 12px;
+    letter-spacing: -0.3px;
+  }
+  .lede {
+    color: var(--on-surface-variant);
+    font-size: 16px;
+    line-height: 1.55;
+    max-width: 720px;
+    margin-bottom: 48px;
+  }
+  .lede strong { color: var(--on-surface); }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+  a.card {
+    display: block;
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
+    border-radius: 14px;
+    padding: 24px 26px 22px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s, transform 0.05s, background 0.15s;
+  }
+  a.card:hover {
+    border-color: rgba(211, 187, 255, 0.4);
+    background: var(--surface-container-high);
+  }
+  .card-num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    color: var(--primary);
+    font-size: 13px;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .card-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 22px;
+    margin: 0 0 8px;
+    color: var(--on-surface);
+  }
+  .card-pitch {
+    color: var(--on-surface-variant);
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0 0 14px;
+  }
+  .card-tags {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .tag {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant);
+  }
+  .footer-note {
+    margin-top: 56px;
+    color: var(--on-surface-variant);
+    font-size: 13px;
+    border-top: 1px solid var(--outline-variant);
+    padding-top: 20px;
+    line-height: 1.6;
+  }
+  .footer-note strong { color: var(--primary); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="eyebrow">Vaultstone &middot; Mockup Review</div>
+  <h1>Prepared Spells &mdash; List Concepts</h1>
+  <p class="lede">
+    Six alternate layouts for the <strong>prepared spells list</strong> on the character sheet's Spells tab.
+    All six use Vaultstone's <strong>Magical Midnight</strong> Noir palette plus Space Grotesk + Manrope (with
+    serif accents on #3 / #4 / #5). Same sample loadout across every mockup &mdash; cantrips, three 1st-level
+    spells (3 / 4 slots), two 2nd-level spells (2 / 2 slots) &mdash; so visual comparisons are direct.
+  </p>
+
+  <div class="grid">
+    <a class="card" href="01-clean-rows.html">
+      <div class="card-num">01</div>
+      <h2 class="card-title">Clean Rows</h2>
+      <p class="card-pitch">Clean, modern hairline-separated rows. Name + school chip + optional badges in the header, one-line meta strip with labels, indented description. No table headers, no duplicate fields.</p>
+      <div class="card-tags">
+        <span class="tag">Borderless</span>
+        <span class="tag">Modern</span>
+        <span class="tag">Always-expanded</span>
+      </div>
+    </a>
+
+    <a class="card" href="02-bordered-cards.html">
+      <div class="card-num">02</div>
+      <h2 class="card-title">Bordered Cards</h2>
+      <p class="card-pitch">Same content as #01 but each spell wrapped in a rounded surface card. Heavier separation reads as a "stat block" feel, and hover lifts each row distinctly.</p>
+      <div class="card-tags">
+        <span class="tag">Card-based</span>
+        <span class="tag">Hoverable</span>
+        <span class="tag">Always-expanded</span>
+      </div>
+    </a>
+
+    <a class="card" href="03-spellbook-parchment.html">
+      <div class="card-num">03</div>
+      <h2 class="card-title">Spellbook &mdash; Parchment</h2>
+      <p class="card-pitch">Aged-parchment slab on the dark canvas. Italic IM Fell English spell names, Cinzel level dividers with ornamental flourishes, glowing slot stones, drop-cap descriptions. Immersive PHB feel.</p>
+      <div class="card-tags">
+        <span class="tag">Immersive</span>
+        <span class="tag">Serif</span>
+        <span class="tag">Parchment</span>
+      </div>
+    </a>
+
+    <a class="card" href="04-spellbook-arcane.html">
+      <div class="card-num">04</div>
+      <h2 class="card-title">Spellbook &mdash; Arcane Tome</h2>
+      <p class="card-pitch">Dark moody tome instead of parchment. Purple-tinted gradient, Uncial Antiqua / MedievalSharp display serifs with a soft glow, sigil glyphs flanking section headers, glowing rune-stone slot pips. Same content as #03 but moodier.</p>
+      <div class="card-tags">
+        <span class="tag">Immersive</span>
+        <span class="tag">Arcane</span>
+        <span class="tag">On-brand purple</span>
+      </div>
+    </a>
+
+    <a class="card" href="05-grimoire-tabs.html">
+      <div class="card-num">05</div>
+      <h2 class="card-title">Grimoire Side-Tabs</h2>
+      <p class="card-pitch">Vertical level tabs running down the spine, parchment page on the right showing only the selected level. Mimics flipping pages in a grimoire — great for casters with deep loadouts who don't want to scroll past every level.</p>
+      <div class="card-tags">
+        <span class="tag">Side-tabs</span>
+        <span class="tag">One level at a time</span>
+        <span class="tag">Interactive</span>
+      </div>
+    </a>
+
+    <a class="card" href="06-compact-list.html">
+      <div class="card-num">06</div>
+      <h2 class="card-title">Compact List</h2>
+      <p class="card-pitch">Information-dense two-line rows for fast scanning. Click a row to expand the full description &amp; meta grid. Both collapsed and expanded states shown side-by-side. Good for high-prepared-count loadouts.</p>
+      <div class="card-tags">
+        <span class="tag">Dense</span>
+        <span class="tag">Click-to-expand</span>
+        <span class="tag">Scan-first</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="footer-note">
+    <strong>Currently shipped:</strong> always-expanded blocks with a redundant table header row + inline meta grid that duplicates the table columns + the description. These six explore cleaner alternatives ranging from minimal modern (#01-#02) to immersive spellbook (#03-#05) to information-dense (#06).
+  </div>
+</div>
+</body>
+</html>

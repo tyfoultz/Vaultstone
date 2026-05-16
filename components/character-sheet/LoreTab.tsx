@@ -1,12 +1,56 @@
-import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { useRef, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type {
   Dnd5eStats, Dnd5eResources, Dnd5ePersonality, Dnd5eAppearance, Dnd5eJournalEntry,
 } from '@vaultstone/types';
+import { BodyEditor } from '../world/BodyEditor';
 
-type SubTab = 'personality' | 'identity' | 'journal';
+type SubTab = 'about' | 'journal';
+
+/**
+ * Strip the imported-content prefix and SRD edition suffix from a
+ * raw content key, then title-case the remainder.
+ *
+ *   imported_dnd5e_2014_species_phb_dwarf → "Dwarf"
+ *   wizard-srd-2-0 → "Wizard"
+ *   half-elf → "Half Elf"
+ *
+ * Mirrors the prettifyKey used in CampaignMembersCard / PartyMemberCard
+ * so identity rows read as human content names instead of raw lookups.
+ */
+function prettifyKey(key: string | null | undefined): string | null {
+  if (!key) return null;
+  let s = key;
+  const importedMatch = s.match(/^imported_[^_]+_[^_]+_[^_]+_[^_]+_(.+)$/);
+  if (importedMatch) s = importedMatch[1];
+  s = s.replace(/-srd-[\d-]+$/i, '');
+  return s
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+/**
+ * Convert plaintext to a minimal Tiptap doc — used to hydrate the rich
+ * editor with an older journal entry's body string when no `bodyDoc`
+ * is stored yet. Blank-line-separated chunks become paragraphs.
+ */
+function plainTextToDoc(text: string | undefined | null): object | null {
+  if (!text) return null;
+  const chunks = text.split(/\n{2,}/);
+  return {
+    type: 'doc',
+    content: chunks.length > 0
+      ? chunks.map((chunk) => ({
+          type: 'paragraph',
+          content: chunk ? [{ type: 'text', text: chunk }] : [],
+        }))
+      : [{ type: 'paragraph' }],
+  };
+}
 
 interface Props {
   stats: Dnd5eStats;
@@ -14,24 +58,30 @@ interface Props {
   isOwner: boolean;
   onPersonalityChange?: (field: keyof Dnd5ePersonality, value: string) => void;
   onAppearanceChange?: (field: keyof Dnd5eAppearance, value: string) => void;
-  onAddJournalEntry?: () => void;
-  onEditJournalEntry?: (entry: Dnd5eJournalEntry) => void;
+  /** Persist the full journal array. Called on add, edit, and delete
+   *  with the next-state list; the host writes it back to the
+   *  character's resources. */
+  onUpdateJournal?: (entries: Dnd5eJournalEntry[]) => void;
 }
 
 export function LoreTab({
   stats, resources, isOwner,
-  onPersonalityChange, onAppearanceChange, onAddJournalEntry, onEditJournalEntry,
+  onPersonalityChange, onAppearanceChange, onUpdateJournal,
 }: Props) {
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('personality');
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>('journal');
   const personality = resources.personality ?? {};
   const appearance = resources.appearance ?? {};
   const journal = resources.journal ?? [];
 
   return (
     <View style={s.root}>
-      {/* Sub-tab bar */}
+      {/* Sub-tab bar — Personality + Identity merged into "About"
+          since both surface character-defining context and read as a
+          single narrative from identity card → appearance → personality
+          fields. Journal stays separate since it's session-by-session
+          play log content. */}
       <View style={s.subTabBar}>
-        {(['personality', 'identity', 'journal'] as const).map((tab) => (
+        {(['about', 'journal'] as const).map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[s.subTabBtn, activeSubTab === tab && s.subTabBtnActive]}
@@ -45,28 +95,22 @@ export function LoreTab({
         ))}
       </View>
 
-      {activeSubTab === 'personality' && (
-        <PersonalityPane
-          personality={personality}
-          isOwner={isOwner}
-          onChange={onPersonalityChange}
-        />
-      )}
-      {activeSubTab === 'identity' && (
-        <IdentityPane
+      {activeSubTab === 'about' && (
+        <AboutPane
           stats={stats}
+          personality={personality}
           appearance={appearance}
           xp={resources.xp}
           isOwner={isOwner}
-          onChange={onAppearanceChange}
+          onPersonalityChange={onPersonalityChange}
+          onAppearanceChange={onAppearanceChange}
         />
       )}
       {activeSubTab === 'journal' && (
         <JournalPane
           entries={journal}
           isOwner={isOwner}
-          onAdd={onAddJournalEntry}
-          onEdit={onEditJournalEntry}
+          onUpdate={onUpdateJournal}
         />
       )}
     </View>
@@ -80,39 +124,16 @@ const PERSONALITY_FIELDS: Array<{ key: keyof Dnd5ePersonality; label: string; pl
   { key: 'ideals',   label: 'Ideals',              placeholder: 'What beliefs drive them?' },
   { key: 'bonds',    label: 'Bonds',               placeholder: 'What ties them to the world?' },
   { key: 'flaws',    label: 'Flaws',               placeholder: 'What weakness or vice haunts them?' },
+  { key: 'goals',    label: 'Goals',               placeholder: 'Short-term and long-term ambitions…' },
   { key: 'backstory',label: 'Backstory',            placeholder: 'Where did they come from?', tall: true },
-  { key: 'allies',   label: 'Allies & Enemies',    placeholder: 'Friends, rivals, mentors…' },
-  { key: 'faction',  label: 'Organization',        placeholder: 'Guild, order, or faction affiliation' },
+  // "Allies, Enemies & Organizations" merges the old separate
+  // Organization (faction) field into a single relationships block.
+  // Legacy `personality.faction` values still surface on save via
+  // the back-compat migration below.
+  { key: 'allies',   label: 'Allies, Enemies & Organizations', placeholder: 'Friends, rivals, mentors, guilds, orders…', tall: true },
 ];
 
-function PersonalityPane({ personality, isOwner, onChange }: {
-  personality: Dnd5ePersonality;
-  isOwner: boolean;
-  onChange?: (field: keyof Dnd5ePersonality, value: string) => void;
-}) {
-  return (
-    <ScrollView contentContainerStyle={s.paneContainer} showsVerticalScrollIndicator={false}>
-      {PERSONALITY_FIELDS.map((f) => (
-        <View key={f.key} style={s.fieldBlock}>
-          <Text style={s.fieldLabel}>{f.label.toUpperCase()}</Text>
-          <TextInput
-            style={[s.fieldInput, f.tall && s.fieldInputTall]}
-            value={personality[f.key] ?? ''}
-            onChangeText={isOwner ? (v) => onChange?.(f.key, v) : undefined}
-            editable={isOwner}
-            multiline
-            placeholder={isOwner ? f.placeholder : '—'}
-            placeholderTextColor={colors.outline}
-            textAlignVertical="top"
-          />
-        </View>
-      ))}
-      <View style={{ height: 16 }} />
-    </ScrollView>
-  );
-}
-
-// ── Identity pane ────────────────────────────────────────────────────────────
+// ── About pane (merged Personality + Identity) ───────────────────────────────
 
 const ALIGNMENT_OPTIONS = [
   'Lawful Good', 'Neutral Good', 'Chaotic Good',
@@ -129,23 +150,37 @@ const APPEARANCE_FIELDS: Array<{ key: keyof Dnd5eAppearance; label: string }> = 
   { key: 'skin',   label: 'Skin' },
 ];
 
-function IdentityPane({ stats, appearance, xp, isOwner, onChange }: {
+/**
+ * Merged identity + personality pane. Order top-to-bottom:
+ *   Identity card → Experience → Alignment → Deity → Appearance grid
+ *     → Clothing & Accessories → Personality fields (Traits, Ideals,
+ *     Bonds, Flaws, Backstory, Allies, Organization)
+ *
+ * Personality keeps its rich multiline inputs; identity keeps its
+ * compact summary card. Single scroll, two saved field families.
+ */
+function AboutPane({
+  stats, personality, appearance, xp, isOwner,
+  onPersonalityChange, onAppearanceChange,
+}: {
   stats: Dnd5eStats;
+  personality: Dnd5ePersonality;
   appearance: Dnd5eAppearance;
   xp?: number;
   isOwner: boolean;
-  onChange?: (field: keyof Dnd5eAppearance, value: string) => void;
+  onPersonalityChange?: (field: keyof Dnd5ePersonality, value: string) => void;
+  onAppearanceChange?: (field: keyof Dnd5eAppearance, value: string) => void;
 }) {
   const [alignOpen, setAlignOpen] = useState(false);
 
   return (
     <ScrollView contentContainerStyle={s.paneContainer} showsVerticalScrollIndicator={false}>
-      {/* Summary rows */}
+      {/* Identity card */}
       <SectionLabel>CHARACTER</SectionLabel>
       <View style={s.identCard}>
-        <IdentRow label="Species"    value={stats.speciesKey} />
-        <IdentRow label="Class"      value={`${stats.classKey} · Level ${stats.level}`} />
-        <IdentRow label="Background" value={stats.backgroundKey} />
+        <IdentRow label="Species"    value={prettifyKey(stats.speciesKey) ?? '—'} />
+        <IdentRow label="Class"      value={`${prettifyKey(stats.classKey) ?? '—'} · Level ${stats.level}`} />
+        <IdentRow label="Background" value={prettifyKey(stats.backgroundKey) ?? '—'} />
         <IdentRow label="Rules"      value={stats.srdVersion === 'SRD_2.0' ? '2024 D&D' : '2014 D&D'} />
         {stats.originFeat ? (
           <IdentRow label="Origin Feat" value={stats.originFeat} accent last />
@@ -154,7 +189,6 @@ function IdentityPane({ stats, appearance, xp, isOwner, onChange }: {
         )}
       </View>
 
-      {/* XP */}
       {xp !== undefined && (
         <>
           <SectionLabel style={{ marginTop: 14 }}>EXPERIENCE</SectionLabel>
@@ -188,7 +222,7 @@ function IdentityPane({ stats, appearance, xp, isOwner, onChange }: {
             <TouchableOpacity
               key={a}
               style={[s.alignOption, appearance.alignment === a && s.alignOptionActive]}
-              onPress={() => { onChange?.('alignment', a); setAlignOpen(false); }}
+              onPress={() => { onAppearanceChange?.('alignment', a); setAlignOpen(false); }}
               activeOpacity={0.7}
             >
               <Text style={[s.alignOptionText, appearance.alignment === a && s.alignOptionTextActive]}>{a}</Text>
@@ -197,7 +231,20 @@ function IdentityPane({ stats, appearance, xp, isOwner, onChange }: {
         </View>
       )}
 
-      {/* Appearance */}
+      {/* Deity */}
+      <SectionLabel style={{ marginTop: 14 }}>DEITY</SectionLabel>
+      <View style={s.fieldBlock}>
+        <TextInput
+          style={s.fieldInput}
+          value={appearance.deity ?? ''}
+          onChangeText={isOwner ? (v) => onAppearanceChange?.('deity', v) : undefined}
+          editable={isOwner}
+          placeholder={isOwner ? 'Patron deity, faith, or oath' : '—'}
+          placeholderTextColor={colors.outline}
+        />
+      </View>
+
+      {/* Appearance grid */}
       <SectionLabel style={{ marginTop: 14 }}>APPEARANCE</SectionLabel>
       <View style={s.appearanceGrid}>
         {APPEARANCE_FIELDS.map((f) => (
@@ -206,7 +253,7 @@ function IdentityPane({ stats, appearance, xp, isOwner, onChange }: {
             <TextInput
               style={s.appearInput}
               value={appearance[f.key] ?? ''}
-              onChangeText={isOwner ? (v) => onChange?.(f.key, v) : undefined}
+              onChangeText={isOwner ? (v) => onAppearanceChange?.(f.key, v) : undefined}
               editable={isOwner}
               placeholder="—"
               placeholderTextColor={colors.outline}
@@ -214,6 +261,63 @@ function IdentityPane({ stats, appearance, xp, isOwner, onChange }: {
           </View>
         ))}
       </View>
+
+      {/* Clothing & accessories — paragraph-scale freeform. */}
+      <SectionLabel style={{ marginTop: 14 }}>CLOTHING & ACCESSORIES</SectionLabel>
+      <View style={s.fieldBlock}>
+        <TextInput
+          style={[s.fieldInput, s.fieldInputTall]}
+          value={appearance.attire ?? ''}
+          onChangeText={isOwner ? (v) => onAppearanceChange?.('attire', v) : undefined}
+          editable={isOwner}
+          multiline
+          placeholder={isOwner ? 'Signet rings, talismans, signature attire…' : '—'}
+          placeholderTextColor={colors.outline}
+          textAlignVertical="top"
+        />
+      </View>
+
+      {/* Personality fields — rich multilines, one section per
+          PERSONALITY_FIELDS entry so they read as separate beats.
+          Back-compat: when rendering Allies, fold the legacy
+          `personality.faction` value into the display so old saves
+          don't lose their Organization content. The user's first edit
+          writes through to `allies` and the legacy slot is cleared. */}
+      {PERSONALITY_FIELDS.map((f) => {
+        const isAlliesField = f.key === 'allies';
+        const legacyFaction = isAlliesField ? (personality.faction ?? '').trim() : '';
+        const stored = personality[f.key] ?? '';
+        const displayValue = isAlliesField && !stored && legacyFaction
+          ? legacyFaction
+          : isAlliesField && stored && legacyFaction
+            ? `${stored}\n\n${legacyFaction}`
+            : stored;
+        return (
+          <View key={f.key}>
+            <SectionLabel style={{ marginTop: 14 }}>{f.label.toUpperCase()}</SectionLabel>
+            <View style={s.fieldBlock}>
+              <TextInput
+                style={[s.fieldInput, f.tall && s.fieldInputTall]}
+                value={displayValue}
+                onChangeText={isOwner ? (v) => {
+                  onPersonalityChange?.(f.key, v);
+                  // Clear legacy faction the moment the user edits the
+                  // merged field so we don't keep re-appending it on
+                  // future loads.
+                  if (isAlliesField && legacyFaction) {
+                    onPersonalityChange?.('faction', '');
+                  }
+                } : undefined}
+                editable={isOwner}
+                multiline
+                placeholder={isOwner ? f.placeholder : '—'}
+                placeholderTextColor={colors.outline}
+                textAlignVertical="top"
+              />
+            </View>
+          </View>
+        );
+      })}
 
       <View style={{ height: 16 }} />
     </ScrollView>
@@ -233,13 +337,30 @@ function IdentRow({ label, value, accent, last }: {
 
 // ── Journal pane ─────────────────────────────────────────────────────────────
 
-function JournalPane({ entries, isOwner, onAdd, onEdit }: {
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Two-pane journal: list on the left (search + entries), inline
+ * editor on the right for the selected entry. All edits live-write
+ * through `onUpdate` — there's no separate save step. Delete keeps
+ * a two-step confirm since it's destructive.
+ */
+function JournalPane({ entries, isOwner, onUpdate }: {
   entries: Dnd5eJournalEntry[];
   isOwner: boolean;
-  onAdd?: () => void;
-  onEdit?: (entry: Dnd5eJournalEntry) => void;
+  onUpdate?: (entries: Dnd5eJournalEntry[]) => void;
 }) {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
   const [search, setSearch] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(
+    entries.length > 0 ? entries[0].id : null,
+  );
+  // Mobile-only: dropdown picker open/closed.
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const filtered = entries.filter((e) =>
     !search ||
     e.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -247,68 +368,390 @@ function JournalPane({ entries, isOwner, onAdd, onEdit }: {
     (e.tags ?? []).some((t) => t.toLowerCase().includes(search.toLowerCase()))
   );
 
-  return (
-    <View style={s.journalRoot}>
-      {/* Search + add */}
-      <View style={s.journalHeader}>
-        <View style={s.searchBar}>
-          <MaterialCommunityIcons name="magnify" size={16} color={colors.outline} />
-          <TextInput
-            style={s.searchInput}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search entries…"
-            placeholderTextColor={colors.outline}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
-              <MaterialCommunityIcons name="close-circle" size={16} color={colors.outline} />
-            </TouchableOpacity>
-          )}
+  const selected = entries.find((e) => e.id === selectedId) ?? null;
+
+  function openNew() {
+    if (!onUpdate) return;
+    const id = `j_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const fresh: Dnd5eJournalEntry = {
+      id, title: '', body: '', date: todayISO(), tags: [],
+    };
+    onUpdate([fresh, ...entries]);
+    setSelectedId(id);
+  }
+
+  function patchEntry(id: string, patch: Partial<Dnd5eJournalEntry>) {
+    if (!onUpdate) return;
+    onUpdate(entries.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+  }
+
+  function deleteEntry(id: string) {
+    if (!onUpdate) return;
+    const next = entries.filter((e) => e.id !== id);
+    onUpdate(next);
+    // Move selection to the next available entry (or clear it).
+    setSelectedId(next.length > 0 ? next[0].id : null);
+  }
+
+  const editorPane = (
+    <View style={s.journalEditorPane}>
+      {selected ? (
+        <JournalEntryEditor
+          key={selected.id}
+          entry={selected}
+          isOwner={isOwner}
+          onPatch={(patch) => patchEntry(selected.id, patch)}
+          onDelete={isOwner ? () => deleteEntry(selected.id) : undefined}
+        />
+      ) : (
+        <View style={s.journalEmptyEditor}>
+          <MaterialCommunityIcons name="notebook-outline" size={36} color={colors.outlineVariant} />
+          <Text style={s.emptyTitle}>
+            {entries.length === 0 ? 'No entries yet' : 'Select an entry'}
+          </Text>
+          {entries.length === 0 && isOwner ? (
+            <Text style={s.emptyBody}>Tap + to start writing.</Text>
+          ) : null}
         </View>
+      )}
+    </View>
+  );
+
+  if (isDesktop) {
+    return (
+      <View style={s.journalRoot}>
+        {/* Left: search + entry list */}
+        <View style={s.journalSidebar}>
+          <View style={s.journalHeader}>
+            <View style={s.searchBar}>
+              <MaterialCommunityIcons name="magnify" size={16} color={colors.outline} />
+              <TextInput
+                style={s.searchInput}
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search entries…"
+                placeholderTextColor={colors.outline}
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+                  <MaterialCommunityIcons name="close-circle" size={16} color={colors.outline} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {isOwner && (
+              <TouchableOpacity style={s.addBtn} onPress={openNew} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="plus" size={16} color={colors.onSurface} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <ScrollView contentContainerStyle={s.journalList} showsVerticalScrollIndicator={false}>
+            {filtered.length === 0 && (
+              <View style={s.emptyState}>
+                <MaterialCommunityIcons name="book-open-outline" size={32} color={colors.outlineVariant} />
+                <Text style={s.emptyTitle}>{entries.length === 0 ? 'No Entries Yet' : 'No Results'}</Text>
+                {entries.length === 0 && isOwner && (
+                  <Text style={s.emptyBody}>Tap + to write your first journal entry.</Text>
+                )}
+              </View>
+            )}
+            {filtered.map((entry) => {
+              const isSelected = entry.id === selectedId;
+              const displayTitle = entry.title.trim() || 'Untitled entry';
+              return (
+                <TouchableOpacity
+                  key={entry.id}
+                  style={[s.journalCard, isSelected && s.journalCardSelected]}
+                  onPress={() => setSelectedId(entry.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={s.journalCardHeader}>
+                    <Text
+                      style={[s.journalTitle, !entry.title.trim() && { color: colors.outline, fontStyle: 'italic' }]}
+                      numberOfLines={1}
+                    >
+                      {displayTitle}
+                    </Text>
+                    {entry.date && <Text style={s.journalDate}>{entry.date}</Text>}
+                  </View>
+                  {entry.body ? (
+                    <Text style={s.journalBody} numberOfLines={2}>{entry.body}</Text>
+                  ) : null}
+                  {(entry.tags ?? []).length > 0 && (
+                    <View style={s.journalTags}>
+                      {(entry.tags ?? []).slice(0, 4).map((t) => (
+                        <View key={t} style={s.journalTag}>
+                          <Text style={s.journalTagText}>{t}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+            <View style={{ height: 16 }} />
+          </ScrollView>
+        </View>
+
+        {editorPane}
+      </View>
+    );
+  }
+
+  // ── Mobile: dropdown picker + editor stacked below ──────────────────────────
+  const selectedLabel = selected
+    ? (selected.title.trim() || 'Untitled entry')
+    : entries.length === 0 ? 'No entries yet' : 'Select an entry';
+
+  return (
+    <View style={s.journalRootMobile}>
+      {/* Picker header — current entry on the left, + on the right.
+          Tapping the picker opens an inline dropdown of all entries. */}
+      <View style={s.journalMobileHeaderRow}>
+        <TouchableOpacity
+          style={[s.journalPicker, pickerOpen && s.journalPickerOpen]}
+          onPress={() => setPickerOpen((v) => !v)}
+          activeOpacity={0.7}
+          disabled={entries.length === 0}
+        >
+          <Text
+            style={[
+              s.journalPickerLabel,
+              !selected && { color: colors.outline, fontStyle: 'italic' },
+            ]}
+            numberOfLines={1}
+          >
+            {selectedLabel}
+          </Text>
+          {selected?.date ? (
+            <Text style={s.journalPickerDate}>{selected.date}</Text>
+          ) : null}
+          <MaterialCommunityIcons
+            name={pickerOpen ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.outline}
+          />
+        </TouchableOpacity>
         {isOwner && (
-          <TouchableOpacity style={s.addBtn} onPress={onAdd} activeOpacity={0.7}>
+          <TouchableOpacity style={s.addBtn} onPress={openNew} activeOpacity={0.7}>
             <MaterialCommunityIcons name="plus" size={16} color={colors.onSurface} />
           </TouchableOpacity>
         )}
       </View>
 
-      <ScrollView contentContainerStyle={s.journalList} showsVerticalScrollIndicator={false}>
-        {filtered.length === 0 && (
-          <View style={s.emptyState}>
-            <MaterialCommunityIcons name="book-open-outline" size={32} color={colors.outlineVariant} />
-            <Text style={s.emptyTitle}>{entries.length === 0 ? 'No Entries Yet' : 'No Results'}</Text>
-            {entries.length === 0 && isOwner && (
-              <Text style={s.emptyBody}>Tap + to write your first journal entry.</Text>
+      {/* Dropdown panel — search + entry options. */}
+      {pickerOpen ? (
+        <View style={s.journalDropdown}>
+          <View style={s.journalDropdownSearch}>
+            <MaterialCommunityIcons name="magnify" size={14} color={colors.outline} />
+            <TextInput
+              style={s.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search entries…"
+              placeholderTextColor={colors.outline}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+                <MaterialCommunityIcons name="close-circle" size={14} color={colors.outline} />
+              </TouchableOpacity>
             )}
           </View>
-        )}
-        {filtered.map((entry) => (
-          <TouchableOpacity
-            key={entry.id}
-            style={s.journalCard}
-            onPress={() => onEdit?.(entry)}
-            activeOpacity={0.7}
-          >
-            <View style={s.journalCardHeader}>
-              <Text style={s.journalTitle} numberOfLines={1}>{entry.title}</Text>
-              {entry.date && <Text style={s.journalDate}>{entry.date}</Text>}
-            </View>
-            <Text style={s.journalBody} numberOfLines={2}>{entry.body}</Text>
-            {(entry.tags ?? []).length > 0 && (
-              <View style={s.journalTags}>
-                {(entry.tags ?? []).slice(0, 4).map((t) => (
-                  <View key={t} style={s.journalTag}>
-                    <Text style={s.journalTagText}>{t}</Text>
-                  </View>
-                ))}
-              </View>
+          <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+            {filtered.length === 0 ? (
+              <Text style={s.journalDropdownEmpty}>
+                {entries.length === 0 ? 'No entries yet.' : 'No matches.'}
+              </Text>
+            ) : (
+              filtered.map((entry) => {
+                const isSelected = entry.id === selectedId;
+                const displayTitle = entry.title.trim() || 'Untitled entry';
+                return (
+                  <TouchableOpacity
+                    key={entry.id}
+                    style={[s.journalDropdownItem, isSelected && s.journalDropdownItemSelected]}
+                    onPress={() => {
+                      setSelectedId(entry.id);
+                      setPickerOpen(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        s.journalDropdownItemTitle,
+                        !entry.title.trim() && { color: colors.outline, fontStyle: 'italic' },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {displayTitle}
+                    </Text>
+                    {entry.date ? (
+                      <Text style={s.journalDropdownItemDate}>{entry.date}</Text>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })
             )}
-          </TouchableOpacity>
-        ))}
-        <View style={{ height: 16 }} />
-      </ScrollView>
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {editorPane}
     </View>
+  );
+}
+
+// ── Journal entry editor (inline, lives in the right pane) ────────────────────
+
+function JournalEntryEditor({ entry, isOwner, onPatch, onDelete }: {
+  entry: Dnd5eJournalEntry;
+  isOwner: boolean;
+  /** Patch is applied to the active entry on every keystroke / change. */
+  onPatch: (patch: Partial<Dnd5eJournalEntry>) => void;
+  /** When set, the editor renders a Delete button with a two-step
+   *  confirm. Pressing through removes the entry. */
+  onDelete?: () => void;
+}) {
+  const [tagDraft, setTagDraft] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const bodyDocRef = useRef<object | null>(entry.bodyDoc ?? null);
+
+  // Reset transient editor state whenever the host swaps in a different
+  // entry. The `key={selected.id}` on JournalEntryEditor already gives
+  // us a fresh component instance, but this is here for clarity.
+  void entry.id;
+
+  function commitTagDraft() {
+    const t = tagDraft.trim();
+    if (!t) return;
+    const existing = entry.tags ?? [];
+    if (existing.some((tag) => tag.toLowerCase() === t.toLowerCase())) {
+      setTagDraft('');
+      return;
+    }
+    onPatch({ tags: [...existing, t] });
+    setTagDraft('');
+  }
+
+  function removeTag(tag: string) {
+    onPatch({ tags: (entry.tags ?? []).filter((x) => x !== tag) });
+  }
+
+  function handleBodyChange(doc: object, text: string) {
+    bodyDocRef.current = doc;
+    onPatch({ body: text, bodyDoc: doc });
+  }
+
+  return (
+    <ScrollView contentContainerStyle={s.journalEditorScroll} showsVerticalScrollIndicator={false}>
+      {/* Header — title input + delete affordance on the right */}
+      <View style={s.journalEditorHeader}>
+        <TextInput
+          style={s.journalEditorTitle}
+          value={entry.title}
+          onChangeText={isOwner ? (v) => onPatch({ title: v }) : undefined}
+          editable={isOwner}
+          placeholder="Untitled entry"
+          placeholderTextColor={colors.outline}
+        />
+        {onDelete ? (
+          confirmDelete ? (
+            <View style={s.modalConfirmRow}>
+              <Text style={s.modalConfirmText}>Delete?</Text>
+              <TouchableOpacity
+                onPress={() => setConfirmDelete(false)}
+                style={s.modalConfirmBtn}
+              >
+                <Text style={s.modalConfirmCancelText}>No</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { setConfirmDelete(false); onDelete(); }}
+                style={[s.modalConfirmBtn, s.modalConfirmDangerBtn]}
+              >
+                <Text style={s.modalConfirmDangerText}>Yes</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => setConfirmDelete(true)}
+              style={s.modalDeleteBtn}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="trash-can-outline" size={14} color={colors.hpDanger} />
+              <Text style={s.modalDeleteBtnText}>Delete</Text>
+            </TouchableOpacity>
+          )
+        ) : null}
+      </View>
+
+      {/* Date */}
+      <View style={{ marginTop: spacing.sm }}>
+        <Text style={s.modalFieldLabel}>DATE</Text>
+        <TextInput
+          style={s.fieldInput}
+          value={entry.date ?? ''}
+          onChangeText={isOwner ? (v) => onPatch({ date: v }) : undefined}
+          editable={isOwner}
+          placeholder="YYYY-MM-DD or in-world date"
+          placeholderTextColor={colors.outline}
+        />
+      </View>
+
+      {/* Body (rich Tiptap editor on web; plain TextInput on native) */}
+      <View style={{ marginTop: spacing.sm }}>
+        <Text style={s.modalFieldLabel}>ENTRY</Text>
+        <BodyEditor
+          initialContent={entry.bodyDoc ?? plainTextToDoc(entry.body)}
+          onChange={handleBodyChange}
+          editable={isOwner}
+          placeholder="What happened, what you learned, what to remember…"
+        />
+      </View>
+
+      {/* Tags */}
+      <View style={{ marginTop: spacing.sm }}>
+        <Text style={s.modalFieldLabel}>TAGS</Text>
+        {(entry.tags ?? []).length > 0 ? (
+          <View style={s.modalTagsRow}>
+            {(entry.tags ?? []).map((t) => (
+              <View key={t} style={s.modalTagChip}>
+                <Text style={s.modalTagChipText}>{t}</Text>
+                {isOwner ? (
+                  <TouchableOpacity
+                    onPress={() => removeTag(t)}
+                    hitSlop={6}
+                  >
+                    <MaterialCommunityIcons name="close" size={11} color={colors.outline} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {isOwner ? (
+          <View style={s.modalTagInputRow}>
+            <TextInput
+              style={[s.fieldInput, { flex: 1 }]}
+              value={tagDraft}
+              onChangeText={setTagDraft}
+              onSubmitEditing={commitTagDraft}
+              placeholder="Add a tag and press Add"
+              placeholderTextColor={colors.outline}
+              returnKeyType="done"
+            />
+            <TouchableOpacity
+              onPress={commitTagDraft}
+              style={s.modalTagAddBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={s.modalTagAddBtnText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={{ height: 16 }} />
+    </ScrollView>
   );
 }
 
@@ -435,8 +878,85 @@ const s = StyleSheet.create({
     fontSize: 13, fontFamily: fonts.body, color: colors.onSurface, padding: 0,
   },
 
-  // Journal
-  journalRoot: { flex: 1 },
+  // Journal — two-pane layout on desktop: sidebar list + editor pane.
+  // On mobile, the sidebar collapses into a dropdown above the editor
+  // (see `journalRootMobile`).
+  journalRoot: { flex: 1, flexDirection: 'row' },
+  journalRootMobile: { flex: 1 },
+  /** Header row that holds the dropdown picker + add button on mobile. */
+  journalMobileHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: spacing.md, paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  },
+  /** The dropdown trigger — current entry label, optional date, chevron. */
+  journalPicker: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 10, paddingVertical: 8,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+  },
+  journalPickerOpen: { borderColor: colors.primary },
+  journalPickerLabel: {
+    flex: 1, fontSize: 13, fontFamily: fonts.body, fontWeight: '600',
+    color: colors.onSurface,
+  },
+  journalPickerDate: { fontSize: 10, fontFamily: fonts.label, color: colors.outline },
+  /** Dropdown panel — sits directly below the header row when open. */
+  journalDropdown: {
+    marginHorizontal: spacing.md,
+    marginTop: 6,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  journalDropdownSearch: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 7,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  journalDropdownItem: {
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    gap: 2,
+  },
+  journalDropdownItemSelected: { backgroundColor: `${colors.primary}10` },
+  journalDropdownItemTitle: {
+    fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface,
+  },
+  journalDropdownItemDate: { fontSize: 10, fontFamily: fonts.label, color: colors.outline },
+  journalDropdownEmpty: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.outline,
+    fontStyle: 'italic', padding: spacing.md, textAlign: 'center',
+  },
+  /** Left column — search + entry cards. Fixed width on wide screens
+   *  so the editor pane gets the remaining width. */
+  journalSidebar: {
+    width: 280,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: colors.outlineVariant,
+  },
+  /** Right column — inline editor for the selected entry. */
+  journalEditorPane: { flex: 1, minWidth: 0 },
+  /** Placeholder when no entry is selected. */
+  journalEmptyEditor: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: spacing.lg,
+  },
+  /** Editor scroll container — padding mirrors the personality pane. */
+  journalEditorScroll: { paddingHorizontal: spacing.md, paddingTop: 14 },
+  journalEditorHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+  },
+  /** Title input renders large at the top of the editor pane. */
+  journalEditorTitle: {
+    flex: 1,
+    fontSize: 18, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
+    paddingVertical: 6,
+  },
   journalHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: spacing.md, paddingVertical: 10,
@@ -463,6 +983,11 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg, padding: 14, marginBottom: 10, gap: 6,
   },
+  /** Highlighted card when its entry is selected for editing. */
+  journalCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: `${colors.primary}10`,
+  },
   journalCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   journalTitle: {
     flex: 1, fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
@@ -488,4 +1013,90 @@ const s = StyleSheet.create({
     fontSize: 15, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurfaceVariant,
   },
   emptyBody: { fontSize: 13, fontFamily: fonts.body, color: colors.outline, textAlign: 'center' },
+
+  // Journal entry editor modal
+  modalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center', padding: spacing.lg,
+  },
+  modalCard: {
+    width: '100%', maxWidth: 560, maxHeight: '90%',
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.lg, padding: spacing.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    gap: spacing.sm,
+  },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  modalTitle: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
+  },
+  modalFieldLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.4, textTransform: 'uppercase', color: colors.outline,
+    marginBottom: 4,
+  },
+
+  // Modal: tags
+  modalTagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
+  modalTagChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  modalTagChipText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '600', color: colors.onSurface },
+  modalTagInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modalTagAddBtn: {
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  modalTagAddBtnText: { fontSize: 12, fontFamily: fonts.label, fontWeight: '700', color: colors.onSurface },
+
+  // Modal: footer (delete on left, save on right)
+  modalFooter: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: spacing.sm, paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  modalDeleteBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: `${colors.hpDanger}44`,
+    backgroundColor: 'transparent',
+  },
+  modalDeleteBtnText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700', color: colors.hpDanger,
+  },
+  modalConfirmRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  modalConfirmText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.hpDanger, marginRight: 2,
+  },
+  modalConfirmBtn: {
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  modalConfirmDangerBtn: {
+    backgroundColor: colors.hpDanger,
+    borderColor: colors.hpDanger,
+  },
+  modalConfirmCancelText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.onSurfaceVariant },
+  modalConfirmDangerText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: '#fff' },
+
+  modalSaveBtn: {
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryContainer,
+  },
+  modalSaveBtnDisabled: { opacity: 0.4 },
+  modalSaveBtnText: { fontSize: 13, fontFamily: fonts.label, fontWeight: '700', color: colors.onPrimary },
+  modalSaveBtnTextDisabled: { color: colors.outline },
 });

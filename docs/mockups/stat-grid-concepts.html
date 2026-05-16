@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stat Grid Concepts</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0c0e10;
+    color: #e2e2e5;
+    font-family: 'Manrope', system-ui, sans-serif;
+    display: flex;
+    gap: 32px;
+    padding: 40px 32px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .col { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .lbl {
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #958da1; text-align: center; line-height: 1.5;
+  }
+  .rail { width: 260px; background: #0c0e10; border: 1px solid #4a4455; border-radius: 10px; overflow: hidden; padding: 12px; }
+
+  /* ── OPTION A — 4-col single row with icon accents ─────────────── */
+  .a-row {
+    display: flex; gap: 6px;
+  }
+  .a-cell {
+    flex: 1;
+    background: #1e2022;
+    border: 1px solid #4a4455;
+    border-radius: 8px;
+    padding: 7px 4px 6px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .a-cell:hover { border-color: #958da1; }
+  .a-cell.accent { border-color: #0566d9; }
+  .a-icon { font-size: 13px; line-height: 1; color: #958da1; }
+  .a-icon.accent { color: #adc6ff; }
+  .a-val { font-size: 18px; font-weight: 800; line-height: 1; color: #e2e2e5; }
+  .a-val.accent { color: #adc6ff; }
+  .a-key { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: #958da1; }
+
+  /* ── OPTION B — 2-col with larger values + subtle colored borders ─ */
+  .b-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  }
+  .b-cell {
+    background: #1e2022;
+    border: 1px solid #4a4455;
+    border-radius: 8px;
+    padding: 10px 8px 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    position: relative; overflow: hidden;
+  }
+  .b-cell::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: #4a4455;
+  }
+  .b-cell.ac::before { background: #adc6ff; }
+  .b-cell.init::before { background: #ccc3d7; }
+  .b-cell.speed::before { background: #1D9E75; }
+  .b-cell.die::before { background: #EF9F27; }
+  .b-cell:hover { border-color: #958da1; }
+  .b-val { font-size: 26px; font-weight: 800; line-height: 1; color: #e2e2e5; }
+  .b-val.ac { color: #adc6ff; }
+  .b-key { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: #958da1; margin-top: 2px; }
+  .b-sub { font-size: 9px; color: #4a4455; margin-top: 1px; }
+
+  /* ── OPTION C — horizontal pill strip ──────────────────────────── */
+  .c-strip {
+    display: flex; gap: 0;
+    background: #1e2022;
+    border: 1px solid #4a4455;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .c-cell {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 4px;
+    cursor: pointer;
+    transition: background 0.1s;
+    position: relative;
+  }
+  .c-cell + .c-cell::before {
+    content: '';
+    position: absolute; left: 0; top: 20%; bottom: 20%;
+    width: 1px; background: #4a4455;
+  }
+  .c-cell:hover { background: #282a2c; }
+  .c-val { font-size: 20px; font-weight: 800; line-height: 1.1; color: #e2e2e5; }
+  .c-val.ac { color: #adc6ff; }
+  .c-key { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: #958da1; margin-top: 3px; }
+
+  /* ── OPTION D — labeled rows with large value right-aligned ────── */
+  .d-rows { display: flex; flex-direction: column; gap: 2px; }
+  .d-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .d-row:hover { background: #1e2022; }
+  .d-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+  .d-name { flex: 1; font-size: 11px; letter-spacing: 0.04em; color: #ccc3d7; }
+  .d-val { font-size: 18px; font-weight: 800; color: #e2e2e5; min-width: 38px; text-align: right; }
+  .d-val.ac { color: #adc6ff; }
+  .d-val.speed { color: #1D9E75; }
+  .d-val.init.pos { color: #1D9E75; }
+  .d-val.init.neg { color: #E24B4A; }
+</style>
+</head>
+<body>
+
+<!-- OPTION A -->
+<div class="col">
+  <div class="lbl">Option A<br>4-col strip + icons</div>
+  <div class="rail">
+    <div class="a-row">
+      <div class="a-cell accent">
+        <span class="a-icon accent">🛡</span>
+        <span class="a-val accent">9</span>
+        <span class="a-key">AC</span>
+      </div>
+      <div class="a-cell">
+        <span class="a-icon">⚡</span>
+        <span class="a-val">−1</span>
+        <span class="a-key">Init</span>
+      </div>
+      <div class="a-cell">
+        <span class="a-icon">👟</span>
+        <span class="a-val">30</span>
+        <span class="a-key">Speed</span>
+      </div>
+      <div class="a-cell">
+        <span class="a-icon">🎲</span>
+        <span class="a-val">d8</span>
+        <span class="a-key">Hit Die</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OPTION B -->
+<div class="col">
+  <div class="lbl">Option B<br>2×2 with color accent bars</div>
+  <div class="rail">
+    <div class="b-grid">
+      <div class="b-cell ac">
+        <span class="b-val ac">9</span>
+        <span class="b-key">Armor Class</span>
+      </div>
+      <div class="b-cell init">
+        <span class="b-val">−1</span>
+        <span class="b-key">Initiative</span>
+      </div>
+      <div class="b-cell speed">
+        <span class="b-val">30</span>
+        <span class="b-key">Speed</span>
+        <span class="b-sub">ft.</span>
+      </div>
+      <div class="b-cell die">
+        <span class="b-val">d8</span>
+        <span class="b-key">Hit Die</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OPTION C -->
+<div class="col">
+  <div class="lbl">Option C<br>Single unified strip</div>
+  <div class="rail">
+    <div class="c-strip">
+      <div class="c-cell">
+        <span class="c-val ac">9</span>
+        <span class="c-key">AC</span>
+      </div>
+      <div class="c-cell">
+        <span class="c-val">−1</span>
+        <span class="c-key">Init</span>
+      </div>
+      <div class="c-cell">
+        <span class="c-val">30</span>
+        <span class="c-key">Spd</span>
+      </div>
+      <div class="c-cell">
+        <span class="c-val">d8</span>
+        <span class="c-key">Die</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OPTION D -->
+<div class="col">
+  <div class="lbl">Option D<br>Label rows, right-aligned values</div>
+  <div class="rail">
+    <div class="d-rows">
+      <div class="d-row">
+        <span class="d-icon">🛡</span>
+        <span class="d-name">Armor Class</span>
+        <span class="d-val ac">9</span>
+      </div>
+      <div class="d-row">
+        <span class="d-icon">⚡</span>
+        <span class="d-name">Initiative</span>
+        <span class="d-val init neg">−1</span>
+      </div>
+      <div class="d-row">
+        <span class="d-icon">👟</span>
+        <span class="d-name">Speed</span>
+        <span class="d-val speed">30 ft</span>
+      </div>
+      <div class="d-row">
+        <span class="d-icon">🎲</span>
+        <span class="d-name">Hit Die</span>
+        <span class="d-val">d8</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

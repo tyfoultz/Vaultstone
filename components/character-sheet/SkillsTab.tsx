@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eAbilityScores, SkillResult } from '@vaultstone/types';
 import type { RollResult } from './RollToast';
+
+const ABILITY_KEYS: (keyof Dnd5eAbilityScores)[] = [
+  'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma',
+];
 
 const SKILL_ABILITY: Record<string, keyof Dnd5eAbilityScores> = {
   acrobatics: 'dexterity', 'animal handling': 'wisdom', arcana: 'intelligence',
@@ -18,6 +23,11 @@ const ABILITY_SHORT: Record<keyof Dnd5eAbilityScores, string> = {
   intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
 };
 
+const ABILITY_LONG: Record<keyof Dnd5eAbilityScores, string> = {
+  strength: 'Strength', dexterity: 'Dexterity', constitution: 'Constitution',
+  intelligence: 'Intelligence', wisdom: 'Wisdom', charisma: 'Charisma',
+};
+
 const ALL_SKILLS = Object.keys(SKILL_ABILITY);
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
@@ -30,11 +40,20 @@ interface Props {
   onRoll: (result: RollResult) => void;
   skillCatalog?: SkillResult[];
   isOwner?: boolean;
+  /** When true, ability score tiles tap to edit (via onEditField)
+   *  instead of rolling. Mirrors the manual-mode behavior that used
+   *  to live on the Combat tab. */
+  manualMode?: boolean;
+  onEditField?: (field: string, currentValue: number | string) => void;
   onUpdateProficiencies?: (proficiencies: string[], expertise: string[]) => void;
   onUpdateToolProficiencies?: (proficiencies: string[], expertise: string[]) => void;
 }
 
-export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog, isOwner, onUpdateProficiencies, onUpdateToolProficiencies }: Props) {
+export function SkillsTab({
+  stats, scores, prof, onRoll, skillCatalog, isOwner,
+  manualMode, onEditField,
+  onUpdateProficiencies, onUpdateToolProficiencies,
+}: Props) {
   const [detailFor, setDetailFor] = useState<{ name: string; description: string; ability: string } | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [toolEditMode, setToolEditMode] = useState(false);
@@ -106,7 +125,47 @@ export function SkillsTab({ stats, scores, prof, onRoll, skillCatalog, isOwner, 
 
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* Ability scores — vertical list that mirrors the skills card
+          below: name + raw score on the left, modifier on the right.
+          Sits above skills so the mods feeding into each skill row
+          are visible alongside their downstream consumers. */}
+      <SectionLabel>{manualMode ? 'ABILITIES · TAP TO EDIT' : 'ABILITIES · TAP TO CHECK'}</SectionLabel>
+      <View style={s.skillsCard}>
+        {ABILITY_KEYS.map((abi, i) => {
+          const score = scores[abi];
+          const m = abilityMod(score);
+          const isSpellMod = stats.spellcastingAbility?.toLowerCase() === abi;
+          const isLast = i === ABILITY_KEYS.length - 1;
+          return (
+            <TouchableOpacity
+              key={abi}
+              style={[s.skillRow, !isLast && s.skillRowBorder]}
+              onPress={() => manualMode && onEditField
+                ? onEditField(abi, score)
+                : (() => {
+                    const r = Math.floor(Math.random() * 20) + 1;
+                    onRoll({ label: `${ABILITY_SHORT[abi]} check`, rolls: [r], bonus: m, total: r + m, crit: r === 20, fumble: r === 1 });
+                  })()}
+              activeOpacity={0.7}
+            >
+              <View style={s.skillNameWrap}>
+                <Text style={[s.skillName, s.skillNameProf, isSpellMod && { color: colors.primary }]}>
+                  {ABILITY_LONG[abi]}
+                </Text>
+                <Text style={s.skillAbi}>{score}</Text>
+              </View>
+              <Text style={[s.skillBonus, s.skillBonusProf, isSpellMod && { color: colors.primary }]}>
+                {fmtMod(m)}
+              </Text>
+              {manualMode ? (
+                <MaterialCommunityIcons name="pencil" size={10} color={colors.outline} style={{ marginLeft: 6 }} />
+              ) : null}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
         <SectionLabel>{editMode ? 'EDIT PROFICIENCIES · TAP TO CYCLE' : `SKILLS · TAP TO ROLL${skillCatalog ? ' · LONG-PRESS FOR DETAILS' : ''}`}</SectionLabel>
         {isOwner && onUpdateProficiencies ? (
           <TouchableOpacity onPress={() => setEditMode(!editMode)} style={s.editBtn}>
@@ -241,6 +300,8 @@ function SectionLabel({ children, style }: { children: string; style?: any }) {
 
 const s = StyleSheet.create({
   container: { paddingHorizontal: spacing.md, paddingTop: 14 },
+
+
 
   sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   sectionLabel: {

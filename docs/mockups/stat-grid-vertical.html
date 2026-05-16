@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stat Grid — Vertical Strip</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0c0e10;
+    color: #e2e2e5;
+    font-family: 'Manrope', system-ui, sans-serif;
+    display: flex;
+    gap: 40px;
+    padding: 40px 32px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .col { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .lbl { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #958da1; text-align: center; line-height: 1.6; }
+  .rail { width: 260px; background: #0c0e10; border: 1px solid #4a4455; border-radius: 10px; overflow: hidden; }
+
+  /* ── VARIANT 1 — borderless rows, icon + label + value ─────────── */
+  .v1-strip { display: flex; flex-direction: column; padding: 4px 8px; }
+  .v1-row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .v1-row + .v1-row { border-top: 1px solid #1e2022; }
+  .v1-row:hover { background: #1e2022; }
+  .v1-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+  .v1-name { flex: 1; font-size: 11px; color: #ccc3d7; letter-spacing: 0.02em; }
+  .v1-val { font-size: 20px; font-weight: 800; color: #e2e2e5; line-height: 1; }
+  .v1-val.ac { color: #adc6ff; }
+
+  /* ── VARIANT 2 — card strip with dividers, bigger values ────────── */
+  .v2-strip {
+    background: #1e2022;
+    border: 1px solid #4a4455;
+    border-radius: 8px;
+    margin: 10px;
+    overflow: hidden;
+  }
+  .v2-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .v2-row + .v2-row { border-top: 1px solid #2e3032; }
+  .v2-row:hover { background: #282a2c; }
+  .v2-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; color: #958da1; }
+  .v2-name { flex: 1; font-size: 11px; color: #ccc3d7; }
+  .v2-val { font-size: 22px; font-weight: 800; line-height: 1; color: #e2e2e5; }
+  .v2-val.ac { color: #adc6ff; }
+  .v2-unit { font-size: 10px; color: #958da1; margin-left: 2px; align-self: flex-end; padding-bottom: 3px; }
+
+  /* ── VARIANT 3 — left color bar per row ────────────────────────── */
+  .v3-strip { display: flex; flex-direction: column; padding: 6px 8px; gap: 4px; }
+  .v3-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px 6px 10px;
+    border-radius: 6px;
+    background: #1e2022;
+    border: 1px solid #4a4455;
+    border-left-width: 3px;
+    cursor: pointer;
+    transition: border-color 0.1s;
+  }
+  .v3-row:hover { border-color: #958da1; border-left-color: inherit; }
+  .v3-row.ac { border-left-color: #adc6ff; }
+  .v3-row.init { border-left-color: #ccc3d7; }
+  .v3-row.speed { border-left-color: #1D9E75; }
+  .v3-row.die { border-left-color: #EF9F27; }
+  .v3-icon { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
+  .v3-name { flex: 1; font-size: 11px; color: #ccc3d7; }
+  .v3-val { font-size: 20px; font-weight: 800; line-height: 1; color: #e2e2e5; }
+  .v3-val.ac { color: #adc6ff; }
+  .v3-val.speed { color: #1D9E75; }
+  .v3-val.die { color: #EF9F27; }
+</style>
+</head>
+<body>
+
+<!-- VARIANT 1 — clean borderless rows -->
+<div class="col">
+  <div class="lbl">Variant 1<br>Borderless rows</div>
+  <div class="rail">
+    <div class="v1-strip">
+      <div class="v1-row">
+        <span class="v1-icon">🛡</span>
+        <span class="v1-name">Armor Class</span>
+        <span class="v1-val ac">9</span>
+      </div>
+      <div class="v1-row">
+        <span class="v1-icon">⚡</span>
+        <span class="v1-name">Initiative</span>
+        <span class="v1-val">−1</span>
+      </div>
+      <div class="v1-row">
+        <span class="v1-icon">👟</span>
+        <span class="v1-name">Speed</span>
+        <span class="v1-val">30 <span style="font-size:10px;font-weight:400;color:#958da1">ft</span></span>
+      </div>
+      <div class="v1-row">
+        <span class="v1-icon">🎲</span>
+        <span class="v1-name">Hit Die</span>
+        <span class="v1-val">d8</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VARIANT 2 — single card with internal dividers -->
+<div class="col">
+  <div class="lbl">Variant 2<br>Single card + dividers</div>
+  <div class="rail">
+    <div class="v2-strip">
+      <div class="v2-row">
+        <span class="v2-icon">🛡</span>
+        <span class="v2-name">Armor Class</span>
+        <span class="v2-val ac">9</span>
+      </div>
+      <div class="v2-row">
+        <span class="v2-icon">⚡</span>
+        <span class="v2-name">Initiative</span>
+        <span class="v2-val">−1</span>
+      </div>
+      <div class="v2-row">
+        <span class="v2-icon">👟</span>
+        <span class="v2-name">Speed</span>
+        <span class="v2-val">30</span>
+        <span class="v2-unit">ft</span>
+      </div>
+      <div class="v2-row">
+        <span class="v2-icon">🎲</span>
+        <span class="v2-name">Hit Die</span>
+        <span class="v2-val">d8</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VARIANT 3 — colored left bar per stat -->
+<div class="col">
+  <div class="lbl">Variant 3<br>Color-coded left bars</div>
+  <div class="rail">
+    <div class="v3-strip">
+      <div class="v3-row ac">
+        <span class="v3-icon">🛡</span>
+        <span class="v3-name">Armor Class</span>
+        <span class="v3-val ac">9</span>
+      </div>
+      <div class="v3-row init">
+        <span class="v3-icon">⚡</span>
+        <span class="v3-name">Initiative</span>
+        <span class="v3-val">−1</span>
+      </div>
+      <div class="v3-row speed">
+        <span class="v3-icon">👟</span>
+        <span class="v3-name">Speed</span>
+        <span class="v3-val speed">30</span>
+      </div>
+      <div class="v3-row die">
+        <span class="v3-icon">🎲</span>
+        <span class="v3-name">Hit Die</span>
+        <span class="v3-val die">d8</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

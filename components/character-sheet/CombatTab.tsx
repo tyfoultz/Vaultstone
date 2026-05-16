@@ -5,9 +5,11 @@ import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import { getSrdContent } from '@vaultstone/content';
 import type {
   Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eFeature,
-  ConditionResult, SrdVersion,
+  Dnd5eAbility, ConditionResult, SrdVersion,
+  ClassResult, SubclassResult, SpeciesResult,
 } from '@vaultstone/types';
 import type { RollResult } from './RollToast';
+import { AbilitiesCardTab } from './AbilitiesCardTab';
 
 const ABILITY_KEYS: (keyof Dnd5eAbilityScores)[] = [
   'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma',
@@ -106,6 +108,14 @@ interface Props {
   onToggleCondition: (c: string) => void;
   onSetExhaustion: (level: number) => void;
   getAttackBonus: (item: Dnd5eEquipmentItem) => number;
+  // ── Abilities-card embed ─────────────────────────────────────────
+  // The old standalone Abilities tab now renders inside this tab so
+  // active-ability cards sit next to attacks and actions. These props
+  // are forwarded straight to AbilitiesCardTab.
+  classResultsByKey: Record<string, ClassResult>;
+  subclassResultsByKey: Record<string, SubclassResult>;
+  speciesResult: SpeciesResult | null;
+  onUpdateAbilities: (abilities: Dnd5eAbility[]) => void;
 }
 
 function rollD20(label: string, bonus: number, onRoll: (r: RollResult) => void) {
@@ -127,6 +137,7 @@ export function CombatTab({
   stats, resources, scores, prof,
   activeConditions, canEditAny, equipment, isDesktop, manualMode, conditionCatalog,
   liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, getAttackBonus,
+  classResultsByKey, subclassResultsByKey, speciesResult, onUpdateAbilities,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
 
@@ -165,32 +176,6 @@ export function CombatTab({
   if (isDesktop) {
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
-
-          {/* Ability Scores */}
-          <CardBlock title="Ability Scores" hint={manualMode ? 'TAP TO EDIT' : undefined}>
-            <View style={s.hexRow}>
-              {ABILITY_KEYS.map((key) => {
-                const score = scores[key];
-                const mod = abilityMod(score);
-                const isSpellMod = stats.spellcastingAbility?.toLowerCase() === key;
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    style={[s.hex, isSpellMod && s.hexSpell, manualMode && s.hexEditable]}
-                    onPress={() => manualMode && onEditField
-                      ? onEditField(key, score)
-                      : rollD20(`${ABILITY_SHORT[key]} check`, mod, onRoll)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.hexName, isSpellMod && { color: colors.primary }]}>{ABILITY_SHORT[key]}</Text>
-                    <Text style={[s.hexMod, isSpellMod && { color: colors.primary }]}>{fmtMod(mod)}</Text>
-                    <Text style={s.hexRaw}>{score}</Text>
-                    {manualMode && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </CardBlock>
 
           {/* Attacks */}
           <CardBlock title="Attacks">
@@ -284,6 +269,27 @@ export function CombatTab({
             </CardBlock>
           )}
 
+          {/* Active abilities — merged in from the old standalone
+              Abilities tab. Sits above Actions since tracked-use class
+              features are typically resolved before falling back to
+              generic actions on the same turn. Wrapped in a CardBlock
+              for visual consistency with the other Combat sections —
+              `headerless` suppresses the internal SectionLabel so
+              the CardBlock title strip is the sole header. */}
+          <CardBlock title="Abilities">
+            <AbilitiesCardTab
+              embedded
+              headerless
+              resources={resources}
+              isOwner={canEditAny}
+              classResultsByKey={classResultsByKey}
+              subclassResultsByKey={subclassResultsByKey}
+              speciesResult={speciesResult}
+              characterLevel={stats.level}
+              onUpdateAbilities={onUpdateAbilities}
+            />
+          </CardBlock>
+
           {/* Actions */}
           <CardBlock title="Actions">
             <ActionGroup label="Actions" items={actions} color={colors.primary} />
@@ -302,31 +308,8 @@ export function CombatTab({
   return (
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
-      {/* Ability scores */}
-      <SectionLabel>{manualMode ? 'ABILITIES · TAP TO EDIT' : 'ABILITIES · TAP TO CHECK'}</SectionLabel>
-      <View style={s.abilityGrid}>
-        {ABILITY_KEYS.map((abi) => {
-          const score = scores[abi];
-          const m = abilityMod(score);
-          return (
-            <TouchableOpacity
-              key={abi}
-              style={[s.abilityTile, manualMode && s.hexEditable]}
-              onPress={() => manualMode && onEditField
-                ? onEditField(abi, score)
-                : rollD20(`${ABILITY_SHORT[abi]} check`, m, onRoll)}
-              activeOpacity={0.7}
-            >
-              <Text style={s.abilityShort}>{ABILITY_SHORT[abi]}</Text>
-              <Text style={s.abilityMod}>{fmtMod(m)}</Text>
-              <View style={s.abilityScorePill}><Text style={s.abilityScore}>{score}</Text></View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
       {/* Saving throws */}
-      <SectionLabel style={{ marginTop: 14 }}>SAVING THROWS</SectionLabel>
+      <SectionLabel>SAVING THROWS</SectionLabel>
       <View style={s.savesGrid}>
         {ABILITY_KEYS.map((abi) => {
           const isProf = stats.savingThrowProficiencies.includes(abi);
@@ -429,6 +412,21 @@ export function CombatTab({
           suffix=" ft"
           editable={manualMode}
           onPress={manualMode && onEditField ? () => onEditField('speed', stats.speed) : undefined}
+        />
+      </View>
+
+      {/* Active abilities — merged in from the old standalone
+          Abilities tab. */}
+      <View style={{ marginTop: 14 }}>
+        <AbilitiesCardTab
+          embedded
+          resources={resources}
+          isOwner={canEditAny}
+          classResultsByKey={classResultsByKey}
+          subclassResultsByKey={subclassResultsByKey}
+          speciesResult={speciesResult}
+          characterLevel={stats.level}
+          onUpdateAbilities={onUpdateAbilities}
         />
       </View>
 
@@ -612,46 +610,55 @@ export function ConditionsSection({
 }
 
 function ActionGroup({ label, items, color }: { label: string; items: Dnd5eFeature[]; color: string }) {
+  // Group-level collapse: groups start open so all actions are visible
+  // at a glance; the chevron on the header lets the player fold groups
+  // they don't care about this turn (e.g. collapse Reactions when on
+  // their own turn). Individual action descriptions are always shown
+  // when the group is open — no per-row expand.
+  const [expanded, setExpanded] = useState(true);
   return (
     <View style={s.actionGroup}>
-      <View style={s.actionGroupHead}>
+      <TouchableOpacity
+        style={s.actionGroupHead}
+        onPress={() => setExpanded((v) => !v)}
+        activeOpacity={0.7}
+      >
         <View style={[s.actionGroupBar, { backgroundColor: color }]} />
         <Text style={[s.actionGroupLabel, { color }]}>{label}</Text>
         <Text style={s.actionGroupCount}>{items.length}</Text>
-      </View>
-      <View style={s.actionCards}>
-        {items.map((item) => <ActionRow key={item.id} feature={item} color={color} />)}
-      </View>
-    </View>
-  );
-}
-
-function ActionRow({ feature, color }: { feature: Dnd5eFeature; color: string }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <TouchableOpacity
-      style={s.actionCard}
-      onPress={() => setExpanded((v) => !v)}
-      activeOpacity={0.7}
-    >
-      <View style={s.actionCardHeader}>
-        <View style={[s.actionCardBar, { backgroundColor: color }]} />
-        <View style={{ flex: 1 }}>
-          <Text style={s.actionCardName}>{feature.name}</Text>
-          {feature.uses && (
-            <Text style={[s.actionCardMeta, { color }]}>{feature.uses.current}/{feature.uses.max} uses</Text>
-          )}
-        </View>
         <MaterialCommunityIcons
           name={expanded ? 'chevron-down' : 'chevron-right'}
           size={16}
           color={colors.outline}
         />
-      </View>
-      {expanded && feature.description ? (
-        <Text style={s.actionCardDesc}>{feature.description}</Text>
+      </TouchableOpacity>
+      {expanded ? (
+        <View style={s.actionCards}>
+          {items.map((item) => <ActionRow key={item.id} feature={item} color={color} />)}
+        </View>
       ) : null}
-    </TouchableOpacity>
+    </View>
+  );
+}
+
+function ActionRow({ feature, color }: { feature: Dnd5eFeature; color: string }) {
+  return (
+    <View style={s.actionCard}>
+      <View style={[s.actionCardBar, { backgroundColor: color }]} />
+      <View style={s.actionCardBody}>
+        <View style={s.actionCardTitleRow}>
+          <Text style={s.actionCardName} numberOfLines={1}>{feature.name}</Text>
+          {feature.uses ? (
+            <Text style={[s.actionCardUses, { color }]}>
+              {feature.uses.current}/{feature.uses.max}
+            </Text>
+          ) : null}
+        </View>
+        {feature.description ? (
+          <Text style={s.actionCardDesc}>{feature.description}</Text>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -832,20 +839,10 @@ const s = StyleSheet.create({
   condRowText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '500', color: colors.onSurface },
   condRowDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 15 },
 
-  // Abilities (desktop right-column horizontal strip)
-  hexRow: { flexDirection: 'row', gap: 6 },
-  hex: {
-    flex: 1,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 2, borderColor: colors.outlineVariant,
-    borderRadius: 10,
-    alignItems: 'center', paddingVertical: 8, paddingHorizontal: 2,
-  },
-  hexSpell: { borderColor: colors.primaryContainer },
-  hexEditable: { borderColor: colors.primary, borderStyle: 'dashed' as any },
-  hexName: { fontSize: 9, fontFamily: fonts.label, fontWeight: '800', letterSpacing: 1, color: colors.outline },
-  hexMod: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface, lineHeight: 26, marginTop: 2 },
-  hexRaw: { fontSize: 9, color: colors.outline },
+  // Editable-field hint — dashed primary border on tappable manual-mode
+  // cells (e.g. the speed passive card). Kept after the desktop hex
+  // ability strip moved to the Skills tab.
+  hexEditable: { borderColor: colors.primary, borderStyle: 'dashed' as const },
 
   // Exhaustion (inline chip inside conditions list)
   exhaustionChip: {
@@ -891,40 +888,27 @@ const s = StyleSheet.create({
   actionGroupBar: { width: 3, height: 12, borderRadius: 2 },
   actionGroupLabel: { flex: 1, fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
   actionGroupCount: { fontSize: 9, fontFamily: fonts.label, color: colors.outline },
-  actionCards: { gap: 4 },
+  actionCards: { gap: 3 },
   actionCard: {
+    flexDirection: 'row',
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, overflow: 'hidden',
+    borderRadius: 6, overflow: 'hidden',
   },
-  actionCardHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 10, paddingRight: 10,
+  /** Color stripe at the left edge — accent for action type. */
+  actionCardBar: { width: 2, alignSelf: 'stretch' },
+  /** Tighter body padding for the condensed two-row layout. */
+  actionCardBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 1 },
+  actionCardTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  actionCardName: {
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, letterSpacing: -0.1,
   },
-  actionCardBar: { width: 3, alignSelf: 'stretch', borderRadius: 0 },
-  actionCardName: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
-  actionCardMeta: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', marginTop: 1 },
+  /** Compact uses chip — just the fraction, no "uses" suffix. */
+  actionCardUses: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700' },
   actionCardDesc: {
-    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 18,
-    paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2,
+    fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 15,
   },
-
-  // Mobile ability scores
-  abilityGrid: { flexDirection: 'row', gap: 6 },
-  abilityTile: {
-    flex: 1, alignItems: 'center', padding: 10,
-    backgroundColor: colors.surfaceContainer,
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg,
-  },
-  abilityShort: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, color: colors.outline },
-  abilityMod: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.primary, lineHeight: 26 },
-  abilityScorePill: {
-    marginTop: 2, paddingHorizontal: 8, paddingVertical: 1,
-    backgroundColor: colors.surfaceContainerHighest,
-    borderRadius: 999, borderWidth: 1, borderColor: colors.outlineVariant,
-  },
-  abilityScore: { fontSize: 10, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurfaceVariant },
 
   // Mobile saving throws
   savesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

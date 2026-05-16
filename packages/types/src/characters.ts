@@ -29,6 +29,14 @@ export interface CharacterSettings {
    * absent — matches the SRD bundled rule default.
    */
   hitPointMethod?: 'fixed' | 'rolled';
+  /**
+   * Whether the character is currently active in its linked campaign.
+   * Inactive characters still appear in the campaign's Members card
+   * (with an "inactive" chip), but are hidden by default from the
+   * Party / Combat surfaces. Defaults to `true` when absent so
+   * pre-flag characters keep their existing visibility.
+   */
+  active?: boolean;
 }
 
 export interface Dnd5eAbilityScores {
@@ -248,7 +256,14 @@ export interface Dnd5ePersonality {
   bonds?: string;
   flaws?: string;
   backstory?: string;
+  /** Allies, enemies, and organizational ties — folded into one
+   *  freeform field. The legacy `faction` value below is preserved
+   *  for older saves and surfaced inline at read time. */
   allies?: string;
+  /** Short-term and long-term character goals. */
+  goals?: string;
+  /** @deprecated Use `allies` — kept for back-compat with characters
+   *  saved before the Organization field was folded into Allies. */
   faction?: string;
 }
 
@@ -260,12 +275,27 @@ export interface Dnd5eAppearance {
   eyes?: string;
   hair?: string;
   skin?: string;
+  /** Patron deity or faith. Free-text — clerics/paladins typically
+   *  surface this, but anyone can fill it in. */
+  deity?: string;
+  /** Freeform clothing, accessories, or distinguishing personal
+   *  effects (signet ring, talisman, etc.). Lives next to deity
+   *  on the Identity panel. */
+  attire?: string;
 }
 
 export interface Dnd5eJournalEntry {
   id: string;
   title: string;
+  /** Plaintext snapshot of the entry body — used for list-card
+   *  previews and search. Always kept in sync with `bodyDoc` when
+   *  set; remains the sole source of truth for older string-only
+   *  entries created before the rich editor was wired in. */
   body: string;
+  /** Tiptap JSON document for the rich body. Optional for back-compat
+   *  with older entries that only stored a plaintext `body`. Mirrors
+   *  the shape used by world pages. */
+  bodyDoc?: object;
   date?: string;
   tags?: string[];
 }

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stat Grid A+D Mix</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0c0e10;
+    color: #e2e2e5;
+    font-family: 'Manrope', system-ui, sans-serif;
+    display: flex;
+    gap: 40px;
+    padding: 40px 32px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .col { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .lbl {
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #958da1; text-align: center; line-height: 1.6;
+  }
+  .rail { width: 260px; background: #0c0e10; border: 1px solid #4a4455; border-radius: 10px; overflow: hidden; padding: 10px; }
+
+  /* ── VARIANT 1 — 2×2 grid, each cell is a D-style row ─────────── */
+  .v1-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .v1-cell {
+    background: #1e2022;
+    border: 1px solid #4a4455;
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .v1-cell:hover { border-color: #958da1; }
+  .v1-icon { font-size: 16px; flex-shrink: 0; }
+  .v1-text { display: flex; flex-direction: column; flex: 1; }
+  .v1-val { font-size: 20px; font-weight: 800; line-height: 1; color: #e2e2e5; }
+  .v1-val.ac { color: #adc6ff; }
+  .v1-key { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #958da1; margin-top: 2px; }
+
+  /* ── VARIANT 2 — 4-col strip, A layout, D-style full labels ────── */
+  .v2-strip { display: flex; gap: 5px; }
+  .v2-cell {
+    flex: 1;
+    background: #1e2022;
+    border: 1px solid #4a4455;
+    border-radius: 8px;
+    padding: 8px 4px 7px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .v2-cell:hover { border-color: #958da1; }
+  .v2-cell.ac { border-color: #0566d9; }
+  .v2-icon { font-size: 14px; line-height: 1; }
+  .v2-val { font-size: 20px; font-weight: 800; line-height: 1; color: #e2e2e5; }
+  .v2-val.ac { color: #adc6ff; }
+  .v2-key { font-size: 8px; letter-spacing: 0.05em; color: #958da1; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<!-- VARIANT 1: 2×2 grid with D-style rows inside each cell -->
+<div class="col">
+  <div class="lbl">Variant 1<br>2×2 grid · D-style rows</div>
+  <div class="rail">
+    <div class="v1-grid">
+      <div class="v1-cell">
+        <span class="v1-icon">🛡</span>
+        <div class="v1-text">
+          <span class="v1-val ac">9</span>
+          <span class="v1-key">Armor Class</span>
+        </div>
+      </div>
+      <div class="v1-cell">
+        <span class="v1-icon">⚡</span>
+        <div class="v1-text">
+          <span class="v1-val">−1</span>
+          <span class="v1-key">Initiative</span>
+        </div>
+      </div>
+      <div class="v1-cell">
+        <span class="v1-icon">👟</span>
+        <div class="v1-text">
+          <span class="v1-val">30</span>
+          <span class="v1-key">Speed</span>
+        </div>
+      </div>
+      <div class="v1-cell">
+        <span class="v1-icon">🎲</span>
+        <div class="v1-text">
+          <span class="v1-val">d8</span>
+          <span class="v1-key">Hit Die</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VARIANT 2: 4-col A strip with full labels instead of abbreviations -->
+<div class="col">
+  <div class="lbl">Variant 2<br>4-col strip · full labels</div>
+  <div class="rail">
+    <div class="v2-strip">
+      <div class="v2-cell ac">
+        <span class="v2-icon">🛡</span>
+        <span class="v2-val ac">9</span>
+        <span class="v2-key">Armor Class</span>
+      </div>
+      <div class="v2-cell">
+        <span class="v2-icon">⚡</span>
+        <span class="v2-val">−1</span>
+        <span class="v2-key">Initiative</span>
+      </div>
+      <div class="v2-cell">
+        <span class="v2-icon">👟</span>
+        <span class="v2-val">30</span>
+        <span class="v2-key">Speed</span>
+      </div>
+      <div class="v2-cell">
+        <span class="v2-icon">🎲</span>
+        <span class="v2-val">d8</span>
+        <span class="v2-key">Hit Die</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

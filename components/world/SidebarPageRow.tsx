@@ -43,7 +43,9 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
   const router = useRouter();
   const icon = MATERIAL_ICON[node.page.page_kind] ?? 'article';
   const active = activePageId === node.page.id;
-  const isSplitTarget = useSplitPaneStore((s) => s.splitPageId === node.page.id);
+  const isSplitTarget = useSplitPaneStore((s) =>
+    s.splitTarget?.kind === 'world-page' && s.splitTarget.pageId === node.page.id,
+  );
   const indent = node.depth * 12;
   const hasChildren = node.children.length > 0;
   const [hovered, setHovered] = useState(false);
