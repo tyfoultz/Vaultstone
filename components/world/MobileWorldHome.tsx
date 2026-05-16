@@ -11,6 +11,14 @@ import { WorldTopBar } from './WorldTopBar';
 import { ACCENT_SWATCH, toMaterialIcon } from './helpers';
 import { worldPagesHref } from './worldHref';
 
+// Mirrors the type from WorldHome.tsx; inlined here to avoid a
+// circular import (WorldHome imports MobileWorldHome). The two should
+// stay in sync.
+type WorldHomeNavigateTarget =
+  | { kind: 'page'; pageId: string }
+  | { kind: 'section'; sectionId: string }
+  | { kind: 'campaign'; campaignId: string };
+
 type World = Database['public']['Tables']['worlds']['Row'];
 
 type Props = {
@@ -18,9 +26,12 @@ type Props = {
   world: World;
   sections: WorldSection[];
   pageCounts: Record<string, number>;
+  pagesByWorld?: { id: string; section_id: string }[];
   isOwner: boolean;
   calendarSchema: TimelineCalendarSchema | null;
   onSearchPress?: () => void;
+  /** See `WorldHomeNavigateTarget` on WorldHome.tsx. */
+  onNavigate?: (target: WorldHomeNavigateTarget) => boolean;
 };
 
 export function MobileWorldHome({
@@ -28,9 +39,11 @@ export function MobileWorldHome({
   world,
   sections,
   pageCounts,
+  pagesByWorld,
   isOwner,
   calendarSchema,
   onSearchPress,
+  onNavigate,
 }: Props) {
   const router = useRouter();
   const [createSectionOpen, setCreateSectionOpen] = useState(false);
@@ -52,6 +65,13 @@ export function MobileWorldHome({
   }, [dateValues, currentEra]);
 
   function handleSectionPress(section: WorldSection) {
+    // Same embed protocol as desktop: prefer drilling into the
+    // section's first page when the host accepts it.
+    if (onNavigate) {
+      const firstPage = (pagesByWorld ?? []).find((p) => p.section_id === section.id);
+      if (firstPage && onNavigate({ kind: 'page', pageId: firstPage.id })) return;
+      if (onNavigate({ kind: 'section', sectionId: section.id })) return;
+    }
     router.push((worldPagesHref(worldId) + '?section=' + section.id) as never);
   }
 

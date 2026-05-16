@@ -103,8 +103,10 @@ export function PageContextMenu({
     }
   }
 
-  const splitTarget = useSplitPaneStore.getState().splitTarget;
-  const isSplitActive = !!splitTarget;
+  const isSplitActive = (() => {
+    const st = useSplitPaneStore.getState();
+    return st.leftTabs.length + st.rightTabs.length > 0;
+  })();
   const canSplit = Platform.OS === 'web' && page.id !== activePageId;
 
   const items: (MenuItem | 'divider')[] = [

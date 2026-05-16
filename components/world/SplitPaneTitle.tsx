@@ -15,6 +15,10 @@ type Props = {
   focused?: boolean;
   onPress?: () => void;
   onClose?: () => void;
+  /** Optional — when set, renders a small home icon left of the close
+   *  button. Used by the campaign split shell so a page that was
+   *  navigated to from a world-home embed can pop back to the home. */
+  onHome?: () => void;
 };
 
 export function SplitPaneTitle({
@@ -26,6 +30,7 @@ export function SplitPaneTitle({
   focused,
   onPress,
   onClose,
+  onHome,
 }: Props) {
   const swatch = ACCENT_SWATCH[accentToken] ?? ACCENT_SWATCH.primary;
   const materialIcon = toMaterialIcon(icon);
@@ -70,6 +75,19 @@ export function SplitPaneTitle({
       </View>
 
       <View style={{ flex: 1 }} />
+
+      {onHome ? (
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            onHome();
+          }}
+          style={styles.closeBtn}
+          accessibilityLabel="Back to world home"
+        >
+          <Icon name="home" size={14} color={colors.outlineVariant} />
+        </Pressable>
+      ) : null}
 
       {onClose ? (
         <Pressable

@@ -13,9 +13,9 @@ export default function PageDetailScreen() {
   const router = useRouter();
 
   const splitPageId = useSplitPaneStore(selectSplitPageId);
-  const focusedPane = useSplitPaneStore((s) => s.focusedPane);
+  const focusedSide = useSplitPaneStore((s) => s.focusedSide);
   const closeSplit = useSplitPaneStore((s) => s.closeSplit);
-  const setFocusedPane = useSplitPaneStore((s) => s.setFocusedPane);
+  const setFocusedSide = useSplitPaneStore((s) => s.setFocusedSide);
 
   const splitPage = usePagesStore((s) => {
     if (!splitPageId || !worldId) return null;
@@ -62,8 +62,8 @@ export default function PageDetailScreen() {
               pageId={pageId}
               worldId={worldId}
               splitMode
-              focused={focusedPane === 'primary'}
-              onFocus={() => setFocusedPane('primary')}
+              focused={focusedSide === 'left'}
+              onFocus={() => setFocusedSide('left')}
               onClose={closeSplit}
             />
           }
@@ -72,8 +72,8 @@ export default function PageDetailScreen() {
               pageId={splitPageId}
               worldId={worldId}
               splitMode
-              focused={focusedPane === 'split'}
-              onFocus={() => setFocusedPane('split')}
+              focused={focusedSide === 'right'}
+              onFocus={() => setFocusedSide('right')}
               onClose={closeSplit}
               onNavigate={handleSplitNavigate}
             />

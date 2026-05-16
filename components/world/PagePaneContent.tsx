@@ -77,6 +77,10 @@ type Props = {
   onFocus?: () => void;
   onClose?: () => void;
   onNavigate?: (targetPageId: string) => void;
+  /** Optional — when set, the split-mode title bar shows a home icon
+   *  that calls this. Used by the campaign split shell to pop a
+   *  drilled-into page back to the world home. */
+  onHome?: () => void;
 };
 
 export function PagePaneContent({
@@ -87,6 +91,7 @@ export function PagePaneContent({
   onFocus,
   onClose,
   onNavigate,
+  onHome,
 }: Props) {
   const router = useRouter();
   const { isMobile } = useBreakpoint();
@@ -456,6 +461,7 @@ export function PagePaneContent({
             focused={focused}
             onPress={onFocus}
             onClose={onClose}
+            onHome={onHome}
           />
           {specializedView}
         </View>
@@ -484,6 +490,7 @@ export function PagePaneContent({
           focused={focused}
           onPress={onFocus}
           onClose={onClose}
+          onHome={onHome}
         />
       ) : (
         <WorldTopBar

@@ -1,23 +1,13 @@
-import { Platform } from 'react-native';
+// Thin wrapper around the shared HTML5 DnD provider. Kept under its
+// historical name so existing sidebar call sites don't need to
+// change; the implementation now defers to SharedDndProvider, which
+// no-ops when a backend is already mounted upstream (e.g. the
+// campaign route mounts its own for tab-row dragging).
 
-type Props = {
-  children: React.ReactNode;
-};
+import { SharedDndProvider } from '../DndProviderContext';
 
-let DndProviderImpl: React.ComponentType<Props>;
-
-if (Platform.OS === 'web') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { DndProvider } = require('react-dnd');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { HTML5Backend } = require('react-dnd-html5-backend');
-  DndProviderImpl = ({ children }: Props) => (
-    <DndProvider backend={HTML5Backend}>{children}</DndProvider>
-  );
-} else {
-  DndProviderImpl = ({ children }: Props) => <>{children}</>;
-}
+type Props = { children: React.ReactNode };
 
 export function SidebarDndProvider({ children }: Props) {
-  return <DndProviderImpl>{children}</DndProviderImpl>;
+  return <SharedDndProvider>{children}</SharedDndProvider>;
 }

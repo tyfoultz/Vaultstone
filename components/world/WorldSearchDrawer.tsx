@@ -16,6 +16,7 @@ import {
 } from '@vaultstone/ui';
 
 import { PAGE_KIND_LABEL } from './helpers';
+import { useWorldEmbedNavigate } from './WorldEmbedContext';
 import { worldPageHref } from './worldHref';
 import type { PageKind } from '@vaultstone/types';
 
@@ -34,6 +35,7 @@ type Props = {
 
 export function WorldSearchDrawer({ worldId }: Props) {
   const router = useRouter();
+  const embedNavigate = useWorldEmbedNavigate();
   const rootRef = useRef<View>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -98,7 +100,9 @@ export function WorldSearchDrawer({ worldId }: Props) {
 
   function handleSelect(result: SearchResult) {
     if (result.result_type === 'page') {
-      router.push(worldPageHref(worldId, result.id));
+      if (!embedNavigate?.({ kind: 'world-page', worldId, pageId: result.id })) {
+        router.push(worldPageHref(worldId, result.id));
+      }
     }
     setOpen(false);
     setQuery('');
