@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { usePagesStore, useSplitPaneStore } from '@vaultstone/store';
+import { usePagesStore, useSplitPaneStore, selectSplitPageId } from '@vaultstone/store';
 import { colors } from '@vaultstone/ui';
 
 import { PagePaneContent } from '../../../../components/world/PagePaneContent';
@@ -12,7 +12,7 @@ export default function PageDetailScreen() {
   const { worldId, pageId } = useLocalSearchParams<{ worldId: string; pageId: string }>();
   const router = useRouter();
 
-  const splitPageId = useSplitPaneStore((s) => s.splitPageId);
+  const splitPageId = useSplitPaneStore(selectSplitPageId);
   const focusedPane = useSplitPaneStore((s) => s.focusedPane);
   const closeSplit = useSplitPaneStore((s) => s.closeSplit);
   const setFocusedPane = useSplitPaneStore((s) => s.setFocusedPane);
@@ -32,16 +32,21 @@ export default function PageDetailScreen() {
 
   const handleSplitNavigate = useCallback(
     (targetPageId: string) => {
-      useSplitPaneStore.getState().openSplit(targetPageId);
+      if (!worldId) return;
+      useSplitPaneStore.getState().openSplit({
+        kind: 'world-page', worldId, pageId: targetPageId,
+      });
     },
-    [],
+    [worldId],
   );
 
   const handleSwapPanes = useCallback(() => {
     if (!splitPageId || !worldId) return;
     const currentPrimary = pageId;
     router.replace(worldPageHref(worldId, splitPageId));
-    useSplitPaneStore.getState().openSplit(currentPrimary!);
+    useSplitPaneStore.getState().openSplit({
+      kind: 'world-page', worldId, pageId: currentPrimary!,
+    });
   }, [splitPageId, pageId, worldId, router]);
 
   if (!worldId || !pageId) return null;

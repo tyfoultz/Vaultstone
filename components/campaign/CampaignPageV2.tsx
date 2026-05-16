@@ -16,9 +16,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator, Platform,
+  View, ScrollView, StyleSheet, Pressable, ActivityIndicator,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import {
   supabase, getCampaignMembers, listCampaignPacks,
@@ -28,33 +27,58 @@ import {
   resolveRuleValues,
   removeCampaignMember,
   deleteCampaign,
-  uploadCampaignCover,
+  getCharactersForCampaign,
   type HomebrewPackRow,
 } from '@vaultstone/api';
 import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { CharacterCreationRulesModal } from './CharacterCreationRulesModal';
-import { useAuthStore, useCampaignStore } from '@vaultstone/store';
+import { useAuthStore, useCampaignStore, useSplitPaneStore } from '@vaultstone/store';
 import {
   colors, spacing, radius,
-  Card, ContentWidth, GhostButton, GradientButton, Icon, ImageCropModal,
-  MetaLabel, ScreenHeader, Text,
+  Card, ContentWidth, GhostButton, GradientButton, Icon,
+  MetaLabel, Text,
 } from '@vaultstone/ui';
-import type { Database, Dnd5eStats } from '@vaultstone/types';
+import type { Database, Dnd5eStats, CharacterSettings } from '@vaultstone/types';
+import { CampaignMembersCard } from './CampaignMembersCard';
 import { CampaignWindowPane } from './CampaignWindowPane';
 import { LinkWorldModal } from './LinkWorldModal';
 import { ManageCampaignContentModal } from './ManageCampaignContentModal';
 import { ManageMembersModal } from './ManageMembersModal';
+import { PartyMemberCard } from './PartyMemberCard';
 import { StartSessionModal, type StartSessionPlayer } from '../session/StartSessionModal';
 import { EndSessionModal } from '../session/EndSessionModal';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
+
+/** Full character payload — every `characters.campaign_id` pointing
+ *  at this campaign. Shape matches `getCharactersForCampaign`. */
+type CampaignCharacter = {
+  id: string;
+  user_id: string;
+  name: string;
+  base_stats: unknown;
+  resources: unknown;
+  conditions: string[] | null;
+  avatar_url: string | null;
+  avatar_card_url: string | null;
+};
+
 type Member = {
   user_id: string;
   role: 'gm' | 'player' | 'co_gm';
   character_id: string | null;
   joined_at: string;
   profiles: { id: string; display_name: string | null } | null;
-  characters: { id: string; name: string; system: string; base_stats: unknown } | null;
+  characters: {
+    id: string;
+    name: string;
+    system: string;
+    base_stats: unknown;
+    resources: unknown;
+    conditions: string[] | null;
+    avatar_url: string | null;
+    avatar_card_url: string | null;
+  } | null;
 };
 
 type Phase = 'setup' | 'open' | 'in-session';
@@ -75,6 +99,14 @@ export function CampaignPageV2({ campaignId }: Props) {
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  // Full per-campaign character roster (every `characters.campaign_id`
+  // pointing here). Drives both the Members card (grouped by user)
+  // and the Party card (vitals rendering). Replaces the older
+  // membership-pinned `Member.characters` payload for party rendering;
+  // the membership join is still loaded for role + profile data.
+  const [campaignCharacters, setCampaignCharacters] = useState<
+    Array<CampaignCharacter>
+  >([]);
   const [packs, setPacks] = useState<HomebrewPackRow[]>([]);
   const [linkedWorld, setLinkedWorld] = useState<{ id: string; name: string } | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -100,11 +132,6 @@ export function CampaignPageV2({ campaignId }: Props) {
   const [endModalOpen, setEndModalOpen] = useState(false);
   const [startingSession, setStartingSession] = useState(false);
   const [endingSession, setEndingSession] = useState(false);
-  /** Cover-image picker / crop state. On native we let the picker
-   *  handle aspect-ratio cropping inline; on web the picker can't
-   *  crop, so we stash the URI and open ImageCropModal afterwards. */
-  const [cropUri, setCropUri] = useState<string | null>(null);
-  const [uploadingCover, setUploadingCover] = useState(false);
   /** Leave-campaign confirmation — players only. Removing yourself
    *  drops your campaign membership and routes back to the
    *  campaigns list. */
@@ -161,6 +188,66 @@ export function CampaignPageV2({ campaignId }: Props) {
     })();
     return () => { cancelled = true; };
   }, [campaignId, refreshTick]);
+
+  // Full character roster — every character whose campaign_id points
+  // here, regardless of whether it's the user's pinned active one.
+  // Powers the Members card so a player with multiple characters on
+  // the campaign shows them all (with inactive ones tagged).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await getCharactersForCampaign(campaignId);
+      if (cancelled) return;
+      setCampaignCharacters((data ?? []) as unknown as CampaignCharacter[]);
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId, refreshTick]);
+
+  // Realtime: watch UPDATEs on every character whose campaign_id points
+  // here so both the Party cards (HP / conditions / concentration) and
+  // the Members card (active/inactive toggle + name) reflect changes
+  // without a refetch. Single channel covers both surfaces since they
+  // both consume `campaignCharacters`.
+  //
+  // Channel name carries a random suffix so React strict-mode's
+  // double-mount (and Expo Router's nav remounts) don't reuse the same
+  // channel instance — Supabase's `.channel()` returns an already-joined
+  // channel if the name is taken, which causes `.on()` to throw
+  // "cannot add postgres_changes callbacks after subscribe()".
+  const campaignCharIds = useMemo(
+    () => campaignCharacters.map((c) => c.id),
+    [campaignCharacters],
+  );
+  const campaignCharIdsKey = campaignCharIds.join(',');
+  useEffect(() => {
+    if (campaignCharIds.length === 0) return;
+    const channelName = `campaign-roster-${campaignId}-${Math.random().toString(36).slice(2, 10)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'characters', filter: `id=in.(${campaignCharIds.join(',')})` },
+        (payload) => {
+          const updated = payload.new as CampaignCharacter;
+          setCampaignCharacters((prev) => prev.map((c) =>
+            c.id === updated.id
+              ? {
+                  ...c,
+                  name: updated.name,
+                  base_stats: updated.base_stats,
+                  resources: updated.resources,
+                  conditions: updated.conditions,
+                  avatar_url: updated.avatar_url,
+                  avatar_card_url: updated.avatar_card_url,
+                }
+              : c
+          ));
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, campaignCharIdsKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -254,45 +341,6 @@ export function CampaignPageV2({ campaignId }: Props) {
     }
   }
 
-  async function uploadCover(uri: string, mime: string) {
-    if (!campaign) return;
-    setUploadingCover(true);
-    const { url } = await uploadCampaignCover(campaign.id, uri, mime);
-    setUploadingCover(false);
-    if (url) {
-      // Mirror the upload result into local + global campaign
-      // state so the hero re-renders without a refetch and other
-      // surfaces (drawer, home page) see the new cover too.
-      setCampaign((prev) => (prev ? { ...prev, cover_image_url: url } : prev));
-      updateCampaignInStore(campaign.id, { cover_image_url: url });
-    }
-  }
-
-  async function handlePickCover() {
-    if (!campaign) return;
-    const isWeb = Platform.OS === 'web';
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: !isWeb,
-      aspect: [16, 9],
-      quality: 0.5,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    if (isWeb) {
-      // Web's picker can't crop inline — stage the URI and let the
-      // ImageCropModal hand back a 16:9 result before upload.
-      setCropUri(asset.uri);
-    } else {
-      await uploadCover(asset.uri, asset.mimeType ?? 'image/jpeg');
-    }
-  }
-
-  async function handleCropConfirm(croppedUri: string) {
-    setCropUri(null);
-    await uploadCover(croppedUri, 'image/jpeg');
-  }
-
   async function handleLeaveCampaign() {
     if (!campaign || !user || leaving) return;
     setLeaving(true);
@@ -328,37 +376,6 @@ export function CampaignPageV2({ campaignId }: Props) {
       style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}
       contentContainerStyle={s.scrollContent}
     >
-      <ScreenHeader
-        title={campaign.name}
-        subtitle={phaseLabel(phase, isDM)}
-        actions={
-          <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-            <GhostButton
-              label="Back"
-              icon="arrow-back"
-              onPress={() => {
-                if (router.canGoBack()) router.back();
-                else router.replace('/(drawer)/campaigns' as Href);
-              }}
-            />
-            {!isDM && phase !== 'setup' ? (
-              <GhostButton
-                label="Leave"
-                icon="logout"
-                onPress={() => setLeaveConfirmOpen(true)}
-              />
-            ) : null}
-            {isDM ? (
-              <GhostButton
-                label="Delete"
-                icon="delete-outline"
-                onPress={() => setDeleteConfirmOpen(true)}
-              />
-            ) : null}
-          </View>
-        }
-      />
-
       {/* Leave-campaign confirmation banner — players only. Removing
           your own membership is destructive enough to warrant a
           two-step confirm rather than a popover. */}
@@ -417,14 +434,6 @@ export function CampaignPageV2({ campaignId }: Props) {
       ) : null}
 
       <ContentWidth size="wide" style={s.body}>
-        <HeroStrip
-          campaign={campaign}
-          world={linkedWorld}
-          isDM={isDM}
-          onEditCover={handlePickCover}
-          uploading={uploadingCover}
-        />
-
         {phase === 'setup' ? (
           <SetupChecklist
             isDM={isDM}
@@ -453,23 +462,31 @@ export function CampaignPageV2({ campaignId }: Props) {
               refreshTick={refreshTick}
             />
 
-            <PrimaryAction
-              isDM={isDM}
-              activeSessionId={activeSessionId}
-              myMember={myMember}
-              campaignId={campaign.id}
-              onStartSession={() => setStartModalOpen(true)}
-              onEndSession={() => setEndModalOpen(true)}
-            />
+            {/* Player-only primary CTA (create or open character).
+                DM session controls live in SessionControlCard below
+                the party so the at-a-glance party view leads. */}
+            {!isDM ? (
+              <PrimaryAction
+                myMember={myMember}
+                campaignId={campaign.id}
+              />
+            ) : null}
 
             <PartyPanel
               members={members}
+              characters={campaignCharacters}
               isDM={isDM}
               currentUserId={user?.id ?? null}
-              onManageMembers={() => setMembersModalOpen(true)}
             />
 
-            <RecentActivityCard campaignId={campaign.id} />
+            {isDM ? (
+              <SessionControlCard
+                campaignId={campaign.id}
+                activeSessionId={activeSessionId}
+                onStartSession={() => setStartModalOpen(true)}
+                onEndSession={() => setEndModalOpen(true)}
+              />
+            ) : null}
 
             <ReferencesCard
               world={linkedWorld}
@@ -477,7 +494,30 @@ export function CampaignPageV2({ campaignId }: Props) {
               rulesSet={rulesSet}
               onConfigureRules={() => setRulesModalOpen(true)}
               onManageContent={() => setContentModalOpen(true)}
-            />
+            >
+              <CampaignMembersCard
+                members={members}
+                characters={campaignCharacters}
+                currentUserId={user?.id ?? null}
+                isDM={isDM}
+                onManageMembers={() => setMembersModalOpen(true)}
+                nested
+              />
+            </ReferencesCard>
+
+            {/* Destructive actions — hosting them in their own card
+                keeps the top of the page free of management chrome
+                now that the tab row owns identity. DMs see Delete;
+                players see Leave. */}
+            {isDM ? (
+              <ManageCampaignCard
+                onDelete={() => setDeleteConfirmOpen(true)}
+              />
+            ) : (
+              <ManageCampaignCard
+                onLeave={() => setLeaveConfirmOpen(true)}
+              />
+            )}
           </>
         ) : null}
       </ContentWidth>
@@ -546,18 +586,6 @@ export function CampaignPageV2({ campaignId }: Props) {
         />
       ) : null}
 
-      {/* Web-only crop step. Native picker handles aspect-ratio
-          cropping inline, so we only mount this when cropUri is
-          set (always web). Confirm uploads the cropped jpeg. */}
-      {cropUri ? (
-        <ImageCropModal
-          visible
-          imageUri={cropUri}
-          aspect={[16, 9]}
-          onCancel={() => setCropUri(null)}
-          onConfirm={handleCropConfirm}
-        />
-      ) : null}
 
       {/* DM-only start/end session modals. Always mounted (visible
           flag controls render) so any in-flight state survives a
@@ -583,92 +611,6 @@ export function CampaignPageV2({ campaignId }: Props) {
   );
 }
 
-function phaseLabel(phase: Phase, isDM: boolean): string {
-  if (phase === 'setup') return isDM ? 'Setup — finish to invite players' : 'Waiting for the DM';
-  if (phase === 'in-session') return 'Session in progress';
-  return 'Open campaign';
-}
-
-// ── Hero ────────────────────────────────────────────────────────────
-
-function HeroStrip({
-  campaign,
-  world,
-  isDM,
-  onEditCover,
-  uploading,
-}: {
-  campaign: Campaign;
-  world: { id: string; name: string } | null;
-  isDM: boolean;
-  /** When set, tapping the cover (or the edit pill on it) opens
-   *  the OS image picker. DM-only — players see the cover as
-   *  read-only chrome. */
-  onEditCover: () => void;
-  uploading: boolean;
-}) {
-  // Wrap the cover in a Pressable for the DM so the whole image
-  // surface is the affordance; players see a static <View>. The
-  // edit pill on top reinforces interactability for the DM
-  // without competing with the press target.
-  const coverInner = campaign.cover_image_url ? (
-    <Image source={{ uri: campaign.cover_image_url }} style={s.heroCover} />
-  ) : (
-    <View style={[s.heroCover, s.heroCoverPlaceholder]}>
-      <Icon name="image" size={28} color={colors.outline} />
-      {isDM ? (
-        <Text variant="label-sm" family="body" style={{ color: colors.outline, marginTop: 6 }}>
-          Tap to add a cover image
-        </Text>
-      ) : null}
-    </View>
-  );
-
-  return (
-    <Card tier="container" padding="md" style={s.heroCard}>
-      {isDM ? (
-        <Pressable
-          onPress={onEditCover}
-          disabled={uploading}
-          style={({ pressed }) => [pressed && { opacity: 0.85 }]}
-        >
-          {coverInner}
-          <View style={s.heroCoverEdit}>
-            <Icon
-              name={uploading ? 'cloud-upload' : 'edit'}
-              size={14}
-              color={colors.onSurface}
-            />
-            <Text variant="label-sm" family="body" weight="semibold" style={{ color: colors.onSurface }}>
-              {uploading ? 'Uploading…' : 'Edit cover'}
-            </Text>
-          </View>
-        </Pressable>
-      ) : (
-        coverInner
-      )}
-      <View style={s.heroBody}>
-        <Text variant="title-lg" family="headline" weight="bold" style={{ color: colors.onSurface }}>
-          {campaign.name}
-        </Text>
-        <View style={s.heroMetaRow}>
-          <MetaLabel size="sm">{campaign.system_label || campaign.system}</MetaLabel>
-          {world ? (
-            <>
-              <Text variant="label-sm" style={{ color: colors.outline }}>·</Text>
-              <MetaLabel size="sm">{world.name}</MetaLabel>
-            </>
-          ) : null}
-        </View>
-        {campaign.description ? (
-          <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 6 }}>
-            {campaign.description}
-          </Text>
-        ) : null}
-      </View>
-    </Card>
-  );
-}
 
 // ── Setup checklist ─────────────────────────────────────────────────
 
@@ -805,70 +747,19 @@ function ChecklistItem({
 
 // ── Primary action (role-specific) ──────────────────────────────────
 
+// Player-only primary CTA. Renders either "Create your character"
+// when no character is linked yet, or a quick-jump snapshot of the
+// player's pinned character. DM session controls live separately in
+// SessionControlCard below the party.
 function PrimaryAction({
-  isDM,
-  activeSessionId,
   myMember,
   campaignId,
-  onStartSession,
-  onEndSession,
 }: {
-  isDM: boolean;
-  activeSessionId: string | null;
   myMember: Member | undefined;
   campaignId: string;
-  /** Open the start-session modal (DM picks which players are
-   *  present, then session row gets created). */
-  onStartSession: () => void;
-  /** Open the end-session confirmation modal. */
-  onEndSession: () => void;
 }) {
   const router = useRouter();
-
-  if (isDM) {
-    if (activeSessionId) {
-      return (
-        <Card tier="container" padding="md" style={s.primaryActionCard}>
-          <View style={{ flex: 1 }}>
-            <Text variant="label-sm" weight="bold" uppercase style={{ color: colors.hpHealthy, letterSpacing: 1 }}>
-              Session in progress
-            </Text>
-            <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 2 }}>
-              Pinned imagery shows in the window pane above. Open the combat tracker or wrap up below.
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
-            <GhostButton
-              label="Combat tracker"
-              icon="open-in-new"
-              onPress={() => router.push(`/campaign/${campaignId}/combat` as Href)}
-            />
-            <GhostButton
-              label="End session"
-              icon="stop"
-              onPress={onEndSession}
-            />
-          </View>
-        </Card>
-      );
-    }
-    return (
-      <Card tier="container" padding="md" style={s.primaryActionCard}>
-        <View style={{ flex: 1 }}>
-          <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
-            Start your next session
-          </Text>
-          <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 4 }}>
-            Kick off a session to enable the live window pane and combat tracker.
-          </Text>
-        </View>
-        <GradientButton
-          label="Start session"
-          onPress={onStartSession}
-        />
-      </Card>
-    );
-  }
+  const openSplit = useSplitPaneStore((s) => s.openSplit);
 
   // Player without a character — primary CTA is "create your
   // character" routing to the campaign-aware wizard.
@@ -911,7 +802,11 @@ function PrimaryAction({
       <GhostButton
         label="Open sheet"
         icon="open-in-new"
-        onPress={() => myMember.character_id && router.push(`/character/${myMember.character_id}` as Href)}
+        onPress={() => {
+          if (myMember.character_id) {
+            openSplit({ kind: 'character', characterId: myMember.character_id });
+          }
+        }}
       />
     </Card>
   );
@@ -921,52 +816,70 @@ function PrimaryAction({
 
 function PartyPanel({
   members,
+  characters,
   isDM,
   currentUserId,
-  onManageMembers,
 }: {
   members: Member[];
+  /** Full campaign roster — every character whose campaign_id points
+   *  here. PartyPanel renders one card per character (not per member),
+   *  so a player with two characters in the campaign shows two cards.
+   *  Inactive characters (settings.active === false) are filtered. */
+  characters: CampaignCharacter[];
   isDM: boolean;
   currentUserId: string | null;
-  onManageMembers: () => void;
 }) {
-  const players = members.filter((m) => m.role !== 'gm');
+  // Pull a name lookup off the membership join so each card can show
+  // the player's display name without a second query. DM-owned
+  // characters are included — Party = "active characters on the
+  // field," and the role distinction lives in the Members card chip.
+  const nameByUser = new Map<string, string>();
+  for (const m of members) {
+    nameByUser.set(m.user_id, m.profiles?.display_name ?? 'Unknown');
+  }
+
+  // Active characters only. `settings.active !== false` keeps
+  // pre-flag characters (where the field is absent) visible by default.
+  const activeChars = characters.filter((c) => {
+    const stats = c.base_stats as Dnd5eStats | null;
+    const settings = stats?.settings as CharacterSettings | undefined;
+    return settings?.active !== false;
+  });
+
+  // Player members with no character yet — surfaced as fallback rows
+  // so the DM can still see them in the roster. DMs always have a
+  // character (or are expected to manage NPCs separately), so we
+  // continue to filter them out of the empty-slot list.
+  const playersWithNoChar = members.filter((m) =>
+    m.role !== 'gm' && !characters.some((c) => c.user_id === m.user_id)
+  );
+
   return (
     <Card tier="container" padding="md" style={{ gap: spacing.sm }}>
-      <View style={s.cardHeadRow}>
-        <View>
-          <MetaLabel size="sm">Party</MetaLabel>
-          <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface, marginTop: 2 }}>
-            {players.length} {players.length === 1 ? 'player' : 'players'}
-          </Text>
-        </View>
-        {isDM ? (
-          <GhostButton
-            label="Manage members"
-            icon="group"
-            onPress={onManageMembers}
-          />
-        ) : null}
-      </View>
-      {players.length === 0 ? (
+      <MetaLabel size="sm">Party</MetaLabel>
+      {activeChars.length === 0 && playersWithNoChar.length === 0 ? (
         <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant }}>
           {isDM
             ? 'No players yet. Open Manage members for the join code.'
             : 'No other players yet.'}
         </Text>
       ) : (
-        <View style={{ gap: 6 }}>
-          {players.map((m) => {
-            const stats = m.characters?.base_stats as Dnd5eStats | null;
-            const cls = stats?.classKey
-              ? stats.classKey.charAt(0).toUpperCase() + stats.classKey.slice(1)
-              : null;
-            const level = stats?.level ?? null;
-            const subtitle = m.characters
-              ? `${m.characters.name}${cls ? ` · ${cls}${level ? ` ${level}` : ''}` : ''}`
-              : 'No character yet';
+        // Responsive 2-up grid of detailed PartyMemberCards — one per
+        // active character. Players without a linked character render
+        // as a sparse fallback row at the end.
+        <View style={s.partyGrid}>
+          {activeChars.map((c) => (
+            <View key={c.id} style={s.partyGridCell}>
+              <PartyMemberCard
+                playerName={nameByUser.get(c.user_id) ?? 'Unknown'}
+                character={c}
+              />
+            </View>
+          ))}
+          {playersWithNoChar.map((m) => {
+            const isYou = m.user_id === currentUserId;
             return (
-              <View key={m.user_id} style={s.partyRow}>
+              <View key={m.user_id} style={[s.partyRow, s.partyRowEmpty]}>
                 <View style={s.partyAvatar}>
                   <Text variant="label-md" family="body" weight="bold" style={{ color: colors.onPrimary }}>
                     {(m.profiles?.display_name ?? '?').slice(0, 1).toUpperCase()}
@@ -975,12 +888,12 @@ function PartyPanel({
                 <View style={{ flex: 1 }}>
                   <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.onSurface }}>
                     {m.profiles?.display_name ?? 'Unknown'}
-                    {m.user_id === currentUserId ? (
+                    {isYou ? (
                       <Text variant="body-sm" style={{ color: colors.outline }}>{' '}(you)</Text>
                     ) : null}
                   </Text>
                   <Text variant="label-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 1 }}>
-                    {subtitle}
+                    No character yet
                   </Text>
                 </View>
               </View>
@@ -992,33 +905,86 @@ function PartyPanel({
   );
 }
 
-// ── Recent activity ─────────────────────────────────────────────────
+// ── Session control ─────────────────────────────────────────────────
 
-function RecentActivityCard({ campaignId }: { campaignId: string }) {
-  // Placeholder: surfaces a single "recent activity" preview that
-  // links into the existing notes/recap routes. Full embed of the
-  // most recent recap + last-note timestamp lands when SessionLogCard
-  // / SessionHistoryCard / SessionNotesPanel are folded into this card.
+/**
+ * DM-only card that combines the start/end session primary action with
+ * the session notes & recaps link. Renders below the party panel so
+ * the at-a-glance party view leads the page. Two visual states:
+ *   • Idle  — "Start your next session" headline + Start session
+ *             gradient button + Notes ghost button.
+ *   • Live  — "Session in progress" eyebrow + Combat tracker / End
+ *             session / Notes ghost buttons.
+ */
+function SessionControlCard({
+  campaignId,
+  activeSessionId,
+  onStartSession,
+  onEndSession,
+}: {
+  campaignId: string;
+  activeSessionId: string | null;
+  onStartSession: () => void;
+  onEndSession: () => void;
+}) {
   const router = useRouter();
+  const isLive = !!activeSessionId;
   return (
-    <Card tier="container" padding="md" style={{ gap: spacing.sm }}>
-      <View style={s.cardHeadRow}>
-        <View>
-          <MetaLabel size="sm">Recent activity</MetaLabel>
-          <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface, marginTop: 2 }}>
-            Session notes & recaps
-          </Text>
-        </View>
-        <GhostButton
-          label="Notes"
-          icon="notes"
-          onPress={() => router.push(`/campaign/${campaignId}/notes` as Href)}
-        />
+    <Card tier="container" padding="md" style={s.primaryActionCard}>
+      <View style={{ flex: 1 }}>
+        {isLive ? (
+          <>
+            <Text variant="label-sm" weight="bold" uppercase style={{ color: colors.hpHealthy, letterSpacing: 1 }}>
+              Session in progress
+            </Text>
+            <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 2 }}>
+              Pinned imagery shows in the window pane above. Open the combat tracker, jump to notes, or wrap up below.
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
+              Start your next session
+            </Text>
+            <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 4 }}>
+              Kick off a session to enable the live window pane and combat tracker — or jump straight to your session notes.
+            </Text>
+          </>
+        )}
       </View>
-      <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant }}>
-        Embed of the most recent session recap + last note timestamp lands when the older
-        notes/recap cards are folded in here. For now, jump to the notes page above.
-      </Text>
+      <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
+        {isLive ? (
+          <>
+            <GhostButton
+              label="Combat tracker"
+              icon="open-in-new"
+              onPress={() => router.push(`/campaign/${campaignId}/combat` as Href)}
+            />
+            <GhostButton
+              label="Notes"
+              icon="notes"
+              onPress={() => router.push(`/campaign/${campaignId}/notes` as Href)}
+            />
+            <GhostButton
+              label="End session"
+              icon="stop"
+              onPress={onEndSession}
+            />
+          </>
+        ) : (
+          <>
+            <GhostButton
+              label="Notes"
+              icon="notes"
+              onPress={() => router.push(`/campaign/${campaignId}/notes` as Href)}
+            />
+            <GradientButton
+              label="Start session"
+              onPress={onStartSession}
+            />
+          </>
+        )}
+      </View>
     </Card>
   );
 }
@@ -1031,38 +997,82 @@ function ReferencesCard({
   rulesSet,
   onConfigureRules,
   onManageContent,
+  children,
 }: {
   world: { id: string; name: string } | null;
   packs: HomebrewPackRow[];
   rulesSet: boolean;
   onConfigureRules: () => void;
   onManageContent: () => void;
+  /** Optional follow-up content rendered inside the same card after
+   *  the reference rows. Used to nest the Members section. */
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   return (
+    <Card tier="container" padding="md" style={{ gap: spacing.md }}>
+      <View style={{ gap: spacing.sm }}>
+        <MetaLabel size="sm">About this Campaign</MetaLabel>
+        <View style={s.referencesGrid}>
+          <ReferenceRow
+            label="World"
+            value={world?.name ?? '—'}
+            ctaIcon="open-in-new"
+            onPress={world ? () => router.push(`/world/${world.id}` as Href) : undefined}
+          />
+          <ReferenceRow
+            label="Content packs"
+            value={packs.length > 0
+              ? `${packs.length} attached`
+              : 'SRD only'}
+            ctaIcon="folder-open"
+            onPress={onManageContent}
+          />
+          <ReferenceRow
+            label="Character rules"
+            value={rulesSet ? 'Configured' : 'Not set'}
+            ctaIcon="tune"
+            onPress={onConfigureRules}
+          />
+        </View>
+      </View>
+      {children}
+    </Card>
+  );
+}
+
+// ── Manage campaign ──────────────────────────────────────────────────
+
+/**
+ * Destructive-actions card hosted at the bottom of the campaign page.
+ * Renders either Delete (DM) or Leave (player). Splitting these into
+ * their own card lets the top of the page stay clean now that
+ * identity lives in the route's tab row.
+ */
+function ManageCampaignCard({
+  onDelete, onLeave,
+}: {
+  onDelete?: () => void;
+  onLeave?: () => void;
+}) {
+  return (
     <Card tier="container" padding="md" style={{ gap: spacing.sm }}>
-      <MetaLabel size="sm">References</MetaLabel>
-      <View style={s.referencesGrid}>
-        <ReferenceRow
-          label="World"
-          value={world?.name ?? '—'}
-          ctaIcon="open-in-new"
-          onPress={world ? () => router.push(`/world/${world.id}` as Href) : undefined}
-        />
-        <ReferenceRow
-          label="Content packs"
-          value={packs.length > 0
-            ? `${packs.length} attached`
-            : 'SRD only'}
-          ctaIcon="folder-open"
-          onPress={onManageContent}
-        />
-        <ReferenceRow
-          label="Character rules"
-          value={rulesSet ? 'Configured' : 'Not set'}
-          ctaIcon="tune"
-          onPress={onConfigureRules}
-        />
+      <MetaLabel size="sm">Manage Campaign</MetaLabel>
+      <View style={s.manageActionRow}>
+        {onDelete ? (
+          <GhostButton
+            label="Delete campaign"
+            icon="delete-outline"
+            onPress={onDelete}
+          />
+        ) : null}
+        {onLeave ? (
+          <GhostButton
+            label="Leave campaign"
+            icon="logout"
+            onPress={onLeave}
+          />
+        ) : null}
       </View>
     </Card>
   );
@@ -1104,30 +1114,6 @@ const s = StyleSheet.create({
   },
   body: { padding: spacing.lg, gap: spacing.md },
 
-  heroCard: { padding: 0, overflow: 'hidden' },
-  heroCover: { width: '100%', aspectRatio: 16 / 9 },
-  heroCoverPlaceholder: {
-    backgroundColor: colors.surfaceContainer,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  /** "Edit cover" pill anchored over the cover image's top-right.
-   *  Visible only to the DM since the whole cover is the press
-   *  target; the pill is the visual cue that the area is tappable. */
-  heroCoverEdit: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceContainerHigh + 'CC',
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '88',
-  },
-
   /** Two-step confirmation banner. Destructive intent reads as a
    *  clear, full-width call to action rather than a tooltip. */
   confirmBanner: {
@@ -1156,16 +1142,7 @@ const s = StyleSheet.create({
   bannerDanger: {
     backgroundColor: colors.hpDanger,
   },
-  heroBody: {
-    padding: spacing.md,
-    gap: 4,
-  },
-  heroMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: 4,
-  },
+
 
   checklistRow: {
     flexDirection: 'row',
@@ -1206,6 +1183,17 @@ const s = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: 4,
   },
+  partyRowEmpty: {
+    // Fallback row for members without a linked character — keeps them
+    // visible in the roster but without the full-card chrome.
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+    width: '100%',
+  },
   partyAvatar: {
     width: 32,
     height: 32,
@@ -1214,8 +1202,25 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Responsive grid for the PartyMemberCard layout. flexWrap + percent
+  // basis gives us 1 column on narrow viewports and 2 columns from
+  // ~640px up; on a wide desktop the parent Card constrains the inner
+  // grid to a comfortable max width anyway.
+  partyGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  partyGridCell: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    minWidth: 280,
+  },
 
   referencesGrid: { gap: spacing.xs },
+  /** Layout for the Manage Campaign action buttons. flex-start so a
+   *  single-button variant doesn't stretch. */
+  manageActionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   referenceRow: {
     flexDirection: 'row',
     alignItems: 'center',

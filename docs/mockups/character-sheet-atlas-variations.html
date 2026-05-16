@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Atlas — Design Variations</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --canvas:  #121416;
+  --lowest:  #0c0e10;
+  --ctn:     #1e2022;
+  --high:    #282a2c;
+  --highest: #333537;
+  --pri:     #d3bbff;
+  --pri-bg:  #2a1a50;
+  --sec:     #adc6ff;
+  --sec-bg:  #0a2a50;
+  --on:      #e2e2e5;
+  --on-v:    #ccc3d7;
+  --out:     #958da1;
+  --out-v:   #4a4455;
+  --gm:      #e6a255;
+  --gm-bg:   #3a2010;
+  --green:   #1D9E75;
+  --warn:    #EF9F27;
+  --red:     #E24B4A;
+  --head: 'Space Grotesk', sans-serif;
+  --body: 'Manrope', sans-serif;
+}
+body {
+  background: #07090a;
+  color: var(--on);
+  font-family: var(--body);
+  padding: 48px 32px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 72px;
+}
+
+/* ── typography ── */
+.var-eye  { font-family:var(--head); font-size:9px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:var(--out); }
+.var-hero { font-family:var(--head); font-size:22px; font-weight:800; color:var(--on); margin:6px 0 6px; }
+.var-desc { font-size:12px; color:var(--on-v); line-height:1.7; max-width:700px; margin-bottom:20px; }
+.rule { height:1px; background:var(--out-v); opacity:0.15; margin:0 -32px; }
+.lbl { font-size:7px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:var(--out); font-family:var(--body); }
+
+/* ── primitives ── */
+.pill { display:inline-flex; align-items:center; padding:2px 7px; border-radius:999px; font-size:9px; font-weight:700; font-family:var(--body); border:1px solid var(--out-v); color:var(--on-v); background:var(--ctn); white-space:nowrap; }
+.pill.p { border-color:var(--pri); color:var(--pri); background:var(--pri-bg); }
+.pill.g { border-color:var(--gm); color:var(--gm); background:var(--gm-bg); }
+
+.asi { background:var(--ctn); border:1px solid var(--out-v); border-radius:6px; padding:5px 3px; text-align:center; }
+.asi.hot { border-color:var(--pri); }
+.asi-mod { font-family:var(--head); font-size:13px; font-weight:800; color:var(--on); line-height:1; }
+.asi-mod.hot { color:var(--pri); }
+.asi-raw { font-size:7px; color:var(--out); margin-top:1px; }
+.asi-lbl { font-size:6px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--out); margin-top:2px; }
+
+.save { display:flex; align-items:center; gap:5px; padding:3px 0; }
+.sv-dot { width:6px; height:6px; border-radius:50%; border:1.5px solid var(--out); flex-shrink:0; }
+.sv-dot.p { background:var(--pri); border-color:var(--pri); }
+.sv-name { font-size:9px; color:var(--on-v); flex:1; }
+.sv-val  { font-family:var(--head); font-size:9px; font-weight:800; color:var(--on-v); }
+.sv-val.p { color:var(--pri); }
+
+.sk { display:flex; align-items:center; gap:5px; padding:3px 8px; border-bottom:1px solid #ffffff05; }
+.sk:last-child { border:none; }
+.sk-dot { width:6px; height:6px; border-radius:50%; border:1.5px solid var(--out); flex-shrink:0; }
+.sk-dot.p { background:var(--pri); border-color:var(--pri); }
+.sk-name { font-size:9px; color:var(--on-v); flex:1; }
+.sk-name.p { color:var(--on); font-weight:600; }
+.sk-abi { font-size:6px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--out); }
+.sk-val { font-family:var(--head); font-size:9px; font-weight:800; color:var(--on-v); min-width:20px; text-align:right; }
+.sk-val.p { color:var(--pri); }
+
+.atk { display:flex; align-items:center; gap:7px; padding:7px 10px; border-bottom:1px solid #ffffff07; }
+.atk:last-child { border:none; }
+.atk-name { font-family:var(--head); font-size:11px; font-weight:700; color:var(--on); flex:1; }
+.atk-sub  { font-size:8px; color:var(--out); }
+.atk-btn  { padding:3px 8px; border-radius:5px; border:1px solid var(--out-v); font-size:9px; font-weight:700; font-family:var(--body); }
+.atk-btn.hit { border-color:var(--pri); color:var(--pri); background:var(--pri-bg); }
+.atk-btn.dmg { border-color:var(--gm); color:var(--gm); background:var(--gm-bg); }
+
+.cb { background:var(--ctn); border:1px solid var(--out-v); border-radius:7px; overflow:hidden; margin-bottom:5px; }
+.cb-head { padding:5px 10px; border-bottom:1px solid var(--out-v); display:flex; align-items:center; justify-content:space-between; }
+.cb-title { font-family:var(--head); font-size:9px; font-weight:800; color:var(--on); letter-spacing:0.5px; text-transform:uppercase; }
+.cb-body  { padding:7px 10px; }
+
+.pip { width:8px; height:8px; border-radius:2px; border:1.5px solid var(--pri); display:inline-block; }
+.pip.used { background:var(--pri); }
+.pip.off { border-color:var(--out-v); }
+
+.slot-row { display:flex; align-items:center; gap:4px; padding:2px 0; }
+.slot-lbl { font-size:8px; font-weight:700; color:var(--out); width:22px; flex-shrink:0; }
+
+.cond { padding:3px 7px; border-radius:4px; background:var(--high); border:1px solid var(--out-v); font-size:8px; font-weight:700; font-family:var(--body); color:var(--on-v); }
+.cond.on { background:#3a1010; border-color:var(--red); color:var(--red); }
+
+.res-pip { width:9px; height:9px; border-radius:50%; border:1.5px solid var(--pri); display:inline-block; }
+.res-pip.used { background:var(--pri); }
+
+.ex-badge { width:16px; height:16px; border-radius:3px; border:1.5px solid var(--out-v); display:inline-flex; align-items:center; justify-content:center; font-family:var(--head); font-size:8px; font-weight:800; color:var(--out); }
+.ex-badge.on { background:#3a1010; border-color:var(--red); color:var(--red); }
+
+.ds-pip { width:9px; height:9px; border-radius:50%; border:1.5px solid var(--out-v); display:inline-block; }
+.ds-pip.s { background:var(--green); border-color:var(--green); }
+.ds-pip.f { background:var(--red); border-color:var(--red); }
+
+.camp-card { background:var(--pri-bg); border:1px solid var(--pri); border-radius:6px; padding:6px 9px; display:flex; align-items:center; gap:7px; cursor:pointer; }
+.camp-ic { font-size:13px; }
+.camp-text { flex:1; }
+.camp-lbl  { font-size:7px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--out); }
+.camp-name { font-family:var(--head); font-size:9px; font-weight:700; color:var(--pri); }
+.camp-arr  { font-size:12px; color:var(--pri); opacity:0.6; }
+
+/* shared tab bar */
+.al-tabs { display:flex; border-bottom:1px solid var(--out-v); background:var(--lowest); flex-shrink:0; }
+.al-tab  { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 3px 7px; border-bottom:2px solid transparent; font-size:8px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; font-family:var(--body); color:var(--out); cursor:pointer; }
+.al-tab.on { border-bottom-color:var(--pri); color:var(--pri); }
+.al-tab-ic { font-size:12px; line-height:1; }
+
+/* hp block reused */
+.hp-curr { font-family:var(--head); font-size:24px; font-weight:800; color:var(--green); line-height:1; }
+.hp-sep  { font-size:11px; color:var(--out); }
+.hp-max  { font-family:var(--head); font-size:11px; color:var(--out); }
+.hp-bar  { height:4px; border-radius:2px; background:var(--out-v); overflow:hidden; margin:3px 0; }
+.hp-fill { height:100%; border-radius:2px; background:var(--green); }
+
+/* combat stat tile */
+.cs { background:var(--ctn); border:1px solid var(--out-v); border-radius:6px; padding:5px 4px; text-align:center; }
+.cs-val { font-family:var(--head); font-size:14px; font-weight:800; color:var(--on); }
+.cs-lbl { font-size:6px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--out); }
+
+/* ═══════════════════════════════════════════
+   VARIATION 1 — ADAPTIVE RIGHT PANEL
+   Right column content changes per active tab.
+   Combat → Skills | Spells → Slot tracker + Conc
+   Skills → Languages & Senses | Traits → Proficiencies
+═══════════════════════════════════════════ */
+.v1-shell {
+  width: 900px; height: 560px;
+  background: var(--canvas);
+  border: 1.5px solid var(--out-v);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+}
+
+/* Left: same as original */
+.v1-left {
+  width: 196px; flex-shrink:0;
+  background: var(--lowest);
+  border-right: 1px solid var(--out-v);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.v1-left-top { padding:12px 12px 10px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v1-back { font-size:9px; color:var(--out); margin-bottom:7px; }
+.v1-portrait-row { display:flex; align-items:center; gap:8px; }
+.v1-portrait { width:42px; height:42px; border-radius:21px; background:var(--high); border:2px solid var(--out-v); display:flex; align-items:center; justify-content:center; font-size:19px; flex-shrink:0; }
+.v1-name { font-family:var(--head); font-size:12px; font-weight:800; color:var(--on); line-height:1.2; }
+.v1-sub  { font-size:8px; color:var(--out); margin-top:2px; line-height:1.4; }
+.v1-hp   { padding:8px 12px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v1-cstats { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:7px 12px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v1-scores { padding:7px 12px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v1-scores-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; }
+.v1-saves { padding:6px 12px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v1-camp { padding:8px 10px; margin-top:auto; }
+
+/* Center */
+.v1-mid { flex:1; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid var(--out-v); }
+.v1-content { flex:1; overflow:hidden; display:flex; }
+.v1-col { flex:1; padding:8px; overflow:hidden; display:flex; flex-direction:column; gap:4px; }
+.v1-col + .v1-col { border-left:1px solid var(--out-v); }
+
+/* Right: ADAPTIVE — different content per tab */
+.v1-right {
+  width: 188px; flex-shrink:0;
+  background: var(--lowest);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.v1-right-head { padding:8px 10px 6px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v1-right-tab-lbl { font-family:var(--head); font-size:9px; font-weight:800; color:var(--on); }
+.v1-right-tab-sub { font-size:8px; color:var(--out); margin-top:1px; }
+.v1-right-body { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+
+/* "Tab indicator" on right panel */
+.v1-right-indicator {
+  padding:4px 10px;
+  background:var(--pri-bg);
+  border-bottom:1px solid var(--pri);
+  display:flex; align-items:center; gap:5px;
+}
+.v1-ri-dot { width:5px; height:5px; border-radius:50%; background:var(--pri); flex-shrink:0; }
+.v1-ri-text { font-size:8px; color:var(--pri); font-weight:700; }
+
+/* Slot column for right panel (Spells view) */
+.v1-slot-big { padding:8px 10px; border-bottom:1px solid var(--out-v); }
+.v1-slot-val { font-family:var(--head); font-size:18px; font-weight:800; color:var(--on); line-height:1; }
+.v1-slot-of  { font-size:10px; color:var(--out); }
+.v1-conc-mini { margin:8px 10px; background:var(--sec-bg); border:1px solid var(--sec); border-radius:6px; padding:6px 8px; }
+.v1-conc-lbl  { font-size:7px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--sec); }
+.v1-conc-name { font-family:var(--head); font-size:10px; font-weight:700; color:var(--on); margin-top:2px; }
+.v1-conc-end  { margin-top:4px; padding:3px 8px; border-radius:4px; border:1px solid var(--red); color:var(--red); font-size:8px; font-weight:700; font-family:var(--body); display:inline-block; cursor:pointer; }
+
+/* Senses/Languages panel */
+.v1-sense-row { display:flex; align-items:center; gap:6px; padding:5px 10px; border-bottom:1px solid #ffffff05; }
+.v1-sense-row:last-child { border:none; }
+.v1-sense-ic   { font-size:12px; flex-shrink:0; }
+.v1-sense-name { font-size:9px; color:var(--on-v); flex:1; }
+.v1-sense-val  { font-size:9px; color:var(--out); }
+
+/* ═══════════════════════════════════════════
+   VARIATION 2 — FLIPPED ATLAS
+   Skills on LEFT | Stats on RIGHT
+   Center stays tabbed
+═══════════════════════════════════════════ */
+.v2-shell {
+  width: 900px; height: 560px;
+  background: var(--canvas);
+  border: 1.5px solid var(--out-v);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+}
+
+/* Left: Skills (always-visible) */
+.v2-left {
+  width: 188px; flex-shrink:0;
+  background: var(--lowest);
+  border-right: 1px solid var(--out-v);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.v2-left-head { padding:10px 10px 7px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v2-left-title { font-family:var(--head); font-size:10px; font-weight:800; color:var(--on); }
+.v2-left-sub   { font-size:8px; color:var(--out); margin-top:2px; }
+.v2-skills { flex:1; overflow:hidden; }
+
+/* Center: tabbed content (wider — no right rail constraint) */
+.v2-mid { flex:1; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid var(--out-v); }
+.v2-content { flex:1; overflow:hidden; display:flex; }
+.v2-col { flex:1; padding:8px; overflow:hidden; display:flex; flex-direction:column; gap:4px; }
+.v2-col + .v2-col { border-left:1px solid var(--out-v); }
+
+/* Right: Character/Stats */
+.v2-right {
+  width: 200px; flex-shrink:0;
+  background: var(--lowest);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.v2-right-top { padding:12px 12px 10px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v2-portrait-row { display:flex; align-items:center; gap:8px; margin-bottom:0; }
+.v2-portrait { width:40px; height:40px; border-radius:20px; background:var(--high); border:2px solid var(--out-v); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.v2-nameblk { flex:1; }
+.v2-name { font-family:var(--head); font-size:11px; font-weight:800; color:var(--on); }
+.v2-sub  { font-size:8px; color:var(--out); margin-top:2px; line-height:1.4; }
+.v2-hp   { padding:8px 12px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v2-cstats { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:7px 12px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v2-scores { padding:7px 12px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v2-scores-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; }
+.v2-saves { padding:6px 12px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v2-camp { padding:8px 10px; margin-top:auto; }
+
+/* ═══════════════════════════════════════════
+   VARIATION 3 — MINIMAL LEFT
+   Slim 120px left rail: portrait + HP + 4 stats only
+   No ability scores or saves in the rail (those live on Combat tab)
+   Center is much wider
+   Right panel: full skills
+═══════════════════════════════════════════ */
+.v3-shell {
+  width: 900px; height: 560px;
+  background: var(--canvas);
+  border: 1.5px solid var(--out-v);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+}
+
+.v3-left {
+  width: 120px; flex-shrink:0;
+  background: var(--lowest);
+  border-right: 1px solid var(--out-v);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.v3-left-top { padding:10px 10px 8px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v3-back { font-size:8px; color:var(--out); margin-bottom:6px; }
+.v3-portrait { width:48px; height:48px; border-radius:24px; background:var(--high); border:2px solid var(--out-v); display:flex; align-items:center; justify-content:center; font-size:22px; margin:0 auto 7px; }
+.v3-name { font-family:var(--head); font-size:10px; font-weight:800; color:var(--on); text-align:center; line-height:1.2; }
+.v3-sub  { font-size:7px; color:var(--out); margin-top:2px; text-align:center; line-height:1.4; }
+
+.v3-hp-block { padding:8px 10px; border-bottom:1px solid var(--out-v); flex-shrink:0; text-align:center; }
+.v3-hp-nums  { display:flex; align-items:baseline; justify-content:center; gap:2px; }
+.v3-hp-curr  { font-family:var(--head); font-size:22px; font-weight:800; color:var(--green); line-height:1; }
+.v3-hp-sep   { font-size:10px; color:var(--out); }
+.v3-hp-max   { font-family:var(--head); font-size:10px; color:var(--out); }
+.v3-hp-bar   { height:4px; border-radius:2px; background:var(--out-v); overflow:hidden; margin-top:4px; }
+.v3-hp-fill  { height:100%; border-radius:2px; background:var(--green); width:66%; }
+.v3-hp-meta  { display:flex; justify-content:center; gap:8px; margin-top:3px; font-size:7px; }
+.v3-temp { color:var(--sec); font-weight:700; }
+.v3-insp { color:var(--gm); font-weight:700; }
+
+.v3-cstats { display:grid; grid-template-columns:1fr 1fr; gap:3px; padding:6px 8px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v3-cstat  { background:var(--ctn); border:1px solid var(--out-v); border-radius:5px; padding:5px 3px; text-align:center; }
+.v3-cs-val { font-family:var(--head); font-size:13px; font-weight:800; color:var(--on); }
+.v3-cs-lbl { font-size:6px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--out); }
+
+/* WIS badge — key spellcasting stat surfaced in slim rail */
+.v3-key-stat { padding:6px 10px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v3-key-inner { background:var(--pri-bg); border:1px solid var(--pri); border-radius:6px; padding:5px; text-align:center; }
+.v3-key-mod { font-family:var(--head); font-size:18px; font-weight:800; color:var(--pri); line-height:1; }
+.v3-key-name { font-size:7px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--pri); opacity:0.7; margin-top:2px; }
+.v3-key-raw  { font-size:7px; color:var(--out); }
+
+/* rest buttons in left rail */
+.v3-rest { padding:6px 10px; border-bottom:1px solid var(--out-v); flex-shrink:0; display:flex; flex-direction:column; gap:4px; }
+.v3-rest-btn { padding:4px; border-radius:5px; border:1px solid var(--out-v); font-size:8px; font-weight:700; font-family:var(--body); color:var(--on-v); text-align:center; cursor:pointer; }
+.v3-rest-btn.short { border-color:var(--sec); color:var(--sec); }
+.v3-rest-btn.long  { border-color:var(--pri); color:var(--pri); }
+
+.v3-camp { padding:8px 8px; margin-top:auto; }
+.v3-camp-card { background:var(--pri-bg); border:1px solid var(--pri); border-radius:6px; padding:6px 7px; cursor:pointer; }
+.v3-camp-lbl  { font-size:7px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--out); }
+.v3-camp-name { font-family:var(--head); font-size:9px; font-weight:700; color:var(--pri); margin-top:1px; }
+.v3-camp-arr  { font-size:11px; color:var(--pri); opacity:0.6; float:right; margin-top:-10px; }
+
+/* v3 center — wider */
+.v3-mid { flex:1; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid var(--out-v); }
+.v3-content { flex:1; overflow:hidden; display:grid; grid-template-columns:1fr 1fr 1fr; }
+.v3-col { padding:8px; overflow:hidden; display:flex; flex-direction:column; gap:4px; }
+.v3-col + .v3-col { border-left:1px solid var(--out-v); }
+
+/* Ability scores inline in combat tab (v3 only) */
+.v3-scores-inline { display:flex; gap:3px; }
+.v3-score-tile { background:var(--ctn); border:1px solid var(--out-v); border-radius:6px; flex:1; padding:4px 2px; text-align:center; }
+.v3-score-tile.hot { border-color:var(--pri); }
+.v3-st-mod { font-family:var(--head); font-size:12px; font-weight:800; color:var(--on); line-height:1; }
+.v3-st-mod.hot { color:var(--pri); }
+.v3-st-lbl { font-size:6px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--out); margin-top:2px; }
+
+/* right skills panel — same as original */
+.v3-right {
+  width: 184px; flex-shrink:0;
+  background: var(--lowest);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.v3-right-head { padding:8px 10px 6px; border-bottom:1px solid var(--out-v); flex-shrink:0; }
+.v3-right-title { font-family:var(--head); font-size:9px; font-weight:800; color:var(--on); }
+.v3-right-sub   { font-size:8px; color:var(--out); margin-top:1px; }
+.v3-skills { flex:1; overflow:hidden; }
+</style>
+</head>
+<body>
+
+<!-- PAGE HEADER -->
+<div>
+  <div class="var-eye">The Atlas — Layout Variations</div>
+  <div class="var-hero">Three alternatives, same framework</div>
+  <div class="var-desc">All variations keep the Atlas philosophy — always-visible context rails, tabbed center content, no hidden state during play. Each explores a different trade-off between info density, column width, and what lives where.</div>
+</div>
+
+<div class="rule"></div>
+
+<!-- ════════════════════════════════════════════════════════════
+     VARIATION 1 — ADAPTIVE RIGHT PANEL
+     Right column responds to the active tab
+════════════════════════════════════════════════════════════ -->
+<div>
+  <div class="var-eye">Variation 1</div>
+  <div class="var-hero">Adaptive Right Panel</div>
+  <div class="var-desc">The right rail changes to complement whatever tab is active. On Combat it shows Skills. On Spells it shows the full slot tracker and concentration banner. On Skills it shows senses and languages. The right rail always reinforces the active tab rather than being static — so no content is wasted.</div>
+
+  <!-- Web — Combat active → Right shows Skills -->
+  <div class="v1-shell">
+
+    <!-- LEFT -->
+    <div class="v1-left">
+      <div class="v1-left-top">
+        <div class="v1-back">← Characters</div>
+        <div class="v1-portrait-row">
+          <div class="v1-portrait">🧝</div>
+          <div>
+            <div class="v1-name">Kaela Thornwood</div>
+            <div class="v1-sub">Wood Elf · Druid 7<br>Circle of the Moon</div>
+          </div>
+        </div>
+      </div>
+      <div class="v1-hp" style="padding:8px 12px;">
+        <div class="lbl" style="margin-bottom:4px;">Hit Points</div>
+        <div style="display:flex;align-items:baseline;gap:3px;margin-bottom:3px;">
+          <div class="hp-curr">38</div><div class="hp-sep">/</div><div class="hp-max">58</div>
+        </div>
+        <div class="hp-bar"><div class="hp-fill" style="width:65%;"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:8px;margin-top:2px;">
+          <span style="color:var(--sec);">+5 temp</span><span style="color:var(--gm);">★ Inspired</span>
+        </div>
+      </div>
+      <div class="v1-cstats">
+        <div class="cs"><div class="cs-val">16</div><div class="cs-lbl">AC</div></div>
+        <div class="cs"><div class="cs-val">+1</div><div class="cs-lbl">Init</div></div>
+        <div class="cs"><div class="cs-val">35</div><div class="cs-lbl">Speed</div></div>
+        <div class="cs"><div class="cs-val">+4</div><div class="cs-lbl">Prof</div></div>
+      </div>
+      <div class="v1-scores">
+        <div class="lbl" style="margin-bottom:4px;">Ability Scores</div>
+        <div class="v1-scores-grid">
+          <div class="asi"><div class="asi-mod">+0</div><div class="asi-raw">10</div><div class="asi-lbl">STR</div></div>
+          <div class="asi"><div class="asi-mod">+2</div><div class="asi-raw">14</div><div class="asi-lbl">DEX</div></div>
+          <div class="asi"><div class="asi-mod">+2</div><div class="asi-raw">14</div><div class="asi-lbl">CON</div></div>
+          <div class="asi"><div class="asi-mod">+1</div><div class="asi-raw">12</div><div class="asi-lbl">INT</div></div>
+          <div class="asi hot"><div class="asi-mod hot">+5</div><div class="asi-raw">20</div><div class="asi-lbl">WIS</div></div>
+          <div class="asi"><div class="asi-mod">+1</div><div class="asi-raw">13</div><div class="asi-lbl">CHA</div></div>
+        </div>
+      </div>
+      <div class="v1-saves">
+        <div class="lbl" style="margin-bottom:3px;">Saving Throws</div>
+        <div class="save"><div class="sv-dot"></div><div class="sv-name">Strength</div><div class="sv-val">+0</div></div>
+        <div class="save"><div class="sv-dot"></div><div class="sv-name">Dexterity</div><div class="sv-val">+2</div></div>
+        <div class="save"><div class="sv-dot"></div><div class="sv-name">Constitution</div><div class="sv-val">+2</div></div>
+        <div class="save"><div class="sv-dot"></div><div class="sv-name">Intelligence</div><div class="sv-val">+1</div></div>
+        <div class="save"><div class="sv-dot p"></div><div class="sv-name" style="color:var(--on);font-weight:600;">Wisdom</div><div class="sv-val p">+9</div></div>
+        <div class="save"><div class="sv-dot p"></div><div class="sv-name" style="color:var(--on);font-weight:600;">Charisma</div><div class="sv-val p">+5</div></div>
+      </div>
+      <div class="v1-camp">
+        <div class="camp-card"><div class="camp-ic">🏰</div><div class="camp-text"><div class="camp-lbl">Campaign</div><div class="camp-name">Thornwood Chronicle</div></div><div class="camp-arr">→</div></div>
+      </div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="v1-mid">
+      <div class="al-tabs">
+        <div class="al-tab on"><div class="al-tab-ic">⚔️</div>Combat</div>
+        <div class="al-tab"><div class="al-tab-ic">✨</div>Spells</div>
+        <div class="al-tab"><div class="al-tab-ic">🎯</div>Skills</div>
+        <div class="al-tab"><div class="al-tab-ic">📖</div>Traits</div>
+        <div class="al-tab"><div class="al-tab-ic">📜</div>Lore</div>
+      </div>
+      <div class="v1-content">
+        <div class="v1-col">
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Attacks</div><div class="pill">+ Add</div></div>
+            <div class="atk"><div style="flex:1;"><div class="atk-name">Shillelagh</div><div class="atk-sub">Melee · 5 ft</div></div><div class="atk-btn hit">+9 Hit</div><div class="atk-btn dmg">1d8+5</div></div>
+            <div class="atk"><div style="flex:1;"><div class="atk-name">Thorn Whip</div><div class="atk-sub">Cantrip · 30 ft</div></div><div class="atk-btn hit">+9 Hit</div><div class="atk-btn dmg">2d6</div></div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Spell Slots</div></div>
+            <div class="cb-body" style="padding:5px 10px;">
+              <div class="slot-row"><div class="slot-lbl">1st</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip used"></div><div class="pip off"></div><div class="pip off"></div></div></div>
+              <div class="slot-row"><div class="slot-lbl">2nd</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip used"></div><div class="pip off"></div></div></div>
+              <div class="slot-row"><div class="slot-lbl">3rd</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip off"></div><div class="pip off"></div></div></div>
+              <div class="slot-row"><div class="slot-lbl">4th</div><div style="display:flex;gap:3px;"><div class="pip off"></div></div></div>
+            </div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Class Resources</div></div>
+            <div class="cb-body">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+                <div style="flex:1;"><div style="font-family:var(--head);font-size:10px;font-weight:700;color:var(--on);">Wild Shape</div><div style="font-size:8px;color:var(--out);">Short rest recharge</div></div>
+                <div style="display:flex;gap:3px;"><div class="res-pip used"></div><div class="res-pip used"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="v1-col">
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Conditions</div></div>
+            <div class="cb-body"><div style="display:flex;flex-wrap:wrap;gap:3px;"><div class="cond on">Poisoned</div><div class="cond">Blinded</div><div class="cond">Charmed</div><div class="cond">Frightened</div><div class="cond">Grappled</div><div class="cond">Invisible</div><div class="cond">Paralyzed</div><div class="cond">Prone</div><div class="cond">Restrained</div><div class="cond">Stunned</div><div class="cond">Exhaustion</div></div></div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Exhaustion</div></div>
+            <div class="cb-body"><div style="display:flex;gap:3px;"><div class="ex-badge">1</div><div class="ex-badge">2</div><div class="ex-badge">3</div><div class="ex-badge">4</div><div class="ex-badge">5</div><div class="ex-badge">6</div></div></div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Death Saves</div></div>
+            <div class="cb-body">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;"><div style="font-size:9px;color:var(--green);font-weight:700;width:58px;">Successes</div><div style="display:flex;gap:3px;"><div class="ds-pip"></div><div class="ds-pip"></div><div class="ds-pip"></div></div></div>
+              <div style="display:flex;align-items:center;gap:6px;"><div style="font-size:9px;color:var(--red);font-weight:700;width:58px;">Failures</div><div style="display:flex;gap:3px;"><div class="ds-pip"></div><div class="ds-pip"></div><div class="ds-pip"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT — adaptive: Combat tab → show Skills -->
+    <div class="v1-right">
+      <div class="v1-right-head">
+        <div class="v1-right-tab-lbl">Skills</div>
+        <div class="v1-right-tab-sub">Passive Perc 19</div>
+      </div>
+      <div class="v1-right-indicator">
+        <div class="v1-ri-dot"></div>
+        <div class="v1-ri-text">Combat context</div>
+      </div>
+      <div class="v1-right-body">
+        <div style="flex:1;overflow:hidden;">
+          <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Animal Handling</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+          <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Perception</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+          <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Survival</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+          <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Insight</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+          <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Medicine</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+          <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Nature</div><div class="sk-abi">INT</div><div class="sk-val p">+5</div></div>
+          <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Acrobatics</div><div class="sk-abi">DEX</div><div class="sk-val p">+6</div></div>
+          <div style="height:1px;background:var(--out-v);opacity:0.3;margin:4px 0;"></div>
+          <div class="sk"><div class="sk-dot"></div><div class="sk-name">Arcana</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+          <div class="sk"><div class="sk-dot"></div><div class="sk-name">Athletics</div><div class="sk-abi">STR</div><div class="sk-val">+0</div></div>
+          <div class="sk"><div class="sk-dot"></div><div class="sk-name">Deception</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+          <div class="sk"><div class="sk-dot"></div><div class="sk-name">History</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+          <div class="sk"><div class="sk-dot"></div><div class="sk-name">Intimidation</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+          <div class="sk"><div class="sk-dot"></div><div class="sk-name">Investigation</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+          <div class="sk"><div class="sk-dot"></div><div class="sk-name">Performance</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+          <div class="sk"><div class="sk-dot"></div><div class="sk-name">Persuasion</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+          <div class="sk"><div class="sk-dot"></div><div class="sk-name">Religion</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+          <div class="sk"><div class="sk-dot"></div><div class="sk-name">Stealth</div><div class="sk-abi">DEX</div><div class="sk-val">+2</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /v1-shell -->
+
+  <!-- Below: show what RIGHT looks like on Spells tab -->
+  <div style="margin-top:24px;display:flex;gap:20px;align-items:flex-start;">
+    <div style="font-size:11px;color:var(--out-v);padding-top:8px;width:180px;line-height:1.6;">Right panel adapts to active tab — here's what it shows on the Spells tab:</div>
+
+    <!-- Spells right panel preview -->
+    <div style="width:188px;background:var(--lowest);border:1.5px solid var(--out-v);border-radius:10px;overflow:hidden;">
+      <div class="v1-right-head" style="padding:8px 10px 6px;">
+        <div class="v1-right-tab-lbl">Spell Slots + Concentration</div>
+        <div class="v1-right-tab-sub">Spells context</div>
+      </div>
+      <div style="background:var(--sec-bg);border-bottom:1px solid var(--sec);padding:4px 10px;display:flex;align-items:center;gap:5px;">
+        <div style="width:5px;height:5px;border-radius:50%;background:var(--sec);flex-shrink:0;"></div>
+        <div style="font-size:8px;color:var(--sec);font-weight:700;">Spells context</div>
+      </div>
+      <div class="v1-conc-mini">
+        <div class="v1-conc-lbl">Concentrating on</div>
+        <div class="v1-conc-name">Call Lightning</div>
+        <div class="v1-conc-end">End Concentration</div>
+      </div>
+      <div style="padding:6px 10px;">
+        <div class="lbl" style="margin-bottom:5px;">All Spell Slots</div>
+        <div class="slot-row"><div class="slot-lbl">1st</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip used"></div><div class="pip off"></div><div class="pip off"></div></div><div style="margin-left:auto;font-size:8px;color:var(--out);">2/4</div></div>
+        <div class="slot-row"><div class="slot-lbl">2nd</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip used"></div><div class="pip off"></div></div><div style="margin-left:auto;font-size:8px;color:var(--out);">2/3</div></div>
+        <div class="slot-row"><div class="slot-lbl">3rd</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip off"></div><div class="pip off"></div></div><div style="margin-left:auto;font-size:8px;color:var(--out);">1/3</div></div>
+        <div class="slot-row"><div class="slot-lbl">4th</div><div style="display:flex;gap:3px;"><div class="pip off"></div></div><div style="margin-left:auto;font-size:8px;color:var(--out);">1/1</div></div>
+        <div class="slot-row" style="opacity:0.4;"><div class="slot-lbl">5th</div><div style="font-size:8px;color:var(--out);">—</div></div>
+      </div>
+    </div>
+
+    <!-- Skills tab right panel preview -->
+    <div style="width:188px;background:var(--lowest);border:1.5px solid var(--out-v);border-radius:10px;overflow:hidden;">
+      <div class="v1-right-head" style="padding:8px 10px 6px;">
+        <div class="v1-right-tab-lbl">Senses &amp; Languages</div>
+        <div class="v1-right-tab-sub">Skills context</div>
+      </div>
+      <div style="background:#1a2e1a;border-bottom:1px solid #5ec473;padding:4px 10px;display:flex;align-items:center;gap:5px;">
+        <div style="width:5px;height:5px;border-radius:50%;background:#5ec473;flex-shrink:0;"></div>
+        <div style="font-size:8px;color:#5ec473;font-weight:700;">Skills context</div>
+      </div>
+      <div style="padding:5px 0;">
+        <div class="lbl" style="padding:4px 10px 3px;">Senses</div>
+        <div class="v1-sense-row"><div class="v1-sense-ic">👁️</div><div class="v1-sense-name">Darkvision</div><div class="v1-sense-val">60 ft</div></div>
+        <div class="v1-sense-row"><div class="v1-sense-ic">👂</div><div class="v1-sense-name">Passive Insight</div><div class="v1-sense-val">19</div></div>
+        <div class="v1-sense-row"><div class="v1-sense-ic">🔍</div><div class="v1-sense-name">Passive Investigation</div><div class="v1-sense-val">11</div></div>
+        <div class="v1-sense-row"><div class="v1-sense-ic">👁️</div><div class="v1-sense-name">Passive Perception</div><div class="v1-sense-val">19</div></div>
+        <div style="height:1px;background:var(--out-v);opacity:0.3;margin:4px 0;"></div>
+        <div class="lbl" style="padding:4px 10px 3px;">Languages</div>
+        <div class="v1-sense-row"><div class="v1-sense-name">Common</div><div class="v1-sense-val">Speak, R/W</div></div>
+        <div class="v1-sense-row"><div class="v1-sense-name">Elvish</div><div class="v1-sense-val">Speak, R/W</div></div>
+        <div class="v1-sense-row"><div class="v1-sense-name">Sylvan</div><div class="v1-sense-val">Speak only</div></div>
+        <div class="v1-sense-row"><div class="v1-sense-name">Druidic</div><div class="v1-sense-val">Secret</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="rule"></div>
+
+<!-- ════════════════════════════════════════════════════════════
+     VARIATION 2 — FLIPPED ATLAS
+     Skills on LEFT | Stats on RIGHT
+════════════════════════════════════════════════════════════ -->
+<div>
+  <div class="var-eye">Variation 2</div>
+  <div class="var-hero">Flipped Atlas</div>
+  <div class="var-desc">Skills live on the left because that's what the DM calls for most often ("give me a Perception check") — your eye naturally goes left first. Character stats and identity move to the right where you scan them less frequently. Center tab content gets the same space as before. The left-to-right read becomes: what can I do → what am I doing → who am I.</div>
+
+  <div class="v2-shell">
+
+    <!-- LEFT — Skills always visible -->
+    <div class="v2-left">
+      <div class="v2-left-head">
+        <div class="v2-left-title">Skills</div>
+        <div class="v2-left-sub">Passive Perc 19</div>
+      </div>
+      <div class="v2-skills" style="overflow:hidden;">
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Acrobatics</div><div class="sk-abi">DEX</div><div class="sk-val p">+6</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Animal Handling</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Arcana</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Athletics</div><div class="sk-abi">STR</div><div class="sk-val">+0</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Deception</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">History</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Insight</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Intimidation</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Investigation</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Medicine</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Nature</div><div class="sk-abi">INT</div><div class="sk-val p">+5</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Perception</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Performance</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Persuasion</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Religion</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Sleight of Hand</div><div class="sk-abi">DEX</div><div class="sk-val">+2</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Stealth</div><div class="sk-abi">DEX</div><div class="sk-val">+2</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Survival</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+      </div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="v2-mid">
+      <div class="al-tabs">
+        <div class="al-tab on"><div class="al-tab-ic">⚔️</div>Combat</div>
+        <div class="al-tab"><div class="al-tab-ic">✨</div>Spells</div>
+        <div class="al-tab"><div class="al-tab-ic">🎯</div>Skills</div>
+        <div class="al-tab"><div class="al-tab-ic">📖</div>Traits</div>
+        <div class="al-tab"><div class="al-tab-ic">📜</div>Lore</div>
+      </div>
+      <div class="v2-content">
+        <div class="v2-col">
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Attacks</div><div class="pill">+ Add</div></div>
+            <div class="atk"><div style="flex:1;"><div class="atk-name">Shillelagh</div><div class="atk-sub">Melee · 5 ft</div></div><div class="atk-btn hit">+9 Hit</div><div class="atk-btn dmg">1d8+5</div></div>
+            <div class="atk"><div style="flex:1;"><div class="atk-name">Thorn Whip</div><div class="atk-sub">Cantrip · 30 ft</div></div><div class="atk-btn hit">+9 Hit</div><div class="atk-btn dmg">2d6</div></div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Spell Slots</div></div>
+            <div class="cb-body" style="padding:5px 10px;">
+              <div class="slot-row"><div class="slot-lbl">1st</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip used"></div><div class="pip off"></div><div class="pip off"></div></div></div>
+              <div class="slot-row"><div class="slot-lbl">2nd</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip used"></div><div class="pip off"></div></div></div>
+              <div class="slot-row"><div class="slot-lbl">3rd</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip off"></div><div class="pip off"></div></div></div>
+            </div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Class Resources</div></div>
+            <div class="cb-body">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div style="flex:1;"><div style="font-family:var(--head);font-size:10px;font-weight:700;color:var(--on);">Wild Shape</div><div style="font-size:8px;color:var(--out);">Short rest recharge</div></div>
+                <div style="display:flex;gap:3px;"><div class="res-pip used"></div><div class="res-pip used"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="v2-col">
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Conditions</div></div>
+            <div class="cb-body"><div style="display:flex;flex-wrap:wrap;gap:3px;"><div class="cond on">Poisoned</div><div class="cond">Blinded</div><div class="cond">Charmed</div><div class="cond">Frightened</div><div class="cond">Grappled</div><div class="cond">Invisible</div><div class="cond">Prone</div><div class="cond">Restrained</div><div class="cond">Stunned</div><div class="cond">Exhaustion</div></div></div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Exhaustion</div></div>
+            <div class="cb-body"><div style="display:flex;gap:3px;"><div class="ex-badge">1</div><div class="ex-badge">2</div><div class="ex-badge">3</div><div class="ex-badge">4</div><div class="ex-badge">5</div><div class="ex-badge">6</div></div></div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Death Saves</div></div>
+            <div class="cb-body">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;"><div style="font-size:9px;color:var(--green);font-weight:700;width:58px;">Successes</div><div style="display:flex;gap:3px;"><div class="ds-pip"></div><div class="ds-pip"></div><div class="ds-pip"></div></div></div>
+              <div style="display:flex;align-items:center;gap:6px;"><div style="font-size:9px;color:var(--red);font-weight:700;width:58px;">Failures</div><div style="display:flex;gap:3px;"><div class="ds-pip"></div><div class="ds-pip"></div><div class="ds-pip"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT — Character stats -->
+    <div class="v2-right">
+      <div class="v2-right-top">
+        <div class="v2-portrait-row">
+          <div class="v2-portrait">🧝</div>
+          <div class="v2-nameblk">
+            <div class="v2-name">Kaela Thornwood</div>
+            <div class="v2-sub">Wood Elf · Druid 7<br>Circle of the Moon</div>
+          </div>
+        </div>
+      </div>
+      <div class="v2-hp" style="padding:8px 12px;">
+        <div class="lbl" style="margin-bottom:4px;">Hit Points</div>
+        <div style="display:flex;align-items:baseline;gap:3px;margin-bottom:3px;">
+          <div class="hp-curr">38</div><div class="hp-sep">/</div><div class="hp-max">58</div>
+        </div>
+        <div class="hp-bar"><div class="hp-fill" style="width:65%;"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:8px;margin-top:2px;"><span style="color:var(--sec);">+5 temp</span><span style="color:var(--gm);">★ Inspired</span></div>
+      </div>
+      <div class="v2-cstats">
+        <div class="cs"><div class="cs-val">16</div><div class="cs-lbl">AC</div></div>
+        <div class="cs"><div class="cs-val">+1</div><div class="cs-lbl">Init</div></div>
+        <div class="cs"><div class="cs-val">35</div><div class="cs-lbl">Speed</div></div>
+        <div class="cs"><div class="cs-val">+4</div><div class="cs-lbl">Prof</div></div>
+      </div>
+      <div class="v2-scores">
+        <div class="lbl" style="margin-bottom:4px;">Ability Scores</div>
+        <div class="v2-scores-grid">
+          <div class="asi"><div class="asi-mod">+0</div><div class="asi-raw">10</div><div class="asi-lbl">STR</div></div>
+          <div class="asi"><div class="asi-mod">+2</div><div class="asi-raw">14</div><div class="asi-lbl">DEX</div></div>
+          <div class="asi"><div class="asi-mod">+2</div><div class="asi-raw">14</div><div class="asi-lbl">CON</div></div>
+          <div class="asi"><div class="asi-mod">+1</div><div class="asi-raw">12</div><div class="asi-lbl">INT</div></div>
+          <div class="asi hot"><div class="asi-mod hot">+5</div><div class="asi-raw">20</div><div class="asi-lbl">WIS</div></div>
+          <div class="asi"><div class="asi-mod">+1</div><div class="asi-raw">13</div><div class="asi-lbl">CHA</div></div>
+        </div>
+      </div>
+      <div class="v2-saves">
+        <div class="lbl" style="margin-bottom:3px;">Saving Throws</div>
+        <div class="save"><div class="sv-dot"></div><div class="sv-name">Strength</div><div class="sv-val">+0</div></div>
+        <div class="save"><div class="sv-dot"></div><div class="sv-name">Dexterity</div><div class="sv-val">+2</div></div>
+        <div class="save"><div class="sv-dot"></div><div class="sv-name">Constitution</div><div class="sv-val">+2</div></div>
+        <div class="save"><div class="sv-dot"></div><div class="sv-name">Intelligence</div><div class="sv-val">+1</div></div>
+        <div class="save"><div class="sv-dot p"></div><div class="sv-name" style="color:var(--on);font-weight:600;">Wisdom</div><div class="sv-val p">+9</div></div>
+        <div class="save"><div class="sv-dot p"></div><div class="sv-name" style="color:var(--on);font-weight:600;">Charisma</div><div class="sv-val p">+5</div></div>
+      </div>
+      <div class="v2-camp">
+        <div class="camp-card"><div class="camp-ic">🏰</div><div class="camp-text"><div class="camp-lbl">Campaign</div><div class="camp-name">Thornwood Chronicle</div></div><div class="camp-arr">→</div></div>
+      </div>
+    </div>
+
+  </div><!-- /v2-shell -->
+</div>
+
+<div class="rule"></div>
+
+<!-- ════════════════════════════════════════════════════════════
+     VARIATION 3 — MINIMAL LEFT RAIL
+     Slim 120px rail: portrait + HP + AC/Init/Speed/Prof only
+     No scores/saves in rail — those live on Combat tab inline
+     Center gets 3 columns (wider content area)
+     Right: full skills as usual
+════════════════════════════════════════════════════════════ -->
+<div>
+  <div class="var-eye">Variation 3</div>
+  <div class="var-hero">Minimal Left Rail</div>
+  <div class="var-desc">The left rail strips down to identity + vitals only — portrait, name, HP, and the four numbers you need every single turn (AC, Initiative, Speed, Proficiency). Ability scores and saves move into the Combat tab's first column where you actually use them to roll. This unlocks a wider center area that fits 3 columns of content instead of 2, giving Combat its most useful layout yet.</div>
+
+  <div class="v3-shell">
+
+    <!-- SLIM LEFT -->
+    <div class="v3-left">
+      <div class="v3-left-top">
+        <div class="v3-back">← Characters</div>
+        <div class="v3-portrait">🧝</div>
+        <div class="v3-name">Kaela Thornwood</div>
+        <div class="v3-sub">Wood Elf<br>Druid 7 · Moon</div>
+      </div>
+      <div class="v3-hp-block">
+        <div class="lbl" style="margin-bottom:3px;text-align:center;">HP</div>
+        <div class="v3-hp-nums"><div class="v3-hp-curr">38</div><div class="v3-hp-sep">/</div><div class="v3-hp-max">58</div></div>
+        <div class="v3-hp-bar"><div class="v3-hp-fill"></div></div>
+        <div class="v3-hp-meta"><span class="v3-temp">+5T</span><span class="v3-insp">★</span></div>
+      </div>
+      <div class="v3-cstats">
+        <div class="v3-cstat"><div class="v3-cs-val">16</div><div class="v3-cs-lbl">AC</div></div>
+        <div class="v3-cstat"><div class="v3-cs-val">+1</div><div class="v3-cs-lbl">Init</div></div>
+        <div class="v3-cstat"><div class="v3-cs-val">35</div><div class="v3-cs-lbl">Speed</div></div>
+        <div class="v3-cstat"><div class="v3-cs-val">+4</div><div class="v3-cs-lbl">Prof</div></div>
+      </div>
+      <!-- Key casting stat highlighted -->
+      <div class="v3-key-stat">
+        <div class="lbl" style="margin-bottom:3px;">Spellcasting</div>
+        <div class="v3-key-inner">
+          <div class="v3-key-mod">+5</div>
+          <div class="v3-key-name">WIS · DC 17</div>
+          <div class="v3-key-raw">+9 spell attack</div>
+        </div>
+      </div>
+      <div class="v3-rest">
+        <div class="v3-rest-btn short">Short Rest</div>
+        <div class="v3-rest-btn long">Long Rest</div>
+      </div>
+      <div class="v3-camp">
+        <div class="v3-camp-card">
+          <div class="v3-camp-lbl">Campaign</div>
+          <div class="v3-camp-name">Thornwood Chronicle</div>
+          <div class="v3-camp-arr">→</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER — 3 columns -->
+    <div class="v3-mid">
+      <div class="al-tabs">
+        <div class="al-tab on"><div class="al-tab-ic">⚔️</div>Combat</div>
+        <div class="al-tab"><div class="al-tab-ic">✨</div>Spells</div>
+        <div class="al-tab"><div class="al-tab-ic">🎯</div>Skills</div>
+        <div class="al-tab"><div class="al-tab-ic">📖</div>Traits</div>
+        <div class="al-tab"><div class="al-tab-ic">📜</div>Lore</div>
+      </div>
+      <div class="v3-content">
+
+        <!-- Col 1: Ability scores + saves (moved from left rail) -->
+        <div class="v3-col">
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Ability Scores</div></div>
+            <div class="cb-body" style="padding:6px 8px;">
+              <div class="v3-scores-inline">
+                <div class="v3-score-tile"><div class="v3-st-mod">+0</div><div class="v3-st-lbl">STR</div></div>
+                <div class="v3-score-tile"><div class="v3-st-mod">+2</div><div class="v3-st-lbl">DEX</div></div>
+                <div class="v3-score-tile"><div class="v3-st-mod">+2</div><div class="v3-st-lbl">CON</div></div>
+              </div>
+              <div class="v3-scores-inline" style="margin-top:3px;">
+                <div class="v3-score-tile"><div class="v3-st-mod">+1</div><div class="v3-st-lbl">INT</div></div>
+                <div class="v3-score-tile hot"><div class="v3-st-mod hot">+5</div><div class="v3-st-lbl">WIS</div></div>
+                <div class="v3-score-tile"><div class="v3-st-mod">+1</div><div class="v3-st-lbl">CHA</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Saving Throws</div></div>
+            <div class="cb-body" style="padding:4px 8px;">
+              <div class="save"><div class="sv-dot"></div><div class="sv-name">STR</div><div class="sv-val">+0</div></div>
+              <div class="save"><div class="sv-dot"></div><div class="sv-name">DEX</div><div class="sv-val">+2</div></div>
+              <div class="save"><div class="sv-dot"></div><div class="sv-name">CON</div><div class="sv-val">+2</div></div>
+              <div class="save"><div class="sv-dot"></div><div class="sv-name">INT</div><div class="sv-val">+1</div></div>
+              <div class="save"><div class="sv-dot p"></div><div class="sv-name" style="color:var(--on);font-weight:600;">WIS</div><div class="sv-val p">+9</div></div>
+              <div class="save"><div class="sv-dot p"></div><div class="sv-name" style="color:var(--on);font-weight:600;">CHA</div><div class="sv-val p">+5</div></div>
+            </div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Death Saves</div></div>
+            <div class="cb-body" style="padding:5px 8px;">
+              <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;"><div style="font-size:9px;color:var(--green);font-weight:700;width:48px;">Success</div><div style="display:flex;gap:3px;"><div class="ds-pip"></div><div class="ds-pip"></div><div class="ds-pip"></div></div></div>
+              <div style="display:flex;align-items:center;gap:5px;"><div style="font-size:9px;color:var(--red);font-weight:700;width:48px;">Failure</div><div style="display:flex;gap:3px;"><div class="ds-pip"></div><div class="ds-pip"></div><div class="ds-pip"></div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Col 2: Attacks + resources + slots -->
+        <div class="v3-col">
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Attacks</div><div class="pill">+ Add</div></div>
+            <div class="atk"><div style="flex:1;"><div class="atk-name">Shillelagh</div><div class="atk-sub">Melee · 5 ft</div></div><div class="atk-btn hit">+9 Hit</div><div class="atk-btn dmg">1d8+5</div></div>
+            <div class="atk"><div style="flex:1;"><div class="atk-name">Thorn Whip</div><div class="atk-sub">Cantrip · 30 ft</div></div><div class="atk-btn hit">+9 Hit</div><div class="atk-btn dmg">2d6</div></div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Spell Slots</div></div>
+            <div class="cb-body" style="padding:5px 8px;">
+              <div class="slot-row"><div class="slot-lbl">1st</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip used"></div><div class="pip off"></div><div class="pip off"></div></div><div style="margin-left:auto;font-size:8px;color:var(--out);">2/4</div></div>
+              <div class="slot-row"><div class="slot-lbl">2nd</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip used"></div><div class="pip off"></div></div><div style="margin-left:auto;font-size:8px;color:var(--out);">2/3</div></div>
+              <div class="slot-row"><div class="slot-lbl">3rd</div><div style="display:flex;gap:3px;"><div class="pip used"></div><div class="pip off"></div><div class="pip off"></div></div><div style="margin-left:auto;font-size:8px;color:var(--out);">1/3</div></div>
+              <div class="slot-row"><div class="slot-lbl">4th</div><div style="display:flex;gap:3px;"><div class="pip off"></div></div><div style="margin-left:auto;font-size:8px;color:var(--out);">1/1</div></div>
+            </div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Class Resources</div></div>
+            <div class="cb-body" style="padding:5px 8px;">
+              <div style="display:flex;align-items:center;gap:5px;">
+                <div style="flex:1;"><div style="font-family:var(--head);font-size:10px;font-weight:700;color:var(--on);">Wild Shape</div><div style="font-size:8px;color:var(--out);">Short rest</div></div>
+                <div style="display:flex;gap:3px;"><div class="res-pip used"></div><div class="res-pip used"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Col 3: Conditions + exhaustion -->
+        <div class="v3-col">
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Conditions</div></div>
+            <div class="cb-body"><div style="display:flex;flex-wrap:wrap;gap:3px;"><div class="cond on">Poisoned</div><div class="cond">Blinded</div><div class="cond">Charmed</div><div class="cond">Frightened</div><div class="cond">Grappled</div><div class="cond">Invisible</div><div class="cond">Paralyzed</div><div class="cond">Petrified</div><div class="cond">Prone</div><div class="cond">Restrained</div><div class="cond">Stunned</div><div class="cond">Unconscious</div></div></div>
+          </div>
+          <div class="cb">
+            <div class="cb-head"><div class="cb-title">Exhaustion</div></div>
+            <div class="cb-body"><div style="display:flex;gap:3px;"><div class="ex-badge">1</div><div class="ex-badge">2</div><div class="ex-badge">3</div><div class="ex-badge">4</div><div class="ex-badge">5</div><div class="ex-badge">6</div></div><div style="font-size:8px;color:var(--out);margin-top:4px;">None · tap to set</div></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT — Skills (same as always) -->
+    <div class="v3-right">
+      <div class="v3-right-head">
+        <div class="v3-right-title">Skills</div>
+        <div class="v3-right-sub">Passive Perc 19</div>
+      </div>
+      <div class="v3-skills" style="overflow:hidden;">
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Acrobatics</div><div class="sk-abi">DEX</div><div class="sk-val p">+6</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Animal Handling</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Arcana</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Athletics</div><div class="sk-abi">STR</div><div class="sk-val">+0</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Deception</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">History</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Insight</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Intimidation</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Investigation</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Medicine</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Nature</div><div class="sk-abi">INT</div><div class="sk-val p">+5</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Perception</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Performance</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Persuasion</div><div class="sk-abi">CHA</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Religion</div><div class="sk-abi">INT</div><div class="sk-val">+1</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Sleight of Hand</div><div class="sk-abi">DEX</div><div class="sk-val">+2</div></div>
+        <div class="sk"><div class="sk-dot"></div><div class="sk-name">Stealth</div><div class="sk-abi">DEX</div><div class="sk-val">+2</div></div>
+        <div class="sk"><div class="sk-dot p"></div><div class="sk-name p">Survival</div><div class="sk-abi">WIS</div><div class="sk-val p">+9</div></div>
+      </div>
+    </div>
+
+  </div><!-- /v3-shell -->
+</div>
+
+</body>
+</html>

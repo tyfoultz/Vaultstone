@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Spell Picker — 01 Spellbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --surface: #121416;
+    --surface-container: #1e2022;
+    --surface-container-high: #282a2c;
+    --surface-container-highest: #333537;
+    --primary: #d3bbff;
+    --primary-container: #6d28d9;
+    --on-primary: #3f008d;
+    --on-surface: #e2e2e5;
+    --on-surface-variant: #ccc3d7;
+    --outline: #958da1;
+    --outline-variant: #4a4455;
+    --hp-danger: #e24b4a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: 'Manrope', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  /* Page backdrop simulating modal scrim */
+  body {
+    background:
+      radial-gradient(1100px 700px at 30% 20%, rgba(109, 40, 217, 0.10), transparent 60%),
+      radial-gradient(900px 600px at 80% 90%, rgba(109, 40, 217, 0.08), transparent 60%),
+      var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+  .scrim {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(2px);
+    z-index: 0;
+  }
+  .modal {
+    position: relative;
+    z-index: 1;
+    width: 1140px;
+    height: 740px;
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+  }
+  /* Header */
+  .modal-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--outline-variant);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .modal-title {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: 0.2px;
+    margin: 0;
+  }
+  .subtitle {
+    color: var(--on-surface-variant);
+    font-size: 13px;
+  }
+  .close-btn {
+    margin-left: auto;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface);
+    cursor: pointer;
+    font-size: 18px;
+  }
+  /* Main two-pane */
+  .body {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    min-height: 0;
+  }
+  .left-pane {
+    border-right: 1px solid var(--outline-variant);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .search-row {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--outline-variant);
+  }
+  .search {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 14px;
+  }
+  .search::placeholder { color: var(--on-surface-variant); }
+  .tree {
+    overflow-y: auto;
+    padding: 8px 4px 16px;
+    flex: 1;
+  }
+  .level-group { margin: 0 8px; }
+  .level-header {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    color: var(--on-surface);
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+  .level-header:hover { background: var(--surface-container-high); }
+  .level-header .caret {
+    color: var(--on-surface-variant);
+    font-size: 10px;
+    width: 10px;
+    transition: transform 0.15s;
+  }
+  .level-group.collapsed .caret { transform: rotate(-90deg); }
+  .level-header .count {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--on-surface-variant);
+    background: var(--surface-container-high);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 500;
+  }
+  .spell-list {
+    list-style: none;
+    margin: 0;
+    padding: 2px 0 8px 18px;
+  }
+  .level-group.collapsed .spell-list { display: none; }
+  .spell-item {
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--on-surface);
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid transparent;
+  }
+  .spell-item:hover {
+    background: var(--surface-container-high);
+  }
+  .spell-item.selected {
+    background: rgba(109, 40, 217, 0.18);
+    border-color: rgba(211, 187, 255, 0.35);
+    color: var(--primary);
+  }
+  .spell-item .school-letter {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    background: var(--surface-container-highest);
+    color: var(--on-surface-variant);
+    font-size: 10px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .spell-item .meta-flag {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--on-surface-variant);
+    letter-spacing: 0.5px;
+  }
+  .spell-item.prepared .school-letter {
+    background: var(--primary-container);
+    color: var(--primary);
+  }
+  /* Right pane — detail */
+  .right-pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--surface-container);
+  }
+  .detail-scroll {
+    overflow-y: auto;
+    padding: 28px 32px 24px;
+    flex: 1;
+  }
+  .detail-eyebrow {
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--primary);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .detail-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 32px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+  .detail-sub {
+    color: var(--on-surface-variant);
+    font-size: 14px;
+    margin-bottom: 22px;
+    font-style: italic;
+  }
+  .detail-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    border-radius: 12px;
+  }
+  .meta-cell .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--on-surface-variant);
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .meta-cell .value {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--on-surface);
+  }
+  .badges {
+    display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap;
+  }
+  .badge {
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-high);
+    color: var(--on-surface-variant);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .badge.primary {
+    background: rgba(109, 40, 217, 0.20);
+    border-color: rgba(211, 187, 255, 0.35);
+    color: var(--primary);
+  }
+  .desc {
+    color: var(--on-surface);
+    font-size: 14px;
+    line-height: 1.65;
+  }
+  .desc p { margin: 0 0 14px; }
+  .desc .at-higher {
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: var(--surface-container-high);
+    border-left: 3px solid var(--primary);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .desc .at-higher strong { color: var(--primary); }
+  /* Footer */
+  .modal-footer {
+    border-top: 1px solid var(--outline-variant);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface-container);
+  }
+  .footer-status {
+    color: var(--on-surface-variant);
+    font-size: 13px;
+  }
+  .footer-status strong { color: var(--on-surface); }
+  .add-btn {
+    margin-left: auto;
+    padding: 10px 22px;
+    border-radius: 10px;
+    background: var(--primary-container);
+    color: var(--primary);
+    border: 1px solid rgba(211, 187, 255, 0.4);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+  }
+  .add-btn:hover { filter: brightness(1.1); }
+  .add-btn.remove {
+    background: transparent;
+    border-color: var(--hp-danger);
+    color: var(--hp-danger);
+  }
+  .ghost-btn {
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--on-surface-variant);
+    border: 1px solid var(--outline-variant);
+    font-family: 'Manrope', sans-serif;
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="scrim"></div>
+<div class="modal" role="dialog" aria-label="Manage Spells">
+  <div class="modal-header">
+    <div>
+      <h1 class="modal-title">Manage Spells</h1>
+      <div class="subtitle">Wizard, Lv 5 &middot; <span style="color:var(--primary)">9 prepared</span> / 13 max</div>
+    </div>
+    <button class="close-btn" title="Close">&times;</button>
+  </div>
+
+  <div class="body">
+    <!-- Left: Spellbook tree -->
+    <aside class="left-pane">
+      <div class="search-row">
+        <input class="search" type="text" placeholder="Search 341 spells..." />
+      </div>
+      <nav class="tree" id="tree">
+        <div class="level-group" data-level="0">
+          <button class="level-header" onclick="toggleGroup(this)">
+            <span class="caret">&#9660;</span>
+            Cantrips
+            <span class="count">4</span>
+          </button>
+          <ul class="spell-list">
+            <li class="spell-item prepared" onclick="selectSpell(this)" data-name="Astral Whisper">
+              <span class="school-letter" title="Divination">D</span>
+              <span class="name">Astral Whisper</span>
+              <span class="meta-flag">PREP</span>
+            </li>
+            <li class="spell-item" onclick="selectSpell(this)" data-name="Mage Hand">
+              <span class="school-letter" title="Conjuration">C</span>
+              <span class="name">Mage Hand</span>
+            </li>
+            <li class="spell-item prepared" onclick="selectSpell(this)" data-name="Minor Conflagration">
+              <span class="school-letter" title="Evocation">V</span>
+              <span class="name">Minor Conflagration</span>
+              <span class="meta-flag">PREP</span>
+            </li>
+            <li class="spell-item" onclick="selectSpell(this)" data-name="Prestidigitation">
+              <span class="school-letter" title="Transmutation">T</span>
+              <span class="name">Prestidigitation</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="level-group" data-level="1">
+          <button class="level-header" onclick="toggleGroup(this)">
+            <span class="caret">&#9660;</span>
+            1st Level
+            <span class="count">5</span>
+          </button>
+          <ul class="spell-list">
+            <li class="spell-item selected prepared" onclick="selectSpell(this)" data-name="Veilbinder's Snare">
+              <span class="school-letter" title="Enchantment">E</span>
+              <span class="name">Veilbinder's Snare</span>
+              <span class="meta-flag">PREP</span>
+            </li>
+            <li class="spell-item prepared" onclick="selectSpell(this)" data-name="Magic Missile">
+              <span class="school-letter" title="Evocation">V</span>
+              <span class="name">Magic Missile</span>
+              <span class="meta-flag">PREP</span>
+            </li>
+            <li class="spell-item" onclick="selectSpell(this)" data-name="Shield">
+              <span class="school-letter" title="Abjuration">A</span>
+              <span class="name">Shield</span>
+            </li>
+            <li class="spell-item prepared" onclick="selectSpell(this)" data-name="Sleep">
+              <span class="school-letter" title="Enchantment">E</span>
+              <span class="name">Sleep</span>
+              <span class="meta-flag">PREP</span>
+            </li>
+            <li class="spell-item" onclick="selectSpell(this)" data-name="Detect Magic">
+              <span class="school-letter" title="Divination">D</span>
+              <span class="name">Detect Magic</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="level-group" data-level="2">
+          <button class="level-header" onclick="toggleGroup(this)">
+            <span class="caret">&#9660;</span>
+            2nd Level
+            <span class="count">4</span>
+          </button>
+          <ul class="spell-list">
+            <li class="spell-item prepared" onclick="selectSpell(this)" data-name="Mirror Image">
+              <span class="school-letter" title="Illusion">I</span>
+              <span class="name">Mirror Image</span>
+              <span class="meta-flag">PREP</span>
+            </li>
+            <li class="spell-item" onclick="selectSpell(this)" data-name="Web">
+              <span class="school-letter" title="Conjuration">C</span>
+              <span class="name">Web</span>
+            </li>
+            <li class="spell-item prepared" onclick="selectSpell(this)" data-name="Hush of Eldermark">
+              <span class="school-letter" title="Illusion">I</span>
+              <span class="name">Hush of Eldermark</span>
+              <span class="meta-flag">PREP</span>
+            </li>
+            <li class="spell-item" onclick="selectSpell(this)" data-name="Misty Step">
+              <span class="school-letter" title="Conjuration">C</span>
+              <span class="name">Misty Step</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="level-group collapsed" data-level="3">
+          <button class="level-header" onclick="toggleGroup(this)">
+            <span class="caret">&#9660;</span>
+            3rd Level
+            <span class="count">3</span>
+          </button>
+          <ul class="spell-list">
+            <li class="spell-item prepared" onclick="selectSpell(this)" data-name="Fireball">
+              <span class="school-letter" title="Evocation">V</span>
+              <span class="name">Fireball</span>
+              <span class="meta-flag">PREP</span>
+            </li>
+            <li class="spell-item" onclick="selectSpell(this)" data-name="Counterspell">
+              <span class="school-letter" title="Abjuration">A</span>
+              <span class="name">Counterspell</span>
+            </li>
+            <li class="spell-item" onclick="selectSpell(this)" data-name="Fly">
+              <span class="school-letter" title="Transmutation">T</span>
+              <span class="name">Fly</span>
+            </li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Right: Spell detail -->
+    <section class="right-pane">
+      <div class="detail-scroll">
+        <div class="detail-eyebrow">1st-Level Enchantment</div>
+        <h2 class="detail-name">Veilbinder's Snare</h2>
+        <div class="detail-sub">A whisper of geas curls through the air, cinching tight around a wandering mind.</div>
+
+        <div class="badges">
+          <span class="badge primary">Prepared</span>
+          <span class="badge">Concentration</span>
+          <span class="badge">Wizard</span>
+          <span class="badge">Sorcerer</span>
+        </div>
+
+        <div class="detail-meta-grid">
+          <div class="meta-cell">
+            <div class="label">Casting Time</div>
+            <div class="value">1 Action</div>
+          </div>
+          <div class="meta-cell">
+            <div class="label">Range</div>
+            <div class="value">60 ft</div>
+          </div>
+          <div class="meta-cell">
+            <div class="label">Components</div>
+            <div class="value">V, S, M*</div>
+          </div>
+          <div class="meta-cell">
+            <div class="label">Duration</div>
+            <div class="value">Conc., 1 min</div>
+          </div>
+        </div>
+
+        <div class="desc">
+          <p>Choose one creature you can see within range. The target must succeed on a Wisdom saving throw or
+          become <em>ensnared</em> by your geas-thread for the duration. While ensnared, the target's speed is
+          halved, and it has disadvantage on attack rolls against any creature other than you.</p>
+          <p>At the end of each of its turns, the target can repeat the saving throw, ending the effect on a
+          success.</p>
+          <div class="at-higher">
+            <strong>At Higher Levels.</strong> When you cast this spell using a spell slot of 2nd level or
+            higher, you can target one additional creature for each slot level above 1st. The creatures must
+            be within 30 feet of each other when you target them.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="footer-status">
+          <strong>Veilbinder's Snare</strong> &middot; currently prepared
+        </div>
+        <button class="ghost-btn">Cancel</button>
+        <button class="add-btn remove">Remove from Prepared</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+  function toggleGroup(headerBtn) {
+    headerBtn.parentElement.classList.toggle('collapsed');
+  }
+  function selectSpell(li) {
+    document.querySelectorAll('.spell-item.selected').forEach(n => n.classList.remove('selected'));
+    li.classList.add('selected');
+    // Demo only — real version would update the right pane.
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Spell Picker — 04 Split View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --surface: #121416;
+    --surface-container: #1e2022;
+    --surface-container-high: #282a2c;
+    --surface-container-highest: #333537;
+    --primary: #d3bbff;
+    --primary-container: #6d28d9;
+    --on-primary: #3f008d;
+    --on-surface: #e2e2e5;
+    --on-surface-variant: #ccc3d7;
+    --outline: #958da1;
+    --outline-variant: #4a4455;
+    --hp-danger: #e24b4a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: 'Manrope', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  body {
+    background:
+      radial-gradient(1100px 700px at 30% 20%, rgba(109, 40, 217, 0.10), transparent 60%),
+      radial-gradient(900px 600px at 80% 90%, rgba(109, 40, 217, 0.08), transparent 60%),
+      var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+  .scrim {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(2px);
+    z-index: 0;
+  }
+  .modal {
+    position: relative; z-index: 1;
+    width: 1140px;
+    height: 740px;
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+  }
+  .modal-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--outline-variant);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .modal-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600; font-size: 22px;
+    margin: 0;
+  }
+  .subtitle { color: var(--on-surface-variant); font-size: 13px; }
+  .close-btn {
+    margin-left: auto;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface);
+    cursor: pointer;
+    font-size: 18px;
+  }
+  .body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 0;
+  }
+  .pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .pane-left {
+    border-right: 1px solid var(--outline-variant);
+  }
+  .pane-header {
+    padding: 12px 18px;
+    background: var(--surface-container-high);
+    border-bottom: 1px solid var(--outline-variant);
+  }
+  .pane-eyebrow {
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--on-surface-variant);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .pane-title-row {
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .pane-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    margin: 0;
+  }
+  .pane-count {
+    color: var(--on-surface-variant);
+    font-size: 12px;
+  }
+  .pane-count strong { color: var(--primary); }
+
+  /* Catalog filters */
+  .catalog-filters {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--outline-variant);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .search {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+  }
+  .search::placeholder { color: var(--on-surface-variant); }
+  .level-chips {
+    display: flex; gap: 5px; flex-wrap: wrap;
+  }
+  .chip {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: 0.3px;
+  }
+  .chip.active {
+    background: rgba(109, 40, 217, 0.30);
+    border-color: rgba(211, 187, 255, 0.5);
+    color: var(--primary);
+  }
+  /* Lists */
+  .scroll {
+    flex: 1; overflow-y: auto;
+    padding: 8px 8px 12px;
+  }
+  .level-section { margin: 8px 4px; }
+  .level-divider {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--on-surface-variant);
+    padding: 8px 12px 6px;
+    margin-top: 4px;
+    font-weight: 700;
+    border-bottom: 1px dashed var(--outline-variant);
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    margin-top: 2px;
+  }
+  .row:hover {
+    background: var(--surface-container-high);
+    border-color: var(--outline-variant);
+  }
+  .school {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: var(--surface-container-highest);
+    color: var(--on-surface);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid var(--outline-variant);
+  }
+  .row .name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--on-surface);
+  }
+  .row .meta {
+    font-size: 11px;
+    color: var(--on-surface-variant);
+    margin-top: 2px;
+  }
+  .row .text { flex: 1; min-width: 0; }
+  .row .badges {
+    display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap;
+  }
+  .pill {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pill.conc { color: #f4a4ff; border-color: rgba(244, 164, 255, 0.35); }
+  .pill.ritual { color: #b8e0ff; border-color: rgba(184, 224, 255, 0.35); }
+  .action-btn {
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--primary-container);
+    color: var(--primary);
+    border: 1px solid rgba(211, 187, 255, 0.4);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .action-btn.remove {
+    background: transparent;
+    border-color: var(--hp-danger);
+    color: var(--hp-danger);
+    font-size: 14px;
+  }
+  .row.in-catalog.added .name {
+    color: var(--on-surface-variant);
+    text-decoration: line-through;
+    text-decoration-color: var(--outline-variant);
+  }
+  .row.in-catalog.added .action-btn {
+    background: transparent;
+    border-color: var(--outline-variant);
+    color: var(--outline);
+    cursor: default;
+  }
+  /* Prepared pane row */
+  .pane-right .row {
+    background: rgba(109, 40, 217, 0.08);
+    border-color: rgba(211, 187, 255, 0.18);
+  }
+  .pane-right .row:hover {
+    background: rgba(109, 40, 217, 0.16);
+    border-color: rgba(211, 187, 255, 0.35);
+  }
+  .empty-prepared {
+    text-align: center;
+    color: var(--on-surface-variant);
+    padding: 40px 20px;
+    font-size: 13px;
+  }
+  /* Slot strip on prepared side */
+  .slot-strip {
+    display: flex;
+    gap: 6px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--outline-variant);
+    background: var(--surface-container);
+  }
+  .slot {
+    flex: 1;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    border-radius: 8px;
+    padding: 6px 4px;
+    text-align: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 10px;
+    color: var(--on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .slot strong {
+    display: block;
+    font-size: 14px;
+    color: var(--on-surface);
+    margin-top: 2px;
+    letter-spacing: 0;
+  }
+  .slot.cantrip strong { color: var(--primary); }
+  /* Footer */
+  .modal-footer {
+    border-top: 1px solid var(--outline-variant);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface-container);
+  }
+  .footer-status {
+    color: var(--on-surface-variant);
+    font-size: 13px;
+  }
+  .footer-status strong { color: var(--primary); }
+  .ghost-btn {
+    margin-left: auto;
+    padding: 9px 18px;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--on-surface-variant);
+    border: 1px solid var(--outline-variant);
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .done-btn {
+    padding: 9px 22px;
+    border-radius: 10px;
+    background: var(--primary-container);
+    color: var(--primary);
+    border: 1px solid rgba(211, 187, 255, 0.4);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="scrim"></div>
+<div class="modal" role="dialog" aria-label="Manage Spells">
+  <div class="modal-header">
+    <div>
+      <h1 class="modal-title">Manage Spells</h1>
+      <div class="subtitle">Wizard, Lv 5 &middot; <span style="color:var(--primary)">9 prepared</span> / 13 max</div>
+    </div>
+    <button class="close-btn">&times;</button>
+  </div>
+
+  <div class="body">
+    <!-- Catalog -->
+    <section class="pane pane-left">
+      <div class="pane-header">
+        <div class="pane-eyebrow">Catalog</div>
+        <div class="pane-title-row">
+          <h2 class="pane-title">Spell Catalog</h2>
+          <span class="pane-count">341 results</span>
+        </div>
+      </div>
+      <div class="catalog-filters">
+        <input class="search" type="text" placeholder="Search by name or school..." />
+        <div class="level-chips">
+          <button class="chip active">All</button>
+          <button class="chip">Cantrip</button>
+          <button class="chip">1st</button>
+          <button class="chip">2nd</button>
+          <button class="chip">3rd</button>
+          <button class="chip">4th</button>
+          <button class="chip">5th</button>
+        </div>
+      </div>
+      <div class="scroll">
+        <div class="level-section">
+          <div class="level-divider">Cantrips</div>
+          <div class="row in-catalog" onclick="addToPrepared(this)">
+            <div class="school">D</div>
+            <div class="text">
+              <div class="name">Astral Whisper</div>
+              <div class="meta">Divination &middot; 120 ft &middot; 1 Action</div>
+            </div>
+            <button class="action-btn">+</button>
+          </div>
+          <div class="row in-catalog added">
+            <div class="school">V</div>
+            <div class="text">
+              <div class="name">Minor Conflagration</div>
+              <div class="meta">Evocation &middot; 60 ft</div>
+            </div>
+            <button class="action-btn">&#10003;</button>
+          </div>
+          <div class="row in-catalog" onclick="addToPrepared(this)">
+            <div class="school">C</div>
+            <div class="text">
+              <div class="name">Mage Hand</div>
+              <div class="meta">Conjuration &middot; 30 ft</div>
+            </div>
+            <button class="action-btn">+</button>
+          </div>
+          <div class="row in-catalog" onclick="addToPrepared(this)">
+            <div class="school">T</div>
+            <div class="text">
+              <div class="name">Prestidigitation</div>
+              <div class="meta">Transmutation &middot; 10 ft</div>
+            </div>
+            <button class="action-btn">+</button>
+          </div>
+        </div>
+
+        <div class="level-section">
+          <div class="level-divider">1st Level</div>
+          <div class="row in-catalog added">
+            <div class="school">E</div>
+            <div class="text">
+              <div class="name">Veilbinder's Snare</div>
+              <div class="meta">Enchantment &middot; 60 ft</div>
+              <div class="badges"><span class="pill conc">Conc.</span></div>
+            </div>
+            <button class="action-btn">&#10003;</button>
+          </div>
+          <div class="row in-catalog added">
+            <div class="school">V</div>
+            <div class="text">
+              <div class="name">Magic Missile</div>
+              <div class="meta">Evocation &middot; 120 ft</div>
+            </div>
+            <button class="action-btn">&#10003;</button>
+          </div>
+          <div class="row in-catalog" onclick="addToPrepared(this)">
+            <div class="school">A</div>
+            <div class="text">
+              <div class="name">Shield</div>
+              <div class="meta">Abjuration &middot; Reaction</div>
+            </div>
+            <button class="action-btn">+</button>
+          </div>
+          <div class="row in-catalog added">
+            <div class="school">E</div>
+            <div class="text">
+              <div class="name">Sleep</div>
+              <div class="meta">Enchantment &middot; 90 ft</div>
+            </div>
+            <button class="action-btn">&#10003;</button>
+          </div>
+          <div class="row in-catalog" onclick="addToPrepared(this)">
+            <div class="school">D</div>
+            <div class="text">
+              <div class="name">Detect Magic</div>
+              <div class="meta">Divination &middot; Self</div>
+              <div class="badges"><span class="pill conc">Conc.</span><span class="pill ritual">Ritual</span></div>
+            </div>
+            <button class="action-btn">+</button>
+          </div>
+        </div>
+
+        <div class="level-section">
+          <div class="level-divider">2nd Level</div>
+          <div class="row in-catalog added">
+            <div class="school">I</div>
+            <div class="text">
+              <div class="name">Mirror Image</div>
+              <div class="meta">Illusion &middot; Self</div>
+            </div>
+            <button class="action-btn">&#10003;</button>
+          </div>
+          <div class="row in-catalog" onclick="addToPrepared(this)">
+            <div class="school">C</div>
+            <div class="text">
+              <div class="name">Web</div>
+              <div class="meta">Conjuration &middot; 60 ft</div>
+              <div class="badges"><span class="pill conc">Conc.</span></div>
+            </div>
+            <button class="action-btn">+</button>
+          </div>
+          <div class="row in-catalog added">
+            <div class="school">I</div>
+            <div class="text">
+              <div class="name">Hush of Eldermark</div>
+              <div class="meta">Illusion &middot; 120 ft</div>
+              <div class="badges"><span class="pill conc">Conc.</span></div>
+            </div>
+            <button class="action-btn">&#10003;</button>
+          </div>
+          <div class="row in-catalog" onclick="addToPrepared(this)">
+            <div class="school">C</div>
+            <div class="text">
+              <div class="name">Misty Step</div>
+              <div class="meta">Conjuration &middot; Bonus Action</div>
+            </div>
+            <button class="action-btn">+</button>
+          </div>
+        </div>
+
+        <div class="level-section">
+          <div class="level-divider">3rd Level</div>
+          <div class="row in-catalog added">
+            <div class="school">V</div>
+            <div class="text">
+              <div class="name">Fireball</div>
+              <div class="meta">Evocation &middot; 150 ft</div>
+            </div>
+            <button class="action-btn">&#10003;</button>
+          </div>
+          <div class="row in-catalog" onclick="addToPrepared(this)">
+            <div class="school">A</div>
+            <div class="text">
+              <div class="name">Counterspell</div>
+              <div class="meta">Abjuration &middot; Reaction</div>
+            </div>
+            <button class="action-btn">+</button>
+          </div>
+          <div class="row in-catalog" onclick="addToPrepared(this)">
+            <div class="school">T</div>
+            <div class="text">
+              <div class="name">Fly</div>
+              <div class="meta">Transmutation &middot; Touch</div>
+              <div class="badges"><span class="pill conc">Conc.</span></div>
+            </div>
+            <button class="action-btn">+</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Prepared -->
+    <section class="pane pane-right">
+      <div class="pane-header">
+        <div class="pane-eyebrow">Your Spellbook</div>
+        <div class="pane-title-row">
+          <h2 class="pane-title">Prepared</h2>
+          <span class="pane-count"><strong>9</strong> / 13 leveled &middot; 2 / 4 cantrips</span>
+        </div>
+      </div>
+      <div class="slot-strip">
+        <div class="slot cantrip">Cantrips<strong>2/4</strong></div>
+        <div class="slot">Lv 1<strong>3/4</strong></div>
+        <div class="slot">Lv 2<strong>2/3</strong></div>
+        <div class="slot">Lv 3<strong>2/2</strong></div>
+        <div class="slot">Lv 4<strong>0/0</strong></div>
+        <div class="slot">Lv 5<strong>0/0</strong></div>
+      </div>
+      <div class="scroll" id="prepared-list">
+        <div class="level-section">
+          <div class="level-divider">Cantrips (2)</div>
+          <div class="row" onclick="removeFromPrepared(this)">
+            <div class="school">V</div>
+            <div class="text">
+              <div class="name">Minor Conflagration</div>
+              <div class="meta">Evocation &middot; 60 ft</div>
+            </div>
+            <button class="action-btn remove">&times;</button>
+          </div>
+        </div>
+
+        <div class="level-section">
+          <div class="level-divider">1st Level (3)</div>
+          <div class="row" onclick="removeFromPrepared(this)">
+            <div class="school">E</div>
+            <div class="text">
+              <div class="name">Veilbinder's Snare</div>
+              <div class="meta">Enchantment &middot; 60 ft</div>
+              <div class="badges"><span class="pill conc">Conc.</span></div>
+            </div>
+            <button class="action-btn remove">&times;</button>
+          </div>
+          <div class="row" onclick="removeFromPrepared(this)">
+            <div class="school">V</div>
+            <div class="text">
+              <div class="name">Magic Missile</div>
+              <div class="meta">Evocation &middot; 120 ft</div>
+            </div>
+            <button class="action-btn remove">&times;</button>
+          </div>
+          <div class="row" onclick="removeFromPrepared(this)">
+            <div class="school">E</div>
+            <div class="text">
+              <div class="name">Sleep</div>
+              <div class="meta">Enchantment &middot; 90 ft</div>
+            </div>
+            <button class="action-btn remove">&times;</button>
+          </div>
+        </div>
+
+        <div class="level-section">
+          <div class="level-divider">2nd Level (2)</div>
+          <div class="row" onclick="removeFromPrepared(this)">
+            <div class="school">I</div>
+            <div class="text">
+              <div class="name">Mirror Image</div>
+              <div class="meta">Illusion &middot; Self</div>
+            </div>
+            <button class="action-btn remove">&times;</button>
+          </div>
+          <div class="row" onclick="removeFromPrepared(this)">
+            <div class="school">I</div>
+            <div class="text">
+              <div class="name">Hush of Eldermark</div>
+              <div class="meta">Illusion &middot; 120 ft</div>
+              <div class="badges"><span class="pill conc">Conc.</span></div>
+            </div>
+            <button class="action-btn remove">&times;</button>
+          </div>
+        </div>
+
+        <div class="level-section">
+          <div class="level-divider">3rd Level (2)</div>
+          <div class="row" onclick="removeFromPrepared(this)">
+            <div class="school">V</div>
+            <div class="text">
+              <div class="name">Fireball</div>
+              <div class="meta">Evocation &middot; 150 ft</div>
+            </div>
+            <button class="action-btn remove">&times;</button>
+          </div>
+          <div class="row" onclick="removeFromPrepared(this)">
+            <div class="school">V</div>
+            <div class="text">
+              <div class="name">Burning Hands II</div>
+              <div class="meta">Evocation &middot; Self (15-ft cone)</div>
+            </div>
+            <button class="action-btn remove">&times;</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-footer">
+    <div class="footer-status">
+      <strong>9</strong> prepared &middot; 4 remaining slots
+    </div>
+    <button class="ghost-btn">Cancel</button>
+    <button class="done-btn">Done</button>
+  </div>
+</div>
+
+<script>
+  // Demo only — toggles classes/icons; doesn't actually move rows between panes.
+  function addToPrepared(row) {
+    if (row.classList.contains('added')) return;
+    row.classList.add('added');
+    row.querySelector('.action-btn').innerHTML = '&#10003;';
+    row.onclick = null;
+  }
+  function removeFromPrepared(row) {
+    row.style.opacity = 0.4;
+    row.style.pointerEvents = 'none';
+  }
+</script>
+</body>
+</html>

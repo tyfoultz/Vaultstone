@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Spell List — 06 Compact List</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --surface: #121416;
+    --surface-container-lowest: #0c0e10;
+    --surface-container: #1e2022;
+    --surface-container-high: #282a2c;
+    --surface-container-highest: #333537;
+    --primary: #d3bbff;
+    --primary-container: #6d28d9;
+    --on-primary: #3f008d;
+    --on-surface: #e2e2e5;
+    --on-surface-variant: #ccc3d7;
+    --outline: #958da1;
+    --outline-variant: #4a4455;
+    --hp-danger: #e24b4a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: 'Manrope', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  body {
+    background:
+      radial-gradient(1100px 700px at 30% 20%, rgba(109, 40, 217, 0.10), transparent 60%),
+      radial-gradient(900px 600px at 80% 90%, rgba(109, 40, 217, 0.08), transparent 60%),
+      var(--surface);
+    display: flex;
+    justify-content: center;
+    padding: 48px 24px 96px;
+  }
+  .page { width: 760px; }
+
+  .page-eyebrow {
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--primary);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .page-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 28px;
+    margin: 0 0 12px;
+    letter-spacing: -0.2px;
+  }
+  .page-note {
+    color: var(--on-surface-variant);
+    font-size: 13px;
+    margin: 0 0 28px;
+    line-height: 1.5;
+  }
+
+  .level-section { margin-bottom: 22px; }
+  .level-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 6px 6px 8px;
+    border-bottom: 1px solid var(--outline-variant);
+    margin-bottom: 4px;
+  }
+  .level-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+  }
+  .level-sub {
+    font-size: 11px;
+    color: var(--on-surface-variant);
+    letter-spacing: 0.5px;
+  }
+  .slot-pips {
+    margin-left: auto;
+    display: flex;
+    gap: 5px;
+  }
+  .pip {
+    width: 11px; height: 11px;
+    border-radius: 3px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+  }
+  .pip.filled {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+
+  /* Compact rows */
+  .spell-row {
+    padding: 10px 8px;
+    border-bottom: 1px solid rgba(74, 68, 85, 0.3);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .spell-row:hover {
+    background: var(--surface-container);
+  }
+  .row-1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+  }
+  .spell-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--on-surface);
+  }
+  .dot {
+    color: var(--outline-variant);
+    margin: 0 1px;
+  }
+  .school-tag {
+    color: var(--on-surface-variant);
+    font-size: 12px;
+  }
+  .range-meta {
+    color: var(--on-surface-variant);
+    font-size: 12px;
+  }
+  .icon-flags {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .flag {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant);
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--surface-container);
+  }
+  .flag.conc { color: var(--primary); border-color: rgba(211,187,255,0.4); }
+  .cast-mini {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: var(--primary-container);
+    color: var(--primary);
+    border: 1px solid rgba(211, 187, 255, 0.25);
+    cursor: pointer;
+    margin-left: 8px;
+  }
+  .cast-mini.atwill {
+    background: transparent;
+    color: var(--on-surface-variant);
+    border-color: var(--outline-variant);
+  }
+
+  .row-2 {
+    margin-top: 4px;
+    color: var(--on-surface-variant);
+    font-size: 12.5px;
+    line-height: 1.4;
+    padding-left: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 660px;
+  }
+
+  /* Expanded variant */
+  .spell-row.expanded {
+    background: var(--surface-container);
+    border-radius: 8px;
+    border-bottom: 1px solid var(--outline-variant);
+    padding: 14px 14px 16px;
+    margin: 4px 0;
+  }
+  .spell-row.expanded .row-2 {
+    white-space: normal;
+    overflow: visible;
+    margin-top: 8px;
+  }
+  .spell-row.expanded .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px 18px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--outline-variant);
+  }
+  .meta-grid { display: none; }
+  .meta-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .meta-label {
+    color: var(--outline);
+    font-size: 9.5px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .meta-val {
+    color: var(--on-surface);
+    font-size: 13px;
+  }
+  .full-desc {
+    display: none;
+    margin-top: 10px;
+    color: var(--on-surface-variant);
+    font-size: 13.5px;
+    line-height: 1.55;
+    padding-top: 10px;
+    border-top: 1px solid var(--outline-variant);
+  }
+  .spell-row.expanded .full-desc { display: block; }
+  .spell-row.expanded .preview { display: none; }
+
+  .state-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--primary);
+    margin: 28px 0 10px;
+    border-top: 1px dashed var(--outline-variant);
+    padding-top: 24px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-eyebrow">Mockup &middot; 06 Compact List</div>
+  <h1 class="page-title">Prepared Spells</h1>
+  <p class="page-note">Information-dense scan view. Click any row to expand for the full description &amp; meta grid. Below: collapsed default state, then a single expanded row demoed at the bottom.</p>
+
+  <!-- CANTRIPS -->
+  <section class="level-section">
+    <header class="level-head">
+      <span class="level-title">Cantrips</span>
+      <span class="level-sub">3 known &middot; at will</span>
+    </header>
+
+    <div class="spell-row">
+      <div class="row-1">
+        <span class="spell-name">Acid Splash</span>
+        <span class="dot">&middot;</span>
+        <span class="school-tag">Conjuration</span>
+        <span class="dot">&middot;</span>
+        <span class="range-meta">60 ft &middot; 1 action</span>
+        <span class="icon-flags"></span>
+        <button class="cast-mini atwill">At Will</button>
+      </div>
+      <div class="row-2 preview">Hurl an acid bubble; up to two creatures within 5 ft of each other make a DEX save or take 1d6 acid…</div>
+    </div>
+
+    <div class="spell-row">
+      <div class="row-1">
+        <span class="spell-name">Fire Bolt</span>
+        <span class="dot">&middot;</span>
+        <span class="school-tag">Evocation</span>
+        <span class="dot">&middot;</span>
+        <span class="range-meta">120 ft &middot; 1 action</span>
+        <span class="icon-flags"></span>
+        <button class="cast-mini atwill">At Will</button>
+      </div>
+      <div class="row-2 preview">Hurl a mote of fire — ranged spell attack for 1d10 fire damage. Flammable objects ignite…</div>
+    </div>
+
+    <div class="spell-row">
+      <div class="row-1">
+        <span class="spell-name">Mending</span>
+        <span class="dot">&middot;</span>
+        <span class="school-tag">Transmutation</span>
+        <span class="dot">&middot;</span>
+        <span class="range-meta">Touch &middot; 1 minute</span>
+        <span class="icon-flags"></span>
+        <button class="cast-mini atwill">At Will</button>
+      </div>
+      <div class="row-2 preview">Repair a single break or tear in an object you touch — a torn cloak, a broken chain link, a leaking…</div>
+    </div>
+  </section>
+
+  <!-- 1ST LEVEL -->
+  <section class="level-section">
+    <header class="level-head">
+      <span class="level-title">1st Level</span>
+      <span class="level-sub">3 / 4 slots</span>
+      <div class="slot-pips">
+        <span class="pip filled"></span>
+        <span class="pip filled"></span>
+        <span class="pip filled"></span>
+        <span class="pip"></span>
+      </div>
+    </header>
+
+    <div class="spell-row">
+      <div class="row-1">
+        <span class="spell-name">Cure Wounds</span>
+        <span class="dot">&middot;</span>
+        <span class="school-tag">Conjuration</span>
+        <span class="dot">&middot;</span>
+        <span class="range-meta">Touch &middot; 1 action</span>
+        <span class="icon-flags"></span>
+        <button class="cast-mini">Cast</button>
+      </div>
+      <div class="row-2 preview">Touch a creature to restore 1d8 + spellcasting mod hp. No effect on undead or constructs…</div>
+    </div>
+
+    <div class="spell-row">
+      <div class="row-1">
+        <span class="spell-name">Shield</span>
+        <span class="dot">&middot;</span>
+        <span class="school-tag">Abjuration</span>
+        <span class="dot">&middot;</span>
+        <span class="range-meta">Self &middot; 1 reaction</span>
+        <span class="icon-flags"><span class="flag conc" title="Concentration">C</span></span>
+        <button class="cast-mini">Cast</button>
+      </div>
+      <div class="row-2 preview">Reaction when hit by an attack or targeted by Magic Missile — gain +5 AC until your next turn…</div>
+    </div>
+
+    <div class="spell-row">
+      <div class="row-1">
+        <span class="spell-name">Detect Magic</span>
+        <span class="dot">&middot;</span>
+        <span class="school-tag">Divination</span>
+        <span class="dot">&middot;</span>
+        <span class="range-meta">Self (30 ft) &middot; 1 action</span>
+        <span class="icon-flags">
+          <span class="flag" title="Ritual">R</span>
+          <span class="flag conc" title="Concentration">C</span>
+        </span>
+        <button class="cast-mini">Cast</button>
+      </div>
+      <div class="row-2 preview">Sense the presence of magic within 30 ft. As an action see a faint aura around magical creatures or…</div>
+    </div>
+  </section>
+
+  <!-- 2ND LEVEL -->
+  <section class="level-section">
+    <header class="level-head">
+      <span class="level-title">2nd Level</span>
+      <span class="level-sub">2 / 2 slots</span>
+      <div class="slot-pips">
+        <span class="pip filled"></span>
+        <span class="pip filled"></span>
+      </div>
+    </header>
+
+    <div class="spell-row">
+      <div class="row-1">
+        <span class="spell-name">Web</span>
+        <span class="dot">&middot;</span>
+        <span class="school-tag">Conjuration</span>
+        <span class="dot">&middot;</span>
+        <span class="range-meta">60 ft &middot; 1 action</span>
+        <span class="icon-flags"><span class="flag conc" title="Concentration">C</span></span>
+        <button class="cast-mini">Cast</button>
+      </div>
+      <div class="row-2 preview">Fill a 20-ft cube with sticky webs; creatures save or be restrained when they start their turn there…</div>
+    </div>
+
+    <div class="spell-row">
+      <div class="row-1">
+        <span class="spell-name">Misty Step</span>
+        <span class="dot">&middot;</span>
+        <span class="school-tag">Conjuration</span>
+        <span class="dot">&middot;</span>
+        <span class="range-meta">Self &middot; 1 bonus action</span>
+        <span class="icon-flags"></span>
+        <button class="cast-mini">Cast</button>
+      </div>
+      <div class="row-2 preview">Wreathed in silvery mist, teleport up to 30 feet to an unoccupied space you can see…</div>
+    </div>
+  </section>
+
+  <!-- EXPANDED EXAMPLE -->
+  <div class="state-label">Expanded state &mdash; Shield clicked</div>
+  <div class="spell-row expanded">
+    <div class="row-1">
+      <span class="spell-name">Shield</span>
+      <span class="dot">&middot;</span>
+      <span class="school-tag">Abjuration</span>
+      <span class="dot">&middot;</span>
+      <span class="range-meta">Self &middot; 1 reaction</span>
+      <span class="icon-flags"><span class="flag conc" title="Concentration">C</span></span>
+      <button class="cast-mini">Cast</button>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-cell"><span class="meta-label">Casting Time</span><span class="meta-val">1 reaction</span></div>
+      <div class="meta-cell"><span class="meta-label">Range</span><span class="meta-val">Self</span></div>
+      <div class="meta-cell"><span class="meta-label">Components</span><span class="meta-val">V, S</span></div>
+      <div class="meta-cell"><span class="meta-label">Duration</span><span class="meta-val">1 round</span></div>
+    </div>
+    <div class="full-desc">
+      An invisible barrier of magical force appears and protects you. Until the start of your next turn, you have a +5 bonus to AC, including against the triggering attack, and you take no damage from Magic Missile. Cast as a reaction when you are hit by an attack or targeted by the Magic Missile spell.
+    </div>
+  </div>
+</div>
+
+<script>
+  // Click-to-expand demo (operates on the in-list rows; the bottom expanded row is fixed for the demo).
+  document.querySelectorAll('.level-section .spell-row').forEach(function (row) {
+    row.addEventListener('click', function (e) {
+      // Don't toggle when clicking the cast button
+      if (e.target.closest('.cast-mini')) return;
+      row.classList.toggle('expanded');
+      // Inject placeholder meta-grid + full-desc on first expand if missing
+      if (row.classList.contains('expanded') && !row.querySelector('.meta-grid')) {
+        var preview = row.querySelector('.preview');
+        var grid = document.createElement('div');
+        grid.className = 'meta-grid';
+        grid.innerHTML = ''
+          + '<div class="meta-cell"><span class="meta-label">Casting Time</span><span class="meta-val">—</span></div>'
+          + '<div class="meta-cell"><span class="meta-label">Range</span><span class="meta-val">—</span></div>'
+          + '<div class="meta-cell"><span class="meta-label">Components</span><span class="meta-val">—</span></div>'
+          + '<div class="meta-cell"><span class="meta-label">Duration</span><span class="meta-val">—</span></div>';
+        row.querySelector('.row-1').after(grid);
+        var full = document.createElement('div');
+        full.className = 'full-desc';
+        full.textContent = (preview ? preview.textContent.replace(/…$/, '.') : '') + ' (Full description would render here.)';
+        row.appendChild(full);
+      }
+    });
+  });
+</script>
+</body>
+</html>

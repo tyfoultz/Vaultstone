@@ -106,9 +106,9 @@ export default function RootLayout() {
         <Stack.Screen name="campaign/new" />
         <Stack.Screen name="campaign/join" />
         <Stack.Screen name="campaign/[id]/index" />
-        <Stack.Screen name="campaign/[id]/session" />
         <Stack.Screen name="campaign/[id]/pick-character" />
-        <Stack.Screen name="character/[id]" />
+        <Stack.Screen name="character/[id]/index" />
+        <Stack.Screen name="character/[id]/level-up" />
         <Stack.Screen name="character/new" />
         <Stack.Screen name="reset-password" />
       </Stack>

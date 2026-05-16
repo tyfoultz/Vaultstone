@@ -110,6 +110,7 @@ export function transformFeats(
     const asiBenefit = formatAbilityIncrease(f.ability);
     const allBenefits = asiBenefit ? [asiBenefit, ...benefits] : benefits;
 
+    const grants = grantsForFeat(slugify(f.name));
     return {
       key: `imported_${systemId}_feat_${slugify(f.source)}_${slugify(f.name)}`,
       name: f.name,
@@ -122,12 +123,31 @@ export function transformFeats(
       category: mapCategory(f.category),
       prerequisites: formatPrerequisites(f.prerequisite),
       benefits: allBenefits,
+      ...(grants ? { grants } : {}),
       // Edition tag derived from the source code (X-prefix = 2024,
       // SRD = both, anything else = 5.1). The richer provenance still
       // lives on importSource.
       srdVersions: srdVersionsForSource(f.source),
     };
   });
+}
+
+/**
+ * Structured grants for feats that ask the player to pick something
+ * at acquisition (skill / tool / language proficiencies, cantrips,
+ * etc.). Mirrors the SRD transform's `grantsForFeat` so imported
+ * feats with known shapes surface the same in-wizard picker.
+ *
+ * Keyed by the slugified feat name (not import key) so the same
+ * mapping covers feats imported from PHB, XGE, BMT, etc.
+ */
+function grantsForFeat(slug: string): { skills?: { count: number; from: string[] | 'any' } } | undefined {
+  switch (slug) {
+    case 'skilled':
+      return { skills: { count: 3, from: 'any' } };
+    default:
+      return undefined;
+  }
 }
 
 // ── Internals ─────────────────────────────────────────────────────────────

@@ -129,16 +129,25 @@ export function SessionNotesPanel({
   }, [sessionId, userId, layout, flushPending]);
 
   // Pop-out: announce presence on mount, heartbeat, and say bye on unmount.
+  // Note: the previous BroadcastChannel effect's cleanup runs first on
+  // unmount and closes `bc`, so this cleanup's postMessage can hit a
+  // closed channel and throw `InvalidStateError` (DOMException). We
+  // ignore that error since the channel is going away anyway — losing
+  // the final `bye` just means the rail times out via the heartbeat
+  // staleness check rather than getting an instant signal.
   useEffect(() => {
     if (layout !== 'fullscreen' || !hasBroadcastChannel()) return;
     const bc = bcRef.current;
     if (!bc) return;
-    const hello = () => bc.postMessage({ kind: 'hello', from: 'fullscreen' } satisfies BCMessage);
+    const postSafely = (msg: BCMessage) => {
+      try { bc.postMessage(msg); } catch { /* channel closed during unmount */ }
+    };
+    const hello = () => postSafely({ kind: 'hello', from: 'fullscreen' });
     hello();
     const heartbeat = setInterval(hello, HEARTBEAT_MS);
     return () => {
       clearInterval(heartbeat);
-      bc.postMessage({ kind: 'bye', from: 'fullscreen' } satisfies BCMessage);
+      postSafely({ kind: 'bye', from: 'fullscreen' });
       void flushPending();
     };
   }, [layout, flushPending]);

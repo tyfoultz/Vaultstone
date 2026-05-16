@@ -103,8 +103,8 @@ export function PageContextMenu({
     }
   }
 
-  const splitPageId = useSplitPaneStore.getState().splitPageId;
-  const isSplitActive = !!splitPageId;
+  const splitTarget = useSplitPaneStore.getState().splitTarget;
+  const isSplitActive = !!splitTarget;
   const canSplit = Platform.OS === 'web' && page.id !== activePageId;
 
   const items: (MenuItem | 'divider')[] = [
@@ -118,7 +118,9 @@ export function PageContextMenu({
       icon: 'vertical-split',
       onPress: () => {
         onClose();
-        useSplitPaneStore.getState().openSplit(page.id);
+        useSplitPaneStore.getState().openSplit({
+          kind: 'world-page', worldId, pageId: page.id,
+        });
       },
     } as MenuItem] : []),
     'divider' as const,

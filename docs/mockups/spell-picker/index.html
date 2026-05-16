@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Spell Picker — Mockup Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --surface: #121416;
+    --surface-container: #1e2022;
+    --surface-container-high: #282a2c;
+    --surface-container-highest: #333537;
+    --primary: #d3bbff;
+    --primary-container: #6d28d9;
+    --on-primary: #3f008d;
+    --on-surface: #e2e2e5;
+    --on-surface-variant: #ccc3d7;
+    --outline: #958da1;
+    --outline-variant: #4a4455;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: 'Manrope', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  body {
+    background:
+      radial-gradient(1100px 700px at 30% 20%, rgba(109, 40, 217, 0.10), transparent 60%),
+      radial-gradient(900px 600px at 80% 90%, rgba(109, 40, 217, 0.08), transparent 60%),
+      var(--surface);
+    padding: 60px 24px;
+  }
+  .container {
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  .eyebrow {
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--primary);
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 40px;
+    margin: 0 0 12px;
+    letter-spacing: -0.3px;
+  }
+  .lede {
+    color: var(--on-surface-variant);
+    font-size: 16px;
+    line-height: 1.55;
+    max-width: 720px;
+    margin-bottom: 48px;
+  }
+  .lede strong { color: var(--on-surface); }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+  a.card {
+    display: block;
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
+    border-radius: 14px;
+    padding: 24px 26px 22px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s, transform 0.05s, background 0.15s;
+  }
+  a.card:hover {
+    border-color: rgba(211, 187, 255, 0.4);
+    background: var(--surface-container-high);
+  }
+  .card-num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    color: var(--primary);
+    font-size: 13px;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .card-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 22px;
+    margin: 0 0 8px;
+    color: var(--on-surface);
+  }
+  .card-pitch {
+    color: var(--on-surface-variant);
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0 0 14px;
+  }
+  .card-tags {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .tag {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant);
+  }
+  .footer-note {
+    margin-top: 56px;
+    color: var(--on-surface-variant);
+    font-size: 13px;
+    border-top: 1px solid var(--outline-variant);
+    padding-top: 20px;
+    line-height: 1.6;
+  }
+  .footer-note strong { color: var(--primary); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="eyebrow">Vaultstone &middot; Mockup Review</div>
+  <h1>Manage Spells — Modal Concepts</h1>
+  <p class="lede">
+    Four alternate layouts for the <strong>Manage Spells</strong> modal on the character sheet's Spells tab.
+    All four use Vaultstone's <strong>Magical Midnight</strong> Noir palette, Space Grotesk + Manrope, and
+    sample spells across cantrip / 1st / 2nd / 3rd levels. Click any card to open the standalone mockup.
+  </p>
+
+  <div class="grid">
+    <a class="card" href="01-spellbook.html">
+      <div class="card-num">01</div>
+      <h2 class="card-title">Spellbook</h2>
+      <p class="card-pitch">PHB-style two-pane reader: collapsible level-grouped tree on the left, full spell detail on the right with one click — fewer round-trips for power users.</p>
+      <div class="card-tags">
+        <span class="tag">Two-pane</span>
+        <span class="tag">Tree nav</span>
+        <span class="tag">Detail-rich</span>
+      </div>
+    </a>
+
+    <a class="card" href="02-card-grid.html">
+      <div class="card-num">02</div>
+      <h2 class="card-title">Card Grid</h2>
+      <p class="card-pitch">Filterable grid of richer spell cards with school glyph, casting/range line, concentration/ritual badges, snippet preview, and inline "+ Add" — no detail click required.</p>
+      <div class="card-tags">
+        <span class="tag">Grid</span>
+        <span class="tag">Inline add</span>
+        <span class="tag">Visual-forward</span>
+      </div>
+    </a>
+
+    <a class="card" href="03-dense-table.html">
+      <div class="card-num">03</div>
+      <h2 class="card-title">Dense Table</h2>
+      <p class="card-pitch">Single-screen sortable table — Name, Lvl, School, Casting, Range, Components, Conc, Ritual, Add. Click row to expand description inline. Optimized for scanning a lot of spells fast.</p>
+      <div class="card-tags">
+        <span class="tag">Table</span>
+        <span class="tag">Sortable</span>
+        <span class="tag">Information-dense</span>
+      </div>
+    </a>
+
+    <a class="card" href="04-split-view.html">
+      <div class="card-num">04</div>
+      <h2 class="card-title">Split View</h2>
+      <p class="card-pitch">Catalog on the left, prepared list on the right. Tap to add, X to remove. Each pane scrolls independently; filters apply only to the catalog. Fastest for "build a loadout from scratch."</p>
+      <div class="card-tags">
+        <span class="tag">Two-pane</span>
+        <span class="tag">Loadout</span>
+        <span class="tag">Slot tracker</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="footer-note">
+    <strong>Currently shipped:</strong> single-column flat list with horizontal level chips and a tap-through detail view. These four mockups explore alternate directions; not all elements need to ship together.
+  </div>
+</div>
+</body>
+</html>

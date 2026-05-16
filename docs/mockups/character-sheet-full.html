@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character Sheet — Full Content Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --canvas:#121416; --low:#0c0e10; --ctn:#1e2022; --high:#282a2c; --hst:#333537;
+  --pri:#d3bbff; --pri-bg:#2a1a50; --pri-dim:#1a1030;
+  --sec:#adc6ff; --sec-bg:#0a2a50;
+  --on:#e2e2e5; --on-v:#ccc3d7; --out:#958da1; --out-v:#4a4455;
+  --gm:#e6a255; --gm-bg:#3a2010;
+  --green:#1D9E75; --warn:#EF9F27; --red:#E24B4A; --blue:#3B82F6;
+  --head:'Space Grotesk',sans-serif; --body:'Manrope',sans-serif;
+}
+body{background:#07090a;color:var(--on);font-family:var(--body);padding:40px 28px 100px;display:flex;flex-direction:column;gap:72px;}
+
+/* ── Text ── */
+.eye{font-family:var(--head);font-size:9px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--out);}
+.hero{font-family:var(--head);font-size:24px;font-weight:800;color:var(--on);margin:5px 0 10px;}
+.desc{font-size:13px;color:var(--on-v);line-height:1.7;max-width:700px;}
+.slbl{font-family:var(--body);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--out);margin-bottom:8px;}
+.lbl{font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--out);font-family:var(--body);}
+.rule{height:1px;background:var(--out-v);opacity:0.2;margin:0 -28px;}
+.screens{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;margin-top:20px;}
+.new-badge{display:inline-flex;align-items:center;padding:1px 6px;border-radius:999px;font-size:8px;font-weight:700;background:var(--gm-bg);border:1px solid var(--gm);color:var(--gm);font-family:var(--body);vertical-align:middle;margin-left:4px;}
+
+/* ── Primitives ── */
+.card{background:var(--ctn);border:1px solid var(--out-v);border-radius:8px;}
+.pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;font-size:9px;font-weight:700;font-family:var(--body);border:1px solid var(--out-v);color:var(--on-v);background:var(--ctn);white-space:nowrap;}
+.pill.p{border-color:var(--pri);color:var(--pri);background:var(--pri-bg);}
+.pill.s{border-color:var(--sec);color:var(--sec);background:var(--sec-bg);}
+.pill.g{border-color:var(--gm);color:var(--gm);background:var(--gm-bg);}
+.pill.r{border-color:var(--red);color:var(--red);background:#2a0808;}
+.pill.gr{border-color:var(--green);color:var(--green);background:#0a2018;}
+.hpbar{height:5px;border-radius:3px;background:var(--out-v);overflow:hidden;}
+.hpfill{height:100%;border-radius:3px;}
+.sb{background:var(--ctn);border:1px solid var(--out-v);border-radius:7px;overflow:hidden;margin-bottom:5px;}
+.sb-head{padding:7px 10px;border-bottom:1px solid var(--out-v);display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.sb-title{font-family:var(--head);font-size:10px;font-weight:800;color:var(--on);}
+.sb.hi{border-color:var(--pri);}
+.sb.hi .sb-head{background:var(--pri-dim);}
+.sb.warn{border-color:var(--gm);}
+.sb.warn .sb-head{background:var(--gm-bg);}
+
+/* Skill row */
+.sk{display:flex;align-items:center;gap:7px;padding:5px 10px;border-bottom:1px solid #ffffff05;}
+.sk:last-child{border:none;}
+.sk-dot{width:7px;height:7px;border-radius:50%;border:1.5px solid var(--out);flex-shrink:0;}
+.sk-dot.p{background:var(--pri);border-color:var(--pri);}
+.sk-name{font-size:10px;color:var(--on-v);flex:1;}
+.sk-name.p{color:var(--on);font-weight:600;}
+.sk-abi{font-size:7px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--out);}
+.sk-val{font-family:var(--head);font-size:11px;font-weight:800;color:var(--on-v);min-width:24px;text-align:right;}
+.sk-val.p{color:var(--pri);}
+
+/* Attack row */
+.atk{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #ffffff05;}
+.atk:last-child{border:none;}
+.atk-name{font-family:var(--head);font-size:11px;font-weight:700;color:var(--on);flex:1;}
+.atk-sub{font-size:8px;color:var(--out);}
+.atk-btn{padding:3px 8px;border-radius:5px;border:1px solid var(--out-v);font-size:9px;font-weight:700;font-family:var(--body);color:var(--on-v);}
+.atk-btn.hit{border-color:var(--pri);color:var(--pri);background:var(--pri-bg);}
+.atk-btn.dmg{border-color:var(--red);color:var(--red);background:#2a0808;}
+
+/* Pip tracker */
+.pip{width:11px;height:11px;border-radius:3px;border:1.5px solid var(--out-v);flex-shrink:0;}
+.pip.on{background:var(--pri);border-color:var(--pri);}
+.pip.sm{width:8px;height:8px;border-radius:2px;}
+.pip.sm.on{background:var(--pri);border-color:var(--pri);}
+
+/* Slot row */
+.slot-row{display:flex;align-items:center;gap:5px;padding:3px 0;}
+.slot-lbl{font-size:8px;font-weight:700;color:var(--out);width:26px;font-family:var(--body);}
+.slot-remaining{font-size:8px;color:var(--out);margin-left:auto;}
+
+/* Save row */
+.save{display:flex;align-items:center;gap:6px;padding:4px 0;}
+.save-dot{width:7px;height:7px;border-radius:50%;border:1.5px solid var(--out);flex-shrink:0;}
+.save-dot.p{background:var(--pri);border-color:var(--pri);}
+.save-name{font-size:9px;color:var(--on-v);flex:1;}
+.save-val{font-family:var(--head);font-size:10px;font-weight:800;color:var(--on-v);}
+.save-val.p{color:var(--pri);}
+
+/* Ability tile */
+.asi{background:var(--ctn);border:1px solid var(--out-v);border-radius:6px;padding:5px 3px;text-align:center;flex:1;}
+.asi-mod{font-family:var(--head);font-size:14px;font-weight:800;color:var(--on);line-height:1;}
+.asi-raw{font-size:8px;color:var(--out);margin-top:1px;}
+.asi-lbl{font-size:6px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--out);margin-top:2px;}
+
+/* Feature row */
+.feat{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #ffffff05;}
+.feat:last-child{border:none;}
+.feat-bar{width:3px;height:20px;border-radius:2px;flex-shrink:0;background:var(--pri);}
+.feat-name{font-family:var(--head);font-size:11px;font-weight:700;color:var(--on);flex:1;}
+.feat-uses{font-size:8px;color:var(--out);}
+.feat-tag{font-size:8px;color:var(--out-v);}
+
+/* Spell entry */
+.spell{display:flex;align-items:center;gap:7px;padding:6px 10px;border-bottom:1px solid #ffffff05;}
+.spell:last-child{border:none;}
+.spell-prep{width:12px;height:12px;border-radius:3px;border:1.5px solid var(--out-v);flex-shrink:0;}
+.spell-prep.on{background:var(--pri);border-color:var(--pri);}
+.spell-name{font-size:10px;font-weight:600;color:var(--on);flex:1;}
+.spell-conc{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--gm);margin-right:2px;}
+.spell-school{font-size:8px;color:var(--out);}
+.spell-info{font-size:8px;color:var(--out-v);}
+
+/* Bottom tab bar (mobile) */
+.btabs{display:flex;border-top:1px solid var(--out-v);background:var(--low);flex-shrink:0;}
+.bt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px 4px 10px;border-top:2px solid transparent;}
+.bt.on{border-top-color:var(--pri);}
+.bt-ic{font-size:14px;line-height:1;}
+.bt-lb{font-size:7px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;font-family:var(--body);color:var(--out);}
+.bt.on .bt-lb{color:var(--pri);}
+
+/* Top tab bar */
+.htabs{display:flex;border-bottom:1px solid var(--out-v);background:var(--low);}
+.ht{display:flex;align-items:center;gap:5px;padding:10px 14px;border-bottom:2px solid transparent;font-size:11px;font-weight:700;font-family:var(--body);color:var(--out);white-space:nowrap;}
+.ht.on{color:var(--pri);border-bottom-color:var(--pri);}
+.ht-dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:0.8;}
+
+/* Input field */
+.field-row{display:flex;flex-direction:column;gap:3px;margin-bottom:8px;}
+.field-lbl{font-size:7px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--out);font-family:var(--body);}
+.field-val{font-size:11px;color:var(--on-v);padding:5px 8px;background:var(--high);border:1px solid var(--out-v);border-radius:5px;font-family:var(--body);}
+.field-val.multi{min-height:52px;font-size:10px;line-height:1.6;}
+
+/* Resource tracker */
+.resource{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #ffffff05;}
+.resource:last-child{border:none;}
+.resource-name{font-family:var(--head);font-size:11px;font-weight:700;color:var(--on);flex:1;}
+.resource-recharge{font-size:8px;color:var(--out);}
+.resource-pips{display:flex;gap:3px;align-items:center;}
+
+/* Journal entry */
+.jentry{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-bottom:1px solid #ffffff05;cursor:pointer;}
+.jentry:last-child{border:none;}
+.jentry:hover{background:var(--high);}
+.jentry-title{font-family:var(--head);font-size:11px;font-weight:700;color:var(--on);}
+.jentry-meta{display:flex;align-items:center;gap:6px;margin-top:2px;}
+.jentry-date{font-size:8px;color:var(--out);}
+.jentry-tag{font-size:7px;font-weight:700;letter-spacing:0.5px;padding:1px 5px;border-radius:999px;border:1px solid var(--out-v);color:var(--out-v);}
+.jentry-tag.s{border-color:var(--sec);color:var(--sec);}
+.jentry-tag.g{border-color:var(--gm);color:var(--gm);}
+.jentry-preview{font-size:9px;color:var(--out);margin-top:2px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ═══════════════════════════════════════════════
+   SHARED WEB SHELL
+   ═══════════════════════════════════════════════ */
+.web{width:820px;height:540px;background:var(--canvas);border:1.5px solid var(--out-v);border-radius:14px;overflow:hidden;display:flex;}
+
+/* Left rail */
+.rail{width:220px;flex-shrink:0;background:var(--low);border-right:1px solid var(--out-v);display:flex;flex-direction:column;overflow:hidden;}
+.rail-back{padding:10px 12px 0;font-size:9px;color:var(--out);display:flex;align-items:center;gap:3px;}
+.rail-ident{padding:10px 12px 8px;border-bottom:1px solid var(--out-v);}
+.rail-portrait{width:56px;height:56px;border-radius:28px;background:linear-gradient(135deg,#2a1560,#0c0e10);border:2px solid rgba(211,187,255,0.2);display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:8px;}
+.rail-name{font-family:var(--head);font-size:13px;font-weight:800;color:var(--on);line-height:1.2;}
+.rail-sub{font-size:9px;color:var(--out);margin-top:2px;}
+
+/* Campaign link */
+.campaign-link{margin-top:8px;padding:6px 8px;background:var(--ctn);border:1px solid var(--out-v);border-radius:6px;display:flex;align-items:center;gap:6px;cursor:pointer;}
+.campaign-link.linked{border-color:var(--gm);background:var(--gm-bg);}
+.campaign-link-icon{font-size:12px;}
+.campaign-link-text{flex:1;}
+.campaign-link-label{font-size:7px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--out);font-family:var(--body);}
+.campaign-link.linked .campaign-link-label{color:var(--gm);}
+.campaign-link-name{font-family:var(--head);font-size:10px;font-weight:700;color:var(--on-v);}
+.campaign-link.linked .campaign-link-name{color:var(--gm);}
+
+.rail-hp{padding:10px 12px;border-bottom:1px solid var(--out-v);}
+.rail-hp-nums{display:flex;align-items:baseline;gap:2px;margin-bottom:5px;}
+.rail-hp-curr{font-family:var(--head);font-size:26px;font-weight:800;line-height:1;}
+.rail-hp-sep{font-size:12px;color:var(--out);margin:0 2px;}
+.rail-hp-max{font-family:var(--head);font-size:12px;color:var(--out);}
+.rail-hp-tmp{font-size:10px;color:var(--blue);margin-left:3px;}
+.rail-hp-lbl{font-size:7px;color:var(--out);text-transform:uppercase;letter-spacing:1px;margin-top:4px;}
+
+.rail-stats{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:8px 12px;border-bottom:1px solid var(--out-v);}
+.rail-stat{background:var(--ctn);border:1px solid var(--out-v);border-radius:6px;padding:5px 4px;text-align:center;}
+.rail-stat-val{font-family:var(--head);font-size:13px;font-weight:800;color:var(--on);}
+.rail-stat-lbl{font-size:7px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--out);}
+
+.rail-actions{padding:8px 12px;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--out-v);}
+.rail-btn{flex:1;padding:5px 6px;border-radius:6px;border:1px solid var(--out-v);font-size:9px;font-weight:700;font-family:var(--body);color:var(--on-v);text-align:center;}
+.rail-btn.short{border-color:var(--sec);color:var(--sec);}
+.rail-btn.long{border-color:var(--pri);color:var(--pri);}
+
+.rail-insp{padding:6px 12px;display:flex;align-items:center;gap:6px;}
+.rail-insp-toggle{width:28px;height:28px;border-radius:14px;border:1.5px solid var(--gm);display:flex;align-items:center;justify-content:center;font-size:13px;}
+.rail-insp-label{font-size:9px;color:var(--out);}
+
+/* Main content area */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.content{flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:5px;overflow:hidden;}
+.content-row{display:flex;gap:5px;}
+.content-col{flex:1;display:flex;flex-direction:column;gap:5px;overflow:hidden;}
+
+/* ═══════════════════════════════════════════════
+   SHARED MOBILE SHELL
+   ═══════════════════════════════════════════════ */
+.mob{width:320px;height:600px;background:var(--canvas);border:1.5px solid var(--out-v);border-radius:24px;overflow:hidden;display:flex;flex-direction:column;}
+.mob-chrome{padding:10px 14px 0;background:var(--low);border-bottom:1px solid var(--out-v);flex-shrink:0;}
+.mob-chrome-row1{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.mob-portrait{width:34px;height:34px;border-radius:17px;background:linear-gradient(135deg,#2a1560,#0c0e10);border:1.5px solid rgba(211,187,255,0.2);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.mob-nameblk{flex:1;min-width:0;}
+.mob-name{font-family:var(--head);font-size:12px;font-weight:800;color:var(--on);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mob-sub{font-size:8px;color:var(--out);}
+.mob-campaign{display:flex;align-items:center;gap:3px;padding:2px 6px;border-radius:999px;background:var(--gm-bg);border:1px solid var(--gm);}
+.mob-campaign-ic{font-size:9px;}
+.mob-campaign-txt{font-size:8px;font-weight:700;color:var(--gm);font-family:var(--body);}
+.mob-chrome-row2{display:flex;align-items:center;gap:6px;padding-bottom:8px;}
+.mob-hp-nums{display:flex;align-items:baseline;gap:1px;}
+.mob-hp-curr{font-family:var(--head);font-size:18px;font-weight:800;}
+.mob-hp-sep{font-size:10px;color:var(--out);}
+.mob-hp-max{font-family:var(--head);font-size:10px;color:var(--out);}
+.mob-content{flex:1;overflow:hidden;padding:8px 12px;display:flex;flex-direction:column;gap:5px;}
+
+/* ═══════════════════════════════════════════════
+   INVENTORY TABLE
+   ═══════════════════════════════════════════════ */
+.inv-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid #ffffff05;}
+.inv-item:last-child{border:none;}
+.inv-slot-ic{width:22px;height:22px;border-radius:4px;background:var(--high);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
+.inv-name{font-family:var(--head);font-size:10px;font-weight:700;color:var(--on);flex:1;}
+.inv-sub{font-size:8px;color:var(--out);}
+.inv-attuned{width:8px;height:8px;border-radius:50%;background:var(--gm);flex-shrink:0;}
+.inv-toggle{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--out-v);flex-shrink:0;}
+.inv-toggle.on{background:var(--pri);border-color:var(--pri);}
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div>
+  <div class="eye">Vaultstone · Character Sheet</div>
+  <h1 class="hero">Full Content Mockup</h1>
+  <p class="desc">
+    One layout, every tab. New content is marked <span class="new-badge">NEW</span>.
+    Character: <strong>Kaela Thornwood</strong> — Wood Elf Druid 7, linked to campaign "The Thornwood Chronicle."
+  </p>
+  <div style="margin-top:14px;padding:12px 14px;background:var(--ctn);border:1px solid var(--out-v);border-radius:8px;font-size:12px;color:var(--on-v);line-height:1.8;max-width:700px;">
+    <strong style="color:var(--pri);">5 tabs:</strong>
+    &nbsp; ⚔ Combat &nbsp;·&nbsp; ✦ Spells &nbsp;·&nbsp; ★ Skills &nbsp;·&nbsp; ⚡ Traits &nbsp;·&nbsp; 📖 Lore
+    <br>
+    <strong style="color:var(--out);">Always visible:</strong> Portrait · Name · Campaign link · HP · AC · Initiative · Speed · Hit Die · Inspiration · Short/Long Rest
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 1 — COMBAT TAB
+     ════════════════════════════════════════════════ -->
+<div>
+  <div class="eye">Screen 1 of 5</div>
+  <h2 class="hero">Combat Tab</h2>
+  <p class="desc">Ability scores, saves, attacks, class resources, spell slot tracker, exhaustion, conditions, death saves, passives. Everything you need during a session without switching tabs.</p>
+
+  <div class="screens">
+    <!-- Web -->
+    <div>
+      <div class="slbl">Web</div>
+      <div class="web">
+        <div class="rail">
+          <div class="rail-back">← Characters</div>
+          <div class="rail-ident">
+            <div class="rail-portrait">🌿</div>
+            <div class="rail-name">Kaela Thornwood</div>
+            <div class="rail-sub">Wood Elf Druid · Level 7 · +3 Prof</div>
+
+            <!-- Campaign link — LINKED STATE -->
+            <div class="campaign-link linked" style="margin-top:8px;">
+              <div class="campaign-link-icon">🗺</div>
+              <div class="campaign-link-text">
+                <div class="campaign-link-label">Campaign</div>
+                <div class="campaign-link-name">The Thornwood Chronicle</div>
+              </div>
+              <span style="font-size:9px;color:var(--gm);">→</span>
+            </div>
+          </div>
+
+          <div class="rail-hp">
+            <div class="rail-hp-nums">
+              <span class="rail-hp-curr" style="color:var(--warn);">52</span>
+              <span class="rail-hp-sep">/</span>
+              <span class="rail-hp-max">68</span>
+            </div>
+            <div class="hpbar"><div class="hpfill" style="width:76%;background:var(--warn);"></div></div>
+            <div class="rail-hp-lbl" style="margin-top:4px;">Hit Points · tap to edit</div>
+          </div>
+
+          <div class="rail-stats">
+            <div class="rail-stat" style="border-color:var(--sec);"><div class="rail-stat-val" style="color:var(--sec);">16</div><div class="rail-stat-lbl">AC</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">+2</div><div class="rail-stat-lbl">Init</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">35</div><div class="rail-stat-lbl">Speed</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">d8</div><div class="rail-stat-lbl">Hit Die</div></div>
+          </div>
+
+          <div class="rail-actions">
+            <div class="rail-btn short">Short Rest</div>
+            <div class="rail-btn long">Long Rest</div>
+          </div>
+
+          <div class="rail-insp">
+            <div class="rail-insp-toggle">☆</div>
+            <span class="rail-insp-label">Inspiration</span>
+            <div style="flex:1;"></div>
+            <span style="font-size:14px;color:var(--out);">⚙</span>
+          </div>
+        </div>
+
+        <div class="main">
+          <div class="htabs">
+            <div class="ht on"><div class="ht-dot"></div>Combat</div>
+            <div class="ht"><div class="ht-dot"></div>Spells</div>
+            <div class="ht"><div class="ht-dot"></div>Skills</div>
+            <div class="ht"><div class="ht-dot"></div>Traits</div>
+            <div class="ht"><div class="ht-dot"></div>Lore</div>
+          </div>
+          <div class="content" style="flex-direction:row;">
+            <div class="content-col">
+              <!-- Ability scores -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Ability Scores</span><span style="font-size:8px;color:var(--out);">Tap to roll check</span></div>
+                <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:7px;">
+                  <div class="asi"><div class="asi-mod">+0</div><div class="asi-raw">10</div><div class="asi-lbl">STR</div></div>
+                  <div class="asi"><div class="asi-mod">+2</div><div class="asi-raw">14</div><div class="asi-lbl">DEX</div></div>
+                  <div class="asi"><div class="asi-mod">+3</div><div class="asi-raw">16</div><div class="asi-lbl">CON</div></div>
+                  <div class="asi"><div class="asi-mod">+1</div><div class="asi-raw">12</div><div class="asi-lbl">INT</div></div>
+                  <div class="asi"><div class="asi-mod" style="color:var(--pri);">+4</div><div class="asi-raw">18</div><div class="asi-lbl">WIS</div></div>
+                  <div class="asi"><div class="asi-mod">+0</div><div class="asi-raw">10</div><div class="asi-lbl">CHA</div></div>
+                </div>
+              </div>
+              <!-- Attacks -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Attacks</span></div>
+                <div class="atk"><div><div class="atk-name">🌿 Shillelagh Staff</div><div class="atk-sub">Magical · Versatile</div></div><div class="atk-btn hit">+7 Hit</div><div class="atk-btn dmg">1d8+4</div></div>
+                <div class="atk"><div><div class="atk-name">🏹 Longbow</div><div class="atk-sub">Range 150/600</div></div><div class="atk-btn hit">+5 Hit</div><div class="atk-btn dmg">1d8+2</div></div>
+              </div>
+              <!-- Quick spell slots -->
+              <div class="sb warn">
+                <div class="sb-head"><span class="sb-title">Spell Slots <span class="new-badge">NEW</span></span><span style="font-size:8px;color:var(--gm);">DC 15 · +7 Atk · WIS</span></div>
+                <div style="padding:7px 10px;display:flex;flex-direction:column;gap:3px;">
+                  <div class="slot-row"><span class="slot-lbl">1st</span><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip sm" style="border-color:var(--out-v);"></div><span class="slot-remaining">3/4 used</span></div>
+                  <div class="slot-row"><span class="slot-lbl">2nd</span><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip sm" style="border-color:var(--out-v);"></div><span class="slot-remaining">2/3</span></div>
+                  <div class="slot-row"><span class="slot-lbl">3rd</span><div class="pip sm" style="border-color:var(--out-v);"></div><div class="pip sm" style="border-color:var(--out-v);"></div><div class="pip sm" style="border-color:var(--out-v);"></div><span class="slot-remaining">0/3</span></div>
+                  <div class="slot-row"><span class="slot-lbl">4th</span><div class="pip on sm"></div><span class="slot-remaining">1/1 used</span></div>
+                  <div style="padding-top:4px;font-size:8px;color:var(--gm);">⊙ Concentrating: Call Lightning · tap to end</div>
+                </div>
+              </div>
+            </div>
+            <div class="content-col">
+              <!-- Saving throws -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Saving Throws</span><span style="font-size:8px;color:var(--out);">Tap to roll</span></div>
+                <div style="padding:5px 10px;">
+                  <div class="save"><div class="save-dot"></div><span class="save-name">Strength</span><span class="save-val">+0</span></div>
+                  <div class="save"><div class="save-dot"></div><span class="save-name">Dexterity</span><span class="save-val">+2</span></div>
+                  <div class="save"><div class="save-dot p"></div><span class="save-name">Intelligence</span><span class="save-val p">+4</span></div>
+                  <div class="save"><div class="save-dot p"></div><span class="save-name">Wisdom</span><span class="save-val p">+7</span></div>
+                </div>
+              </div>
+              <!-- Class resources NEW -->
+              <div class="sb hi">
+                <div class="sb-head"><span class="sb-title">Class Resources <span class="new-badge">NEW</span></span></div>
+                <div class="resource"><div style="font-size:11px;margin-right:2px;">🐻</div><span class="resource-name">Wild Shape</span><span class="resource-recharge">Short rest</span><div class="resource-pips"><div class="pip on"></div><div class="pip on"></div></div></div>
+                <div class="resource"><span class="resource-name">Portent Dice</span><span class="resource-recharge">Long rest</span><div style="display:flex;gap:4px;"><span style="font-family:var(--head);font-size:12px;font-weight:700;color:var(--pri);">14</span><span style="font-family:var(--head);font-size:12px;font-weight:700;color:var(--pri);">7</span></div></div>
+              </div>
+              <!-- Exhaustion NEW -->
+              <div class="sb">
+                <div class="sb-head">
+                  <span class="sb-title">Exhaustion <span class="new-badge">NEW</span></span>
+                  <div style="display:flex;gap:3px;">
+                    <div style="width:14px;height:14px;border-radius:3px;background:var(--warn);border:1px solid var(--warn);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:var(--low);">1</div>
+                    <div style="width:14px;height:14px;border-radius:3px;border:1px solid var(--out-v);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--out);">2</div>
+                    <div style="width:14px;height:14px;border-radius:3px;border:1px solid var(--out-v);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--out);">3</div>
+                    <div style="width:14px;height:14px;border-radius:3px;border:1px solid var(--out-v);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--out);">4</div>
+                    <div style="width:14px;height:14px;border-radius:3px;border:1px solid var(--out-v);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--out);">5</div>
+                    <div style="width:14px;height:14px;border-radius:3px;border:1px solid var(--out-v);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--out);">6</div>
+                  </div>
+                </div>
+                <div style="padding:5px 10px;font-size:9px;color:var(--warn);">Level 1 — Disadvantage on ability checks</div>
+              </div>
+              <!-- Conditions -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Conditions</span></div>
+                <div style="padding:6px 10px;display:flex;gap:4px;flex-wrap:wrap;">
+                  <span class="pill" style="font-size:8px;border-style:dashed;">Blinded</span>
+                  <span class="pill" style="font-size:8px;border-style:dashed;">Charmed</span>
+                  <span class="pill r" style="font-size:8px;">Concentrating</span>
+                  <span class="pill" style="font-size:8px;border-style:dashed;">Frightened</span>
+                  <span class="pill" style="font-size:8px;border-style:dashed;">Prone</span>
+                  <span class="pill" style="font-size:8px;border-style:dashed;">Poisoned</span>
+                  <span class="pill" style="font-size:8px;border-style:dashed;">Stunned</span>
+                </div>
+              </div>
+              <!-- Passives -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Passives <span class="new-badge">NEW</span></span></div>
+                <div style="padding:6px 10px;display:flex;gap:6px;">
+                  <div style="flex:1;background:var(--high);border-radius:5px;padding:5px;text-align:center;"><div style="font-family:var(--head);font-size:14px;font-weight:800;color:var(--pri);">17</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:1px;color:var(--out);">Perception</div></div>
+                  <div style="flex:1;background:var(--high);border-radius:5px;padding:5px;text-align:center;"><div style="font-family:var(--head);font-size:14px;font-weight:800;color:var(--on);">11</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:1px;color:var(--out);">Investigation</div></div>
+                  <div style="flex:1;background:var(--high);border-radius:5px;padding:5px;text-align:center;"><div style="font-family:var(--head);font-size:14px;font-weight:800;color:var(--on);">14</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:1px;color:var(--out);">Insight</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile -->
+    <div>
+      <div class="slbl">Mobile</div>
+      <div class="mob">
+        <div class="mob-chrome">
+          <div class="mob-chrome-row1">
+            <div class="mob-portrait">🌿</div>
+            <div class="mob-nameblk"><div class="mob-name">Kaela Thornwood</div><div class="mob-sub">Wood Elf Druid · Level 7</div></div>
+            <div class="mob-campaign"><div class="mob-campaign-ic">🗺</div><div class="mob-campaign-txt">Thornwood</div></div>
+          </div>
+          <div class="mob-chrome-row2">
+            <div class="mob-hp-nums"><span class="mob-hp-curr" style="color:var(--warn);">52</span><span class="mob-hp-sep">/</span><span class="mob-hp-max">68</span></div>
+            <div class="hpbar" style="flex:1;margin:0 8px;"><div class="hpfill" style="width:76%;background:var(--warn);"></div></div>
+            <span class="pill s" style="font-size:8px;padding:1px 6px;">16 AC</span>
+            <span class="pill r" style="font-size:8px;padding:1px 5px;">⊙ Conc.</span>
+          </div>
+        </div>
+        <div class="mob-content">
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:3px;">
+            <div class="asi" style="padding:4px 2px;"><div class="asi-mod" style="font-size:11px;">+0</div><div class="asi-lbl">STR</div></div>
+            <div class="asi" style="padding:4px 2px;"><div class="asi-mod" style="font-size:11px;">+2</div><div class="asi-lbl">DEX</div></div>
+            <div class="asi" style="padding:4px 2px;"><div class="asi-mod" style="font-size:11px;">+3</div><div class="asi-lbl">CON</div></div>
+            <div class="asi" style="padding:4px 2px;"><div class="asi-mod" style="font-size:11px;">+1</div><div class="asi-lbl">INT</div></div>
+            <div class="asi" style="padding:4px 2px;"><div class="asi-mod" style="font-size:11px;color:var(--pri);">+4</div><div class="asi-lbl">WIS</div></div>
+            <div class="asi" style="padding:4px 2px;"><div class="asi-mod" style="font-size:11px;">+0</div><div class="asi-lbl">CHA</div></div>
+          </div>
+          <div class="sb warn"><div class="sb-head"><span class="sb-title">Spell Slots</span><span style="font-size:8px;color:var(--gm);">DC 15 · +7</span></div><div style="padding:6px 10px;display:flex;flex-direction:column;gap:2px;"><div class="slot-row"><span class="slot-lbl">1st</span><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip sm"></div><span class="slot-remaining">3 used</span></div><div class="slot-row"><span class="slot-lbl">2nd</span><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip sm"></div><span class="slot-remaining">2 used</span></div></div></div>
+          <div class="sb hi"><div class="sb-head"><span class="sb-title">Class Resources</span></div><div class="resource"><div style="font-size:10px;margin-right:2px;">🐻</div><span class="resource-name">Wild Shape</span><div class="resource-pips"><div class="pip on"></div><div class="pip on"></div></div></div></div>
+          <div class="sb"><div class="sb-head"><span class="sb-title">Conditions</span></div><div style="padding:5px 10px;display:flex;gap:3px;flex-wrap:wrap;"><span class="pill r" style="font-size:8px;">⊙ Concentrating</span><span class="pill" style="font-size:8px;border-style:dashed;">Prone</span></div></div>
+        </div>
+        <div class="btabs">
+          <div class="bt on"><div class="bt-ic">⚔</div><div class="bt-lb">Combat</div></div>
+          <div class="bt"><div class="bt-ic">✦</div><div class="bt-lb">Spells</div></div>
+          <div class="bt"><div class="bt-ic">★</div><div class="bt-lb">Skills</div></div>
+          <div class="bt"><div class="bt-ic">⚡</div><div class="bt-lb">Traits</div></div>
+          <div class="bt"><div class="bt-ic">📖</div><div class="bt-lb">Lore</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="rule"></div>
+
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 2 — SPELLS TAB (entirely new)
+     ════════════════════════════════════════════════ -->
+<div>
+  <div class="eye">Screen 2 of 5</div>
+  <h2 class="hero">Spells Tab <span class="new-badge">ALL NEW</span></h2>
+  <p class="desc">Full spell management. Slot tracker for all 9 levels. Cantrips. Leveled spell list with prepared toggle and concentration indicator. Hidden with empty state for non-casters.</p>
+
+  <div class="screens">
+    <div>
+      <div class="slbl">Web</div>
+      <div class="web">
+        <div class="rail">
+          <div class="rail-back">← Characters</div>
+          <div class="rail-ident">
+            <div class="rail-portrait">🌿</div>
+            <div class="rail-name">Kaela Thornwood</div>
+            <div class="rail-sub">Wood Elf Druid · Level 7</div>
+            <div class="campaign-link linked" style="margin-top:8px;">
+              <div class="campaign-link-icon">🗺</div>
+              <div class="campaign-link-text"><div class="campaign-link-label">Campaign</div><div class="campaign-link-name">The Thornwood Chronicle</div></div>
+              <span style="font-size:9px;color:var(--gm);">→</span>
+            </div>
+          </div>
+          <div class="rail-hp">
+            <div class="rail-hp-nums"><span class="rail-hp-curr" style="color:var(--warn);">52</span><span class="rail-hp-sep">/</span><span class="rail-hp-max">68</span></div>
+            <div class="hpbar"><div class="hpfill" style="width:76%;background:var(--warn);"></div></div>
+          </div>
+          <div class="rail-stats">
+            <div class="rail-stat" style="border-color:var(--sec);"><div class="rail-stat-val" style="color:var(--sec);">16</div><div class="rail-stat-lbl">AC</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">+2</div><div class="rail-stat-lbl">Init</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">35</div><div class="rail-stat-lbl">Speed</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">d8</div><div class="rail-stat-lbl">Hit Die</div></div>
+          </div>
+          <div class="rail-actions"><div class="rail-btn short">Short Rest</div><div class="rail-btn long">Long Rest</div></div>
+          <div class="rail-insp"><div class="rail-insp-toggle">☆</div><span class="rail-insp-label">Inspiration</span><div style="flex:1;"></div><span style="font-size:14px;color:var(--out);">⚙</span></div>
+        </div>
+        <div class="main">
+          <div class="htabs">
+            <div class="ht"><div class="ht-dot"></div>Combat</div>
+            <div class="ht on"><div class="ht-dot"></div>Spells</div>
+            <div class="ht"><div class="ht-dot"></div>Skills</div>
+            <div class="ht"><div class="ht-dot"></div>Traits</div>
+            <div class="ht"><div class="ht-dot"></div>Lore</div>
+          </div>
+          <div class="content" style="flex-direction:row;">
+            <!-- Left: Slot tracker -->
+            <div class="content-col" style="max-width:200px;flex:0 0 200px;">
+              <div class="sb warn">
+                <div class="sb-head"><span class="sb-title">Spell Slots</span></div>
+                <div style="padding:8px 10px;display:flex;flex-direction:column;gap:4px;">
+                  <div style="font-size:8px;color:var(--gm);margin-bottom:2px;">DC 15 · +7 Attack · WIS</div>
+                  <div class="slot-row"><span class="slot-lbl">1st</span><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip sm"></div><span class="slot-remaining">1 left</span></div>
+                  <div class="slot-row"><span class="slot-lbl">2nd</span><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip sm"></div><span class="slot-remaining">1 left</span></div>
+                  <div class="slot-row"><span class="slot-lbl">3rd</span><div class="pip sm"></div><div class="pip sm"></div><div class="pip sm"></div><span class="slot-remaining">3 left</span></div>
+                  <div class="slot-row"><span class="slot-lbl">4th</span><div class="pip on sm"></div><span class="slot-remaining">0 left</span></div>
+                  <div style="height:1px;background:var(--out-v);opacity:0.3;margin:3px 0;"></div>
+                  <div style="font-size:8px;color:var(--out);">5th–9th: No slots</div>
+                </div>
+              </div>
+              <div class="sb warn" style="border-color:var(--red);">
+                <div class="sb-head" style="background:#1a0808;border-color:var(--red);"><span class="sb-title" style="color:var(--red);">⊙ Concentration</span></div>
+                <div style="padding:7px 10px;">
+                  <div style="font-size:11px;font-weight:700;font-family:var(--head);color:var(--on);">Call Lightning</div>
+                  <div style="font-size:8px;color:var(--out);margin-top:2px;">3rd level · Up to 10 min</div>
+                  <div style="margin-top:6px;padding:4px 8px;border:1px solid var(--red);border-radius:5px;font-size:9px;font-weight:700;color:var(--red);text-align:center;">End Concentration</div>
+                </div>
+              </div>
+              <!-- Spellcasting stats -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Spellcasting</span></div>
+                <div style="padding:6px 10px;">
+                  <div class="field-row"><div class="field-lbl">Spellcasting Class</div><div class="field-val">Druid</div></div>
+                  <div class="field-row"><div class="field-lbl">Spellcasting Ability</div><div class="field-val">Wisdom (+4)</div></div>
+                </div>
+              </div>
+            </div>
+            <!-- Right: Spell list -->
+            <div class="content-col">
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Cantrips</span><span style="font-size:8px;color:var(--out);">Always available</span></div>
+                <div class="spell"><span class="spell-name">Druidcraft</span><span class="spell-school">Transmutation</span></div>
+                <div class="spell"><span class="spell-name">Guidance</span><span class="spell-school">Divination</span></div>
+                <div class="spell"><span class="spell-name">Shillelagh</span><span class="spell-school">Transmutation</span></div>
+                <div class="spell"><span class="spell-name">Thorn Whip</span><span class="spell-school">Transmutation</span></div>
+              </div>
+              <div class="sb">
+                <div class="sb-head">
+                  <span class="sb-title">1st Level</span>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:8px;color:var(--out);">Prepared: 4</span>
+                    <div class="pip on sm"></div><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip sm"></div>
+                  </div>
+                </div>
+                <div class="spell"><div class="spell-prep on"></div><span class="spell-name">Cure Wounds</span><span class="spell-school">Evocation</span><span class="spell-info">1 action · Touch</span></div>
+                <div class="spell"><div class="spell-prep on"></div><span class="spell-name">Entangle</span><span class="spell-school">Conjuration</span><span class="spell-info">1 action · 90 ft · Conc.</span></div>
+                <div class="spell"><div class="spell-prep on"></div><span class="spell-name">Healing Word</span><span class="spell-school">Evocation</span><span class="spell-info">Bonus action · 60 ft</span></div>
+                <div class="spell"><div class="spell-prep"></div><span class="spell-name">Thunderwave</span><span class="spell-school">Evocation</span><span class="spell-info">1 action · Self</span></div>
+              </div>
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">3rd Level</span><span style="font-size:8px;color:var(--out);">Prepared: 2</span></div>
+                <div class="spell"><div class="spell-prep on"></div><span class="spell-name"><span class="spell-conc"></span>Call Lightning</span><span class="spell-school">Conjuration</span><span class="spell-info" style="color:var(--red);">Active — concentrating</span></div>
+                <div class="spell"><div class="spell-prep on"></div><span class="spell-name">Speak with Plants</span><span class="spell-school">Transmutation</span><span class="spell-info">1 action · 30 ft</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Spells -->
+    <div>
+      <div class="slbl">Mobile</div>
+      <div class="mob">
+        <div class="mob-chrome">
+          <div class="mob-chrome-row1">
+            <div class="mob-portrait">🌿</div>
+            <div class="mob-nameblk"><div class="mob-name">Kaela Thornwood</div><div class="mob-sub">Wood Elf Druid · Level 7</div></div>
+            <div class="mob-campaign"><div class="mob-campaign-ic">🗺</div><div class="mob-campaign-txt">Thornwood</div></div>
+          </div>
+          <div class="mob-chrome-row2">
+            <div class="mob-hp-nums"><span class="mob-hp-curr" style="color:var(--warn);">52</span><span class="mob-hp-sep">/</span><span class="mob-hp-max">68</span></div>
+            <div class="hpbar" style="flex:1;margin:0 8px;"><div class="hpfill" style="width:76%;background:var(--warn);"></div></div>
+            <span class="pill r" style="font-size:8px;padding:1px 5px;">⊙ Conc.</span>
+          </div>
+        </div>
+        <div class="mob-content">
+          <div class="sb warn">
+            <div class="sb-head"><span class="sb-title">Spell Slots</span><span style="font-size:8px;color:var(--gm);">DC 15 · +7 · WIS</span></div>
+            <div style="padding:6px 10px;display:flex;flex-direction:column;gap:3px;">
+              <div class="slot-row"><span class="slot-lbl">1st</span><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip sm"></div><span class="slot-remaining">1 left</span></div>
+              <div class="slot-row"><span class="slot-lbl">2nd</span><div class="pip on sm"></div><div class="pip on sm"></div><div class="pip sm"></div><span class="slot-remaining">1 left</span></div>
+              <div class="slot-row"><span class="slot-lbl">3rd</span><div class="pip sm"></div><div class="pip sm"></div><div class="pip sm"></div><span class="slot-remaining">3 left</span></div>
+              <div class="slot-row"><span class="slot-lbl">4th</span><div class="pip on sm"></div><span class="slot-remaining">0 left</span></div>
+            </div>
+          </div>
+          <div class="sb">
+            <div class="sb-head"><span class="sb-title">Cantrips</span></div>
+            <div class="spell"><div class="spell-prep on"></div><span class="spell-name">Shillelagh</span><span class="spell-school">Transmutation</span></div>
+            <div class="spell"><div class="spell-prep on"></div><span class="spell-name">Guidance</span><span class="spell-school">Divination</span></div>
+          </div>
+          <div class="sb">
+            <div class="sb-head"><span class="sb-title">1st Level Spells</span><span style="font-size:8px;color:var(--out);">4 prepared</span></div>
+            <div class="spell"><div class="spell-prep on"></div><span class="spell-name">Cure Wounds</span></div>
+            <div class="spell"><div class="spell-prep on"></div><span class="spell-name">Entangle</span><span class="spell-info">Conc.</span></div>
+            <div class="spell"><div class="spell-prep on"></div><span class="spell-name">Healing Word</span></div>
+            <div class="spell"><div class="spell-prep"></div><span class="spell-name" style="color:var(--out);">Thunderwave</span></div>
+          </div>
+        </div>
+        <div class="btabs">
+          <div class="bt"><div class="bt-ic">⚔</div><div class="bt-lb">Combat</div></div>
+          <div class="bt on"><div class="bt-ic">✦</div><div class="bt-lb">Spells</div></div>
+          <div class="bt"><div class="bt-ic">★</div><div class="bt-lb">Skills</div></div>
+          <div class="bt"><div class="bt-ic">⚡</div><div class="bt-lb">Traits</div></div>
+          <div class="bt"><div class="bt-ic">📖</div><div class="bt-lb">Lore</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="rule"></div>
+
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 3 — SKILLS TAB
+     ════════════════════════════════════════════════ -->
+<div>
+  <div class="eye">Screen 3 of 5</div>
+  <h2 class="hero">Skills Tab</h2>
+  <p class="desc">All 18 skills (tap to roll). Passive Perception, Investigation, and Insight. Senses. Languages. Tool proficiencies.</p>
+
+  <div class="screens">
+    <div>
+      <div class="slbl">Web</div>
+      <div class="web">
+        <div class="rail">
+          <div class="rail-back">← Characters</div>
+          <div class="rail-ident" style="border-bottom:1px solid var(--out-v);">
+            <div class="rail-portrait">🌿</div>
+            <div class="rail-name">Kaela Thornwood</div>
+            <div class="rail-sub">Wood Elf Druid · Level 7</div>
+            <div class="campaign-link linked" style="margin-top:8px;"><div class="campaign-link-icon">🗺</div><div class="campaign-link-text"><div class="campaign-link-label">Campaign</div><div class="campaign-link-name">The Thornwood Chronicle</div></div><span style="font-size:9px;color:var(--gm);">→</span></div>
+          </div>
+          <div class="rail-hp"><div class="rail-hp-nums"><span class="rail-hp-curr" style="color:var(--warn);">52</span><span class="rail-hp-sep">/</span><span class="rail-hp-max">68</span></div><div class="hpbar"><div class="hpfill" style="width:76%;background:var(--warn);"></div></div></div>
+          <div class="rail-stats">
+            <div class="rail-stat" style="border-color:var(--sec);"><div class="rail-stat-val" style="color:var(--sec);">16</div><div class="rail-stat-lbl">AC</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">+2</div><div class="rail-stat-lbl">Init</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">35</div><div class="rail-stat-lbl">Speed</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">d8</div><div class="rail-stat-lbl">Hit Die</div></div>
+          </div>
+          <div class="rail-actions"><div class="rail-btn short">Short Rest</div><div class="rail-btn long">Long Rest</div></div>
+          <div class="rail-insp"><div class="rail-insp-toggle">☆</div><span class="rail-insp-label">Inspiration</span><div style="flex:1;"></div><span style="font-size:14px;color:var(--out);">⚙</span></div>
+        </div>
+        <div class="main">
+          <div class="htabs">
+            <div class="ht"><div class="ht-dot"></div>Combat</div>
+            <div class="ht"><div class="ht-dot"></div>Spells</div>
+            <div class="ht on"><div class="ht-dot"></div>Skills</div>
+            <div class="ht"><div class="ht-dot"></div>Traits</div>
+            <div class="ht"><div class="ht-dot"></div>Lore</div>
+          </div>
+          <div class="content" style="flex-direction:row;">
+            <div class="content-col">
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Skills — Tap to Roll</span><span style="font-size:8px;color:var(--out);">+3 Prof</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Acrobatics</span><span class="sk-abi">DEX</span><span class="sk-val">+2</span></div>
+                <div class="sk"><div class="sk-dot p"></div><span class="sk-name p">Animal Handling</span><span class="sk-abi">WIS</span><span class="sk-val p">+7</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Arcana</span><span class="sk-abi">INT</span><span class="sk-val">+1</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Athletics</span><span class="sk-abi">STR</span><span class="sk-val">+0</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Deception</span><span class="sk-abi">CHA</span><span class="sk-val">+0</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">History</span><span class="sk-abi">INT</span><span class="sk-val">+1</span></div>
+                <div class="sk"><div class="sk-dot p"></div><span class="sk-name p">Insight</span><span class="sk-abi">WIS</span><span class="sk-val p">+7</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Intimidation</span><span class="sk-abi">CHA</span><span class="sk-val">+0</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Investigation</span><span class="sk-abi">INT</span><span class="sk-val">+1</span></div>
+              </div>
+            </div>
+            <div class="content-col">
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">&nbsp;</span></div>
+                <div class="sk"><div class="sk-dot p"></div><span class="sk-name p">Medicine</span><span class="sk-abi">WIS</span><span class="sk-val p">+7</span></div>
+                <div class="sk"><div class="sk-dot p"></div><span class="sk-name p">Nature</span><span class="sk-abi">INT</span><span class="sk-val p">+4</span></div>
+                <div class="sk"><div class="sk-dot p"></div><span class="sk-name p">Perception</span><span class="sk-abi">WIS</span><span class="sk-val p">+7</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Performance</span><span class="sk-abi">CHA</span><span class="sk-val">+0</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Persuasion</span><span class="sk-abi">CHA</span><span class="sk-val">+0</span></div>
+                <div class="sk"><div class="sk-dot p"></div><span class="sk-name p">Survival</span><span class="sk-abi">WIS</span><span class="sk-val p">+7</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Stealth</span><span class="sk-abi">DEX</span><span class="sk-val">+2</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Sleight of Hand</span><span class="sk-abi">DEX</span><span class="sk-val">+2</span></div>
+                <div class="sk"><div class="sk-dot"></div><span class="sk-name">Religion</span><span class="sk-abi">INT</span><span class="sk-val">+1</span></div>
+              </div>
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Passives &amp; Senses <span class="new-badge">NEW</span></span></div>
+                <div style="padding:7px 10px;display:flex;flex-direction:column;gap:3px;">
+                  <div style="display:flex;justify-content:space-between;font-size:9px;padding:3px 0;border-bottom:1px solid #ffffff05;"><span style="color:var(--on-v);">Passive Perception</span><span style="font-family:var(--head);font-weight:800;color:var(--pri);">17</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:9px;padding:3px 0;border-bottom:1px solid #ffffff05;"><span style="color:var(--on-v);">Passive Investigation</span><span style="font-family:var(--head);font-weight:800;color:var(--on);">11</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:9px;padding:3px 0;border-bottom:1px solid #ffffff05;"><span style="color:var(--on-v);">Passive Insight</span><span style="font-family:var(--head);font-weight:800;color:var(--on);">14</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:9px;padding:3px 0;"><span style="color:var(--on-v);">Darkvision</span><span style="font-family:var(--head);font-weight:800;color:var(--on);">60 ft</span></div>
+                </div>
+              </div>
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Languages</span></div>
+                <div style="padding:6px 10px;display:flex;gap:4px;flex-wrap:wrap;"><span class="pill" style="font-size:8px;">Common</span><span class="pill" style="font-size:8px;">Elvish</span><span class="pill" style="font-size:8px;">Druidic</span><span class="pill" style="font-size:8px;">Sylvan</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="rule"></div>
+
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 4 — LORE TAB (new content heavy)
+     ════════════════════════════════════════════════ -->
+<div>
+  <div class="eye">Screen 4 of 5</div>
+  <h2 class="hero">Lore Tab <span class="new-badge">MOSTLY NEW</span></h2>
+  <p class="desc">Four sub-sections within one tab. Character (identity + appearance). Personality (traits/ideals/bonds/flaws + backstory + allies + faction). Equipment (with attunement + treasure). Journal (organized notes + session entries).</p>
+
+  <div class="screens">
+    <div>
+      <div class="slbl">Web — Personality sub-section active</div>
+      <div class="web">
+        <div class="rail">
+          <div class="rail-back">← Characters</div>
+          <div class="rail-ident" style="border-bottom:1px solid var(--out-v);">
+            <div class="rail-portrait">🌿</div>
+            <div class="rail-name">Kaela Thornwood</div>
+            <div class="rail-sub">Wood Elf Druid · Level 7</div>
+            <div class="campaign-link linked" style="margin-top:8px;"><div class="campaign-link-icon">🗺</div><div class="campaign-link-text"><div class="campaign-link-label">Campaign</div><div class="campaign-link-name">The Thornwood Chronicle</div></div><span style="font-size:9px;color:var(--gm);">→</span></div>
+          </div>
+          <div class="rail-hp"><div class="rail-hp-nums"><span class="rail-hp-curr" style="color:var(--warn);">52</span><span class="rail-hp-sep">/</span><span class="rail-hp-max">68</span></div><div class="hpbar"><div class="hpfill" style="width:76%;background:var(--warn);"></div></div></div>
+          <div class="rail-stats">
+            <div class="rail-stat" style="border-color:var(--sec);"><div class="rail-stat-val" style="color:var(--sec);">16</div><div class="rail-stat-lbl">AC</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">+2</div><div class="rail-stat-lbl">Init</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">35</div><div class="rail-stat-lbl">Speed</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">d8</div><div class="rail-stat-lbl">Hit Die</div></div>
+          </div>
+          <div class="rail-actions"><div class="rail-btn short">Short Rest</div><div class="rail-btn long">Long Rest</div></div>
+          <div class="rail-insp"><div class="rail-insp-toggle">★</div><span class="rail-insp-label" style="color:var(--gm);">Inspired!</span><div style="flex:1;"></div><span style="font-size:14px;color:var(--out);">⚙</span></div>
+        </div>
+
+        <div class="main">
+          <div class="htabs">
+            <div class="ht"><div class="ht-dot"></div>Combat</div>
+            <div class="ht"><div class="ht-dot"></div>Spells</div>
+            <div class="ht"><div class="ht-dot"></div>Skills</div>
+            <div class="ht"><div class="ht-dot"></div>Traits</div>
+            <div class="ht on"><div class="ht-dot"></div>Lore</div>
+          </div>
+
+          <!-- Sub-nav within Lore -->
+          <div style="display:flex;gap:0;border-bottom:1px solid var(--out-v);background:var(--ctn);padding:0 6px;">
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--out);">Character</div>
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--pri);border-bottom:2px solid var(--pri);">Personality</div>
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--out);">Equipment</div>
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--out);">Journal</div>
+          </div>
+
+          <div class="content" style="flex-direction:row;">
+            <div class="content-col">
+              <!-- Personality traits, ideals, bonds, flaws -->
+              <div class="field-row"><div class="field-lbl">Personality Traits <span class="new-badge">NEW</span></div><div class="field-val multi">I feel more at ease around animals and plants than among people. I speak in nature metaphors that others find confusing.</div></div>
+              <div class="field-row"><div class="field-lbl">Ideals <span class="new-badge">NEW</span></div><div class="field-val multi">Balance — all life is connected. I will not tip the scales of nature carelessly.</div></div>
+              <div class="field-row"><div class="field-lbl">Bonds <span class="new-badge">NEW</span></div><div class="field-val multi">The Thornwood is my home. I will die before letting it fall to corruption.</div></div>
+              <div class="field-row"><div class="field-lbl">Flaws <span class="new-badge">NEW</span></div><div class="field-val multi">I distrust cities and the people who build them. I have trouble reading social cues.</div></div>
+            </div>
+            <div class="content-col">
+              <!-- Backstory -->
+              <div class="field-row" style="flex:1;"><div class="field-lbl">Backstory <span class="new-badge">NEW</span></div><div class="field-val multi" style="min-height:120px;font-size:9px;">Raised in the ancient forest of Thornwood by a circle of Moon Druids, Kaela never knew her birth family. She learned to speak with beasts before she learned Common. At age 16 a blight began creeping from the east, corrupting the oldest trees. She left the forest for the first time to find its source...</div></div>
+              <!-- Allies & Faction -->
+              <div class="field-row"><div class="field-lbl">Allies &amp; Organizations <span class="new-badge">NEW</span></div><div class="field-val multi" style="font-size:9px;">The Circle of the Moon (Thornwood) — her druidic order. Elder Yaveth serves as mentor. The Leafwalkers — a ranger company patrolling the eastern border.</div></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <div class="field-row"><div class="field-lbl">Faction <span class="new-badge">NEW</span></div><div class="field-val">Circle of the Moon</div></div>
+                <div class="field-row"><div class="field-lbl">Alignment <span class="new-badge">NEW</span></div><div class="field-val">Neutral Good</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Web: Journal sub-section -->
+    <div>
+      <div class="slbl">Web — Journal sub-section</div>
+      <div class="web">
+        <div class="rail">
+          <div class="rail-back">← Characters</div>
+          <div class="rail-ident" style="border-bottom:1px solid var(--out-v);">
+            <div class="rail-portrait">🌿</div>
+            <div class="rail-name">Kaela Thornwood</div>
+            <div class="rail-sub">Wood Elf Druid · Level 7</div>
+            <div class="campaign-link linked" style="margin-top:8px;"><div class="campaign-link-icon">🗺</div><div class="campaign-link-text"><div class="campaign-link-label">Campaign</div><div class="campaign-link-name">The Thornwood Chronicle</div></div><span style="font-size:9px;color:var(--gm);">→</span></div>
+          </div>
+          <div class="rail-hp"><div class="rail-hp-nums"><span class="rail-hp-curr" style="color:var(--warn);">52</span><span class="rail-hp-sep">/</span><span class="rail-hp-max">68</span></div><div class="hpbar"><div class="hpfill" style="width:76%;background:var(--warn);"></div></div></div>
+          <div class="rail-stats">
+            <div class="rail-stat" style="border-color:var(--sec);"><div class="rail-stat-val" style="color:var(--sec);">16</div><div class="rail-stat-lbl">AC</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">+2</div><div class="rail-stat-lbl">Init</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">35</div><div class="rail-stat-lbl">Speed</div></div>
+            <div class="rail-stat"><div class="rail-stat-val">d8</div><div class="rail-stat-lbl">Hit Die</div></div>
+          </div>
+          <div class="rail-actions"><div class="rail-btn short">Short Rest</div><div class="rail-btn long">Long Rest</div></div>
+          <div class="rail-insp"><div class="rail-insp-toggle">☆</div><span class="rail-insp-label">Inspiration</span><div style="flex:1;"></div><span style="font-size:14px;color:var(--out);">⚙</span></div>
+        </div>
+
+        <div class="main">
+          <div class="htabs">
+            <div class="ht"><div class="ht-dot"></div>Combat</div>
+            <div class="ht"><div class="ht-dot"></div>Spells</div>
+            <div class="ht"><div class="ht-dot"></div>Skills</div>
+            <div class="ht"><div class="ht-dot"></div>Traits</div>
+            <div class="ht on"><div class="ht-dot"></div>Lore</div>
+          </div>
+          <div style="display:flex;gap:0;border-bottom:1px solid var(--out-v);background:var(--ctn);padding:0 6px;">
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--out);">Character</div>
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--out);">Personality</div>
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--out);">Equipment</div>
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--pri);border-bottom:2px solid var(--pri);">Journal</div>
+          </div>
+          <div class="content" style="flex-direction:row;">
+            <!-- Journal list -->
+            <div class="content-col" style="max-width:260px;flex:0 0 260px;">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                <div style="flex:1;padding:5px 8px;background:var(--ctn);border:1px solid var(--out-v);border-radius:5px;font-size:9px;color:var(--out);">🔍 Search entries…</div>
+                <div style="padding:5px 10px;background:var(--pri-bg);border:1px solid var(--pri);border-radius:5px;font-size:9px;font-weight:700;color:var(--pri);">+ New</div>
+              </div>
+              <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
+                <span class="pill" style="font-size:7px;padding:1px 5px;">All</span>
+                <span class="pill s" style="font-size:7px;padding:1px 5px;">Session</span>
+                <span class="pill g" style="font-size:7px;padding:1px 5px;">NPC</span>
+                <span class="pill" style="font-size:7px;padding:1px 5px;">Quest</span>
+                <span class="pill" style="font-size:7px;padding:1px 5px;">Lore</span>
+              </div>
+              <div class="sb" style="flex:1;overflow:hidden;">
+                <div class="jentry">
+                  <div class="jentry-title">Session 12 — The Sunken Keep</div>
+                  <div class="jentry-meta"><span class="jentry-date">Apr 18, 2026</span><span class="jentry-tag s">Session</span></div>
+                  <div class="jentry-preview">We found the corrupted wellspring beneath the keep. The blight is being channeled deliberately — someone is causing this…</div>
+                </div>
+                <div class="jentry" style="background:var(--high);">
+                  <div class="jentry-title">Maren Ashwick — Ranger ally</div>
+                  <div class="jentry-meta"><span class="jentry-date">Apr 12, 2026</span><span class="jentry-tag g">NPC</span></div>
+                  <div class="jentry-preview">Half-elf ranger from Goldmere. Trustworthy but secretive. Knows more about the Eastern Blight than she lets on.</div>
+                </div>
+                <div class="jentry">
+                  <div class="jentry-title">Session 11 — The Old Road</div>
+                  <div class="jentry-meta"><span class="jentry-date">Apr 4, 2026</span><span class="jentry-tag s">Session</span></div>
+                  <div class="jentry-preview">Ambushed by blighted wolves. Kaela's Wild Shape saved us. Portent dice used: 14 (success), 7 (failure).</div>
+                </div>
+                <div class="jentry">
+                  <div class="jentry-title">The Sunken Throne — Quest</div>
+                  <div class="jentry-meta"><span class="jentry-date">Mar 28, 2026</span><span class="jentry-tag" style="border-color:var(--pri);color:var(--pri);">Quest</span></div>
+                  <div class="jentry-preview">Find and destroy the source of the Eastern Blight before the Thornwood falls.</div>
+                </div>
+              </div>
+            </div>
+            <!-- Journal entry detail -->
+            <div class="content-col">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                <div style="font-family:var(--head);font-size:14px;font-weight:800;color:var(--on);flex:1;">Session 12 — The Sunken Keep</div>
+                <span class="jentry-tag s">Session</span>
+                <span style="font-size:9px;color:var(--out);">Apr 18 · Edit</span>
+              </div>
+              <div style="background:var(--ctn);border:1px solid var(--out-v);border-radius:7px;padding:12px;flex:1;overflow:hidden;">
+                <div style="font-size:10px;color:var(--on-v);line-height:1.8;">
+                  We followed the ranger Maren into the collapsed eastern wing of the keep. The blight was strongest there — the stone itself was crumbling, corrupted from within.<br><br>
+                  Beneath the main hall we found the wellspring. Ancient druidic inscription around its base — but twisted. Someone used old Thornwood magic to invert the cycle. Life energy being siphoned outward instead of inward.<br><br>
+                  <strong style="color:var(--gm);">Key clue:</strong> A sigil carved into the cap stone — same as the one on the medallion we found in Session 9. Maren recognized it but wouldn't say from where.<br><br>
+                  <strong style="color:var(--sec);">Next session:</strong> Confront Maren. Find the medallion's origin.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="rule"></div>
+
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 5 — EQUIPMENT + CHARACTER (mobile focus)
+     ════════════════════════════════════════════════ -->
+<div>
+  <div class="eye">Screen 5 of 5</div>
+  <h2 class="hero">Equipment & Character Identity <span class="new-badge">PARTIAL NEW</span></h2>
+  <p class="desc">Equipment with attunement slots and treasure. Character identity fields (alignment, XP, player name, pronouns, appearance).</p>
+
+  <div class="screens">
+    <!-- Equipment web -->
+    <div>
+      <div class="slbl">Web — Lore › Equipment</div>
+      <div class="web" style="height:420px;">
+        <div class="rail" style="width:180px;">
+          <div style="padding:10px 12px;"><div style="font-family:var(--head);font-size:11px;font-weight:800;color:var(--on);">Kaela Thornwood</div><div style="font-size:8px;color:var(--out);margin-top:2px;">Druid 7 · Lore › Equipment</div></div>
+        </div>
+        <div class="main">
+          <div style="display:flex;gap:0;border-bottom:1px solid var(--out-v);background:var(--ctn);padding:0 6px;">
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--out);">Character</div>
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--out);">Personality</div>
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--pri);border-bottom:2px solid var(--pri);">Equipment</div>
+            <div style="padding:7px 12px;font-size:9px;font-weight:700;font-family:var(--body);color:var(--out);">Journal</div>
+          </div>
+          <div class="content" style="flex-direction:row;">
+            <div class="content-col">
+              <!-- Attunement NEW -->
+              <div class="sb hi">
+                <div class="sb-head"><span class="sb-title">Attunement Slots <span class="new-badge">NEW</span></span><span style="font-size:8px;color:var(--pri);">2 of 3 used</span></div>
+                <div style="display:flex;gap:5px;padding:7px 10px;">
+                  <div style="flex:1;padding:6px 8px;background:var(--pri-bg);border:1px solid var(--pri);border-radius:6px;text-align:center;"><div style="font-size:9px;font-weight:700;color:var(--pri);">Staff of the Woodlands</div></div>
+                  <div style="flex:1;padding:6px 8px;background:var(--pri-bg);border:1px solid var(--pri);border-radius:6px;text-align:center;"><div style="font-size:9px;font-weight:700;color:var(--pri);">Ring of Spell Storing</div></div>
+                  <div style="flex:1;padding:6px 8px;background:var(--ctn);border:1px dashed var(--out-v);border-radius:6px;text-align:center;"><div style="font-size:9px;color:var(--out);">Empty</div></div>
+                </div>
+              </div>
+              <!-- Equipped -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Equipped</span></div>
+                <div class="inv-item"><div class="inv-slot-ic">🌿</div><div><div class="inv-name">Staff of the Woodlands</div><div class="inv-sub">Weapon · 1d6+1 bludgeoning · Magical</div></div><div class="inv-attuned" title="Attuned"></div><div class="inv-toggle on"></div></div>
+                <div class="inv-item"><div class="inv-slot-ic">🛡</div><div><div class="inv-name">Leather Armor +1</div><div class="inv-sub">Armor · AC 12+DEX</div></div><div style="width:8px;"></div><div class="inv-toggle on"></div></div>
+                <div class="inv-item"><div class="inv-slot-ic">💍</div><div><div class="inv-name">Ring of Spell Storing</div><div class="inv-sub">Wondrous · Holds up to 5 levels of spells</div></div><div class="inv-attuned"></div><div class="inv-toggle on"></div></div>
+              </div>
+              <!-- Carrying -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Carrying</span></div>
+                <div class="inv-item"><div class="inv-slot-ic">🎒</div><div><div class="inv-name">Explorer's Pack</div><div class="inv-sub">Backpack, rations, rope, torch…</div></div><div style="width:8px;"></div><div class="inv-toggle"></div></div>
+                <div class="inv-item"><div class="inv-slot-ic">🏹</div><div><div class="inv-name">Longbow</div><div class="inv-sub">Weapon · 1d8+2 · Range 150/600</div></div><div style="width:8px;"></div><div class="inv-toggle"></div></div>
+              </div>
+            </div>
+            <div class="content-col">
+              <!-- Coins -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Coin Pouch</span></div>
+                <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:7px;">
+                  <div style="background:var(--high);border-radius:5px;padding:5px 2px;text-align:center;"><div style="font-family:var(--head);font-size:13px;font-weight:800;color:var(--on);">12</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:0.8px;color:var(--out);">CP</div></div>
+                  <div style="background:var(--high);border-radius:5px;padding:5px 2px;text-align:center;"><div style="font-family:var(--head);font-size:13px;font-weight:800;color:var(--on);">34</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:0.8px;color:var(--out);">SP</div></div>
+                  <div style="background:var(--high);border-radius:5px;padding:5px 2px;text-align:center;"><div style="font-family:var(--head);font-size:13px;font-weight:800;color:var(--on);">0</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:0.8px;color:var(--out);">EP</div></div>
+                  <div style="background:var(--high);border-radius:5px;padding:5px 2px;text-align:center;"><div style="font-family:var(--head);font-size:13px;font-weight:800;color:var(--gm);">247</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:0.8px;color:var(--out);">GP</div></div>
+                  <div style="background:var(--high);border-radius:5px;padding:5px 2px;text-align:center;"><div style="font-family:var(--head);font-size:13px;font-weight:800;color:var(--on);">2</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:0.8px;color:var(--out);">PP</div></div>
+                </div>
+              </div>
+              <!-- Treasure NEW -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Treasure <span class="new-badge">NEW</span></span></div>
+                <div style="padding:7px 10px;font-size:9px;color:var(--on-v);line-height:1.7;">
+                  Ancient silver brooch engraved with a moon — possibly Thornwood artifact<br>
+                  Map fragment (eastern ruins, water-damaged)<br>
+                  Sealed vial of iridescent liquid — unknown origin
+                </div>
+              </div>
+              <!-- Character Identity NEW fields -->
+              <div class="sb">
+                <div class="sb-head"><span class="sb-title">Identity <span class="new-badge">PARTIAL NEW</span></span></div>
+                <div style="padding:7px 10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                  <div class="field-row" style="margin:0"><div class="field-lbl">Alignment</div><div class="field-val" style="font-size:10px;">Neutral Good</div></div>
+                  <div class="field-row" style="margin:0"><div class="field-lbl">XP</div><div class="field-val" style="font-size:10px;">23,000 / 34,000</div></div>
+                  <div class="field-row" style="margin:0"><div class="field-lbl">Player</div><div class="field-val" style="font-size:10px;">Jarrod</div></div>
+                  <div class="field-row" style="margin:0"><div class="field-lbl">Pronouns</div><div class="field-val" style="font-size:10px;">she/her</div></div>
+                  <div class="field-row" style="margin:0"><div class="field-lbl">Age</div><div class="field-val" style="font-size:10px;">142</div></div>
+                  <div class="field-row" style="margin:0"><div class="field-lbl">Height</div><div class="field-val" style="font-size:10px;">5'6"</div></div>
+                  <div class="field-row" style="margin:0"><div class="field-lbl">Eyes</div><div class="field-val" style="font-size:10px;">Amber</div></div>
+                  <div class="field-row" style="margin:0"><div class="field-lbl">Hair</div><div class="field-val" style="font-size:10px;">Dark brown</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile: Lore tab -->
+    <div>
+      <div class="slbl">Mobile — Lore › Journal</div>
+      <div class="mob">
+        <div class="mob-chrome">
+          <div class="mob-chrome-row1">
+            <div class="mob-portrait">🌿</div>
+            <div class="mob-nameblk"><div class="mob-name">Kaela Thornwood</div><div class="mob-sub">Wood Elf Druid · Level 7</div></div>
+            <div class="mob-campaign"><div class="mob-campaign-ic">🗺</div><div class="mob-campaign-txt">Thornwood</div></div>
+          </div>
+          <div class="mob-chrome-row2">
+            <div class="mob-hp-nums"><span class="mob-hp-curr" style="color:var(--warn);">52</span><span class="mob-hp-sep">/</span><span class="mob-hp-max">68</span></div>
+            <div class="hpbar" style="flex:1;margin:0 8px;"><div class="hpfill" style="width:76%;background:var(--warn);"></div></div>
+            <span class="pill s" style="font-size:8px;padding:1px 6px;">16 AC</span>
+          </div>
+        </div>
+        <!-- Sub-nav -->
+        <div style="display:flex;border-bottom:1px solid var(--out-v);background:var(--ctn);flex-shrink:0;">
+          <div style="flex:1;padding:7px 4px;text-align:center;font-size:8px;font-weight:700;text-transform:uppercase;font-family:var(--body);color:var(--out);">Char</div>
+          <div style="flex:1;padding:7px 4px;text-align:center;font-size:8px;font-weight:700;text-transform:uppercase;font-family:var(--body);color:var(--out);">Person.</div>
+          <div style="flex:1;padding:7px 4px;text-align:center;font-size:8px;font-weight:700;text-transform:uppercase;font-family:var(--body);color:var(--out);">Equip.</div>
+          <div style="flex:1;padding:7px 4px;text-align:center;font-size:8px;font-weight:700;text-transform:uppercase;font-family:var(--body);color:var(--pri);border-bottom:2px solid var(--pri);">Journal</div>
+        </div>
+        <div class="mob-content">
+          <div style="display:flex;gap:5px;margin-bottom:2px;">
+            <div style="flex:1;padding:5px 8px;background:var(--ctn);border:1px solid var(--out-v);border-radius:5px;font-size:9px;color:var(--out);">🔍 Search…</div>
+            <div style="padding:5px 10px;background:var(--pri-bg);border:1px solid var(--pri);border-radius:5px;font-size:9px;font-weight:700;color:var(--pri);">+ New</div>
+          </div>
+          <div class="sb" style="flex:1;overflow:hidden;">
+            <div class="jentry">
+              <div class="jentry-title">Session 12 — The Sunken Keep</div>
+              <div class="jentry-meta"><span class="jentry-date">Apr 18</span><span class="jentry-tag s">Session</span></div>
+              <div class="jentry-preview">Found the corrupted wellspring. The blight is deliberate…</div>
+            </div>
+            <div class="jentry">
+              <div class="jentry-title">Maren Ashwick</div>
+              <div class="jentry-meta"><span class="jentry-date">Apr 12</span><span class="jentry-tag g">NPC</span></div>
+              <div class="jentry-preview">Half-elf ranger. Knows more than she says…</div>
+            </div>
+            <div class="jentry">
+              <div class="jentry-title">Session 11 — The Old Road</div>
+              <div class="jentry-meta"><span class="jentry-date">Apr 4</span><span class="jentry-tag s">Session</span></div>
+              <div class="jentry-preview">Blighted wolves ambush. Used Wild Shape.</div>
+            </div>
+            <div class="jentry">
+              <div class="jentry-title">The Sunken Throne — Quest</div>
+              <div class="jentry-meta"><span class="jentry-date">Mar 28</span><span class="jentry-tag" style="border-color:var(--pri);color:var(--pri);">Quest</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="btabs">
+          <div class="bt"><div class="bt-ic">⚔</div><div class="bt-lb">Combat</div></div>
+          <div class="bt"><div class="bt-ic">✦</div><div class="bt-lb">Spells</div></div>
+          <div class="bt"><div class="bt-ic">★</div><div class="bt-lb">Skills</div></div>
+          <div class="bt"><div class="bt-ic">⚡</div><div class="bt-lb">Traits</div></div>
+          <div class="bt on"><div class="bt-ic">📖</div><div class="bt-lb">Lore</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── Summary table ── -->
+<div>
+  <div class="eye">Summary</div>
+  <h2 class="hero">Complete Content Inventory</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:820px;">
+    <div style="background:var(--ctn);border:1px solid var(--out-v);border-radius:8px;padding:14px;">
+      <div style="font-family:var(--head);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--out);margin-bottom:10px;">⚔ Combat</div>
+      <div style="font-size:10px;color:var(--on-v);line-height:2;">
+        Ability scores (tap to check) · Saving throws (tap to roll)<br>
+        Attacks (hit + damage rolls) · Spell slot quick tracker<br>
+        Concentration tracker · Class resources (Rage, Ki, etc.)<br>
+        Exhaustion level (0–6) · Conditions (15 toggleable)<br>
+        Death saves · Passive Perception / Investigation / Insight
+      </div>
+    </div>
+    <div style="background:var(--ctn);border:1px solid var(--gm);border-radius:8px;padding:14px;">
+      <div style="font-family:var(--head);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--gm);margin-bottom:10px;">✦ Spells <span class="new-badge">ALL NEW</span></div>
+      <div style="font-size:10px;color:var(--on-v);line-height:2;">
+        Spellcasting class · Spellcasting ability<br>
+        Spell Save DC · Spell Attack Bonus<br>
+        Slot tracker levels 1–9 (pip, tap to use/restore)<br>
+        Concentration tracker with End button<br>
+        Cantrips list · Leveled spell list<br>
+        Prepared toggle · Concentration badge per spell
+      </div>
+    </div>
+    <div style="background:var(--ctn);border:1px solid var(--out-v);border-radius:8px;padding:14px;">
+      <div style="font-family:var(--head);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--out);margin-bottom:10px;">★ Skills</div>
+      <div style="font-size:10px;color:var(--on-v);line-height:2;">
+        All 18 skills (tap to roll) · Proficiency dots<br>
+        Passive Perception · Passive Investigation · Passive Insight<br>
+        Senses (Darkvision, Tremorsense, etc.)<br>
+        Languages · Tool proficiencies
+      </div>
+    </div>
+    <div style="background:var(--ctn);border:1px solid var(--out-v);border-radius:8px;padding:14px;">
+      <div style="font-family:var(--head);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--out);margin-bottom:10px;">⚡ Traits</div>
+      <div style="font-size:10px;color:var(--on-v);line-height:2;">
+        Class features (expandable, use tracker)<br>
+        Class resources (custom trackers — Rage, Ki, Bardic Insp…)<br>
+        Species traits · Feats<br>
+        Armor · Weapon · Tool proficiencies
+      </div>
+    </div>
+    <div style="background:var(--ctn);border:1px solid var(--gm);border-radius:8px;padding:14px;grid-column:1/-1;">
+      <div style="font-family:var(--head);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--gm);margin-bottom:10px;">📖 Lore — 4 sub-sections</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+        <div><div style="font-size:9px;font-weight:700;color:var(--pri);margin-bottom:4px;">Character</div><div style="font-size:9px;color:var(--on-v);line-height:1.8;">Species · Class · Background · Alignment · XP · Player name · Pronouns · Age · Height · Weight · Eyes · Hair · Skin</div></div>
+        <div><div style="font-size:9px;font-weight:700;color:var(--pri);margin-bottom:4px;">Personality <span class="new-badge">NEW</span></div><div style="font-size:9px;color:var(--on-v);line-height:1.8;">Personality Traits · Ideals · Bonds · Flaws · Backstory · Allies &amp; Organizations · Faction</div></div>
+        <div><div style="font-size:9px;font-weight:700;color:var(--pri);margin-bottom:4px;">Equipment</div><div style="font-size:9px;color:var(--on-v);line-height:1.8;">Attunement slots · Equipped items · Carrying · Coins (CP/SP/EP/GP/PP) · Treasure <span class="new-badge">NEW</span></div></div>
+        <div><div style="font-size:9px;font-weight:700;color:var(--pri);margin-bottom:4px;">Journal <span class="new-badge">NEW</span></div><div style="font-size:9px;color:var(--on-v);line-height:1.8;">Tagged entries · Session notes · NPC notes · Quest log · Lore notes · Search · New entry</div></div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:14px;padding:12px 14px;background:var(--ctn);border:1px solid var(--out-v);border-radius:8px;font-size:11px;color:var(--on-v);line-height:1.8;max-width:820px;">
+    <strong style="color:var(--pri);">Always visible (never behind a tab):</strong>
+    Portrait · Name · Class/Level/Background · Campaign link button (→ navigates to campaign) ·
+    HP (current/max/temp, interactive bar) · AC · Initiative · Speed · Hit Die ·
+    Inspiration · Short Rest · Long Rest · Settings
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character Sheet — Navigation Wireframes</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --canvas:    #121416;
+    --lowest:    #0c0e10;
+    --container: #1e2022;
+    --high:      #282a2c;
+    --highest:   #333537;
+    --primary:   #d3bbff;
+    --secondary: #adc6ff;
+    --on-surf:   #e2e2e5;
+    --on-var:    #ccc3d7;
+    --outline:   #958da1;
+    --out-var:   #4a4455;
+    --gm:        #e6a255;
+    --hp-green:  #1D9E75;
+    --hp-warn:   #EF9F27;
+    --hp-red:    #E24B4A;
+    --head: 'Space Grotesk', sans-serif;
+    --body: 'Manrope', sans-serif;
+  }
+
+  body {
+    background: #080a0b;
+    color: var(--on-surf);
+    font-family: var(--body);
+    padding: 40px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 80px;
+  }
+
+  /* ── Page header ── */
+  .page-title {
+    font-family: var(--head);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--outline);
+    margin-bottom: 6px;
+  }
+  .page-desc {
+    font-size: 13px;
+    color: var(--on-var);
+    line-height: 1.6;
+    max-width: 680px;
+  }
+  .coverage-note {
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: var(--container);
+    border: 1px solid var(--out-var);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--on-var);
+    line-height: 1.7;
+    max-width: 680px;
+  }
+  .coverage-note strong { color: var(--primary); }
+
+  /* ── Option wrapper ── */
+  .option {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .option-header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .option-tag {
+    font-family: var(--head);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--outline);
+  }
+  .option-name {
+    font-family: var(--head);
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--on-surf);
+  }
+  .option-pitch {
+    font-size: 13px;
+    color: var(--on-var);
+    line-height: 1.6;
+    max-width: 680px;
+  }
+
+  .screens {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .screen-label {
+    font-family: var(--body);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--outline);
+    margin-bottom: 8px;
+  }
+
+  /* ── Tab map legend ── */
+  .tab-map {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 320px;
+    max-width: 440px;
+  }
+  .tab-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .tab-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tab-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .tab-label-text {
+    font-family: var(--head);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--on-surf);
+  }
+  .tab-contents {
+    padding-left: 16px;
+    font-size: 11px;
+    color: var(--outline);
+    line-height: 1.8;
+  }
+  .tab-contents .section { color: var(--on-var); font-weight: 600; }
+  .tab-contents .sub { color: var(--outline); }
+  .tab-contents .new { color: var(--gm); font-weight: 600; }
+  .tab-contents .missing { color: var(--hp-red); font-weight: 600; }
+
+  /* ── Mobile frame ── */
+  .mobile-frame {
+    width: 300px;
+    height: 560px;
+    background: var(--canvas);
+    border: 1.5px solid var(--out-var);
+    border-radius: 24px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .mob-chrome {
+    height: 52px;
+    background: var(--lowest);
+    border-bottom: 1px solid var(--out-var);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .mob-portrait {
+    width: 32px; height: 32px; border-radius: 16px;
+    background: var(--high);
+    border: 1px solid var(--out-var);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--outline);
+  }
+  .mob-name-block { flex: 1; min-width: 0; }
+  .mob-char-name {
+    font-family: var(--head);
+    font-size: 12px; font-weight: 700;
+    color: var(--on-surf);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mob-sub {
+    font-size: 9px; color: var(--outline);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mob-hp-badge {
+    background: var(--container);
+    border: 1px solid var(--out-var);
+    border-radius: 8px;
+    padding: 3px 8px;
+    text-align: center;
+  }
+  .mob-hp-num {
+    font-family: var(--head);
+    font-size: 13px; font-weight: 800;
+    color: var(--hp-green);
+    line-height: 1;
+  }
+  .mob-hp-label { font-size: 7px; color: var(--outline); letter-spacing: 0.5px; text-transform: uppercase; }
+
+  .mob-content {
+    flex: 1;
+    overflow: hidden;
+    background: var(--canvas);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mob-content-inner {
+    padding: 12px;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .content-block {
+    background: var(--container);
+    border: 1px solid var(--out-var);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 9px;
+    color: var(--on-var);
+    line-height: 1.5;
+  }
+  .content-block-title {
+    font-family: var(--head);
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--outline);
+    margin-bottom: 3px;
+  }
+  .content-block.active-tab { border-color: var(--primary); background: #1e1a2e; }
+  .content-block.new-section { border-color: var(--gm); background: #1e180a; }
+
+  .mob-bottom-tabs {
+    height: 54px;
+    background: var(--lowest);
+    border-top: 1px solid var(--out-var);
+    display: flex;
+    align-items: stretch;
+    flex-shrink: 0;
+  }
+  .mob-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-top: 2px solid transparent;
+    cursor: pointer;
+  }
+  .mob-tab.active { border-top-color: var(--primary); }
+  .mob-tab-icon {
+    width: 16px; height: 16px;
+    border-radius: 3px;
+    background: var(--high);
+  }
+  .mob-tab.active .mob-tab-icon { background: var(--primary); opacity: 0.7; }
+  .mob-tab-text {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: var(--outline);
+    text-transform: uppercase;
+    font-family: var(--body);
+  }
+  .mob-tab.active .mob-tab-text { color: var(--primary); }
+
+  /* ── Web frame ── */
+  .web-frame {
+    width: 720px;
+    height: 480px;
+    background: var(--canvas);
+    border: 1.5px solid var(--out-var);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .web-frame-inner {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  .web-rail {
+    width: 220px;
+    background: var(--lowest);
+    border-right: 1px solid var(--out-var);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .web-rail-header {
+    padding: 12px;
+    border-bottom: 1px solid var(--out-var);
+  }
+  .web-back {
+    font-size: 9px; color: var(--outline);
+    margin-bottom: 8px;
+    font-family: var(--body);
+  }
+  .web-ident {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .web-portrait {
+    width: 36px; height: 36px; border-radius: 18px;
+    background: var(--high);
+    border: 1px solid var(--out-var);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--outline);
+  }
+  .web-name {
+    font-family: var(--head);
+    font-size: 12px; font-weight: 700; color: var(--on-surf);
+  }
+  .web-sub { font-size: 9px; color: var(--outline); margin-top: 1px; }
+
+  .web-rail-stats {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--out-var);
+  }
+  .web-hp-row {
+    display: flex; align-items: baseline; gap: 2px; margin-bottom: 5px;
+  }
+  .web-hp-num {
+    font-family: var(--head);
+    font-size: 20px; font-weight: 800;
+    color: var(--hp-green);
+  }
+  .web-hp-sep { font-size: 10px; color: var(--outline); margin: 0 2px; }
+  .web-hp-max { font-size: 11px; color: var(--outline); font-family: var(--head); }
+  .web-hp-label { font-size: 7px; color: var(--outline); letter-spacing: 1px; text-transform: uppercase; }
+  .web-hp-bar {
+    height: 4px; border-radius: 2px; background: var(--out-var);
+    margin: 4px 0 8px;
+  }
+  .web-hp-fill {
+    height: 100%; border-radius: 2px; background: var(--hp-green);
+    width: 72%;
+  }
+  .web-stat-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  }
+  .web-stat-cell {
+    background: var(--container);
+    border: 1px solid var(--out-var);
+    border-radius: 5px;
+    padding: 5px 6px;
+    text-align: center;
+  }
+  .web-stat-val {
+    font-family: var(--head);
+    font-size: 13px; font-weight: 700; color: var(--on-surf);
+    display: block;
+  }
+  .web-stat-lbl {
+    font-size: 7px; color: var(--outline);
+    text-transform: uppercase; letter-spacing: 0.8px;
+    font-family: var(--body);
+  }
+
+  .web-top-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--out-var);
+    background: var(--lowest);
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+  .web-top-tab {
+    display: flex; align-items: center; gap: 5px;
+    padding: 10px 12px;
+    border-bottom: 2px solid transparent;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--body);
+    color: var(--outline);
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+  .web-top-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+  .web-top-tab-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .web-content {
+    flex: 1;
+    background: var(--canvas);
+    padding: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .web-content-row {
+    display: flex; gap: 6px;
+  }
+  .web-block {
+    background: var(--container);
+    border: 1px solid var(--out-var);
+    border-radius: 6px;
+    padding: 8px 10px;
+    flex: 1;
+    font-size: 9px;
+    color: var(--on-var);
+    line-height: 1.5;
+  }
+  .web-block-title {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--outline);
+    margin-bottom: 4px;
+    font-family: var(--body);
+  }
+  .web-block.new-section { border-color: var(--gm); background: #1e180a; }
+  .web-block.active-section { border-color: var(--primary); background: #1e1a2e; }
+
+  /* ── Sub-tab variant ── */
+  .web-sub-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 8px 14px 0;
+    flex-shrink: 0;
+  }
+  .web-sub-tab {
+    padding: 5px 10px;
+    border-radius: 6px 6px 0 0;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: var(--body);
+    color: var(--outline);
+    background: var(--container);
+    border: 1px solid var(--out-var);
+    border-bottom: none;
+    letter-spacing: 0.3px;
+  }
+  .web-sub-tab.active { color: var(--primary); background: var(--canvas); }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px; background: var(--out-var); opacity: 0.3; margin: 0 -24px;
+  }
+
+  /* ── Comparison table ── */
+  .compare-table {
+    width: 100%;
+    max-width: 800px;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .compare-table th {
+    font-family: var(--head);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--outline);
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--out-var);
+  }
+  .compare-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid #1e2022;
+    color: var(--on-var);
+    vertical-align: top;
+  }
+  .compare-table tr:hover td { background: var(--container); }
+  .check { color: var(--hp-green); font-weight: 700; }
+  .partial { color: var(--gm); font-weight: 700; }
+  .cross { color: var(--hp-red); font-weight: 700; }
+  .section-name { color: var(--on-surf); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ── Intro ─────────────────────────────────────────────────────────── -->
+<div>
+  <div class="page-title">Vaultstone · Character Sheet Navigation</div>
+  <div style="font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:800; color:var(--on-surf); margin: 6px 0 10px;">Tab Organization Wireframes</div>
+  <p class="page-desc">Four distinct approaches to organizing the character sheet. Each wireframe shows the mobile bottom tab bar and the web top tab bar side by side, with a content map showing what lives where.</p>
+  <div class="coverage-note">
+    <strong>Current gaps vs. 2024 D&D sheet:</strong> Spells (spell slots + spell list) are completely absent.
+    Personality Traits, Ideals, Bonds, Flaws, and Backstory are not implemented.
+    Senses (Darkvision, etc.) and Passive Investigation/Insight are missing from Skills tab.
+    Death Saves UI exists but Allies &amp; Organizations have no home.
+    <br><br>
+    <strong>Legend:</strong> <span style="color:var(--gm); font-weight:700;">Gold = new section (not yet built)</span> &nbsp;·&nbsp;
+    <span style="color:var(--on-var);">White = already built</span> &nbsp;·&nbsp;
+    <span style="color:var(--outline);">Gray = sub-item</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     OPTION A — Four Tabs (Current Shape, Spells Under Combat)
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="option">
+  <div class="option-header">
+    <span class="option-tag">Option A</span>
+    <span class="option-name">Four Tabs — Spells Folded In</span>
+  </div>
+  <p class="option-pitch">
+    Keep the current 4-tab shape. Add a Spells section inside Combat (works for most classes — spells ARE combat resources).
+    Add Personality/Backstory to Story. Minimal nav change, maximal content completion.
+    Best for: non-casters and players who don't want a dedicated spell screen.
+  </p>
+
+  <div class="screens">
+    <!-- Mobile -->
+    <div>
+      <div class="screen-label">Mobile — Bottom Tabs</div>
+      <div class="mobile-frame">
+        <div class="mob-chrome">
+          <div class="mob-portrait">☽</div>
+          <div class="mob-name-block">
+            <div class="mob-char-name">Aria Nightwhisper</div>
+            <div class="mob-sub">Wood Elf Ranger · Level 5</div>
+          </div>
+          <div class="mob-hp-badge">
+            <div class="mob-hp-num">38</div>
+            <div class="mob-hp-label">HP</div>
+          </div>
+        </div>
+        <div class="mob-content">
+          <div class="mob-content-inner">
+            <div class="content-block active-tab">
+              <div class="content-block-title">⚔ Combat (active)</div>
+              AC · Initiative · Speed · Hit Die · Death Saves<br>
+              Ability Scores · Saving Throws<br>
+              <span style="color:var(--gm)">Attacks · Spell Slots · Cantrips</span>
+            </div>
+            <div class="content-block">
+              <div class="content-block-title">★ Skills</div>
+              18 Skills · Passive Scores · Senses
+            </div>
+            <div class="content-block">
+              <div class="content-block-title">⚡ Abilities</div>
+              Class Features · Species Traits · Feats · Profs
+            </div>
+            <div class="content-block">
+              <div class="content-block-title">📖 Story</div>
+              Identity · <span style="color:var(--gm)">Personality · Backstory</span> · Equipment · Coins · Notes
+            </div>
+          </div>
+        </div>
+        <div class="mob-bottom-tabs">
+          <div class="mob-tab active">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Combat</div>
+          </div>
+          <div class="mob-tab">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Skills</div>
+          </div>
+          <div class="mob-tab">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Abilities</div>
+          </div>
+          <div class="mob-tab">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Story</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab map -->
+    <div class="tab-map">
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--primary)"></div>
+          <span class="tab-label-text">Combat</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">HP</span>, <span class="sub">AC · Initiative · Speed · Hit Die · Death Saves</span><br>
+          <span class="section">Ability Scores</span> <span class="sub">(6 scores + modifiers)</span><br>
+          <span class="section">Saving Throws</span> <span class="sub">(6, with prof)</span><br>
+          <span class="new">Attacks</span> <span class="sub">(name · bonus · damage)</span><br>
+          <span class="new">Spell Slots</span> <span class="sub">(levels 1–9, pip tracker)</span><br>
+          <span class="new">Cantrips + Spell List</span> <span class="sub">(filterable by level)</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--secondary)"></div>
+          <span class="tab-label-text">Skills</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">18 Skills</span> <span class="sub">(tap to roll)</span><br>
+          <span class="new">Passive Perception / Investigation / Insight</span><br>
+          <span class="new">Senses</span> <span class="sub">(Darkvision, Tremorsense, etc.)</span><br>
+          <span class="section">Tool Proficiencies</span><br>
+          <span class="section">Languages</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:#e879f9"></div>
+          <span class="tab-label-text">Abilities</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">Class Features</span> <span class="sub">(expandable + use tracker)</span><br>
+          <span class="section">Species Traits</span><br>
+          <span class="section">Feats</span><br>
+          <span class="section">Armor / Weapon Proficiencies</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--gm)"></div>
+          <span class="tab-label-text">Story</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">Identity</span> <span class="sub">(species · class · background · rules)</span><br>
+          <span class="new">Personality Traits · Ideals · Bonds · Flaws</span><br>
+          <span class="new">Character Backstory</span><br>
+          <span class="new">Allies &amp; Organizations</span><br>
+          <span class="section">Equipment</span> <span class="sub">(equipped / carrying)</span><br>
+          <span class="section">Coin Pouch</span><br>
+          <span class="section">Notes</span>
+        </div>
+      </div>
+      <div style="margin-top:8px; padding:10px 12px; background:var(--container); border:1px solid var(--out-var); border-radius:6px;">
+        <div style="font-size:10px; font-weight:700; color:var(--outline); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px;">Pros / Cons</div>
+        <div style="font-size:11px; color:var(--on-var); line-height:1.7;">
+          ✓ Fewest taps to get anywhere<br>
+          ✓ Minimal nav learning curve<br>
+          ✗ Combat tab gets crowded for full casters<br>
+          ✗ Story tab is a catch-all that's hard to scan
+        </div>
+      </div>
+    </div>
+
+    <!-- Web frame -->
+    <div style="flex-basis:100%;">
+      <div class="screen-label">Web — Top Tabs (right pane)</div>
+      <div class="web-frame">
+        <div class="web-frame-inner">
+          <div class="web-rail">
+            <div class="web-rail-header">
+              <div class="web-back">← Characters</div>
+              <div class="web-ident">
+                <div class="web-portrait">☽</div>
+                <div>
+                  <div class="web-name">Aria Nightwhisper</div>
+                  <div class="web-sub">Wood Elf Ranger · Lv 5 · +3 Prof</div>
+                </div>
+              </div>
+            </div>
+            <div class="web-rail-stats">
+              <div class="web-hp-row">
+                <span class="web-hp-num">38</span>
+                <span class="web-hp-sep">/</span>
+                <span class="web-hp-max">42</span>
+              </div>
+              <div class="web-hp-label">Hit Points</div>
+              <div class="web-hp-bar"><div class="web-hp-fill"></div></div>
+              <div class="web-stat-grid">
+                <div class="web-stat-cell"><span class="web-stat-val" style="color:var(--secondary)">16</span><span class="web-stat-lbl">AC</span></div>
+                <div class="web-stat-cell"><span class="web-stat-val">+4</span><span class="web-stat-lbl">Init</span></div>
+                <div class="web-stat-cell"><span class="web-stat-val">30</span><span class="web-stat-lbl">Speed</span></div>
+                <div class="web-stat-cell"><span class="web-stat-val">d10</span><span class="web-stat-lbl">Hit Die</span></div>
+              </div>
+            </div>
+            <div style="padding:10px 12px; flex:1; overflow:hidden;">
+              <div style="font-size:7px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--outline); margin-bottom:6px;">ABILITY SCORES</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:3px;">
+                <div class="web-block" style="padding:4px 6px; text-align:center;"><span style="font-size:11px; font-weight:800; font-family:var(--head); color:var(--on-surf);">+1</span><br><span style="font-size:7px; color:var(--outline);">STR</span></div>
+                <div class="web-block" style="padding:4px 6px; text-align:center;"><span style="font-size:11px; font-weight:800; font-family:var(--head); color:var(--primary);">+4</span><br><span style="font-size:7px; color:var(--outline);">DEX</span></div>
+                <div class="web-block" style="padding:4px 6px; text-align:center;"><span style="font-size:11px; font-weight:800; font-family:var(--head); color:var(--on-surf);">+2</span><br><span style="font-size:7px; color:var(--outline);">CON</span></div>
+                <div class="web-block" style="padding:4px 6px; text-align:center;"><span style="font-size:11px; font-weight:800; font-family:var(--head); color:var(--on-surf);">+1</span><br><span style="font-size:7px; color:var(--outline);">INT</span></div>
+                <div class="web-block" style="padding:4px 6px; text-align:center;"><span style="font-size:11px; font-weight:800; font-family:var(--head); color:var(--on-surf);">+3</span><br><span style="font-size:7px; color:var(--outline);">WIS</span></div>
+                <div class="web-block" style="padding:4px 6px; text-align:center;"><span style="font-size:11px; font-weight:800; font-family:var(--head); color:var(--on-surf);">+0</span><br><span style="font-size:7px; color:var(--outline);">CHA</span></div>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+            <div class="web-top-tabs">
+              <div class="web-top-tab active"><div class="web-top-tab-dot"></div>Combat</div>
+              <div class="web-top-tab"><div class="web-top-tab-dot"></div>Skills</div>
+              <div class="web-top-tab"><div class="web-top-tab-dot"></div>Abilities</div>
+              <div class="web-top-tab"><div class="web-top-tab-dot"></div>Story</div>
+            </div>
+            <div class="web-content">
+              <div class="web-content-row">
+                <div class="web-block">
+                  <div class="web-block-title">Saving Throws</div>
+                  STR +1 · DEX +7 · CON +2 · INT +1 · WIS +6 · CHA +0
+                </div>
+              </div>
+              <div class="web-content-row">
+                <div class="web-block active-section">
+                  <div class="web-block-title">⚔ Attacks</div>
+                  Longbow · +7 · 1d8+4 Piercing<br>
+                  Shortsword · +7 · 1d6+4 Piercing
+                </div>
+              </div>
+              <div class="web-content-row">
+                <div class="web-block new-section">
+                  <div class="web-block-title">✦ Spell Slots</div>
+                  Level 1 ●●●○ &nbsp; Level 2 ●○○
+                </div>
+              </div>
+              <div class="web-content-row">
+                <div class="web-block new-section">
+                  <div class="web-block-title">✦ Spells</div>
+                  Hunter's Mark · Cure Wounds · Fog Cloud…
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     OPTION B — Five Tabs (Dedicated Spells Tab)
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="divider"></div>
+<div class="option">
+  <div class="option-header">
+    <span class="option-tag">Option B</span>
+    <span class="option-name">Five Tabs — Dedicated Spells</span>
+  </div>
+  <p class="option-pitch">
+    Break Spells out into its own top-level tab. Casters get a full spellbook view; non-casters see an empty tab (or it's hidden).
+    Combat slims down to pure combat resources. Best for campaigns heavy on spellcasters.
+  </p>
+
+  <div class="screens">
+    <!-- Mobile -->
+    <div>
+      <div class="screen-label">Mobile — Bottom Tabs (5 tabs)</div>
+      <div class="mobile-frame">
+        <div class="mob-chrome">
+          <div class="mob-portrait">✦</div>
+          <div class="mob-name-block">
+            <div class="mob-char-name">Eldrin Ashveil</div>
+            <div class="mob-sub">High Elf Wizard · Level 8</div>
+          </div>
+          <div class="mob-hp-badge">
+            <div class="mob-hp-num" style="color:var(--hp-warn)">22</div>
+            <div class="mob-hp-label">HP</div>
+          </div>
+        </div>
+        <div class="mob-content">
+          <div class="mob-content-inner">
+            <div class="content-block">
+              <div class="content-block-title">⚔ Combat</div>
+              AC · Init · Speed · Hit Die · Death Saves · Ability Scores · Saves · Attacks
+            </div>
+            <div class="content-block active-tab">
+              <div class="content-block-title">✦ Spells (active)</div>
+              Spell Slots (1–9) · Cantrips · Spell List by Level · Concentration
+            </div>
+            <div class="content-block">
+              <div class="content-block-title">★ Skills</div>
+              18 Skills · Passives · Senses · Languages
+            </div>
+            <div class="content-block">
+              <div class="content-block-title">⚡ Abilities</div>
+              Class Features · Species Traits · Feats · Profs
+            </div>
+            <div class="content-block">
+              <div class="content-block-title">📖 Story</div>
+              Identity · Personality · Backstory · Equipment · Coins · Notes
+            </div>
+          </div>
+        </div>
+        <div class="mob-bottom-tabs">
+          <div class="mob-tab">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Combat</div>
+          </div>
+          <div class="mob-tab active">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Spells</div>
+          </div>
+          <div class="mob-tab">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Skills</div>
+          </div>
+          <div class="mob-tab">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Traits</div>
+          </div>
+          <div class="mob-tab">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Story</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab map -->
+    <div class="tab-map">
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--primary)"></div>
+          <span class="tab-label-text">Combat</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">HP</span>, AC, Initiative, Speed, Hit Die, Death Saves<br>
+          <span class="section">Ability Scores + Saving Throws</span><br>
+          <span class="new">Attacks</span> <span class="sub">(name · bonus · damage · notes)</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:#60a5fa"></div>
+          <span class="tab-label-text">Spells <span style="font-size:9px; color:var(--gm); font-weight:400;">(new)</span></span>
+        </div>
+        <div class="tab-contents">
+          <span class="new">Spellcasting Ability · Spell Save DC · Spell Attack</span><br>
+          <span class="new">Spell Slots by Level</span> <span class="sub">(pip tracker, tap to use)</span><br>
+          <span class="new">Cantrips</span><br>
+          <span class="new">Leveled Spell List</span> <span class="sub">(prepared toggle, concentration badge)</span><br>
+          <span class="sub">Hidden / collapsed for non-casters</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--secondary)"></div>
+          <span class="tab-label-text">Skills</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">18 Skills</span> <span class="sub">(tap to roll)</span><br>
+          <span class="new">Passive Perception / Investigation / Insight</span><br>
+          <span class="new">Senses</span> <span class="sub">(Darkvision, Tremorsense, etc.)</span><br>
+          <span class="section">Tool Proficiencies · Languages</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:#e879f9"></div>
+          <span class="tab-label-text">Traits</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">Class Features</span> <span class="sub">(use tracker)</span><br>
+          <span class="section">Species Traits</span><br>
+          <span class="section">Feats</span><br>
+          <span class="section">Armor / Weapon Proficiencies</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--gm)"></div>
+          <span class="tab-label-text">Story</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">Identity</span> <span class="sub">(species · class · background)</span><br>
+          <span class="new">Personality Traits · Ideals · Bonds · Flaws</span><br>
+          <span class="new">Backstory · Allies &amp; Organizations</span><br>
+          <span class="section">Equipment · Coin Pouch · Notes</span>
+        </div>
+      </div>
+      <div style="margin-top:8px; padding:10px 12px; background:var(--container); border:1px solid var(--out-var); border-radius:6px;">
+        <div style="font-size:10px; font-weight:700; color:var(--outline); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px;">Pros / Cons</div>
+        <div style="font-size:11px; color:var(--on-var); line-height:1.7;">
+          ✓ Spellcasters get a clean dedicated screen<br>
+          ✓ Combat tab stays focused and fast<br>
+          ✗ 5 tabs is tight on small phones (icon-only)<br>
+          ✗ Empty Spells tab for fighters/rogues is awkward
+        </div>
+      </div>
+    </div>
+
+    <!-- Web frame -->
+    <div style="flex-basis:100%;">
+      <div class="screen-label">Web — Top Tabs (Spells active)</div>
+      <div class="web-frame">
+        <div class="web-frame-inner">
+          <div class="web-rail">
+            <div class="web-rail-header">
+              <div class="web-back">← Characters</div>
+              <div class="web-ident">
+                <div class="web-portrait">✦</div>
+                <div>
+                  <div class="web-name">Eldrin Ashveil</div>
+                  <div class="web-sub">High Elf Wizard · Lv 8 · +3 Prof</div>
+                </div>
+              </div>
+            </div>
+            <div class="web-rail-stats">
+              <div class="web-hp-row">
+                <span class="web-hp-num" style="color:var(--hp-warn)">22</span>
+                <span class="web-hp-sep">/</span>
+                <span class="web-hp-max">44</span>
+              </div>
+              <div class="web-hp-label">Hit Points</div>
+              <div class="web-hp-bar"><div class="web-hp-fill" style="width:50%; background:var(--hp-warn)"></div></div>
+              <div class="web-stat-grid">
+                <div class="web-stat-cell"><span class="web-stat-val" style="color:var(--secondary)">12</span><span class="web-stat-lbl">AC</span></div>
+                <div class="web-stat-cell"><span class="web-stat-val">+1</span><span class="web-stat-lbl">Init</span></div>
+                <div class="web-stat-cell"><span class="web-stat-val">30</span><span class="web-stat-lbl">Speed</span></div>
+                <div class="web-stat-cell"><span class="web-stat-val">d6</span><span class="web-stat-lbl">Hit Die</span></div>
+              </div>
+            </div>
+            <div style="padding:10px 12px;">
+              <div style="font-size:7px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--outline); margin-bottom:4px;">SPELLCASTING</div>
+              <div style="display:flex; gap:4px;">
+                <div class="web-block" style="padding:5px 6px; text-align:center; flex:1;"><span style="font-size:13px; font-weight:800; font-family:var(--head); color:var(--primary);">15</span><br><span style="font-size:7px; color:var(--outline);">Save DC</span></div>
+                <div class="web-block" style="padding:5px 6px; text-align:center; flex:1;"><span style="font-size:13px; font-weight:800; font-family:var(--head); color:var(--primary);">+7</span><br><span style="font-size:7px; color:var(--outline);">Spell Atk</span></div>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+            <div class="web-top-tabs">
+              <div class="web-top-tab"><div class="web-top-tab-dot"></div>Combat</div>
+              <div class="web-top-tab active" style="color:#60a5fa; border-bottom-color:#60a5fa;"><div class="web-top-tab-dot"></div>Spells</div>
+              <div class="web-top-tab"><div class="web-top-tab-dot"></div>Skills</div>
+              <div class="web-top-tab"><div class="web-top-tab-dot"></div>Traits</div>
+              <div class="web-top-tab"><div class="web-top-tab-dot"></div>Story</div>
+            </div>
+            <div class="web-content">
+              <div class="web-content-row">
+                <div class="web-block new-section">
+                  <div class="web-block-title">Spell Slots</div>
+                  1st ●●●●○ &nbsp; 2nd ●●●○ &nbsp; 3rd ●●○ &nbsp; 4th ●●○
+                </div>
+              </div>
+              <div class="web-content-row">
+                <div class="web-block new-section">
+                  <div class="web-block-title">Cantrips</div>
+                  Fire Bolt · Mage Hand · Prestidigitation · Minor Illusion
+                </div>
+              </div>
+              <div class="web-content-row">
+                <div class="web-block new-section" style="flex:2;">
+                  <div class="web-block-title">1st Level Spells (4 prepared)</div>
+                  ◎ Magic Missile &nbsp;·&nbsp; ◎ Shield &nbsp;·&nbsp; ◎ Detect Magic &nbsp;·&nbsp; ○ Mage Armor
+                </div>
+                <div class="web-block new-section">
+                  <div class="web-block-title">2nd Level (3 prep)</div>
+                  ◎ Misty Step<br>◎ Scorching Ray<br>○ Web
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     OPTION C — DDB-style Six Tabs
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="divider"></div>
+<div class="option">
+  <div class="option-header">
+    <span class="option-tag">Option C</span>
+    <span class="option-name">Six Tabs — DDB-style</span>
+  </div>
+  <p class="option-pitch">
+    Mirrors D&amp;D Beyond's tab structure: Actions · Spells · Inventory · Traits · Background · Notes.
+    Maximally granular — every section has a clear home. Best for power users and DMs who need to find things fast.
+    Heavy nav overhead for casual players.
+  </p>
+
+  <div class="screens">
+    <!-- Mobile -->
+    <div>
+      <div class="screen-label">Mobile — Horizontal Scroll Tabs</div>
+      <div class="mobile-frame">
+        <div class="mob-chrome">
+          <div class="mob-portrait">⚔</div>
+          <div class="mob-name-block">
+            <div class="mob-char-name">Gorn Stonefist</div>
+            <div class="mob-sub">Mountain Dwarf Fighter · Level 6</div>
+          </div>
+          <div class="mob-hp-badge">
+            <div class="mob-hp-num">58</div>
+            <div class="mob-hp-label">HP</div>
+          </div>
+        </div>
+        <!-- Scrollable tab row -->
+        <div style="display:flex; overflow:hidden; border-bottom:1px solid var(--out-var); background:var(--lowest); flex-shrink:0;">
+          <div style="display:flex; gap:0; padding:0 4px;">
+            <div style="padding:8px 10px; border-bottom:2px solid var(--primary); font-size:9px; font-weight:700; color:var(--primary); white-space:nowrap; font-family:var(--body);">ACTIONS</div>
+            <div style="padding:8px 10px; border-bottom:2px solid transparent; font-size:9px; font-weight:700; color:var(--outline); white-space:nowrap; font-family:var(--body);">SPELLS</div>
+            <div style="padding:8px 10px; border-bottom:2px solid transparent; font-size:9px; font-weight:700; color:var(--outline); white-space:nowrap; font-family:var(--body);">INVENTORY</div>
+            <div style="padding:8px 10px; border-bottom:2px solid transparent; font-size:9px; font-weight:700; color:var(--outline); white-space:nowrap; font-family:var(--body);">TRAITS</div>
+            <div style="padding:8px 10px; border-bottom:2px solid transparent; font-size:9px; font-weight:700; color:var(--outline); white-space:nowrap; font-family:var(--body);">BACKGROUND</div>
+            <div style="padding:8px 10px; border-bottom:2px solid transparent; font-size:9px; font-weight:700; color:var(--outline); white-space:nowrap; font-family:var(--body);">NOTES</div>
+          </div>
+        </div>
+        <div class="mob-content">
+          <div class="mob-content-inner">
+            <div class="content-block active-tab">
+              <div class="content-block-title">Actions (active)</div>
+              Sub-tabs: All · Attack · Bonus Action · Reaction · Other
+            </div>
+            <div class="content-block active-tab">
+              <div class="content-block-title">Attacks</div>
+              Battleaxe · +8 · 1d8+5 Slashing<br>
+              Handaxe (×2) · +8 · 1d6+5
+            </div>
+            <div class="content-block active-tab">
+              <div class="content-block-title">Bonus Actions</div>
+              Second Wind · Action Surge
+            </div>
+          </div>
+        </div>
+        <!-- No bottom tab bar — tabs are at top -->
+        <div style="height:8px; background:var(--lowest);"></div>
+      </div>
+    </div>
+
+    <!-- Tab map -->
+    <div class="tab-map">
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--primary)"></div>
+          <span class="tab-label-text">Actions</span>
+        </div>
+        <div class="tab-contents">
+          <span class="new">Attacks</span> <span class="sub">(all weapon/spell attacks)</span><br>
+          <span class="new">Sub-filter: All · Attack · Bonus · Reaction · Other · Limited</span><br>
+          <span class="section">Class Feature uses</span> <span class="sub">(Second Wind, etc.)</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:#60a5fa"></div>
+          <span class="tab-label-text">Spells</span>
+        </div>
+        <div class="tab-contents">
+          <span class="new">Spell Save DC · Spell Attack Bonus</span><br>
+          <span class="new">Slots by level · Cantrips · Leveled spells</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--gm)"></div>
+          <span class="tab-label-text">Inventory</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">Equipment</span> <span class="sub">(equipped / carrying)</span><br>
+          <span class="section">Coin Pouch</span><br>
+          <span class="new">Encumbrance / Carry Weight</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:#e879f9"></div>
+          <span class="tab-label-text">Traits</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">Class Features · Species Traits · Feats</span><br>
+          <span class="section">Proficiencies</span> <span class="sub">(armor · weapons · tools)</span><br>
+          <span class="section">Skills · Languages · Senses</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--secondary)"></div>
+          <span class="tab-label-text">Background</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">Identity</span> <span class="sub">(species · class · background)</span><br>
+          <span class="new">Personality Traits · Ideals · Bonds · Flaws</span><br>
+          <span class="new">Backstory · Allies &amp; Organizations</span><br>
+          <span class="new">Character Appearance</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--outline)"></div>
+          <span class="tab-label-text">Notes</span>
+        </div>
+        <div class="tab-contents">
+          <span class="section">Free-form Notes</span><br>
+          <span class="new">Treasure (non-equipment valuables)</span><br>
+          <span class="new">Additional Features</span>
+        </div>
+      </div>
+      <div style="margin-top:8px; padding:10px 12px; background:var(--container); border:1px solid var(--out-var); border-radius:6px;">
+        <div style="font-size:10px; font-weight:700; color:var(--outline); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px;">Pros / Cons</div>
+        <div style="font-size:11px; color:var(--on-var); line-height:1.7;">
+          ✓ Every section has an obvious home<br>
+          ✓ Familiar to DDB users<br>
+          ✗ 6 tabs requires horizontal scroll on mobile<br>
+          ✗ Skills/saves are buried inside Traits<br>
+          ✗ Most complex to build
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     OPTION D — Three Tabs + Sub-navigation
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="divider"></div>
+<div class="option">
+  <div class="option-header">
+    <span class="option-tag">Option D</span>
+    <span class="option-name">Three Tabs + Sub-Nav</span>
+  </div>
+  <p class="option-pitch">
+    Three high-level tabs with sub-navigation inside each. Top level is conceptually clean (Play · Character · Lore).
+    Sub-tabs give you granularity without cluttering the main nav. Requires an extra tap to reach any sub-section.
+  </p>
+
+  <div class="screens">
+    <!-- Mobile -->
+    <div>
+      <div class="screen-label">Mobile — 3 Bottom Tabs + Sub-nav</div>
+      <div class="mobile-frame">
+        <div class="mob-chrome">
+          <div class="mob-portrait">⚡</div>
+          <div class="mob-name-block">
+            <div class="mob-char-name">Sable Vorn</div>
+            <div class="mob-sub">Tiefling Sorcerer · Level 7</div>
+          </div>
+          <div class="mob-hp-badge">
+            <div class="mob-hp-num" style="color:var(--hp-warn)">31</div>
+            <div class="mob-hp-label">HP</div>
+          </div>
+        </div>
+        <!-- Sub-tab bar -->
+        <div style="display:flex; border-bottom:1px solid var(--out-var); background:var(--container); flex-shrink:0;">
+          <div style="padding:7px 12px; border-bottom:2px solid var(--primary); font-size:8px; font-weight:700; color:var(--primary); font-family:var(--body);">COMBAT</div>
+          <div style="padding:7px 12px; border-bottom:2px solid transparent; font-size:8px; font-weight:700; color:var(--outline); font-family:var(--body);">SPELLS</div>
+          <div style="padding:7px 12px; border-bottom:2px solid transparent; font-size:8px; font-weight:700; color:var(--outline); font-family:var(--body);">ACTIONS</div>
+        </div>
+        <div class="mob-content">
+          <div class="mob-content-inner">
+            <div class="content-block active-tab">
+              <div class="content-block-title">Play › Combat (active)</div>
+              AC · Init · Speed · Saves · Scores · Death Saves
+            </div>
+            <div class="content-block">
+              <div class="content-block-title">Play › Spells</div>
+              Spell slots · Cantrips · Leveled spells
+            </div>
+            <div class="content-block">
+              <div class="content-block-title">Play › Actions</div>
+              Attacks · Bonus Actions · Reactions
+            </div>
+          </div>
+        </div>
+        <div class="mob-bottom-tabs">
+          <div class="mob-tab active">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Play</div>
+          </div>
+          <div class="mob-tab">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Character</div>
+          </div>
+          <div class="mob-tab">
+            <div class="mob-tab-icon"></div>
+            <div class="mob-tab-text">Lore</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab map -->
+    <div class="tab-map">
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--primary)"></div>
+          <span class="tab-label-text">Play</span>
+        </div>
+        <div class="tab-contents">
+          <em style="color:var(--outline)">Sub-tabs:</em><br>
+          <span class="section">› Combat</span> <span class="sub">— HP, AC, Init, Speed, Scores, Saves, Death Saves</span><br>
+          <span class="new">› Spells</span> <span class="sub">— Slots, Cantrips, Spell List</span><br>
+          <span class="new">› Actions</span> <span class="sub">— Attacks, Bonus Actions, Reactions</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--secondary)"></div>
+          <span class="tab-label-text">Character</span>
+        </div>
+        <div class="tab-contents">
+          <em style="color:var(--outline)">Sub-tabs:</em><br>
+          <span class="section">› Skills</span> <span class="sub">— 18 skills, passives, senses, languages</span><br>
+          <span class="section">› Features</span> <span class="sub">— Class features, species traits, feats</span><br>
+          <span class="section">› Proficiencies</span> <span class="sub">— Armor, weapons, tools</span>
+        </div>
+      </div>
+      <div class="tab-row">
+        <div class="tab-name">
+          <div class="tab-dot" style="background:var(--gm)"></div>
+          <span class="tab-label-text">Lore</span>
+        </div>
+        <div class="tab-contents">
+          <em style="color:var(--outline)">Sub-tabs:</em><br>
+          <span class="new">› Background</span> <span class="sub">— Identity, personality, backstory, allies</span><br>
+          <span class="section">› Inventory</span> <span class="sub">— Equipment, coins</span><br>
+          <span class="section">› Notes</span> <span class="sub">— Free-form notes</span>
+        </div>
+      </div>
+      <div style="margin-top:8px; padding:10px 12px; background:var(--container); border:1px solid var(--out-var); border-radius:6px;">
+        <div style="font-size:10px; font-weight:700; color:var(--outline); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px;">Pros / Cons</div>
+        <div style="font-size:11px; color:var(--on-var); line-height:1.7;">
+          ✓ Cleanest top-level nav — 3 tabs fits any screen<br>
+          ✓ Most extensible (add sub-tabs without touching top nav)<br>
+          ✗ Two taps to reach any deep section<br>
+          ✗ "Play / Character / Lore" labels aren't obvious<br>
+          ✗ Sub-tab context can get confusing
+        </div>
+      </div>
+    </div>
+
+    <!-- Web frame — sub-tabs visible -->
+    <div style="flex-basis:100%;">
+      <div class="screen-label">Web — 3 Top Tabs + Sub-nav (Play › Spells active)</div>
+      <div class="web-frame">
+        <div class="web-frame-inner">
+          <div class="web-rail">
+            <div class="web-rail-header">
+              <div class="web-back">← Characters</div>
+              <div class="web-ident">
+                <div class="web-portrait">⚡</div>
+                <div>
+                  <div class="web-name">Sable Vorn</div>
+                  <div class="web-sub">Tiefling Sorcerer · Lv 7 · +3 Prof</div>
+                </div>
+              </div>
+            </div>
+            <div class="web-rail-stats">
+              <div class="web-hp-row">
+                <span class="web-hp-num" style="color:var(--hp-warn)">31</span>
+                <span class="web-hp-sep">/</span>
+                <span class="web-hp-max">49</span>
+              </div>
+              <div class="web-hp-label">Hit Points</div>
+              <div class="web-hp-bar"><div class="web-hp-fill" style="width:63%; background:var(--hp-warn)"></div></div>
+              <div class="web-stat-grid">
+                <div class="web-stat-cell"><span class="web-stat-val" style="color:var(--secondary)">13</span><span class="web-stat-lbl">AC</span></div>
+                <div class="web-stat-cell"><span class="web-stat-val">+2</span><span class="web-stat-lbl">Init</span></div>
+                <div class="web-stat-cell"><span class="web-stat-val">30</span><span class="web-stat-lbl">Speed</span></div>
+                <div class="web-stat-cell"><span class="web-stat-val">d6</span><span class="web-stat-lbl">Hit Die</span></div>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+            <!-- Top tab bar -->
+            <div class="web-top-tabs">
+              <div class="web-top-tab active"><div class="web-top-tab-dot"></div>Play</div>
+              <div class="web-top-tab"><div class="web-top-tab-dot"></div>Character</div>
+              <div class="web-top-tab"><div class="web-top-tab-dot"></div>Lore</div>
+            </div>
+            <!-- Sub-tab bar -->
+            <div style="display:flex; background:var(--container); border-bottom:1px solid var(--out-var); padding:0 8px;">
+              <div style="padding:7px 10px; font-size:9px; font-weight:700; color:var(--outline); font-family:var(--body);">Combat</div>
+              <div style="padding:7px 10px; border-bottom:2px solid var(--primary); font-size:9px; font-weight:700; color:var(--primary); font-family:var(--body);">Spells</div>
+              <div style="padding:7px 10px; font-size:9px; font-weight:700; color:var(--outline); font-family:var(--body);">Actions</div>
+            </div>
+            <div class="web-content">
+              <div class="web-content-row">
+                <div class="web-block new-section">
+                  <div class="web-block-title">Spell Slots · INT spell save DC 15 · +7 attack</div>
+                  1st ●●●●○ &nbsp; 2nd ●●●○ &nbsp; 3rd ●●●○ &nbsp; 4th ●●○
+                </div>
+              </div>
+              <div class="web-content-row">
+                <div class="web-block new-section">
+                  <div class="web-block-title">Cantrips (4)</div>
+                  Fire Bolt · Shocking Grasp · Minor Illusion · Prestidigitation
+                </div>
+              </div>
+              <div class="web-content-row">
+                <div class="web-block new-section" style="flex:1;">
+                  <div class="web-block-title">1st Level · 3 prepared</div>
+                  ◎ Chromatic Orb &nbsp; ◎ Shield &nbsp; ◎ Sleep
+                </div>
+                <div class="web-block new-section" style="flex:1;">
+                  <div class="web-block-title">2nd Level · 2 prepared</div>
+                  ◎ Scorching Ray &nbsp; ◎ Misty Step
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     Coverage comparison table
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="divider"></div>
+<div>
+  <div class="page-title">Coverage Comparison</div>
+  <div style="font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:800; color:var(--on-surf); margin: 6px 0 16px;">All 2024 D&amp;D Sheet Sections vs. Each Option</div>
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>Section</th>
+        <th>Currently Built</th>
+        <th>Option A (4 tabs)</th>
+        <th>Option B (5 tabs)</th>
+        <th>Option C (6 tabs)</th>
+        <th>Option D (3+sub)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="section-name">Ability Scores (6)</td><td class="check">✓ Combat</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">Saving Throws</td><td class="check">✓ Combat</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">HP / Hit Dice / Death Saves</td><td class="check">✓ Combat</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">AC / Initiative / Speed</td><td class="check">✓ Combat</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">Attacks (weapon/spell)</td><td class="cross">✗ Missing</td><td class="partial">⊕ Combat</td><td class="partial">⊕ Combat</td><td class="partial">⊕ Actions</td><td class="partial">⊕ Play›Actions</td></tr>
+      <tr><td class="section-name">Spell Slots (1–9)</td><td class="cross">✗ Missing</td><td class="partial">⊕ Combat</td><td class="partial">⊕ Spells</td><td class="partial">⊕ Spells</td><td class="partial">⊕ Play›Spells</td></tr>
+      <tr><td class="section-name">Spell List (cantrips + leveled)</td><td class="cross">✗ Missing</td><td class="partial">⊕ Combat</td><td class="partial">⊕ Spells</td><td class="partial">⊕ Spells</td><td class="partial">⊕ Play›Spells</td></tr>
+      <tr><td class="section-name">18 Skills (tap to roll)</td><td class="check">✓ Skills</td><td class="check">✓</td><td class="check">✓</td><td class="partial">⊕ Traits</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">Passive Perception/Invest/Insight</td><td class="cross">✗ Missing</td><td class="partial">⊕ Skills</td><td class="partial">⊕ Skills</td><td class="partial">⊕ Traits</td><td class="partial">⊕ Char›Skills</td></tr>
+      <tr><td class="section-name">Senses (Darkvision etc.)</td><td class="cross">✗ Missing</td><td class="partial">⊕ Skills</td><td class="partial">⊕ Skills</td><td class="partial">⊕ Traits</td><td class="partial">⊕ Char›Skills</td></tr>
+      <tr><td class="section-name">Languages</td><td class="check">✓ Skills</td><td class="check">✓</td><td class="check">✓</td><td class="partial">Traits</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">Tool Proficiencies</td><td class="check">✓ Skills</td><td class="check">✓</td><td class="check">✓</td><td class="partial">Traits</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">Class Features + use tracker</td><td class="check">✓ Abilities</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">Species Traits</td><td class="check">✓ Abilities</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">Feats</td><td class="check">✓ Abilities</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">Armor/Weapon Proficiencies</td><td class="check">✓ Abilities</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">Identity (species/class/background)</td><td class="check">✓ Story</td><td class="check">✓</td><td class="check">✓</td><td class="partial">Background</td><td class="partial">Lore›BG</td></tr>
+      <tr><td class="section-name">Equipment (equipped/carrying)</td><td class="check">✓ Story</td><td class="check">✓</td><td class="check">✓</td><td class="partial">Inventory</td><td class="partial">Lore›Inv</td></tr>
+      <tr><td class="section-name">Coin Pouch</td><td class="check">✓ Story</td><td class="check">✓</td><td class="check">✓</td><td class="partial">Inventory</td><td class="partial">Lore›Inv</td></tr>
+      <tr><td class="section-name">Notes</td><td class="check">✓ Story</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td class="section-name">Personality / Ideals / Bonds / Flaws</td><td class="cross">✗ Missing</td><td class="partial">⊕ Story</td><td class="partial">⊕ Story</td><td class="partial">⊕ Background</td><td class="partial">⊕ Lore›BG</td></tr>
+      <tr><td class="section-name">Character Backstory</td><td class="cross">✗ Missing</td><td class="partial">⊕ Story</td><td class="partial">⊕ Story</td><td class="partial">⊕ Background</td><td class="partial">⊕ Lore›BG</td></tr>
+      <tr><td class="section-name">Allies &amp; Organizations</td><td class="cross">✗ Missing</td><td class="partial">⊕ Story</td><td class="partial">⊕ Story</td><td class="partial">⊕ Background</td><td class="partial">⊕ Lore›BG</td></tr>
+    </tbody>
+  </table>
+  <div style="margin-top:12px; font-size:11px; color:var(--outline);">
+    <span class="check">✓</span> Already built &nbsp;·&nbsp;
+    <span class="partial">⊕</span> New work required, but has a clear home &nbsp;·&nbsp;
+    <span class="cross">✗</span> Not yet addressed
+  </div>
+</div>
+
+</body>
+</html>

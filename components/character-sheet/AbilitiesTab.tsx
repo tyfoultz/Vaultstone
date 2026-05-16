@@ -29,6 +29,15 @@ interface Props {
   speciesResult: SpeciesResult | null;
   backgroundResult: BackgroundResult | null;
   originFeatResult: FeatResult | null;
+  /** Catalog lookup for any feat the character has on
+   *  `resources.feats`. The tab uses this to surface inline grant
+   *  pickers (Skilled → pick 3 skills, etc.) when a feat's `grants`
+   *  haven't been fully resolved yet. */
+  featResultsByKey: Map<string, FeatResult>;
+  /** Save per-feat picks back to the character. The host owns the
+   *  merge into `stats.skillProficiencies` so the Skills tab reflects
+   *  the new picks. */
+  onSaveFeatPicks: (featKey: string, picks: { skills?: string[] }) => void;
   onToggleFeatureUse: (cat: 'classFeatures' | 'speciesTraits' | 'feats', id: string, delta: number) => void;
   onAddFeature: (cat: 'classFeatures' | 'speciesTraits' | 'feats') => void;
   onEditFeature: (cat: 'classFeatures' | 'speciesTraits' | 'feats', feature: Dnd5eFeature) => void;
@@ -44,6 +53,7 @@ const ACCENT_BG = '#7dd3fc';
 export function AbilitiesTab({
   stats, resources, isOwner,
   classResultsByKey, subclassResultsByKey, speciesResult, backgroundResult, originFeatResult,
+  featResultsByKey, onSaveFeatPicks,
   onToggleFeatureUse, onAddFeature, onEditFeature, onTraitChoice,
 }: Props) {
   const allCustomClassFeatures = resources.classFeatures ?? [];
@@ -315,16 +325,41 @@ export function AbilitiesTab({
       {feats.length === 0 ? (
         <EmptyHint text="No feats added yet." />
       ) : (
-        feats.map((f) => (
-          <FeatureCard
-            key={f.id}
-            feature={f}
-            accent={ACCENT_FEAT}
-            canEdit={isOwner}
-            onEdit={() => onEditFeature('feats', f)}
-            onUse={(delta) => onToggleFeatureUse('feats', f.id, delta)}
-          />
-        ))
+        feats.map((f) => {
+          const featResult = featResultsByKey.get(f.id);
+          const skillGrant = featResult?.grants?.skills;
+          const picks = resources.featPicks?.[f.id]?.skills ?? [];
+          const showGrantPicker = !!skillGrant && isOwner;
+          // Skills the character already has from other sources — used
+          // to disable duplicate-prof chips in the picker. We strip
+          // *this feat's own picks* first so deselecting one doesn't
+          // immediately re-disable it.
+          const otherProfs = new Set(
+            (stats.skillProficiencies ?? [])
+              .map((sk) => sk.toLowerCase())
+              .filter((sk) => !picks.map((p) => p.toLowerCase()).includes(sk)),
+          );
+          return (
+            <View key={f.id}>
+              <FeatureCard
+                feature={f}
+                accent={ACCENT_FEAT}
+                canEdit={isOwner}
+                onEdit={() => onEditFeature('feats', f)}
+                onUse={(delta) => onToggleFeatureUse('feats', f.id, delta)}
+              />
+              {showGrantPicker ? (
+                <FeatGrantPicker
+                  featKey={f.id}
+                  grant={skillGrant!}
+                  picked={picks}
+                  existingProfs={otherProfs}
+                  onChange={(next) => onSaveFeatPicks(f.id, { ...resources.featPicks?.[f.id], skills: next })}
+                />
+              ) : null}
+            </View>
+          );
+        })
       )}
 
       {/* ── Proficiencies (live from class + background, with attribution) ── */}
@@ -664,8 +699,148 @@ function ProfLineWithSources({ label, items }: { label: string; items: ProfWithS
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(); }
 function titleCase(s: string) { return s.split(/\s+/).map(capitalize).join(' '); }
 
+// Canonical 5e skill list — fallback when a feat grants
+// `skills.from: 'any'` (e.g. Skilled). Mirrors the StepFeats list so
+// the chip picker behaves the same on the wizard + sheet.
+const ALL_SKILLS = [
+  'Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception',
+  'History', 'Insight', 'Intimidation', 'Investigation', 'Medicine',
+  'Nature', 'Perception', 'Performance', 'Persuasion', 'Religion',
+  'Sleight of Hand', 'Stealth', 'Survival',
+];
+
+/**
+ * Inline picker for a feat's `grants.skills` clause. Surfaced on the
+ * Traits tab under the feat card so players can resolve / change the
+ * picks after creation. Identical chip semantics to StepFeats — N max,
+ * disabled when the cap is hit, toggle to deselect. Saves call up to
+ * the host which mirrors picks into `stats.skillProficiencies`.
+ */
+function FeatGrantPicker({
+  featKey,
+  grant,
+  picked,
+  existingProfs,
+  onChange,
+}: {
+  featKey: string;
+  grant: { count: number; from: string[] | 'any' };
+  picked: string[];
+  /** Lowercased skill names the character already has from other
+   *  sources (class / background / other feats). These chips render
+   *  disabled with an "Already proficient" label per SRD: "If you
+   *  gain a skill proficiency you already have, you can choose a
+   *  different one." */
+  existingProfs: Set<string>;
+  onChange: (next: string[]) => void;
+}) {
+  const options = grant.from === 'any' ? ALL_SKILLS : grant.from;
+  const target = grant.count;
+  function toggle(skill: string) {
+    const has = picked.includes(skill);
+    if (has) {
+      onChange(picked.filter((s) => s !== skill));
+      return;
+    }
+    if (picked.length >= target) return;
+    onChange([...picked, skill]);
+  }
+  const remaining = Math.max(0, target - picked.length);
+  return (
+    <View style={s.grantPicker}>
+      <Text style={s.grantPickerLabel}>
+        {remaining > 0
+          ? `Pick ${remaining} more skill${remaining === 1 ? '' : 's'} (${picked.length}/${target})`
+          : `${target} skill${target === 1 ? '' : 's'} picked`}
+      </Text>
+      <View style={s.grantPickerChips}>
+        {options.map((skill) => {
+          const isPicked = picked.includes(skill);
+          const isExisting = existingProfs.has(skill.toLowerCase());
+          const capped = picked.length >= target && !isPicked;
+          // Existing-prof takes precedence — show the "already proficient"
+          // chip even when at cap. capped-disabled stays a separate state
+          // (gray, no subtitle) so players can tell the cap from the dupe.
+          const disabled = isExisting || capped;
+          return (
+            <View key={skill} style={{ alignItems: 'center' }}>
+              <TouchableOpacity
+                onPress={() => toggle(skill)}
+                disabled={disabled}
+                style={[
+                  s.grantChip,
+                  isPicked && s.grantChipPicked,
+                  isExisting && s.grantChipExisting,
+                  capped && !isExisting && s.grantChipDisabled,
+                ]}
+              >
+                <Text
+                  style={[
+                    s.grantChipText,
+                    isPicked && s.grantChipTextPicked,
+                    isExisting && s.grantChipTextExisting,
+                  ]}
+                >
+                  {skill}
+                </Text>
+              </TouchableOpacity>
+              {isExisting ? (
+                <Text style={s.grantChipExistingHint}>Already proficient</Text>
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   container: { paddingHorizontal: spacing.md, paddingTop: 14 },
+
+  // Feat grant picker (Skilled "pick 3 skills" etc.) — slotted under
+  // the feat card. Compact, no border (the parent card carries the
+  // visual frame) so the picker reads as a continuation of the feat.
+  grantPicker: {
+    marginTop: -6, marginBottom: 10,
+    paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLow,
+    borderLeftWidth: 3,
+    borderLeftColor: '#e6a25566', // ACCENT_FEAT @ 40% opacity
+  },
+  grantPickerLabel: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
+    letterSpacing: 0.5, textTransform: 'uppercase',
+    color: colors.onSurfaceVariant, marginBottom: 6,
+  },
+  grantPickerChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  grantChip: {
+    paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  grantChipPicked: { backgroundColor: colors.primary, borderColor: colors.primary },
+  grantChipDisabled: { opacity: 0.35 },
+  // "Already proficient" — distinct from capped-disabled (a dimmer
+  // grayscale) so the player can tell which chips are off-limits because
+  // they'd duplicate an existing prof.
+  grantChipExisting: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderColor: colors.outlineVariant,
+    opacity: 0.5,
+  },
+  grantChipText: { fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurfaceVariant },
+  grantChipTextPicked: { color: colors.onPrimary },
+  grantChipTextExisting: {
+    color: colors.outline,
+    textDecorationLine: 'line-through',
+  },
+  grantChipExistingHint: {
+    fontSize: 9, fontFamily: fonts.label,
+    color: colors.outline,
+    marginTop: 2, letterSpacing: 0.3,
+  },
 
   sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   sectionLabel: {

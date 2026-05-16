@@ -55,6 +55,7 @@ const ALL_SKILLS = [
 export function StepFeats({ onPreviewChange, onAdvance }: Props) {
   const {
     srdVersion, chosenFeats, featPicks, abilityScores, startingLevel,
+    chosenSkills, speciesKey, backgroundKey, backgroundSkillReplacements,
     setChosenFeats, setFeatPicks, campaignId, selectedPackIds, campaignRules,
   } = useCharacterDraftStore(
     useShallow((s) => ({
@@ -63,6 +64,10 @@ export function StepFeats({ onPreviewChange, onAdvance }: Props) {
       featPicks: s.featPicks,
       abilityScores: s.abilityScores,
       startingLevel: s.startingLevel,
+      chosenSkills: s.chosenSkills,
+      speciesKey: s.speciesKey,
+      backgroundKey: s.backgroundKey,
+      backgroundSkillReplacements: s.backgroundSkillReplacements,
       setChosenFeats: s.setChosenFeats,
       setFeatPicks: s.setFeatPicks,
       campaignId: s.campaignId,
@@ -74,6 +79,16 @@ export function StepFeats({ onPreviewChange, onAdvance }: Props) {
   const [list, setList] = useState<FeatResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewKey, setPreviewKey] = useState<string | null>(null);
+  // Background's skill grants — used by the grant-picker to mark
+  // already-proficient skills as disabled when picking Skilled etc.
+  // Fetched separately from the feats catalog so the preview-detail
+  // render doesn't depend on a sheet-wide bg context (StepFeats is
+  // standalone-friendly).
+  const [bgSkillProfs, setBgSkillProfs] = useState<string[]>([]);
+  // Species-trait skill grants — Owlin's Silent Feathers → Stealth,
+  // Wood Elf's Keen Senses → Perception, etc. Fixed grants only
+  // (count === from.length); player-pick traits aren't surfaced here.
+  const [speciesSkillGrants, setSpeciesSkillGrants] = useState<string[]>([]);
   const packIdsKey = selectedPackIds.join(',');
 
   const enforcePrereqs = campaignRules.enforce_feat_prerequisites !== false;
@@ -106,6 +121,66 @@ export function StepFeats({ onPreviewChange, onAdvance }: Props) {
       })
       .finally(() => setLoading(false));
   }, [srdVersion, campaignId, packIdsKey]);
+
+  // Pull the background's structured skill list so the grant-picker
+  // knows what the character already has from background. Skipped when
+  // the player hasn't picked a background yet (the wizard normally
+  // gates Feats behind Background but campaign re-entries can land
+  // here without one).
+  useEffect(() => {
+    if (!backgroundKey) {
+      setBgSkillProfs([]);
+      return;
+    }
+    const includeHomebrew = !!campaignId || selectedPackIds.length > 0;
+    const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+    ContentResolver.search({
+      type: 'background',
+      system: 'dnd5e',
+      srdVersion,
+      tiers,
+      campaignId: campaignId ?? undefined,
+      packIds: !campaignId && selectedPackIds.length > 0 ? selectedPackIds : undefined,
+    }).then((r) => {
+      const bg = (r as Array<{ key: string; skillProficiencies?: string[] }>)
+        .find((b) => b.key === backgroundKey);
+      setBgSkillProfs(bg?.skillProficiencies ?? []);
+    });
+  }, [backgroundKey, srdVersion, campaignId, packIdsKey]);
+
+  // Same shape for the picked species — pull its traits and collect
+  // any fixed-grant skill proficiencies (Owlin → Stealth, etc.).
+  useEffect(() => {
+    if (!speciesKey) {
+      setSpeciesSkillGrants([]);
+      return;
+    }
+    const includeHomebrew = !!campaignId || selectedPackIds.length > 0;
+    const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
+    type TraitGrants = { skills?: { count: number; from: string[] } };
+    type TraitShape = { name: string; grants?: TraitGrants };
+    type SpeciesShape = { key: string; traits?: TraitShape[] };
+    ContentResolver.search({
+      type: 'species',
+      system: 'dnd5e',
+      srdVersion,
+      tiers,
+      campaignId: campaignId ?? undefined,
+      packIds: !campaignId && selectedPackIds.length > 0 ? selectedPackIds : undefined,
+    }).then((r) => {
+      const sp = (r as SpeciesShape[]).find((x) => x.key === speciesKey);
+      const grants: string[] = [];
+      for (const t of sp?.traits ?? []) {
+        const sg = t.grants?.skills;
+        if (!sg) continue;
+        // Fixed grants only — same gate the wizard finish flow uses.
+        if (sg.from.length === sg.count) {
+          for (const sk of sg.from) grants.push(sk);
+        }
+      }
+      setSpeciesSkillGrants(grants);
+    });
+  }, [speciesKey, srdVersion, campaignId, packIdsKey]);
 
   useEffect(() => { onPreviewChange?.(!!previewKey); }, [previewKey]);
 
@@ -177,6 +252,29 @@ export function StepFeats({ onPreviewChange, onAdvance }: Props) {
           const picksForFeat = featPicks[previewFeat.key]?.skills ?? [];
           const target = grant.count;
           const allOptions = grant.from === 'any' ? ALL_SKILLS : grant.from;
+          // Skills the character will already have at creation from
+          // class + (background after replacement merges) + other
+          // feats' picks. Per SRD: "If you gain a skill proficiency
+          // you already have, you can choose a different one." Hidden
+          // dupes would silently waste a Skilled pick, so we mark
+          // them disabled with a strikethrough subtitle.
+          //
+          // Mirror the wizard finish flow's merge: chosen class skills
+          // + bg skills with replacement substitutions + other feats'
+          // picks. Exclude THIS feat's picks so deselecting one
+          // doesn't immediately re-disable it.
+          const existingProfs = new Set<string>();
+          for (const sk of chosenSkills) existingProfs.add(sk.toLowerCase());
+          for (const sk of bgSkillProfs) {
+            const replacement = backgroundSkillReplacements[sk.toLowerCase()];
+            existingProfs.add((replacement ?? sk).toLowerCase());
+          }
+          // Species-trait grants (Owlin's Silent Feathers → Stealth, etc.).
+          for (const sk of speciesSkillGrants) existingProfs.add(sk.toLowerCase());
+          for (const [otherFeatKey, picks] of Object.entries(featPicks)) {
+            if (otherFeatKey === previewFeat.key) continue;
+            for (const sk of (picks.skills ?? [])) existingProfs.add(sk.toLowerCase());
+          }
           function togglePick(skill: string) {
             const has = picksForFeat.includes(skill);
             const next = has
@@ -193,20 +291,35 @@ export function StepFeats({ onPreviewChange, onAdvance }: Props) {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                 {allOptions.map((skill) => {
                   const picked = picksForFeat.includes(skill);
-                  const full = picksForFeat.length >= target && !picked;
+                  const isExisting = existingProfs.has(skill.toLowerCase());
+                  const capped = picksForFeat.length >= target && !picked;
+                  const disabled = isExisting || capped;
                   return (
-                    <TouchableOpacity
-                      key={skill}
-                      onPress={() => togglePick(skill)}
-                      disabled={full}
-                      style={[
-                        s.skillChip,
-                        picked && s.skillChipPicked,
-                        full && s.skillChipDisabled,
-                      ]}
-                    >
-                      <Text style={[s.skillChipText, picked && s.skillChipTextPicked]}>{skill}</Text>
-                    </TouchableOpacity>
+                    <View key={skill} style={{ alignItems: 'center' }}>
+                      <TouchableOpacity
+                        onPress={() => togglePick(skill)}
+                        disabled={disabled}
+                        style={[
+                          s.skillChip,
+                          picked && s.skillChipPicked,
+                          isExisting && s.skillChipExisting,
+                          capped && !isExisting && s.skillChipDisabled,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            s.skillChipText,
+                            picked && s.skillChipTextPicked,
+                            isExisting && s.skillChipTextExisting,
+                          ]}
+                        >
+                          {skill}
+                        </Text>
+                      </TouchableOpacity>
+                      {isExisting ? (
+                        <Text style={s.skillChipExistingHint}>Already proficient</Text>
+                      ) : null}
+                    </View>
                   );
                 })}
               </View>
@@ -489,8 +602,25 @@ const s = StyleSheet.create({
   },
   skillChipPicked: { backgroundColor: colors.primary, borderColor: colors.primary },
   skillChipDisabled: { opacity: 0.35 },
+  // "Already proficient" — distinct from capped-disabled so the player
+  // can tell which chips are off-limits because they'd duplicate an
+  // existing prof. Same treatment as the character sheet's picker.
+  skillChipExisting: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderColor: colors.outlineVariant,
+    opacity: 0.5,
+  },
   skillChipText: { fontSize: 12, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurfaceVariant },
   skillChipTextPicked: { color: colors.onPrimary },
+  skillChipTextExisting: {
+    color: colors.outline,
+    textDecorationLine: 'line-through',
+  },
+  skillChipExistingHint: {
+    fontSize: 9, fontFamily: fonts.label,
+    color: colors.outline,
+    marginTop: 2, letterSpacing: 0.3,
+  },
   // Commit bar
   commitBar: { marginTop: 4, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.outlineVariant },
   commitHint: {

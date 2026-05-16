@@ -63,9 +63,26 @@ export async function regenerateJoinCode(campaignId: string) {
 export async function getCampaignMembers(campaignId: string) {
   return supabase
     .from('campaign_members')
-    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, system, base_stats)')
+    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, system, base_stats, resources, conditions, avatar_url, avatar_card_url)')
     .eq('campaign_id', campaignId)
     .order('joined_at', { ascending: true });
+}
+
+/**
+ * Every character whose `campaign_id` points at this campaign — used
+ * by both the Members card (one row per character grouped by user)
+ * and the Party card (vitals rendering). Carries the full payload
+ * needed for `PartyMemberCard` (HP/AC/conditions/portrait) so a
+ * single fetch drives both surfaces; the older membership-pinned
+ * path via `getCampaignMembers().characters` is now redundant for
+ * party rendering and only kept for backwards compat.
+ */
+export async function getCharactersForCampaign(campaignId: string) {
+  return supabase
+    .from('characters')
+    .select('id, user_id, name, base_stats, resources, conditions, avatar_url, avatar_card_url')
+    .eq('campaign_id', campaignId)
+    .order('created_at', { ascending: true });
 }
 
 // Batched count for the campaigns list — one round-trip for all campaigns
@@ -173,41 +190,3 @@ export async function deleteCampaign(campaignId: string) {
     .eq('id', campaignId);
 }
 
-const ALLOWED_COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
-export async function uploadCampaignCover(campaignId: string, fileUri: string, mimeType: string) {
-  if (!ALLOWED_COVER_TYPES.includes(mimeType)) {
-    return { url: null, error: { message: 'Only JPEG, PNG, and WebP images are allowed.' } };
-  }
-
-  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-  const path = `campaign-covers/${campaignId}.${ext}`;
-
-  // Fetch the file as a blob for upload
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
-
-  const { error: uploadError } = await supabase.storage
-    .from('campaign-assets')
-    .upload(path, blob, { contentType: mimeType, upsert: true });
-
-  if (uploadError) return { url: null, error: uploadError };
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('campaign-assets')
-    .getPublicUrl(path);
-
-  // Append a version query param so clients and CDNs don't serve the prior
-  // upload's cached bytes — the storage path is stable (upsert), so without
-  // this the URL never changes even though the image did.
-  const versionedUrl = `${publicUrl}?v=${Date.now()}`;
-
-  const { error: updateError } = await supabase
-    .from('campaigns')
-    .update({ cover_image_url: versionedUrl })
-    .eq('id', campaignId);
-
-  if (updateError) return { url: null, error: updateError };
-
-  return { url: versionedUrl, error: null };
-}

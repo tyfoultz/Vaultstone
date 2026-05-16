@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character Sheet — Web Layout Mockups</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ── Tokens ── */
+  :root {
+    --canvas:    #121416;
+    --lowest:    #0c0e10;
+    --container: #1e2022;
+    --high:      #282a2c;
+    --highest:   #333537;
+    --primary:   #d3bbff;
+    --pri-ctn:   #6d28d9;
+    --secondary: #adc6ff;
+    --on-surf:   #e2e2e5;
+    --on-var:    #ccc3d7;
+    --outline:   #958da1;
+    --out-var:   #4a4455;
+    --gm:        #e6a255;
+    --gm-ctn:    #4a2a10;
+    --hp-green:  #1D9E75;
+    --hp-warn:   #EF9F27;
+    --hp-red:    #E24B4A;
+    --blue:      #3B82F6;
+    --head: 'Space Grotesk', sans-serif;
+    --body: 'Manrope', sans-serif;
+  }
+
+  body {
+    background: #0a0b0c;
+    color: var(--on-surf);
+    font-family: var(--body);
+    padding: 40px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 60px;
+  }
+
+  h1 {
+    font-family: var(--head);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--outline);
+    text-align: center;
+    margin-bottom: -40px;
+  }
+
+  .mockup-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mockup-label {
+    font-family: var(--head);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--outline);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .mockup-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--out-var);
+  }
+  .mockup-label span {
+    color: var(--primary);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-transform: none;
+    font-weight: 500;
+    font-family: var(--body);
+  }
+
+  .sheet-frame {
+    border: 1px solid var(--out-var);
+    border-radius: 12px;
+    overflow: hidden;
+    height: 580px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ──────────────────────────────────────────────────────────────
+     SHARED COMPONENTS
+  ────────────────────────────────────────────────────────────── */
+  .back-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--outline);
+    font-family: var(--body);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 0 14px 12px;
+    cursor: pointer;
+  }
+  .back-row:hover { color: var(--on-surf); }
+  .back-row svg { opacity: 0.7; }
+
+  .stat-chip {
+    background: var(--container);
+    border: 1px solid var(--out-var);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 7px 8px 6px;
+    gap: 2px;
+    min-width: 52px;
+  }
+  .stat-chip-val {
+    font-family: var(--head);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--on-surf);
+    line-height: 1;
+  }
+  .stat-chip-lbl {
+    font-family: var(--body);
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--outline);
+  }
+
+  .hp-bar-track {
+    height: 5px;
+    background: var(--out-var);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .hp-bar-fill {
+    height: 100%;
+    width: 68%;
+    background: var(--hp-warn);
+    border-radius: 3px;
+  }
+
+  .tab-content-area {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .section-head {
+    font-family: var(--body);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--outline);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-head::after { content: ''; flex: 1; height: 1px; background: var(--out-var); }
+
+  .ability-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .ability-cell {
+    background: var(--container);
+    border: 1px solid var(--out-var);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 4px 6px;
+    cursor: pointer;
+  }
+  .ability-cell:hover { border-color: var(--primary); }
+  .ability-cell .mod { font-family: var(--head); font-size: 18px; font-weight: 800; color: var(--primary); }
+  .ability-cell .score { font-size: 10px; color: var(--outline); margin-top: 1px; }
+  .ability-cell .lbl { font-size: 7px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--outline); }
+
+  .attack-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--container);
+    border: 1px solid var(--out-var);
+    border-radius: 8px;
+    margin-bottom: 6px;
+  }
+  .attack-name { font-family: var(--head); font-size: 13px; font-weight: 600; color: var(--on-surf); flex: 1; }
+  .atk-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--out-var);
+    font-size: 10px;
+    font-family: var(--body);
+    font-weight: 700;
+    color: var(--on-surf);
+    background: var(--high);
+    cursor: pointer;
+    letter-spacing: 0.3px;
+  }
+  .atk-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  .insp-dot {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid var(--out-var);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--gm);
+    font-size: 13px;
+  }
+  .insp-dot.active { background: var(--gm-ctn); border-color: var(--gm); }
+
+  /* ──────────────────────────────────────────────────────────────
+     MOCKUP A — Refined Sidebar
+  ────────────────────────────────────────────────────────────── */
+  .a-shell { display: flex; flex: 1; overflow: hidden; background: var(--canvas); }
+
+  .a-rail {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--lowest);
+    border-right: 1px solid var(--out-var);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .a-id-block {
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid var(--out-var);
+  }
+  .a-portrait-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .portrait-circle {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--high);
+    border: 1px solid var(--out-var);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--outline);
+    font-size: 20px;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .a-name-block { flex: 1; min-width: 0; padding-top: 2px; }
+  .a-name { font-family: var(--head); font-size: 15px; font-weight: 700; color: var(--on-surf); line-height: 1.2; }
+  .a-sub { font-size: 11px; color: var(--outline); margin-top: 3px; text-transform: capitalize; }
+  .a-lvl { font-size: 10px; color: var(--outline); margin-top: 2px; font-weight: 600; }
+  .a-icon-col { display: flex; flex-direction: column; gap: 5px; padding-top: 2px; }
+
+  .a-stats {
+    padding: 10px 14px 12px;
+    border-bottom: 1px solid var(--out-var);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .a-hp-row {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    cursor: pointer;
+  }
+  .a-hp-current { font-family: var(--head); font-size: 26px; font-weight: 800; color: var(--hp-warn); line-height: 1; }
+  .a-hp-sep { font-size: 14px; color: var(--outline); }
+  .a-hp-max { font-family: var(--head); font-size: 14px; font-weight: 600; color: var(--outline); }
+  .a-stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+
+  .a-tab-list { flex: 1; padding: 6px 0; overflow: hidden; }
+  .a-tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 16px;
+    cursor: pointer;
+    border-right: 2px solid transparent;
+    color: var(--outline);
+    font-family: var(--body);
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.1s;
+  }
+  .a-tab-btn:hover { background: var(--container); color: var(--on-var); }
+  .a-tab-btn.active {
+    background: var(--container);
+    border-right-color: var(--primary);
+    color: var(--primary);
+  }
+  .a-tab-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  .a-content {
+    flex: 1;
+    background: var(--canvas);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .a-content-inner {
+    flex: 1;
+    padding: 20px;
+    overflow: hidden;
+  }
+
+
+  /* ──────────────────────────────────────────────────────────────
+     MOCKUP B — Portrait Hero (wider rail, art-forward)
+  ────────────────────────────────────────────────────────────── */
+  .b-shell { display: flex; flex: 1; overflow: hidden; background: var(--canvas); }
+
+  .b-rail {
+    width: 300px;
+    flex-shrink: 0;
+    background: var(--lowest);
+    border-right: 1px solid var(--out-var);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .b-art-area {
+    position: relative;
+    height: 160px;
+    background: linear-gradient(160deg, #1a1060 0%, #0c0e10 60%);
+    flex-shrink: 0;
+    cursor: pointer;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .b-art-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--out-var);
+  }
+  .b-art-placeholder svg { width: 36px; height: 36px; }
+  .b-art-placeholder span { font-size: 10px; font-family: var(--body); font-weight: 600; letter-spacing: 0.5px; color: var(--out-var); }
+  .b-art-overlay {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 24px 14px 10px;
+    background: linear-gradient(to top, rgba(12,14,16,0.95), transparent);
+  }
+  .b-name { font-family: var(--head); font-size: 16px; font-weight: 800; color: var(--on-surf); line-height: 1.2; }
+  .b-sub { font-size: 11px; color: var(--on-var); margin-top: 2px; }
+  .b-art-controls {
+    position: absolute;
+    top: 10px; right: 10px;
+    display: flex;
+    gap: 5px;
+  }
+
+  .b-back {
+    position: absolute;
+    top: 10px; left: 10px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+  }
+  .b-back:hover { color: rgba(255,255,255,0.85); }
+
+  .b-stats {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--out-var);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .b-hp-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+  .b-hp-nums {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    flex: 1;
+  }
+  .b-hp-big { font-family: var(--head); font-size: 28px; font-weight: 800; color: var(--hp-warn); line-height: 1; }
+  .b-hp-sep { color: var(--outline); font-size: 14px; margin: 0 2px; }
+  .b-hp-max { font-family: var(--head); font-size: 14px; font-weight: 600; color: var(--outline); }
+  .b-hp-lbl { font-size: 8px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--outline); margin-bottom: 2px; }
+  .b-dmg-btn {
+    padding: 5px 10px;
+    border: 1px solid rgba(226,75,74,0.4);
+    border-radius: 6px;
+    font-size: 10px; font-weight: 700;
+    color: var(--hp-red);
+    background: rgba(226,75,74,0.08);
+    cursor: pointer;
+    font-family: var(--body);
+  }
+  .b-heal-btn {
+    padding: 5px 10px;
+    border: 1px solid rgba(29,158,117,0.4);
+    border-radius: 6px;
+    font-size: 10px; font-weight: 700;
+    color: var(--hp-green);
+    background: rgba(29,158,117,0.08);
+    cursor: pointer;
+    font-family: var(--body);
+  }
+  .b-mini-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+  }
+
+  .b-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--out-var);
+    background: var(--lowest);
+    flex-shrink: 0;
+  }
+  .b-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 4px 6px;
+    gap: 3px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--outline);
+    font-family: var(--body);
+  }
+  .b-tab:hover { color: var(--on-var); background: rgba(255,255,255,0.03); }
+  .b-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .b-tab svg { width: 16px; height: 16px; }
+
+  .b-content {
+    flex: 1;
+    background: var(--canvas);
+    padding: 20px;
+    overflow: hidden;
+  }
+
+
+  /* ──────────────────────────────────────────────────────────────
+     MOCKUP C — Top HUD bar, full-width content
+  ────────────────────────────────────────────────────────────── */
+  .c-shell {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    background: var(--canvas);
+  }
+
+  .c-top {
+    background: var(--lowest);
+    border-bottom: 1px solid var(--out-var);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  .c-portrait {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--high);
+    border: 1px solid var(--out-var);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--outline);
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .c-id { display: flex; flex-direction: column; margin-right: 4px; }
+  .c-name { font-family: var(--head); font-size: 15px; font-weight: 700; color: var(--on-surf); line-height: 1.2; }
+  .c-sub { font-size: 10px; color: var(--outline); margin-top: 1px; }
+
+  .c-divider { width: 1px; height: 32px; background: var(--out-var); flex-shrink: 0; }
+
+  .c-hp-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 100px;
+    cursor: pointer;
+    gap: 2px;
+  }
+  .c-hp-nums {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+  }
+  .c-hp-curr { font-family: var(--head); font-size: 20px; font-weight: 800; color: var(--hp-warn); line-height: 1; }
+  .c-hp-sep { font-size: 11px; color: var(--outline); margin: 0 1px; }
+  .c-hp-max { font-family: var(--head); font-size: 12px; font-weight: 600; color: var(--outline); }
+  .c-hp-bar { width: 100%; height: 4px; background: var(--out-var); border-radius: 2px; overflow: hidden; }
+  .c-hp-fill { height: 100%; width: 68%; background: var(--hp-warn); }
+
+  .c-stats {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+  }
+
+  .c-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--container);
+    border: 1px solid var(--out-var);
+    border-radius: 8px;
+    padding: 4px 10px;
+    min-width: 46px;
+    gap: 1px;
+  }
+  .c-stat-val { font-family: var(--head); font-size: 15px; font-weight: 700; color: var(--on-surf); }
+  .c-stat-lbl { font-size: 7px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--outline); }
+
+  .c-controls { display: flex; gap: 6px; margin-left: auto; }
+  .c-icon-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid var(--out-var);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--outline);
+    font-size: 13px;
+  }
+  .c-icon-btn.active { background: var(--gm-ctn); border-color: var(--gm); color: var(--gm); }
+
+  .c-tabs {
+    background: var(--container);
+    border-bottom: 1px solid var(--out-var);
+    display: flex;
+    padding: 0 20px;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .c-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    font-family: var(--body);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--outline);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .c-tab:hover { color: var(--on-var); }
+  .c-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .c-tab svg { width: 14px; height: 14px; }
+
+  .c-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    gap: 0;
+  }
+
+  .c-content {
+    flex: 1;
+    padding: 20px 24px;
+    overflow: hidden;
+    max-width: 720px;
+  }
+
+  .c-side-panel {
+    width: 240px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--out-var);
+    padding: 16px;
+    background: var(--lowest);
+    overflow: hidden;
+  }
+  .c-side-title {
+    font-size: 8px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--outline); margin-bottom: 10px; font-family: var(--body);
+  }
+  .save-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--out-var);
+    font-size: 11px;
+    font-family: var(--body);
+  }
+  .save-row:last-child { border-bottom: none; }
+  .save-label { color: var(--on-var); }
+  .save-val { font-family: var(--head); font-weight: 700; color: var(--primary); font-size: 12px; }
+  .prof-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); margin-right: 5px; display: inline-block; }
+
+  /* SVG icons (inline) */
+  .icon { display: inline-flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+
+<h1>Character Sheet — Web Layout Mockups</h1>
+
+<!-- ════════════════════════════════════════════════════════════
+     MOCKUP A — Refined Sidebar
+════════════════════════════════════════════════════════════ -->
+<div class="mockup-wrap">
+  <div class="mockup-label">
+    Option A — Refined Sidebar
+    <span>Left rail: portrait · identity · HP · stats · vertical nav &nbsp;|&nbsp; Right: tab content</span>
+  </div>
+  <div class="sheet-frame">
+    <div class="a-shell">
+
+      <!-- Rail -->
+      <div class="a-rail">
+        <div class="a-id-block">
+          <div class="back-row" style="padding:0 0 10px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Characters
+          </div>
+          <div class="a-portrait-row">
+            <div class="portrait-circle">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            </div>
+            <div class="a-name-block">
+              <div class="a-name">Vessa Thorne</div>
+              <div class="a-sub">Half-Elf · Rogue</div>
+              <div class="a-lvl">Level 3 &nbsp;·&nbsp; +2 Prof</div>
+            </div>
+            <div class="a-icon-col">
+              <div class="insp-dot active">★</div>
+              <div class="insp-dot" style="color:var(--outline);font-size:11px">⚙</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="a-stats">
+          <div>
+            <div style="font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--outline);margin-bottom:4px;font-family:var(--body)">Hit Points</div>
+            <div class="a-hp-row">
+              <span class="a-hp-current">31</span>
+              <span class="a-hp-sep">/</span>
+              <span class="a-hp-max">45</span>
+            </div>
+            <div class="hp-bar-track" style="margin-top:5px"><div class="hp-bar-fill"></div></div>
+          </div>
+          <div class="a-stat-grid">
+            <div class="stat-chip">
+              <div class="stat-chip-val" style="color:var(--secondary)">15</div>
+              <div class="stat-chip-lbl">AC</div>
+            </div>
+            <div class="stat-chip">
+              <div class="stat-chip-val">+3</div>
+              <div class="stat-chip-lbl">Init</div>
+            </div>
+            <div class="stat-chip">
+              <div class="stat-chip-val">30</div>
+              <div class="stat-chip-lbl">Speed</div>
+            </div>
+            <div class="stat-chip">
+              <div class="stat-chip-val">d8</div>
+              <div class="stat-chip-lbl">Hit Die</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="a-tab-list">
+          <div class="a-tab-btn active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 17.5L3 6V3h3l11.5 11.5M16.5 15.5l-1.5-1.5M10 5l3 3M3 21l7-7"/></svg>
+            Combat
+          </div>
+          <div class="a-tab-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Skills
+          </div>
+          <div class="a-tab-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Abilities
+          </div>
+          <div class="a-tab-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            Story
+          </div>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="a-content">
+        <div class="a-content-inner">
+          <div class="section-head">Ability Scores</div>
+          <div class="ability-grid" style="margin-bottom:16px">
+            <div class="ability-cell"><div class="mod">+1</div><div class="score">12</div><div class="lbl">STR</div></div>
+            <div class="ability-cell"><div class="mod">+3</div><div class="score">16</div><div class="lbl">DEX</div></div>
+            <div class="ability-cell"><div class="mod">+1</div><div class="score">12</div><div class="lbl">CON</div></div>
+            <div class="ability-cell"><div class="mod">+2</div><div class="score">14</div><div class="lbl">INT</div></div>
+            <div class="ability-cell"><div class="mod">+0</div><div class="score">10</div><div class="lbl">WIS</div></div>
+            <div class="ability-cell"><div class="mod">+2</div><div class="score">14</div><div class="lbl">CHA</div></div>
+          </div>
+          <div class="section-head">Attacks</div>
+          <div class="attack-row"><span class="attack-name">Shortsword</span><span class="atk-btn">+5 ATK</span><span class="atk-btn">1d6+3</span></div>
+          <div class="attack-row"><span class="attack-name">Hand Crossbow</span><span class="atk-btn">+5 ATK</span><span class="atk-btn">1d6+3</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     MOCKUP B — Portrait Hero
+════════════════════════════════════════════════════════════ -->
+<div class="mockup-wrap">
+  <div class="mockup-label">
+    Option B — Portrait Hero
+    <span>Wider rail with character art area · HP/damage controls prominent · bottom tab strip in rail</span>
+  </div>
+  <div class="sheet-frame">
+    <div class="b-shell">
+
+      <!-- Rail -->
+      <div class="b-rail">
+        <div class="b-art-area">
+          <div class="b-back">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Characters
+          </div>
+          <div class="b-art-controls">
+            <div class="insp-dot active" style="width:22px;height:22px;font-size:11px">★</div>
+            <div class="insp-dot" style="width:22px;height:22px;color:var(--outline);font-size:10px">⚙</div>
+          </div>
+          <div class="b-art-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="8" r="5"/><path d="M3 21c0-5 4-9 9-9s9 4 9 9"/></svg>
+            <span>Tap to add portrait</span>
+          </div>
+          <div class="b-art-overlay">
+            <div class="b-name">Vessa Thorne</div>
+            <div class="b-sub">Half-Elf Rogue · Level 3</div>
+          </div>
+        </div>
+
+        <div class="b-stats">
+          <div class="b-hp-section">
+            <div style="flex:1">
+              <div class="b-hp-lbl">Hit Points</div>
+              <div class="b-hp-nums">
+                <span class="b-hp-big">31</span>
+                <span class="b-hp-sep">/</span>
+                <span class="b-hp-max">45</span>
+              </div>
+              <div class="hp-bar-track"><div class="hp-bar-fill"></div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div class="b-dmg-btn">Damage</div>
+              <div class="b-heal-btn">Heal</div>
+            </div>
+          </div>
+          <div class="b-mini-stats">
+            <div class="stat-chip"><div class="stat-chip-val" style="color:var(--secondary)">15</div><div class="stat-chip-lbl">AC</div></div>
+            <div class="stat-chip"><div class="stat-chip-val">+3</div><div class="stat-chip-lbl">Init</div></div>
+            <div class="stat-chip"><div class="stat-chip-val">30</div><div class="stat-chip-lbl">Spd</div></div>
+            <div class="stat-chip"><div class="stat-chip-val" style="color:var(--primary)">+2</div><div class="stat-chip-lbl">Prof</div></div>
+          </div>
+        </div>
+
+        <div class="b-tabs">
+          <div class="b-tab active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 17.5L3 6V3h3l11.5 11.5M16.5 15.5l-1.5-1.5M10 5l3 3M3 21l7-7"/></svg>
+            Combat
+          </div>
+          <div class="b-tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Skills
+          </div>
+          <div class="b-tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Abilities
+          </div>
+          <div class="b-tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            Story
+          </div>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="b-content">
+        <div class="section-head">Ability Scores</div>
+        <div class="ability-grid" style="margin-bottom:16px">
+          <div class="ability-cell"><div class="mod">+1</div><div class="score">12</div><div class="lbl">STR</div></div>
+          <div class="ability-cell"><div class="mod">+3</div><div class="score">16</div><div class="lbl">DEX</div></div>
+          <div class="ability-cell"><div class="mod">+1</div><div class="score">12</div><div class="lbl">CON</div></div>
+          <div class="ability-cell"><div class="mod">+2</div><div class="score">14</div><div class="lbl">INT</div></div>
+          <div class="ability-cell"><div class="mod">+0</div><div class="score">10</div><div class="lbl">WIS</div></div>
+          <div class="ability-cell"><div class="mod">+2</div><div class="score">14</div><div class="lbl">CHA</div></div>
+        </div>
+        <div class="section-head">Attacks</div>
+        <div class="attack-row"><span class="attack-name">Shortsword</span><span class="atk-btn">+5 ATK</span><span class="atk-btn">1d6+3</span></div>
+        <div class="attack-row"><span class="attack-name">Hand Crossbow</span><span class="atk-btn">+5 ATK</span><span class="atk-btn">1d6+3</span></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     MOCKUP C — Top HUD + Two Content Columns
+════════════════════════════════════════════════════════════ -->
+<div class="mockup-wrap">
+  <div class="mockup-label">
+    Option C — Top HUD + Split Content
+    <span>Pinned top bar with all stats · horizontal tabs · main content + saves/conditions side panel</span>
+  </div>
+  <div class="sheet-frame">
+    <div class="c-shell">
+
+      <!-- Top HUD -->
+      <div class="c-top">
+        <div class="back-row" style="padding:0;margin-right:4px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Characters
+        </div>
+        <div class="c-portrait">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        </div>
+        <div class="c-id">
+          <div class="c-name">Vessa Thorne</div>
+          <div class="c-sub">Half-Elf Rogue · Level 3</div>
+        </div>
+
+        <div class="c-divider"></div>
+
+        <div class="c-hp-block">
+          <div class="c-hp-nums">
+            <span class="c-hp-curr">31</span>
+            <span class="c-hp-sep">/</span>
+            <span class="c-hp-max">45</span>
+          </div>
+          <div style="font-size:7px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--outline);font-family:var(--body);margin-top:1px">HP</div>
+          <div class="c-hp-bar"><div class="c-hp-fill"></div></div>
+        </div>
+
+        <div class="c-divider"></div>
+
+        <div class="c-stats">
+          <div class="c-stat"><div class="c-stat-val" style="color:var(--secondary)">15</div><div class="c-stat-lbl">AC</div></div>
+          <div class="c-stat"><div class="c-stat-val">+3</div><div class="c-stat-lbl">Init</div></div>
+          <div class="c-stat"><div class="c-stat-val">30</div><div class="c-stat-lbl">Spd</div></div>
+          <div class="c-stat"><div class="c-stat-val" style="color:var(--primary)">+2</div><div class="c-stat-lbl">Prof</div></div>
+        </div>
+
+        <div class="c-controls">
+          <div class="c-icon-btn active">★</div>
+          <div class="c-icon-btn" style="font-size:12px">⚙</div>
+        </div>
+      </div>
+
+      <!-- Tab bar -->
+      <div class="c-tabs">
+        <div class="c-tab active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 17.5L3 6V3h3l11.5 11.5M16.5 15.5l-1.5-1.5M10 5l3 3M3 21l7-7"/></svg>
+          Combat
+        </div>
+        <div class="c-tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          Skills
+        </div>
+        <div class="c-tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Abilities
+        </div>
+        <div class="c-tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          Story
+        </div>
+      </div>
+
+      <!-- Body: main + side panel -->
+      <div class="c-body">
+        <div class="c-content">
+          <div class="section-head">Ability Scores</div>
+          <div class="ability-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px">
+            <div class="ability-cell"><div class="mod">+1</div><div class="score">12</div><div class="lbl">STR</div></div>
+            <div class="ability-cell"><div class="mod">+3</div><div class="score">16</div><div class="lbl">DEX</div></div>
+            <div class="ability-cell"><div class="mod">+1</div><div class="score">12</div><div class="lbl">CON</div></div>
+            <div class="ability-cell"><div class="mod">+2</div><div class="score">14</div><div class="lbl">INT</div></div>
+            <div class="ability-cell"><div class="mod">+0</div><div class="score">10</div><div class="lbl">WIS</div></div>
+            <div class="ability-cell"><div class="mod">+2</div><div class="score">14</div><div class="lbl">CHA</div></div>
+          </div>
+          <div class="section-head">Attacks</div>
+          <div class="attack-row"><span class="attack-name">Shortsword</span><span class="atk-btn">+5 ATK</span><span class="atk-btn">1d6+3</span></div>
+          <div class="attack-row"><span class="attack-name">Hand Crossbow</span><span class="atk-btn">+5 ATK</span><span class="atk-btn">1d6+3</span></div>
+        </div>
+
+        <!-- Side panel — saves always visible -->
+        <div class="c-side-panel">
+          <div class="c-side-title">Saving Throws</div>
+          <div class="save-row"><span class="save-label"><span class="prof-dot"></span>Strength</span><span class="save-val">+3</span></div>
+          <div class="save-row"><span class="save-label"><span class="prof-dot"></span>Dexterity</span><span class="save-val">+5</span></div>
+          <div class="save-row"><span class="save-label" style="color:var(--outline)">Constitution</span><span class="save-val" style="color:var(--on-var)">+1</span></div>
+          <div class="save-row"><span class="save-label" style="color:var(--outline)">Intelligence</span><span class="save-val" style="color:var(--on-var)">+2</span></div>
+          <div class="save-row"><span class="save-label" style="color:var(--outline)">Wisdom</span><span class="save-val" style="color:var(--on-var)">+0</span></div>
+          <div class="save-row" style="border:none"><span class="save-label" style="color:var(--outline)">Charisma</span><span class="save-val" style="color:var(--on-var)">+2</span></div>
+
+          <div style="height:14px"></div>
+          <div class="c-side-title">Conditions</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">
+            <div style="padding:3px 8px;border:1px solid var(--out-var);border-radius:999px;font-size:9px;color:var(--outline);font-family:var(--body);font-weight:600">Poisoned</div>
+            <div style="padding:3px 8px;border:1px solid var(--out-var);border-radius:999px;font-size:9px;color:var(--outline);font-family:var(--body);font-weight:600">Prone</div>
+            <div style="padding:3px 8px;border:1px dashed var(--out-var);border-radius:999px;font-size:9px;color:var(--out-var);font-family:var(--body);font-weight:600">Stunned</div>
+            <div style="padding:3px 8px;border:1px dashed var(--out-var);border-radius:999px;font-size:9px;color:var(--out-var);font-family:var(--body);font-weight:600">Invisible</div>
+          </div>
+
+          <div style="height:14px"></div>
+          <div class="c-side-title">Passive Perception</div>
+          <div style="font-family:var(--head);font-size:22px;font-weight:800;color:var(--on-surf)">12</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Spell List — 05 Grimoire Tabs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=IM+Fell+English:ital@0;1&family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --surface: #121416;
+    --surface-container-lowest: #0c0e10;
+    --surface-container: #1e2022;
+    --surface-container-high: #282a2c;
+    --surface-container-highest: #333537;
+    --primary: #d3bbff;
+    --primary-container: #6d28d9;
+    --on-primary: #3f008d;
+    --on-surface: #e2e2e5;
+    --on-surface-variant: #ccc3d7;
+    --outline: #958da1;
+    --outline-variant: #4a4455;
+
+    --parchment: #2a2520;
+    --parchment-high: #322b24;
+    --parchment-edge: #5a4d3a;
+    --parchment-text: #ede0c2;
+    --parchment-text-soft: #b9a578;
+    --parchment-ink: #f1e6cd;
+    --parchment-rule: rgba(189, 161, 102, 0.35);
+    --tab-spine: #1a130c;
+    --tab-spine-edge: #3d2f1a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: 'Manrope', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  body {
+    background:
+      radial-gradient(1100px 700px at 30% 20%, rgba(109, 40, 217, 0.10), transparent 60%),
+      radial-gradient(900px 600px at 80% 90%, rgba(109, 40, 217, 0.08), transparent 60%),
+      var(--surface);
+    display: flex;
+    justify-content: center;
+    padding: 48px 24px 96px;
+  }
+  .page { width: 760px; }
+  .page-eyebrow {
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--primary);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .page-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 28px;
+    margin: 0 0 28px;
+    letter-spacing: -0.2px;
+  }
+
+  .grimoire {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    min-height: 700px;
+    border-radius: 6px;
+    overflow: visible;
+  }
+
+  /* Spine of tabs */
+  .tabs {
+    background: var(--tab-spine);
+    border: 1px solid var(--tab-spine-edge);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 0;
+  }
+  .tab {
+    position: relative;
+    padding: 18px 8px 18px 12px;
+    border: none;
+    background: transparent;
+    color: var(--parchment-text-soft);
+    cursor: pointer;
+    text-align: left;
+    border-bottom: 1px solid rgba(189, 161, 102, 0.14);
+    transition: background 0.15s, color 0.15s;
+  }
+  .tab:last-of-type { border-bottom: none; }
+  .tab .tab-label {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: block;
+    line-height: 1.2;
+  }
+  .tab .tab-meta {
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-size: 11px;
+    color: var(--parchment-text-soft);
+    opacity: 0.7;
+    margin-top: 4px;
+    display: block;
+  }
+  .tab:hover {
+    background: rgba(189, 161, 102, 0.08);
+    color: var(--parchment-ink);
+  }
+  .tab.active {
+    background:
+      radial-gradient(80% 100% at 100% 50%, rgba(189, 161, 102, 0.18), transparent 70%),
+      var(--parchment);
+    color: var(--parchment-ink);
+    border-right: 1px solid var(--parchment);
+    margin-right: -1px;
+    z-index: 2;
+  }
+  .tab.active::after {
+    /* Bookmark glyph nub on right edge of active tab */
+    content: '';
+    position: absolute;
+    right: -6px; top: 50%;
+    transform: translateY(-50%);
+    width: 10px; height: 10px;
+    background: var(--parchment-text-soft);
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(189, 161, 102, 0.5);
+  }
+
+  /* Page (right pane) */
+  .page-pane {
+    position: relative;
+    background:
+      radial-gradient(800px 400px at 30% 0%, rgba(189, 161, 102, 0.07), transparent 60%),
+      radial-gradient(800px 600px at 70% 100%, rgba(120, 80, 40, 0.10), transparent 60%),
+      var(--parchment);
+    border: 1px solid var(--parchment-edge);
+    border-radius: 0 6px 6px 0;
+    padding: 30px 36px 36px;
+    color: var(--parchment-text);
+    box-shadow:
+      inset 0 0 70px rgba(0,0,0,0.35),
+      0 12px 36px rgba(0,0,0,0.4);
+    min-height: 700px;
+  }
+  .page-pane::before {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: 0 6px 6px 0;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(90deg, rgba(0,0,0,0.04) 0 2px, transparent 2px 5px);
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+  .page-pane > * { position: relative; }
+
+  .page-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--parchment-rule);
+    margin-bottom: 20px;
+  }
+  .level-name {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--parchment-ink);
+    font-weight: 600;
+  }
+  .slots-mini {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--parchment-text-soft);
+  }
+  .slot-stones { display: inline-flex; gap: 6px; }
+  .stone {
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: var(--parchment-high);
+    border: 1px solid var(--parchment-edge);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+  }
+  .stone.lit {
+    background:
+      radial-gradient(circle at 30% 30%, rgba(255, 220, 140, 0.5), transparent 55%),
+      #b88a3a;
+    border-color: #d6a55a;
+    box-shadow: 0 0 5px rgba(212, 152, 60, 0.5);
+  }
+
+  .spell {
+    margin: 0 0 22px;
+  }
+  .spell-head {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  }
+  .spell-name {
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 22px;
+    color: var(--parchment-ink);
+    letter-spacing: 0.3px;
+  }
+  .school {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--parchment-text-soft);
+    border: 1px solid var(--parchment-rule);
+    padding: 2px 8px;
+    border-radius: 2px;
+    background: rgba(0,0,0,0.15);
+  }
+  .badge-icon {
+    font-family: 'IM Fell English', serif;
+    font-size: 13px;
+    width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--parchment-rule);
+    background: rgba(0,0,0,0.18);
+    color: var(--parchment-text-soft);
+    font-weight: 700;
+  }
+  .cast-btn {
+    margin-left: auto;
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    padding: 7px 16px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #4a3920, #2e2414);
+    color: var(--parchment-ink);
+    border: 1px solid var(--parchment-edge);
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255,220,150,0.1);
+  }
+  .cast-btn.atwill {
+    background: transparent;
+    color: var(--parchment-text-soft);
+  }
+  .meta-strip {
+    display: flex; flex-wrap: wrap; gap: 22px;
+    margin-top: 6px;
+    color: var(--parchment-text-soft);
+    font-family: 'IM Fell English', serif;
+    font-size: 14px;
+    font-style: italic;
+  }
+  .meta strong {
+    font-style: normal;
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--parchment-text-soft);
+    margin-right: 4px;
+    opacity: 0.85;
+  }
+  .desc {
+    margin-top: 10px;
+    font-family: 'IM Fell English', serif;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--parchment-text);
+  }
+
+  .page-content { display: none; }
+  .page-content.active { display: block; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-eyebrow">Mockup &middot; 05 Grimoire (Side Tabs)</div>
+  <h1 class="page-title">Prepared Spells</h1>
+
+  <div class="grimoire">
+    <!-- TABS -->
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="cantrips">
+        <span class="tab-label">Cantrips</span>
+        <span class="tab-meta">3 known</span>
+      </button>
+      <button class="tab" data-tab="lvl1">
+        <span class="tab-label">1st</span>
+        <span class="tab-meta">3 / 4 slots</span>
+      </button>
+      <button class="tab" data-tab="lvl2">
+        <span class="tab-label">2nd</span>
+        <span class="tab-meta">2 / 2 slots</span>
+      </button>
+    </nav>
+
+    <!-- PAGE -->
+    <div class="page-pane">
+      <!-- CANTRIPS -->
+      <section class="page-content active" id="cantrips">
+        <div class="page-head">
+          <span class="level-name">Cantrips</span>
+          <span class="slots-mini">At Will &middot; Eternal</span>
+        </div>
+
+        <article class="spell">
+          <div class="spell-head">
+            <span class="spell-name">Acid Splash</span>
+            <span class="school">Conjuration</span>
+            <button class="cast-btn atwill">At Will</button>
+          </div>
+          <div class="meta-strip">
+            <span class="meta"><strong>Time</strong> 1 action</span>
+            <span class="meta"><strong>Range</strong> 60 ft</span>
+            <span class="meta"><strong>Comp</strong> V, S</span>
+            <span class="meta"><strong>Dur</strong> Instant</span>
+          </div>
+          <p class="desc">Hurl an acid bubble at one or two creatures within 5 ft of each other. They must succeed on a Dexterity save or take 1d6 acid damage.</p>
+        </article>
+
+        <article class="spell">
+          <div class="spell-head">
+            <span class="spell-name">Fire Bolt</span>
+            <span class="school">Evocation</span>
+            <button class="cast-btn atwill">At Will</button>
+          </div>
+          <div class="meta-strip">
+            <span class="meta"><strong>Time</strong> 1 action</span>
+            <span class="meta"><strong>Range</strong> 120 ft</span>
+            <span class="meta"><strong>Comp</strong> V, S</span>
+            <span class="meta"><strong>Dur</strong> Instant</span>
+          </div>
+          <p class="desc">Hurl a mote of fire at a creature or object. Make a ranged spell attack — on a hit, deal 1d10 fire damage. Flammable objects ignite.</p>
+        </article>
+
+        <article class="spell">
+          <div class="spell-head">
+            <span class="spell-name">Mending</span>
+            <span class="school">Transmutation</span>
+            <button class="cast-btn atwill">At Will</button>
+          </div>
+          <div class="meta-strip">
+            <span class="meta"><strong>Time</strong> 1 minute</span>
+            <span class="meta"><strong>Range</strong> Touch</span>
+            <span class="meta"><strong>Comp</strong> V, S, M</span>
+            <span class="meta"><strong>Dur</strong> Instant</span>
+          </div>
+          <p class="desc">Repair a single break or tear in an object you touch — a torn cloak, a broken chain link, a leaking wineskin.</p>
+        </article>
+      </section>
+
+      <!-- 1ST -->
+      <section class="page-content" id="lvl1">
+        <div class="page-head">
+          <span class="level-name">First Circle</span>
+          <span class="slots-mini">
+            <span>Slots</span>
+            <span class="slot-stones">
+              <span class="stone lit"></span>
+              <span class="stone lit"></span>
+              <span class="stone lit"></span>
+              <span class="stone"></span>
+            </span>
+            <span>3 / 4</span>
+          </span>
+        </div>
+
+        <article class="spell">
+          <div class="spell-head">
+            <span class="spell-name">Cure Wounds</span>
+            <span class="school">Conjuration</span>
+            <button class="cast-btn">Cast</button>
+          </div>
+          <div class="meta-strip">
+            <span class="meta"><strong>Time</strong> 1 action</span>
+            <span class="meta"><strong>Range</strong> Touch</span>
+            <span class="meta"><strong>Comp</strong> V, S</span>
+            <span class="meta"><strong>Dur</strong> Instant</span>
+          </div>
+          <p class="desc">Touch a creature to restore 1d8 + your spellcasting modifier hit points. No effect on undead or constructs.</p>
+        </article>
+
+        <article class="spell">
+          <div class="spell-head">
+            <span class="spell-name">Shield</span>
+            <span class="school">Abjuration</span>
+            <span class="badge-icon" title="Concentration">C</span>
+            <button class="cast-btn">Cast</button>
+          </div>
+          <div class="meta-strip">
+            <span class="meta"><strong>Time</strong> 1 reaction</span>
+            <span class="meta"><strong>Range</strong> Self</span>
+            <span class="meta"><strong>Comp</strong> V, S</span>
+            <span class="meta"><strong>Dur</strong> 1 round</span>
+          </div>
+          <p class="desc">In response to being struck or targeted by Magic Missile, an invisible barrier of force grants you +5 AC until your next turn.</p>
+        </article>
+
+        <article class="spell">
+          <div class="spell-head">
+            <span class="spell-name">Detect Magic</span>
+            <span class="school">Divination</span>
+            <span class="badge-icon" title="Ritual">R</span>
+            <span class="badge-icon" title="Concentration">C</span>
+            <button class="cast-btn">Cast</button>
+          </div>
+          <div class="meta-strip">
+            <span class="meta"><strong>Time</strong> 1 action</span>
+            <span class="meta"><strong>Range</strong> Self (30 ft)</span>
+            <span class="meta"><strong>Comp</strong> V, S</span>
+            <span class="meta"><strong>Dur</strong> 10 min</span>
+          </div>
+          <p class="desc">Sense the presence of magic within 30 ft. As an action you may see a faint aura around any visible magical creature or item.</p>
+        </article>
+      </section>
+
+      <!-- 2ND -->
+      <section class="page-content" id="lvl2">
+        <div class="page-head">
+          <span class="level-name">Second Circle</span>
+          <span class="slots-mini">
+            <span>Slots</span>
+            <span class="slot-stones">
+              <span class="stone lit"></span>
+              <span class="stone lit"></span>
+            </span>
+            <span>2 / 2</span>
+          </span>
+        </div>
+
+        <article class="spell">
+          <div class="spell-head">
+            <span class="spell-name">Web</span>
+            <span class="school">Conjuration</span>
+            <span class="badge-icon" title="Concentration">C</span>
+            <button class="cast-btn">Cast</button>
+          </div>
+          <div class="meta-strip">
+            <span class="meta"><strong>Time</strong> 1 action</span>
+            <span class="meta"><strong>Range</strong> 60 ft</span>
+            <span class="meta"><strong>Comp</strong> V, S, M</span>
+            <span class="meta"><strong>Dur</strong> 1 hour</span>
+          </div>
+          <p class="desc">Fill a 20-ft cube with thick, sticky webs. Creatures starting their turn in the area must save or be restrained.</p>
+        </article>
+
+        <article class="spell">
+          <div class="spell-head">
+            <span class="spell-name">Misty Step</span>
+            <span class="school">Conjuration</span>
+            <button class="cast-btn">Cast</button>
+          </div>
+          <div class="meta-strip">
+            <span class="meta"><strong>Time</strong> 1 bonus action</span>
+            <span class="meta"><strong>Range</strong> Self</span>
+            <span class="meta"><strong>Comp</strong> V</span>
+            <span class="meta"><strong>Dur</strong> Instant</span>
+          </div>
+          <p class="desc">Wreathed in silvery mist, you teleport up to 30 feet to an unoccupied space you can see.</p>
+        </article>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      var target = t.getAttribute('data-tab');
+      document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('active'); });
+      document.querySelectorAll('.page-content').forEach(function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      var page = document.getElementById(target);
+      if (page) page.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

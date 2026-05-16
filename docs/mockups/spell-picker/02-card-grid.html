@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Spell Picker — 02 Card Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --surface: #121416;
+    --surface-container: #1e2022;
+    --surface-container-high: #282a2c;
+    --surface-container-highest: #333537;
+    --primary: #d3bbff;
+    --primary-container: #6d28d9;
+    --on-primary: #3f008d;
+    --on-surface: #e2e2e5;
+    --on-surface-variant: #ccc3d7;
+    --outline: #958da1;
+    --outline-variant: #4a4455;
+    --hp-danger: #e24b4a;
+    /* school accents */
+    --school-abj: #6ea8ff;
+    --school-con: #ffb86b;
+    --school-div: #c0e2ff;
+    --school-enc: #f4a4ff;
+    --school-evo: #ff8b6b;
+    --school-ill: #b88aff;
+    --school-nec: #8aff9b;
+    --school-tra: #ffe16b;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: 'Manrope', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  body {
+    background:
+      radial-gradient(1100px 700px at 30% 20%, rgba(109, 40, 217, 0.10), transparent 60%),
+      radial-gradient(900px 600px at 80% 90%, rgba(109, 40, 217, 0.08), transparent 60%),
+      var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+  .scrim {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(2px);
+    z-index: 0;
+  }
+  .modal {
+    position: relative; z-index: 1;
+    width: 1140px;
+    height: 740px;
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    overflow: hidden;
+  }
+  .modal-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--outline-variant);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .modal-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600; font-size: 22px;
+    margin: 0;
+  }
+  .subtitle { color: var(--on-surface-variant); font-size: 13px; }
+  .close-btn {
+    margin-left: auto;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface);
+    cursor: pointer;
+    font-size: 18px;
+  }
+  /* Filter bar */
+  .filter-bar {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--outline-variant);
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .search {
+    flex: 1; min-width: 240px;
+    padding: 10px 14px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 14px;
+  }
+  .search::placeholder { color: var(--on-surface-variant); }
+  .level-chips {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: 0.3px;
+  }
+  .chip.active {
+    background: rgba(109, 40, 217, 0.30);
+    border-color: rgba(211, 187, 255, 0.5);
+    color: var(--primary);
+  }
+  /* Grid */
+  .grid-scroll {
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .card {
+    position: relative;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    border-radius: 12px;
+    padding: 14px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    cursor: default;
+    transition: border-color 0.15s, transform 0.05s;
+  }
+  .card:hover {
+    border-color: rgba(211, 187, 255, 0.4);
+  }
+  .card.prepared {
+    border-color: rgba(211, 187, 255, 0.45);
+    background: linear-gradient(180deg, rgba(109, 40, 217, 0.18), var(--surface-container-high) 70%);
+  }
+  .card-head {
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .school-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: var(--surface-container-highest);
+    color: var(--on-surface);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid var(--outline-variant);
+  }
+  .school-icon[data-school="abj"] { color: var(--school-abj); border-color: rgba(110, 168, 255, 0.4); }
+  .school-icon[data-school="con"] { color: var(--school-con); border-color: rgba(255, 184, 107, 0.4); }
+  .school-icon[data-school="div"] { color: var(--school-div); border-color: rgba(192, 226, 255, 0.4); }
+  .school-icon[data-school="enc"] { color: var(--school-enc); border-color: rgba(244, 164, 255, 0.4); }
+  .school-icon[data-school="evo"] { color: var(--school-evo); border-color: rgba(255, 139, 107, 0.4); }
+  .school-icon[data-school="ill"] { color: var(--school-ill); border-color: rgba(184, 138, 255, 0.4); }
+  .school-icon[data-school="nec"] { color: var(--school-nec); border-color: rgba(138, 255, 155, 0.4); }
+  .school-icon[data-school="tra"] { color: var(--school-tra); border-color: rgba(255, 225, 107, 0.4); }
+  .name-block { flex: 1; min-width: 0; }
+  .card-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--on-surface);
+    margin: 0;
+    line-height: 1.2;
+  }
+  .card-sub {
+    color: var(--on-surface-variant);
+    font-size: 11px;
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-weight: 600;
+  }
+  .level-pill {
+    background: var(--surface-container-highest);
+    color: var(--on-surface-variant);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    align-self: flex-start;
+    flex-shrink: 0;
+  }
+  .card.prepared .level-pill {
+    background: var(--primary-container);
+    color: var(--primary);
+  }
+  .meta-line {
+    font-size: 12px;
+    color: var(--on-surface-variant);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .meta-line span { display: inline-flex; gap: 4px; align-items: center; }
+  .meta-line .label-tiny {
+    color: var(--outline);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .badges {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .pill {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pill.conc { color: #f4a4ff; border-color: rgba(244, 164, 255, 0.35); }
+  .pill.ritual { color: #b8e0ff; border-color: rgba(184, 224, 255, 0.35); }
+  .card-footer {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px dashed var(--outline-variant);
+  }
+  .desc-snip {
+    color: var(--on-surface-variant);
+    font-size: 12px;
+    line-height: 1.45;
+    flex: 1;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .add-toggle {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--primary-container);
+    color: var(--primary);
+    border: 1px solid rgba(211, 187, 255, 0.4);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .card.prepared .add-toggle {
+    background: transparent;
+    border-color: var(--hp-danger);
+    color: var(--hp-danger);
+  }
+  /* Hover tooltip preview */
+  .card:hover .tooltip {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  .tooltip {
+    position: absolute;
+    left: 0; right: 0;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--surface-container-highest);
+    border: 1px solid var(--outline-variant);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--on-surface);
+    line-height: 1.5;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+    opacity: 0;
+    transform: translateY(-4px);
+    pointer-events: none;
+    transition: opacity 0.15s, transform 0.15s;
+    z-index: 5;
+  }
+  .tooltip strong { color: var(--primary); }
+  /* Footer */
+  .modal-footer {
+    border-top: 1px solid var(--outline-variant);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface-container);
+  }
+  .footer-status {
+    color: var(--on-surface-variant);
+    font-size: 13px;
+  }
+  .footer-status strong { color: var(--primary); }
+  .ghost-btn {
+    margin-left: auto;
+    padding: 9px 18px;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--on-surface-variant);
+    border: 1px solid var(--outline-variant);
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .done-btn {
+    padding: 9px 22px;
+    border-radius: 10px;
+    background: var(--primary-container);
+    color: var(--primary);
+    border: 1px solid rgba(211, 187, 255, 0.4);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="scrim"></div>
+<div class="modal" role="dialog" aria-label="Manage Spells">
+  <div class="modal-header">
+    <div>
+      <h1 class="modal-title">Manage Spells</h1>
+      <div class="subtitle">Wizard, Lv 5 &middot; <span style="color:var(--primary)">9 prepared</span> / 13 max</div>
+    </div>
+    <button class="close-btn">&times;</button>
+  </div>
+
+  <div class="filter-bar">
+    <input class="search" type="text" placeholder="Search by name, school, or tag..." />
+    <div class="level-chips">
+      <button class="chip active">All</button>
+      <button class="chip">Cantrip</button>
+      <button class="chip">1st</button>
+      <button class="chip">2nd</button>
+      <button class="chip">3rd</button>
+      <button class="chip">4th</button>
+      <button class="chip">5th</button>
+    </div>
+  </div>
+
+  <div class="grid-scroll">
+    <div class="grid">
+      <!-- Card -->
+      <div class="card" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="div">D</div>
+          <div class="name-block">
+            <h3 class="card-name">Astral Whisper</h3>
+            <div class="card-sub">Divination Cantrip</div>
+          </div>
+          <div class="level-pill">0</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> 120 ft</span>
+        </div>
+        <div class="badges">
+          <span class="pill">V, S</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">Send a brief message of up to 25 words to a creature on the same plane.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">+ Add</button>
+        </div>
+        <div class="tooltip">
+          <strong>Astral Whisper.</strong> Whisper a 25-word message to a creature you have seen before;
+          they may reply with a 25-word message of their own. Range is unlimited on the same plane.
+        </div>
+      </div>
+
+      <div class="card prepared" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="evo">V</div>
+          <div class="name-block">
+            <h3 class="card-name">Minor Conflagration</h3>
+            <div class="card-sub">Evocation Cantrip</div>
+          </div>
+          <div class="level-pill">0</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> 60 ft</span>
+        </div>
+        <div class="badges">
+          <span class="pill">V, S</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">A bead of fire blossoms at a point you choose, dealing 1d10 fire damage.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">Remove</button>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="con">C</div>
+          <div class="name-block">
+            <h3 class="card-name">Mage Hand</h3>
+            <div class="card-sub">Conjuration Cantrip</div>
+          </div>
+          <div class="level-pill">0</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> 30 ft</span>
+        </div>
+        <div class="badges">
+          <span class="pill">V, S</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">A spectral hand appears and can manipulate objects up to 10 lbs at a distance.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">+ Add</button>
+        </div>
+      </div>
+
+      <div class="card prepared" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="enc">E</div>
+          <div class="name-block">
+            <h3 class="card-name">Veilbinder's Snare</h3>
+            <div class="card-sub">1st-Level Enchantment</div>
+          </div>
+          <div class="level-pill">1</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> 60 ft</span>
+        </div>
+        <div class="badges">
+          <span class="pill conc">Concentration</span>
+          <span class="pill">V, S, M</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">A whisper of geas curls through the air, halving a creature's speed and imposing disadvantage on attacks.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">Remove</button>
+        </div>
+      </div>
+
+      <div class="card prepared" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="evo">V</div>
+          <div class="name-block">
+            <h3 class="card-name">Magic Missile</h3>
+            <div class="card-sub">1st-Level Evocation</div>
+          </div>
+          <div class="level-pill">1</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> 120 ft</span>
+        </div>
+        <div class="badges">
+          <span class="pill">V, S</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">Three darts of force strike targets you can see for 1d4+1 force damage each.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">Remove</button>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="abj">A</div>
+          <div class="name-block">
+            <h3 class="card-name">Shield</h3>
+            <div class="card-sub">1st-Level Abjuration</div>
+          </div>
+          <div class="level-pill">1</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> Reaction</span>
+          <span><span class="label-tiny">Range</span> Self</span>
+        </div>
+        <div class="badges">
+          <span class="pill">V, S</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">+5 AC until the start of your next turn, including against the triggering attack.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">+ Add</button>
+        </div>
+      </div>
+
+      <div class="card prepared" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="enc">E</div>
+          <div class="name-block">
+            <h3 class="card-name">Sleep</h3>
+            <div class="card-sub">1st-Level Enchantment</div>
+          </div>
+          <div class="level-pill">1</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> 90 ft</span>
+        </div>
+        <div class="badges">
+          <span class="pill">V, S, M</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">Roll 5d8 — that many HP of creatures, lowest first, fall unconscious.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">Remove</button>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="div">D</div>
+          <div class="name-block">
+            <h3 class="card-name">Detect Magic</h3>
+            <div class="card-sub">1st-Level Divination</div>
+          </div>
+          <div class="level-pill">1</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> Self</span>
+        </div>
+        <div class="badges">
+          <span class="pill conc">Concentration</span>
+          <span class="pill ritual">Ritual</span>
+          <span class="pill">V, S</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">Sense the presence of magic within 30 feet for up to 10 minutes.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">+ Add</button>
+        </div>
+      </div>
+
+      <div class="card prepared" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="ill">I</div>
+          <div class="name-block">
+            <h3 class="card-name">Mirror Image</h3>
+            <div class="card-sub">2nd-Level Illusion</div>
+          </div>
+          <div class="level-pill">2</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> Self</span>
+        </div>
+        <div class="badges">
+          <span class="pill">V, S</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">Three illusory duplicates appear, drawing attacks away from you for 1 minute.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">Remove</button>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="con">C</div>
+          <div class="name-block">
+            <h3 class="card-name">Web</h3>
+            <div class="card-sub">2nd-Level Conjuration</div>
+          </div>
+          <div class="level-pill">2</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> 60 ft</span>
+        </div>
+        <div class="badges">
+          <span class="pill conc">Concentration</span>
+          <span class="pill">V, S, M</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">Sticky webs fill a 20-ft cube. Creatures starting their turn there are restrained on a failed save.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">+ Add</button>
+        </div>
+      </div>
+
+      <div class="card prepared" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="ill">I</div>
+          <div class="name-block">
+            <h3 class="card-name">Hush of Eldermark</h3>
+            <div class="card-sub">2nd-Level Illusion</div>
+          </div>
+          <div class="level-pill">2</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> 120 ft</span>
+        </div>
+        <div class="badges">
+          <span class="pill conc">Concentration</span>
+          <span class="pill">V, S</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">A 20-ft sphere of eerie silence. Creatures inside cannot speak, hear, or cast verbal spells.</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">Remove</button>
+        </div>
+      </div>
+
+      <div class="card prepared" onclick="toggle(this)">
+        <div class="card-head">
+          <div class="school-icon" data-school="evo">V</div>
+          <div class="name-block">
+            <h3 class="card-name">Fireball</h3>
+            <div class="card-sub">3rd-Level Evocation</div>
+          </div>
+          <div class="level-pill">3</div>
+        </div>
+        <div class="meta-line">
+          <span><span class="label-tiny">Time</span> 1 Action</span>
+          <span><span class="label-tiny">Range</span> 150 ft</span>
+        </div>
+        <div class="badges">
+          <span class="pill">V, S, M</span>
+        </div>
+        <div class="card-footer">
+          <div class="desc-snip">A 20-ft radius sphere of flame deals 8d6 fire damage (Dex save half).</div>
+          <button class="add-toggle" onclick="event.stopPropagation();toggle(this.closest('.card'))">Remove</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-footer">
+    <div class="footer-status">
+      <strong>9</strong> prepared &middot; <strong style="color:var(--on-surface)">4</strong> remaining slots
+    </div>
+    <button class="ghost-btn">Cancel</button>
+    <button class="done-btn">Done</button>
+  </div>
+</div>
+
+<script>
+  function toggle(card) {
+    card.classList.toggle('prepared');
+    const btn = card.querySelector('.add-toggle');
+    btn.textContent = card.classList.contains('prepared') ? 'Remove' : '+ Add';
+  }
+</script>
+</body>
+</html>

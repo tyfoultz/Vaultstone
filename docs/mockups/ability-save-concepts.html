@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ability + Save Concepts</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0c0e10;
+    color: #e2e2e5;
+    font-family: 'Manrope', system-ui, sans-serif;
+    display: flex;
+    gap: 24px;
+    padding: 32px 24px;
+    align-items: flex-start;
+  }
+  .col { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .label {
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #958da1; text-align: center;
+  }
+  .rail {
+    width: 260px;
+    background: #0c0e10;
+    border: 1px solid #4a4455;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .section-head {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #958da1;
+    padding: 8px 12px 4px;
+  }
+  .divider { height: 1px; background: #4a4455; margin: 0 12px; }
+
+  /* ───────── OPTION A — Merged tile: ability left, save right ───────── */
+  .a-row {
+    display: flex;
+    align-items: center;
+    padding: 5px 10px;
+    gap: 8px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.1s;
+  }
+  .a-row:hover { background: #1e2022; }
+  .a-badge {
+    width: 44px; height: 44px;
+    background: #1e2022;
+    border-radius: 8px;
+    border: 1px solid #4a4455;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: border-color 0.1s;
+  }
+  .a-badge:hover { border-color: #d3bbff; }
+  .a-badge.hot { border-color: #6d28d9; }
+  .a-mod { font-size: 16px; font-weight: 700; color: #e2e2e5; line-height: 1; }
+  .a-mod.hot { color: #d3bbff; }
+  .a-score { font-size: 10px; color: #958da1; }
+  .a-key { font-size: 10px; letter-spacing: 0.06em; color: #ccc3d7; font-weight: 600; flex: 1; }
+  .a-save-area {
+    display: flex; align-items: center; gap: 6px;
+    cursor: pointer;
+    padding: 3px 5px; border-radius: 5px;
+    transition: background 0.1s;
+  }
+  .a-save-area:hover { background: #282a2c; }
+  .a-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    border: 1.5px solid #4a4455;
+    flex-shrink: 0;
+  }
+  .a-dot.prof { background: #d3bbff; border-color: #d3bbff; }
+  .a-save-lbl { font-size: 10px; color: #958da1; letter-spacing: 0.04em; }
+  .a-save-val { font-size: 13px; font-weight: 700; color: #adc6ff; min-width: 26px; text-align: right; }
+  .a-save-val.prof { color: #d3bbff; }
+
+  /* ───────── OPTION B — 3-col score grid + compact save list ───────── */
+  .b-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .b-tile {
+    background: #1e2022;
+    border: 1px solid #4a4455;
+    border-radius: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 7px 4px 5px;
+    cursor: pointer;
+    transition: border-color 0.1s;
+  }
+  .b-tile:hover { border-color: #958da1; }
+  .b-tile.hot { border-color: #6d28d9; }
+  .b-mod { font-size: 20px; font-weight: 700; line-height: 1.1; color: #e2e2e5; }
+  .b-mod.hot { color: #d3bbff; }
+  .b-score { font-size: 10px; color: #958da1; margin-bottom: 1px; }
+  .b-key { font-size: 9px; letter-spacing: 0.08em; color: #ccc3d7; font-weight: 600; }
+
+  .b-saves {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    padding: 4px 10px 8px;
+  }
+  .b-save-cell {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 2px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.1s;
+  }
+  .b-save-cell:hover { background: #1e2022; }
+  .b-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    border: 1.5px solid #4a4455;
+    flex-shrink: 0;
+  }
+  .b-dot.prof { background: #d3bbff; border-color: #d3bbff; }
+  .b-save-key { font-size: 9px; letter-spacing: 0.05em; color: #958da1; flex: 1; }
+  .b-save-val { font-size: 12px; font-weight: 700; color: #e2e2e5; }
+  .b-save-val.prof { color: #d3bbff; }
+
+  /* ───────── OPTION C — Wide row: save pip | key | mod | score | save val ───── */
+  .c-rows { padding: 4px 8px 8px; display: flex; flex-direction: column; gap: 2px; }
+  .c-row {
+    display: flex; align-items: center; gap: 0;
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .c-row:hover { background: #1e2022; }
+  .c-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    border: 1.5px solid #4a4455;
+    flex-shrink: 0; margin-right: 7px;
+  }
+  .c-dot.prof { background: #d3bbff; border-color: #d3bbff; }
+  .c-key {
+    font-size: 11px; letter-spacing: 0.05em; color: #ccc3d7;
+    font-weight: 600; flex: 1;
+  }
+  .c-key.hot { color: #d3bbff; }
+  .c-mod-badge {
+    background: #1e2022;
+    border: 1px solid #4a4455;
+    border-radius: 5px;
+    padding: 2px 7px;
+    display: flex; flex-direction: column; align-items: center;
+    min-width: 40px; margin-right: 4px;
+    cursor: pointer;
+    transition: border-color 0.1s;
+  }
+  .c-mod-badge:hover { border-color: #d3bbff; }
+  .c-mod-badge.hot { border-color: #6d28d9; }
+  .c-mod { font-size: 14px; font-weight: 700; color: #e2e2e5; line-height: 1.1; }
+  .c-mod.hot { color: #d3bbff; }
+  .c-raw { font-size: 9px; color: #958da1; }
+  .c-sep { width: 1px; height: 22px; background: #4a4455; margin: 0 8px; }
+  .c-save-val { font-size: 14px; font-weight: 700; color: #e2e2e5; min-width: 28px; text-align: right; }
+  .c-save-val.prof { color: #d3bbff; }
+  .c-save-lbl { font-size: 9px; color: #958da1; min-width: 28px; text-align: right; }
+</style>
+</head>
+<body>
+
+<!-- ─── OPTION A ─────────────────────────────────────────────────────────── -->
+<div class="col">
+  <div class="label">Option A<br>Tile + inline save</div>
+  <div class="rail">
+    <div class="section-head">Abilities &amp; Saves</div>
+    <div style="padding: 4px 4px 8px; display:flex; flex-direction:column; gap:1px;">
+
+      <div class="a-row">
+        <div class="a-badge" title="Roll STR check">
+          <span class="a-mod">+3</span>
+          <span class="a-score">16</span>
+        </div>
+        <span class="a-key">STR</span>
+        <div class="a-save-area">
+          <div class="a-dot prof"></div>
+          <span class="a-save-lbl">SAVE</span>
+          <span class="a-save-val prof">+5</span>
+        </div>
+      </div>
+
+      <div class="a-row">
+        <div class="a-badge" title="Roll DEX check">
+          <span class="a-mod">+2</span>
+          <span class="a-score">14</span>
+        </div>
+        <span class="a-key">DEX</span>
+        <div class="a-save-area">
+          <div class="a-dot"></div>
+          <span class="a-save-lbl">SAVE</span>
+          <span class="a-save-val">+2</span>
+        </div>
+      </div>
+
+      <div class="a-row">
+        <div class="a-badge" title="Roll CON check">
+          <span class="a-mod">+1</span>
+          <span class="a-score">12</span>
+        </div>
+        <span class="a-key">CON</span>
+        <div class="a-save-area">
+          <div class="a-dot prof"></div>
+          <span class="a-save-lbl">SAVE</span>
+          <span class="a-save-val prof">+3</span>
+        </div>
+      </div>
+
+      <div class="a-row">
+        <div class="a-badge hot" title="Roll INT check">
+          <span class="a-mod hot">+4</span>
+          <span class="a-score">18</span>
+        </div>
+        <span class="a-key">INT</span>
+        <div class="a-save-area">
+          <div class="a-dot"></div>
+          <span class="a-save-lbl">SAVE</span>
+          <span class="a-save-val">+4</span>
+        </div>
+      </div>
+
+      <div class="a-row">
+        <div class="a-badge" title="Roll WIS check">
+          <span class="a-mod">+0</span>
+          <span class="a-score">10</span>
+        </div>
+        <span class="a-key">WIS</span>
+        <div class="a-save-area">
+          <div class="a-dot"></div>
+          <span class="a-save-lbl">SAVE</span>
+          <span class="a-save-val">+0</span>
+        </div>
+      </div>
+
+      <div class="a-row">
+        <div class="a-badge" title="Roll CHA check">
+          <span class="a-mod">−1</span>
+          <span class="a-score">8</span>
+        </div>
+        <span class="a-key">CHA</span>
+        <div class="a-save-area">
+          <div class="a-dot"></div>
+          <span class="a-save-lbl">SAVE</span>
+          <span class="a-save-val">−1</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── OPTION B ─────────────────────────────────────────────────────────── -->
+<div class="col">
+  <div class="label">Option B<br>3-col grid + 3-col saves</div>
+  <div class="rail">
+    <div class="section-head">Ability Scores</div>
+    <div class="b-grid">
+      <div class="b-tile"><span class="b-mod">+3</span><span class="b-score">16</span><span class="b-key">STR</span></div>
+      <div class="b-tile"><span class="b-mod">+2</span><span class="b-score">14</span><span class="b-key">DEX</span></div>
+      <div class="b-tile"><span class="b-mod">+1</span><span class="b-score">12</span><span class="b-key">CON</span></div>
+      <div class="b-tile hot"><span class="b-mod hot">+4</span><span class="b-score">18</span><span class="b-key">INT</span></div>
+      <div class="b-tile"><span class="b-mod">+0</span><span class="b-score">10</span><span class="b-key">WIS</span></div>
+      <div class="b-tile"><span class="b-mod">−1</span><span class="b-score">8</span><span class="b-key">CHA</span></div>
+    </div>
+    <div class="divider"></div>
+    <div class="section-head" style="padding-top:6px;">Saving Throws</div>
+    <div class="b-saves">
+      <div class="b-save-cell"><div class="b-dot prof"></div><span class="b-save-key">STR</span><span class="b-save-val prof">+5</span></div>
+      <div class="b-save-cell"><div class="b-dot"></div><span class="b-save-key">DEX</span><span class="b-save-val">+2</span></div>
+      <div class="b-save-cell"><div class="b-dot prof"></div><span class="b-save-key">CON</span><span class="b-save-val prof">+3</span></div>
+      <div class="b-save-cell"><div class="b-dot"></div><span class="b-save-key">INT</span><span class="b-save-val">+4</span></div>
+      <div class="b-save-cell"><div class="b-dot"></div><span class="b-save-key">WIS</span><span class="b-save-val">+0</span></div>
+      <div class="b-save-cell"><div class="b-dot"></div><span class="b-save-key">CHA</span><span class="b-save-val">−1</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── OPTION C ─────────────────────────────────────────────────────────── -->
+<div class="col">
+  <div class="label">Option C<br>Full row: mod badge | name | save</div>
+  <div class="rail">
+    <div class="section-head">Abilities &amp; Saves</div>
+    <div class="c-rows">
+
+      <div class="c-row">
+        <div class="c-dot prof"></div>
+        <span class="c-key">Strength</span>
+        <div class="c-mod-badge" title="Roll STR check"><span class="c-mod">+3</span><span class="c-raw">16</span></div>
+        <div class="c-sep"></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end">
+          <span class="c-save-val prof">+5</span>
+          <span class="c-save-lbl">save</span>
+        </div>
+      </div>
+
+      <div class="c-row">
+        <div class="c-dot"></div>
+        <span class="c-key">Dexterity</span>
+        <div class="c-mod-badge" title="Roll DEX check"><span class="c-mod">+2</span><span class="c-raw">14</span></div>
+        <div class="c-sep"></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end">
+          <span class="c-save-val">+2</span>
+          <span class="c-save-lbl">save</span>
+        </div>
+      </div>
+
+      <div class="c-row">
+        <div class="c-dot prof"></div>
+        <span class="c-key">Constitution</span>
+        <div class="c-mod-badge" title="Roll CON check"><span class="c-mod">+1</span><span class="c-raw">12</span></div>
+        <div class="c-sep"></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end">
+          <span class="c-save-val prof">+3</span>
+          <span class="c-save-lbl">save</span>
+        </div>
+      </div>
+
+      <div class="c-row">
+        <div class="c-dot"></div>
+        <span class="c-key hot">Intelligence</span>
+        <div class="c-mod-badge hot" title="Roll INT check"><span class="c-mod hot">+4</span><span class="c-raw">18</span></div>
+        <div class="c-sep"></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end">
+          <span class="c-save-val">+4</span>
+          <span class="c-save-lbl">save</span>
+        </div>
+      </div>
+
+      <div class="c-row">
+        <div class="c-dot"></div>
+        <span class="c-key">Wisdom</span>
+        <div class="c-mod-badge" title="Roll WIS check"><span class="c-mod">+0</span><span class="c-raw">10</span></div>
+        <div class="c-sep"></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end">
+          <span class="c-save-val">+0</span>
+          <span class="c-save-lbl">save</span>
+        </div>
+      </div>
+
+      <div class="c-row">
+        <div class="c-dot"></div>
+        <span class="c-key">Charisma</span>
+        <div class="c-mod-badge" title="Roll CHA check"><span class="c-mod">−1</span><span class="c-raw">8</span></div>
+        <div class="c-sep"></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end">
+          <span class="c-save-val">−1</span>
+          <span class="c-save-lbl">save</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Spell Picker — 03 Dense Table</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --surface: #121416;
+    --surface-container: #1e2022;
+    --surface-container-high: #282a2c;
+    --surface-container-highest: #333537;
+    --primary: #d3bbff;
+    --primary-container: #6d28d9;
+    --on-primary: #3f008d;
+    --on-surface: #e2e2e5;
+    --on-surface-variant: #ccc3d7;
+    --outline: #958da1;
+    --outline-variant: #4a4455;
+    --hp-danger: #e24b4a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: 'Manrope', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  body {
+    background:
+      radial-gradient(1100px 700px at 30% 20%, rgba(109, 40, 217, 0.10), transparent 60%),
+      radial-gradient(900px 600px at 80% 90%, rgba(109, 40, 217, 0.08), transparent 60%),
+      var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+  .scrim {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(2px);
+    z-index: 0;
+  }
+  .modal {
+    position: relative; z-index: 1;
+    width: 1140px;
+    height: 740px;
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    overflow: hidden;
+  }
+  .modal-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--outline-variant);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .modal-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600; font-size: 22px;
+    margin: 0;
+  }
+  .subtitle { color: var(--on-surface-variant); font-size: 13px; }
+  .close-btn {
+    margin-left: auto;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface);
+    cursor: pointer;
+    font-size: 18px;
+  }
+  .filter-bar {
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--outline-variant);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .search {
+    flex: 1;
+    padding: 9px 14px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+  }
+  .search::placeholder { color: var(--on-surface-variant); }
+  .filter-select {
+    padding: 9px 14px;
+    background: var(--surface-container-high);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  /* Table */
+  .table-scroll {
+    overflow-y: auto;
+  }
+  table.spells {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.spells thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface-container-high);
+    color: var(--on-surface-variant);
+    text-align: left;
+    padding: 10px 14px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--outline-variant);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  table.spells thead th:hover {
+    background: var(--surface-container-highest);
+    color: var(--on-surface);
+  }
+  table.spells thead th.sorted::after {
+    content: ' ▲';
+    color: var(--primary);
+    font-size: 9px;
+  }
+  table.spells thead th.sorted.desc::after {
+    content: ' ▼';
+  }
+  table.spells td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(74, 68, 85, 0.4);
+    vertical-align: middle;
+  }
+  table.spells tbody tr {
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  table.spells tbody tr:hover {
+    background: rgba(109, 40, 217, 0.08);
+  }
+  table.spells tbody tr.prepared {
+    background: rgba(109, 40, 217, 0.10);
+  }
+  table.spells tbody tr.prepared:hover {
+    background: rgba(109, 40, 217, 0.18);
+  }
+  .name-cell {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    color: var(--on-surface);
+    font-size: 13px;
+  }
+  tr.prepared .name-cell {
+    color: var(--primary);
+  }
+  .level-cell {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    color: var(--on-surface-variant);
+    text-align: center;
+  }
+  .school-cell { color: var(--on-surface-variant); }
+  .check-cell { text-align: center; color: var(--on-surface-variant); }
+  .check-cell .yes { color: var(--primary); font-weight: 700; }
+  .add-cell { text-align: center; }
+  .add-icon-btn {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--primary-container);
+    color: var(--primary);
+    border: 1px solid rgba(211, 187, 255, 0.4);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  tr.prepared .add-icon-btn {
+    background: transparent;
+    border-color: var(--hp-danger);
+    color: var(--hp-danger);
+  }
+  /* Expanded row */
+  tr.expand-row td {
+    padding: 0;
+    background: var(--surface-container-high);
+    border-bottom: 1px solid var(--outline-variant);
+  }
+  .expand-content {
+    padding: 16px 24px 18px 60px;
+    color: var(--on-surface);
+    font-size: 13px;
+    line-height: 1.6;
+    display: none;
+  }
+  tr.expand-row.open .expand-content { display: block; }
+  .expand-content .meta-strip {
+    display: flex; gap: 22px; flex-wrap: wrap;
+    margin-bottom: 12px;
+    color: var(--on-surface-variant);
+    font-size: 12px;
+  }
+  .expand-content .meta-strip strong {
+    color: var(--on-surface);
+    margin-right: 6px;
+  }
+  /* Footer */
+  .modal-footer {
+    border-top: 1px solid var(--outline-variant);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface-container);
+  }
+  .footer-status {
+    color: var(--on-surface-variant);
+    font-size: 13px;
+  }
+  .footer-status strong { color: var(--primary); }
+  .ghost-btn {
+    margin-left: auto;
+    padding: 9px 18px;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--on-surface-variant);
+    border: 1px solid var(--outline-variant);
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .done-btn {
+    padding: 9px 22px;
+    border-radius: 10px;
+    background: var(--primary-container);
+    color: var(--primary);
+    border: 1px solid rgba(211, 187, 255, 0.4);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="scrim"></div>
+<div class="modal" role="dialog" aria-label="Manage Spells">
+  <div class="modal-header">
+    <div>
+      <h1 class="modal-title">Manage Spells</h1>
+      <div class="subtitle">Wizard, Lv 5 &middot; <span style="color:var(--primary)">9 prepared</span> / 13 max</div>
+    </div>
+    <button class="close-btn">&times;</button>
+  </div>
+
+  <div class="filter-bar">
+    <input class="search" type="text" placeholder="Search 341 spells..." />
+    <select class="filter-select">
+      <option>All Levels</option>
+      <option>Cantrip</option>
+      <option>1st</option>
+      <option>2nd</option>
+      <option>3rd</option>
+    </select>
+    <select class="filter-select">
+      <option>All Schools</option>
+      <option>Abjuration</option>
+      <option>Conjuration</option>
+      <option>Divination</option>
+      <option>Enchantment</option>
+      <option>Evocation</option>
+      <option>Illusion</option>
+      <option>Necromancy</option>
+      <option>Transmutation</option>
+    </select>
+    <select class="filter-select">
+      <option>Show All</option>
+      <option>Prepared Only</option>
+      <option>Unprepared Only</option>
+    </select>
+  </div>
+
+  <div class="table-scroll">
+    <table class="spells">
+      <thead>
+        <tr>
+          <th class="sorted">Name</th>
+          <th>Lvl</th>
+          <th>School</th>
+          <th>Casting</th>
+          <th>Range</th>
+          <th>Components</th>
+          <th>Conc.</th>
+          <th>Ritual</th>
+          <th>Add</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr onclick="expand(this)">
+          <td class="name-cell">Astral Whisper</td>
+          <td class="level-cell">0</td>
+          <td class="school-cell">Divination</td>
+          <td>1 Action</td>
+          <td>120 ft</td>
+          <td>V, S</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">+</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">
+          <div class="meta-strip">
+            <span><strong>Classes:</strong> Wizard, Sorcerer, Bard</span>
+            <span><strong>Source:</strong> SRD 5.2</span>
+          </div>
+          Whisper a brief, 25-word message to a creature you have seen before. The target hears the message in
+          their mind and may reply with a 25-word message of their own. The spell can pass through solid
+          objects but is blocked by 1 foot of stone, 1 inch of metal, or a thin sheet of lead.
+        </div></td></tr>
+
+        <tr class="prepared" onclick="expand(this)">
+          <td class="name-cell">Minor Conflagration</td>
+          <td class="level-cell">0</td>
+          <td class="school-cell">Evocation</td>
+          <td>1 Action</td>
+          <td>60 ft</td>
+          <td>V, S</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">&minus;</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">
+          A bead of fire blossoms at a point you choose, dealing 1d10 fire damage on a failed Dex save.
+        </div></td></tr>
+
+        <tr onclick="expand(this)">
+          <td class="name-cell">Mage Hand</td>
+          <td class="level-cell">0</td>
+          <td class="school-cell">Conjuration</td>
+          <td>1 Action</td>
+          <td>30 ft</td>
+          <td>V, S</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">+</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">A spectral hand appears and can manipulate small objects.</div></td></tr>
+
+        <tr onclick="expand(this)">
+          <td class="name-cell">Prestidigitation</td>
+          <td class="level-cell">0</td>
+          <td class="school-cell">Transmutation</td>
+          <td>1 Action</td>
+          <td>10 ft</td>
+          <td>V, S</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">+</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">A minor magical trick used by novice spellcasters.</div></td></tr>
+
+        <tr class="prepared" onclick="expand(this)">
+          <td class="name-cell">Veilbinder's Snare</td>
+          <td class="level-cell">1</td>
+          <td class="school-cell">Enchantment</td>
+          <td>1 Action</td>
+          <td>60 ft</td>
+          <td>V, S, M</td>
+          <td class="check-cell"><span class="yes">&#10003;</span></td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">&minus;</button></td>
+        </tr>
+        <tr class="expand-row open"><td colspan="9"><div class="expand-content">
+          <div class="meta-strip">
+            <span><strong>Duration:</strong> Concentration, up to 1 minute</span>
+            <span><strong>Save:</strong> Wisdom</span>
+            <span><strong>Classes:</strong> Wizard, Sorcerer</span>
+          </div>
+          Choose one creature you can see within range. The target must succeed on a Wisdom saving throw or
+          become ensnared. While ensnared, the target's speed is halved and it has disadvantage on attack
+          rolls against any creature other than you. <em>At Higher Levels:</em> 1 additional target per slot
+          above 1st (within 30 ft of each other).
+        </div></td></tr>
+
+        <tr class="prepared" onclick="expand(this)">
+          <td class="name-cell">Magic Missile</td>
+          <td class="level-cell">1</td>
+          <td class="school-cell">Evocation</td>
+          <td>1 Action</td>
+          <td>120 ft</td>
+          <td>V, S</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">&minus;</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">Three darts of force strike targets you can see for 1d4+1 force damage each.</div></td></tr>
+
+        <tr onclick="expand(this)">
+          <td class="name-cell">Shield</td>
+          <td class="level-cell">1</td>
+          <td class="school-cell">Abjuration</td>
+          <td>Reaction</td>
+          <td>Self</td>
+          <td>V, S</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">+</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">+5 AC until your next turn, including against the triggering attack.</div></td></tr>
+
+        <tr class="prepared" onclick="expand(this)">
+          <td class="name-cell">Sleep</td>
+          <td class="level-cell">1</td>
+          <td class="school-cell">Enchantment</td>
+          <td>1 Action</td>
+          <td>90 ft</td>
+          <td>V, S, M</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">&minus;</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">5d8 HP of creatures, lowest first, fall unconscious for 1 minute.</div></td></tr>
+
+        <tr onclick="expand(this)">
+          <td class="name-cell">Detect Magic</td>
+          <td class="level-cell">1</td>
+          <td class="school-cell">Divination</td>
+          <td>1 Action</td>
+          <td>Self</td>
+          <td>V, S</td>
+          <td class="check-cell"><span class="yes">&#10003;</span></td>
+          <td class="check-cell"><span class="yes">&#10003;</span></td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">+</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">Sense magic within 30 feet for 10 minutes.</div></td></tr>
+
+        <tr class="prepared" onclick="expand(this)">
+          <td class="name-cell">Mirror Image</td>
+          <td class="level-cell">2</td>
+          <td class="school-cell">Illusion</td>
+          <td>1 Action</td>
+          <td>Self</td>
+          <td>V, S</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">&minus;</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">Three illusory duplicates protect you for 1 minute.</div></td></tr>
+
+        <tr onclick="expand(this)">
+          <td class="name-cell">Web</td>
+          <td class="level-cell">2</td>
+          <td class="school-cell">Conjuration</td>
+          <td>1 Action</td>
+          <td>60 ft</td>
+          <td>V, S, M</td>
+          <td class="check-cell"><span class="yes">&#10003;</span></td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">+</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">Sticky webs fill a 20-ft cube, restraining creatures inside.</div></td></tr>
+
+        <tr class="prepared" onclick="expand(this)">
+          <td class="name-cell">Hush of Eldermark</td>
+          <td class="level-cell">2</td>
+          <td class="school-cell">Illusion</td>
+          <td>1 Action</td>
+          <td>120 ft</td>
+          <td>V, S</td>
+          <td class="check-cell"><span class="yes">&#10003;</span></td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">&minus;</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">A 20-ft sphere of magical silence — no sound originates from within or passes through.</div></td></tr>
+
+        <tr onclick="expand(this)">
+          <td class="name-cell">Misty Step</td>
+          <td class="level-cell">2</td>
+          <td class="school-cell">Conjuration</td>
+          <td>Bonus Action</td>
+          <td>Self</td>
+          <td>V</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">+</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">Teleport up to 30 feet to an unoccupied space you can see.</div></td></tr>
+
+        <tr class="prepared" onclick="expand(this)">
+          <td class="name-cell">Fireball</td>
+          <td class="level-cell">3</td>
+          <td class="school-cell">Evocation</td>
+          <td>1 Action</td>
+          <td>150 ft</td>
+          <td>V, S, M</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">&minus;</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">A 20-ft radius sphere of flame deals 8d6 fire damage (Dex save half).</div></td></tr>
+
+        <tr onclick="expand(this)">
+          <td class="name-cell">Counterspell</td>
+          <td class="level-cell">3</td>
+          <td class="school-cell">Abjuration</td>
+          <td>Reaction</td>
+          <td>60 ft</td>
+          <td>S</td>
+          <td class="check-cell">—</td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">+</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">Interrupt a creature in the process of casting a spell.</div></td></tr>
+
+        <tr onclick="expand(this)">
+          <td class="name-cell">Fly</td>
+          <td class="level-cell">3</td>
+          <td class="school-cell">Transmutation</td>
+          <td>1 Action</td>
+          <td>Touch</td>
+          <td>V, S, M</td>
+          <td class="check-cell"><span class="yes">&#10003;</span></td>
+          <td class="check-cell">—</td>
+          <td class="add-cell"><button class="add-icon-btn" onclick="event.stopPropagation();togglePrepared(this)">+</button></td>
+        </tr>
+        <tr class="expand-row"><td colspan="9"><div class="expand-content">Touch a willing creature; they gain a flying speed of 60 ft for 10 minutes.</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="modal-footer">
+    <div class="footer-status">
+      <strong>9</strong> prepared &middot; <strong style="color:var(--on-surface)">4</strong> remaining slots
+    </div>
+    <button class="ghost-btn">Cancel</button>
+    <button class="done-btn">Done</button>
+  </div>
+</div>
+
+<script>
+  function expand(tr) {
+    const next = tr.nextElementSibling;
+    if (!next || !next.classList.contains('expand-row')) return;
+    next.classList.toggle('open');
+  }
+  function togglePrepared(btn) {
+    const tr = btn.closest('tr');
+    tr.classList.toggle('prepared');
+    btn.innerHTML = tr.classList.contains('prepared') ? '&minus;' : '+';
+  }
+</script>
+</body>
+</html>
