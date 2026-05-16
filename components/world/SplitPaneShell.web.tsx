@@ -11,7 +11,7 @@ type Props = {
 export function SplitPaneShell({ primaryContent, splitContent }: Props) {
   const splitRatio = useSplitPaneStore((s) => s.splitRatio);
   const setSplitRatio = useSplitPaneStore((s) => s.setSplitRatio);
-  const setFocusedPane = useSplitPaneStore((s) => s.setFocusedPane);
+  const setFocusedSide = useSplitPaneStore((s) => s.setFocusedSide);
   const [dragging, setDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -51,7 +51,7 @@ export function SplitPaneShell({ primaryContent, splitContent }: Props) {
     >
       <div
         style={{ width: `${splitRatio * 100}%`, display: 'flex', minWidth: 0 }}
-        onPointerDown={() => setFocusedPane('primary')}
+        onPointerDown={() => setFocusedSide('left')}
       >
         {primaryContent}
       </div>
@@ -88,7 +88,7 @@ export function SplitPaneShell({ primaryContent, splitContent }: Props) {
 
       <div
         style={{ flex: 1, display: 'flex', minWidth: 0 }}
-        onPointerDown={() => setFocusedPane('split')}
+        onPointerDown={() => setFocusedSide('right')}
       >
         {splitContent}
       </div>

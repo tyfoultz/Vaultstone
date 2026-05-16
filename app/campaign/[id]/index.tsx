@@ -1,99 +1,144 @@
-// Campaign detail route. The V2 redesign is now the only layout —
-// the legacy V1 dashboard was removed once V2 reached parity.
+// Campaign detail route. Layout: a browser-style tab strip with two
+// groups (left + right) sits at the top; the body renders one pane
+// per non-empty side. Tabs (including the campaign itself) flow
+// freely between the two groups via drag-reorder.
 //
-// Sub-routes (combat, party, notes, recap, rulebook, etc.) still
-// live in their own files at `/campaign/[id]/<route>` and are
-// reached via the V2 page's primary action card and references row.
+// On first mount the route seeds a single `{ kind: 'campaign' }` tab
+// on the left side. Subsequent target adds (party-card click, +
+// picker, page-mention click inside an embedded world) append to the
+// right side. The user can drag any tab anywhere.
 //
-// Layout: a browser-style tab strip sits at the top of the route
-// (home button + campaign tab + optional split tab). Below it,
-// either the campaign page alone (no split), a horizontal
-// side-by-side split shell (web ≥768px with split target), or a
-// pane-switching stack (mobile / narrow web with split target).
-//
-// The split target is mirrored to a `?split=` query param so deep
-// links work and refreshing the page preserves the open sheet.
+// State is mirrored to the URL as `?tabs=L:campaign:cid@0;R:char:x@0`
+// so deep links and refreshes preserve layout.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, useWindowDimensions, View, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  decodeSplitTabs,
+  encodeSplitTabs,
   useSplitPaneStore,
-  decodeSplitTarget,
-  encodeSplitTarget,
+  type Side,
+  type SplitTarget,
 } from '@vaultstone/store';
 import { colors } from '@vaultstone/ui';
 import { CampaignPageV2 } from '../../../components/campaign/CampaignPageV2';
 import { CampaignTabRow } from '../../../components/campaign/CampaignTabRow';
+import { SharedDndProvider } from '../../../components/DndProviderContext';
 import { SplitPaneContent } from '../../../components/SplitPaneContent';
 import { SplitPaneShell } from '../../../components/world/SplitPaneShell.web';
 
 export default function CampaignDetailScreen() {
-  const params = useLocalSearchParams<{ id: string; split?: string }>();
+  const params = useLocalSearchParams<{ id: string; tabs?: string }>();
   const id = params.id;
-  const splitParam = params.split;
+  const tabsParam = params.tabs;
   const router = useRouter();
-  const splitTarget = useSplitPaneStore((s) => s.splitTarget);
-  const openSplit = useSplitPaneStore((s) => s.openSplit);
-  const closeSplit = useSplitPaneStore((s) => s.closeSplit);
+
+  const leftTabs = useSplitPaneStore((s) => s.leftTabs);
+  const rightTabs = useSplitPaneStore((s) => s.rightTabs);
+  const leftActiveIndex = useSplitPaneStore((s) => s.leftActiveIndex);
+  const rightActiveIndex = useSplitPaneStore((s) => s.rightActiveIndex);
+  const setSplitState = useSplitPaneStore((s) => s.setSplitState);
+  // Derive active targets without going through a Zustand selector
+  // that returns a fresh object literal each call — the new object
+  // would trigger a re-render on every store update via Object.is,
+  // and combined with our URL-mirror effect that's the route to an
+  // infinite render loop.
+  const activeTargets = {
+    left: leftActiveIndex == null ? null : leftTabs[leftActiveIndex] ?? null,
+    right: rightActiveIndex == null ? null : rightTabs[rightActiveIndex] ?? null,
+  };
+
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
   const useMobileLayout = !isDesktop || Platform.OS !== 'web';
 
-  // Mobile-only: which pane is visible. Defaults to the split pane
-  // when one is just opened (matches user intent). When the split
-  // closes we don't auto-snap — the layout collapses to campaign-only
-  // anyway. When a new split opens, switch to it.
-  const [mobileActivePane, setMobileActivePane] = useState<'campaign' | 'split'>('split');
+  // Mobile-only: which side's body is currently visible. Defaults to
+  // whichever side the user last focused.
+  const focusedSide = useSplitPaneStore((s) => s.focusedSide);
+  const [mobileActiveSide, setMobileActiveSide] = useState<Side>('left');
   useEffect(() => {
-    if (splitTarget) setMobileActivePane('split');
-  }, [splitTarget]);
+    setMobileActiveSide(focusedSide);
+  }, [focusedSide]);
 
-  // Hydrate the store from the URL on first mount + whenever the
-  // ?split= param changes externally (browser back/forward, deep link).
-  // Skip writes when the store is already in sync to avoid loops with
-  // the inverse effect below.
+  // Hydrate the store from the URL on first mount and whenever
+  // `?tabs=` changes externally (browser back/forward, deep link).
+  // Always make sure exactly one campaign tab exists; if the URL is
+  // missing one, inject it on the left side.
   useEffect(() => {
-    const fromUrl = decodeSplitTarget(splitParam ?? null);
-    const fromStore = useSplitPaneStore.getState().splitTarget;
-    if (sameTarget(fromUrl, fromStore)) return;
-    if (fromUrl) openSplit(fromUrl);
-    else closeSplit();
-  }, [splitParam, openSplit, closeSplit]);
+    if (!id) return;
+    const fromUrl = decodeSplitTabs(tabsParam ?? null);
+    const hasCampaign = [...fromUrl.leftTabs, ...fromUrl.rightTabs].some(
+      (t) => t.kind === 'campaign' && t.campaignId === id,
+    );
+    let { leftTabs: l, rightTabs: r, leftActiveIndex: la, rightActiveIndex: ra } = fromUrl;
+    if (!hasCampaign) {
+      // Cold open with no campaign in the URL — inject it at the
+      // front of the left side and focus it. Any prior left tabs
+      // shift down one.
+      l = [{ kind: 'campaign', campaignId: id }, ...l];
+      la = 0;
+    }
+    if (l.length === 0 && r.length === 0) {
+      // Defensive — should be unreachable given the campaign injection.
+      l = [{ kind: 'campaign', campaignId: id }];
+      la = 0;
+    }
+    // Bail when the store already matches to avoid re-render loops
+    // with the inverse mirror effect below.
+    const storeState = useSplitPaneStore.getState();
+    if (
+      sameTabList(storeState.leftTabs, l) &&
+      sameTabList(storeState.rightTabs, r) &&
+      storeState.leftActiveIndex === la &&
+      storeState.rightActiveIndex === ra
+    ) return;
+    setSplitState({ leftTabs: l, rightTabs: r, leftActiveIndex: la, rightActiveIndex: ra });
+  }, [id, tabsParam, setSplitState]);
 
-  // Mirror store → URL whenever the split target changes. We use
-  // `router.setParams` so the rest of the route stack is unaffected.
-  // The lastWritten ref breaks the cycle with the hydration effect:
-  // when WE write the URL we don't want it to re-hydrate the store.
+  // Mirror store → URL. The lastWritten ref breaks the cycle with the
+  // hydration effect.
   const lastWrittenRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    const encoded = encodeSplitTarget(splitTarget);
+    const encoded = encodeSplitTabs({
+      leftTabs, rightTabs, leftActiveIndex, rightActiveIndex,
+    });
     if (lastWrittenRef.current === encoded) return;
     lastWrittenRef.current = encoded;
-    if (encoded === (splitParam ?? null)) return;
-    router.setParams({ split: encoded ?? undefined });
-  }, [splitTarget, splitParam, router]);
+    if (encoded === (tabsParam ?? null)) return;
+    router.setParams({ tabs: encoded ?? undefined });
+  }, [leftTabs, rightTabs, leftActiveIndex, rightActiveIndex, tabsParam, router]);
 
-  // Drop the split on unmount so navigating away from a campaign
-  // doesn't leak a stale target into another route's URL.
+  // On unmount, reset the store so navigating to a different campaign
+  // doesn't leak the previous campaign's tabs.
   useEffect(() => {
-    return () => { closeSplit(); };
-  }, [closeSplit]);
+    return () => {
+      setSplitState({ leftTabs: [], rightTabs: [], leftActiveIndex: null, rightActiveIndex: null });
+    };
+  }, [setSplitState]);
+
+  // Body resolution per side. Memoized so a no-op re-render of the
+  // route doesn't recreate the JSX (and force key-based remounts of
+  // PagePaneContent / WorldHome which would lose unsaved drafts).
+  const leftBody = useMemo(() => renderTargetBody(activeTargets.left, id), [activeTargets.left, id]);
+  const rightBody = useMemo(() => renderTargetBody(activeTargets.right, id), [activeTargets.right, id]);
 
   if (!id) return null;
 
-  const campaign = <CampaignPageV2 campaignId={id} />;
-  const splitBody = splitTarget ? <SplitPaneContent target={splitTarget} /> : null;
+  const leftFilled = !!activeTargets.left;
+  const rightFilled = !!activeTargets.right;
+  const showSplit = leftFilled && rightFilled;
 
-  // Body — depends on layout and whether a split is active.
+  // Body — depends on layout and which sides are populated.
   let body: React.ReactNode;
-  if (!splitTarget) {
-    body = campaign;
+  if (!showSplit) {
+    // One side empty → render the populated side full-width.
+    body = leftFilled ? leftBody : rightBody;
   } else if (!useMobileLayout) {
     body = (
       <SplitPaneShell
-        primaryContent={campaign}
-        splitContent={splitBody}
+        primaryContent={leftBody}
+        splitContent={rightBody}
       />
     );
   } else {
@@ -101,43 +146,70 @@ export default function CampaignDetailScreen() {
     // visible at a time. The tab row above toggles which.
     body = (
       <View style={styles.mobileStack}>
-        <View style={[styles.mobilePane, mobileActivePane === 'campaign' ? styles.mobilePaneActive : styles.mobilePaneHidden]}>
-          {campaign}
+        <View style={[styles.mobilePane, mobileActiveSide === 'left' ? styles.mobilePaneActive : styles.mobilePaneHidden]}>
+          {leftBody}
         </View>
-        <View style={[styles.mobilePane, mobileActivePane === 'split' ? styles.mobilePaneActive : styles.mobilePaneHidden]}>
-          {splitBody}
+        <View style={[styles.mobilePane, mobileActiveSide === 'right' ? styles.mobilePaneActive : styles.mobilePaneHidden]}>
+          {rightBody}
         </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.root}>
-      <CampaignTabRow
-        campaignId={id}
-        mobileActivePane={useMobileLayout ? mobileActivePane : undefined}
-        onMobileActivePaneChange={useMobileLayout ? setMobileActivePane : undefined}
-        splitMode={!useMobileLayout && !!splitTarget}
-      />
-      {body}
-    </View>
+    <SharedDndProvider>
+      <View style={styles.root}>
+        <CampaignTabRow
+          campaignId={id}
+          mobileActiveSide={useMobileLayout ? mobileActiveSide : undefined}
+          onMobileActiveSideChange={useMobileLayout ? setMobileActiveSide : undefined}
+          splitMode={!useMobileLayout && showSplit}
+        />
+        {body}
+      </View>
+    </SharedDndProvider>
   );
 }
 
-function sameTarget(a: ReturnType<typeof decodeSplitTarget>, b: ReturnType<typeof decodeSplitTarget>): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  if (a.kind !== b.kind) return false;
-  if (a.kind === 'character' && b.kind === 'character') {
-    return a.characterId === b.characterId;
+/** Render the body for a single active target. Returns the campaign
+ *  page when the target is the campaign tab, otherwise delegates to
+ *  `SplitPaneContent`. Keyed by target identity so each tab keeps its
+ *  own component state. */
+function renderTargetBody(target: SplitTarget | null, campaignId: string): React.ReactNode {
+  if (!target) return null;
+  if (target.kind === 'campaign') {
+    return <CampaignPageV2 key={`campaign:${campaignId}`} campaignId={campaignId} />;
   }
-  if (a.kind === 'world-page' && b.kind === 'world-page') {
-    return a.worldId === b.worldId && a.pageId === b.pageId;
+  return (
+    <SplitPaneContent
+      key={`${target.kind}:${targetKey(target)}`}
+      target={target}
+    />
+  );
+}
+
+function targetKey(t: SplitTarget): string {
+  switch (t.kind) {
+    case 'campaign': return t.campaignId;
+    case 'character': return t.characterId;
+    case 'world-page': return `${t.worldId}:${t.pageId}`;
+    case 'world-map': return `${t.worldId}:${t.mapId}`;
+    case 'world-home':
+    case 'world-map-index':
+    case 'world-relations':
+      return t.worldId;
   }
-  if (a.kind === 'world-home' && b.kind === 'world-home') {
-    return a.worldId === b.worldId;
+}
+
+function sameTabList(a: SplitTarget[], b: SplitTarget[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x.kind !== y.kind) return false;
+    if (targetKey(x) !== targetKey(y)) return false;
   }
-  return false;
+  return true;
 }
 
 const styles = StyleSheet.create({

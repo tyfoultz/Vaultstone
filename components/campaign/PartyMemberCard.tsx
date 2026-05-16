@@ -11,7 +11,7 @@
 // condition / concentration changes without a manual refetch.
 
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useSplitPaneStore } from '@vaultstone/store';
 import { colors, spacing, fonts, Icon } from '@vaultstone/ui';
 import type {
   Dnd5eStats, Dnd5eResources, Dnd5eEquipmentItem,
@@ -102,7 +102,7 @@ function initials(name: string): string {
 }
 
 export function PartyMemberCard({ playerName: _playerName, character }: Props) {
-  const router = useRouter();
+  const openSplit = useSplitPaneStore((s) => s.openSplit);
   const stats = character.base_stats as Dnd5eStats | null;
   const resources = character.resources as Dnd5eResources | null;
 
@@ -172,7 +172,7 @@ export function PartyMemberCard({ playerName: _playerName, character }: Props) {
         s.card,
         tier === 'unconscious' ? s.cardUnconscious : null,
       ]}
-      onPress={() => router.push(`/character/${character.id}` as Href)}
+      onPress={() => openSplit({ kind: 'character', characterId: character.id })}
       activeOpacity={0.85}
     >
       {/* Left-edge accent stripe — color-codes HP tier */}

@@ -1,17 +1,21 @@
-// Browser-style tab strip at the top of the campaign route. Three slots:
-//   • Home button — leftmost, routes back to the drawer home.
-//   • Campaign tab — always present, can't be closed; shows the
-//     campaign name. Clicking it focuses the campaign pane (mobile)
-//     or no-ops on desktop (both panes already visible).
-//   • Split tab — present only when `splitTarget` is set. Renders the
-//     target's label + an X to close. Clicking it focuses the split
-//     pane (mobile).
+// Browser-style tab strip at the top of the campaign route.
+//
+// Two tab groups sit side-by-side, anchored above their respective
+// panes. Every tab — including the campaign itself — lives in the
+// store's `leftTabs` or `rightTabs` list, so the user can drag any
+// tab anywhere. Constraints:
+//
+//   • The campaign tab cannot be closed (no X). The store enforces
+//     this at the data layer; we just suppress the close affordance.
+//   • Dragging across sides moves the tab between panes; if the
+//     source side becomes empty, its pane collapses and the other
+//     pane goes full-width.
+//   • Clicking a tab focuses it (its body renders in that pane); on
+//     mobile, the click also flips the visible pane to that side.
 //
 // Labels are best-effort. Campaign name comes from the cached
-// useCampaignStore; characters resolve via a small targeted fetch on
-// mount. While a label is loading we show a placeholder. Replacing
-// the resolver with a real cache lookup once the campaign character
-// roster lifts to a store is a follow-up.
+// useCampaignStore; characters / pages / maps resolve via small
+// targeted fetches on mount.
 
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -20,6 +24,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   getCharacterById,
   getCharactersForCampaign,
+  getMap,
   getPage,
   getWorld,
   getWorldsForCampaign,
@@ -27,32 +32,51 @@ import {
 import {
   useCampaignStore,
   useSplitPaneStore,
+  type Side,
   type SplitTarget,
 } from '@vaultstone/store';
 import { colors, fonts, radius, spacing, Text } from '@vaultstone/ui';
 
+import { useEmptySideDnd, useTabDnd, type TabDropInfo } from './useTabDnd';
+
 type Props = {
   campaignId: string;
-  /** Mobile-only: which pane is currently visible. The tab strip
-   *  toggles between them; ignored on desktop where both render
-   *  side-by-side. */
-  mobileActivePane?: 'campaign' | 'split';
-  onMobileActivePaneChange?: (pane: 'campaign' | 'split') => void;
+  /** Mobile-only: which side's pane is visible. */
+  mobileActiveSide?: Side;
+  onMobileActiveSideChange?: (side: Side) => void;
   /** True when the route is rendering the side-by-side split shell
-   *  (web ≥768px with an active split target). When set, the split
-   *  tab + the "+" button shift to anchor over the split pane on
-   *  the right; the campaign tab stays anchored over the primary
-   *  pane on the left. Off → all tabs flow normally from the left. */
+   *  (web ≥768px with at least one tab on each side). When set, the
+   *  right tab group + its "+" button anchor over the right pane. */
   splitMode?: boolean;
 };
 
-export function CampaignTabRow({ campaignId, mobileActivePane, onMobileActivePaneChange, splitMode }: Props) {
+export function CampaignTabRow({ campaignId, mobileActiveSide, onMobileActiveSideChange, splitMode }: Props) {
   const router = useRouter();
-  const splitTarget = useSplitPaneStore((s) => s.splitTarget);
+  const leftTabs = useSplitPaneStore((s) => s.leftTabs);
+  const rightTabs = useSplitPaneStore((s) => s.rightTabs);
+  const leftActiveIndex = useSplitPaneStore((s) => s.leftActiveIndex);
+  const rightActiveIndex = useSplitPaneStore((s) => s.rightActiveIndex);
   const splitRatio = useSplitPaneStore((s) => s.splitRatio);
-  const closeSplit = useSplitPaneStore((s) => s.closeSplit);
+  const closeSplitTab = useSplitPaneStore((s) => s.closeSplitTab);
   const openSplit = useSplitPaneStore((s) => s.openSplit);
+  const setActiveSplitTab = useSplitPaneStore((s) => s.setActiveSplitTab);
+  const moveSplitTab = useSplitPaneStore((s) => s.moveSplitTab);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Drag-to-reorder. The DnD hook reports the source position, the
+  // hovered tab's side+index, and whether the cursor is on the left
+  // or right half of the hovered tab. Convert that into a concrete
+  // target index, adjusting for the gap created when removing the
+  // source from the same side.
+  const handleTabDrop = (info: TabDropInfo) => {
+    let toIndex = info.position === 'before' ? info.toIndex : info.toIndex + 1;
+    if (info.fromSide === info.toSide && info.fromIndex < toIndex) toIndex -= 1;
+    if (info.fromSide === info.toSide && info.fromIndex === toIndex) return;
+    moveSplitTab(
+      { side: info.fromSide, index: info.fromIndex },
+      { side: info.toSide, index: toIndex },
+    );
+  };
 
   // Campaign name from the cached store list — if we deep-linked into
   // this campaign and the store hasn't been populated yet, fall back
@@ -60,46 +84,39 @@ export function CampaignTabRow({ campaignId, mobileActivePane, onMobileActivePan
   const campaign = useCampaignStore((s) => s.campaigns.find((c) => c.id === campaignId));
   const campaignLabel = campaign?.name?.trim() || 'Campaign';
 
-  // Split-target label resolver. Character names are looked up via a
-  // single round-trip per `characterId`; world-page labels stay
-  // generic until we add a pages-store lookup.
-  const splitLabel = useSplitTargetLabel(splitTarget);
+  const isMobileMode = !!onMobileActiveSideChange;
 
-  // Desktop and mobile differ only in click semantics:
-  //   - Desktop: click campaign tab does nothing useful (both panes
-  //     visible); click split tab also no-op. The close X on the
-  //     split tab is the only meaningful action.
-  //   - Mobile: clicks swap which pane is visible.
-  const isMobileMode = !!onMobileActivePaneChange;
-  const campaignActive = isMobileMode ? mobileActivePane === 'campaign' : true;
-  const splitActive = isMobileMode ? mobileActivePane === 'split' : true;
-
-  const openCharacterId = splitTarget?.kind === 'character' ? splitTarget.characterId : null;
-  const openWorldHomeId = splitTarget?.kind === 'world-home' ? splitTarget.worldId : null;
-
-  function handlePickCharacter(characterId: string) {
-    openSplit({ kind: 'character', characterId });
-    setPickerOpen(false);
-  }
-  function handlePickWorldHome(worldId: string) {
-    openSplit({ kind: 'world-home', worldId });
-    setPickerOpen(false);
+  function handleTabPress(side: Side, index: number) {
+    setActiveSplitTab(side, index);
+    if (isMobileMode) onMobileActiveSideChange!(side);
   }
 
-  const splitTab = splitTarget ? (
-    <Tab
-      label={splitLabel}
-      icon={iconFor(splitTarget)}
-      active={splitActive}
-      onPress={isMobileMode ? () => onMobileActivePaneChange!('split') : undefined}
-      onClose={closeSplit}
-    />
-  ) : null;
+  function renderTabsForSide(side: Side): React.ReactNode {
+    const tabs = side === 'left' ? leftTabs : rightTabs;
+    const active = side === 'left' ? leftActiveIndex : rightActiveIndex;
+    const paneVisible = isMobileMode ? mobileActiveSide === side : true;
+    return tabs.map((target, index) => (
+      <TabItem
+        key={`${target.kind}:${targetIdentity(target)}`}
+        side={side}
+        target={target}
+        index={index}
+        campaignLabel={campaignLabel}
+        isActive={index === active && paneVisible}
+        onPress={() => handleTabPress(side, index)}
+        onClose={
+          target.kind === 'campaign'
+            ? undefined
+            : () => closeSplitTab(side, index)
+        }
+        onDrop={handleTabDrop}
+      />
+    ));
+  }
 
-  // The "+" button + its popover. Lives in either the left or the
-  // right tab group depending on `splitMode` — when a split is open
-  // and we're in side-by-side layout, the + sits next to the split
-  // tab on the right where new tabs would land.
+  // The "+" button + its popover. Lives in the right tab group when
+  // split mode is on, otherwise it sits in the left group with the
+  // rest of the tabs.
   const addButton = (
     <View style={s.addAnchor}>
       <Pressable
@@ -116,26 +133,30 @@ export function CampaignTabRow({ campaignId, mobileActivePane, onMobileActivePan
       {pickerOpen ? (
         <OpenTabPicker
           campaignId={campaignId}
-          excludeCharacterId={openCharacterId}
-          excludeWorldHomeId={openWorldHomeId}
-          onPickCharacter={handlePickCharacter}
-          onPickWorldHome={handlePickWorldHome}
+          onPickCharacter={(characterId) => {
+            openSplit({ kind: 'character', characterId });
+            setPickerOpen(false);
+          }}
+          onPickWorldHome={(worldId) => {
+            openSplit({ kind: 'world-home', worldId });
+            setPickerOpen(false);
+          }}
           onClose={() => setPickerOpen(false)}
-          // Anchor the popover so it opens *into* the page, not off
-          // the edge: rightward from the left + button, leftward
-          // from the right + button.
           anchor={splitMode ? 'right' : 'left'}
         />
       ) : null}
     </View>
   );
 
-  // In split mode, the right side of the row (split tab + +) is
-  // positioned over the split pane. We use flex with absolute-style
-  // splitter math: primary group takes splitRatio of the row width,
-  // right group takes the rest. Outside of split mode, everything
-  // flows naturally from the left.
-  if (splitMode && splitTarget) {
+  // Trailing drop zone per side — always rendered so cross-side drops
+  // have somewhere to land even when the destination already has
+  // tabs. When empty, shows a dashed placeholder; when populated,
+  // takes the remaining flex width as an invisible catch-all.
+  const leftTrailingDrop = useEmptySideDnd('left', () => leftTabs.length, handleTabDrop);
+  const rightTrailingDrop = useEmptySideDnd('right', () => rightTabs.length, handleTabDrop);
+
+  // Layout depends on whether we're in side-by-side desktop split.
+  if (splitMode) {
     return (
       <View style={s.row}>
         <View style={[s.tabGroup, { flexBasis: `${splitRatio * 100}%` }]}>
@@ -146,23 +167,23 @@ export function CampaignTabRow({ campaignId, mobileActivePane, onMobileActivePan
           >
             <MaterialCommunityIcons name="home-outline" size={18} color={colors.outline} />
           </Pressable>
-          <Tab
-            label={campaignLabel}
-            icon="book-open-variant"
-            active={campaignActive}
-            onPress={isMobileMode ? () => onMobileActivePaneChange!('campaign') : undefined}
-          />
+          {renderTabsForSide('left')}
+          <TrailingDropZone hook={leftTrailingDrop} fill />
         </View>
         <View style={[s.tabGroup, s.tabGroupRight, { flex: 1 }]}>
-          {splitTab}
+          {renderTabsForSide('right')}
+          <TrailingDropZone hook={rightTrailingDrop} fill />
           {addButton}
         </View>
       </View>
     );
   }
 
-  // Default — no split, or mobile pane-switcher. All tabs flow from
-  // the left in the order they're added.
+  // Single-pane layout (one side empty, or mobile). Tabs flow
+  // left-to-right from the home button, with the "+" packed right
+  // up against the last tab. No trailing drop zones in this mode —
+  // there's no cross-side drag to land in single-pane layout, and
+  // existing tabs already accept reorder drops on their own halves.
   return (
     <View style={s.row}>
       <Pressable
@@ -172,49 +193,108 @@ export function CampaignTabRow({ campaignId, mobileActivePane, onMobileActivePan
       >
         <MaterialCommunityIcons name="home-outline" size={18} color={colors.outline} />
       </Pressable>
-      <Tab
-        label={campaignLabel}
-        icon="book-open-variant"
-        active={campaignActive}
-        onPress={isMobileMode ? () => onMobileActivePaneChange!('campaign') : undefined}
-      />
-      {splitTab}
+      {renderTabsForSide('left')}
+      {renderTabsForSide('right')}
       {addButton}
     </View>
   );
 }
 
 /**
- * Dropdown popover anchored under the "+" button. Lists two sections:
- *
- *   - CHARACTERS — every character on the campaign. Tapping one opens
- *     the character sheet in split.
- *   - WORLD — the campaign's linked world (typically one). Tapping it
- *     opens the world's first page in split; once the page-tree is
- *     navigable inside `PagePaneContent` the user can move around
- *     from there.
- *
- * Already-open targets are filtered so the user can't pick a no-op.
+ * Invisible drop landing rendered after the last tab on each side.
+ * Lets cross-side drags land at end-of-list without a visual
+ * placeholder. Pass `fill` to expand the zone to fill remaining
+ * width inside a tab group (used by the split-mode groups so drops
+ * anywhere in the dead space land at end-of-list).
+ */
+function TrailingDropZone({
+  hook,
+  fill,
+}: {
+  hook: { ref: React.RefObject<unknown>; isOver: boolean };
+  fill?: boolean;
+}) {
+  return (
+    <View
+      ref={hook.ref as React.RefObject<View>}
+      style={[
+        s.trailingDrop,
+        fill && s.trailingDropFill,
+        hook.isOver && s.trailingDropHot,
+      ]}
+    />
+  );
+}
+
+/**
+ * One tab — draggable and a drop target. Resolves its label via
+ * `useSplitTargetLabel` so the fetch happens once per tab. Renders
+ * a 2px vertical accent on whichever edge the cursor is closer to.
+ */
+function TabItem({ side, target, index, campaignLabel, isActive, onPress, onClose, onDrop }: {
+  side: Side;
+  target: SplitTarget;
+  index: number;
+  campaignLabel: string;
+  isActive: boolean;
+  onPress: () => void;
+  onClose?: () => void;
+  onDrop: (info: TabDropInfo) => void;
+}) {
+  const resolvedLabel = useSplitTargetLabel(target);
+  const label = target.kind === 'campaign' ? campaignLabel : resolvedLabel;
+  const { ref, isDragging, dropPosition, isOver } = useTabDnd(side, index, onDrop);
+  return (
+    <View
+      ref={ref as React.RefObject<View>}
+      style={[s.tabDndWrapper, isDragging && { opacity: 0.4 }]}
+    >
+      {isOver && dropPosition === 'before' ? (
+        <View style={[s.tabDropIndicator, s.tabDropIndicatorBefore]} />
+      ) : null}
+      <Tab
+        label={label}
+        icon={iconFor(target)}
+        active={isActive}
+        onPress={onPress}
+        onClose={onClose}
+      />
+      {isOver && dropPosition === 'after' ? (
+        <View style={[s.tabDropIndicator, s.tabDropIndicatorAfter]} />
+      ) : null}
+    </View>
+  );
+}
+
+/** Stable identity for a target (used as a React key). */
+function targetIdentity(t: SplitTarget): string {
+  switch (t.kind) {
+    case 'campaign': return t.campaignId;
+    case 'character': return t.characterId;
+    case 'world-page': return `${t.worldId}:${t.pageId}`;
+    case 'world-map': return `${t.worldId}:${t.mapId}`;
+    case 'world-home':
+    case 'world-map-index':
+    case 'world-relations':
+      return t.worldId;
+  }
+}
+
+/**
+ * Dropdown popover anchored under the "+" button. Lists characters
+ * and the campaign's linked worlds.
  */
 function OpenTabPicker({
   campaignId,
-  excludeCharacterId,
-  excludeWorldHomeId,
   onPickCharacter,
   onPickWorldHome,
   onClose,
   anchor = 'left',
 }: {
   campaignId: string;
-  excludeCharacterId: string | null;
-  excludeWorldHomeId: string | null;
   onPickCharacter: (characterId: string) => void;
   onPickWorldHome: (worldId: string) => void;
   onClose: () => void;
-  /** Which edge of the + button the popover hugs. `left` opens to
-   *  the right (default); `right` opens to the left. The route flips
-   *  this when the + button is anchored over the right pane, so the
-   *  panel doesn't slip off-screen. */
   anchor?: 'left' | 'right';
 }) {
   const [characters, setCharacters] = useState<Array<{ id: string; name: string }>>([]);
@@ -231,10 +311,6 @@ function OpenTabPicker({
       if (cancelled) return;
       const chars = (charRes.data ?? []) as Array<{ id: string; name: string }>;
       setCharacters(chars);
-      // Linked worlds → simple {id, name} entries. The picker drops
-      // the user on the world's home overview (same surface as
-      // /world/[worldId]); navigation into individual pages happens
-      // inside that surface once it's open.
       const worldRows = (worldsRes.data ?? []) as unknown as Array<{
         world_id: string;
         worlds: { id: string; name: string } | null;
@@ -248,31 +324,22 @@ function OpenTabPicker({
     return () => { cancelled = true; };
   }, [campaignId]);
 
-  const visibleCharacters = characters.filter((c) => c.id !== excludeCharacterId);
-  const visibleWorlds = worldEntries.filter((w) => w.worldId !== excludeWorldHomeId);
-
   return (
     <>
-      {/* Full-screen backdrop on web — click anywhere outside closes
-          the popover. On native we lean on the parent re-render to
-          dismiss via re-tap of the + button. */}
       {Platform.OS === 'web' ? (
         <Pressable style={s.pickerBackdrop} onPress={onClose} />
       ) : null}
 
       <View style={[s.picker, anchor === 'right' ? s.pickerAnchorRight : s.pickerAnchorLeft]}>
-        {/* Characters section */}
         <Text variant="label-sm" family="body" weight="semibold" style={s.pickerHeader}>
           CHARACTERS
         </Text>
         {loading ? (
           <Text style={s.pickerEmpty}>Loading…</Text>
-        ) : visibleCharacters.length === 0 ? (
-          <Text style={s.pickerEmpty}>
-            {characters.length === 0 ? 'No characters yet.' : 'Already open.'}
-          </Text>
+        ) : characters.length === 0 ? (
+          <Text style={s.pickerEmpty}>No characters yet.</Text>
         ) : (
-          visibleCharacters.map((c) => (
+          characters.map((c) => (
             <Pressable
               key={c.id}
               onPress={() => onPickCharacter(c.id)}
@@ -291,39 +358,32 @@ function OpenTabPicker({
           ))
         )}
 
-        {/* World section — typically one entry per campaign. Pages
-            without a landing render disabled so the user knows the
-            world is linked but has no content to open yet. */}
         {!loading && worldEntries.length > 0 ? (
           <>
             <View style={s.pickerDivider} />
             <Text variant="label-sm" family="body" weight="semibold" style={s.pickerHeader}>
               WORLD
             </Text>
-            {visibleWorlds.length === 0 ? (
-              <Text style={s.pickerEmpty}>Already open.</Text>
-            ) : (
-              visibleWorlds.map((w) => (
-                <Pressable
-                  key={w.worldId}
-                  onPress={() => onPickWorldHome(w.worldId)}
-                  style={({ pressed }) => [
-                    s.pickerItem,
-                    pressed ? { backgroundColor: colors.surfaceContainerHigh } : null,
-                  ]}
+            {worldEntries.map((w) => (
+              <Pressable
+                key={w.worldId}
+                onPress={() => onPickWorldHome(w.worldId)}
+                style={({ pressed }) => [
+                  s.pickerItem,
+                  pressed ? { backgroundColor: colors.surfaceContainerHigh } : null,
+                ]}
+              >
+                <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.outline} />
+                <Text
+                  variant="body-sm"
+                  family="body"
+                  style={s.pickerItemLabel}
+                  numberOfLines={1}
                 >
-                  <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.outline} />
-                  <Text
-                    variant="body-sm"
-                    family="body"
-                    style={s.pickerItemLabel}
-                    numberOfLines={1}
-                  >
-                    {w.worldName}
-                  </Text>
-                </Pressable>
-              ))
-            )}
+                  {w.worldName}
+                </Text>
+              </Pressable>
+            ))}
           </>
         ) : null}
       </View>
@@ -376,23 +436,27 @@ function Tab({ label, icon, active, onPress, onClose }: {
 
 function iconFor(target: SplitTarget): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
   switch (target.kind) {
+    case 'campaign': return 'book-open-variant';
     case 'character': return 'account';
     case 'world-page': return 'book-open-variant';
     case 'world-home': return 'book-open-variant';
+    case 'world-map-index': return 'map';
+    case 'world-map': return 'map';
+    case 'world-relations': return 'graph';
   }
 }
 
 /**
- * Resolve a label for the split target. Currently fetches character
- * names directly; world-page labels stay generic. Lives as a hook so
- * we can swap in a store-driven cache later without touching callers.
+ * Resolve a label for a split target. Lives as a hook so we can swap
+ * in a store-driven cache later without touching callers. Campaign
+ * tabs use the caller-supplied label since the campaign name is
+ * already in a Zustand store.
  */
-function useSplitTargetLabel(target: SplitTarget | null): string {
+function useSplitTargetLabel(target: SplitTarget): string {
   const [label, setLabel] = useState<string>(() => fallbackLabel(target));
 
   useEffect(() => {
     setLabel(fallbackLabel(target));
-    if (!target) return;
     let cancelled = false;
     if (target.kind === 'character') {
       getCharacterById(target.characterId).then(({ data }) => {
@@ -409,6 +473,22 @@ function useSplitTargetLabel(target: SplitTarget | null): string {
         if (cancelled) return;
         if (data?.name) setLabel(data.name);
       });
+    } else if (target.kind === 'world-map') {
+      getMap(target.mapId).then(({ data }) => {
+        if (cancelled) return;
+        const labelText = (data as { label?: string | null } | null)?.label;
+        if (labelText) setLabel(labelText);
+      });
+    } else if (target.kind === 'world-map-index') {
+      getWorld(target.worldId).then(({ data }) => {
+        if (cancelled) return;
+        if (data?.name) setLabel(`${data.name} · Maps`);
+      });
+    } else if (target.kind === 'world-relations') {
+      getWorld(target.worldId).then(({ data }) => {
+        if (cancelled) return;
+        if (data?.name) setLabel(`${data.name} · Relations`);
+      });
     }
     return () => { cancelled = true; };
   }, [target]);
@@ -416,12 +496,15 @@ function useSplitTargetLabel(target: SplitTarget | null): string {
   return label;
 }
 
-function fallbackLabel(target: SplitTarget | null): string {
-  if (!target) return '';
+function fallbackLabel(target: SplitTarget): string {
   switch (target.kind) {
+    case 'campaign': return 'Campaign';
     case 'character': return 'Character';
     case 'world-page': return 'Page';
     case 'world-home': return 'World';
+    case 'world-map-index': return 'Maps';
+    case 'world-map': return 'Map';
+    case 'world-relations': return 'Relations';
   }
 }
 
@@ -435,8 +518,6 @@ const s = StyleSheet.create({
     backgroundColor: colors.surfaceCanvas,
     borderBottomWidth: 1,
     borderBottomColor: colors.outlineVariant,
-    // The tab strip needs to sit above any sticky chrome below it on
-    // web. Z-index works on web; native ignores it cleanly.
     ...(Platform.OS === 'web' ? { zIndex: 10 } : {}),
   },
   homeBtn: {
@@ -461,8 +542,6 @@ const s = StyleSheet.create({
     borderColor: colors.outlineVariant,
     maxWidth: 220,
     minWidth: 110,
-    // Pull the tab down 1px so its bottom edge overlaps the row's
-    // border-bottom and reads as "attached" to the page content.
     marginBottom: -1,
   },
   tabActive: {
@@ -488,10 +567,44 @@ const s = StyleSheet.create({
     borderRadius: 4,
   },
 
-  /** Split-mode tab group — when the route renders the side-by-side
-   *  shell we break the row into two flex children so the right
-   *  group aligns above the split pane. `tabGroupRight` reverses
-   *  alignment so the split tab + + sit close to the divider. */
+  tabDndWrapper: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  tabDropIndicator: {
+    position: 'absolute',
+    top: 4,
+    bottom: 0,
+    width: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 1,
+    ...(Platform.OS === 'web' ? { zIndex: 1 } : {}),
+  },
+  tabDropIndicatorBefore: { left: -3 },
+  tabDropIndicatorAfter: { right: -3 },
+
+  /** Invisible drop zone after the last tab on a populated side.
+   *  Narrow by default — just enough to catch end-of-list drops —
+   *  but expands to fill remaining row width inside a tab group
+   *  (see `trailingDropFill`). */
+  trailingDrop: {
+    width: 40,
+    height: 30,
+    marginBottom: -1,
+  },
+  trailingDropFill: {
+    flex: 1,
+    minWidth: 40,
+  },
+  trailingDropHot: {
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderTopWidth: 2,
+    borderTopColor: colors.primary,
+    backgroundColor: colors.primaryContainer + '11',
+  },
+
   tabGroup: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -500,8 +613,6 @@ const s = StyleSheet.create({
   },
   tabGroupRight: { justifyContent: 'flex-start' },
 
-  // "+" button anchor — relative-positioned wrapper so the popover
-  // can be absolutely placed beneath it on web.
   addAnchor: { position: 'relative', marginBottom: 4 },
   addBtn: {
     width: 30, height: 30,
@@ -510,11 +621,8 @@ const s = StyleSheet.create({
   },
   addBtnActive: { backgroundColor: colors.surfaceContainerHigh },
 
-  // Popover panel + backdrop.
   pickerBackdrop: {
     position: 'absolute',
-    // Cover the whole viewport so any click outside the popover
-    // dismisses it. Negative offsets stretch beyond the anchor.
     top: -2000, left: -2000, right: -2000, bottom: -2000,
     ...(Platform.OS === 'web' ? { zIndex: 50 } : {}),
   },
@@ -530,10 +638,6 @@ const s = StyleSheet.create({
     paddingVertical: 6,
     ...(Platform.OS === 'web' ? { zIndex: 51 } : {}),
   },
-  /** Anchor variants — `Left` hugs the left edge of the + button
-   *  (panel opens rightward); `Right` hugs the right edge (panel
-   *  opens leftward). The route picks the variant that keeps the
-   *  panel on-screen. */
   pickerAnchorLeft: { left: 0 },
   pickerAnchorRight: { right: 0 },
   pickerHeader: {
@@ -558,7 +662,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  /** Thin separator between the picker's sections (Characters / World). */
   pickerDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.outlineVariant,

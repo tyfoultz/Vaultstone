@@ -5,12 +5,8 @@ import { useRouter } from 'expo-router';
 import {
   getActiveSession,
   getCampaignMembers,
-  getCampaignsForWorld,
   getCompletedSessionCount,
   getPage,
-  getPagesForWorld,
-  getSectionsForWorld,
-  getWorld,
   startSession,
   updateSection,
 } from '@vaultstone/api';
@@ -23,9 +19,9 @@ import {
   useSectionsStore,
 } from '@vaultstone/store';
 import { Chip, GhostButton, GradientButton, Icon, MetaLabel, Text, colors, radius, spacing, useBreakpoint } from '@vaultstone/ui';
-import type { Database, TimelineCalendarSchema, WorldPage, WorldSection } from '@vaultstone/types';
+import type { Database, TimelineCalendarSchema, WorldSection } from '@vaultstone/types';
 
-import { ActiveSectionProvider, useActiveSection } from './ActiveSectionContext';
+import { useActiveSection } from './ActiveSectionContext';
 import { CreatePageModal } from './CreatePageModal';
 import { CreateSectionModal } from './CreateSectionModal';
 import { MobileWorldHome } from './MobileWorldHome';
@@ -89,13 +85,17 @@ const ATLAS_GRID_STYLE = {
  * embedded in the campaign page's split pane. The route is now a
  * thin wrapper that just supplies `worldId` from the URL.
  *
- * Behavior unchanged from the route: internal `router.push` calls
- * (jumping to a section, page, or campaign) navigate the user out
- * of the host context. That's the right thing for the embedded
- * variant too — the split shell is anchored to the campaign page,
- * so following an internal link should leave the campaign view
- * rather than try to swap the split target underneath the user.
+ * Internal nav targets (page / section / campaign) go through the
+ * optional `onNavigate` interceptor first when set — that's how the
+ * campaign split shell keeps clicks inside the embedded pane instead
+ * of navigating the whole route. When no host is wired up (or it
+ * returns false), each click falls through to a route-level push.
  */
+export type WorldHomeNavigateTarget =
+  | { kind: 'page'; pageId: string }
+  | { kind: 'section'; sectionId: string }
+  | { kind: 'campaign'; campaignId: string };
+
 export type WorldHomeProps = {
   worldId: string;
   /** Optional — accepted for parity with other embedded surfaces
@@ -104,68 +104,27 @@ export type WorldHomeProps = {
    *  button if/when we add one inside the world chrome. */
   onClose?: () => void;
   embedded?: boolean;
+  /** Optional host-side navigation interceptor. See `WorldHomeNavigateTarget`. */
+  onNavigate?: (target: WorldHomeNavigateTarget) => boolean;
 };
 
-export function WorldHome({ worldId, onClose: _onClose, embedded }: WorldHomeProps) {
-  // Embedded callers don't share the world route's `_layout.tsx`, so
-  // they don't get the world/sections/pages hydration that layout
-  // normally does. When `embedded`, wrap the body in our own provider
-  // + run a one-shot fetch to fill the same stores.
-  if (embedded) {
-    return (
-      <ActiveSectionProvider initialSectionId={null}>
-        <WorldHomeEmbeddedHydrator worldId={worldId}>
-          <WorldHomeBody worldId={worldId} />
-        </WorldHomeEmbeddedHydrator>
-      </ActiveSectionProvider>
-    );
-  }
-  return <WorldHomeBody worldId={worldId} />;
+export function WorldHome({ worldId, onClose: _onClose, embedded: _embedded, onNavigate }: WorldHomeProps) {
+  // Standalone callers (the `/world/[worldId]` route) share the
+  // world layout's hydration + ActiveSectionProvider, so this body
+  // can run directly. Embedded callers are wrapped by
+  // `EmbeddedWorldShell`, which owns the hydration + provider plus
+  // the world sidebar — also keeps a single source of truth, no
+  // duplicate fetches.
+  return <WorldHomeBody worldId={worldId} onNavigate={onNavigate} />;
 }
 
-/**
- * When embedded, pull the world + sections + pages + linked campaigns
- * into the same Zustand stores the layout normally populates. We don't
- * gate rendering on this — the body component handles the "not yet
- * loaded" state via `if (!world)` guards.
- */
-function WorldHomeEmbeddedHydrator({ worldId, children }: { worldId: string; children: React.ReactNode }) {
-  const session = useAuthStore((s) => s.session);
-  const setActiveWorld = useCurrentWorldStore((s) => s.setActiveWorld);
-  const setLinkedCampaigns = useCurrentWorldStore((s) => s.setLinkedCampaigns);
-  const setSections = useSectionsStore((s) => s.setSectionsForWorld);
-  const setPages = usePagesStore((s) => s.setPagesForWorld);
-
-  useEffect(() => {
-    if (!session || !worldId) return;
-    let cancelled = false;
-    Promise.all([
-      getWorld(worldId),
-      getSectionsForWorld(worldId),
-      getPagesForWorld(worldId),
-      getCampaignsForWorld(worldId),
-    ]).then(([worldRes, sectionsRes, pagesRes, campaignsRes]) => {
-      if (cancelled) return;
-      if (worldRes.error || !worldRes.data) return;
-      setActiveWorld(worldRes.data as Database['public']['Tables']['worlds']['Row']);
-      setSections(worldId, (sectionsRes.data ?? []) as WorldSection[]);
-      setPages(worldId, (pagesRes.data ?? []) as unknown as WorldPage[]);
-      const linked = (
-        (campaignsRes.data ?? []) as unknown as Array<{
-          campaigns: Database['public']['Tables']['campaigns']['Row'] | null;
-        }>
-      )
-        .map((row) => row.campaigns)
-        .filter((c): c is Database['public']['Tables']['campaigns']['Row'] => !!c);
-      setLinkedCampaigns(linked);
-    });
-    return () => { cancelled = true; };
-  }, [session, worldId, setActiveWorld, setLinkedCampaigns, setSections, setPages]);
-
-  return <>{children}</>;
-}
-
-function WorldHomeBody({ worldId }: { worldId: string }) {
+function WorldHomeBody({
+  worldId,
+  onNavigate,
+}: {
+  worldId: string;
+  onNavigate?: (target: WorldHomeNavigateTarget) => boolean;
+}) {
   const router = useRouter();
   const { isMobile } = useBreakpoint();
   const user = useAuthStore((s) => s.user);
@@ -403,14 +362,39 @@ function WorldHomeBody({ worldId }: { worldId: string }) {
         world={world}
         sections={sections}
         pageCounts={pageCounts}
+        pagesByWorld={pagesByWorld}
         isOwner={isOwner}
         calendarSchema={calendarSchema}
+        onNavigate={onNavigate}
       />
     );
   }
 
+  // Host-aware navigation helpers. When `onNavigate` is provided and
+  // returns true, skip the route-level push so the host (e.g. the
+  // campaign split shell) can re-target its embedded pane instead of
+  // navigating the user away. When the host can't satisfy the target
+  // (returns false) or no host is wired up, fall through to the
+  // standalone route behavior.
+  const goToCampaign = (campaignId: string) => {
+    if (onNavigate?.({ kind: 'campaign', campaignId })) return;
+    router.push(`/campaign/${campaignId}`);
+  };
+  const goToPage = (pageId: string) => {
+    if (onNavigate?.({ kind: 'page', pageId })) return;
+    router.push(worldPageHref(worldId, pageId));
+  };
   const handleSectionPress = (section: WorldSection) => {
     setActiveSectionId(section.id);
+    // Embed: prefer drilling into the section's first page (the split
+    // pane is too narrow to host a section listing well). Falls back
+    // to the standalone section route otherwise — including when the
+    // section is empty, since there's nothing to pin.
+    if (onNavigate) {
+      const firstPage = (pagesByWorld ?? []).find((p) => p.section_id === section.id);
+      if (firstPage && onNavigate({ kind: 'page', pageId: firstPage.id })) return;
+      if (onNavigate({ kind: 'section', sectionId: section.id })) return;
+    }
     router.push(worldSectionHref(worldId, section.id));
   };
 
@@ -467,7 +451,7 @@ function WorldHomeBody({ worldId }: { worldId: string }) {
             )}
             {activeSessionCampaignId ? (
               <Pressable
-                onPress={() => router.push(`/campaign/${activeSessionCampaignId}`)}
+                onPress={() => goToCampaign(activeSessionCampaignId)}
                 style={styles.liveSessionBadge}
               >
                 <View style={styles.liveDot} />
@@ -587,7 +571,7 @@ function WorldHomeBody({ worldId }: { worldId: string }) {
                     </Text>
                   </View>
                   {isOwner && linkedCampaigns.length > 0 ? (
-                    <Pressable onPress={() => router.push(`/campaign/${linkedCampaigns[0].id}`)}>
+                    <Pressable onPress={() => goToCampaign(linkedCampaigns[0].id)}>
                       <Text variant="label-md" style={{ color: colors.onSurfaceVariant }}>
                         Manage Players →
                       </Text>
@@ -700,7 +684,7 @@ function WorldHomeBody({ worldId }: { worldId: string }) {
                         {mentionChips.map((chip) => (
                           <Pressable
                             key={chip.id}
-                            onPress={() => router.push(worldPageHref(worldId, chip.id))}
+                            onPress={() => goToPage(chip.id)}
                             style={styles.mentionChip}
                           >
                             <Icon name="circle" size={6} color={colors.primary} />
@@ -716,7 +700,7 @@ function WorldHomeBody({ worldId }: { worldId: string }) {
                       <SessionPrepPanel
                         prepPage={fullPrepPage}
                         allPages={pagesByWorld ?? []}
-                        onOpenPage={(id) => router.push(worldPageHref(worldId, id))}
+                        onOpenPage={(id) => goToPage(id)}
                       />
                     ) : null}
 
@@ -733,7 +717,7 @@ function WorldHomeBody({ worldId }: { worldId: string }) {
                       ) : null}
                       {prepPage ? (
                         <Pressable
-                          onPress={() => router.push(worldPageHref(worldId, prepPage.id))}
+                          onPress={() => goToPage(prepPage.id)}
                           style={styles.sessionNotesBtn}
                         >
                           <Icon name="description" size={16} color={colors.onSurfaceVariant} />

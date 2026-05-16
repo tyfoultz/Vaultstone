@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DndProvider, useDrag, useDrop } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import { useDrag, useDrop } from 'react-dnd';
+import { SharedDndProvider } from '../DndProviderContext';
 import {
   View, Text, Image, TouchableOpacity, TextInput,
   ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform, useWindowDimensions,
@@ -1915,7 +1915,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         /* ════════════════════════════════════════════════════════════════
            DESKTOP LAYOUT — two-column sidebar
            ════════════════════════════════════════════════════════════════ */
-        <DndProvider backend={HTML5Backend}>
+        <SharedDndProvider>
         <View style={s.deskShell}>
 
           {/* ── Left rail ───────────────────────────────────────────── */}
@@ -2321,7 +2321,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           )}
 
         </View>
-        </DndProvider>
+        </SharedDndProvider>
 
       ) : (
         /* ════════════════════════════════════════════════════════════════

@@ -18,6 +18,7 @@ import { SectionContextMenu } from './SectionContextMenu';
 import { SectionSettingsModal } from './SectionSettingsModal';
 import { SidebarPageRow } from './SidebarPageRow';
 import { useSectionDnd } from './useSectionDnd';
+import { useWorldEmbedNavigate } from './WorldEmbedContext';
 import { worldSectionHref } from './worldHref';
 
 type Props = {
@@ -75,8 +76,14 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
   }, [activePageId, rawPages]);
 
   const router = useRouter();
+  const embedNavigate = useWorldEmbedNavigate();
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const handleSectionHeaderPress = () => {
+    if (embedNavigate?.({ kind: 'world-section', worldId, sectionId: section.id })) return;
+    router.push(worldSectionHref(worldId, section.id));
+  };
 
   const handleContextMenu = useCallback(
     (e: { nativeEvent: { pageX: number; pageY: number }; preventDefault?: () => void }) => {
@@ -106,7 +113,7 @@ export function SidebarSection({ section, worldId, activePageId, onAddPage, onAd
         />
       </Pressable>
       <Pressable
-        onPress={() => router.push(worldSectionHref(worldId, section.id))}
+        onPress={handleSectionHeaderPress}
         onLongPress={Platform.OS !== 'web' ? () => setMenuAnchor({ x: 0, y: 0 }) : undefined}
         style={styles.headerLabel}
         accessibilityLabel={`Open ${section.name}`}

@@ -11,6 +11,7 @@ import { PageContextMenu } from './PageContextMenu';
 import { RenamePageModal } from './RenamePageModal';
 import { computeDropMove, isDescendant } from './sidebarTreeOps';
 import { usePageDnd } from './usePageDnd';
+import { useWorldEmbedNavigate } from './WorldEmbedContext';
 import { worldPageHref } from './worldHref';
 
 type Props = {
@@ -41,11 +42,22 @@ const SIDEBAR_DEPTH_CAP = 6;
 
 export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onAddSubPage, onPinToPrep }: Props) {
   const router = useRouter();
+  const embedNavigate = useWorldEmbedNavigate();
+  const handlePagePress = () => {
+    if (embedNavigate?.({ kind: 'world-page', worldId, pageId: node.page.id })) return;
+    router.push(worldPageHref(worldId, node.page.id));
+  };
   const icon = MATERIAL_ICON[node.page.page_kind] ?? 'article';
   const active = activePageId === node.page.id;
-  const isSplitTarget = useSplitPaneStore((s) =>
-    s.splitTarget?.kind === 'world-page' && s.splitTarget.pageId === node.page.id,
-  );
+  const isSplitTarget = useSplitPaneStore((s) => {
+    // A page is "the split target" if it's the active tab on either
+    // side, since both panes show real content under the multi-tab
+    // model. Highlight in either case.
+    const left = s.leftActiveIndex != null ? s.leftTabs[s.leftActiveIndex] : null;
+    const right = s.rightActiveIndex != null ? s.rightTabs[s.rightActiveIndex] : null;
+    const matches = (t: typeof left) => t?.kind === 'world-page' && t.pageId === node.page.id;
+    return matches(left) || matches(right);
+  });
   const indent = node.depth * 12;
   const hasChildren = node.children.length > 0;
   const [hovered, setHovered] = useState(false);
@@ -118,7 +130,7 @@ export function SidebarPageRow({ node, worldId, activePageId, forcedOpenIds, onA
 
   const rowContent = (
     <Pressable
-      onPress={() => router.push(worldPageHref(worldId, node.page.id))}
+      onPress={handlePagePress}
       onLongPress={Platform.OS !== 'web' ? () => setMenuAnchor({ x: 0, y: 0 }) : undefined}
       style={({ pressed }) => [
         styles.row,

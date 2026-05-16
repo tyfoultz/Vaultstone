@@ -39,6 +39,7 @@ import { MapShareModal } from './MapShareModal';
 import { isSectionVisibleToPlayersPreview, isMapVisibleToPlayersPreview } from './playerViewFilters';
 import { SidebarDndProvider } from './SidebarDndContext';
 import { SidebarSection } from './SidebarSection';
+import { useWorldEmbedNavigate } from './WorldEmbedContext';
 import { WorldSearchDrawer } from './WorldSearchDrawer';
 import { WorldSettingsModal } from './WorldSettingsModal';
 import { worldHref, worldMapHref, worldMapIndexHref, worldPageHref, worldRelationsHref } from './worldHref';
@@ -60,7 +61,38 @@ type Props = {
 
 export function WorldSidebar({ world, activePageId }: Props) {
   const router = useRouter();
+  const embedNavigate = useWorldEmbedNavigate();
   const user = useAuthStore((s) => s.user);
+
+  // Navigation helpers — every route push in the sidebar runs through
+  // these so an embed host (e.g. the campaign split shell) can
+  // re-target its pane instead of navigating the user away from the
+  // host route. When no host is mounted or the host declines the
+  // target, fall through to the regular route push.
+  const goWorldHome = () => {
+    if (embedNavigate?.({ kind: 'world-home', worldId: world.id })) return;
+    router.push(worldHref(world.id));
+  };
+  const goPage = (pageId: string) => {
+    if (embedNavigate?.({ kind: 'world-page', worldId: world.id, pageId })) return;
+    router.push(worldPageHref(world.id, pageId));
+  };
+  const goMapIndex = () => {
+    if (embedNavigate?.({ kind: 'world-map-index', worldId: world.id })) return;
+    router.push(worldMapIndexHref(world.id));
+  };
+  const goRelations = () => {
+    if (embedNavigate?.({ kind: 'world-relations', worldId: world.id })) return;
+    router.push(worldRelationsHref(world.id));
+  };
+  const goAppHome = () => {
+    if (embedNavigate?.({ kind: 'app-home' })) return;
+    router.push('/(drawer)/home');
+  };
+  const goMap = (mapId: string) => {
+    if (embedNavigate?.({ kind: 'world-map', worldId: world.id, mapId })) return;
+    router.push(worldMapHref(world.id, mapId));
+  };
   const allSections = useSectionsStore((s) => selectSectionsForWorld(s, world.id));
   const playerView = useCurrentWorldStore((s) => s.playerViewPreview);
   const setActiveWorld = useCurrentWorldStore((s) => s.setActiveWorld);
@@ -173,7 +205,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
         </Pressable>
 
         <Pressable
-          onPress={() => router.push('/(drawer)/home')}
+          onPress={goAppHome}
           style={styles.collapsedItem}
           accessibilityLabel="Vaultstone home"
         >
@@ -189,7 +221,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
 
         <WebTooltip tip="World Home">
           <Pressable
-            onPress={() => router.push(worldHref(world.id))}
+            onPress={goWorldHome}
             style={styles.collapsedItem}
             accessibilityLabel="World Home"
           >
@@ -199,7 +231,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
 
         <WebTooltip tip="World Map">
           <Pressable
-            onPress={() => router.push(worldMapIndexHref(world.id))}
+            onPress={goMapIndex}
             style={styles.collapsedItem}
             accessibilityLabel="World Map"
           >
@@ -209,7 +241,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
 
         <WebTooltip tip="Relationship Web">
           <Pressable
-            onPress={() => router.push(worldRelationsHref(world.id))}
+            onPress={goRelations}
             style={styles.collapsedItem}
             accessibilityLabel="Relationship Web"
           >
@@ -221,7 +253,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
           <WebTooltip tip="Timeline">
             <Pressable
               onPress={() =>
-                router.push(worldPageHref(world.id, world.primary_timeline_page_id!))
+                goPage(world.primary_timeline_page_id!)
               }
               style={styles.collapsedItem}
               accessibilityLabel="Timeline"
@@ -261,7 +293,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
           <Icon name="menu-open" size={20} color={colors.onSurfaceVariant} />
         </Pressable>
         <Pressable
-          onPress={() => router.push('/(drawer)/home')}
+          onPress={goAppHome}
           accessibilityLabel="Vaultstone home"
         >
           <LinearGradient
@@ -276,7 +308,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
         <View style={{ flex: 1 }} />
         <WebTooltip tip="World Home">
           <Pressable
-            onPress={() => router.push(worldHref(world.id))}
+            onPress={goWorldHome}
             style={styles.topBarBtn}
             accessibilityLabel="World Home"
           >
@@ -285,7 +317,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
         </WebTooltip>
         <WebTooltip tip="World Map">
           <Pressable
-            onPress={() => router.push(worldMapIndexHref(world.id))}
+            onPress={goMapIndex}
             style={styles.topBarBtn}
             accessibilityLabel="World Map"
           >
@@ -294,7 +326,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
         </WebTooltip>
         <WebTooltip tip="Relationship Web">
           <Pressable
-            onPress={() => router.push(worldRelationsHref(world.id))}
+            onPress={goRelations}
             style={styles.topBarBtn}
             accessibilityLabel="Relationship Web"
           >
@@ -305,7 +337,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
           <WebTooltip tip="Timeline">
             <Pressable
               onPress={() =>
-                router.push(worldPageHref(world.id, world.primary_timeline_page_id!))
+                goPage(world.primary_timeline_page_id!)
               }
               style={styles.topBarBtn}
               accessibilityLabel="Timeline"
@@ -319,7 +351,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
       <Pressable
         onPress={
           world.thumbnail_url
-            ? () => router.push(worldHref(world.id))
+            ? goWorldHome
             : isOwner
               ? handlePickThumbnail
               : undefined
@@ -457,7 +489,7 @@ export function WorldSidebar({ world, activePageId }: Props) {
           onUploaded={(newMap) => {
             setMapUploadOpen(false);
             setMaps((prev) => [...prev, newMap]);
-            router.push(worldMapHref(world.id, newMap.id));
+            goMap(newMap.id);
           }}
         />
       ) : null}
@@ -484,7 +516,12 @@ function SidebarMapRow({ map, worldId, active, isPrimary, onContextMenu, onDrop 
   onDrop: (dragged: WorldMap, target: WorldMap, position: 'before' | 'after') => void;
 }) {
   const router = useRouter();
+  const embedNavigate = useWorldEmbedNavigate();
   const { ref, isDragging, dropPosition, isOver } = useMapDnd(map, onDrop);
+  const goToMap = () => {
+    if (embedNavigate?.({ kind: 'world-map', worldId, mapId: map.id })) return;
+    router.push(worldMapHref(worldId, map.id));
+  };
 
   const dropLine = isOver && dropPosition ? (
     <View style={[mapSectionStyles.dropLine, dropPosition === 'before' ? { marginBottom: -1 } : { marginTop: -1 }]} />
@@ -502,7 +539,7 @@ function SidebarMapRow({ map, worldId, active, isPrimary, onContextMenu, onDrop 
     >
       {dropPosition === 'before' && dropLine}
       <Pressable
-        onPress={() => router.push(worldMapHref(worldId, map.id))}
+        onPress={goToMap}
         style={[mapSectionStyles.mapRow, active && mapSectionStyles.mapRowActive]}
       >
         <Icon
@@ -538,6 +575,11 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
   onSetPrimary: (mapId: string | null) => void;
 }) {
   const router = useRouter();
+  const embedNavigate = useWorldEmbedNavigate();
+  const goMapIndex = () => {
+    if (embedNavigate?.({ kind: 'world-map-index', worldId })) return;
+    router.push(worldMapIndexHref(worldId));
+  };
   const collapseKey = `${worldId}:__maps`;
   const collapsed = useSidebarCollapseStore((s) => !!s.collapsed[collapseKey]);
   const toggle = useSidebarCollapseStore((s) => s.toggle);
@@ -598,7 +640,7 @@ function SidebarMapSection({ maps, setMaps, worldId, primaryMapId, activeMapId, 
           />
         </Pressable>
         <Pressable
-          onPress={() => router.push(worldMapIndexHref(worldId))}
+          onPress={goMapIndex}
           style={mapSectionStyles.headerLabel}
           accessibilityLabel="Maps"
         >

@@ -32,6 +32,15 @@ export {
   useTimelineEventsStore,
   selectEventsForPage,
 } from './timeline-events.store';
-export { useSplitPaneStore, selectSplitPageId, encodeSplitTarget, decodeSplitTarget } from './split-pane.store';
-export type { SplitTarget } from './split-pane.store';
+export {
+  useSplitPaneStore,
+  selectActiveSplitTarget,
+  selectActiveTargets,
+  selectSplitPageId,
+  encodeSplitTarget,
+  decodeSplitTarget,
+  encodeSplitTabs,
+  decodeSplitTabs,
+} from './split-pane.store';
+export type { SplitTarget, Side } from './split-pane.store';
 export { usePackContentStore, selectPackCache } from './pack-content.store';
