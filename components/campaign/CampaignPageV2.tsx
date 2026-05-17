@@ -16,8 +16,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, ScrollView, StyleSheet, Pressable, ActivityIndicator,
+  View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Platform,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import {
   supabase, getCampaignMembers, listCampaignPacks,
@@ -28,6 +29,7 @@ import {
   removeCampaignMember,
   deleteCampaign,
   getCharactersForCampaign,
+  uploadCampaignCover,
   type HomebrewPackRow,
 } from '@vaultstone/api';
 import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
@@ -35,7 +37,7 @@ import { CharacterCreationRulesModal } from './CharacterCreationRulesModal';
 import { useAuthStore, useCampaignStore, useSplitPaneStore } from '@vaultstone/store';
 import {
   colors, spacing, radius,
-  Card, ContentWidth, GhostButton, GradientButton, Icon,
+  Card, ContentWidth, GhostButton, GradientButton, Icon, ImageCropModal,
   MetaLabel, Text,
 } from '@vaultstone/ui';
 import type { Database, Dnd5eStats, CharacterSettings } from '@vaultstone/types';
@@ -146,6 +148,54 @@ export function CampaignPageV2({ campaignId }: Props) {
 
   const isDM = !!campaign && campaign.dm_user_id === user?.id;
   const myMember = members.find((m) => m.user_id === user?.id);
+
+  // ── Cover upload ────────────────────────────────────────────────
+  // DM-only cover image used as the all-campaigns card cover and as
+  // the scene-pane fallback when no scene is pinned. Web flow goes
+  // through the crop modal (the cover is rendered 16:9 on cards
+  // and full-bleed in the scene pane); native uses the platform
+  // crop UI from expo-image-picker.
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverCropUri, setCoverCropUri] = useState<string | null>(null);
+
+  const persistCoverUrl = useCallback(
+    async (uri: string, mime: string) => {
+      if (!campaign) return;
+      setCoverUploading(true);
+      const { url, error } = await uploadCampaignCover(campaign.id, uri, mime);
+      setCoverUploading(false);
+      if (error || !url) return;
+      setCampaign((prev) => (prev ? { ...prev, cover_image_url: url } : prev));
+      updateCampaignInStore(campaign.id, { cover_image_url: url });
+    },
+    [campaign, updateCampaignInStore],
+  );
+
+  const handlePickCover = useCallback(async () => {
+    if (!campaign) return;
+    const isWeb = Platform.OS === 'web';
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: !isWeb,
+      aspect: [16, 9],
+      quality: 0.5,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (isWeb) {
+      setCoverCropUri(asset.uri);
+    } else {
+      await persistCoverUrl(asset.uri, asset.mimeType ?? 'image/jpeg');
+    }
+  }, [campaign, persistCoverUrl]);
+
+  const handleCoverCropConfirm = useCallback(
+    async (croppedUri: string) => {
+      setCoverCropUri(null);
+      await persistCoverUrl(croppedUri, 'image/jpeg');
+    },
+    [persistCoverUrl],
+  );
 
   // ── Loaders ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -494,6 +544,10 @@ export function CampaignPageV2({ campaignId }: Props) {
               rulesSet={rulesSet}
               onConfigureRules={() => setRulesModalOpen(true)}
               onManageContent={() => setContentModalOpen(true)}
+              coverImageUrl={campaign?.cover_image_url ?? null}
+              isDM={isDM}
+              coverUploading={coverUploading}
+              onPickCover={handlePickCover}
             >
               <CampaignMembersCard
                 members={members}
@@ -606,6 +660,19 @@ export function CampaignPageV2({ campaignId }: Props) {
             onConfirm={handleConfirmEnd}
           />
         </>
+      ) : null}
+
+      {/* Web-only crop step for the campaign cover upload. Native
+          uses the system crop UI baked into expo-image-picker. */}
+      {coverCropUri ? (
+        <ImageCropModal
+          visible
+          imageUri={coverCropUri}
+          aspect={[16, 9]}
+          usageHint="This image appears as the campaign's card cover and the fallback scene image when no scene is pinned."
+          onConfirm={handleCoverCropConfirm}
+          onCancel={() => setCoverCropUri(null)}
+        />
       ) : null}
     </ScrollView>
   );
@@ -997,6 +1064,10 @@ function ReferencesCard({
   rulesSet,
   onConfigureRules,
   onManageContent,
+  coverImageUrl,
+  isDM,
+  coverUploading,
+  onPickCover,
   children,
 }: {
   world: { id: string; name: string } | null;
@@ -1004,6 +1075,15 @@ function ReferencesCard({
   rulesSet: boolean;
   onConfigureRules: () => void;
   onManageContent: () => void;
+  /** Current cover image url (null when none uploaded yet). */
+  coverImageUrl: string | null;
+  /** Only DMs can edit the cover. Non-DMs see the cover if one's
+   *  set, but no edit affordance. */
+  isDM: boolean;
+  /** True while an upload is in flight — shows a spinner overlay. */
+  coverUploading: boolean;
+  /** Opens the platform image picker. */
+  onPickCover: () => void;
   /** Optional follow-up content rendered inside the same card after
    *  the reference rows. Used to nest the Members section. */
   children?: React.ReactNode;
@@ -1034,6 +1114,20 @@ function ReferencesCard({
             ctaIcon="tune"
             onPress={onConfigureRules}
           />
+          {isDM ? (
+            <ReferenceRow
+              label="Campaign cover"
+              value={
+                coverUploading
+                  ? 'Uploading…'
+                  : coverImageUrl
+                    ? 'Edit image'
+                    : 'Add image'
+              }
+              ctaIcon="image"
+              onPress={coverUploading ? undefined : onPickCover}
+            />
+          ) : null}
         </View>
       </View>
       {children}
@@ -1113,6 +1207,7 @@ const s = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   body: { padding: spacing.lg, gap: spacing.md },
+
 
   /** Two-step confirmation banner. Destructive intent reads as a
    *  clear, full-width call to action rather than a tooltip. */
