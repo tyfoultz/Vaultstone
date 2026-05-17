@@ -25,13 +25,21 @@ export type WindowPaneSlot = {
 
 /**
  * Default scene fallback — used when the campaign has no pinned
- * scene image. Resolved from the first linked world's
- * `cover_image_url` (the world banner). Captions don't apply since
- * the banner isn't a world_images row.
+ * scene image. Resolved in this order:
+ *   1. The campaign's own `cover_image_url` when the DM has set one.
+ *      Same image that appears on the campaign list card.
+ *   2. The first linked world's `cover_image_url` (the world banner)
+ *      as a deeper fallback, preserving prior behavior for campaigns
+ *      that haven't uploaded a cover yet.
+ *
+ * Captions don't apply since neither source is a world_images row.
  */
 export type WindowPaneFallback = {
   signedUrl: string;
-  worldName: string;
+  /** Set when the fallback came from the campaign cover. */
+  campaignName?: string;
+  /** Set when the fallback came from the linked world's banner. */
+  worldName?: string;
 };
 
 export type CampaignWindowPaneState = {
@@ -59,7 +67,7 @@ export async function getCampaignWindowPane(campaignId: string): Promise<{
 }> {
   const { data: campaign, error } = await supabase
     .from('campaigns')
-    .select('scene_image_id, subject_image_id')
+    .select('scene_image_id, subject_image_id, cover_image_url, name')
     .eq('id', campaignId)
     .single();
   if (error || !campaign) return { data: null, error };
@@ -67,19 +75,24 @@ export async function getCampaignWindowPane(campaignId: string): Promise<{
   const [scene, subject, fallback] = await Promise.all([
     resolveSlot(campaign.scene_image_id),
     resolveSlot(campaign.subject_image_id),
-    resolveFallbackBanner(campaignId),
+    resolveFallbackBanner(campaignId, campaign.cover_image_url, campaign.name),
   ]);
   return { data: { scene, subject, fallback }, error: null };
 }
 
 /**
- * Resolve the world-banner fallback used when no scene image is
- * pinned. Picks the first linked world (the spec is one-world-per-
- * campaign; older data may have multiple, in which case we just
- * grab the earliest-linked one). Returns null when the campaign has
- * no world or the world has no cover image.
+ * Resolve the scene fallback. Prefers the campaign's own cover when
+ * set, otherwise drops to the first linked world's banner. Returns
+ * null when neither is available.
  */
-async function resolveFallbackBanner(campaignId: string): Promise<WindowPaneFallback | null> {
+async function resolveFallbackBanner(
+  campaignId: string,
+  campaignCoverUrl: string | null,
+  campaignName: string,
+): Promise<WindowPaneFallback | null> {
+  if (campaignCoverUrl) {
+    return { signedUrl: campaignCoverUrl, campaignName };
+  }
   const { data, error } = await supabase
     .from('world_campaigns')
     .select('world_id, worlds(name, cover_image_url)')

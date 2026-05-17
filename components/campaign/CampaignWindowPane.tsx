@@ -106,7 +106,12 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
             source={{ uri: sceneSrc }}
             style={styles.scene}
             resizeMode="cover"
-            accessibilityLabel={state?.scene?.alt || state?.fallback?.worldName || ''}
+            accessibilityLabel={
+              state?.scene?.alt
+                || state?.fallback?.campaignName
+                || state?.fallback?.worldName
+                || ''
+            }
           />
         ) : (
           <View style={styles.placeholder}>
@@ -124,7 +129,9 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
 
         {sceneIsFallback && isDM ? (
           <View style={styles.fallbackChip}>
-            <MetaLabel size="sm">World banner</MetaLabel>
+            <MetaLabel size="sm">
+              {state?.fallback?.campaignName ? 'Campaign cover' : 'World banner'}
+            </MetaLabel>
           </View>
         ) : null}
 
