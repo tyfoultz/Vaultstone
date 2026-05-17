@@ -253,6 +253,7 @@ export interface Database {
           id: string;
           session_id: string;
           character_id: string | null;
+          creature_key: string | null;
           display_name: string;
           init_value: number;
           init_roll: number | null;
@@ -267,6 +268,7 @@ export interface Database {
           id?: string;
           session_id: string;
           character_id?: string | null;
+          creature_key?: string | null;
           display_name: string;
           init_value: number;
           init_roll?: number | null;
@@ -279,6 +281,7 @@ export interface Database {
         };
         Update: {
           character_id?: string | null;
+          creature_key?: string | null;
           display_name?: string;
           init_value?: number;
           init_roll?: number | null;

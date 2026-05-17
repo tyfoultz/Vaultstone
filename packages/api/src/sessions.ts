@@ -208,6 +208,7 @@ export async function addCombatant(input: {
   hpMax: number;
   ac: number;
   characterId?: string | null;
+  creatureKey?: string | null;
 }) {
   return supabase
     .from('initiative_order')
@@ -220,6 +221,7 @@ export async function addCombatant(input: {
       hp_current: input.hpMax,
       ac: input.ac,
       character_id: input.characterId ?? null,
+      creature_key: input.creatureKey ?? null,
       sort_order: 0,
       is_active_turn: false,
     })

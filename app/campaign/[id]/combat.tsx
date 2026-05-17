@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, TextInput, StyleSheet,
+  View, Text, TouchableOpacity, Pressable, TextInput, StyleSheet,
   ActivityIndicator, FlatList, Modal, ScrollView, Alert, Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -12,12 +12,16 @@ import {
   rollCombatantInitiative, setCombatantInitOverride, startCombat,
   resetInitiative, endCombat, sortByInitiative,
 } from '@vaultstone/api';
+import { ContentResolver } from '@vaultstone/content';
 import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPanel';
 import { SessionLogFeed } from '../../../components/session/SessionLogFeed';
+import { CreaturePickerModal, type AddCreatureInput } from '../../../components/combat/CreaturePickerModal';
+import { CreatureStatBlock } from '../../../components/creatures/CreatureStatBlock';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
-import { colors, spacing } from '@vaultstone/ui';
+import { colors, spacing, HpBar, hpColor, useBreakpoint } from '@vaultstone/ui';
 import type {
   Database, Dnd5eStats, Dnd5eResources, Dnd5eEquipmentItem,
+  CreatureResult,
 } from '@vaultstone/types';
 
 type Session = Database['public']['Tables']['sessions']['Row'];
@@ -81,12 +85,7 @@ export default function CombatScreen() {
   const [loading, setLoading] = useState(true);
   const [advancing, setAdvancing] = useState(false);
 
-  const [adding, setAdding] = useState(false);
-  const [formName, setFormName] = useState('');
-  const [formInitMod, setFormInitMod] = useState('');
-  const [formHp, setFormHp] = useState('');
-  const [formAc, setFormAc] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
 
   const [addingParty, setAddingParty] = useState(false);
   const [partyLoading, setPartyLoading] = useState(false);
@@ -110,6 +109,14 @@ export default function CombatScreen() {
   const [startingCombat, setStartingCombat] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [endingCombat, setEndingCombat] = useState(false);
+
+  const [selectedCombatantId, setSelectedCombatantId] = useState<string | null>(null);
+  const [creatureCache, setCreatureCache] = useState<Record<string, CreatureResult>>({});
+  const [hpEditFor, setHpEditFor] = useState<string | null>(null);
+  const [hpEditAmount, setHpEditAmount] = useState('');
+
+  const bp = useBreakpoint();
+  const showSidePanel = (bp.isDesktop || bp.isWide) && selectedCombatantId !== null;
 
   const isDM = campaign?.dm_user_id === user?.id;
   const combatStarted = !!session?.combat_started_at;
@@ -223,23 +230,53 @@ export default function CombatScreen() {
     return () => { supabase.removeChannel(channel); };
   }, [session?.id]);
 
-  function resetForm() {
-    setFormName(''); setFormInitMod(''); setFormHp(''); setFormAc('');
-    setAdding(false);
+  async function handleAddCreatures(inputs: AddCreatureInput[]) {
+    if (!session) return;
+    await Promise.all(
+      inputs.map((c) => addCombatant({
+        sessionId: session.id,
+        name: c.name,
+        initMod: c.initMod,
+        hpMax: c.hpMax,
+        ac: c.ac,
+        creatureKey: c.creatureKey || null,
+      })),
+    );
+    await refetchEntries(session.id);
+    setPickerVisible(false);
   }
 
-  async function handleAdd() {
-    if (!session || saving) return;
-    const name = formName.trim();
-    const initMod = parseInt(formInitMod, 10);
-    const hp = parseInt(formHp, 10);
-    const ac = parseInt(formAc, 10);
-    if (!name || Number.isNaN(initMod) || Number.isNaN(hp) || Number.isNaN(ac)) return;
-    setSaving(true);
-    await addCombatant({ sessionId: session.id, name, initMod, hpMax: hp, ac });
-    await refetchEntries(session.id);
-    setSaving(false);
-    resetForm();
+  async function loadCreature(key: string): Promise<CreatureResult | null> {
+    if (creatureCache[key]) return creatureCache[key];
+    const result = await ContentResolver.getByKey(key);
+    if (result && result.type === 'monster') {
+      const creature = result as CreatureResult;
+      setCreatureCache((prev) => ({ ...prev, [key]: creature }));
+      return creature;
+    }
+    return null;
+  }
+
+  async function handleSelectCombatant(combatant: Combatant) {
+    if (!combatant.creature_key) return;
+    setSelectedCombatantId(combatant.id);
+    await loadCreature(combatant.creature_key);
+  }
+
+  function handleDamage(combatant: Combatant) {
+    const amount = parseInt(hpEditAmount, 10);
+    if (Number.isNaN(amount) || amount <= 0) return;
+    adjustHp(combatant, -amount);
+    setHpEditFor(null);
+    setHpEditAmount('');
+  }
+
+  function handleHeal(combatant: Combatant) {
+    const amount = parseInt(hpEditAmount, 10);
+    if (Number.isNaN(amount) || amount <= 0) return;
+    adjustHp(combatant, amount);
+    setHpEditFor(null);
+    setHpEditAmount('');
   }
 
   async function handleRemove(combatantId: string) {
@@ -533,14 +570,14 @@ export default function CombatScreen() {
         <View style={s.controls}>
           <TouchableOpacity
             style={s.controlBtn}
-            onPress={() => setAdding((v) => !v)}
+            onPress={() => setPickerVisible(true)}
           >
             <MaterialCommunityIcons
-              name={adding ? 'close' : 'plus'}
+              name="plus"
               size={16}
               color={colors.textPrimary}
             />
-            <Text style={s.controlBtnText}>{adding ? 'Cancel' : 'Add Combatant'}</Text>
+            <Text style={s.controlBtnText}>Add Combatant</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={s.controlBtn}
@@ -623,49 +660,6 @@ export default function CombatScreen() {
         </View>
       )}
 
-      {isDM && adding && (
-        <View style={s.addForm}>
-          <TextInput
-            style={[s.input, { flex: 2 }]}
-            placeholder="Name"
-            placeholderTextColor={colors.textSecondary}
-            value={formName}
-            onChangeText={setFormName}
-          />
-          <TextInput
-            style={[s.input, { flex: 1 }]}
-            placeholder="Init mod"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="numeric"
-            value={formInitMod}
-            onChangeText={setFormInitMod}
-          />
-          <TextInput
-            style={[s.input, { flex: 1 }]}
-            placeholder="HP"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="number-pad"
-            value={formHp}
-            onChangeText={setFormHp}
-          />
-          <TextInput
-            style={[s.input, { flex: 1 }]}
-            placeholder="AC"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="number-pad"
-            value={formAc}
-            onChangeText={setFormAc}
-          />
-          <TouchableOpacity
-            style={[s.saveBtn, saving && { opacity: 0.5 }]}
-            onPress={handleAdd}
-            disabled={saving}
-          >
-            <Text style={s.saveBtnText}>{saving ? '…' : 'Save'}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {isDM && addingParty && (
         <View style={s.pickerPanel}>
           {partyLoading ? (
@@ -734,148 +728,243 @@ export default function CombatScreen() {
         <SessionLogFeed sessionId={session.id} isLive variant="full" />
       </View>
 
-      {entries.length === 0 ? (
-        <View style={s.placeholder}>
-          <MaterialCommunityIcons name="sword-cross" size={48} color={colors.textSecondary} />
-          <Text style={s.placeholderTitle}>No combatants yet</Text>
-          <Text style={s.placeholderBody}>
-            {isDM
-              ? 'Add combatants to begin tracking initiative.'
-              : 'Waiting for the DM to set up initiative.'}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={sortedEntries}
-          keyExtractor={(e) => e.id}
-          contentContainerStyle={{ paddingVertical: spacing.sm }}
-          renderItem={({ item }) => {
-            const conds = item.character_id
-              ? (pcConditions[item.character_id] ?? [])
-              : [];
-            const isPc = !!item.character_id;
-            const overridden = item.init_override !== null;
-            const rolled = overridden || item.init_roll !== null;
-            const total = overridden
-              ? (item.init_override as number)
-              : item.init_value + (item.init_roll ?? 0);
-            const canRoll = isDM
-              || (isPc && myCharacterIds.has(item.character_id!));
-            return (
-              <View style={[s.row, item.is_active_turn && s.rowActive]}>
-                {item.is_active_turn && (
-                  <MaterialCommunityIcons
-                    name="arrow-right-bold"
-                    size={18}
-                    color={colors.brand}
-                    style={{ marginRight: 4 }}
-                  />
-                )}
-                <View style={[s.initBadge, rolled && s.initBadgeRolled]}>
-                  <Text style={s.initBadgeText}>
-                    {rolled ? total : formatMod(item.init_value)}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.rowName} numberOfLines={1}>{item.display_name}</Text>
-                  <Text style={s.rowMeta}>
-                    {rolled && !overridden && (
-                      <Text style={s.rowRollDetail}>
-                        d20: {item.init_roll} {formatMod(item.init_value)} · {' '}
-                      </Text>
-                    )}
-                    HP {item.hp_current}/{item.hp_max} · AC {item.ac}
-                  </Text>
-                  {conds.length > 0 && (
-                    <View style={s.condChipRow}>
-                      {conds.slice(0, 3).map((c) => (
-                        <View key={c} style={s.condChip}>
-                          <Text style={s.condChipText}>{c}</Text>
-                        </View>
-                      ))}
-                      {conds.length > 3 && (
-                        <Text style={s.condMore}>+{conds.length - 3}</Text>
+      <View style={showSidePanel ? s.splitRow : { flex: 1 }}>
+        {entries.length === 0 ? (
+          <View style={s.placeholder}>
+            <MaterialCommunityIcons name="sword-cross" size={48} color={colors.textSecondary} />
+            <Text style={s.placeholderTitle}>No combatants yet</Text>
+            <Text style={s.placeholderBody}>
+              {isDM
+                ? 'Add combatants to begin tracking initiative.'
+                : 'Waiting for the DM to set up initiative.'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={sortedEntries}
+            keyExtractor={(e) => e.id}
+            contentContainerStyle={{ paddingVertical: spacing.sm }}
+            renderItem={({ item }) => {
+              const conds = item.character_id
+                ? (pcConditions[item.character_id] ?? [])
+                : [];
+              const isPc = !!item.character_id;
+              const overridden = item.init_override !== null;
+              const rolled = overridden || item.init_roll !== null;
+              const total = overridden
+                ? (item.init_override as number)
+                : item.init_value + (item.init_roll ?? 0);
+              const canRoll = isDM
+                || (isPc && myCharacterIds.has(item.character_id!));
+              const hpColorVal = hpColor(item.hp_current, item.hp_max);
+              const hasStatBlock = !!item.creature_key;
+              const isSelected = selectedCombatantId === item.id;
+              return (
+                <View style={[s.row, item.is_active_turn && s.rowActive, isSelected && s.rowSelected]}>
+                  {item.is_active_turn && (
+                    <MaterialCommunityIcons
+                      name="arrow-right-bold"
+                      size={18}
+                      color={colors.brand}
+                      style={{ marginRight: 4 }}
+                    />
+                  )}
+                  <View style={[s.initBadge, rolled && s.initBadgeRolled]}>
+                    <Text style={s.initBadgeText}>
+                      {rolled ? total : formatMod(item.init_value)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={{ flex: 1 }}
+                    onPress={hasStatBlock ? () => handleSelectCombatant(item) : undefined}
+                  >
+                    <Text style={s.rowName} numberOfLines={1}>
+                      {item.display_name}
+                      {hasStatBlock && (
+                        <Text style={s.rowStatBlockHint}> ⓘ</Text>
                       )}
+                    </Text>
+                    <View style={s.rowMetaRow}>
+                      {rolled && !overridden && (
+                        <Text style={s.rowRollDetail}>
+                          d20: {item.init_roll} {formatMod(item.init_value)} ·{' '}
+                        </Text>
+                      )}
+                      <Pressable
+                        onPress={isDM ? () => {
+                          setHpEditFor(hpEditFor === item.id ? null : item.id);
+                          setHpEditAmount('');
+                        } : undefined}
+                      >
+                        <Text style={[s.rowMeta, { color: hpColorVal }]}>
+                          HP {item.hp_current}/{item.hp_max}
+                        </Text>
+                      </Pressable>
+                      <Text style={s.rowMeta}> · AC {item.ac}</Text>
                     </View>
-                  )}
-                  {!rolled && isDM && (
-                    <View style={s.rowInlineRow}>
-                      <TextInput
-                        style={s.rowManualInput}
-                        placeholder="Total"
-                        placeholderTextColor={colors.textSecondary}
-                        keyboardType="numeric"
-                        value={manualRolls[item.id] ?? ''}
-                        onChangeText={(v) =>
-                          setManualRolls((prev) => ({ ...prev, [item.id]: v }))
-                        }
-                      />
-                      <TouchableOpacity
-                        style={s.rowInlineBtn}
-                        onPress={() => handleManualSet(item.id)}
-                      >
-                        <Text style={s.rowInlineBtnText}>Set total</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-                <View style={s.rowActions}>
-                  {!rolled && canRoll && (
-                    <TouchableOpacity
-                      style={s.rollBtn}
-                      onPress={() => handleRollOne(item)}
-                    >
-                      <MaterialCommunityIcons
-                        name="dice-d20"
-                        size={18}
-                        color={colors.brand}
-                      />
-                    </TouchableOpacity>
-                  )}
-                  {isDM && (
-                    <>
-                      <TouchableOpacity
-                        style={s.hpBtn}
-                        onPress={() => adjustHp(item, -1)}
-                      >
-                        <MaterialCommunityIcons name="minus" size={16} color={colors.hpDanger} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={s.hpBtn}
-                        onPress={() => adjustHp(item, 1)}
-                      >
-                        <MaterialCommunityIcons name="plus" size={16} color={colors.hpHealthy} />
-                      </TouchableOpacity>
-                      {isPc && (
+                    <HpBar current={item.hp_current} max={item.hp_max} />
+                    {hpEditFor === item.id && isDM && (
+                      <View style={s.hpEditRow}>
+                        <TextInput
+                          style={s.hpEditInput}
+                          placeholder="Amount"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="number-pad"
+                          value={hpEditAmount}
+                          onChangeText={setHpEditAmount}
+                          autoFocus
+                        />
                         <TouchableOpacity
-                          style={s.rowAction}
-                          onPress={() => setEditingConditionsFor(item)}
+                          style={s.hpDmgBtn}
+                          onPress={() => handleDamage(item)}
                         >
-                          <MaterialCommunityIcons
-                            name="heart-pulse"
-                            size={18}
-                            color={colors.textSecondary}
-                          />
+                          <Text style={s.hpDmgBtnText}>Damage</Text>
                         </TouchableOpacity>
-                      )}
+                        <TouchableOpacity
+                          style={s.hpHealBtn}
+                          onPress={() => handleHeal(item)}
+                        >
+                          <Text style={s.hpHealBtnText}>Heal</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {conds.length > 0 && (
+                      <View style={s.condChipRow}>
+                        {conds.slice(0, 3).map((c) => (
+                          <View key={c} style={s.condChip}>
+                            <Text style={s.condChipText}>{c}</Text>
+                          </View>
+                        ))}
+                        {conds.length > 3 && (
+                          <Text style={s.condMore}>+{conds.length - 3}</Text>
+                        )}
+                      </View>
+                    )}
+                    {!rolled && isDM && (
+                      <View style={s.rowInlineRow}>
+                        <TextInput
+                          style={s.rowManualInput}
+                          placeholder="Total"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                          value={manualRolls[item.id] ?? ''}
+                          onChangeText={(v) =>
+                            setManualRolls((prev) => ({ ...prev, [item.id]: v }))
+                          }
+                        />
+                        <TouchableOpacity
+                          style={s.rowInlineBtn}
+                          onPress={() => handleManualSet(item.id)}
+                        >
+                          <Text style={s.rowInlineBtnText}>Set total</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </Pressable>
+                  <View style={s.rowActions}>
+                    {!rolled && canRoll && (
                       <TouchableOpacity
-                        style={s.rowAction}
-                        onPress={() => handleRemove(item.id)}
+                        style={s.rollBtn}
+                        onPress={() => handleRollOne(item)}
                       >
                         <MaterialCommunityIcons
-                          name="trash-can-outline"
+                          name="dice-d20"
                           size={18}
-                          color={colors.hpDanger}
+                          color={colors.brand}
                         />
                       </TouchableOpacity>
-                    </>
-                  )}
+                    )}
+                    {isDM && (
+                      <>
+                        {isPc && (
+                          <TouchableOpacity
+                            style={s.rowAction}
+                            onPress={() => setEditingConditionsFor(item)}
+                          >
+                            <MaterialCommunityIcons
+                              name="heart-pulse"
+                              size={18}
+                              color={colors.textSecondary}
+                            />
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          style={s.rowAction}
+                          onPress={() => handleRemove(item.id)}
+                        >
+                          <MaterialCommunityIcons
+                            name="trash-can-outline"
+                            size={18}
+                            color={colors.hpDanger}
+                          />
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
                 </View>
+              );
+            }}
+          />
+        )}
+
+        {showSidePanel && (() => {
+          const combatant = entries.find((e) => e.id === selectedCombatantId);
+          const creature = combatant?.creature_key ? creatureCache[combatant.creature_key] : null;
+          return (
+            <View style={s.statPanel}>
+              <View style={s.statPanelHeader}>
+                <Text style={s.statPanelTitle} numberOfLines={1}>
+                  {combatant?.display_name ?? 'Stat Block'}
+                </Text>
+                <TouchableOpacity onPress={() => setSelectedCombatantId(null)}>
+                  <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
-            );
-          }}
-        />
-      )}
+              <ScrollView style={s.statPanelBody}>
+                {creature ? (
+                  <CreatureStatBlock creature={creature} />
+                ) : (
+                  <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
+                )}
+              </ScrollView>
+            </View>
+          );
+        })()}
+      </View>
+
+      {/* Stat block modal for mobile / narrow screens */}
+      {!bp.isDesktop && !bp.isWide && selectedCombatantId && (() => {
+        const combatant = entries.find((e) => e.id === selectedCombatantId);
+        const creature = combatant?.creature_key ? creatureCache[combatant.creature_key] : null;
+        return (
+          <Modal
+            visible
+            transparent
+            animationType="fade"
+            onRequestClose={() => setSelectedCombatantId(null)}
+          >
+            <View style={s.modalBackdrop}>
+              <View style={s.modalCard}>
+                <View style={s.modalHeader}>
+                  <Text style={s.modalTitle} numberOfLines={1}>
+                    {combatant?.display_name ?? 'Stat Block'}
+                  </Text>
+                  <TouchableOpacity onPress={() => setSelectedCombatantId(null)}>
+                    <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView contentContainerStyle={s.modalBody}>
+                  {creature ? (
+                    <CreatureStatBlock creature={creature} />
+                  ) : (
+                    <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
+                  )}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+        );
+      })()}
 
       <Modal
         visible={!!editingConditionsFor}
@@ -920,6 +1009,12 @@ export default function CombatScreen() {
           </View>
         </View>
       </Modal>
+
+      <CreaturePickerModal
+        visible={pickerVisible}
+        onClose={() => setPickerVisible(false)}
+        onAddCreatures={handleAddCreatures}
+      />
     </View>
   );
 }
@@ -958,24 +1053,6 @@ const s = StyleSheet.create({
     marginLeft: 'auto',
   },
   controlBtnPrimaryText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-
-  addForm: {
-    flexDirection: 'row', gap: 6, alignItems: 'center',
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
-    backgroundColor: colors.surface,
-  },
-  input: {
-    backgroundColor: colors.background,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
-    paddingHorizontal: 8, paddingVertical: 6,
-    color: colors.textPrimary, fontSize: 13,
-  },
-  saveBtn: {
-    backgroundColor: colors.brand, borderRadius: 6,
-    paddingHorizontal: spacing.md, paddingVertical: 8,
-  },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   pickerPanel: {
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
@@ -1057,14 +1134,36 @@ const s = StyleSheet.create({
   rowInlineBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   rowName: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   rowMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  rowMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  rowStatBlockHint: { color: colors.brand, fontSize: 12 },
+  rowSelected: {
+    backgroundColor: colors.brand + '11',
+    borderLeftColor: colors.brand, borderLeftWidth: 2,
+  },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   rowAction: { padding: 6 },
-  hpBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    borderColor: colors.border, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.background,
+  hpEditRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6,
   },
+  hpEditInput: {
+    width: 70, textAlign: 'center',
+    backgroundColor: colors.background,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
+    paddingVertical: 4, paddingHorizontal: 6,
+    color: colors.textPrimary, fontSize: 13,
+  },
+  hpDmgBtn: {
+    backgroundColor: colors.hpDanger + '33', borderColor: colors.hpDanger,
+    borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  hpDmgBtnText: { color: colors.hpDanger, fontSize: 12, fontWeight: '700' },
+  hpHealBtn: {
+    backgroundColor: colors.hpHealthy + '33', borderColor: colors.hpHealthy,
+    borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  hpHealBtnText: { color: colors.hpHealthy, fontSize: 12, fontWeight: '700' },
   condChipRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4,
     alignItems: 'center',
@@ -1117,5 +1216,23 @@ const s = StyleSheet.create({
   placeholderTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
   placeholderBody: {
     fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 18,
+  },
+
+  splitRow: {
+    flex: 1, flexDirection: 'row',
+  },
+  statPanel: {
+    width: 380,
+    borderLeftColor: colors.border, borderLeftWidth: 1,
+    backgroundColor: colors.surface,
+  },
+  statPanelHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderBottomColor: colors.border, borderBottomWidth: 1,
+  },
+  statPanelTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700', flex: 1 },
+  statPanelBody: {
+    padding: spacing.md, flex: 1,
   },
 });
