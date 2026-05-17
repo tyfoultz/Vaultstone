@@ -210,21 +210,22 @@ export async function addCombatant(input: {
   characterId?: string | null;
   creatureKey?: string | null;
 }) {
+  const row = {
+    session_id: input.sessionId,
+    display_name: input.name,
+    init_value: input.initMod,
+    init_roll: null,
+    hp_max: input.hpMax,
+    hp_current: input.hpMax,
+    ac: input.ac,
+    character_id: input.characterId ?? null,
+    sort_order: 0,
+    is_active_turn: false,
+    ...(input.creatureKey ? { creature_key: input.creatureKey } : {}),
+  };
   return supabase
     .from('initiative_order')
-    .insert({
-      session_id: input.sessionId,
-      display_name: input.name,
-      init_value: input.initMod,
-      init_roll: null,
-      hp_max: input.hpMax,
-      hp_current: input.hpMax,
-      ac: input.ac,
-      character_id: input.characterId ?? null,
-      creature_key: input.creatureKey ?? null,
-      sort_order: 0,
-      is_active_turn: false,
-    })
+    .insert(row)
     .select()
     .single();
 }
