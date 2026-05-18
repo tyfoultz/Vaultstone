@@ -959,43 +959,64 @@ export default function EncounterBuilderScreen() {
     onSelect: (v: string | null) => void;
     open: boolean; setOpen: (v: boolean) => void;
   }) {
+    const btnRef = useRef<View>(null);
+    const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+    const handleOpen = useCallback(() => {
+      if (open) { setOpen(false); return; }
+      if (Platform.OS === 'web' && btnRef.current) {
+        const el = btnRef.current as unknown as HTMLElement;
+        const rect = el.getBoundingClientRect();
+        setDropPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 80) });
+      }
+      setOpen(true);
+    }, [open, setOpen]);
+
     return (
       <View style={st.crPickerWrap}>
-        <Pressable style={st.crPickerBtn} onPress={() => setOpen(!open)}>
+        <Pressable ref={btnRef} style={st.crPickerBtn} onPress={handleOpen}>
           <Text style={st.crPickerLabel}>{label}</Text>
           <Text style={st.crPickerBtnText}>{value ?? 'Any'}</Text>
           <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.textSecondary} />
         </Pressable>
-        {open && (
-          <Pressable
-            style={st.crBackdrop}
-            onPress={() => setOpen(false)}
-          />
-        )}
-        {open && (
-          <View
-            style={st.crDropdown}
-            {...(Platform.OS === 'web' ? { onWheel: (e: any) => e.stopPropagation() } : {})}
-          >
-            <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
-              <Pressable
-                style={[st.crDropdownItem, value === null && st.crDropdownItemActive]}
-                onPress={() => { onSelect(null); setOpen(false); }}
-              >
-                <Text style={[st.crDropdownText, value === null && st.crDropdownTextActive]}>Any</Text>
-              </Pressable>
-              {CR_OPTIONS.map((opt) => (
+        <Modal
+          visible={open}
+          transparent
+          animationType="none"
+          onRequestClose={() => setOpen(false)}
+        >
+          <Pressable style={st.crModalBackdrop} onPress={() => setOpen(false)}>
+            <View
+              style={[
+                st.crDropdown,
+                Platform.OS === 'web' && dropPos ? {
+                  position: 'absolute' as const,
+                  top: dropPos.top,
+                  left: dropPos.left,
+                  width: dropPos.width,
+                } : { marginTop: 100, alignSelf: 'center' as const, width: 120 },
+              ]}
+            >
+              <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled>
                 <Pressable
-                  key={opt}
-                  style={[st.crDropdownItem, value === opt && st.crDropdownItemActive]}
-                  onPress={() => { onSelect(opt); setOpen(false); }}
+                  style={[st.crDropdownItem, value === null && st.crDropdownItemActive]}
+                  onPress={() => { onSelect(null); setOpen(false); }}
                 >
-                  <Text style={[st.crDropdownText, value === opt && st.crDropdownTextActive]}>{opt}</Text>
+                  <Text style={[st.crDropdownText, value === null && st.crDropdownTextActive]}>Any</Text>
                 </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+                {CR_OPTIONS.map((opt) => (
+                  <Pressable
+                    key={opt}
+                    style={[st.crDropdownItem, value === opt && st.crDropdownItemActive]}
+                    onPress={() => { onSelect(opt); setOpen(false); }}
+                  >
+                    <Text style={[st.crDropdownText, value === opt && st.crDropdownTextActive]}>{opt}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          </Pressable>
+        </Modal>
       </View>
     );
   }
@@ -1525,10 +1546,9 @@ const st = StyleSheet.create({
     fontSize: 11, fontWeight: '700', color: colors.textSecondary, letterSpacing: 1,
   },
   crDash: { fontSize: 14, color: colors.textSecondary },
-  crPickerWrap: { position: 'relative' as const, zIndex: 10 },
-  crBackdrop: {
-    position: 'absolute' as const, top: 0, left: -1000, right: -1000,
-    bottom: -1000, zIndex: 99,
+  crPickerWrap: {},
+  crModalBackdrop: {
+    flex: 1,
   },
   crPickerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
@@ -1539,14 +1559,11 @@ const st = StyleSheet.create({
   crPickerLabel: { fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginRight: 2 },
   crPickerBtnText: { fontSize: 12, color: colors.textPrimary, flex: 1 },
   crDropdown: {
-    position: 'absolute' as const, top: '100%', left: 0, right: 0,
-    backgroundColor: '#333537', borderColor: colors.border, borderWidth: 1,
-    borderRadius: 6, marginTop: 2,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 12,
-    ...(Platform.OS === 'web' ? { zIndex: 100, boxShadow: '0 4px 16px rgba(0,0,0,0.6)' } as never : { elevation: 10 }),
+    backgroundColor: '#2a2c2e', borderColor: colors.border, borderWidth: 1,
+    borderRadius: 6, overflow: 'hidden' as const,
+    ...(Platform.OS === 'web' ? { boxShadow: '0 4px 20px rgba(0,0,0,0.8)' } as never : { elevation: 10 }),
   },
-  crDropdownItem: { paddingHorizontal: 10, paddingVertical: 5 },
+  crDropdownItem: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#2a2c2e' },
   crDropdownItemActive: { backgroundColor: colors.brand + '22' },
   crDropdownText: { fontSize: 12, color: colors.textPrimary },
   crDropdownTextActive: { color: colors.brand, fontWeight: '600' },
