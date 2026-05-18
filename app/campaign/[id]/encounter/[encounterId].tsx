@@ -392,6 +392,9 @@ export default function EncounterBuilderScreen() {
   // Party / difficulty state
   const [partyLevels, setPartyLevels] = useState<number[]>([]);
   const [partyLoaded, setPartyLoaded] = useState(false);
+  const [partyOverride, setPartyOverride] = useState(false);
+  const [overrideSize, setOverrideSize] = useState('');
+  const [overrideLevel, setOverrideLevel] = useState('');
 
   // Pinned spells
   const { pinned, pinSpell, unpinSpell, toggleMinimize } = usePinnedSpells();
@@ -545,55 +548,43 @@ export default function EncounterBuilderScreen() {
   // Difficulty computation
   // ---------------------------------------------------------------------------
 
+  const effectiveParty = useMemo(() => {
+    if (partyOverride) {
+      const size = parseInt(overrideSize, 10) || 0;
+      const lvl = Math.max(1, Math.min(20, parseInt(overrideLevel, 10) || 1));
+      if (size > 0) return { size, levels: Array(size).fill(lvl) as number[] };
+    }
+    return { size: partyLevels.length, levels: partyLevels };
+  }, [partyOverride, overrideSize, overrideLevel, partyLevels]);
+
   const difficulty = useMemo(() => {
     const totalMonsters = combatants.reduce((sum, c) => sum + c.count, 0);
-    if (totalMonsters === 0 || partyLevels.length === 0) return null;
+    if (totalMonsters === 0 || effectiveParty.size === 0) return null;
 
     return {
-      ...computeDifficulty(combatants, catalog, partyLevels.length, partyLevels),
+      ...computeDifficulty(combatants, catalog, effectiveParty.size, effectiveParty.levels),
       totalMonsters,
-      partySize: partyLevels.length,
+      partySize: effectiveParty.size,
     };
-  }, [combatants, catalog, partyLevels]);
+  }, [combatants, catalog, effectiveParty]);
 
   // ---------------------------------------------------------------------------
   // Stat block slot management
   // ---------------------------------------------------------------------------
 
-  const fillSlot = useCallback(async (creatureKey: string) => {
-    // Load creature data
+  const previewInSlot = useCallback(async (creatureKey: string) => {
     let creature = catalog.find((c) => c.key === creatureKey) ?? null;
     if (!creature) {
       creature = await loadCreatureByKey(creatureKey);
     }
     if (!creature) return;
 
-    // Ensure creature is on the roster so overrides have a home
-    const capturedCreature = creature;
-    setCombatants((prev) => {
-      const exists = prev.some((m) => m.creature_key === creatureKey);
-      if (exists) return prev;
-      const initMod = capturedCreature.abilityModifiers?.dex ?? 0;
-      const next: EncounterCombatant[] = [...prev, {
-        name: capturedCreature.name,
-        creature_key: capturedCreature.key,
-        count: 1,
-        init_mod: initMod,
-        hp_max: capturedCreature.hp,
-        ac: capturedCreature.ac,
-      }];
-      scheduleSave(next);
-      return next;
-    });
-
-    // Determine which slot to fill (outside updaters to keep them pure)
     setStatSlots((prev) => {
       if (prev[0] === null) return [creatureKey, prev[1]];
       if (prev[1] === null && showTwoSlots) return [prev[0], creatureKey];
       return [creatureKey, prev[1]];
     });
     setSlotCreatures((prev) => {
-      // Mirror the same logic: fill first empty, else replace slot 0
       if (prev[0] === null) return [creature, prev[1]];
       if (prev[1] === null && showTwoSlots) return [prev[0], creature];
       return [creature, prev[1]];
@@ -793,7 +784,7 @@ export default function EncounterBuilderScreen() {
     return (
       <Pressable
         style={st.catalogRow}
-        onPress={() => fillSlot(creature.key)}
+        onPress={() => previewInSlot(creature.key)}
       >
         <View style={{ flex: 1 }}>
           <View style={st.catalogNameRow}>
@@ -823,7 +814,7 @@ export default function EncounterBuilderScreen() {
     return (
       <View key={`${c.creature_key ?? c.name}-${idx}`} style={st.rosterCard}>
         <View style={st.rosterCardTop}>
-          <Pressable style={{ flex: 1 }} onPress={() => { if (c.creature_key) fillSlot(c.creature_key); }}>
+          <Pressable style={{ flex: 1 }} onPress={() => { if (c.creature_key) previewInSlot(c.creature_key); }}>
             <Text style={st.rosterName} numberOfLines={1}>{c.name}</Text>
           </Pressable>
           <TouchableOpacity style={st.removeBtn} onPress={() => removeCombatant(idx)} hitSlop={6}>
@@ -896,11 +887,65 @@ export default function EncounterBuilderScreen() {
               ? 'Add creatures to see difficulty'
               : !partyLoaded
                 ? 'Loading party data...'
-                : partyLevels.length === 0
-                  ? 'No party characters found'
+                : effectiveParty.size === 0
+                  ? 'Set party info below'
                   : ''}
           </Text>
         )}
+        {/* Party override controls */}
+        <View style={st.partyRow}>
+          <Pressable
+            style={st.partyToggle}
+            onPress={() => {
+              const next = !partyOverride;
+              setPartyOverride(next);
+              if (next && !overrideSize) {
+                setOverrideSize(String(partyLevels.length || 4));
+                setOverrideLevel(String(
+                  partyLevels.length > 0
+                    ? Math.round(partyLevels.reduce((a, b) => a + b, 0) / partyLevels.length)
+                    : 3,
+                ));
+              }
+            }}
+          >
+            <MaterialCommunityIcons
+              name={partyOverride ? 'checkbox-marked' : 'checkbox-blank-outline'}
+              size={14}
+              color={partyOverride ? colors.brand : colors.textSecondary}
+            />
+            <Text style={st.partyToggleText}>Override party</Text>
+          </Pressable>
+          {partyOverride && (
+            <View style={st.partyInputs}>
+              <TextInput
+                style={st.partyInput}
+                value={overrideSize}
+                onChangeText={setOverrideSize}
+                keyboardType="number-pad"
+                placeholder="#"
+                placeholderTextColor={colors.textSecondary}
+                maxLength={2}
+              />
+              <Text style={st.partyInputLabel}>PCs ×</Text>
+              <TextInput
+                style={st.partyInput}
+                value={overrideLevel}
+                onChangeText={setOverrideLevel}
+                keyboardType="number-pad"
+                placeholder="Lvl"
+                placeholderTextColor={colors.textSecondary}
+                maxLength={2}
+              />
+              <Text style={st.partyInputLabel}>Lvl</Text>
+            </View>
+          )}
+          {!partyOverride && partyLevels.length > 0 && (
+            <Text style={st.partyAutoText}>
+              {partyLevels.length} PCs (avg lvl {Math.round(partyLevels.reduce((a, b) => a + b, 0) / partyLevels.length)})
+            </Text>
+          )}
+        </View>
       </View>
     );
   }
@@ -922,7 +967,16 @@ export default function EncounterBuilderScreen() {
           <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.textSecondary} />
         </Pressable>
         {open && (
-          <View style={st.crDropdown}>
+          <Pressable
+            style={st.crBackdrop}
+            onPress={() => setOpen(false)}
+          />
+        )}
+        {open && (
+          <View
+            style={st.crDropdown}
+            {...(Platform.OS === 'web' ? { onWheel: (e: any) => e.stopPropagation() } : {})}
+          >
             <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
               <Pressable
                 style={[st.crDropdownItem, value === null && st.crDropdownItemActive]}
@@ -1472,21 +1526,25 @@ const st = StyleSheet.create({
   },
   crDash: { fontSize: 14, color: colors.textSecondary },
   crPickerWrap: { position: 'relative' as const, zIndex: 10 },
+  crBackdrop: {
+    position: 'absolute' as const, top: 0, left: -1000, right: -1000,
+    bottom: -1000, zIndex: 99,
+  },
   crPickerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     borderColor: colors.border, borderWidth: 1, borderRadius: 6,
     paddingHorizontal: 8, paddingVertical: 5,
-    backgroundColor: colors.surface, minWidth: 70,
+    backgroundColor: '#333537', minWidth: 70,
   },
   crPickerLabel: { fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginRight: 2 },
   crPickerBtnText: { fontSize: 12, color: colors.textPrimary, flex: 1 },
   crDropdown: {
     position: 'absolute' as const, top: '100%', left: 0, right: 0,
-    backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1,
+    backgroundColor: '#333537', borderColor: colors.border, borderWidth: 1,
     borderRadius: 6, marginTop: 2,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4, shadowRadius: 12,
-    ...(Platform.OS === 'web' ? { zIndex: 100 } : { elevation: 10 }),
+    ...(Platform.OS === 'web' ? { zIndex: 100, boxShadow: '0 4px 16px rgba(0,0,0,0.6)' } as never : { elevation: 10 }),
   },
   crDropdownItem: { paddingHorizontal: 10, paddingVertical: 5 },
   crDropdownItemActive: { backgroundColor: colors.brand + '22' },
@@ -1622,6 +1680,26 @@ const st = StyleSheet.create({
   difficultyHint: {
     fontSize: 10, color: colors.textSecondary, fontStyle: 'italic',
   },
+  partyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 4, flexWrap: 'wrap',
+  },
+  partyToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+  },
+  partyToggleText: { fontSize: 10, color: colors.textSecondary },
+  partyInputs: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+  },
+  partyInput: {
+    width: 32, textAlign: 'center' as const,
+    backgroundColor: colors.background, borderColor: colors.border,
+    borderWidth: 1, borderRadius: 4,
+    paddingVertical: 2, paddingHorizontal: 4,
+    fontSize: 11, fontWeight: '700' as const, color: colors.textPrimary,
+  },
+  partyInputLabel: { fontSize: 10, color: colors.textSecondary },
+  partyAutoText: { fontSize: 10, color: colors.textSecondary, fontStyle: 'italic' as const },
 
   // Stat block columns (3 & 4)
   statBlockCol: {
