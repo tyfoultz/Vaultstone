@@ -6,12 +6,13 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  supabase, getActiveSession, getCampaignPartyState,
+  supabase, getActiveSession,
   getInitiativeOrder, addCombatant, removeCombatant, advanceTurn,
   updateCombatant, updateCharacterHp, updateCharacterConditions,
   rollCombatantInitiative, setCombatantInitOverride, startCombat,
   resetInitiative, endCombat, sortByInitiative,
 } from '@vaultstone/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ContentResolver } from '@vaultstone/content';
 import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPanel';
 import { SessionLogFeed } from '../../../components/session/SessionLogFeed';
@@ -51,6 +52,38 @@ type PartyPick = {
   initMod: number;
   selected: boolean;
 };
+
+const CREATURE_CACHE_KEY = 'vaultstone:creature-cache:v1';
+const CREATURE_CACHE_TTL = 24 * 60 * 60 * 1000;
+let _creatureDiskCache: Record<string, { data: CreatureResult; fetchedAt: number }> = {};
+let _creatureDiskHydrated = false;
+
+async function hydrateCreatureCache(): Promise<Record<string, { data: CreatureResult; fetchedAt: number }>> {
+  if (_creatureDiskHydrated) return _creatureDiskCache;
+  _creatureDiskHydrated = true;
+  try {
+    const raw = await AsyncStorage.getItem(CREATURE_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const now = Date.now();
+      const valid: Record<string, { data: CreatureResult; fetchedAt: number }> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        const entry = v as { data: CreatureResult; fetchedAt: number };
+        if (entry.fetchedAt && now - entry.fetchedAt < CREATURE_CACHE_TTL) {
+          valid[k] = entry;
+        }
+      }
+      _creatureDiskCache = valid;
+    }
+  } catch {}
+  return _creatureDiskCache;
+}
+
+function persistCreatureCache() {
+  try {
+    AsyncStorage.setItem(CREATURE_CACHE_KEY, JSON.stringify(_creatureDiskCache)).catch(() => {});
+  } catch {}
+}
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 
@@ -248,10 +281,18 @@ export default function CombatScreen() {
 
   async function loadCreature(key: string): Promise<CreatureResult | null> {
     if (creatureCache[key]) return creatureCache[key];
+    const disk = await hydrateCreatureCache();
+    if (disk[key]) {
+      const cached = disk[key].data;
+      setCreatureCache((prev) => ({ ...prev, [key]: cached }));
+      return cached;
+    }
     const result = await ContentResolver.getByKey(key);
     if (result && result.type === 'monster') {
       const creature = result as CreatureResult;
       setCreatureCache((prev) => ({ ...prev, [key]: creature }));
+      _creatureDiskCache[key] = { data: creature, fetchedAt: Date.now() };
+      persistCreatureCache();
       return creature;
     }
     return null;
@@ -342,23 +383,26 @@ export default function CombatScreen() {
     if (!id) return;
     setAddingParty(true);
     setPartyLoading(true);
-    const { data } = await getCampaignPartyState(id);
-    const members = (data ?? []) as unknown as PartyMember[];
+    const { data } = await supabase
+      .from('characters')
+      .select('id, name, user_id, base_stats, resources')
+      .eq('campaign_id', id);
+    const characters = data ?? [];
     const existingCharIds = new Set(
       entries.map((e) => e.character_id).filter((x): x is string => !!x),
     );
-    const picks: PartyPick[] = members
-      .filter((m) => m.characters && !existingCharIds.has(m.characters.id))
-      .map((m) => {
-        const stats = m.characters!.base_stats as Dnd5eStats;
-        const resources = m.characters!.resources as Dnd5eResources;
+    const picks: PartyPick[] = characters
+      .filter((c) => !existingCharIds.has(c.id))
+      .map((c) => {
+        const stats = c.base_stats as unknown as Dnd5eStats;
+        const resources = c.resources as unknown as Dnd5eResources;
         const dexMod = abilityMod(stats.abilityScores.dexterity);
         const hpMax = stats.hpMax ?? 0;
         const hpCurrent = resources.hpCurrent ?? hpMax;
         return {
-          userId: m.user_id,
-          characterId: m.characters!.id,
-          name: m.characters!.name,
+          userId: c.user_id,
+          characterId: c.id,
+          name: c.name,
           hpMax,
           hpCurrent,
           ac: computeAc(stats, resources),
