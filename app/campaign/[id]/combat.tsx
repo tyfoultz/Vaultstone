@@ -12,8 +12,7 @@ import {
   rollCombatantInitiative, setCombatantInitOverride, startCombat,
   resetInitiative, endCombat, sortByInitiative,
 } from '@vaultstone/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ContentResolver } from '@vaultstone/content';
+import { loadCreatureByKey } from '../../../components/creatures/creatureCache';
 import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPanel';
 import { SessionLogFeed } from '../../../components/session/SessionLogFeed';
 import { CreaturePickerModal, type AddCreatureInput } from '../../../components/combat/CreaturePickerModal';
@@ -42,38 +41,6 @@ type PartyPick = {
   initMod: number;
   selected: boolean;
 };
-
-const CREATURE_CACHE_KEY = 'vaultstone:creature-cache:v1';
-const CREATURE_CACHE_TTL = 24 * 60 * 60 * 1000;
-let _creatureDiskCache: Record<string, { data: CreatureResult; fetchedAt: number }> = {};
-let _creatureDiskHydrated = false;
-
-async function hydrateCreatureCache(): Promise<Record<string, { data: CreatureResult; fetchedAt: number }>> {
-  if (_creatureDiskHydrated) return _creatureDiskCache;
-  _creatureDiskHydrated = true;
-  try {
-    const raw = await AsyncStorage.getItem(CREATURE_CACHE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const now = Date.now();
-      const valid: Record<string, { data: CreatureResult; fetchedAt: number }> = {};
-      for (const [k, v] of Object.entries(parsed)) {
-        const entry = v as { data: CreatureResult; fetchedAt: number };
-        if (entry.fetchedAt && now - entry.fetchedAt < CREATURE_CACHE_TTL) {
-          valid[k] = entry;
-        }
-      }
-      _creatureDiskCache = valid;
-    }
-  } catch {}
-  return _creatureDiskCache;
-}
-
-function persistCreatureCache() {
-  try {
-    AsyncStorage.setItem(CREATURE_CACHE_KEY, JSON.stringify(_creatureDiskCache)).catch(() => {});
-  } catch {}
-}
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 
@@ -242,21 +209,11 @@ export default function CombatScreen() {
 
   async function loadCreature(key: string): Promise<CreatureResult | null> {
     if (creatureCache[key]) return creatureCache[key];
-    const disk = await hydrateCreatureCache();
-    if (disk[key]) {
-      const cached = disk[key].data;
-      setCreatureCache((prev) => ({ ...prev, [key]: cached }));
-      return cached;
-    }
-    const result = await ContentResolver.getByKey(key);
-    if (result && result.type === 'monster') {
-      const creature = result as CreatureResult;
+    const creature = await loadCreatureByKey(key);
+    if (creature) {
       setCreatureCache((prev) => ({ ...prev, [key]: creature }));
-      _creatureDiskCache[key] = { data: creature, fetchedAt: Date.now() };
-      persistCreatureCache();
-      return creature;
     }
-    return null;
+    return creature;
   }
 
   async function handleSelectCombatant(combatant: Combatant) {
