@@ -1175,4 +1175,5 @@ export type EncounterCombatant = {
   init_mod: number;
   hp_max: number;
   ac: number;
+  overrides?: Record<string, number | string>;
 };

@@ -3,13 +3,13 @@ import {
   View, Text, TouchableOpacity, Pressable, TextInput, StyleSheet,
   ActivityIndicator, FlatList, ScrollView, Modal, Alert, Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase, getActiveSession, updateEncounter, addCombatant } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, useBreakpoint } from '@vaultstone/ui';
 import { getCreatureCatalog, loadCreatureByKey } from '../../../../components/creatures/creatureCache';
-import { CreatureStatBlock } from '../../../../components/creatures/CreatureStatBlock';
+import { BehaviorSection } from '../../../../components/creatures/CreatureStatBlock';
 import { SpellPinProvider } from '../../../../components/creatures/SpellTooltip';
 import { PinnedSpellsOverlay, usePinnedSpells } from '../../../../components/combat/PinnedSpellsOverlay';
 import type { Database, EncounterCombatant, CreatureResult } from '@vaultstone/types';
@@ -97,9 +97,8 @@ function encounterMultiplier(monsterCount: number, partySize: number): number {
   else if (monsterCount <= 10) mult = 2.5;
   else if (monsterCount <= 14) mult = 3;
   else mult = 4;
-  // Adjust for party size
-  if (partySize < 3) mult *= 1.5; // small party is harder
-  else if (partySize >= 6) mult *= 0.5; // large party is easier
+  if (partySize < 3) mult *= 1.5;
+  else if (partySize >= 6) mult *= 0.5;
   return mult;
 }
 
@@ -118,7 +117,6 @@ function computeDifficulty(
   partySize: number,
   partyLevels: number[],
 ): { tier: DifficultyTier; rawXP: number; adjustedXP: number; thresholds: [number, number, number, number] } {
-  // Sum raw XP
   let rawXP = 0;
   let totalMonsters = 0;
   for (const c of combatants) {
@@ -131,7 +129,6 @@ function computeDifficulty(
   const mult = encounterMultiplier(totalMonsters, partySize);
   const adjustedXP = Math.round(rawXP * mult);
 
-  // Sum party thresholds
   const thresholds: [number, number, number, number] = [0, 0, 0, 0];
   for (const lvl of partyLevels) {
     const clamped = Math.max(1, Math.min(20, lvl));
@@ -149,6 +146,206 @@ function computeDifficulty(
   else if (adjustedXP >= thresholds[0]) tier = 'easy';
 
   return { tier, rawXP, adjustedXP, thresholds };
+}
+
+// ---------------------------------------------------------------------------
+// Ability score helpers
+// ---------------------------------------------------------------------------
+
+type AbilityKey = 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha';
+const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+const ABILITY_LABELS: Record<AbilityKey, string> = {
+  str: 'STR', dex: 'DEX', con: 'CON', int: 'INT', wis: 'WIS', cha: 'CHA',
+};
+
+function abilityMod(score: number): number {
+  return Math.floor((score - 10) / 2);
+}
+
+function fmtSigned(n: number): string {
+  return n >= 0 ? `+${n}` : `${n}`;
+}
+
+function skillLabel(key: string): string {
+  return key
+    .split('_')
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(' ');
+}
+
+// ---------------------------------------------------------------------------
+// EditableStatBlock
+// ---------------------------------------------------------------------------
+
+function EditableStatBlock({
+  creature,
+  overrides,
+  onOverrideChange,
+}: {
+  creature: CreatureResult;
+  overrides: Record<string, number | string>;
+  onOverrideChange: (key: string, value: number | string) => void;
+}) {
+  const c = creature;
+
+  // Resolved values (override > base)
+  const resolvedAc = typeof overrides.ac === 'number' ? overrides.ac : c.ac;
+  const resolvedHp = typeof overrides.hp === 'number' ? overrides.hp : c.hp;
+  const resolvedSpeed = typeof overrides.speed === 'string' ? overrides.speed : c.speed;
+
+  // Type tags for header
+  const typeTags: string[] = [];
+  if (c.size) typeTags.push(c.size.toUpperCase());
+  if (c.creatureType) typeTags.push(c.creatureType.toUpperCase());
+  if (c.alignment) typeTags.push(c.alignment.toUpperCase());
+
+  // Skills, senses, languages (read-only)
+  const skillsText = c.skills
+    ? Object.entries(c.skills)
+        .map(([k, v]) => `${skillLabel(k)} ${fmtSigned(v as number)}`)
+        .join(', ')
+    : '';
+  const sensesParts: string[] = [];
+  if (c.senses?.darkvision) sensesParts.push(`darkvision ${c.senses.darkvision} ft.`);
+  if (c.senses?.blindsight) sensesParts.push(`blindsight ${c.senses.blindsight} ft.`);
+  if (c.senses?.tremorsense) sensesParts.push(`tremorsense ${c.senses.tremorsense} ft.`);
+  if (c.senses?.truesight) sensesParts.push(`truesight ${c.senses.truesight} ft.`);
+  if (typeof c.senses?.passivePerception === 'number') sensesParts.push(`passive Perception ${c.senses.passivePerception}`);
+  const sensesText = sensesParts.join(', ');
+
+  // Damage / condition (read-only)
+  const resistText = c.damageResistances?.length ? c.damageResistances.join(', ') : '';
+  const immuneText = c.damageImmunities?.length ? c.damageImmunities.join(', ') : '';
+  const vulnText = c.damageVulnerabilities?.length ? c.damageVulnerabilities.join(', ') : '';
+  const condImmText = c.conditionImmunities?.length ? c.conditionImmunities.join(', ') : '';
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.sm, paddingBottom: spacing.xl }}>
+      {/* Type tags + CR */}
+      <View style={sb.tagRow}>
+        {typeTags.map((tag, i) => (
+          <View key={i} style={sb.typeTag}>
+            <Text style={sb.typeTagText}>{tag}</Text>
+          </View>
+        ))}
+        <View style={sb.crTag}>
+          <Text style={sb.crTagText}>CR {crLabel(c.challengeRating)}</Text>
+        </View>
+      </View>
+
+      {/* Editable top stats: ARMOR, HP, SPEED */}
+      <View style={sb.topStatRow}>
+        <EditableBox
+          label="ARMOR"
+          value={String(resolvedAc)}
+          onChangeValue={(v) => {
+            const n = parseInt(v, 10);
+            if (!isNaN(n)) onOverrideChange('ac', n);
+          }}
+          numeric
+        />
+        <EditableBox
+          label="HP"
+          value={String(resolvedHp)}
+          onChangeValue={(v) => {
+            const n = parseInt(v, 10);
+            if (!isNaN(n)) onOverrideChange('hp', n);
+          }}
+          numeric
+        />
+        <EditableBox
+          label="SPEED"
+          value={resolvedSpeed}
+          onChangeValue={(v) => onOverrideChange('speed', v)}
+        />
+      </View>
+
+      {/* Ability Scores Table */}
+      {c.abilityScores && (
+        <View style={sb.abilityTable}>
+          <View style={[sb.abilityRow, sb.abilityHeadRow]}>
+            <Text style={[sb.abilityCell, sb.abilityNameCol, sb.abilityHeadText]}> </Text>
+            <Text style={[sb.abilityCell, sb.abilityNumCol, sb.abilityHeadText]}>Score</Text>
+            <Text style={[sb.abilityCell, sb.abilityNumCol, sb.abilityHeadText]}>Mod</Text>
+            <Text style={[sb.abilityCell, sb.abilityNumCol, sb.abilityHeadText]}>Save</Text>
+          </View>
+          {ABILITY_KEYS.map((key, i) => {
+            const baseScore = c.abilityScores![key];
+            const resolvedScore = typeof overrides[key] === 'number' ? overrides[key] as number : baseScore;
+            const mod = abilityMod(resolvedScore);
+            const saveBonus = c.savingThrows?.[key];
+            return (
+              <View key={key} style={[sb.abilityRow, i === ABILITY_KEYS.length - 1 && sb.abilityRowLast]}>
+                <Text style={[sb.abilityCell, sb.abilityNameCol, sb.abilityNameText]}>{ABILITY_LABELS[key]}</Text>
+                <View style={[sb.abilityCell, sb.abilityNumCol, { alignItems: 'center' }]}>
+                  <TextInput
+                    style={sb.abilityInput}
+                    value={String(resolvedScore)}
+                    onChangeText={(v) => {
+                      const n = parseInt(v, 10);
+                      if (!isNaN(n)) onOverrideChange(key, n);
+                    }}
+                    keyboardType="number-pad"
+                    selectTextOnFocus
+                    maxLength={2}
+                  />
+                </View>
+                <Text style={[sb.abilityCell, sb.abilityNumCol, sb.abilityValueText]}>{fmtSigned(mod)}</Text>
+                <Text style={[sb.abilityCell, sb.abilityNumCol,
+                  typeof saveBonus === 'number' ? sb.abilitySaveText : sb.abilityDashText
+                ]}>
+                  {typeof saveBonus === 'number' ? fmtSigned(saveBonus) : '—'}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Read-only stat lines */}
+      {skillsText ? <StatLine label="Skills" value={skillsText} /> : null}
+      {sensesText ? <StatLine label="Senses" value={sensesText} /> : null}
+      {c.languages ? <StatLine label="Languages" value={c.languages} /> : null}
+      {resistText ? <StatLine label="Resist" value={resistText} /> : null}
+      {immuneText ? <StatLine label="Immune" value={immuneText} /> : null}
+      {vulnText ? <StatLine label="Vuln" value={vulnText} /> : null}
+      {condImmText ? <StatLine label="Cond Imm" value={condImmText} /> : null}
+      {typeof c.proficiencyBonus === 'number' ? <StatLine label="Prof" value={fmtSigned(c.proficiencyBonus)} /> : null}
+
+      {/* Traits + Actions via BehaviorSection */}
+      {c.traits?.length ? <BehaviorSection label="Traits" entries={c.traits} /> : null}
+      {c.actions?.length ? <BehaviorSection label="Actions" entries={c.actions} /> : null}
+    </ScrollView>
+  );
+}
+
+function EditableBox({ label, value, onChangeValue, numeric }: {
+  label: string;
+  value: string;
+  onChangeValue: (v: string) => void;
+  numeric?: boolean;
+}) {
+  return (
+    <View style={sb.editBox}>
+      <Text style={sb.editBoxLabel}>{label}</Text>
+      <TextInput
+        style={sb.editBoxInput}
+        value={value}
+        onChangeText={onChangeValue}
+        keyboardType={numeric ? 'number-pad' : 'default'}
+        selectTextOnFocus
+      />
+    </View>
+  );
+}
+
+function StatLine({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={sb.statLine}>
+      <Text style={sb.statLineLabel}>{label}</Text>
+      <Text style={sb.statLineValue}>{value}</Text>
+    </View>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -183,20 +380,18 @@ export default function EncounterBuilderScreen() {
   const [crMax, setCrMax] = useState<string | null>(null);
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedEnvs, setSelectedEnvs] = useState<Set<string>>(new Set());
-  const [filtersExpanded, setFiltersExpanded] = useState(true);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [crMinOpen, setCrMinOpen] = useState(false);
   const [crMaxOpen, setCrMaxOpen] = useState(false);
 
-  // Stat block preview
-  const [previewCreature, setPreviewCreature] = useState<CreatureResult | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
+  // Stat block slots: each holds a creature_key (or null)
+  const [statSlots, setStatSlots] = useState<[string | null, string | null]>([null, null]);
+  const [slotCreatures, setSlotCreatures] = useState<[CreatureResult | null, CreatureResult | null]>([null, null]);
+  const [showTwoSlots, setShowTwoSlots] = useState(true);
 
   // Party / difficulty state
   const [partyLevels, setPartyLevels] = useState<number[]>([]);
   const [partyLoaded, setPartyLoaded] = useState(false);
-  const [manualPartySize, setManualPartySize] = useState('');
-  const [manualAvgLevel, setManualAvgLevel] = useState('');
-  const [useManualParty, setUseManualParty] = useState(false);
 
   // Pinned spells
   const { pinned, pinSpell, unpinSpell, toggleMinimize } = usePinnedSpells();
@@ -232,7 +427,6 @@ export default function EncounterBuilderScreen() {
         try {
           const c = (data.combatants as unknown as EncounterCombatant[]) ?? [];
           setCombatants(c);
-          // Pre-cache creature data for combatants
           for (const cb of c) {
             if (cb.creature_key) loadCreatureByKey(cb.creature_key);
           }
@@ -322,7 +516,7 @@ export default function EncounterBuilderScreen() {
   }, [catalog]);
 
   // ---------------------------------------------------------------------------
-  // Filtered catalog
+  // Filtered catalog (name + type + environment search)
   // ---------------------------------------------------------------------------
 
   const filteredCatalog = useMemo(() => {
@@ -330,7 +524,12 @@ export default function EncounterBuilderScreen() {
     const minCr = crMin != null ? crToNum(crMin) : null;
     const maxCr = crMax != null ? crToNum(crMax) : null;
     return catalog.filter((c) => {
-      if (needle && !c.name.toLowerCase().includes(needle)) return false;
+      if (needle) {
+        const nameMatch = c.name.toLowerCase().includes(needle);
+        const typeMatch = c.creatureType.toLowerCase().includes(needle);
+        const envMatch = c.environments?.some((e) => e.toLowerCase().includes(needle)) ?? false;
+        if (!nameMatch && !typeMatch && !envMatch) return false;
+      }
       const cr = crToNum(c.challengeRating);
       if (minCr != null && cr < minCr) return false;
       if (maxCr != null && cr > maxCr) return false;
@@ -348,33 +547,91 @@ export default function EncounterBuilderScreen() {
 
   const difficulty = useMemo(() => {
     const totalMonsters = combatants.reduce((sum, c) => sum + c.count, 0);
-    if (totalMonsters === 0) return null;
-
-    // Determine effective party
-    const manualSz = parseInt(manualPartySize, 10);
-    const manualLvl = parseInt(manualAvgLevel, 10);
-    const hasManual = useManualParty && manualSz > 0 && manualLvl > 0;
-    const hasPartyData = partyLevels.length > 0;
-
-    if (!hasManual && !hasPartyData) return null;
-
-    let effectiveLevels: number[];
-    let effectiveSize: number;
-    if (hasManual) {
-      effectiveSize = manualSz;
-      const clamped = Math.max(1, Math.min(20, manualLvl));
-      effectiveLevels = Array(effectiveSize).fill(clamped);
-    } else {
-      effectiveSize = partyLevels.length;
-      effectiveLevels = partyLevels;
-    }
+    if (totalMonsters === 0 || partyLevels.length === 0) return null;
 
     return {
-      ...computeDifficulty(combatants, catalog, effectiveSize, effectiveLevels),
+      ...computeDifficulty(combatants, catalog, partyLevels.length, partyLevels),
       totalMonsters,
-      partySize: effectiveSize,
+      partySize: partyLevels.length,
     };
-  }, [combatants, catalog, partyLevels, useManualParty, manualPartySize, manualAvgLevel]);
+  }, [combatants, catalog, partyLevels]);
+
+  // ---------------------------------------------------------------------------
+  // Stat block slot management
+  // ---------------------------------------------------------------------------
+
+  const fillSlot = useCallback(async (creatureKey: string) => {
+    // Load creature data
+    let creature = catalog.find((c) => c.key === creatureKey) ?? null;
+    if (!creature) {
+      creature = await loadCreatureByKey(creatureKey);
+    }
+    if (!creature) return;
+
+    // Ensure creature is on the roster so overrides have a home
+    const capturedCreature = creature;
+    setCombatants((prev) => {
+      const exists = prev.some((m) => m.creature_key === creatureKey);
+      if (exists) return prev;
+      const initMod = capturedCreature.abilityModifiers?.dex ?? 0;
+      const next: EncounterCombatant[] = [...prev, {
+        name: capturedCreature.name,
+        creature_key: capturedCreature.key,
+        count: 1,
+        init_mod: initMod,
+        hp_max: capturedCreature.hp,
+        ac: capturedCreature.ac,
+      }];
+      scheduleSave(next);
+      return next;
+    });
+
+    // Determine which slot to fill (outside updaters to keep them pure)
+    setStatSlots((prev) => {
+      if (prev[0] === null) return [creatureKey, prev[1]];
+      if (prev[1] === null && showTwoSlots) return [prev[0], creatureKey];
+      return [creatureKey, prev[1]];
+    });
+    setSlotCreatures((prev) => {
+      // Mirror the same logic: fill first empty, else replace slot 0
+      if (prev[0] === null) return [creature, prev[1]];
+      if (prev[1] === null && showTwoSlots) return [prev[0], creature];
+      return [creature, prev[1]];
+    });
+  }, [catalog, showTwoSlots]);
+
+  const clearSlot = useCallback((slotIdx: 0 | 1) => {
+    setStatSlots((prev) => {
+      const next: [string | null, string | null] = [...prev];
+      next[slotIdx] = null;
+      return next;
+    });
+    setSlotCreatures((prev) => {
+      const next: [CreatureResult | null, CreatureResult | null] = [...prev];
+      next[slotIdx] = null;
+      return next;
+    });
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Override handler (updates combatant overrides + syncs hp_max/ac)
+  // ---------------------------------------------------------------------------
+
+  const handleOverrideChange = useCallback((creatureKey: string, key: string, value: number | string) => {
+    setCombatants((prev) => {
+      const idx = prev.findIndex((m) => m.creature_key === creatureKey);
+      if (idx < 0) return prev;
+      const next = [...prev];
+      const existing = next[idx].overrides ?? {};
+      const newOverrides = { ...existing, [key]: value };
+      const patch: Partial<EncounterCombatant> = { overrides: newOverrides };
+      if (key === 'hp' && typeof value === 'number') patch.hp_max = value;
+      if (key === 'ac' && typeof value === 'number') patch.ac = value;
+      next[idx] = { ...next[idx], ...patch };
+      scheduleSave(next);
+      return next;
+    });
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Roster actions
@@ -426,8 +683,13 @@ export default function EncounterBuilderScreen() {
     });
   }
 
+  function clearRoster() {
+    setCombatants([]);
+    scheduleSave([]);
+  }
+
   // ---------------------------------------------------------------------------
-  // Encounter name save
+  // Encounter name save + force save
   // ---------------------------------------------------------------------------
 
   function handleNameBlur() {
@@ -435,20 +697,14 @@ export default function EncounterBuilderScreen() {
     if (name && encounterId) updateEncounter(encounterId, { name });
   }
 
-  // ---------------------------------------------------------------------------
-  // Open stat block preview
-  // ---------------------------------------------------------------------------
-
-  async function openStatBlock(creature: CreatureResult | null, creatureKey?: string | null) {
-    if (creature) {
-      setPreviewCreature(creature);
-      return;
+  function handleForceSave() {
+    if (!encounterId) return;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
     }
-    if (!creatureKey) return;
-    setPreviewLoading(true);
-    const loaded = await loadCreatureByKey(creatureKey);
-    setPreviewLoading(false);
-    if (loaded) setPreviewCreature(loaded);
+    const name = encounterName.trim();
+    updateEncounter(encounterId, { name: name || undefined, combatants });
   }
 
   // ---------------------------------------------------------------------------
@@ -459,7 +715,6 @@ export default function EncounterBuilderScreen() {
     if (!id || combatants.length === 0) return;
     setLoadingCombat(true);
 
-    // Flush any pending save first
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
@@ -513,7 +768,7 @@ export default function EncounterBuilderScreen() {
     selectedTypes.size > 0 || selectedEnvs.size > 0;
 
   // ---------------------------------------------------------------------------
-  // Roster totals
+  // Totals
   // ---------------------------------------------------------------------------
 
   const totalCreatures = combatants.reduce((sum, c) => sum + c.count, 0);
@@ -538,17 +793,17 @@ export default function EncounterBuilderScreen() {
     return (
       <Pressable
         style={st.catalogRow}
-        onPress={() => openStatBlock(creature)}
+        onPress={() => fillSlot(creature.key)}
       >
         <View style={{ flex: 1 }}>
           <View style={st.catalogNameRow}>
             <Text style={st.catalogName} numberOfLines={1}>{creature.name}</Text>
-            <View style={st.crBadge}>
-              <Text style={st.crBadgeText}>CR {crLabel(creature.challengeRating)}</Text>
+            <View style={st.typeBadge}>
+              <Text style={st.typeBadgeText}>{creature.creatureType.toUpperCase()}</Text>
             </View>
           </View>
           <Text style={st.catalogMeta} numberOfLines={1}>
-            {creature.size} {creature.creatureType} · HP {creature.hp} · AC {creature.ac}
+            HP {creature.hp} {'·'} AC {creature.ac} {'·'} {creature.size}
           </Text>
         </View>
         <TouchableOpacity
@@ -562,25 +817,21 @@ export default function EncounterBuilderScreen() {
     );
   }
 
-  function renderRosterCard(c: EncounterCombatant, idx: number) {
-    const initLabel = c.init_mod >= 0 ? `+${c.init_mod}` : `${c.init_mod}`;
+  function renderRosterItem(c: EncounterCombatant, idx: number) {
+    const catalogEntry = c.creature_key ? catalog.find((cc) => cc.key === c.creature_key) : null;
+    const crText = catalogEntry ? crLabel(catalogEntry.challengeRating) : '?';
     return (
-      <View key={`${c.creature_key ?? c.name}-${idx}`} style={[st.rosterCard, isWideLayout && st.rosterCardWide]}>
+      <View key={`${c.creature_key ?? c.name}-${idx}`} style={st.rosterCard}>
         <View style={st.rosterCardTop}>
-          <Pressable style={{ flex: 1 }} onPress={() => openStatBlock(null, c.creature_key)}>
+          <Pressable style={{ flex: 1 }} onPress={() => { if (c.creature_key) fillSlot(c.creature_key); }}>
             <Text style={st.rosterName} numberOfLines={1}>{c.name}</Text>
           </Pressable>
-          {c.count > 1 && (
-            <View style={st.countBadge}>
-              <Text style={st.countBadgeText}>x{c.count}</Text>
-            </View>
-          )}
           <TouchableOpacity style={st.removeBtn} onPress={() => removeCombatant(idx)} hitSlop={6}>
             <MaterialCommunityIcons name="close" size={14} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
         <Text style={st.rosterMeta}>
-          CR {crLabel(combatants[idx]?.creature_key ? (catalog.find((cc) => cc.key === c.creature_key)?.challengeRating ?? '?') : '?')} · HP {c.hp_max} · AC {c.ac} · Init {initLabel}
+          CR {crText} {'·'} HP {c.hp_max} {'·'} AC {c.ac}
         </Text>
         <View style={st.rosterControls}>
           <TouchableOpacity style={st.countBtn} onPress={() => adjustCount(idx, -1)}>
@@ -596,65 +847,19 @@ export default function EncounterBuilderScreen() {
   }
 
   // ---------------------------------------------------------------------------
-  // Difficulty Bar
+  // Difficulty bar
   // ---------------------------------------------------------------------------
 
   function renderDifficultyBar() {
-    const hasPartyData = partyLevels.length > 0;
     const tiers: { key: DifficultyTier; label: string }[] = [
-      { key: 'easy', label: 'Easy' },
-      { key: 'medium', label: 'Medium' },
-      { key: 'hard', label: 'Hard' },
-      { key: 'deadly', label: 'Deadly' },
+      { key: 'easy', label: 'EASY' },
+      { key: 'medium', label: 'MEDIUM' },
+      { key: 'hard', label: 'HARD' },
+      { key: 'deadly', label: 'DEADLY' },
     ];
 
     return (
       <View style={st.difficultyContainer}>
-        {/* Manual override inputs */}
-        <View style={st.difficultyInputRow}>
-          <TouchableOpacity
-            style={st.difficultyToggle}
-            onPress={() => setUseManualParty((p) => !p)}
-            hitSlop={4}
-          >
-            <MaterialCommunityIcons
-              name={useManualParty ? 'checkbox-marked' : 'checkbox-blank-outline'}
-              size={14}
-              color={useManualParty ? colors.brand : colors.textSecondary}
-            />
-            <Text style={st.difficultyToggleText}>Manual</Text>
-          </TouchableOpacity>
-          {useManualParty && (
-            <>
-              <View style={st.difficultyInputWrap}>
-                <Text style={st.difficultyInputLabel}>PCs</Text>
-                <TextInput
-                  style={st.difficultyInput}
-                  value={manualPartySize}
-                  onChangeText={setManualPartySize}
-                  keyboardType="number-pad"
-                  placeholder={hasPartyData ? String(partyLevels.length) : '4'}
-                  placeholderTextColor={colors.textSecondary}
-                  maxLength={2}
-                />
-              </View>
-              <View style={st.difficultyInputWrap}>
-                <Text style={st.difficultyInputLabel}>Avg Lvl</Text>
-                <TextInput
-                  style={st.difficultyInput}
-                  value={manualAvgLevel}
-                  onChangeText={setManualAvgLevel}
-                  keyboardType="number-pad"
-                  placeholder={hasPartyData ? String(Math.round(partyLevels.reduce((a, b) => a + b, 0) / partyLevels.length)) : '5'}
-                  placeholderTextColor={colors.textSecondary}
-                  maxLength={2}
-                />
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* Difficulty tier chips */}
         {difficulty ? (
           <>
             <View style={st.difficultyTiers}>
@@ -675,14 +880,14 @@ export default function EncounterBuilderScreen() {
                         active && { color: tierColor, fontWeight: '700' },
                       ]}
                     >
-                      {active ? t.label.toUpperCase() : t.label}
+                      {t.label}
                     </Text>
                   </View>
                 );
               })}
             </View>
             <Text style={st.difficultyXpText}>
-              XP: {difficulty.rawXP.toLocaleString()} ({difficulty.adjustedXP.toLocaleString()} adj) · {difficulty.totalMonsters} monster{difficulty.totalMonsters !== 1 ? 's' : ''} vs {difficulty.partySize} PC{difficulty.partySize !== 1 ? 's' : ''}
+              XP {difficulty.rawXP.toLocaleString()} ({difficulty.adjustedXP.toLocaleString()} adj.) {'·'} {difficulty.totalMonsters} monster{difficulty.totalMonsters !== 1 ? 's' : ''} vs {difficulty.partySize} PC{difficulty.partySize !== 1 ? 's' : ''}
             </Text>
           </>
         ) : (
@@ -691,11 +896,9 @@ export default function EncounterBuilderScreen() {
               ? 'Add creatures to see difficulty'
               : !partyLoaded
                 ? 'Loading party data...'
-                : partyLevels.length === 0 && !useManualParty
-                  ? 'Enable manual mode to set party size & level'
-                  : useManualParty
-                    ? 'Enter party size and level above'
-                    : ''}
+                : partyLevels.length === 0
+                  ? 'No party characters found'
+                  : ''}
           </Text>
         )}
       </View>
@@ -713,8 +916,8 @@ export default function EncounterBuilderScreen() {
   }) {
     return (
       <View style={st.crPickerWrap}>
-        <Text style={st.filterLabel}>{label}</Text>
         <Pressable style={st.crPickerBtn} onPress={() => setOpen(!open)}>
+          <Text style={st.crPickerLabel}>{label}</Text>
           <Text style={st.crPickerBtnText}>{value ?? 'Any'}</Text>
           <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.textSecondary} />
         </Pressable>
@@ -744,7 +947,7 @@ export default function EncounterBuilderScreen() {
   }
 
   // ---------------------------------------------------------------------------
-  // Chip row renderer (flexWrap instead of horizontal ScrollView)
+  // Chip row renderer
   // ---------------------------------------------------------------------------
 
   function ChipRow({ items, selected, onToggle }: {
@@ -769,43 +972,70 @@ export default function EncounterBuilderScreen() {
   }
 
   // ---------------------------------------------------------------------------
-  // Stat block modal/panel
+  // Stat block column renderer
   // ---------------------------------------------------------------------------
 
-  function renderStatBlockContent() {
-    if (previewLoading) {
-      return (
-        <View style={st.center}>
-          <ActivityIndicator color={colors.brand} />
-        </View>
-      );
-    }
-    if (!previewCreature) {
-      return null;
-    }
+  function renderStatSlot(slotIdx: 0 | 1) {
+    const creatureKey = statSlots[slotIdx];
+    const creature = slotCreatures[slotIdx];
+    const combatant = creatureKey
+      ? combatants.find((c) => c.creature_key === creatureKey)
+      : null;
+    const overrides = combatant?.overrides ?? {};
+
     return (
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.md }}>
+      <View style={[st.statBlockCol, slotIdx === 0 && st.statBlockColBorder]}>
         <View style={st.statBlockHeader}>
-          <Text style={st.statBlockTitle}>{previewCreature.name}</Text>
-          <TouchableOpacity onPress={() => setPreviewCreature(null)} hitSlop={8}>
-            <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
+          <View style={st.slotBadge}>
+            <Text style={st.slotBadgeText}>{slotIdx + 1}</Text>
+          </View>
+          {creature ? (
+            <>
+              <Text style={st.statBlockTitle} numberOfLines={1}>{creature.name}</Text>
+              <TouchableOpacity onPress={() => clearSlot(slotIdx)} hitSlop={8} style={{ marginLeft: 'auto' }}>
+                <MaterialCommunityIcons name="close" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={st.statBlockEmptyLabel}>Empty slot</Text>
+          )}
         </View>
-        <CreatureStatBlock creature={previewCreature} />
-      </ScrollView>
+        {creature ? (
+          <EditableStatBlock
+            creature={creature}
+            overrides={overrides}
+            onOverrideChange={(key, value) => {
+              if (creatureKey) handleOverrideChange(creatureKey, key, value);
+            }}
+          />
+        ) : (
+          <View style={st.statBlockEmpty}>
+            <MaterialCommunityIcons name="shield-sword-outline" size={36} color={colors.textSecondary} />
+            <Text style={st.statBlockEmptyText}>Click a creature to view stat block</Text>
+          </View>
+        )}
+      </View>
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Mobile stat block modal
+  // ---------------------------------------------------------------------------
+
+  const mobileSlotKey = statSlots[0];
+  const mobileCreature = slotCreatures[0];
+  const mobileCombatant = mobileSlotKey
+    ? combatants.find((c) => c.creature_key === mobileSlotKey)
+    : null;
 
   // ---------------------------------------------------------------------------
   // Main render
   // ---------------------------------------------------------------------------
 
-  const showStatBlockPanel = isWideLayout && previewCreature;
-
   return (
     <SpellPinProvider onPin={pinSpell}>
       <View style={st.container}>
-        {/* ---- HEADER ---- */}
+        {/* ---- HEADER ROW ---- */}
         <View style={st.header}>
           <TouchableOpacity
             onPress={() => router.replace(`/campaign/${id}/encounters` as never)}
@@ -813,7 +1043,7 @@ export default function EncounterBuilderScreen() {
           >
             <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, marginRight: spacing.sm }}>
             <TextInput
               style={st.headerNameInput}
               value={encounterName}
@@ -826,73 +1056,97 @@ export default function EncounterBuilderScreen() {
             <Text style={st.headerSubtitle} numberOfLines={1}>{campaign?.name ?? ''}</Text>
           </View>
           <TouchableOpacity
+            style={st.saveBtn}
+            onPress={handleForceSave}
+            hitSlop={8}
+          >
+            <Text style={st.saveBtnText}>Save</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[st.loadCombatBtn, (combatants.length === 0 || loadingCombat) && { opacity: 0.5 }]}
             onPress={handleLoadIntoCombat}
             disabled={combatants.length === 0 || loadingCombat}
           >
             <MaterialCommunityIcons name="sword-cross" size={16} color="#fff" />
-            <Text style={st.loadCombatBtnText}>{loadingCombat ? 'Loading...' : 'Load into Combat'}</Text>
+            <Text style={st.loadCombatBtnText}>{loadingCombat ? 'Loading...' : 'LOAD INTO COMBAT'}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* ---- FILTER BAR ---- */}
+        {/* ---- SEARCH + FILTER BAR ---- */}
         <View style={st.filterBar}>
-          <Pressable
-            style={st.filterToggle}
-            onPress={() => setFiltersExpanded((p) => !p)}
-          >
-            <MaterialCommunityIcons name="filter-variant" size={16} color={colors.textSecondary} />
-            <Text style={st.filterToggleText}>Filters</Text>
-            <MaterialCommunityIcons
-              name={filtersExpanded ? 'chevron-up' : 'chevron-down'}
-              size={16} color={colors.textSecondary}
+          {/* Search row */}
+          <View style={st.searchFilterRow}>
+            <View style={st.searchRow}>
+              <MaterialCommunityIcons name="magnify" size={16} color={colors.textSecondary} />
+              <TextInput
+                style={st.searchInput}
+                value={searchText}
+                onChangeText={setSearchText}
+                placeholder={`Search ${catalog.length} creatures by name, type, environment...`}
+                placeholderTextColor={colors.textSecondary}
+              />
+              {searchText !== '' && (
+                <TouchableOpacity onPress={() => setSearchText('')} hitSlop={8}>
+                  <MaterialCommunityIcons name="close-circle" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* CR range + Filters toggle + View toggle */}
+          <View style={st.controlsRow}>
+            <Text style={st.controlLabel}>CR</Text>
+            <CrPicker
+              label="Min"
+              value={crMin}
+              onSelect={setCrMin}
+              open={crMinOpen}
+              setOpen={(v) => { setCrMinOpen(v); if (v) setCrMaxOpen(false); }}
             />
+            <Text style={st.crDash}>-</Text>
+            <CrPicker
+              label="Max"
+              value={crMax}
+              onSelect={setCrMax}
+              open={crMaxOpen}
+              setOpen={(v) => { setCrMaxOpen(v); if (v) setCrMinOpen(false); }}
+            />
+
+            <Pressable
+              style={[st.filterToggle, filtersExpanded && st.filterToggleActive]}
+              onPress={() => setFiltersExpanded((p) => !p)}
+            >
+              <MaterialCommunityIcons name="filter-variant" size={14} color={filtersExpanded ? colors.brand : colors.textSecondary} />
+              <Text style={[st.filterToggleText, filtersExpanded && { color: colors.brand }]}>Filters</Text>
+            </Pressable>
+
             {hasFilters && (
               <TouchableOpacity onPress={clearFilters} hitSlop={8} style={st.clearFiltersBtn}>
                 <Text style={st.clearFiltersBtnText}>Clear</Text>
               </TouchableOpacity>
             )}
-          </Pressable>
 
+            <View style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+              <TouchableOpacity
+                style={[st.viewToggleBtn, !showTwoSlots && st.viewToggleBtnActive]}
+                onPress={() => setShowTwoSlots(false)}
+                hitSlop={4}
+              >
+                <MaterialCommunityIcons name="view-agenda-outline" size={14} color={!showTwoSlots ? colors.brand : colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[st.viewToggleBtn, showTwoSlots && st.viewToggleBtnActive]}
+                onPress={() => setShowTwoSlots(true)}
+                hitSlop={4}
+              >
+                <MaterialCommunityIcons name="view-column-outline" size={14} color={showTwoSlots ? colors.brand : colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Expanded filter chips */}
           {filtersExpanded && (
-            <View style={st.filterBody}>
-              {/* Search */}
-              <View style={st.searchRow}>
-                <MaterialCommunityIcons name="magnify" size={16} color={colors.textSecondary} />
-                <TextInput
-                  style={st.searchInput}
-                  value={searchText}
-                  onChangeText={setSearchText}
-                  placeholder="Search creatures..."
-                  placeholderTextColor={colors.textSecondary}
-                />
-                {searchText !== '' && (
-                  <TouchableOpacity onPress={() => setSearchText('')} hitSlop={8}>
-                    <MaterialCommunityIcons name="close-circle" size={16} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* CR Range */}
-              <View style={st.crRow}>
-                <CrPicker
-                  label="Min CR"
-                  value={crMin}
-                  onSelect={setCrMin}
-                  open={crMinOpen}
-                  setOpen={(v) => { setCrMinOpen(v); if (v) setCrMaxOpen(false); }}
-                />
-                <Text style={st.crDash}>-</Text>
-                <CrPicker
-                  label="Max CR"
-                  value={crMax}
-                  onSelect={setCrMax}
-                  open={crMaxOpen}
-                  setOpen={(v) => { setCrMaxOpen(v); if (v) setCrMinOpen(false); }}
-                />
-              </View>
-
-              {/* Creature Type chips */}
+            <View style={st.filterChipsContainer}>
               <Text style={st.filterSectionLabel}>Creature Type</Text>
               <ChipRow
                 items={CREATURE_TYPES}
@@ -903,8 +1157,6 @@ export default function EncounterBuilderScreen() {
                   return next;
                 })}
               />
-
-              {/* Environment chips */}
               {environmentOptions.length > 0 && (
                 <>
                   <Text style={st.filterSectionLabel}>Environment</Text>
@@ -923,82 +1175,140 @@ export default function EncounterBuilderScreen() {
           )}
         </View>
 
-        {/* ---- MAIN CONTENT ---- */}
-        <View style={[st.mainContent, isWideLayout && st.mainContentWide]}>
-          {/* LEFT: Creature Catalog */}
-          <View style={[st.catalogPanel, isWideLayout && st.catalogPanelWide]}>
-            <View style={st.catalogHeader}>
-              <Text style={st.panelTitle}>Creature Catalog</Text>
-              <Text style={st.resultCount}>{filteredCatalog.length} creature{filteredCatalog.length !== 1 ? 's' : ''}</Text>
-            </View>
-            {catalogLoading ? (
-              <View style={st.center}>
-                <ActivityIndicator color={colors.brand} />
+        {/* ---- MAIN 4-COLUMN CONTENT ---- */}
+        {isWideLayout ? (
+          <View style={st.mainContentWide}>
+            {/* Column 1: Creature Catalog */}
+            <View style={st.catalogCol}>
+              <View style={st.colHeader}>
+                <Text style={st.panelTitle}>Creature Catalog</Text>
+                <View style={st.countBadge}>
+                  <Text style={st.countBadgeText}>{filteredCatalog.length} of {catalog.length}</Text>
+                </View>
               </View>
-            ) : (
-              <FlatList
-                data={filteredCatalog}
-                keyExtractor={(c) => c.key}
-                renderItem={renderCatalogItem}
-                contentContainerStyle={{ paddingBottom: spacing.lg }}
-                initialNumToRender={20}
-                maxToRenderPerBatch={20}
-                windowSize={11}
-              />
-            )}
-          </View>
-
-          {/* RIGHT: Encounter Roster */}
-          <View style={[
-            st.rosterPanel,
-            isWideLayout && st.rosterPanelWide,
-            isWideLayout && !showStatBlockPanel && { flex: 4 },
-          ]}>
-            <View style={st.rosterHeader}>
-              <Text style={st.panelTitle}>Roster <Text style={st.rosterCount}>· {totalCreatures}</Text></Text>
-              <TouchableOpacity
-                style={[st.loadCombatBtnSmall, (combatants.length === 0 || loadingCombat) && { opacity: 0.5 }]}
-                onPress={handleLoadIntoCombat}
-                disabled={combatants.length === 0 || loadingCombat}
-              >
-                <MaterialCommunityIcons name="sword-cross" size={14} color="#fff" />
-                <Text style={st.loadCombatBtnSmallText}>{loadingCombat ? '...' : 'Load'}</Text>
-              </TouchableOpacity>
+              {catalogLoading ? (
+                <View style={st.center}>
+                  <ActivityIndicator color={colors.brand} />
+                </View>
+              ) : (
+                <FlatList
+                  data={filteredCatalog}
+                  keyExtractor={(c) => c.key}
+                  renderItem={renderCatalogItem}
+                  contentContainerStyle={{ paddingBottom: spacing.lg }}
+                  initialNumToRender={20}
+                  maxToRenderPerBatch={20}
+                  windowSize={11}
+                />
+              )}
             </View>
 
-            {/* Difficulty calculator */}
-            {renderDifficultyBar()}
+            {/* Column 2: Roster + Difficulty */}
+            <View style={st.rosterCol}>
+              <View style={st.colHeader}>
+                <Text style={st.panelTitle}>Roster <Text style={st.rosterCountText}>{'·'} {totalCreatures}</Text></Text>
+                {combatants.length > 0 && (
+                  <TouchableOpacity onPress={clearRoster} hitSlop={8}>
+                    <Text style={st.clearBtnText}>Clear</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {renderDifficultyBar()}
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.xs, gap: spacing.xs }}>
+                {combatants.length === 0 ? (
+                  <View style={st.rosterEmpty}>
+                    <MaterialCommunityIcons name="shield-sword-outline" size={32} color={colors.textSecondary} />
+                    <Text style={st.rosterEmptyText}>Add creatures from the catalog</Text>
+                  </View>
+                ) : (
+                  combatants.map((c, idx) => renderRosterItem(c, idx))
+                )}
+              </ScrollView>
+            </View>
 
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={st.rosterGrid}>
+            {/* Column 3: Stat Block 1 */}
+            {renderStatSlot(0)}
+
+            {/* Column 4: Stat Block 2 (only when showTwoSlots) */}
+            {showTwoSlots && renderStatSlot(1)}
+          </View>
+        ) : (
+          /* ---- MOBILE / NARROW LAYOUT ---- */
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: spacing.xl }}>
+            {/* Catalog */}
+            <View style={st.mobileCatalog}>
+              <View style={st.colHeader}>
+                <Text style={st.panelTitle}>Creature Catalog</Text>
+                <View style={st.countBadge}>
+                  <Text style={st.countBadgeText}>{filteredCatalog.length} of {catalog.length}</Text>
+                </View>
+              </View>
+              {catalogLoading ? (
+                <View style={st.center}>
+                  <ActivityIndicator color={colors.brand} />
+                </View>
+              ) : (
+                <FlatList
+                  data={filteredCatalog}
+                  keyExtractor={(c) => c.key}
+                  renderItem={renderCatalogItem}
+                  contentContainerStyle={{ paddingBottom: spacing.sm }}
+                  initialNumToRender={20}
+                  maxToRenderPerBatch={20}
+                  windowSize={11}
+                  style={{ maxHeight: 400 }}
+                  nestedScrollEnabled
+                />
+              )}
+            </View>
+
+            {/* Roster */}
+            <View style={st.mobileRoster}>
+              <View style={st.colHeader}>
+                <Text style={st.panelTitle}>Roster <Text style={st.rosterCountText}>{'·'} {totalCreatures}</Text></Text>
+                {combatants.length > 0 && (
+                  <TouchableOpacity onPress={clearRoster} hitSlop={8}>
+                    <Text style={st.clearBtnText}>Clear</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {renderDifficultyBar()}
               {combatants.length === 0 ? (
                 <View style={st.rosterEmpty}>
                   <MaterialCommunityIcons name="shield-sword-outline" size={32} color={colors.textSecondary} />
                   <Text style={st.rosterEmptyText}>Add creatures from the catalog</Text>
                 </View>
               ) : (
-                combatants.map((c, idx) => renderRosterCard(c, idx))
+                combatants.map((c, idx) => renderRosterItem(c, idx))
               )}
-            </ScrollView>
-          </View>
-
-          {/* STAT BLOCK PREVIEW - desktop: third column (only when creature selected) */}
-          {showStatBlockPanel && (
-            <View style={st.statBlockPanel}>
-              {renderStatBlockContent()}
             </View>
-          )}
-        </View>
+          </ScrollView>
+        )}
 
-        {/* STAT BLOCK PREVIEW - mobile: Modal */}
+        {/* Mobile stat block modal */}
         {!isWideLayout && (
           <Modal
-            visible={!!previewCreature}
+            visible={!!mobileCreature}
             animationType="slide"
             transparent={false}
-            onRequestClose={() => setPreviewCreature(null)}
+            onRequestClose={() => clearSlot(0)}
           >
             <View style={st.modalContainer}>
-              {renderStatBlockContent()}
+              <View style={st.modalHeader}>
+                <Text style={st.statBlockTitle} numberOfLines={1}>{mobileCreature?.name ?? ''}</Text>
+                <TouchableOpacity onPress={() => clearSlot(0)} hitSlop={8}>
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              {mobileCreature && (
+                <EditableStatBlock
+                  creature={mobileCreature}
+                  overrides={mobileCombatant?.overrides ?? {}}
+                  onOverrideChange={(key, value) => {
+                    if (mobileSlotKey) handleOverrideChange(mobileSlotKey, key, value);
+                  }}
+                />
+              )}
             </View>
           </Modal>
         )}
@@ -1015,7 +1325,92 @@ export default function EncounterBuilderScreen() {
 }
 
 // ---------------------------------------------------------------------------
-// Styles
+// Stat block styles
+// ---------------------------------------------------------------------------
+
+const sb = StyleSheet.create({
+  tagRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: spacing.sm,
+  },
+  typeTag: {
+    backgroundColor: colors.border + '44', borderRadius: 4,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  typeTagText: {
+    fontSize: 9, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.5,
+  },
+  crTag: {
+    backgroundColor: colors.brand + '22', borderRadius: 4,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  crTagText: {
+    fontSize: 9, fontWeight: '700', color: colors.brand, letterSpacing: 0.5,
+  },
+
+  topStatRow: {
+    flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm,
+  },
+  editBox: {
+    flex: 1, alignItems: 'center',
+    backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1,
+    borderRadius: 8, paddingVertical: 6, paddingHorizontal: 4,
+  },
+  editBoxLabel: {
+    fontSize: 9, fontWeight: '700', color: colors.textSecondary,
+    letterSpacing: 1, marginBottom: 2,
+  },
+  editBoxInput: {
+    fontSize: 16, fontWeight: '700', color: colors.textPrimary,
+    textAlign: 'center', padding: 0, minWidth: 40,
+  },
+
+  abilityTable: {
+    borderWidth: 1, borderColor: colors.border + '88', borderRadius: 8,
+    overflow: 'hidden', backgroundColor: colors.surface, marginBottom: spacing.sm,
+  },
+  abilityRow: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border + '66',
+  },
+  abilityRowLast: { borderBottomWidth: 0 },
+  abilityHeadRow: { backgroundColor: colors.background },
+  abilityCell: {
+    paddingHorizontal: 6, paddingVertical: 5, textAlign: 'center',
+    fontSize: 11,
+  },
+  abilityNameCol: { width: 48 },
+  abilityNumCol: { flex: 1, textAlign: 'center', justifyContent: 'center' },
+  abilityHeadText: {
+    fontSize: 9, fontWeight: '700', color: colors.textSecondary,
+    letterSpacing: 1, textAlign: 'center',
+  },
+  abilityNameText: {
+    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
+    letterSpacing: 1,
+  },
+  abilityValueText: { fontSize: 12, color: colors.textPrimary, textAlign: 'center' },
+  abilitySaveText: { fontSize: 12, color: colors.brand, textAlign: 'center' },
+  abilityDashText: { fontSize: 12, color: colors.textSecondary, textAlign: 'center' },
+  abilityInput: {
+    fontSize: 12, fontWeight: '600', color: colors.textPrimary,
+    textAlign: 'center', padding: 0, minWidth: 28,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+
+  statLine: {
+    flexDirection: 'row', paddingVertical: 3, gap: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border + '44',
+  },
+  statLineLabel: {
+    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
+    letterSpacing: 1, width: 70, textTransform: 'uppercase',
+  },
+  statLineValue: { fontSize: 12, color: colors.textPrimary, flex: 1 },
+});
+
+// ---------------------------------------------------------------------------
+// Main styles
 // ---------------------------------------------------------------------------
 
 const st = StyleSheet.create({
@@ -1025,7 +1420,7 @@ const st = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // Header
+  // ---- Header ----
   header: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
@@ -1039,54 +1434,52 @@ const st = StyleSheet.create({
     borderBottomColor: 'transparent', borderBottomWidth: 1,
   },
   headerSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  saveBtn: {
+    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
+  },
+  saveBtnText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
   loadCombatBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.brand, borderRadius: 8,
     paddingHorizontal: spacing.md, paddingVertical: 8,
   },
-  loadCombatBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  loadCombatBtnText: { color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
 
-  // Filter bar
+  // ---- Filter bar ----
   filterBar: {
     borderBottomColor: colors.border, borderBottomWidth: 1,
     backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.xs, gap: 6,
   },
-  filterToggle: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: spacing.md, paddingVertical: 4,
-  },
-  filterToggleText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  clearFiltersBtn: {
-    marginLeft: 'auto',
-    paddingHorizontal: 8, paddingVertical: 2,
-    borderRadius: 4, backgroundColor: colors.border + '44',
-  },
-  clearFiltersBtnText: { fontSize: 11, fontWeight: '600', color: colors.textSecondary },
-  filterBody: {
-    paddingHorizontal: spacing.md, paddingBottom: spacing.xs, gap: 4,
-  },
-  filterLabel: { fontSize: 10, fontWeight: '700', color: colors.textSecondary, letterSpacing: 1, marginBottom: 2 },
-  filterSectionLabel: {
-    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
-    letterSpacing: 1, marginTop: 2,
+  searchFilterRow: {
+    flexDirection: 'row', gap: spacing.sm,
   },
   searchRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
     borderColor: colors.border, borderWidth: 1, borderRadius: 6,
     paddingHorizontal: 8, paddingVertical: Platform.OS === 'web' ? 5 : 7,
     backgroundColor: colors.background,
   },
   searchInput: { flex: 1, fontSize: 13, color: colors.textPrimary, padding: 0 },
-  crRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
-  crDash: { fontSize: 14, color: colors.textSecondary, paddingBottom: 8 },
+
+  controlsRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+    zIndex: 10,
+  },
+  controlLabel: {
+    fontSize: 11, fontWeight: '700', color: colors.textSecondary, letterSpacing: 1,
+  },
+  crDash: { fontSize: 14, color: colors.textSecondary },
   crPickerWrap: { position: 'relative' as const, zIndex: 10 },
   crPickerBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 3,
     borderColor: colors.border, borderWidth: 1, borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 6,
+    paddingHorizontal: 8, paddingVertical: 5,
     backgroundColor: colors.surface, minWidth: 70,
   },
-  crPickerBtnText: { fontSize: 13, color: colors.textPrimary, flex: 1 },
+  crPickerLabel: { fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginRight: 2 },
+  crPickerBtnText: { fontSize: 12, color: colors.textPrimary, flex: 1 },
   crDropdown: {
     position: 'absolute' as const, top: '100%', left: 0, right: 0,
     backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1,
@@ -1095,14 +1488,40 @@ const st = StyleSheet.create({
     shadowOpacity: 0.4, shadowRadius: 12,
     ...(Platform.OS === 'web' ? { zIndex: 100 } : { elevation: 10 }),
   },
-  crDropdownItem: { paddingHorizontal: 10, paddingVertical: 6 },
+  crDropdownItem: { paddingHorizontal: 10, paddingVertical: 5 },
   crDropdownItemActive: { backgroundColor: colors.brand + '22' },
-  crDropdownText: { fontSize: 13, color: colors.textPrimary },
+  crDropdownText: { fontSize: 12, color: colors.textPrimary },
   crDropdownTextActive: { color: colors.brand, fontWeight: '600' },
 
-  // Chip row — flexWrap instead of horizontal ScrollView
+  filterToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 5,
+  },
+  filterToggleActive: { borderColor: colors.brand + '44' },
+  filterToggleText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  clearFiltersBtn: {
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 4, backgroundColor: colors.border + '44',
+  },
+  clearFiltersBtnText: { fontSize: 11, fontWeight: '600', color: colors.textSecondary },
+
+  viewToggleBtn: {
+    padding: 5, borderRadius: 4,
+  },
+  viewToggleBtnActive: {
+    backgroundColor: colors.brand + '22',
+  },
+
+  filterChipsContainer: {
+    paddingTop: 4, gap: 4,
+  },
+  filterSectionLabel: {
+    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
+    letterSpacing: 1,
+  },
   chipWrap: {
-    flexDirection: 'row', flexWrap: 'wrap', maxWidth: 500,
+    flexDirection: 'row', flexWrap: 'wrap', maxWidth: 600,
   },
   chip: {
     borderColor: colors.border, borderWidth: 1, borderRadius: 14,
@@ -1112,109 +1531,80 @@ const st = StyleSheet.create({
   chipText: { fontSize: 11, color: colors.textSecondary },
   chipTextActive: { color: colors.brand, fontWeight: '600' },
 
-  // Main content
-  mainContent: { flex: 1 },
-  mainContentWide: { flexDirection: 'row' },
+  // ---- Main 4-column layout ----
+  mainContentWide: {
+    flex: 1, flexDirection: 'row',
+  },
 
-  // Catalog
-  catalogPanel: { flex: 1, borderBottomColor: colors.border, borderBottomWidth: 1 },
-  catalogPanelWide: { flex: 2, borderBottomWidth: 0, borderRightColor: colors.border, borderRightWidth: 1 },
-  catalogHeader: {
+  // Column 1: Catalog
+  catalogCol: {
+    flex: 1, borderRightColor: colors.border, borderRightWidth: 1,
+  },
+  colHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: spacing.md, paddingVertical: 4,
+    paddingHorizontal: spacing.sm, paddingVertical: 4,
     borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  panelTitle: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-  resultCount: { fontSize: 12, color: colors.textSecondary },
+  panelTitle: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+  countBadge: {
+    backgroundColor: colors.border + '44', borderRadius: 10,
+    paddingHorizontal: 8, paddingVertical: 1,
+  },
+  countBadgeText: { fontSize: 10, fontWeight: '600', color: colors.textSecondary },
+
   catalogRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingHorizontal: spacing.md, paddingVertical: 4,
+    paddingHorizontal: spacing.sm, paddingVertical: 3,
     borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   catalogNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  catalogName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
-  crBadge: {
-    backgroundColor: colors.brand + '22', borderRadius: 4,
-    paddingHorizontal: 5, paddingVertical: 1,
+  catalogName: { fontSize: 12, fontWeight: '600', color: colors.textPrimary },
+  typeBadge: {
+    backgroundColor: colors.border + '55', borderRadius: 3,
+    paddingHorizontal: 4, paddingVertical: 1,
   },
-  crBadgeText: { fontSize: 10, fontWeight: '700', color: colors.brand },
-  catalogMeta: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
+  typeBadgeText: { fontSize: 8, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.5 },
+  catalogMeta: { fontSize: 10, color: colors.textSecondary, marginTop: 1 },
   addBtn: {
-    width: 28, height: 28, borderRadius: 14,
+    width: 26, height: 26, borderRadius: 13,
     borderColor: colors.brand, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // Roster
-  rosterPanel: { flex: 1, minHeight: 200 },
-  rosterPanelWide: { flex: 2, borderRightColor: colors.border, borderRightWidth: 1 },
-  rosterHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: spacing.md, paddingVertical: 4,
-    borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
+  // Column 2: Roster
+  rosterCol: {
+    flex: 1, borderRightColor: colors.border, borderRightWidth: 1,
   },
-  rosterCount: { fontWeight: '400', color: colors.textSecondary },
-  loadCombatBtnSmall: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.brand, borderRadius: 6,
-    paddingHorizontal: 8, paddingVertical: 4,
-  },
-  loadCombatBtnSmallText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  rosterGrid: {
-    flexDirection: 'row', flexWrap: 'wrap',
-    padding: spacing.xs, gap: spacing.xs,
-  },
+  rosterCountText: { fontWeight: '400', color: colors.textSecondary },
+  clearBtnText: { fontSize: 11, fontWeight: '600', color: colors.hpDanger },
+
   rosterCard: {
     backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1,
-    borderRadius: 8, padding: spacing.xs, width: '100%' as any,
+    borderRadius: 6, padding: spacing.xs,
   },
-  rosterCardWide: { width: 180, flexGrow: 0, flexShrink: 0 },
   rosterCardTop: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-  rosterName: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
-  countBadge: {
-    backgroundColor: colors.brand + '22', borderRadius: 4,
-    paddingHorizontal: 4, paddingVertical: 1,
-  },
-  countBadgeText: { fontSize: 10, fontWeight: '700', color: colors.brand },
+  rosterName: { fontSize: 12, fontWeight: '700', color: colors.textPrimary },
   removeBtn: { padding: 2, marginLeft: 'auto' },
-  rosterMeta: { fontSize: 11, color: colors.textSecondary, marginBottom: 4 },
+  rosterMeta: { fontSize: 10, color: colors.textSecondary, marginBottom: 4 },
   rosterControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   countBtn: {
-    width: 24, height: 24, borderRadius: 12,
+    width: 22, height: 22, borderRadius: 11,
     borderColor: colors.border, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.background,
   },
-  countText: { fontSize: 14, fontWeight: '700', color: colors.textPrimary, minWidth: 20, textAlign: 'center' },
+  countText: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, minWidth: 18, textAlign: 'center' },
   rosterEmpty: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: spacing.xl, width: '100%' as any,
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: spacing.xl,
   },
-  rosterEmptyText: { fontSize: 13, color: colors.textSecondary, marginTop: spacing.sm, fontStyle: 'italic' },
+  rosterEmptyText: { fontSize: 12, color: colors.textSecondary, marginTop: spacing.sm, fontStyle: 'italic' },
 
-  // Difficulty calculator
+  // Difficulty
   difficultyContainer: {
     paddingHorizontal: spacing.sm, paddingVertical: 4,
     borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
     backgroundColor: colors.background,
-  },
-  difficultyInputRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4,
-  },
-  difficultyToggle: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-  },
-  difficultyToggleText: { fontSize: 10, fontWeight: '600', color: colors.textSecondary },
-  difficultyInputWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-  },
-  difficultyInputLabel: { fontSize: 10, fontWeight: '600', color: colors.textSecondary },
-  difficultyInput: {
-    fontSize: 12, color: colors.textPrimary,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 4,
-    paddingHorizontal: 4, paddingVertical: 2,
-    width: 32, textAlign: 'center',
-    backgroundColor: colors.surface,
   },
   difficultyTiers: {
     flexDirection: 'row', gap: 4, marginBottom: 2,
@@ -1233,20 +1623,49 @@ const st = StyleSheet.create({
     fontSize: 10, color: colors.textSecondary, fontStyle: 'italic',
   },
 
-  // Stat block panel (desktop)
-  statBlockPanel: {
-    flex: 2, backgroundColor: colors.background,
-    borderLeftColor: colors.border, borderLeftWidth: 0,
+  // Stat block columns (3 & 4)
+  statBlockCol: {
+    flex: 1,
+  },
+  statBlockColBorder: {
+    borderRightColor: colors.border, borderRightWidth: 1,
   },
   statBlockHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: spacing.sm, paddingVertical: 4,
+    borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
+    backgroundColor: colors.surface,
   },
-  statBlockTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
+  slotBadge: {
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: colors.brand + '33', alignItems: 'center', justifyContent: 'center',
+  },
+  slotBadgeText: { fontSize: 10, fontWeight: '700', color: colors.brand },
+  statBlockTitle: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, flex: 1 },
+  statBlockEmptyLabel: { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic' },
+  statBlockEmpty: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+    paddingVertical: spacing.xl,
+  },
+  statBlockEmptyText: { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic', textAlign: 'center' },
+
+  // Mobile layout
+  mobileCatalog: {
+    borderBottomColor: colors.border, borderBottomWidth: 1,
+  },
+  mobileRoster: {
+    paddingHorizontal: spacing.xs, gap: spacing.xs, paddingVertical: spacing.xs,
+  },
 
   // Modal (mobile stat block)
   modalContainer: {
     flex: 1, backgroundColor: colors.background,
     paddingTop: Platform.OS === 'ios' ? 50 : spacing.md,
+  },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderBottomColor: colors.border, borderBottomWidth: 1,
+    backgroundColor: colors.surface,
   },
 });
