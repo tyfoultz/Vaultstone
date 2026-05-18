@@ -1022,7 +1022,7 @@ function SessionControlCard({
       <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
         <GhostButton
           label="Encounters"
-          icon="sword-cross"
+          icon="shield"
           onPress={() => router.push(`/campaign/${campaignId}/encounters` as Href)}
         />
         {isLive ? (

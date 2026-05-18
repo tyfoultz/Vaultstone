@@ -965,18 +965,23 @@ export default function EncounterBuilderScreen() {
     onSelect: (v: string | null) => void;
     open: boolean; setOpen: (v: boolean) => void;
   }) {
-    const btnRef = useRef<View>(null);
     const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 80 });
 
-    const handleOpen = useCallback(() => {
+    function handleOpen(e: any) {
       if (open) { setOpen(false); return; }
-      if (Platform.OS === 'web' && btnRef.current) {
-        const el = btnRef.current as unknown as HTMLElement;
-        const rect = el.getBoundingClientRect();
-        setDropPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 80) });
+      if (Platform.OS === 'web') {
+        const target = e?.target ?? e?.currentTarget;
+        if (target) {
+          let el: HTMLElement = target;
+          while (el.parentElement && !el.getAttribute('data-cr-btn')) {
+            el = el.parentElement;
+          }
+          const rect = el.getBoundingClientRect();
+          setDropPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 80) });
+        }
       }
       setOpen(true);
-    }, [open, setOpen]);
+    }
 
     const dropdownContent = open ? (
       <>
@@ -1029,7 +1034,11 @@ export default function EncounterBuilderScreen() {
 
     return (
       <View style={st.crPickerWrap}>
-        <Pressable ref={btnRef} style={st.crPickerBtn} onPress={handleOpen}>
+        <Pressable
+          style={st.crPickerBtn}
+          onPress={handleOpen}
+          {...(Platform.OS === 'web' ? { 'data-cr-btn': 'true' } as any : {})}
+        >
           <Text style={st.crPickerLabel}>{label}</Text>
           <Text style={st.crPickerBtnText}>{value ?? 'Any'}</Text>
           <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.textSecondary} />
