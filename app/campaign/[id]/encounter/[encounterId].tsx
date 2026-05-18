@@ -408,6 +408,7 @@ export default function EncounterBuilderScreen() {
   // Debounced save
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const combatantsRef = useRef(combatants);
+  const crDropPosRef = useRef({ top: 0, left: 0, width: 80 });
   combatantsRef.current = combatants;
 
   // Search debounce
@@ -959,8 +960,6 @@ export default function EncounterBuilderScreen() {
   // ---------------------------------------------------------------------------
   // CR Dropdown Picker
   // ---------------------------------------------------------------------------
-
-  const crDropPosRef = useRef({ top: 0, left: 0, width: 80 });
 
   function CrPicker({ label, value, onSelect, open, setOpen, pickerId }: {
     label: string; value: string | null;
