@@ -1,23 +1,53 @@
-import { useCallback, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import {
   View, Pressable, Modal, ScrollView, StyleSheet, Platform,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius, Text, MarkdownText, Chip } from '@vaultstone/ui';
 import type { SpellResult } from '@vaultstone/types';
 import { getCachedSpell } from './spellCache';
 
-function SpellCard({ spell }: { spell: SpellResult }) {
+// --- Pinned spells context (provided by combat screen) ---
+
+type PinContextValue = {
+  pinSpell: (name: string) => void;
+} | null;
+
+const PinContext = createContext<PinContextValue>(null);
+
+export function SpellPinProvider({
+  onPin,
+  children,
+}: {
+  onPin: (name: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <PinContext.Provider value={{ pinSpell: onPin }}>
+      {children}
+    </PinContext.Provider>
+  );
+}
+
+// --- Spell card (shared between tooltip and pinned overlay) ---
+
+export function SpellCard({ spell, compact }: { spell: SpellResult; compact?: boolean }) {
   const levelText = spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`;
   return (
     <View style={cs.card}>
-      <Text variant="label-lg" weight="bold" style={cs.name}>{spell.name}</Text>
+      <View style={cs.cardHeader}>
+        <Text variant="label-lg" weight="bold" style={cs.name}>{spell.name}</Text>
+        <Chip
+          label={levelText.toUpperCase()}
+          variant="meta"
+        />
+      </View>
+      <Text variant="body-sm" family="body" style={cs.schoolText}>{spell.school}</Text>
       <View style={cs.metaGrid}>
-        <MetaItem label="Level" value={levelText} />
-        <MetaItem label="School" value={spell.school} />
-        <MetaItem label="Casting Time" value={spell.castingTime} />
-        <MetaItem label="Range" value={spell.range} />
-        <MetaItem label="Duration" value={spell.duration} />
-        <MetaItem label="Components" value={spell.components.join(', ')} />
+        <MetaItem label="CAST" value={spell.castingTime} />
+        <MetaItem label="RANGE" value={spell.range} />
+        <MetaItem label="DURATION" value={spell.duration} />
+        <MetaItem label="COMPONENTS" value={spell.components.join(', ')} />
       </View>
       {(spell.concentration || spell.ritual) && (
         <View style={cs.badges}>
@@ -25,7 +55,9 @@ function SpellCard({ spell }: { spell: SpellResult }) {
           {spell.ritual && <Chip label="Ritual" variant="meta" />}
         </View>
       )}
-      <MarkdownText style={cs.desc}>{spell.description ?? ''}</MarkdownText>
+      {!compact && (
+        <MarkdownText style={cs.desc}>{spell.description ?? ''}</MarkdownText>
+      )}
     </View>
   );
 }
@@ -50,6 +82,7 @@ export function SpellTooltip({
   const [showPopover, setShowPopover] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pinCtx = useContext(PinContext);
 
   const loadSpell = useCallback(async () => {
     if (spell !== undefined) return spell;
@@ -76,10 +109,21 @@ export function SpellTooltip({
   }, [isWeb]);
 
   const handlePress = useCallback(async () => {
-    if (isWeb) return;
     await loadSpell();
-    setShowModal(true);
-  }, [isWeb, loadSpell]);
+    if (pinCtx) {
+      pinCtx.pinSpell(spellName);
+      setShowPopover(false);
+    } else if (!isWeb) {
+      setShowModal(true);
+    }
+  }, [isWeb, loadSpell, pinCtx, spellName]);
+
+  const handlePin = useCallback(() => {
+    if (pinCtx) {
+      pinCtx.pinSpell(spellName);
+      setShowPopover(false);
+    }
+  }, [pinCtx, spellName]);
 
   return (
     <View style={cs.wrapper}>
@@ -111,10 +155,18 @@ export function SpellTooltip({
               <SpellCard spell={spell} />
             )}
           </ScrollView>
+          {pinCtx && (
+            <Pressable style={cs.pinHint} onPress={handlePin}>
+              <MaterialCommunityIcons name="pin" size={12} color={colors.outline} />
+              <Text variant="label-sm" style={cs.pinHintText}>
+                Click to <Text weight="bold" style={cs.pinHintText}>pin</Text> — stays open
+              </Text>
+            </Pressable>
+          )}
         </View>
       )}
 
-      {!isWeb && (
+      {!isWeb && !pinCtx && (
         <Modal
           visible={showModal}
           transparent
@@ -161,20 +213,33 @@ const cs = StyleSheet.create({
     bottom: '100%',
     left: 0,
     width: 340,
-    maxHeight: 400,
+    maxHeight: 440,
     backgroundColor: colors.surfaceContainer,
     borderColor: colors.outlineVariant,
     borderWidth: 1,
     borderRadius: radius.lg,
     padding: spacing.md,
     zIndex: 100,
-    // web shadow
     ...(Platform.OS === 'web' ? {
       boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
     } as never : {}),
   },
   popoverScroll: {
     maxHeight: 360,
+  },
+  pinHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingTop: spacing.sm,
+    marginTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant + '66',
+  },
+  pinHintText: {
+    color: colors.outline,
+    fontSize: 11,
   },
   backdrop: {
     flex: 1,
@@ -213,8 +278,18 @@ const cs = StyleSheet.create({
   card: {
     gap: spacing.sm,
   },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   name: {
     color: colors.onSurface,
+  },
+  schoolText: {
+    color: colors.outline,
+    fontSize: 12,
+    fontStyle: 'italic',
   },
   metaGrid: {
     flexDirection: 'row',

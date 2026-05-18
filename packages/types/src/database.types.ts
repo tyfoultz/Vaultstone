@@ -260,6 +260,7 @@ export interface Database {
           init_override: number | null;
           hp_current: number;
           hp_max: number;
+          hp_temp: number;
           ac: number;
           is_active_turn: boolean;
           sort_order: number;
@@ -275,6 +276,7 @@ export interface Database {
           init_override?: number | null;
           hp_current: number;
           hp_max: number;
+          hp_temp?: number;
           ac: number;
           is_active_turn?: boolean;
           sort_order: number;
@@ -288,6 +290,7 @@ export interface Database {
           init_override?: number | null;
           hp_current?: number;
           hp_max?: number;
+          hp_temp?: number;
           ac?: number;
           is_active_turn?: boolean;
           sort_order?: number;

@@ -18,6 +18,9 @@ import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPa
 import { SessionLogFeed } from '../../../components/session/SessionLogFeed';
 import { CreaturePickerModal, type AddCreatureInput } from '../../../components/combat/CreaturePickerModal';
 import { CreatureStatBlock } from '../../../components/creatures/CreatureStatBlock';
+import { SpellPinProvider } from '../../../components/creatures/SpellTooltip';
+import { PinnedSpellsOverlay, usePinnedSpells } from '../../../components/combat/PinnedSpellsOverlay';
+import { CombatHpModal } from '../../../components/combat/CombatHpModal';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, HpBar, hpColor, useBreakpoint } from '@vaultstone/ui';
 import type {
@@ -28,19 +31,6 @@ import type {
 type Session = Database['public']['Tables']['sessions']['Row'];
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 type Combatant = Database['public']['Tables']['initiative_order']['Row'];
-
-type PartyMember = {
-  user_id: string;
-  role: 'gm' | 'player' | 'co_gm';
-  character_id: string | null;
-  profiles: { id: string; display_name: string | null } | null;
-  characters: {
-    id: string;
-    name: string;
-    base_stats: unknown;
-    resources: unknown;
-  } | null;
-};
 
 type PartyPick = {
   userId: string;
@@ -125,31 +115,34 @@ export default function CombatScreen() {
   const [partyPicks, setPartyPicks] = useState<PartyPick[]>([]);
   const [addingSelected, setAddingSelected] = useState(false);
 
-  // Per-character live state (PCs only). NPC conditions are out of scope
-  // for Phase 3 — `initiative_order` has no conditions column and adding
-  // one is deferred to a later migration.
   const [pcConditions, setPcConditions] = useState<Record<string, string[]>>({});
   const [editingConditionsFor, setEditingConditionsFor] = useState<Combatant | null>(null);
-
-  // PCs owned by the current user — controls whether the player can see
-  // a Roll button on their own row.
   const [myCharacterIds, setMyCharacterIds] = useState<Set<string>>(new Set());
-
-  // Manual init roll entry (DM only). Map of combatantId → current input.
-  const [manualRolls, setManualRolls] = useState<Record<string, string>>({});
 
   const [rollingAll, setRollingAll] = useState(false);
   const [startingCombat, setStartingCombat] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [endingCombat, setEndingCombat] = useState(false);
 
-  const [selectedCombatantId, setSelectedCombatantId] = useState<string | null>(null);
+  // Multi-panel stat blocks: set of combatant IDs with open panels
+  const [openStatBlocks, setOpenStatBlocks] = useState<string[]>([]);
   const [creatureCache, setCreatureCache] = useState<Record<string, CreatureResult>>({});
-  const [hpEditFor, setHpEditFor] = useState<string | null>(null);
-  const [hpEditAmount, setHpEditAmount] = useState('');
+
+  // HP editing modal state
+  const [hpEditTarget, setHpEditTarget] = useState<Combatant | null>(null);
+
+  // Initiative click-to-edit state
+  const [initEditFor, setInitEditFor] = useState<string | null>(null);
+  const [initEditValue, setInitEditValue] = useState('');
+
+  // Session log collapsed state
+  const [logCollapsed, setLogCollapsed] = useState(false);
+
+  // Pinned spells
+  const { pinned, pinSpell, unpinSpell, toggleMinimize } = usePinnedSpells();
 
   const bp = useBreakpoint();
-  const showSidePanel = (bp.isDesktop || bp.isWide) && selectedCombatantId !== null;
+  const isWideLayout = bp.isDesktop || bp.isWide;
 
   const isDM = campaign?.dm_user_id === user?.id;
   const combatStarted = !!session?.combat_started_at;
@@ -157,6 +150,8 @@ export default function CombatScreen() {
   const allRolled = entries.length > 0 &&
     entries.every((e) => e.init_roll !== null || e.init_override !== null);
   const anyRolled = entries.some((e) => e.init_roll !== null || e.init_override !== null);
+
+  const activeCombatant = sortedEntries.find((e) => e.is_active_turn);
 
   async function refetchEntries(sessionId: string) {
     const { data } = await getInitiativeOrder(sessionId);
@@ -179,7 +174,6 @@ export default function CombatScreen() {
     setMyCharacterIds(mine);
   }
 
-  // Load the active session + campaign + initiative order on focus.
   useFocusEffect(
     useCallback(() => {
       if (!id) return;
@@ -206,23 +200,13 @@ export default function CombatScreen() {
     }, [id])
   );
 
-  // Realtime: on the session channel, watch both the sessions row (end
-  // signal / round bumps) and the initiative_order rows for this session.
-  // We refetch the full list on any initiative change rather than applying
-  // the payload piecemeal — DELETE events aren't filtered by session_id
-  // under default REPLICA IDENTITY, so a refetch is the safe default.
   useEffect(() => {
     if (!session) return;
     const channel = supabase
       .channel(`session:${session.id}`)
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'sessions',
-          filter: `id=eq.${session.id}`,
-        },
+        { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${session.id}` },
         (payload) => {
           const next = payload.new as Session;
           if (next.ended_at) {
@@ -234,12 +218,7 @@ export default function CombatScreen() {
       )
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'initiative_order',
-          filter: `session_id=eq.${session.id}`,
-        },
+        { event: '*', schema: 'public', table: 'initiative_order', filter: `session_id=eq.${session.id}` },
         async () => {
           const { data } = await getInitiativeOrder(session.id);
           setEntries((data ?? []) as Combatant[]);
@@ -247,37 +226,17 @@ export default function CombatScreen() {
       )
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'characters',
-          filter: `campaign_id=eq.${id}`,
-        },
+        { event: 'UPDATE', schema: 'public', table: 'characters', filter: `campaign_id=eq.${id}` },
         (payload) => {
           const next = payload.new as { id: string; conditions: string[] | null };
           setPcConditions((prev) => ({ ...prev, [next.id]: next.conditions ?? [] }));
         },
       )
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [session?.id]);
 
-  async function handleAddCreatures(inputs: AddCreatureInput[]) {
-    if (!session) return;
-    await Promise.all(
-      inputs.map((c) => addCombatant({
-        sessionId: session.id,
-        name: c.name,
-        initMod: c.initMod,
-        hpMax: c.hpMax,
-        ac: c.ac,
-        creatureKey: c.creatureKey || null,
-      })),
-    );
-    await refetchEntries(session.id);
-    setPickerVisible(false);
-  }
+  // --- Creature loading ---
 
   async function loadCreature(key: string): Promise<CreatureResult | null> {
     if (creatureCache[key]) return creatureCache[key];
@@ -300,64 +259,62 @@ export default function CombatScreen() {
 
   async function handleSelectCombatant(combatant: Combatant) {
     if (!combatant.creature_key) return;
-    setSelectedCombatantId(combatant.id);
+    setOpenStatBlocks((prev) => {
+      if (prev.includes(combatant.id)) return prev;
+      return [...prev, combatant.id];
+    });
     await loadCreature(combatant.creature_key);
   }
 
-  function handleDamage(combatant: Combatant) {
-    const amount = parseInt(hpEditAmount, 10);
-    if (Number.isNaN(amount) || amount <= 0) return;
-    adjustHp(combatant, -amount);
-    setHpEditFor(null);
-    setHpEditAmount('');
+  function closeStatBlock(combatantId: string) {
+    setOpenStatBlocks((prev) => prev.filter((id) => id !== combatantId));
   }
 
-  function handleHeal(combatant: Combatant) {
-    const amount = parseInt(hpEditAmount, 10);
-    if (Number.isNaN(amount) || amount <= 0) return;
-    adjustHp(combatant, amount);
-    setHpEditFor(null);
-    setHpEditAmount('');
+  // --- HP management ---
+
+  async function handleHpApply(combatant: Combatant, patch: { hp_current?: number; hp_max?: number; hp_temp?: number }) {
+    setEntries((prev) => prev.map((e) =>
+      e.id === combatant.id ? { ...e, ...patch } : e,
+    ));
+    if (!session) return;
+
+    if (combatant.character_id) {
+      const combatantPatch: Record<string, number> = {};
+      if (patch.hp_current !== undefined) combatantPatch.hp_current = patch.hp_current;
+      if (patch.hp_temp !== undefined) combatantPatch.hp_temp = patch.hp_temp;
+      await updateCombatant(combatant.id, combatantPatch);
+      if (patch.hp_current !== undefined) {
+        await updateCharacterHp(combatant.character_id, patch.hp_current, {
+          sessionId: session.id,
+          targetName: combatant.display_name,
+          actorId: user?.id ?? null,
+        });
+      }
+    } else {
+      const oldHp = combatant.hp_current;
+      await updateCombatant(
+        combatant.id,
+        patch,
+        patch.hp_current !== undefined && patch.hp_current !== oldHp
+          ? {
+              sessionId: session.id,
+              actorId: user?.id ?? null,
+              hpContext: { oldHp, name: combatant.display_name },
+            }
+          : undefined,
+      );
+    }
   }
 
   async function handleRemove(combatantId: string) {
     if (!session) return;
     setEntries((prev) => prev.filter((e) => e.id !== combatantId));
+    closeStatBlock(combatantId);
     await removeCombatant(combatantId);
     await refetchEntries(session.id);
   }
 
-  // Clamp HP to [0, hp_max], write through to initiative_order, and — for
-  // PC combatants — also mirror onto characters.resources.hpCurrent so
-  // the character sheet reflects battle damage after the session ends.
-  // Session log emission: PCs emit via updateCharacterHp (canonical write);
-  // NPCs emit via updateCombatant (no character row to mirror to).
-  async function adjustHp(combatant: Combatant, delta: number) {
-    const next = Math.max(0, Math.min(combatant.hp_max, combatant.hp_current + delta));
-    if (next === combatant.hp_current) return;
-    setEntries((prev) => prev.map((e) =>
-      e.id === combatant.id ? { ...e, hp_current: next } : e,
-    ));
-    if (!session) return;
-    if (combatant.character_id) {
-      await updateCombatant(combatant.id, { hp_current: next });
-      await updateCharacterHp(combatant.character_id, next, {
-        sessionId: session.id,
-        targetName: combatant.display_name,
-        actorId: user?.id ?? null,
-      });
-    } else {
-      await updateCombatant(
-        combatant.id,
-        { hp_current: next },
-        {
-          sessionId: session.id,
-          actorId: user?.id ?? null,
-          hpContext: { oldHp: combatant.hp_current, name: combatant.display_name },
-        },
-      );
-    }
-  }
+  // --- Conditions ---
 
   async function toggleCondition(characterId: string, condition: string) {
     const current = pcConditions[characterId] ?? [];
@@ -367,7 +324,6 @@ export default function CombatScreen() {
       : [...current, condition];
     setPcConditions((prev) => ({ ...prev, [characterId]: next }));
     if (!session) return;
-    // Resolve target name from the combatant row that owns this character.
     const combatant = entries.find((e) => e.character_id === characterId);
     await updateCharacterConditions(characterId, next, {
       sessionId: session.id,
@@ -376,9 +332,23 @@ export default function CombatScreen() {
     });
   }
 
-  // Open party picker — fetches party members with linked characters,
-  // skipping anyone already in the encounter (dedupe by character_id),
-  // and pre-rolls 1d20 + dex mod so the DM can just edit if needed.
+  // --- Initiative editing ---
+
+  async function handleInitSubmit(combatantId: string) {
+    if (!session) return;
+    const total = parseInt(initEditValue, 10);
+    if (Number.isNaN(total)) { setInitEditFor(null); return; }
+    await setCombatantInitOverride(combatantId, total, {
+      sessionId: session.id,
+      actorId: user?.id ?? null,
+    });
+    setInitEditFor(null);
+    setInitEditValue('');
+    await refetchEntries(session.id);
+  }
+
+  // --- Party picker ---
+
   async function openPartyPicker() {
     if (!id) return;
     setAddingParty(true);
@@ -419,17 +389,6 @@ export default function CombatScreen() {
     setPartyPicks([]);
   }
 
-  function togglePick(characterId: string) {
-    setPartyPicks((prev) =>
-      prev.map((p) => (p.characterId === characterId ? { ...p, selected: !p.selected } : p)),
-    );
-  }
-
-  function toggleSelectAll() {
-    const allSelected = partyPicks.every((p) => p.selected);
-    setPartyPicks((prev) => prev.map((p) => ({ ...p, selected: !allSelected })));
-  }
-
   async function handleAddParty() {
     if (!session || addingSelected) return;
     const chosen = partyPicks.filter((p) => p.selected);
@@ -449,6 +408,24 @@ export default function CombatScreen() {
     setAddingSelected(false);
     closePartyPicker();
   }
+
+  async function handleAddCreatures(inputs: AddCreatureInput[]) {
+    if (!session) return;
+    await Promise.all(
+      inputs.map((c) => addCombatant({
+        sessionId: session.id,
+        name: c.name,
+        initMod: c.initMod,
+        hpMax: c.hpMax,
+        ac: c.ac,
+        creatureKey: c.creatureKey || null,
+      })),
+    );
+    await refetchEntries(session.id);
+    setPickerVisible(false);
+  }
+
+  // --- Rolling ---
 
   async function handleRollOne(combatant: Combatant) {
     const canRoll = isDM || (!!combatant.character_id && myCharacterIds.has(combatant.character_id));
@@ -473,35 +450,12 @@ export default function CombatScreen() {
     setRollingAll(false);
   }
 
-  // The DM types the player's announced final initiative total (physical
-  // tabletop flow — the player rolled their own d20 and added their own
-  // mod). Stored as `init_override`, which wins over init_value+init_roll
-  // in sort order and hides the d20 breakdown in the UI.
-  async function handleManualSet(combatantId: string) {
-    if (!session) return;
-    const raw = manualRolls[combatantId];
-    const total = parseInt(raw ?? '', 10);
-    if (Number.isNaN(total)) return;
-    await setCombatantInitOverride(combatantId, total, {
-      sessionId: session.id,
-      actorId: user?.id ?? null,
-    });
-    setManualRolls((prev) => {
-      const next = { ...prev };
-      delete next[combatantId];
-      return next;
-    });
-    await refetchEntries(session.id);
-  }
+  // --- Combat lifecycle ---
 
   async function handleStartCombat() {
     if (!session || startingCombat) return;
     setStartingCombat(true);
-    await startCombat(session.id, {
-      sessionId: session.id,
-      actorId: user?.id ?? null,
-    });
-    // Sync session locally and set highest-init as active turn.
+    await startCombat(session.id, { sessionId: session.id, actorId: user?.id ?? null });
     const { data: freshSession } = await getActiveSession(id!);
     if (freshSession) setSession(freshSession);
     const { data: raw } = await getInitiativeOrder(session.id);
@@ -516,7 +470,6 @@ export default function CombatScreen() {
   async function handleResetInitiative() {
     if (!session || resetting) return;
     const confirmed = Platform.OS === 'web'
-      // eslint-disable-next-line no-alert
       ? window.confirm('Reset all initiative rolls and end combat?')
       : await new Promise<boolean>((resolve) => {
           Alert.alert(
@@ -540,7 +493,6 @@ export default function CombatScreen() {
   async function handleEndCombat() {
     if (!session || endingCombat) return;
     const confirmed = Platform.OS === 'web'
-      // eslint-disable-next-line no-alert
       ? window.confirm('End combat? Initiative rolls will be kept.')
       : await new Promise<boolean>((resolve) => {
           Alert.alert(
@@ -554,10 +506,7 @@ export default function CombatScreen() {
         });
     if (!confirmed) return;
     setEndingCombat(true);
-    await endCombat(session.id, {
-      sessionId: session.id,
-      actorId: user?.id ?? null,
-    });
+    await endCombat(session.id, { sessionId: session.id, actorId: user?.id ?? null });
     const { data: freshSession } = await getActiveSession(id!);
     if (freshSession) setSession(freshSession);
     await refetchEntries(session.id);
@@ -569,657 +518,726 @@ export default function CombatScreen() {
     setAdvancing(true);
     await advanceTurn(session.id);
     await refetchEntries(session.id);
-    // advanceTurn may have bumped session.round — pull the fresh row.
     const { data: s } = await getActiveSession(id);
     if (s) setSession(s);
     setAdvancing(false);
   }
 
+  // --- Render ---
+
   if (loading) {
     return (
-      <View style={s.center}>
+      <View style={st.center}>
         <ActivityIndicator color={colors.brand} />
       </View>
     );
   }
   if (!session) return null;
 
+  const statBlockPanels = openStatBlocks
+    .map((cId) => {
+      const combatant = entries.find((e) => e.id === cId);
+      if (!combatant?.creature_key) return null;
+      const creature = creatureCache[combatant.creature_key] ?? null;
+      return { combatant, creature };
+    })
+    .filter(Boolean) as Array<{ combatant: Combatant; creature: CreatureResult | null }>;
+
   return (
-    <View style={s.container}>
-      <View style={s.header}>
-        <TouchableOpacity
-          onPress={() => router.replace(`/campaign/${id}` as never)}
-          style={s.headerBack}
-        >
-          <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={s.title} numberOfLines={1}>
-            Combat Encounter
-          </Text>
-          <Text style={s.subtitle}>
-            {(campaign?.name ?? '') + ' · '}
-            {combatStarted
-              ? `Round ${session.round}`
-              : allRolled
-                ? 'Ready to start'
-                : anyRolled
-                  ? 'Rolling initiative…'
-                  : 'Setup'}
-          </Text>
-        </View>
-      </View>
-
-      {isDM && (
-        <View style={s.controls}>
-          <TouchableOpacity
-            style={s.controlBtn}
-            onPress={() => setPickerVisible(true)}
-          >
-            <MaterialCommunityIcons
-              name="plus"
-              size={16}
-              color={colors.textPrimary}
-            />
-            <Text style={s.controlBtnText}>Add Combatant</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={s.controlBtn}
-            onPress={() => (addingParty ? closePartyPicker() : openPartyPicker())}
-          >
-            <MaterialCommunityIcons
-              name={addingParty ? 'close' : 'account-multiple-plus'}
-              size={16}
-              color={colors.textPrimary}
-            />
-            <Text style={s.controlBtnText}>
-              {addingParty ? 'Cancel' : 'Add Party'}
-            </Text>
-          </TouchableOpacity>
-
-          {!combatStarted && !allRolled && entries.length > 0 && (
+    <SpellPinProvider onPin={pinSpell}>
+      <View style={st.container}>
+        {/* ===== HEADER ===== */}
+        <View style={st.header}>
+          <View style={st.headerLeft}>
             <TouchableOpacity
-              style={[s.controlBtn, rollingAll && { opacity: 0.5 }]}
-              onPress={handleRollAll}
-              disabled={rollingAll}
+              onPress={() => router.replace(`/campaign/${id}` as never)}
+              style={st.headerBack}
             >
-              <MaterialCommunityIcons name="dice-d20" size={16} color={colors.brand} />
-              <Text style={s.controlBtnText}>
-                {rollingAll ? 'Rolling…' : 'Roll All'}
-              </Text>
+              <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
-          )}
-
-          {(combatStarted || anyRolled) && (
-            <TouchableOpacity
-              style={[s.controlBtn, resetting && { opacity: 0.5 }]}
-              onPress={handleResetInitiative}
-              disabled={resetting}
-            >
-              <MaterialCommunityIcons name="restart" size={16} color={colors.hpDanger} />
-              <Text style={s.controlBtnText}>
-                {resetting ? 'Resetting…' : 'Reset'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {!combatStarted && allRolled && (
-            <TouchableOpacity
-              style={[s.controlBtnPrimary, startingCombat && { opacity: 0.5 }]}
-              onPress={handleStartCombat}
-              disabled={startingCombat}
-            >
-              <MaterialCommunityIcons name="sword-cross" size={16} color="#fff" />
-              <Text style={s.controlBtnPrimaryText}>
-                {startingCombat ? 'Starting…' : 'Start Combat'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {combatStarted && (
-            <TouchableOpacity
-              style={[s.controlBtnPrimary, (advancing || entries.length === 0) && { opacity: 0.5 }]}
-              onPress={handleNextTurn}
-              disabled={advancing || entries.length === 0}
-            >
-              <MaterialCommunityIcons name="skip-next" size={16} color="#fff" />
-              <Text style={s.controlBtnPrimaryText}>
-                {advancing ? 'Advancing…' : 'Next Turn'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {combatStarted && (
-            <TouchableOpacity
-              style={[s.controlBtn, endingCombat && { opacity: 0.5 }]}
-              onPress={handleEndCombat}
-              disabled={endingCombat}
-            >
-              <MaterialCommunityIcons name="stop-circle-outline" size={16} color={colors.hpDanger} />
-              <Text style={[s.controlBtnText, { color: colors.hpDanger }]}>
-                {endingCombat ? 'Ending…' : 'End Combat'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-
-      {isDM && addingParty && (
-        <View style={s.pickerPanel}>
-          {partyLoading ? (
-            <ActivityIndicator color={colors.brand} />
-          ) : partyPicks.length === 0 ? (
-            <Text style={s.pickerEmpty}>
-              No party members with characters available to add.
-            </Text>
-          ) : (
-            <>
-              <View style={s.pickerHeaderRow}>
-                <TouchableOpacity onPress={toggleSelectAll} style={s.pickerSelectAll}>
-                  <MaterialCommunityIcons
-                    name={partyPicks.every((p) => p.selected)
-                      ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                    size={18}
-                    color={colors.textPrimary}
-                  />
-                  <Text style={s.pickerSelectAllText}>Select all</Text>
-                </TouchableOpacity>
-                <Text style={s.pickerCount}>
-                  {partyPicks.filter((p) => p.selected).length} / {partyPicks.length}
+            <View>
+              <Text style={st.title} numberOfLines={1}>Combat Encounter</Text>
+              <View style={st.subtitleRow}>
+                <Text style={st.subtitle} numberOfLines={1}>
+                  {campaign?.name ?? ''}
                 </Text>
-              </View>
-              {partyPicks.map((p) => (
-                <View key={p.characterId} style={s.pickerRow}>
-                  <TouchableOpacity
-                    onPress={() => togglePick(p.characterId)}
-                    style={s.pickerCheckbox}
-                  >
-                    <MaterialCommunityIcons
-                      name={p.selected ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                      size={20}
-                      color={p.selected ? colors.brand : colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.pickerName} numberOfLines={1}>{p.name}</Text>
-                    <Text style={s.pickerMeta}>
-                      HP {p.hpCurrent}/{p.hpMax} · AC {p.ac} · Init {formatMod(p.initMod)}
-                    </Text>
+                {combatStarted && (
+                  <View style={st.liveBadge}>
+                    <View style={st.liveDot} />
+                    <Text style={st.liveText}>Live</Text>
                   </View>
+                )}
+              </View>
+            </View>
+          </View>
+          <View style={st.headerRight}>
+            {combatStarted && (
+              <View style={st.roundInfo}>
+                <Text style={st.roundLabel}>ROUND</Text>
+                <View style={st.roundBadge}>
+                  <Text style={st.roundNumber}>{session.round}</Text>
                 </View>
-              ))}
+                {activeCombatant && (
+                  <Text style={st.turnName} numberOfLines={1}>
+                    {activeCombatant.display_name}'s turn
+                  </Text>
+                )}
+              </View>
+            )}
+            {combatStarted && isDM && (
               <TouchableOpacity
-                style={[
-                  s.pickerAddBtn,
-                  (addingSelected || partyPicks.filter((p) => p.selected).length === 0)
-                    && { opacity: 0.5 },
-                ]}
-                onPress={handleAddParty}
-                disabled={addingSelected || partyPicks.filter((p) => p.selected).length === 0}
+                style={[st.nextTurnBtn, (advancing || entries.length === 0) && { opacity: 0.5 }]}
+                onPress={handleNextTurn}
+                disabled={advancing || entries.length === 0}
               >
-                <Text style={s.pickerAddBtnText}>
-                  {addingSelected
-                    ? 'Adding…'
-                    : `Add ${partyPicks.filter((p) => p.selected).length} to encounter`}
+                <MaterialCommunityIcons name="skip-next" size={16} color="#fff" />
+                <Text style={st.nextTurnBtnText}>
+                  {advancing ? 'Advancing...' : 'Next Turn'}
                 </Text>
               </TouchableOpacity>
-            </>
-          )}
-        </View>
-      )}
-
-      <View style={s.logWrap}>
-        <SessionLogFeed sessionId={session.id} isLive variant="full" />
-      </View>
-
-      <View style={showSidePanel ? s.splitRow : { flex: 1 }}>
-        {entries.length === 0 ? (
-          <View style={s.placeholder}>
-            <MaterialCommunityIcons name="sword-cross" size={48} color={colors.textSecondary} />
-            <Text style={s.placeholderTitle}>No combatants yet</Text>
-            <Text style={s.placeholderBody}>
-              {isDM
-                ? 'Add combatants to begin tracking initiative.'
-                : 'Waiting for the DM to set up initiative.'}
-            </Text>
+            )}
           </View>
-        ) : (
-          <FlatList
-            data={sortedEntries}
-            keyExtractor={(e) => e.id}
-            contentContainerStyle={{ paddingVertical: spacing.sm }}
-            renderItem={({ item }) => {
-              const conds = item.character_id
-                ? (pcConditions[item.character_id] ?? [])
-                : [];
-              const isPc = !!item.character_id;
-              const overridden = item.init_override !== null;
-              const rolled = overridden || item.init_roll !== null;
-              const total = overridden
-                ? (item.init_override as number)
-                : item.init_value + (item.init_roll ?? 0);
-              const canRoll = isDM
-                || (isPc && myCharacterIds.has(item.character_id!));
-              const hpColorVal = hpColor(item.hp_current, item.hp_max);
-              const hasStatBlock = !!item.creature_key;
-              const isSelected = selectedCombatantId === item.id;
-              return (
-                <View style={[s.row, item.is_active_turn && s.rowActive, isSelected && s.rowSelected]}>
-                  {item.is_active_turn && (
-                    <MaterialCommunityIcons
-                      name="arrow-right-bold"
-                      size={18}
-                      color={colors.brand}
-                      style={{ marginRight: 4 }}
-                    />
-                  )}
-                  <View style={[s.initBadge, rolled && s.initBadgeRolled]}>
-                    <Text style={s.initBadgeText}>
-                      {rolled ? total : formatMod(item.init_value)}
-                    </Text>
-                  </View>
-                  <Pressable
-                    style={{ flex: 1 }}
-                    onPress={hasStatBlock ? () => handleSelectCombatant(item) : undefined}
-                  >
-                    <Text style={s.rowName} numberOfLines={1}>
-                      {item.display_name}
-                      {hasStatBlock && (
-                        <Text style={s.rowStatBlockHint}> ⓘ</Text>
-                      )}
-                    </Text>
-                    <View style={s.rowMetaRow}>
-                      {rolled && !overridden && (
-                        <Text style={s.rowRollDetail}>
-                          d20: {item.init_roll} {formatMod(item.init_value)} ·{' '}
-                        </Text>
-                      )}
-                      <Pressable
-                        onPress={isDM ? () => {
-                          setHpEditFor(hpEditFor === item.id ? null : item.id);
-                          setHpEditAmount('');
-                        } : undefined}
-                      >
-                        <Text style={[s.rowMeta, { color: hpColorVal }]}>
-                          HP {item.hp_current}/{item.hp_max}
-                        </Text>
-                      </Pressable>
-                      <Text style={s.rowMeta}> · AC {item.ac}</Text>
-                    </View>
-                    <HpBar current={item.hp_current} max={item.hp_max} />
-                    {hpEditFor === item.id && isDM && (
-                      <View style={s.hpEditRow}>
-                        <TextInput
-                          style={s.hpEditInput}
-                          placeholder="Amount"
-                          placeholderTextColor={colors.textSecondary}
-                          keyboardType="number-pad"
-                          value={hpEditAmount}
-                          onChangeText={setHpEditAmount}
-                          autoFocus
-                        />
-                        <TouchableOpacity
-                          style={s.hpDmgBtn}
-                          onPress={() => handleDamage(item)}
-                        >
-                          <Text style={s.hpDmgBtnText}>Damage</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={s.hpHealBtn}
-                          onPress={() => handleHeal(item)}
-                        >
-                          <Text style={s.hpHealBtnText}>Heal</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                    {conds.length > 0 && (
-                      <View style={s.condChipRow}>
-                        {conds.slice(0, 3).map((c) => (
-                          <View key={c} style={s.condChip}>
-                            <Text style={s.condChipText}>{c}</Text>
-                          </View>
-                        ))}
-                        {conds.length > 3 && (
-                          <Text style={s.condMore}>+{conds.length - 3}</Text>
-                        )}
-                      </View>
-                    )}
-                    {!rolled && isDM && (
-                      <View style={s.rowInlineRow}>
-                        <TextInput
-                          style={s.rowManualInput}
-                          placeholder="Total"
-                          placeholderTextColor={colors.textSecondary}
-                          keyboardType="numeric"
-                          value={manualRolls[item.id] ?? ''}
-                          onChangeText={(v) =>
-                            setManualRolls((prev) => ({ ...prev, [item.id]: v }))
-                          }
-                        />
-                        <TouchableOpacity
-                          style={s.rowInlineBtn}
-                          onPress={() => handleManualSet(item.id)}
-                        >
-                          <Text style={s.rowInlineBtnText}>Set total</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </Pressable>
-                  <View style={s.rowActions}>
-                    {!rolled && canRoll && (
-                      <TouchableOpacity
-                        style={s.rollBtn}
-                        onPress={() => handleRollOne(item)}
-                      >
-                        <MaterialCommunityIcons
-                          name="dice-d20"
-                          size={18}
-                          color={colors.brand}
-                        />
-                      </TouchableOpacity>
-                    )}
-                    {isDM && (
-                      <>
-                        {isPc && (
-                          <TouchableOpacity
-                            style={s.rowAction}
-                            onPress={() => setEditingConditionsFor(item)}
-                          >
-                            <MaterialCommunityIcons
-                              name="heart-pulse"
-                              size={18}
-                              color={colors.textSecondary}
-                            />
-                          </TouchableOpacity>
-                        )}
-                        <TouchableOpacity
-                          style={s.rowAction}
-                          onPress={() => handleRemove(item.id)}
-                        >
-                          <MaterialCommunityIcons
-                            name="trash-can-outline"
-                            size={18}
-                            color={colors.hpDanger}
-                          />
-                        </TouchableOpacity>
-                      </>
-                    )}
-                  </View>
-                </View>
-              );
-            }}
-          />
+        </View>
+
+        {/* ===== CONTROLS BAR ===== */}
+        {isDM && (
+          <View style={st.controls}>
+            <View style={st.controlsLeft}>
+              <TouchableOpacity style={st.controlBtn} onPress={() => setPickerVisible(true)}>
+                <MaterialCommunityIcons name="plus" size={14} color={colors.textPrimary} />
+                <Text style={st.controlBtnText}>Add Combatant</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={st.controlBtn}
+                onPress={() => (addingParty ? closePartyPicker() : openPartyPicker())}
+              >
+                <MaterialCommunityIcons
+                  name={addingParty ? 'close' : 'account-multiple-plus'}
+                  size={14} color={colors.textPrimary}
+                />
+                <Text style={st.controlBtnText}>{addingParty ? 'Cancel' : 'Add Party'}</Text>
+              </TouchableOpacity>
+              {!combatStarted && !allRolled && entries.length > 0 && (
+                <TouchableOpacity
+                  style={[st.controlBtn, rollingAll && { opacity: 0.5 }]}
+                  onPress={handleRollAll}
+                  disabled={rollingAll}
+                >
+                  <MaterialCommunityIcons name="dice-d20" size={14} color={colors.brand} />
+                  <Text style={st.controlBtnText}>{rollingAll ? 'Rolling...' : 'Roll All'}</Text>
+                </TouchableOpacity>
+              )}
+              {(combatStarted || anyRolled) && (
+                <TouchableOpacity
+                  style={[st.controlBtn, resetting && { opacity: 0.5 }]}
+                  onPress={handleResetInitiative}
+                  disabled={resetting}
+                >
+                  <MaterialCommunityIcons name="restart" size={14} color={colors.hpDanger} />
+                  <Text style={[st.controlBtnText, { color: colors.hpDanger }]}>
+                    {resetting ? 'Resetting...' : 'Reset'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={st.controlsRight}>
+              {!combatStarted && allRolled && (
+                <TouchableOpacity
+                  style={[st.controlBtnPrimary, startingCombat && { opacity: 0.5 }]}
+                  onPress={handleStartCombat}
+                  disabled={startingCombat}
+                >
+                  <MaterialCommunityIcons name="sword-cross" size={14} color="#fff" />
+                  <Text style={st.controlBtnPrimaryText}>
+                    {startingCombat ? 'Starting...' : 'Start Combat'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {combatStarted && (
+                <TouchableOpacity
+                  style={[st.controlBtn, endingCombat && { opacity: 0.5 }]}
+                  onPress={handleEndCombat}
+                  disabled={endingCombat}
+                >
+                  <MaterialCommunityIcons name="stop-circle-outline" size={14} color={colors.hpDanger} />
+                  <Text style={[st.controlBtnText, { color: colors.hpDanger }]}>
+                    {endingCombat ? 'Ending...' : 'End Combat'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
         )}
 
-        {showSidePanel && (() => {
-          const combatant = entries.find((e) => e.id === selectedCombatantId);
+        {/* ===== PARTY PICKER ===== */}
+        {isDM && addingParty && (
+          <View style={st.pickerPanel}>
+            {partyLoading ? (
+              <ActivityIndicator color={colors.brand} />
+            ) : partyPicks.length === 0 ? (
+              <Text style={st.pickerEmpty}>No party members available to add.</Text>
+            ) : (
+              <>
+                <View style={st.pickerHeaderRow}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const allSelected = partyPicks.every((p) => p.selected);
+                      setPartyPicks((prev) => prev.map((p) => ({ ...p, selected: !allSelected })));
+                    }}
+                    style={st.pickerSelectAll}
+                  >
+                    <MaterialCommunityIcons
+                      name={partyPicks.every((p) => p.selected) ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                      size={18} color={colors.textPrimary}
+                    />
+                    <Text style={st.pickerSelectAllText}>Select all</Text>
+                  </TouchableOpacity>
+                  <Text style={st.pickerCount}>
+                    {partyPicks.filter((p) => p.selected).length} / {partyPicks.length}
+                  </Text>
+                </View>
+                {partyPicks.map((p) => (
+                  <View key={p.characterId} style={st.pickerRow}>
+                    <TouchableOpacity
+                      onPress={() => setPartyPicks((prev) =>
+                        prev.map((x) => x.characterId === p.characterId ? { ...x, selected: !x.selected } : x),
+                      )}
+                      style={st.pickerCheckbox}
+                    >
+                      <MaterialCommunityIcons
+                        name={p.selected ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                        size={20} color={p.selected ? colors.brand : colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <Text style={st.pickerName} numberOfLines={1}>{p.name}</Text>
+                      <Text style={st.pickerMeta}>
+                        HP {p.hpCurrent}/{p.hpMax} · AC {p.ac} · Init {formatMod(p.initMod)}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={[st.pickerAddBtn, (addingSelected || partyPicks.filter((p) => p.selected).length === 0) && { opacity: 0.5 }]}
+                  onPress={handleAddParty}
+                  disabled={addingSelected || partyPicks.filter((p) => p.selected).length === 0}
+                >
+                  <Text style={st.pickerAddBtnText}>
+                    {addingSelected ? 'Adding...' : `Add ${partyPicks.filter((p) => p.selected).length} to encounter`}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
+
+        {/* ===== SESSION LOG ===== */}
+        <Pressable
+          style={st.logHeader}
+          onPress={() => setLogCollapsed((v) => !v)}
+        >
+          <MaterialCommunityIcons
+            name={logCollapsed ? 'chevron-right' : 'chevron-down'}
+            size={16} color={colors.textSecondary}
+          />
+          <Text style={st.logHeaderText}>SESSION LOG</Text>
+          {combatStarted && <View style={st.logLiveDot} />}
+          {combatStarted && <Text style={st.logLiveText}>LIVE</Text>}
+        </Pressable>
+        {!logCollapsed && (
+          <View style={st.logWrap}>
+            <SessionLogFeed sessionId={session.id} isLive variant="full" />
+          </View>
+        )}
+
+        {/* ===== MAIN CONTENT ===== */}
+        <View style={st.mainContent}>
+          {/* Initiative List */}
+          <View style={isWideLayout && statBlockPanels.length > 0 ? st.initListNarrow : st.initListFull}>
+            <View style={st.initListHeader}>
+              <Text style={st.initListTitle}>Initiative</Text>
+              <Text style={st.initListCount}>
+                {entries.length} · {combatStarted ? `Round ${session.round}` : anyRolled ? 'Rolling' : 'Setup'}
+              </Text>
+            </View>
+
+            {entries.length === 0 ? (
+              <View style={st.placeholder}>
+                <MaterialCommunityIcons name="sword-cross" size={40} color={colors.textSecondary} />
+                <Text style={st.placeholderTitle}>No combatants yet</Text>
+                <Text style={st.placeholderBody}>
+                  {isDM ? 'Add combatants to begin.' : 'Waiting for the DM.'}
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={sortedEntries}
+                keyExtractor={(e) => e.id}
+                contentContainerStyle={{ paddingBottom: pinned.length > 0 ? 40 : 0 }}
+                renderItem={({ item }) => {
+                  const conds = item.character_id ? (pcConditions[item.character_id] ?? []) : [];
+                  const isPc = !!item.character_id;
+                  const overridden = item.init_override !== null;
+                  const rolled = overridden || item.init_roll !== null;
+                  const total = overridden
+                    ? (item.init_override as number)
+                    : item.init_value + (item.init_roll ?? 0);
+                  const canRoll = isDM || (isPc && myCharacterIds.has(item.character_id!));
+                  const hasStatBlock = !!item.creature_key;
+                  const isEditing = initEditFor === item.id;
+
+                  return (
+                    <View style={[st.row, item.is_active_turn && st.rowActive]}>
+                      {/* Init badge — click to edit */}
+                      {isEditing ? (
+                        <View style={st.initEditWrap}>
+                          <TextInput
+                            style={st.initEditInput}
+                            keyboardType="number-pad"
+                            value={initEditValue}
+                            onChangeText={setInitEditValue}
+                            autoFocus
+                            selectTextOnFocus
+                            onSubmitEditing={() => handleInitSubmit(item.id)}
+                            onBlur={() => setInitEditFor(null)}
+                            maxLength={3}
+                          />
+                        </View>
+                      ) : (
+                        <Pressable
+                          onPress={isDM ? () => {
+                            setInitEditFor(item.id);
+                            setInitEditValue(rolled ? String(total) : '');
+                          } : undefined}
+                        >
+                          <View style={[st.initBadge, rolled && st.initBadgeRolled]}>
+                            <Text style={st.initBadgeText}>
+                              {rolled ? total : formatMod(item.init_value)}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      )}
+
+                      {/* Name + meta */}
+                      <Pressable
+                        style={{ flex: 1 }}
+                        onPress={hasStatBlock ? () => handleSelectCombatant(item) : undefined}
+                      >
+                        <View style={st.nameRow}>
+                          <Text style={st.rowName} numberOfLines={1}>
+                            {item.display_name}
+                          </Text>
+                          <View style={[st.typeBadge, isPc ? st.typeBadgePc : st.typeBadgeNpc]}>
+                            <Text style={[st.typeBadgeText, isPc ? st.typeBadgeTextPc : st.typeBadgeTextNpc]}>
+                              {isPc ? 'PC' : 'NPC'}
+                            </Text>
+                          </View>
+                          {hasStatBlock && (
+                            <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.brand} style={{ marginLeft: 2 }} />
+                          )}
+                        </View>
+                        <View style={st.rowMetaRow}>
+                          <Pressable onPress={isDM ? () => setHpEditTarget(item) : undefined}>
+                            <Text style={[st.rowMeta, { color: hpColor(item.hp_current, item.hp_max) }]}>
+                              HP {item.hp_current}/{item.hp_max}
+                            </Text>
+                          </Pressable>
+                          {item.hp_temp > 0 && (
+                            <Text style={st.rowTempHp}> +{item.hp_temp}tmp</Text>
+                          )}
+                          <Text style={st.rowMeta}> · AC {item.ac}</Text>
+                        </View>
+                        <HpBar current={item.hp_current} max={item.hp_max} />
+                        {conds.length > 0 && (
+                          <View style={st.condChipRow}>
+                            {conds.slice(0, 3).map((c) => (
+                              <View key={c} style={st.condChip}>
+                                <Text style={st.condChipText}>{c.toUpperCase()}</Text>
+                              </View>
+                            ))}
+                            {conds.length > 3 && (
+                              <Text style={st.condMore}>+{conds.length - 3}</Text>
+                            )}
+                          </View>
+                        )}
+                      </Pressable>
+
+                      {/* Actions */}
+                      <View style={st.rowActions}>
+                        {!rolled && canRoll && (
+                          <TouchableOpacity style={st.rollBtn} onPress={() => handleRollOne(item)}>
+                            <MaterialCommunityIcons name="dice-d20" size={16} color={colors.brand} />
+                          </TouchableOpacity>
+                        )}
+                        {isDM && isPc && (
+                          <TouchableOpacity style={st.rowAction} onPress={() => setEditingConditionsFor(item)}>
+                            <MaterialCommunityIcons name="heart-pulse" size={16} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                        )}
+                        {isDM && (
+                          <TouchableOpacity style={st.rowAction} onPress={() => handleRemove(item.id)}>
+                            <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                }}
+              />
+            )}
+          </View>
+
+          {/* Stat Block Panels (desktop) */}
+          {isWideLayout && statBlockPanels.length > 0 && (
+            <ScrollView
+              horizontal
+              style={st.statPanelArea}
+              contentContainerStyle={st.statPanelRow}
+              showsHorizontalScrollIndicator={false}
+            >
+              {statBlockPanels.map(({ combatant, creature }) => (
+                <View key={combatant.id} style={st.statPanel}>
+                  <View style={st.statPanelHeader}>
+                    <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.textSecondary} />
+                    <Text style={st.statPanelTitle} numberOfLines={1}>
+                      {combatant.display_name}
+                    </Text>
+                    <TouchableOpacity
+                      style={st.statPanelAction}
+                      onPress={() => closeStatBlock(combatant.id)}
+                    >
+                      <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView style={st.statPanelBody}>
+                    {creature ? (
+                      <CreatureStatBlock creature={creature} />
+                    ) : (
+                      <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
+                    )}
+                  </ScrollView>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Pinned spells overlay */}
+          <PinnedSpellsOverlay
+            pinned={pinned}
+            onUnpin={unpinSpell}
+            onToggleMinimize={toggleMinimize}
+          />
+        </View>
+
+        {/* ===== Stat block modal for mobile ===== */}
+        {!isWideLayout && openStatBlocks.length > 0 && (() => {
+          const cId = openStatBlocks[openStatBlocks.length - 1];
+          const combatant = entries.find((e) => e.id === cId);
           const creature = combatant?.creature_key ? creatureCache[combatant.creature_key] : null;
           return (
-            <View style={s.statPanel}>
-              <View style={s.statPanelHeader}>
-                <Text style={s.statPanelTitle} numberOfLines={1}>
-                  {combatant?.display_name ?? 'Stat Block'}
+            <Modal
+              visible
+              transparent
+              animationType="fade"
+              onRequestClose={() => closeStatBlock(cId)}
+            >
+              <View style={st.modalBackdrop}>
+                <View style={st.modalCard}>
+                  <View style={st.modalHeader}>
+                    <Text style={st.modalTitle} numberOfLines={1}>
+                      {combatant?.display_name ?? 'Stat Block'}
+                    </Text>
+                    <TouchableOpacity onPress={() => closeStatBlock(cId)}>
+                      <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView contentContainerStyle={st.modalBody}>
+                    {creature ? (
+                      <CreatureStatBlock creature={creature} />
+                    ) : (
+                      <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
+                    )}
+                  </ScrollView>
+                </View>
+              </View>
+            </Modal>
+          );
+        })()}
+
+        {/* ===== Conditions modal ===== */}
+        <Modal
+          visible={!!editingConditionsFor}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setEditingConditionsFor(null)}
+        >
+          <View style={st.modalBackdrop}>
+            <View style={st.modalCard}>
+              <View style={st.modalHeader}>
+                <Text style={st.modalTitle} numberOfLines={1}>
+                  {editingConditionsFor?.display_name}
                 </Text>
-                <TouchableOpacity onPress={() => setSelectedCombatantId(null)}>
+                <TouchableOpacity onPress={() => setEditingConditionsFor(null)}>
                   <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
-              <ScrollView style={s.statPanelBody}>
-                {creature ? (
-                  <CreatureStatBlock creature={creature} />
-                ) : (
-                  <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
-                )}
+              <ScrollView contentContainerStyle={st.modalBody}>
+                <View style={st.condGrid}>
+                  {SRD_CONDITIONS.map((cond) => {
+                    const charId = editingConditionsFor?.character_id ?? '';
+                    const active = (pcConditions[charId] ?? [])
+                      .some((c) => c.toLowerCase() === cond.toLowerCase());
+                    return (
+                      <TouchableOpacity
+                        key={cond}
+                        style={[st.condChipBig, active && st.condChipBigActive]}
+                        onPress={() => charId && toggleCondition(charId, cond)}
+                      >
+                        <Text style={[st.condChipBigText, active && st.condChipBigTextActive]}>
+                          {cond}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </ScrollView>
             </View>
-          );
-        })()}
-      </View>
-
-      {/* Stat block modal for mobile / narrow screens */}
-      {!bp.isDesktop && !bp.isWide && selectedCombatantId && (() => {
-        const combatant = entries.find((e) => e.id === selectedCombatantId);
-        const creature = combatant?.creature_key ? creatureCache[combatant.creature_key] : null;
-        return (
-          <Modal
-            visible
-            transparent
-            animationType="fade"
-            onRequestClose={() => setSelectedCombatantId(null)}
-          >
-            <View style={s.modalBackdrop}>
-              <View style={s.modalCard}>
-                <View style={s.modalHeader}>
-                  <Text style={s.modalTitle} numberOfLines={1}>
-                    {combatant?.display_name ?? 'Stat Block'}
-                  </Text>
-                  <TouchableOpacity onPress={() => setSelectedCombatantId(null)}>
-                    <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView contentContainerStyle={s.modalBody}>
-                  {creature ? (
-                    <CreatureStatBlock creature={creature} />
-                  ) : (
-                    <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
-                  )}
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
-        );
-      })()}
-
-      <Modal
-        visible={!!editingConditionsFor}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEditingConditionsFor(null)}
-      >
-        <View style={s.modalBackdrop}>
-          <View style={s.modalCard}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle} numberOfLines={1}>
-                {editingConditionsFor?.display_name}
-              </Text>
-              <TouchableOpacity onPress={() => setEditingConditionsFor(null)}>
-                <MaterialCommunityIcons
-                  name="close"
-                  size={22}
-                  color={colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-            <ScrollView contentContainerStyle={s.modalBody}>
-              <View style={s.condGrid}>
-                {SRD_CONDITIONS.map((cond) => {
-                  const charId = editingConditionsFor?.character_id ?? '';
-                  const active = (pcConditions[charId] ?? [])
-                    .some((c) => c.toLowerCase() === cond.toLowerCase());
-                  return (
-                    <TouchableOpacity
-                      key={cond}
-                      style={[s.condChipBig, active && s.condChipBigActive]}
-                      onPress={() => charId && toggleCondition(charId, cond)}
-                    >
-                      <Text style={[s.condChipBigText, active && s.condChipBigTextActive]}>
-                        {cond}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      <CreaturePickerModal
-        visible={pickerVisible}
-        onClose={() => setPickerVisible(false)}
-        onAddCreatures={handleAddCreatures}
-      />
-    </View>
+        {/* ===== HP Edit modal ===== */}
+        {hpEditTarget && (
+          <CombatHpModal
+            visible
+            name={hpEditTarget.display_name}
+            hpCurrent={hpEditTarget.hp_current}
+            hpMax={hpEditTarget.hp_max}
+            hpTemp={hpEditTarget.hp_temp}
+            isNpc={!hpEditTarget.character_id}
+            onClose={() => setHpEditTarget(null)}
+            onApply={(patch) => handleHpApply(hpEditTarget, patch)}
+          />
+        )}
+
+        <CreaturePickerModal
+          visible={pickerVisible}
+          onClose={() => setPickerVisible(false)}
+          onAddCreatures={handleAddCreatures}
+        />
+      </View>
+    </SpellPinProvider>
   );
 }
 
-const s = StyleSheet.create({
+const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   center: {
     flex: 1, backgroundColor: colors.background,
     alignItems: 'center', justifyContent: 'center',
   },
+
+  // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.md,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderBottomColor: colors.border, borderBottomWidth: 1,
     backgroundColor: colors.surface,
   },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerBack: { padding: 4 },
   title: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
-  subtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-
-  controls: {
-    flexDirection: 'row', gap: spacing.sm,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
+  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 2 },
+  subtitle: { fontSize: 12, color: colors.textSecondary },
+  liveBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.hpDanger + '22', borderRadius: 4,
+    paddingHorizontal: 6, paddingVertical: 2,
   },
-  controlBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 8,
-    paddingHorizontal: spacing.md, paddingVertical: 8,
+  liveDot: {
+    width: 6, height: 6, borderRadius: 3, backgroundColor: colors.hpDanger,
   },
-  controlBtnText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  controlBtnPrimary: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+  liveText: { fontSize: 10, fontWeight: '700', color: colors.hpDanger },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  roundInfo: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  roundLabel: { fontSize: 10, fontWeight: '600', color: colors.textSecondary, letterSpacing: 1 },
+  roundBadge: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center',
+  },
+  roundNumber: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  turnName: { fontSize: 12, color: colors.textSecondary, maxWidth: 120 },
+  nextTurnBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.brand, borderRadius: 8,
     paddingHorizontal: spacing.md, paddingVertical: 8,
-    marginLeft: 'auto',
   },
-  controlBtnPrimaryText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  nextTurnBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
+  // Controls
+  controls: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
+    borderBottomColor: colors.border, borderBottomWidth: 1,
+    flexWrap: 'wrap', gap: spacing.xs,
+  },
+  controlsLeft: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
+  controlsRight: { flexDirection: 'row', gap: spacing.xs },
+  controlBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 6,
+  },
+  controlBtnText: { color: colors.textPrimary, fontSize: 12, fontWeight: '600' },
+  controlBtnPrimary: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.brand, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 6,
+  },
+  controlBtnPrimaryText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+
+  // Party picker
   pickerPanel: {
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderBottomColor: colors.border, borderBottomWidth: 1,
-    backgroundColor: colors.surface,
-    gap: 8,
+    backgroundColor: colors.surface, gap: 8,
   },
-  pickerEmpty: {
-    color: colors.textSecondary, fontSize: 13, textAlign: 'center',
-    paddingVertical: spacing.sm,
-  },
+  pickerEmpty: { color: colors.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: spacing.sm },
   pickerHeaderRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingBottom: 4,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 4,
   },
   pickerSelectAll: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pickerSelectAllText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   pickerCount: { color: colors.textSecondary, fontSize: 12 },
-  pickerRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingVertical: 6,
-  },
+  pickerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
   pickerCheckbox: { padding: 2 },
   pickerName: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
   pickerMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
-  pickerInitBlock: { alignItems: 'center', gap: 2 },
-  pickerInitLabel: { color: colors.textSecondary, fontSize: 10 },
-  pickerInitInput: {
-    width: 52, textAlign: 'center',
-    backgroundColor: colors.background,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
-    paddingVertical: 4, paddingHorizontal: 6,
-    color: colors.textPrimary, fontSize: 13, fontWeight: '600',
-  },
   pickerAddBtn: {
     backgroundColor: colors.brand, borderRadius: 8,
     paddingVertical: 10, alignItems: 'center', marginTop: 4,
   },
   pickerAddBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+  // Session log
+  logHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2,
     borderBottomColor: colors.border, borderBottomWidth: 1,
   },
-  rowActive: { backgroundColor: colors.surface },
+  logHeaderText: {
+    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
+    letterSpacing: 1, flex: 1,
+  },
+  logLiveDot: {
+    width: 6, height: 6, borderRadius: 3, backgroundColor: colors.hpDanger,
+  },
+  logLiveText: { fontSize: 10, fontWeight: '700', color: colors.hpDanger },
+  logWrap: {
+    paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
+    borderBottomColor: colors.border, borderBottomWidth: 1,
+    maxHeight: 120,
+  },
+
+  // Main content
+  mainContent: { flex: 1, flexDirection: 'row', position: 'relative' },
+  initListNarrow: { width: 280, borderRightColor: colors.border, borderRightWidth: 1 },
+  initListFull: { flex: 1 },
+  initListHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2,
+    borderBottomColor: colors.border, borderBottomWidth: 1,
+  },
+  initListTitle: { fontSize: 12, fontWeight: '700', color: colors.textPrimary },
+  initListCount: { fontSize: 11, color: colors.textSecondary },
+
+  // Combatant row
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.sm,
+    borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowActive: {
+    backgroundColor: colors.brand + '11',
+    borderLeftColor: colors.brand, borderLeftWidth: 3,
+    paddingLeft: spacing.sm - 3,
+  },
   initBadge: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 32, height: 32, borderRadius: 16,
     backgroundColor: colors.background,
     borderColor: colors.border, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   initBadgeRolled: {
-    backgroundColor: colors.brand + '22',
-    borderColor: colors.brand,
+    backgroundColor: colors.brand + '22', borderColor: colors.brand,
   },
-  initBadgeText: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
-  rowRollDetail: { color: colors.brand, fontSize: 12, fontWeight: '600' },
-  rollBtn: {
+  initBadgeText: { color: colors.textPrimary, fontSize: 13, fontWeight: '700' },
+  initEditWrap: {
     width: 32, height: 32, borderRadius: 16,
+    backgroundColor: colors.brand + '22', borderColor: colors.brand, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  initEditInput: {
+    width: 32, height: 32, textAlign: 'center',
+    color: colors.textPrimary, fontSize: 13, fontWeight: '700',
+    padding: 0,
+  },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rowName: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  typeBadge: {
+    paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3,
+  },
+  typeBadgePc: { backgroundColor: colors.hpHealthy + '33' },
+  typeBadgeNpc: { backgroundColor: colors.hpDanger + '33' },
+  typeBadgeText: { fontSize: 9, fontWeight: '700' },
+  typeBadgeTextPc: { color: colors.hpHealthy },
+  typeBadgeTextNpc: { color: colors.hpDanger },
+  rowMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 1 },
+  rowMeta: { color: colors.textSecondary, fontSize: 11 },
+  rowTempHp: { fontSize: 11, color: colors.hpWarning },
+  condChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginTop: 3 },
+  condChip: {
+    borderColor: colors.hpDanger, borderWidth: 1, borderRadius: 3,
+    paddingHorizontal: 4, paddingVertical: 0,
+    backgroundColor: colors.hpDanger + '22',
+  },
+  condChipText: { color: colors.hpDanger, fontSize: 9, fontWeight: '700' },
+  condMore: { color: colors.textSecondary, fontSize: 9, fontWeight: '600' },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  rowAction: { padding: 4 },
+  rollBtn: {
+    width: 28, height: 28, borderRadius: 14,
     borderColor: colors.brand, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.background,
   },
-  rowInlineRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6,
-  },
-  rowManualInput: {
-    width: 60, textAlign: 'center',
-    backgroundColor: colors.background,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
-    paddingVertical: 4, paddingHorizontal: 6,
-    color: colors.textPrimary, fontSize: 12,
-  },
-  rowInlineBtn: {
-    backgroundColor: colors.brand, borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 5,
-  },
-  rowInlineBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  rowName: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  rowMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
-  rowMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  rowStatBlockHint: { color: colors.brand, fontSize: 12 },
-  rowSelected: {
-    backgroundColor: colors.brand + '11',
-    borderLeftColor: colors.brand, borderLeftWidth: 2,
-  },
-  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  rowAction: { padding: 6 },
-  hpEditRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6,
-  },
-  hpEditInput: {
-    width: 70, textAlign: 'center',
-    backgroundColor: colors.background,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
-    paddingVertical: 4, paddingHorizontal: 6,
-    color: colors.textPrimary, fontSize: 13,
-  },
-  hpDmgBtn: {
-    backgroundColor: colors.hpDanger + '33', borderColor: colors.hpDanger,
-    borderWidth: 1, borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 5,
-  },
-  hpDmgBtnText: { color: colors.hpDanger, fontSize: 12, fontWeight: '700' },
-  hpHealBtn: {
-    backgroundColor: colors.hpHealthy + '33', borderColor: colors.hpHealthy,
-    borderWidth: 1, borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 5,
-  },
-  hpHealBtnText: { color: colors.hpHealthy, fontSize: 12, fontWeight: '700' },
-  condChipRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4,
-    alignItems: 'center',
-  },
-  condChip: {
-    borderColor: colors.hpDanger, borderWidth: 1, borderRadius: 4,
-    paddingHorizontal: 6, paddingVertical: 1,
-    backgroundColor: colors.hpDanger + '22',
-  },
-  condChipText: { color: colors.hpDanger, fontSize: 10, fontWeight: '600' },
-  condMore: { color: colors.textSecondary, fontSize: 10, fontWeight: '600' },
 
+  // Stat panels
+  statPanelArea: { flex: 1 },
+  statPanelRow: { flexDirection: 'row', gap: 0, paddingRight: 380 },
+  statPanel: {
+    width: 380, borderLeftColor: colors.border, borderLeftWidth: 1,
+    backgroundColor: colors.surface,
+  },
+  statPanelHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 2,
+    borderBottomColor: colors.border, borderBottomWidth: 1,
+    backgroundColor: colors.surface,
+  },
+  statPanelTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: '700', flex: 1 },
+  statPanelAction: { padding: 4 },
+  statPanelBody: { padding: spacing.sm, flex: 1 },
+
+  // Placeholder
+  placeholder: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl,
+  },
+  placeholderTitle: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
+  placeholderBody: { fontSize: 12, color: colors.textSecondary, textAlign: 'center' },
+
+  // Modals
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
     alignItems: 'center', justifyContent: 'center',
@@ -1240,43 +1258,9 @@ const s = StyleSheet.create({
   condGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   condChipBig: {
     borderColor: colors.border, borderWidth: 1, borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: colors.background,
+    paddingHorizontal: 10, paddingVertical: 6, backgroundColor: colors.background,
   },
-  condChipBigActive: {
-    borderColor: colors.hpDanger,
-    backgroundColor: colors.hpDanger + '22',
-  },
+  condChipBigActive: { borderColor: colors.hpDanger, backgroundColor: colors.hpDanger + '22' },
   condChipBigText: { color: colors.textSecondary, fontSize: 12, fontWeight: '500' },
   condChipBigTextActive: { color: colors.hpDanger, fontWeight: '700' },
-
-  logWrap: {
-    paddingHorizontal: spacing.md, paddingTop: spacing.sm,
-  },
-  placeholder: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    gap: spacing.sm, paddingHorizontal: spacing.lg,
-  },
-  placeholderTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
-  placeholderBody: {
-    fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 18,
-  },
-
-  splitRow: {
-    flex: 1, flexDirection: 'row',
-  },
-  statPanel: {
-    width: 380,
-    borderLeftColor: colors.border, borderLeftWidth: 1,
-    backgroundColor: colors.surface,
-  },
-  statPanelHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
-  },
-  statPanelTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700', flex: 1 },
-  statPanelBody: {
-    padding: spacing.md, flex: 1,
-  },
 });
