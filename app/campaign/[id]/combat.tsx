@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, Pressable, TextInput, StyleSheet,
   ActivityIndicator, FlatList, Modal, ScrollView, Alert, Platform,
@@ -135,8 +135,10 @@ export default function CombatScreen() {
   const [initEditFor, setInitEditFor] = useState<string | null>(null);
   const [initEditValue, setInitEditValue] = useState('');
 
-  // Session log collapsed state
-  const [logCollapsed, setLogCollapsed] = useState(false);
+  // Session log floating window
+  const [logOpen, setLogOpen] = useState(false);
+  const [logDragOffset, setLogDragOffset] = useState({ x: 0, y: 0 });
+  const logDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   // Pinned spells
   const { pinned, pinSpell, unpinSpell, toggleMinimize } = usePinnedSpells();
@@ -603,6 +605,13 @@ export default function CombatScreen() {
         {isDM && (
           <View style={st.controls}>
             <View style={st.controlsLeft}>
+              <TouchableOpacity
+                style={[st.controlBtn, logOpen && st.controlBtnActive]}
+                onPress={() => { setLogOpen((v) => !v); setLogDragOffset({ x: 0, y: 0 }); }}
+              >
+                <MaterialCommunityIcons name="timeline-text-outline" size={14} color={logOpen ? colors.brand : colors.textPrimary} />
+                <Text style={[st.controlBtnText, logOpen && { color: colors.brand }]}>Log</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={st.controlBtn} onPress={() => setPickerVisible(true)}>
                 <MaterialCommunityIcons name="plus" size={14} color={colors.textPrimary} />
                 <Text style={st.controlBtnText}>Add Combatant</Text>
@@ -731,22 +740,65 @@ export default function CombatScreen() {
           </View>
         )}
 
-        {/* ===== SESSION LOG ===== */}
-        <Pressable
-          style={st.logHeader}
-          onPress={() => setLogCollapsed((v) => !v)}
-        >
-          <MaterialCommunityIcons
-            name={logCollapsed ? 'chevron-right' : 'chevron-down'}
-            size={16} color={colors.textSecondary}
-          />
-          <Text style={st.logHeaderText}>SESSION LOG</Text>
-          {combatStarted && <View style={st.logLiveDot} />}
-          {combatStarted && <Text style={st.logLiveText}>LIVE</Text>}
-        </Pressable>
-        {!logCollapsed && (
-          <View style={st.logWrap}>
-            <SessionLogFeed sessionId={session.id} isLive variant="full" />
+        {/* ===== FLOATING SESSION LOG ===== */}
+        {logOpen && (
+          <View
+            style={[
+              st.logFloating,
+              Platform.OS === 'web' && {
+                transform: [{ translateX: logDragOffset.x }, { translateY: logDragOffset.y }],
+              },
+            ]}
+          >
+            <View
+              style={[st.logTitleBar, Platform.OS === 'web' && { cursor: 'grab' } as never]}
+              {...(Platform.OS === 'web' ? {
+                onMouseDown: (e: any) => {
+                  e.preventDefault();
+                  logDragRef.current = {
+                    startX: e.clientX, startY: e.clientY,
+                    origX: logDragOffset.x, origY: logDragOffset.y,
+                  };
+                  const onMove = (ev: MouseEvent) => {
+                    if (!logDragRef.current) return;
+                    setLogDragOffset({
+                      x: logDragRef.current.origX + ev.clientX - logDragRef.current.startX,
+                      y: logDragRef.current.origY + ev.clientY - logDragRef.current.startY,
+                    });
+                  };
+                  const onUp = () => {
+                    logDragRef.current = null;
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                  };
+                  document.addEventListener('mousemove', onMove);
+                  document.addEventListener('mouseup', onUp);
+                  document.body.style.cursor = 'grabbing';
+                  document.body.style.userSelect = 'none';
+                },
+              } : {})}
+            >
+              <MaterialCommunityIcons name="timeline-text-outline" size={16} color={colors.brand} />
+              <Text style={st.logTitleText}>Session Log</Text>
+              {combatStarted && (
+                <View style={st.logTitleLive}>
+                  <View style={st.liveDot} />
+                  <Text style={st.liveText}>LIVE</Text>
+                </View>
+              )}
+              <View style={{ flex: 1 }} />
+              <Pressable
+                onPress={() => setLogOpen(false)}
+                {...(Platform.OS === 'web' ? { onMouseDown: (e: any) => e.stopPropagation() } : {})}
+              >
+                <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <View style={st.logBody}>
+              <SessionLogFeed sessionId={session.id} isLive variant="compact" />
+            </View>
           </View>
         )}
 
@@ -1118,25 +1170,24 @@ const st = StyleSheet.create({
   },
   pickerAddBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  // Session log
-  logHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2,
+  // Session log floating window
+  controlBtnActive: { borderColor: colors.brand, backgroundColor: colors.brand + '18' },
+  logFloating: {
+    position: 'absolute', top: 8, left: 8,
+    width: 380, maxHeight: 340, zIndex: 150,
+    backgroundColor: colors.surface,
+    borderColor: colors.border, borderWidth: 1, borderRadius: 8,
+    ...(Platform.OS === 'web' ? { boxShadow: '0 8px 32px rgba(0,0,0,0.5)' } as never : {}),
+  },
+  logTitleBar: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 2,
     borderBottomColor: colors.border, borderBottomWidth: 1,
+    backgroundColor: colors.surface, borderTopLeftRadius: 8, borderTopRightRadius: 8,
   },
-  logHeaderText: {
-    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
-    letterSpacing: 1, flex: 1,
-  },
-  logLiveDot: {
-    width: 6, height: 6, borderRadius: 3, backgroundColor: colors.hpDanger,
-  },
-  logLiveText: { fontSize: 10, fontWeight: '700', color: colors.hpDanger },
-  logWrap: {
-    paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
-    maxHeight: 120,
-  },
+  logTitleText: { fontSize: 12, fontWeight: '700', color: colors.textPrimary },
+  logTitleLive: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  logBody: { flex: 1, maxHeight: 300 },
 
   // Main content
   mainContent: { flex: 1, flexDirection: 'row', position: 'relative' },

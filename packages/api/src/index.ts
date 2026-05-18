@@ -7,6 +7,7 @@ export * from './campaigns';
 export * from './characters';
 export * from './character-drafts';
 export * from './sessions';
+export * from './encounters';
 export * from './session-events';
 export * from './session-sync-filter';
 export * from './homebrew-packs';

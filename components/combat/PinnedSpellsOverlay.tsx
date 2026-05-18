@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, ScrollView, Pressable, StyleSheet, Platform,
 } from 'react-native';
@@ -64,23 +64,91 @@ export function PinnedSpellsOverlay({
   onUnpin: (name: string) => void;
   onToggleMinimize: (name: string) => void;
 }) {
-  if (pinned.length === 0) return null;
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   const expanded = pinned.find((p) => !p.minimized);
+
+  // Reset drag offset when the expanded spell changes
+  const expandedName = expanded?.name ?? null;
+  useEffect(() => {
+    setDragOffset({ x: 0, y: 0 });
+  }, [expandedName]);
+
+  const handleTitleBarMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (Platform.OS !== 'web') return;
+      e.preventDefault();
+
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origX: dragOffset.x,
+        origY: dragOffset.y,
+      };
+
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!dragRef.current) return;
+        const dx = ev.clientX - dragRef.current.startX;
+        const dy = ev.clientY - dragRef.current.startY;
+        setDragOffset({
+          x: dragRef.current.origX + dx,
+          y: dragRef.current.origY + dy,
+        });
+      };
+
+      const onMouseUp = () => {
+        dragRef.current = null;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = 'grabbing';
+      document.body.style.userSelect = 'none';
+    },
+    [dragOffset],
+  );
+
+  if (pinned.length === 0) return null;
 
   return (
     <>
       {expanded && (
-        <View style={st.floatingCard}>
-          <View style={st.cardTitleBar}>
+        <View
+          style={[
+            st.floatingCard,
+            Platform.OS === 'web' && {
+              transform: [{ translateX: dragOffset.x }, { translateY: dragOffset.y }],
+            },
+          ]}
+        >
+          <View
+            style={[
+              st.cardTitleBar,
+              Platform.OS === 'web' && { cursor: 'grab' } as never,
+            ]}
+            {...(Platform.OS === 'web' ? { onMouseDown: handleTitleBarMouseDown } : {})}
+          >
             <Text variant="label-md" weight="bold" style={st.cardTitle} numberOfLines={1}>
               {expanded.name}
             </Text>
             <View style={st.cardActions}>
-              <Pressable onPress={() => onToggleMinimize(expanded.name)} style={st.cardAction}>
+              <Pressable
+                onPress={() => onToggleMinimize(expanded.name)}
+                style={st.cardAction}
+                {...(Platform.OS === 'web' ? { onMouseDown: (e: any) => e.stopPropagation() } : {})}
+              >
                 <MaterialCommunityIcons name="minus" size={16} color={colors.outline} />
               </Pressable>
-              <Pressable onPress={() => onUnpin(expanded.name)} style={st.cardAction}>
+              <Pressable
+                onPress={() => onUnpin(expanded.name)}
+                style={st.cardAction}
+                {...(Platform.OS === 'web' ? { onMouseDown: (e: any) => e.stopPropagation() } : {})}
+              >
                 <MaterialCommunityIcons name="close" size={16} color={colors.outline} />
               </Pressable>
             </View>

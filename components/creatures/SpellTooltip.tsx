@@ -7,6 +7,11 @@ import { colors, spacing, radius, Text, MarkdownText, Chip } from '@vaultstone/u
 import type { SpellResult } from '@vaultstone/types';
 import { getCachedSpell } from './spellCache';
 
+let createPortal: typeof import('react-dom').createPortal | undefined;
+if (Platform.OS === 'web') {
+  createPortal = require('react-dom').createPortal;
+}
+
 // --- Pinned spells context (provided by combat screen) ---
 
 type PinContextValue = {
@@ -81,7 +86,9 @@ export function SpellTooltip({
   const [spell, setSpell] = useState<SpellResult | null | undefined>(undefined);
   const [showPopover, setShowPopover] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerRef = useRef<View>(null);
   const pinCtx = useContext(PinContext);
 
   const loadSpell = useCallback(async () => {
@@ -100,6 +107,18 @@ export function SpellTooltip({
       hideTimer.current = null;
     }
     await loadSpell();
+    // Measure trigger position for fixed-positioned portal
+    if (triggerRef.current) {
+      const el = triggerRef.current as unknown as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      const POPOVER_MAX_HEIGHT = 440;
+      if (rect.bottom + 4 + POPOVER_MAX_HEIGHT > window.innerHeight) {
+        // Flip above the trigger
+        setPopoverPos({ top: rect.top - POPOVER_MAX_HEIGHT, left: rect.left });
+      } else {
+        setPopoverPos({ top: rect.bottom + 4, left: rect.left });
+      }
+    }
     setShowPopover(true);
   }, [isWeb, loadSpell]);
 
@@ -125,9 +144,59 @@ export function SpellTooltip({
     }
   }, [pinCtx, spellName]);
 
+  const popoverContent = isWeb && showPopover && popoverPos && createPortal ? createPortal(
+    <div
+      style={{
+        position: 'fixed',
+        top: popoverPos.top,
+        left: popoverPos.left,
+        width: 340,
+        maxHeight: 440,
+        backgroundColor: colors.surfaceContainer,
+        borderColor: colors.outlineVariant,
+        borderWidth: 1,
+        borderStyle: 'solid',
+        borderRadius: radius.xl,
+        padding: spacing.md,
+        zIndex: 10000,
+        boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column' as const,
+      }}
+      onPointerEnter={() => {
+        if (hideTimer.current) {
+          clearTimeout(hideTimer.current);
+          hideTimer.current = null;
+        }
+      }}
+      onPointerLeave={handleHoverOut}
+    >
+      <ScrollView style={cs.popoverScroll}>
+        {spell === undefined ? (
+          <Text variant="body-sm" style={cs.loading}>Loading...</Text>
+        ) : spell === null ? (
+          <Text variant="body-sm" style={cs.loading}>Spell not found in catalog.</Text>
+        ) : (
+          <SpellCard spell={spell} />
+        )}
+      </ScrollView>
+      {pinCtx && (
+        <Pressable style={cs.pinHint} onPress={handlePin}>
+          <MaterialCommunityIcons name="pin" size={12} color={colors.outline} />
+          <Text variant="label-sm" style={cs.pinHintText}>
+            Click to <Text weight="bold" style={cs.pinHintText}>pin</Text> — stays open
+          </Text>
+        </Pressable>
+      )}
+    </div>,
+    document.body,
+  ) : null;
+
   return (
     <View style={cs.wrapper}>
       <Pressable
+        ref={triggerRef}
         onPress={handlePress}
         onHoverIn={handleHoverIn}
         onHoverOut={handleHoverOut}
@@ -135,36 +204,7 @@ export function SpellTooltip({
         <Text variant="body-sm" family="body" style={cs.link}>{children}</Text>
       </Pressable>
 
-      {isWeb && showPopover && (
-        <View
-          style={cs.popover}
-          onPointerEnter={() => {
-            if (hideTimer.current) {
-              clearTimeout(hideTimer.current);
-              hideTimer.current = null;
-            }
-          }}
-          onPointerLeave={handleHoverOut}
-        >
-          <ScrollView style={cs.popoverScroll}>
-            {spell === undefined ? (
-              <Text variant="body-sm" style={cs.loading}>Loading...</Text>
-            ) : spell === null ? (
-              <Text variant="body-sm" style={cs.loading}>Spell not found in catalog.</Text>
-            ) : (
-              <SpellCard spell={spell} />
-            )}
-          </ScrollView>
-          {pinCtx && (
-            <Pressable style={cs.pinHint} onPress={handlePin}>
-              <MaterialCommunityIcons name="pin" size={12} color={colors.outline} />
-              <Text variant="label-sm" style={cs.pinHintText}>
-                Click to <Text weight="bold" style={cs.pinHintText}>pin</Text> — stays open
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      )}
+      {popoverContent}
 
       {!isWeb && !pinCtx && (
         <Modal

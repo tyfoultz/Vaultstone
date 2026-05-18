@@ -248,6 +248,30 @@ export interface Database {
         };
         Relationships: [];
       };
+      encounters: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          name: string;
+          description: string | null;
+          combatants: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          name?: string;
+          description?: string | null;
+          combatants?: Json;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          combatants?: Json;
+        };
+        Relationships: [];
+      };
       initiative_order: {
         Row: {
           id: string;
@@ -1143,3 +1167,12 @@ export interface Database {
     CompositeTypes: Record<never, never>;
   };
 }
+
+export type EncounterCombatant = {
+  name: string;
+  creature_key?: string | null;
+  count: number;
+  init_mod: number;
+  hp_max: number;
+  ac: number;
+};
