@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, Pressable, StyleSheet,
   ActivityIndicator, FlatList, Alert, Platform,
@@ -45,13 +45,21 @@ export default function EncountersScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const { campaigns } = useCampaignStore();
-  const campaign = campaigns.find((c) => c.id === id) ?? null;
+  const storeCampaign = campaigns.find((c) => c.id === id) ?? null;
+  const [fetchedCampaign, setFetchedCampaign] = useState<{ dm_user_id: string; name: string } | null>(null);
+  const campaign = storeCampaign ?? fetchedCampaign;
   const { isDesktop, isWide } = useBreakpoint();
 
   const [encounters, setEncounters] = useState<EncounterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingEncounter, setLoadingEncounter] = useState<string | null>(null);
   const [hasActiveSession, setHasActiveSession] = useState(false);
+
+  useEffect(() => {
+    if (storeCampaign || !id) return;
+    supabase.from('campaigns').select('dm_user_id, name').eq('id', id).single()
+      .then(({ data }) => { if (data) setFetchedCampaign(data); });
+  }, [id, storeCampaign]);
 
   const isDM = campaign?.dm_user_id === user?.id;
   const numCols = isDesktop || isWide ? 2 : 1;

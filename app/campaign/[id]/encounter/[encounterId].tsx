@@ -960,24 +960,21 @@ export default function EncounterBuilderScreen() {
   // CR Dropdown Picker
   // ---------------------------------------------------------------------------
 
-  function CrPicker({ label, value, onSelect, open, setOpen }: {
+  const crDropPosRef = useRef({ top: 0, left: 0, width: 80 });
+
+  function CrPicker({ label, value, onSelect, open, setOpen, pickerId }: {
     label: string; value: string | null;
     onSelect: (v: string | null) => void;
     open: boolean; setOpen: (v: boolean) => void;
+    pickerId: string;
   }) {
-    const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 80 });
-
-    function handleOpen(e: any) {
+    function handleOpen() {
       if (open) { setOpen(false); return; }
       if (Platform.OS === 'web') {
-        const target = e?.target ?? e?.currentTarget;
-        if (target) {
-          let el: HTMLElement = target;
-          while (el.parentElement && !el.getAttribute('data-cr-btn')) {
-            el = el.parentElement;
-          }
+        const el = document.getElementById(pickerId);
+        if (el) {
           const rect = el.getBoundingClientRect();
-          setDropPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 80) });
+          crDropPosRef.current = { top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 80) };
         }
       }
       setOpen(true);
@@ -992,9 +989,9 @@ export default function EncounterBuilderScreen() {
         <div
           style={{
             position: 'fixed',
-            top: dropPos.top,
-            left: dropPos.left,
-            width: dropPos.width,
+            top: crDropPosRef.current.top,
+            left: crDropPosRef.current.left,
+            width: crDropPosRef.current.width,
             maxHeight: 250,
             overflowY: 'auto',
             backgroundColor: '#2a2c2e',
@@ -1032,17 +1029,22 @@ export default function EncounterBuilderScreen() {
       </>
     ) : null;
 
-    return (
-      <View style={st.crPickerWrap}>
-        <Pressable
-          style={st.crPickerBtn}
-          onPress={handleOpen}
-          {...(Platform.OS === 'web' ? { 'data-cr-btn': 'true' } as any : {})}
-        >
+    const btn = (
+      <Pressable
+        style={st.crPickerBtn}
+        onPress={handleOpen}
+      >
           <Text style={st.crPickerLabel}>{label}</Text>
           <Text style={st.crPickerBtnText}>{value ?? 'Any'}</Text>
           <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.textSecondary} />
         </Pressable>
+    );
+
+    return (
+      <View style={st.crPickerWrap}>
+        {Platform.OS === 'web'
+          ? <div id={pickerId}>{btn}</div>
+          : btn}
         {Platform.OS === 'web' && createPortal && dropdownContent
           ? createPortal(dropdownContent, document.body)
           : null}
@@ -1206,6 +1208,7 @@ export default function EncounterBuilderScreen() {
               onSelect={setCrMin}
               open={crMinOpen}
               setOpen={(v) => { setCrMinOpen(v); if (v) setCrMaxOpen(false); }}
+              pickerId="cr-picker-min"
             />
             <Text style={st.crDash}>-</Text>
             <CrPicker
@@ -1214,6 +1217,7 @@ export default function EncounterBuilderScreen() {
               onSelect={setCrMax}
               open={crMaxOpen}
               setOpen={(v) => { setCrMaxOpen(v); if (v) setCrMinOpen(false); }}
+              pickerId="cr-picker-max"
             />
 
             <Pressable
