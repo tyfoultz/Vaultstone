@@ -115,12 +115,15 @@ export default function CombatScreen() {
 
   const isDM = campaign?.dm_user_id === user?.id;
   const combatStarted = !!session?.combat_started_at;
-  const sortedEntries = useMemo(() => sortByInitiative(entries), [entries]);
+  const displayEntries = useMemo(
+    () => combatStarted ? sortByInitiative(entries) : entries,
+    [entries, combatStarted],
+  );
   const allRolled = entries.length > 0 &&
     entries.every((e) => e.init_roll !== null || e.init_override !== null);
   const anyRolled = entries.some((e) => e.init_roll !== null || e.init_override !== null);
 
-  const activeCombatant = sortedEntries.find((e) => e.is_active_turn);
+  const activeCombatant = displayEntries.find((e) => e.is_active_turn);
 
   async function refetchEntries(sessionId: string) {
     const { data } = await getInitiativeOrder(sessionId);
@@ -762,7 +765,7 @@ export default function CombatScreen() {
         {/* ===== MAIN CONTENT ===== */}
         <View style={st.mainContent}>
           {/* Initiative List */}
-          <View style={isWideLayout && statBlockPanels.length > 0 ? st.initListNarrow : st.initListFull}>
+          <View style={isWideLayout ? st.initListNarrow : st.initListFull}>
             <View style={st.initListHeader}>
               <Text style={st.initListTitle}>Initiative</Text>
               <Text style={st.initListCount}>
@@ -780,7 +783,7 @@ export default function CombatScreen() {
               </View>
             ) : (
               <FlatList
-                data={sortedEntries}
+                data={displayEntries}
                 keyExtractor={(e) => e.id}
                 contentContainerStyle={{ paddingBottom: pinned.length > 0 ? 40 : 0 }}
                 renderItem={({ item }) => {
@@ -896,38 +899,49 @@ export default function CombatScreen() {
             )}
           </View>
 
-          {/* Stat Block Panels (desktop) */}
-          {isWideLayout && statBlockPanels.length > 0 && (
-            <ScrollView
-              horizontal
-              style={st.statPanelArea}
-              contentContainerStyle={st.statPanelRow}
-              showsHorizontalScrollIndicator={false}
-            >
-              {statBlockPanels.map(({ combatant, creature }) => (
-                <View key={combatant.id} style={st.statPanel}>
-                  <View style={st.statPanelHeader}>
-                    <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.textSecondary} />
-                    <Text style={st.statPanelTitle} numberOfLines={1}>
-                      {combatant.display_name}
-                    </Text>
-                    <TouchableOpacity
-                      style={st.statPanelAction}
-                      onPress={() => closeStatBlock(combatant.id)}
-                    >
-                      <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
-                    </TouchableOpacity>
+          {/* Stat Block / Spell area (desktop) */}
+          {isWideLayout && (
+            statBlockPanels.length > 0 ? (
+              <ScrollView
+                horizontal
+                style={st.statPanelArea}
+                contentContainerStyle={st.statPanelRow}
+                showsHorizontalScrollIndicator={false}
+              >
+                {statBlockPanels.map(({ combatant, creature }) => (
+                  <View key={combatant.id} style={st.statPanel}>
+                    <View style={st.statPanelHeader}>
+                      <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.textSecondary} />
+                      <Text style={st.statPanelTitle} numberOfLines={1}>
+                        {combatant.display_name}
+                      </Text>
+                      <TouchableOpacity
+                        style={st.statPanelAction}
+                        onPress={() => closeStatBlock(combatant.id)}
+                      >
+                        <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                    <ScrollView style={st.statPanelBody}>
+                      {creature ? (
+                        <CreatureStatBlock creature={creature} />
+                      ) : (
+                        <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
+                      )}
+                    </ScrollView>
                   </View>
-                  <ScrollView style={st.statPanelBody}>
-                    {creature ? (
-                      <CreatureStatBlock creature={creature} />
-                    ) : (
-                      <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
-                    )}
-                  </ScrollView>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={st.statPanelArea}>
+                <View style={st.statPanelEmpty}>
+                  <MaterialCommunityIcons name="book-open-variant" size={36} color={colors.textSecondary} />
+                  <Text style={st.statPanelEmptyText}>
+                    Click a creature's stat block icon to view it here
+                  </Text>
                 </View>
-              ))}
-            </ScrollView>
+              </View>
+            )
           )}
 
           {/* Pinned spells overlay */}
@@ -1221,7 +1235,12 @@ const st = StyleSheet.create({
   },
 
   // Stat panels
-  statPanelArea: { flex: 1 },
+  statPanelArea: { flex: 1, position: 'relative' as const },
+  statPanelEmpty: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+    opacity: 0.5,
+  },
+  statPanelEmptyText: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', maxWidth: 200 },
   statPanelRow: { flexDirection: 'row', gap: 0, paddingRight: 380 },
   statPanel: {
     width: 380, borderLeftColor: colors.border, borderLeftWidth: 1,
