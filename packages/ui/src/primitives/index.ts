@@ -16,3 +16,4 @@ export { SourceBadge } from './SourceBadge';
 export { ContentWidth } from './ContentWidth';
 export type { ContentWidthSize } from './ContentWidth';
 export { MarkdownText } from './MarkdownText';
+export { HpBar, hpColor } from './HpBar';

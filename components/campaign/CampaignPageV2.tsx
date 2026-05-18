@@ -1020,13 +1020,13 @@ function SessionControlCard({
         )}
       </View>
       <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
+        <GhostButton
+          label="Encounters"
+          icon="shield"
+          onPress={() => router.push(`/campaign/${campaignId}/encounters` as Href)}
+        />
         {isLive ? (
           <>
-            <GhostButton
-              label="Combat tracker"
-              icon="open-in-new"
-              onPress={() => router.push(`/campaign/${campaignId}/combat` as Href)}
-            />
             <GhostButton
               label="Notes"
               icon="notes"

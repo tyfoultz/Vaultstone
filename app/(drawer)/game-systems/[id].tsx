@@ -12,6 +12,7 @@ import {
   getSrdContent, SEED_ONLY_TYPES, type SrdContent,
 } from '@vaultstone/content';
 import { DetailModal, DetailSection, DetailSectionHeading } from '../../../components/DetailModal';
+import { CreatureStatBlock } from '../../../components/creatures/CreatureStatBlock';
 import { useSystemHomebrewContent } from '../../../components/game-systems/useSystemHomebrewContent';
 import { SystemPacksRow } from '../../../components/game-systems/SystemPacksRow';
 import type { GameSystemDefinition } from '@vaultstone/types';
@@ -3770,128 +3771,8 @@ function ItemStatRow({ label, value }: { label: string; value: string }) {
 }
 
 /** Format a signed modifier ("+3", "-1", "+0"). */
-function fmtSigned(n: number): string {
-  return n >= 0 ? `+${n}` : `${n}`;
-}
-
-/** Skill snake_case → display label ("sleight_of_hand" → "Sleight of Hand"). */
-function skillLabel(key: string): string {
-  return key
-    .split('_')
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join(' ');
-}
-
-function CreatureAbilityBlock({ scores, mods, saves }: {
-  scores: NonNullable<CreatureResult['abilityScores']>;
-  mods: NonNullable<CreatureResult['abilityModifiers']>;
-  /** Saving-throw bonuses by ability key. When provided, the Save
-   *  column populates only for abilities the creature is proficient
-   *  in; non-proficient abilities show a dash. */
-  saves?: CreatureResult['savingThrows'];
-}) {
-  type AbKey = 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha';
-  const rows: Array<[AbKey, string, number, number]> = [
-    ['str', 'STR', scores.str, mods.str],
-    ['dex', 'DEX', scores.dex, mods.dex],
-    ['con', 'CON', scores.con, mods.con],
-    ['int', 'INT', scores.int, mods.int],
-    ['wis', 'WIS', scores.wis, mods.wis],
-    ['cha', 'CHA', scores.cha, mods.cha],
-  ];
-  return (
-    <View style={styles.creatureAbilityTable}>
-      <View style={[styles.creatureAbilityRow, styles.creatureAbilityHeadRow]}>
-        <Text variant="label-sm" weight="bold" uppercase style={[styles.creatureAbilityCell, styles.creatureAbilityNameCol, styles.creatureAbilityHeadText]}>
-          {' '}
-        </Text>
-        <Text variant="label-sm" weight="bold" uppercase style={[styles.creatureAbilityCell, styles.creatureAbilityNumCol, styles.creatureAbilityHeadText]}>
-          Score
-        </Text>
-        <Text variant="label-sm" weight="bold" uppercase style={[styles.creatureAbilityCell, styles.creatureAbilityNumCol, styles.creatureAbilityHeadText]}>
-          Modifier
-        </Text>
-        <Text variant="label-sm" weight="bold" uppercase style={[styles.creatureAbilityCell, styles.creatureAbilityNumCol, styles.creatureAbilityHeadText]}>
-          Save
-        </Text>
-      </View>
-      {rows.map(([key, label, score, mod], i) => {
-        const saveBonus = saves?.[key];
-        return (
-          <View
-            key={key}
-            style={[styles.creatureAbilityRow, i === rows.length - 1 && styles.creatureAbilityRowLast]}
-          >
-            <Text variant="label-sm" weight="bold" uppercase style={[styles.creatureAbilityCell, styles.creatureAbilityNameCol, styles.creatureAbilityNameText]}>
-              {label}
-            </Text>
-            <Text variant="body-sm" family="body" style={[styles.creatureAbilityCell, styles.creatureAbilityNumCol, styles.creatureAbilityValueText]}>
-              {score}
-            </Text>
-            <Text variant="body-sm" family="body" style={[styles.creatureAbilityCell, styles.creatureAbilityNumCol, styles.creatureAbilityValueText]}>
-              {fmtSigned(mod)}
-            </Text>
-            <Text
-              variant="body-sm"
-              family="body"
-              style={[
-                styles.creatureAbilityCell,
-                styles.creatureAbilityNumCol,
-                typeof saveBonus === 'number' ? styles.creatureAbilitySaveText : styles.creatureAbilityDashText,
-              ]}
-            >
-              {typeof saveBonus === 'number' ? fmtSigned(saveBonus) : '—'}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-function CreatureLineRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.itemStatRow}>
-      <Text variant="label-sm" weight="bold" uppercase style={styles.itemStatLabel}>{label}</Text>
-      <Text variant="body-sm" family="body" style={styles.itemStatValue}>{value}</Text>
-    </View>
-  );
-}
-
-/**
- * Render one of a creature's behavior sections (Traits / Actions /
- * Reactions / Bonus Actions / Legendary). Each section gets a
- * hairline divider above + uppercase label so the stat block reads as
- * grouped behaviors rather than one continuous bullet list. Inside,
- * each entry's name renders bold inline with its body, mirroring the
- * standard 5e stat-block format.
- */
-function CreatureBehaviorSection({
-  label,
-  entries,
-}: {
-  label: string;
-  entries: ReadonlyArray<{ name: string; description: string }>;
-}) {
-  return (
-    <View style={styles.creatureBehaviorSection}>
-      <MetaLabel size="sm">{label}</MetaLabel>
-      {entries.map((e, i) => (
-        <View key={i} style={styles.creatureBehaviorEntry}>
-          <Text variant="body-sm" family="body" style={styles.bodyText}>
-            <Text weight="bold" family="body" style={{ color: colors.onSurface }}>
-              {e.name}.
-            </Text>{' '}
-            {/* description renders inline so the name + body read as
-                one stat-block line; MarkdownText below picks up any
-                tables or multi-paragraph bodies. */}
-          </Text>
-          <MarkdownText style={styles.bodyText}>{e.description}</MarkdownText>
-        </View>
-      ))}
-    </View>
-  );
-}
+// CreatureAbilityBlock, CreatureLineRow, CreatureBehaviorSection extracted
+// to components/creatures/CreatureStatBlock.tsx — reused by combat screen.
 
 export function CreaturesList({
   items, srdVersion, rowActions, headerExtra,
@@ -3960,87 +3841,7 @@ export function CreaturesList({
         { key: 'size', label: 'Size', getValues: (c) => (c.size ? [c.size] : []) },
         { key: 'environment', label: 'Environment', getValues: (c) => c.environments ?? [] },
       ]}
-      renderBody={(c) => {
-            const skillsText = c.skills
-              ? Object.entries(c.skills)
-                  .map(([k, v]) => `${skillLabel(k)} ${fmtSigned(v as number)}`)
-                  .join(', ')
-              : '';
-            const sensesParts: string[] = [];
-            if (c.senses?.darkvision) sensesParts.push(`darkvision ${c.senses.darkvision} ft.`);
-            if (c.senses?.blindsight) sensesParts.push(`blindsight ${c.senses.blindsight} ft.`);
-            if (c.senses?.tremorsense) sensesParts.push(`tremorsense ${c.senses.tremorsense} ft.`);
-            if (c.senses?.truesight) sensesParts.push(`truesight ${c.senses.truesight} ft.`);
-            if (typeof c.senses?.passivePerception === 'number') sensesParts.push(`passive Perception ${c.senses.passivePerception}`);
-            const sensesText = sensesParts.join(', ');
-            // Challenge line — labeled CR + XP. The table row above
-            // shows bare CR; the body block deserves the full
-            // "Challenge 2 (450 XP)" prose form so the user gets the
-            // standard stat-block reading.
-            const challengeText = (() => {
-              const cr = c.challengeRating;
-              if (cr == null || cr === '') return '';
-              const xp = typeof c.xp === 'number' ? ` (${c.xp.toLocaleString()} XP)` : '';
-              return `${cr}${xp}`;
-            })();
-            return (
-              <>
-                {/* Identity + senses meta block above the ability
-                    table. Challenge rides up here too so the user
-                    knows the creature's threat tier before reading
-                    abilities. AC / HP / Speed / Prof and damage
-                    interactions stay below the abilities — those are
-                    combat-resolution numbers. */}
-                <View style={styles.itemStatTable}>
-                  {c.size ? <CreatureLineRow label="Size" value={c.size} /> : null}
-                  {c.creatureType ? <CreatureLineRow label="Type" value={c.creatureType} /> : null}
-                  {c.alignment ? <CreatureLineRow label="Alignment" value={c.alignment} /> : null}
-                  {challengeText ? <CreatureLineRow label="Challenge" value={challengeText} /> : null}
-                  {skillsText ? <CreatureLineRow label="Skills" value={skillsText} /> : null}
-                  {sensesText ? <CreatureLineRow label="Senses" value={sensesText} /> : null}
-                  {c.languages ? <CreatureLineRow label="Languages" value={c.languages} /> : null}
-                </View>
-
-                {c.abilityScores && c.abilityModifiers ? (
-                  <View style={styles.subBlock}>
-                    <CreatureAbilityBlock
-                      scores={c.abilityScores}
-                      mods={c.abilityModifiers}
-                      saves={c.savingThrows}
-                    />
-                  </View>
-                ) : null}
-
-                {/* Combat stats below the abilities — AC / HP / Speed
-                    / Challenge / Prof. The damage interaction rows
-                    (Resist / Immune / Vuln / Cond Imm) ride along
-                    here so all combat-relevant numbers cluster in
-                    one block before behavior sections begin. */}
-                <View style={styles.itemStatTable}>
-                  <CreatureLineRow label="AC" value={c.armorDetail ? `${c.ac} (${c.armorDetail})` : `${c.ac}`} />
-                  <CreatureLineRow label="HP" value={c.hitDice ? `${c.hp} (${c.hitDice})` : `${c.hp}`} />
-                  {c.speed ? <CreatureLineRow label="Speed" value={c.speed} /> : null}
-                  {typeof c.proficiencyBonus === 'number' ? <CreatureLineRow label="Prof" value={fmtSigned(c.proficiencyBonus)} /> : null}
-                  {c.damageResistances?.length ? <CreatureLineRow label="Resist"   value={c.damageResistances.join(', ')} /> : null}
-                  {c.damageImmunities?.length ? <CreatureLineRow label="Immune"   value={c.damageImmunities.join(', ')} /> : null}
-                  {c.damageVulnerabilities?.length ? <CreatureLineRow label="Vuln"     value={c.damageVulnerabilities.join(', ')} /> : null}
-                  {c.conditionImmunities?.length ? <CreatureLineRow label="Cond Imm" value={c.conditionImmunities.join(', ')} /> : null}
-                </View>
-
-                {/* Traits / Actions / Reactions / Bonus Actions /
-                    Legendary — each rendered as a labeled section
-                    with a hairline divider above so the stat block
-                    has clear visual breaks between behavior groups
-                    rather than a wall of bullets. */}
-                {c.traits?.length ? (
-                  <CreatureBehaviorSection label="Traits" entries={c.traits} />
-                ) : null}
-                {c.actions?.length ? (
-                  <CreatureBehaviorSection label="Actions" entries={c.actions} />
-                ) : null}
-              </>
-            );
-          }}
+      renderBody={(c) => <CreatureStatBlock creature={c} />}
     />
   );
 }
@@ -5296,20 +5097,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.outlineVariant + '88',
   },
-  /** Behavior section (Traits / Actions / Reactions / etc.) — divider
-   *  above for clear visual breaks between groups, plus inner gap so
-   *  consecutive entries don't visually run together. */
-  creatureBehaviorSection: {
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.outlineVariant + '66',
-    gap: spacing.xs,
-  },
-  creatureBehaviorEntry: {
-    marginTop: spacing.xs,
-    gap: 2,
-  },
   itemStatRow: {
     flexDirection: 'row',
     paddingVertical: 4,
@@ -5342,45 +5129,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     maxWidth: 220,
   },
-
-  // Creature stat block — six-cell ability grid.
-  /** Ability table — abilities down the left, columns Score / Modifier
-   *  / Save. Mirrors the standard 5e/D&D Beyond stat-block layout and
-   *  takes less vertical space than per-cell tiles while keeping each
-   *  ability's three numbers easy to read in a row. */
-  creatureAbilityTable: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant + '55',
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceContainer,
-  },
-  creatureAbilityRow: {
-    flexDirection: 'row',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.outlineVariant + '55',
-  },
-  creatureAbilityRowLast: { borderBottomWidth: 0 },
-  creatureAbilityHeadRow: { backgroundColor: colors.surfaceContainerHigh },
-  creatureAbilityCell: {
-    paddingHorizontal: spacing.xs + 2,
-    paddingVertical: spacing.xs,
-  },
-  creatureAbilityNameCol: { width: 64 },
-  creatureAbilityNumCol: { flex: 1, textAlign: 'center' },
-  creatureAbilityHeadText: {
-    color: colors.outline,
-    letterSpacing: 1,
-  },
-  creatureAbilityNameText: {
-    color: colors.outline,
-    letterSpacing: 1,
-  },
-  creatureAbilityValueText: { color: colors.onSurface },
-  creatureAbilitySaveText: { color: colors.primary },
-  creatureAbilityDashText: { color: colors.outline },
 
   // Reference rows
   refRow: {

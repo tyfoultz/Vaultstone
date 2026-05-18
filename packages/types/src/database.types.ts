@@ -248,17 +248,43 @@ export interface Database {
         };
         Relationships: [];
       };
+      encounters: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          name: string;
+          description: string | null;
+          combatants: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          name?: string;
+          description?: string | null;
+          combatants?: Json;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          combatants?: Json;
+        };
+        Relationships: [];
+      };
       initiative_order: {
         Row: {
           id: string;
           session_id: string;
           character_id: string | null;
+          creature_key: string | null;
           display_name: string;
           init_value: number;
           init_roll: number | null;
           init_override: number | null;
           hp_current: number;
           hp_max: number;
+          hp_temp: number;
           ac: number;
           is_active_turn: boolean;
           sort_order: number;
@@ -267,24 +293,28 @@ export interface Database {
           id?: string;
           session_id: string;
           character_id?: string | null;
+          creature_key?: string | null;
           display_name: string;
           init_value: number;
           init_roll?: number | null;
           init_override?: number | null;
           hp_current: number;
           hp_max: number;
+          hp_temp?: number;
           ac: number;
           is_active_turn?: boolean;
           sort_order: number;
         };
         Update: {
           character_id?: string | null;
+          creature_key?: string | null;
           display_name?: string;
           init_value?: number;
           init_roll?: number | null;
           init_override?: number | null;
           hp_current?: number;
           hp_max?: number;
+          hp_temp?: number;
           ac?: number;
           is_active_turn?: boolean;
           sort_order?: number;
@@ -1137,3 +1167,13 @@ export interface Database {
     CompositeTypes: Record<never, never>;
   };
 }
+
+export type EncounterCombatant = {
+  name: string;
+  creature_key?: string | null;
+  count: number;
+  init_mod: number;
+  hp_max: number;
+  ac: number;
+  overrides?: Record<string, number | string>;
+};
