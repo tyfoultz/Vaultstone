@@ -534,12 +534,7 @@ export default function EncounterBuilderScreen() {
     const minCr = crMin != null ? crToNum(crMin) : null;
     const maxCr = crMax != null ? crToNum(crMax) : null;
     return catalog.filter((c) => {
-      if (needle) {
-        const nameMatch = c.name.toLowerCase().includes(needle);
-        const typeMatch = c.creatureType.toLowerCase().includes(needle);
-        const envMatch = c.environments?.some((e) => e.toLowerCase().includes(needle)) ?? false;
-        if (!nameMatch && !typeMatch && !envMatch) return false;
-      }
+      if (needle && !c.name.toLowerCase().includes(needle)) return false;
       const cr = crToNum(c.challengeRating);
       if (minCr != null && cr < minCr) return false;
       if (maxCr != null && cr > maxCr) return false;
@@ -796,6 +791,9 @@ export default function EncounterBuilderScreen() {
         <View style={{ flex: 1 }}>
           <View style={st.catalogNameRow}>
             <Text style={st.catalogName} numberOfLines={1}>{creature.name}</Text>
+            <View style={st.crTag}>
+              <Text style={st.crTagText}>CR {crLabel(creature.challengeRating)}</Text>
+            </View>
             <View style={st.typeBadge}>
               <Text style={st.typeBadgeText}>{creature.creatureType.toUpperCase()}</Text>
             </View>
@@ -1187,7 +1185,7 @@ export default function EncounterBuilderScreen() {
                 style={st.searchInput}
                 value={searchText}
                 onChangeText={setSearchText}
-                placeholder={`Search ${catalog.length} creatures by name, type, environment...`}
+                placeholder={`Search ${catalog.length} creatures by name...`}
                 placeholderTextColor={colors.textSecondary}
               />
               {searchText !== '' && (
@@ -1660,12 +1658,17 @@ const st = StyleSheet.create({
   countBadgeText: { fontSize: 10, fontWeight: '600', color: colors.textSecondary },
 
   catalogRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingHorizontal: spacing.sm, paddingVertical: 3,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: spacing.sm, paddingVertical: 2,
     borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   catalogNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  catalogName: { fontSize: 12, fontWeight: '600', color: colors.textPrimary },
+  catalogName: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+  crTag: {
+    backgroundColor: colors.brand + '22', borderRadius: 3,
+    paddingHorizontal: 4, paddingVertical: 1,
+  },
+  crTagText: { fontSize: 9, fontWeight: '700', color: colors.brand },
   typeBadge: {
     backgroundColor: colors.border + '55', borderRadius: 3,
     paddingHorizontal: 4, paddingVertical: 1,
