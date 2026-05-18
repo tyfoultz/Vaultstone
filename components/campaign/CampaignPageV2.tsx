@@ -1028,11 +1028,6 @@ function SessionControlCard({
         {isLive ? (
           <>
             <GhostButton
-              label="Combat tracker"
-              icon="open-in-new"
-              onPress={() => router.push(`/campaign/${campaignId}/combat` as Href)}
-            />
-            <GhostButton
               label="Notes"
               icon="notes"
               onPress={() => router.push(`/campaign/${campaignId}/notes` as Href)}

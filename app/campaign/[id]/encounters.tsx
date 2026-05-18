@@ -51,6 +51,7 @@ export default function EncountersScreen() {
   const [encounters, setEncounters] = useState<EncounterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingEncounter, setLoadingEncounter] = useState<string | null>(null);
+  const [hasActiveSession, setHasActiveSession] = useState(false);
 
   const isDM = campaign?.dm_user_id === user?.id;
   const numCols = isDesktop || isWide ? 2 : 1;
@@ -59,8 +60,12 @@ export default function EncountersScreen() {
 
   async function refresh() {
     if (!id) return;
-    const { data } = await getEncounters(id);
-    if (data) setEncounters(data as EncounterRow[]);
+    const [encRes, sessRes] = await Promise.all([
+      getEncounters(id),
+      getActiveSession(id),
+    ]);
+    if (encRes.data) setEncounters(encRes.data as EncounterRow[]);
+    setHasActiveSession(!!sessRes.data);
     setLoading(false);
   }
 
@@ -280,6 +285,15 @@ export default function EncountersScreen() {
             {campaign?.name ?? ''}
           </Text>
         </View>
+        {hasActiveSession && (
+          <TouchableOpacity
+            style={st.combatTrackerBtn}
+            onPress={() => router.push(`/campaign/${id}/combat` as never)}
+          >
+            <MaterialCommunityIcons name="sword-cross" size={14} color={colors.brand} />
+            <Text style={st.combatTrackerBtnText}>Combat Tracker</Text>
+          </TouchableOpacity>
+        )}
         {isDM && (
           <TouchableOpacity style={st.createBtn} onPress={handleCreate}>
             <MaterialCommunityIcons name="plus" size={16} color="#fff" />
@@ -338,6 +352,12 @@ const st = StyleSheet.create({
     paddingVertical: 8,
   },
   createBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  combatTrackerBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderColor: colors.brand, borderWidth: 1, borderRadius: 8,
+    paddingHorizontal: spacing.md, paddingVertical: 8,
+  },
+  combatTrackerBtnText: { color: colors.brand, fontSize: 13, fontWeight: '700' },
 
   /* empty state */
   placeholder: {

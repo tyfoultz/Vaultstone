@@ -4,6 +4,12 @@ import {
   ActivityIndicator, FlatList, ScrollView, Modal, Alert, Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+
+let createPortal: typeof import('react-dom').createPortal | undefined;
+if (Platform.OS === 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  createPortal = require('react-dom').createPortal;
+}
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase, getActiveSession, updateEncounter, addCombatant } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
@@ -960,7 +966,7 @@ export default function EncounterBuilderScreen() {
     open: boolean; setOpen: (v: boolean) => void;
   }) {
     const btnRef = useRef<View>(null);
-    const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
+    const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 80 });
 
     const handleOpen = useCallback(() => {
       if (open) { setOpen(false); return; }
@@ -972,6 +978,55 @@ export default function EncounterBuilderScreen() {
       setOpen(true);
     }, [open, setOpen]);
 
+    const dropdownContent = open ? (
+      <>
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }}
+          onClick={() => setOpen(false)}
+        />
+        <div
+          style={{
+            position: 'fixed',
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            maxHeight: 250,
+            overflowY: 'auto',
+            backgroundColor: '#2a2c2e',
+            border: `1px solid ${colors.border}`,
+            borderRadius: 6,
+            zIndex: 100000,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            style={{
+              padding: '6px 10px',
+              cursor: 'pointer',
+              backgroundColor: value === null ? (colors.brand + '22') : 'transparent',
+            }}
+            onClick={() => { onSelect(null); setOpen(false); }}
+          >
+            <Text style={[st.crDropdownText, value === null && st.crDropdownTextActive]}>Any</Text>
+          </div>
+          {CR_OPTIONS.map((opt) => (
+            <div
+              key={opt}
+              style={{
+                padding: '6px 10px',
+                cursor: 'pointer',
+                backgroundColor: value === opt ? (colors.brand + '22') : 'transparent',
+              }}
+              onClick={() => { onSelect(opt); setOpen(false); }}
+            >
+              <Text style={[st.crDropdownText, value === opt && st.crDropdownTextActive]}>{opt}</Text>
+            </div>
+          ))}
+        </div>
+      </>
+    ) : null;
+
     return (
       <View style={st.crPickerWrap}>
         <Pressable ref={btnRef} style={st.crPickerBtn} onPress={handleOpen}>
@@ -979,41 +1034,9 @@ export default function EncounterBuilderScreen() {
           <Text style={st.crPickerBtnText}>{value ?? 'Any'}</Text>
           <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.textSecondary} />
         </Pressable>
-        <Modal
-          visible={open}
-          transparent
-          animationType="none"
-          onRequestClose={() => setOpen(false)}
-        >
-          <Pressable style={st.crModalBackdrop} onPress={() => setOpen(false)} />
-          <View
-            style={[
-              st.crDropdown,
-              Platform.OS === 'web' && dropPos
-                ? { position: 'fixed' as any, top: dropPos.top, left: dropPos.left, width: dropPos.width }
-                : { position: 'absolute' as const, top: 100, left: 20, width: 120 },
-            ]}
-            onStartShouldSetResponder={() => true}
-          >
-            <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled>
-              <Pressable
-                style={[st.crDropdownItem, value === null && st.crDropdownItemActive]}
-                onPress={() => { onSelect(null); setOpen(false); }}
-              >
-                <Text style={[st.crDropdownText, value === null && st.crDropdownTextActive]}>Any</Text>
-              </Pressable>
-              {CR_OPTIONS.map((opt) => (
-                <Pressable
-                  key={opt}
-                  style={[st.crDropdownItem, value === opt && st.crDropdownItemActive]}
-                  onPress={() => { onSelect(opt); setOpen(false); }}
-                >
-                  <Text style={[st.crDropdownText, value === opt && st.crDropdownTextActive]}>{opt}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </Modal>
+        {Platform.OS === 'web' && createPortal && dropdownContent
+          ? createPortal(dropdownContent, document.body)
+          : null}
       </View>
     );
   }
