@@ -985,37 +985,34 @@ export default function EncounterBuilderScreen() {
           animationType="none"
           onRequestClose={() => setOpen(false)}
         >
-          <Pressable style={st.crModalBackdrop} onPress={() => setOpen(false)}>
-            <View
-              style={[
-                st.crDropdown,
-                Platform.OS === 'web' && dropPos ? {
-                  position: 'absolute' as const,
-                  top: dropPos.top,
-                  left: dropPos.left,
-                  width: dropPos.width,
-                } : { marginTop: 100, alignSelf: 'center' as const, width: 120 },
-              ]}
-            >
-              <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled>
+          <Pressable style={st.crModalBackdrop} onPress={() => setOpen(false)} />
+          <View
+            style={[
+              st.crDropdown,
+              Platform.OS === 'web' && dropPos
+                ? { position: 'fixed' as any, top: dropPos.top, left: dropPos.left, width: dropPos.width }
+                : { position: 'absolute' as const, top: 100, left: 20, width: 120 },
+            ]}
+            onStartShouldSetResponder={() => true}
+          >
+            <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled>
+              <Pressable
+                style={[st.crDropdownItem, value === null && st.crDropdownItemActive]}
+                onPress={() => { onSelect(null); setOpen(false); }}
+              >
+                <Text style={[st.crDropdownText, value === null && st.crDropdownTextActive]}>Any</Text>
+              </Pressable>
+              {CR_OPTIONS.map((opt) => (
                 <Pressable
-                  style={[st.crDropdownItem, value === null && st.crDropdownItemActive]}
-                  onPress={() => { onSelect(null); setOpen(false); }}
+                  key={opt}
+                  style={[st.crDropdownItem, value === opt && st.crDropdownItemActive]}
+                  onPress={() => { onSelect(opt); setOpen(false); }}
                 >
-                  <Text style={[st.crDropdownText, value === null && st.crDropdownTextActive]}>Any</Text>
+                  <Text style={[st.crDropdownText, value === opt && st.crDropdownTextActive]}>{opt}</Text>
                 </Pressable>
-                {CR_OPTIONS.map((opt) => (
-                  <Pressable
-                    key={opt}
-                    style={[st.crDropdownItem, value === opt && st.crDropdownItemActive]}
-                    onPress={() => { onSelect(opt); setOpen(false); }}
-                  >
-                    <Text style={[st.crDropdownText, value === opt && st.crDropdownTextActive]}>{opt}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-          </Pressable>
+              ))}
+            </ScrollView>
+          </View>
         </Modal>
       </View>
     );
@@ -1548,7 +1545,7 @@ const st = StyleSheet.create({
   crDash: { fontSize: 14, color: colors.textSecondary },
   crPickerWrap: {},
   crModalBackdrop: {
-    flex: 1,
+    position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0,
   },
   crPickerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
