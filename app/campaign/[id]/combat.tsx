@@ -83,6 +83,7 @@ export default function CombatScreen() {
   const [addingSelected, setAddingSelected] = useState(false);
 
   const [pcConditions, setPcConditions] = useState<Record<string, string[]>>({});
+  const [npcConditions, setNpcConditions] = useState<Record<string, string[]>>({});
   const [editingConditionsFor, setEditingConditionsFor] = useState<Combatant | null>(null);
   const [myCharacterIds, setMyCharacterIds] = useState<Set<string>>(new Set());
 
@@ -97,6 +98,9 @@ export default function CombatScreen() {
 
   // HP editing modal state
   const [hpEditTarget, setHpEditTarget] = useState<Combatant | null>(null);
+
+  // PC stat preview
+  const [pcPreview, setPcPreview] = useState<{ name: string; stats: Dnd5eStats; resources: Dnd5eResources } | null>(null);
 
   // Initiative click-to-edit state
   const [initEditFor, setInitEditFor] = useState<string | null>(null);
@@ -294,6 +298,33 @@ export default function CombatScreen() {
     });
   }
 
+  async function handlePcPreview(combatant: Combatant) {
+    if (!combatant.character_id) return;
+    const { data } = await supabase
+      .from('characters')
+      .select('name, base_stats, resources')
+      .eq('id', combatant.character_id)
+      .single();
+    if (data) {
+      setPcPreview({
+        name: data.name,
+        stats: data.base_stats as unknown as Dnd5eStats,
+        resources: data.resources as unknown as Dnd5eResources,
+      });
+    }
+  }
+
+  function toggleNpcCondition(combatantId: string, condition: string) {
+    setNpcConditions((prev) => {
+      const current = prev[combatantId] ?? [];
+      const has = current.some((c) => c.toLowerCase() === condition.toLowerCase());
+      const next = has
+        ? current.filter((c) => c.toLowerCase() !== condition.toLowerCase())
+        : [...current, condition];
+      return { ...prev, [combatantId]: next };
+    });
+  }
+
   // --- Initiative editing ---
 
   async function handleInitSubmit(combatantId: string) {
@@ -485,6 +516,32 @@ export default function CombatScreen() {
     setAdvancing(false);
   }
 
+  async function handlePrevTurn() {
+    if (!session || advancing || entries.length === 0) return;
+    setAdvancing(true);
+    const sorted = sortByInitiative(entries);
+    const currentIdx = sorted.findIndex((e) => e.is_active_turn);
+    const prevIdx = currentIdx <= 0 ? sorted.length - 1 : currentIdx - 1;
+    const wrapped = currentIdx !== -1 && prevIdx === sorted.length - 1;
+
+    if (currentIdx !== -1) {
+      await updateCombatant(sorted[currentIdx].id, { is_active_turn: false });
+    }
+    await updateCombatant(sorted[prevIdx].id, { is_active_turn: true });
+
+    if (wrapped && session.round > 1) {
+      await supabase
+        .from('sessions')
+        .update({ round: session.round - 1 })
+        .eq('id', session.id);
+    }
+
+    await refetchEntries(session.id);
+    const { data: s } = await getActiveSession(id);
+    if (s) setSession(s);
+    setAdvancing(false);
+  }
+
   // --- Render ---
 
   if (loading) {
@@ -547,16 +604,25 @@ export default function CombatScreen() {
               </View>
             )}
             {combatStarted && isDM && (
-              <TouchableOpacity
-                style={[st.nextTurnBtn, (advancing || entries.length === 0) && { opacity: 0.5 }]}
-                onPress={handleNextTurn}
-                disabled={advancing || entries.length === 0}
-              >
-                <MaterialCommunityIcons name="skip-next" size={16} color="#fff" />
-                <Text style={st.nextTurnBtnText}>
-                  {advancing ? 'Advancing...' : 'Next Turn'}
-                </Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={[st.prevTurnBtn, (advancing || entries.length === 0) && { opacity: 0.5 }]}
+                  onPress={handlePrevTurn}
+                  disabled={advancing || entries.length === 0}
+                >
+                  <MaterialCommunityIcons name="skip-previous" size={16} color={colors.textPrimary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[st.nextTurnBtn, (advancing || entries.length === 0) && { opacity: 0.5 }]}
+                  onPress={handleNextTurn}
+                  disabled={advancing || entries.length === 0}
+                >
+                  <MaterialCommunityIcons name="skip-next" size={16} color="#fff" />
+                  <Text style={st.nextTurnBtnText}>
+                    {advancing ? '...' : 'Next Turn'}
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         </View>
@@ -787,7 +853,9 @@ export default function CombatScreen() {
                 keyExtractor={(e) => e.id}
                 contentContainerStyle={{ paddingBottom: pinned.length > 0 ? 40 : 0 }}
                 renderItem={({ item }) => {
-                  const conds = item.character_id ? (pcConditions[item.character_id] ?? []) : [];
+                  const conds = item.character_id
+                    ? (pcConditions[item.character_id] ?? [])
+                    : (npcConditions[item.id] ?? []);
                   const isPc = !!item.character_id;
                   const overridden = item.init_override !== null;
                   const rolled = overridden || item.init_roll !== null;
@@ -811,7 +879,7 @@ export default function CombatScreen() {
                             autoFocus
                             selectTextOnFocus
                             onSubmitEditing={() => handleInitSubmit(item.id)}
-                            onBlur={() => setInitEditFor(null)}
+                            onBlur={() => handleInitSubmit(item.id)}
                             maxLength={3}
                           />
                         </View>
@@ -833,7 +901,10 @@ export default function CombatScreen() {
                       {/* Name + meta */}
                       <Pressable
                         style={{ flex: 1 }}
-                        onPress={hasStatBlock ? () => handleSelectCombatant(item) : undefined}
+                        onPress={() => {
+                          if (hasStatBlock) handleSelectCombatant(item);
+                          else if (isPc) handlePcPreview(item);
+                        }}
                       >
                         <View style={st.nameRow}>
                           <Text style={st.rowName} numberOfLines={1}>
@@ -862,14 +933,11 @@ export default function CombatScreen() {
                         <HpBar current={item.hp_current} max={item.hp_max} />
                         {conds.length > 0 && (
                           <View style={st.condChipRow}>
-                            {conds.slice(0, 3).map((c) => (
+                            {conds.map((c) => (
                               <View key={c} style={st.condChip}>
                                 <Text style={st.condChipText}>{c.toUpperCase()}</Text>
                               </View>
                             ))}
-                            {conds.length > 3 && (
-                              <Text style={st.condMore}>+{conds.length - 3}</Text>
-                            )}
                           </View>
                         )}
                       </Pressable>
@@ -881,7 +949,7 @@ export default function CombatScreen() {
                             <MaterialCommunityIcons name="dice-d20" size={16} color={colors.brand} />
                           </TouchableOpacity>
                         )}
-                        {isDM && isPc && (
+                        {isDM && (
                           <TouchableOpacity style={st.rowAction} onPress={() => setEditingConditionsFor(item)}>
                             <MaterialCommunityIcons name="heart-pulse" size={16} color={colors.textSecondary} />
                           </TouchableOpacity>
@@ -1007,14 +1075,25 @@ export default function CombatScreen() {
               <ScrollView contentContainerStyle={st.modalBody}>
                 <View style={st.condGrid}>
                   {SRD_CONDITIONS.map((cond) => {
-                    const charId = editingConditionsFor?.character_id ?? '';
-                    const active = (pcConditions[charId] ?? [])
-                      .some((c) => c.toLowerCase() === cond.toLowerCase());
+                    const isPcCombatant = !!editingConditionsFor?.character_id;
+                    const condKey = isPcCombatant
+                      ? editingConditionsFor?.character_id ?? ''
+                      : editingConditionsFor?.id ?? '';
+                    const condList = isPcCombatant
+                      ? (pcConditions[condKey] ?? [])
+                      : (npcConditions[condKey] ?? []);
+                    const active = condList.some((c) => c.toLowerCase() === cond.toLowerCase());
                     return (
                       <TouchableOpacity
                         key={cond}
                         style={[st.condChipBig, active && st.condChipBigActive]}
-                        onPress={() => charId && toggleCondition(charId, cond)}
+                        onPress={() => {
+                          if (isPcCombatant && condKey) {
+                            toggleCondition(condKey, cond);
+                          } else if (condKey) {
+                            toggleNpcCondition(condKey, cond);
+                          }
+                        }}
                       >
                         <Text style={[st.condChipBigText, active && st.condChipBigTextActive]}>
                           {cond}
@@ -1027,6 +1106,63 @@ export default function CombatScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* ===== PC Preview modal ===== */}
+        {pcPreview && (
+          <Modal
+            visible
+            transparent
+            animationType="fade"
+            onRequestClose={() => setPcPreview(null)}
+          >
+            <Pressable style={st.modalBackdrop} onPress={() => setPcPreview(null)}>
+              <Pressable style={st.modalCard} onPress={(e) => e.stopPropagation()}>
+                <View style={st.modalHeader}>
+                  <Text style={st.modalTitle}>{pcPreview.name}</Text>
+                  <TouchableOpacity onPress={() => setPcPreview(null)}>
+                    <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView contentContainerStyle={st.modalBody}>
+                  <View style={st.pcPreviewRow}>
+                    <View style={st.pcPreviewStat}>
+                      <Text style={st.pcPreviewLabel}>Level</Text>
+                      <Text style={st.pcPreviewValue}>{pcPreview.stats.level}</Text>
+                    </View>
+                    <View style={st.pcPreviewStat}>
+                      <Text style={st.pcPreviewLabel}>HP</Text>
+                      <Text style={st.pcPreviewValue}>{pcPreview.resources.hpCurrent}/{pcPreview.stats.hpMax}</Text>
+                    </View>
+                    <View style={st.pcPreviewStat}>
+                      <Text style={st.pcPreviewLabel}>AC</Text>
+                      <Text style={st.pcPreviewValue}>{computeAc(pcPreview.stats, pcPreview.resources)}</Text>
+                    </View>
+                  </View>
+                  <Text style={st.pcPreviewSectionTitle}>Ability Scores</Text>
+                  <View style={st.pcPreviewRow}>
+                    {(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const).map((ab) => (
+                      <View key={ab} style={st.pcPreviewStat}>
+                        <Text style={st.pcPreviewLabel}>{ab.slice(0, 3).toUpperCase()}</Text>
+                        <Text style={st.pcPreviewValue}>{pcPreview.stats.abilityScores[ab]}</Text>
+                        <Text style={st.pcPreviewMod}>{formatMod(abilityMod(pcPreview.stats.abilityScores[ab]))}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={st.pcPreviewRow}>
+                    <View style={st.pcPreviewStat}>
+                      <Text style={st.pcPreviewLabel}>Temp HP</Text>
+                      <Text style={st.pcPreviewValue}>{pcPreview.resources.hpTemp}</Text>
+                    </View>
+                    <View style={st.pcPreviewStat}>
+                      <Text style={st.pcPreviewLabel}>Inspiration</Text>
+                      <Text style={st.pcPreviewValue}>{pcPreview.resources.inspiration ? 'Yes' : 'No'}</Text>
+                    </View>
+                  </View>
+                </ScrollView>
+              </Pressable>
+            </Pressable>
+          </Modal>
+        )}
 
         {/* ===== HP Edit modal ===== */}
         {hpEditTarget && (
@@ -1089,6 +1225,11 @@ const st = StyleSheet.create({
   },
   roundNumber: { fontSize: 14, fontWeight: '700', color: '#fff' },
   turnName: { fontSize: 12, color: colors.textSecondary, maxWidth: 120 },
+  prevTurnBtn: {
+    alignItems: 'center', justifyContent: 'center',
+    borderColor: colors.border, borderWidth: 1, borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 8,
+  },
   nextTurnBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.brand, borderRadius: 8,
@@ -1290,4 +1431,22 @@ const st = StyleSheet.create({
   condChipBigActive: { borderColor: colors.hpDanger, backgroundColor: colors.hpDanger + '22' },
   condChipBigText: { color: colors.textSecondary, fontSize: 12, fontWeight: '500' },
   condChipBigTextActive: { color: colors.hpDanger, fontWeight: '700' },
+
+  // PC preview
+  pcPreviewRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm,
+  },
+  pcPreviewStat: {
+    alignItems: 'center', minWidth: 50, gap: 2,
+    backgroundColor: colors.background, borderRadius: 6,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
+    borderColor: colors.border, borderWidth: 1,
+  },
+  pcPreviewLabel: { fontSize: 9, fontWeight: '700', color: colors.textSecondary, letterSpacing: 1 },
+  pcPreviewValue: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
+  pcPreviewMod: { fontSize: 11, color: colors.brand },
+  pcPreviewSectionTitle: {
+    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
+    letterSpacing: 1, marginBottom: 4, marginTop: spacing.xs,
+  },
 });
