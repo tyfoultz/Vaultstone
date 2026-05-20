@@ -17,7 +17,7 @@ import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, 
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius, ImageCropModal } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
-import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult, SkillResult } from '@vaultstone/types';
+import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult, SkillResult, ItemResult } from '@vaultstone/types';
 import { getClassEntries, getSpellbook } from '@vaultstone/types';
 import { HpModal } from './HpModal';
 import { ConditionsPanel } from './ConditionsPanel';
@@ -31,7 +31,7 @@ import { GearTab } from './GearTab';
 import { LoreTab } from './LoreTab';
 import { FeatPickerModal } from './FeatPickerModal';
 import { SpellPickerModal } from './SpellPickerModal';
-import { ItemPickerModal } from './ItemPickerModal';
+import { ItemPickerModal, itemResultToEquipment } from './ItemPickerModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
@@ -743,6 +743,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const [featResultsByKey, setFeatResultsByKey] = useState<Map<string, FeatResult>>(new Map());
   const [conditionResults, setConditionResults] = useState<ConditionResult[]>(_cached?.conditionResults ?? []);
   const [skillResults, setSkillResults] = useState<SkillResult[]>(_cached?.skillResults ?? []);
+  // Item catalog, indexed by `ItemResult.key`. Lets getEquippedAC
+  // re-derive mechanical fields (acBase, dexCap, acBonus, miscACBonus)
+  // for equipment items that were stored before the current parser
+  // existed. Without this, characters created early carry stub
+  // equipment items with only name+slot and the AC math silently
+  // falls back to defaults.
+  const [itemResultsByKey, setItemResultsByKey] = useState<Map<string, ItemResult>>(new Map());
 
   useEffect(() => {
     if (!id) return;
@@ -875,7 +882,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           ? (character?.pack_ids as string[])
           : undefined,
       };
-      const [speciesResults, classResults, subclassResults, backgroundResults, featResults, conditionResultsAll, skillResultsAll] = await Promise.all([
+      const hasEquipment = (charResources?.equipment ?? []).length > 0;
+      const [speciesResults, classResults, subclassResults, backgroundResults, featResults, conditionResultsAll, skillResultsAll, itemResultsAll] = await Promise.all([
         speciesKey ? ContentResolver.search({ ...tierArgs, type: 'species' }) : Promise.resolve([]),
         classKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'class' }) : Promise.resolve([]),
         subclassKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'subclass' }) : Promise.resolve([]),
@@ -883,6 +891,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         (originFeatName || hasFeats) ? ContentResolver.search({ ...tierArgs, type: 'feat' }) : Promise.resolve([]),
         ContentResolver.search({ ...tierArgs, type: 'condition' }),
         ContentResolver.search({ ...tierArgs, type: 'skill' }),
+        hasEquipment ? ContentResolver.search({ ...tierArgs, type: 'item' }) : Promise.resolve([]),
       ]);
       if (cancelled) return;
 
@@ -944,6 +953,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
       setConditionResults(conditionResultsAll as ConditionResult[]);
       setSkillResults(skillResultsAll as SkillResult[]);
+      if (hasEquipment) {
+        const map = new Map<string, ItemResult>();
+        for (const r of itemResultsAll as ItemResult[]) map.set(r.key, r);
+        setItemResultsByKey(map);
+      }
 
       if (typeof id === 'string') {
         const specHit = speciesKey ? speciesResults.find((r) => r.key === speciesKey) as SpeciesResult | undefined : null;
@@ -1056,7 +1070,37 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     return base + (stats.savingThrowProficiencies.includes(ability) ? prof : 0);
   }
 
-  const equipment: Dnd5eEquipmentItem[] = resources?.equipment ?? [];
+  // Re-hydrate equipment items from the live catalog. Existing
+  // characters carry equipment shapes from older versions of the
+  // parser — some are missing acBase, dexCap, miscACBonus, or carry
+  // a stale slot (Shield routed to 'armor' before the SRD fix). We
+  // look each item up by id (which equals the catalog's ItemResult.key
+  // for catalog-picked items, with an optional `-N` wizard suffix),
+  // re-run the current parser, and overlay the freshly-derived
+  // mechanical fields onto the stored user-state (id / equipped /
+  // attuned / notes stay as the player set them).
+  function hydrateEquipment(e: Dnd5eEquipmentItem): Dnd5eEquipmentItem {
+    if (itemResultsByKey.size === 0) return e;
+    // The wizard appends `-0`, `-1`, etc. for quantity duplicates;
+    // strip the last numeric suffix to find the catalog key.
+    const baseKey = e.id.replace(/-\d+$/, '');
+    const catalog = itemResultsByKey.get(e.id) ?? itemResultsByKey.get(baseKey);
+    if (!catalog) return e;
+    const fresh = itemResultToEquipment(catalog);
+    return {
+      ...e,
+      slot: fresh.slot,
+      damage: e.damage ?? fresh.damage,
+      acBase: e.acBase ?? fresh.acBase,
+      dexCap: e.dexCap ?? fresh.dexCap,
+      acBonus: e.acBonus ?? fresh.acBonus,
+      miscACBonus: e.miscACBonus ?? fresh.miscACBonus,
+      properties: e.properties ?? fresh.properties,
+      requiresAttunement: e.requiresAttunement ?? fresh.requiresAttunement,
+      weight: e.weight ?? fresh.weight,
+    };
+  }
+  const equipment: Dnd5eEquipmentItem[] = (resources?.equipment ?? []).map(hydrateEquipment);
   const computedAC = scores ? getEquippedAC() : 10;
   // Manual-mode overrides only apply when Manual Mode is actually on.
   // Without this gate, a stray value typed once stays as a silent
@@ -1937,7 +1981,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         return (
           <GearTab
             stats={stats}
-            resources={resources}
+            resources={{ ...resources, equipment }}
             isOwner={isOwner}
             strengthScore={scores.strength}
             onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
