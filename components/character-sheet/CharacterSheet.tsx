@@ -1058,9 +1058,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
   const equipment: Dnd5eEquipmentItem[] = resources?.equipment ?? [];
   const computedAC = scores ? getEquippedAC() : 10;
-  const ac = stats?.acOverride ?? computedAC;
+  // Manual-mode overrides only apply when Manual Mode is actually on.
+  // Without this gate, a stray value typed once stays as a silent
+  // override forever — exactly the playtest bug where Oswald's AC was
+  // stuck at 14 despite armor/shield/cloak all wired correctly.
+  const ac = manualMode && stats?.acOverride != null ? stats.acOverride : computedAC;
   const computedInitiative = scores ? abilityMod(scores.dexterity) : 0;
-  const initiative = stats?.initiativeOverride ?? computedInitiative;
+  const initiative = manualMode && stats?.initiativeOverride != null ? stats.initiativeOverride : computedInitiative;
   const passivePerception = 10 + skillMod('perception');
 
   const liveActionFeatures: Dnd5eFeature[] = useMemo(() => {
@@ -1402,6 +1406,25 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   function startEditField(field: string, currentValue: string | number) {
     setEditingField(field);
     setFieldInput(String(currentValue));
+  }
+
+  /**
+   * Drop a manual-mode override for AC or Initiative so the computed
+   * value takes over again. Without this, a player who once typed a
+   * value into the AC stat cell has no in-app way to "undo" the
+   * override short of overwriting it with another number — which just
+   * persists a new override.
+   */
+  function resetEditField() {
+    if (!stats || !editingField) return;
+    if (editingField === 'ac') {
+      const { acOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
+    } else if (editingField === 'initiative') {
+      const { initiativeOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
+    }
+    setEditingField(null);
   }
 
   function saveEditField() {
@@ -2716,9 +2739,38 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 onSubmitEditing={saveEditField}
               />
             )}
-            <TouchableOpacity style={s.fieldSaveBtn} onPress={saveEditField}>
-              <Text style={s.fieldSaveBtnText}>Save</Text>
-            </TouchableOpacity>
+            {/* Show what the equipment-based calculation would yield,
+                so the user can see whether their override matches or
+                diverges. AC + Initiative are the two calculated stats
+                that carry overrides today. */}
+            {editingField === 'ac' && (
+              <Text style={s.fieldHint}>
+                Computed from gear: {computedAC}
+                {stats?.acOverride != null && stats.acOverride !== computedAC
+                  ? `  ·  override active (${stats.acOverride})`
+                  : ''}
+              </Text>
+            )}
+            {editingField === 'initiative' && (
+              <Text style={s.fieldHint}>
+                Computed from DEX: {fmtMod(computedInitiative)}
+                {stats?.initiativeOverride != null && stats.initiativeOverride !== computedInitiative
+                  ? `  ·  override active (${fmtMod(stats.initiativeOverride)})`
+                  : ''}
+              </Text>
+            )}
+            <View style={s.fieldBtnRow}>
+              {(editingField === 'ac' || editingField === 'initiative') &&
+                ((editingField === 'ac' && stats?.acOverride != null) ||
+                 (editingField === 'initiative' && stats?.initiativeOverride != null)) && (
+                <TouchableOpacity style={s.fieldResetBtn} onPress={resetEditField}>
+                  <Text style={s.fieldResetBtnText}>Reset to computed</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[s.fieldSaveBtn, { flex: 1 }]} onPress={saveEditField}>
+                <Text style={s.fieldSaveBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -4227,6 +4279,24 @@ const s = StyleSheet.create({
     paddingVertical: 12, alignItems: 'center',
   },
   fieldSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  fieldHint: {
+    fontSize: 11, fontFamily: fonts.body,
+    color: colors.outline, textAlign: 'center',
+    marginTop: -spacing.sm, marginBottom: spacing.sm,
+  },
+  fieldBtnRow: {
+    flexDirection: 'row', gap: spacing.sm, alignItems: 'stretch',
+  },
+  fieldResetBtn: {
+    paddingHorizontal: 12, paddingVertical: 12,
+    borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  fieldResetBtnText: {
+    color: colors.onSurfaceVariant, fontSize: 12, fontWeight: '600',
+    fontFamily: fonts.label, letterSpacing: 0.3,
+  },
 
   // ── Left rail: ability scores + saves (Option C combined rows) ──────────
   deskSection: {
