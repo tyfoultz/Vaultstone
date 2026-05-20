@@ -709,6 +709,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // 'short' | 'long' | null — tracks which rest the player is about to
   // confirm. Resets to null on dismiss.
   const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null);
+  // Equipment-row delete confirmation. We can't use Alert.alert here —
+  // React Native Web's port doesn't reliably invoke button callbacks,
+  // so the user just sees a no-op when tapping the row's X. Mirroring
+  // the restConfirm pattern with a state-driven modal works on both
+  // native and web.
+  const [removeEquipId, setRemoveEquipId] = useState<string | null>(null);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   /** Campaign rule `enforce_feat_prerequisites` resolved from the
    *  character's linked campaign. Standalone characters fall through
@@ -1990,25 +1996,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onUpdateNotes={(notes) => persistResources({ ...resources, notes })}
             onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
             onOpenItemPicker={() => setItemPickerOpen(true)}
-            onRemoveItem={(id) => {
-              const target = (resources.equipment ?? []).find((it) => it.id === id);
-              const name = target?.name ?? 'this item';
-              Alert.alert(
-                'Remove item?',
-                `Remove ${name} from your gear? This can't be undone — you'll need to re-add it from the catalog.`,
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Remove',
-                    style: 'destructive',
-                    onPress: () => {
-                      const next = (resources.equipment ?? []).filter((it) => it.id !== id);
-                      persistResources({ ...resources, equipment: next });
-                    },
-                  },
-                ],
-              );
-            }}
+            onRemoveItem={(id) => setRemoveEquipId(id)}
           />
         );
       case 'lore':
@@ -2937,6 +2925,46 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           onPick={(feature) => saveFeature('feats', feature)}
         />
       ) : null}
+
+      {/* Equipment removal confirmation. Pulls the item name fresh on
+          each render so the prompt always matches the row the user
+          tapped. Uses the same restConfirmCard styling so the two
+          dialogs feel like one pattern. */}
+      <Modal visible={!!removeEquipId} transparent animationType="fade" onRequestClose={() => setRemoveEquipId(null)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setRemoveEquipId(null)}>
+          <Pressable style={s.restConfirmCard} onPress={() => {}}>
+            <View style={s.restConfirmHeader}>
+              <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.primary} />
+              <Text style={s.modalTitle}>Remove item?</Text>
+            </View>
+            <Text style={s.restConfirmBody}>
+              Remove {(resources?.equipment ?? []).find((it) => it.id === removeEquipId)?.name ?? 'this item'} from your gear?
+              This can't be undone — you'll need to re-add it from the catalog.
+            </Text>
+            <View style={s.restConfirmActions}>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCancel]}
+                onPress={() => setRemoveEquipId(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.restConfirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCommit]}
+                onPress={() => {
+                  if (!resources || !removeEquipId) { setRemoveEquipId(null); return; }
+                  const next = (resources.equipment ?? []).filter((it) => it.id !== removeEquipId);
+                  persistResources({ ...resources, equipment: next });
+                  setRemoveEquipId(null);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={s.restConfirmCommitText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Rest confirmation modal — gates short/long rest commits since
           the underlying writes touch a lot of state (HP, slots, hit
