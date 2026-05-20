@@ -280,26 +280,47 @@ export function itemResultToEquipment(item: ItemResult): Dnd5eEquipmentItem {
     }
   }
 
-  // Armor AC. Catalog ships lines like:
-  //   "AC 11 + Dex modifier"
-  //   "AC 14 + Dex modifier (max 2)"
-  //   "AC 18"
+  // Armor AC. Two property shapes ship through here:
+  //   SRD       → "AC 11 + Dex modifier" / "AC 14 + Dex modifier (max 2)" / "AC 18"
+  //   Imported  → "Base AC 12" (no DEX info; the armor type code that
+  //               carried it lives upstream as LA/MA/HA and never made
+  //               it into properties). Light/Medium/Heavy needs to be
+  //               inferred from a separate "Light Armor" / "Medium
+  //               Armor" / "Heavy Armor" property line when present.
   let acBase: number | undefined;
   let dexCap: number | null | undefined;
   if (slot === 'armor') {
-    const acLine = props.find((p) => /^ac\s+\d/i.test(p));
+    const acLine = props.find((p) => /^(?:base\s+)?ac\s+\d/i.test(p));
     if (acLine) {
       const acMatch = acLine.match(/ac\s+(\d+)/i);
       if (acMatch) acBase = parseInt(acMatch[1], 10);
-      // Heavy armor: "AC 18" → no dex bonus.
-      // Medium: "AC 14 + Dex modifier (max 2)" → dexCap=2.
-      // Light: "AC 11 + Dex modifier" → no cap (full dex).
+      // Prefer the inline " + Dex" / "max N" signal when the line
+      // carries it (SRD shape).
       const hasPlusDex = /\+\s*dex/i.test(acLine);
-      if (!hasPlusDex) {
-        dexCap = 0;
-      } else {
+      const isBaseAcLine = /^base\s+ac/i.test(acLine);
+      if (hasPlusDex) {
         const capMatch = acLine.match(/max\s+(\d+)/i);
         dexCap = capMatch ? parseInt(capMatch[1], 10) : null;
+      } else if (!isBaseAcLine) {
+        // SRD "AC 18" with no "+ Dex" → heavy, no DEX.
+        dexCap = 0;
+      }
+      // Imported "Base AC 12" with no inline DEX info → fall through
+      // to the type-line check below. We can't assume heavy; that
+      // gave Studded Leather no DEX bonus.
+    }
+    // Type line — present on the SRD shape ("Light Armor") and on
+    // imported-content output once the transform fix lands. Falls
+    // back to null (full DEX) when nothing matches; better to over-
+    // give DEX than to silently null it out and surprise the player.
+    if (dexCap === undefined) {
+      const typeLine = props.find((p) => /^(?:light|medium|heavy)\s+armor$/i.test(p));
+      if (typeLine) {
+        if (/^heavy/i.test(typeLine)) dexCap = 0;
+        else if (/^medium/i.test(typeLine)) dexCap = 2;
+        else dexCap = null;
+      } else {
+        dexCap = null;
       }
     }
   }
@@ -317,16 +338,19 @@ export function itemResultToEquipment(item: ItemResult): Dnd5eEquipmentItem {
   }
 
   // Weapon properties (light, finesse, two-handed, etc.) — pull from
-  // any property line that isn't the damage / mastery line.
+  // any property line that isn't the damage / mastery / structured-AC
+  // line we already absorbed.
   const flavorProps: string[] = [];
   for (const p of props) {
     if (/damage/i.test(p)) continue;
-    if (/^ac\s+/i.test(p)) continue;
+    if (/^(?:base\s+)?ac\s+/i.test(p)) continue;
     if (/^mastery/i.test(p)) continue;
-    // The Open5e SRD 2024 Shield (misclassified as armor) ships
-    // properties=["AC 2", "Heavy Armor"]. Once we route it to the
-    // shield slot, the "Heavy Armor" tag is wrong and confusing.
-    if (slot === 'shield' && /^(heavy|medium|light)\s+armor$/i.test(p)) continue;
+    // Armor-type lines are absorbed into the dexCap field. Drop them
+    // from flavor too, since the row already shows a Light/Medium/
+    // Heavy pill derived from the structured fields. Also drop from
+    // shields, where the Open5e SRD 2024 mis-categorization ships a
+    // bogus "Heavy Armor" tag on the Shield.
+    if (/^(heavy|medium|light)\s+armor$/i.test(p)) continue;
     flavorProps.push(p);
   }
 
