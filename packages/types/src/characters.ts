@@ -216,6 +216,13 @@ export interface Dnd5eEquipmentItem {
   dexCap?: number | null;
   /** For shields: AC bonus (typically +2) */
   acBonus?: number;
+  /**
+   * Generic AC bonus from a magical effect (Cloak of Protection +1,
+   * Ring of Protection +1, Bracers of Defense +2, etc.). Stacks on top
+   * of armor + shield AC. Applied when the item is equipped AND, if it
+   * requires attunement, is attuned.
+   */
+  miscACBonus?: number;
   /** Freeform notes */
   notes?: string;
   /** Whether this item requires and is currently attuned */

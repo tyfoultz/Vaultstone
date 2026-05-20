@@ -3,7 +3,7 @@ import { useDrag, useDrop } from 'react-dnd';
 import { SharedDndProvider } from '../DndProviderContext';
 import {
   View, Text, Image, TouchableOpacity, TextInput,
-  ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform, useWindowDimensions,
+  ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform, useWindowDimensions, Alert,
 } from 'react-native';
 import { ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -1486,6 +1486,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
   function getEquippedAC(): number {
     if (!scores) return 10;
+    // An item's magical contribution only applies when worn AND, if it
+    // requires attunement, attuned. Cloak of Protection without
+    // attunement is just a cloak.
+    const isEffective = (e: Dnd5eEquipmentItem) =>
+      e.equipped && (!e.requiresAttunement || !!e.attuned);
     const armor = equipment.find((e) => e.slot === 'armor' && e.equipped);
     const shield = equipment.find((e) => e.slot === 'shield' && e.equipped);
     let base = 10 + abilityMod(scores.dexterity);
@@ -1495,8 +1500,22 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         ? Math.min(dexMod, armor.dexCap)
         : dexMod;
       base = (armor.acBase ?? 10) + dexBonus;
+      // Magic armor (Plate +1, etc.) contributes its enhancement via
+      // miscACBonus on top of the base AC.
+      if (isEffective(armor) && armor.miscACBonus) base += armor.miscACBonus;
     }
-    if (shield) base += shield.acBonus ?? 2;
+    if (shield) {
+      base += shield.acBonus ?? 2;
+      if (isEffective(shield) && shield.miscACBonus) base += shield.miscACBonus;
+    }
+    // Magic items in other slots (cloak, ring, amulet, bracers) add
+    // their AC bonus directly. Skip armor/shield since they were
+    // already accounted for above.
+    for (const e of equipment) {
+      if (e.slot === 'armor' || e.slot === 'shield') continue;
+      if (!isEffective(e) || !e.miscACBonus) continue;
+      base += e.miscACBonus;
+    }
     return base;
   }
 
@@ -1526,6 +1545,24 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
   function handleToggleEquipped(id: string) {
     saveEquipment(equipment.map((e) => e.id === id ? { ...e, equipped: !e.equipped } : e));
+  }
+
+  function handleToggleAttuned(id: string) {
+    const target = equipment.find((e) => e.id === id);
+    if (!target?.requiresAttunement) return;
+    // Enforce the 3-slot 5e attunement cap. Only fire when the user
+    // is attempting to attune (not unattune) and would exceed.
+    if (!target.attuned) {
+      const currentAttuned = equipment.filter((e) => e.requiresAttunement && e.attuned).length;
+      if (currentAttuned >= 3) {
+        Alert.alert(
+          'Attunement slots full',
+          'You can be attuned to at most 3 items at once. Unattune another item first.',
+        );
+        return;
+      }
+    }
+    saveEquipment(equipment.map((e) => e.id === id ? { ...e, attuned: !e.attuned } : e));
   }
 
   function getFeatureList(cat: 'classFeatures' | 'speciesTraits' | 'feats'): Dnd5eFeature[] {
@@ -1872,12 +1909,28 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             strengthScore={scores.strength}
             onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
             onToggleEquipped={handleToggleEquipped}
+            onToggleAttuned={handleToggleAttuned}
             onUpdateNotes={(notes) => persistResources({ ...resources, notes })}
             onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
             onOpenItemPicker={() => setItemPickerOpen(true)}
             onRemoveItem={(id) => {
-              const next = (resources.equipment ?? []).filter((it) => it.id !== id);
-              persistResources({ ...resources, equipment: next });
+              const target = (resources.equipment ?? []).find((it) => it.id === id);
+              const name = target?.name ?? 'this item';
+              Alert.alert(
+                'Remove item?',
+                `Remove ${name} from your gear? This can't be undone — you'll need to re-add it from the catalog.`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Remove',
+                    style: 'destructive',
+                    onPress: () => {
+                      const next = (resources.equipment ?? []).filter((it) => it.id !== id);
+                      persistResources({ ...resources, equipment: next });
+                    },
+                  },
+                ],
+              );
             }}
           />
         );
@@ -2907,7 +2960,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             const id = existing.some((e) => e.id === item.id)
               ? `${item.id}-${Date.now()}`
               : item.id;
-            const next = [...existing, { ...item, id }];
+            // Auto-equip newly-added weapons/armor/shields when the slot
+            // is currently empty. The first sword/armor you pick up is
+            // overwhelmingly the one you want active — making the user
+            // hunt for a toggle to make AC respond was the playtest bug.
+            const slotEquipped = item.slot === 'armor' || item.slot === 'shield'
+              ? existing.some((e) => e.equipped && e.slot === item.slot)
+              : false;
+            const equipped = item.equipped
+              || (!slotEquipped && (item.slot === 'armor' || item.slot === 'shield' || item.slot === 'weapon'));
+            const next = [...existing, { ...item, id, equipped }];
             persistResources({ ...resources, equipment: next });
           }}
         />

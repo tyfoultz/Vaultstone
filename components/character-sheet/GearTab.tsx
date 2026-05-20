@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eEquipmentItem } from '@vaultstone/types';
@@ -28,6 +28,7 @@ interface Props {
   strengthScore: number;
   onUpdateCoins?: (coins: NonNullable<Dnd5eResources['coins']>) => void;
   onToggleEquipped?: (id: string) => void;
+  onToggleAttuned?: (id: string) => void;
   onUpdateNotes?: (notes: string) => void;
   onUpdateTreasure?: (treasure: string) => void;
   /** Open the catalog item picker. The parent owns the modal so it can
@@ -38,9 +39,10 @@ interface Props {
 
 export function GearTab({
   stats, resources, isOwner, strengthScore,
-  onUpdateCoins, onToggleEquipped, onUpdateNotes, onUpdateTreasure,
+  onUpdateCoins, onToggleEquipped, onToggleAttuned, onUpdateNotes, onUpdateTreasure,
   onOpenItemPicker, onRemoveItem,
 }: Props) {
+  const [detailItem, setDetailItem] = useState<Dnd5eEquipmentItem | null>(null);
   const equipment = resources.equipment ?? [];
   const coins = resources.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
 
@@ -90,7 +92,9 @@ export function GearTab({
               item={item}
               canToggle={isOwner}
               onToggle={() => onToggleEquipped?.(item.id)}
+              onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
+              onOpenDetail={() => setDetailItem(item)}
               isLast={i === equippedItems.length - 1}
             />
           ))
@@ -107,7 +111,9 @@ export function GearTab({
               item={item}
               canToggle={isOwner}
               onToggle={() => onToggleEquipped?.(item.id)}
+              onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
+              onOpenDetail={() => setDetailItem(item)}
               isLast={i === carriedItems.length - 1}
             />
           ))
@@ -162,8 +168,26 @@ export function GearTab({
         />
       </CardBlock>
 
+      {detailItem && (
+        <EquipmentDetailModal
+          item={detailItem}
+          onClose={() => setDetailItem(null)}
+        />
+      )}
+
     </ScrollView>
   );
+}
+
+// Armor types are derived from the parsed dexCap value — the catalog
+// doesn't ship a separate light/medium/heavy field. Keep this in sync
+// with ItemPickerModal.itemResultToEquipment's parser.
+function armorTypeLabel(item: Dnd5eEquipmentItem): string | null {
+  if (item.slot !== 'armor') return null;
+  if (item.dexCap === 0) return 'Heavy';
+  if (typeof item.dexCap === 'number' && item.dexCap > 0) return 'Medium';
+  if (item.acBase != null) return 'Light';
+  return null;
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────────
@@ -199,24 +223,50 @@ function CardBlock({ title, action, onAction, children, style }: {
   );
 }
 
-function EquipRow({ item, canToggle, onToggle, onRemove, isLast }: {
+function EquipRow({ item, canToggle, onToggle, onToggleAttuned, onRemove, onOpenDetail, isLast }: {
   item: Dnd5eEquipmentItem;
   canToggle: boolean;
   onToggle: () => void;
+  onToggleAttuned?: () => void;
   onRemove?: () => void;
+  onOpenDetail: () => void;
   isLast: boolean;
 }) {
+  const armorType = armorTypeLabel(item);
   return (
-    <View style={[s.equipRow, !isLast && s.equipRowBorder]}>
+    <Pressable
+      onPress={onOpenDetail}
+      style={({ pressed }) => [
+        s.equipRow,
+        !isLast && s.equipRowBorder,
+        pressed && { backgroundColor: colors.surfaceContainerHigh },
+      ]}
+    >
       <Text style={s.equipName} numberOfLines={1}>{item.name}</Text>
       <View style={s.equipPills}>
-        {item.attuned && <Pill label="Attuned" variant="primary" />}
-        {item.slot === 'armor' && <Pill label="Armor" />}
+        {armorType && <Pill label={armorType} />}
+        {item.slot === 'armor' && !armorType && <Pill label="Armor" />}
+        {item.slot === 'shield' && <Pill label="Shield" />}
         {item.slot === 'weapon' && item.damage && <Pill label={item.damage} />}
-        {item.notes && !item.damage && !item.acBase && <Pill label={item.notes!.slice(0, 32)} />}
+        {item.miscACBonus ? <Pill label={`+${item.miscACBonus} AC`} variant="primary" /> : null}
+        {item.attuned && <Pill label="Attuned" variant="primary" />}
       </View>
+      {canToggle && item.requiresAttunement && onToggleAttuned && (
+        <TouchableOpacity
+          onPress={onToggleAttuned}
+          hitSlop={8}
+          activeOpacity={0.7}
+          style={{ marginLeft: 6 }}
+        >
+          <MaterialCommunityIcons
+            name={item.attuned ? 'star' : 'star-outline'}
+            size={16}
+            color={item.attuned ? colors.primary : colors.outline}
+          />
+        </TouchableOpacity>
+      )}
       {canToggle && (
-        <TouchableOpacity onPress={onToggle} hitSlop={8} activeOpacity={0.7}>
+        <TouchableOpacity onPress={onToggle} hitSlop={8} activeOpacity={0.7} style={{ marginLeft: 6 }}>
           <MaterialCommunityIcons
             name={item.equipped ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
             size={16}
@@ -229,7 +279,76 @@ function EquipRow({ item, canToggle, onToggle, onRemove, isLast }: {
           <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
         </TouchableOpacity>
       )}
-    </View>
+    </Pressable>
+  );
+}
+
+function EquipmentDetailModal({
+  item,
+  onClose,
+}: {
+  item: Dnd5eEquipmentItem;
+  onClose: () => void;
+}) {
+  const armorType = armorTypeLabel(item);
+  const rows: Array<{ label: string; value: string }> = [];
+  rows.push({ label: 'Slot', value: item.slot.charAt(0).toUpperCase() + item.slot.slice(1) });
+  if (armorType) rows.push({ label: 'Armor type', value: armorType });
+  if (item.slot === 'weapon' && item.damage) rows.push({ label: 'Damage', value: item.damage });
+  if (item.range) rows.push({ label: 'Range', value: item.range });
+  if (item.acBase != null) {
+    const dex = item.dexCap === 0
+      ? ''
+      : item.dexCap != null
+        ? ` + DEX (max ${item.dexCap})`
+        : ' + DEX';
+    rows.push({ label: 'Base AC', value: `${item.acBase}${dex}` });
+  }
+  if (item.acBonus != null) rows.push({ label: 'Shield bonus', value: `+${item.acBonus}` });
+  if (item.miscACBonus != null) rows.push({ label: 'Magic AC bonus', value: `+${item.miscACBonus}` });
+  if (item.requiresAttunement) {
+    rows.push({ label: 'Attunement', value: item.attuned ? 'Attuned' : 'Required, not attuned' });
+  }
+  if (typeof item.weight === 'number') rows.push({ label: 'Weight', value: `${item.weight} lb` });
+  if (item.equipped) rows.push({ label: 'Status', value: 'Equipped' });
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.detailBackdrop} onPress={onClose}>
+        <Pressable style={s.detailCard} onPress={() => {}}>
+          <View style={s.detailHeader}>
+            <Text style={s.detailTitle} numberOfLines={2}>{item.name}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={10}>
+              <MaterialCommunityIcons name="close" size={20} color={colors.onSurfaceVariant} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={{ paddingBottom: spacing.md }}>
+            <View style={s.detailMetaGrid}>
+              {rows.map((r) => (
+                <View key={r.label} style={s.detailMetaCell}>
+                  <Text style={s.detailMetaLabel}>{r.label}</Text>
+                  <Text style={s.detailMetaValue}>{r.value}</Text>
+                </View>
+              ))}
+            </View>
+            {item.properties && item.properties.length > 0 ? (
+              <View style={{ marginTop: spacing.sm }}>
+                <Text style={s.detailMetaLabel}>Properties</Text>
+                {item.properties.map((p, i) => (
+                  <Text key={i} style={s.detailBullet}>• {p}</Text>
+                ))}
+              </View>
+            ) : null}
+            {item.notes ? (
+              <View style={{ marginTop: spacing.sm }}>
+                <Text style={s.detailMetaLabel}>Notes</Text>
+                <Text style={s.detailNotes}>{item.notes}</Text>
+              </View>
+            ) : null}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -255,39 +374,43 @@ function CoinCell({ label, value, color, editable, onChange }: {
   label: string; value: number; color: string; editable: boolean;
   onChange: (v: number) => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  // Always-rendered TextInput. The previous tap-to-edit pattern wrapped
+  // the cell in TouchableOpacity and only mounted the TextInput on
+  // `editing=true` — on mobile, the press-then-autoFocus handshake
+  // routinely failed (the keyboard never opened), making it impossible
+  // to edit gold. Keeping the input always mounted lets the user tap
+  // directly into it.
   const [text, setText] = useState(String(value));
+  useEffect(() => { setText(String(value)); }, [value]);
 
   function commit() {
-    setEditing(false);
     const parsed = parseInt(text, 10);
-    if (!isNaN(parsed) && parsed >= 0) onChange(parsed);
-    else setText(String(value));
+    if (!isNaN(parsed) && parsed >= 0) {
+      if (parsed !== value) onChange(parsed);
+    } else {
+      setText(String(value));
+    }
   }
 
   return (
-    <TouchableOpacity
-      style={s.coinCell}
-      onPress={() => editable && setEditing(true)}
-      activeOpacity={editable ? 0.7 : 1}
-    >
+    <View style={s.coinCell}>
       <View style={[s.coinDot, { backgroundColor: color }]} />
-      {editing ? (
+      {editable ? (
         <TextInput
           style={s.coinInput}
           value={text}
           onChangeText={setText}
           onBlur={commit}
           onSubmitEditing={commit}
-          keyboardType="numeric"
-          autoFocus
+          keyboardType="number-pad"
           selectTextOnFocus
+          returnKeyType="done"
         />
       ) : (
         <Text style={s.coinValue}>{value}</Text>
       )}
       <Text style={s.coinLabel}>{label}</Text>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -436,4 +559,39 @@ const s = StyleSheet.create({
   editablePlaceholder: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic', lineHeight: 17 },
   editableInput: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurface, lineHeight: 17 },
   editableInputMulti: { minHeight: 60 },
+
+  // Detail modal
+  detailBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  detailCard: {
+    width: '100%', maxWidth: 480, maxHeight: '80%',
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.xl,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    padding: spacing.md,
+  },
+  detailHeader: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    justifyContent: 'space-between', gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  detailTitle: {
+    flex: 1, fontSize: 16, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
+  },
+  detailMetaGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  detailMetaCell: { minWidth: 100, paddingVertical: 4 },
+  detailMetaLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+  },
+  detailMetaValue: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurface, marginTop: 2 },
+  detailBullet: { fontSize: 12, color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 2 },
+  detailNotes: { fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 19, marginTop: 4 },
 });

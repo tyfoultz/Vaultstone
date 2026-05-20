@@ -53,12 +53,14 @@ export function ItemPickerModal({
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [previewKey, setPreviewKey] = useState<string | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setSearch('');
     setCategory('all');
     setPreviewKey(null);
+    setCustomOpen(false);
     if (_itemCache && _itemCache.key === cacheKey && Date.now() - _itemCache.ts < ITEM_CACHE_TTL) {
       setList(_itemCache.items);
       setLoading(false);
@@ -101,12 +103,19 @@ export function ItemPickerModal({
     onClose();
   }
 
+  function commitCustom(custom: Dnd5eEquipmentItem) {
+    onPick(custom);
+    onClose();
+  }
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose}>
         <Pressable style={s.card} onPress={() => {}}>
           <View style={s.header}>
-            <Text style={s.title} numberOfLines={1}>{preview ? preview.name : 'Add equipment'}</Text>
+            <Text style={s.title} numberOfLines={1}>
+              {customOpen ? 'Custom item' : preview ? preview.name : 'Add equipment'}
+            </Text>
             <TouchableOpacity onPress={onClose} hitSlop={10}>
               <MaterialCommunityIcons name="close" size={22} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
@@ -116,6 +125,11 @@ export function ItemPickerModal({
             <View style={s.loadingWrap}>
               <ActivityIndicator color={colors.primary} />
             </View>
+          ) : customOpen ? (
+            <CustomItemForm
+              onBack={() => setCustomOpen(false)}
+              onCommit={commitCustom}
+            />
           ) : preview ? (
             <ItemDetail item={preview} onBack={() => setPreviewKey(null)} onPick={() => commit(preview)} />
           ) : (
@@ -141,6 +155,15 @@ export function ItemPickerModal({
                   />
                 ))}
               </ScrollView>
+
+              <TouchableOpacity
+                style={s.customAddBtn}
+                onPress={() => setCustomOpen(true)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="plus-circle-outline" size={14} color={colors.primary} />
+                <Text style={s.customAddText}>Add custom item</Text>
+              </TouchableOpacity>
 
               <ScrollView style={s.list} contentContainerStyle={{ paddingBottom: spacing.md }}>
                 {filtered.length === 0 ? (
@@ -241,7 +264,7 @@ function DetailMeta({ label, value }: { label: string; value: string }) {
 // the sheet needs. Anything we can't parse falls through to `notes`
 // so the player still sees the original prose.
 export function itemResultToEquipment(item: ItemResult): Dnd5eEquipmentItem {
-  const slot = mapCategoryToSlot(item.category);
+  const slot = mapItemToSlot(item);
   const props = item.properties ?? [];
 
   // Find the damage line for weapons. Patterns the catalog ships:
@@ -312,6 +335,7 @@ export function itemResultToEquipment(item: ItemResult): Dnd5eEquipmentItem {
     acBase,
     dexCap,
     acBonus,
+    miscACBonus: parseMagicACBonus(item),
     properties: flavorProps.length > 0 ? flavorProps : undefined,
     notes: item.description?.slice(0, 240),
     weight: item.weight,
@@ -320,13 +344,185 @@ export function itemResultToEquipment(item: ItemResult): Dnd5eEquipmentItem {
   };
 }
 
-function mapCategoryToSlot(category: ItemResult['category']): EquipmentSlot {
-  switch (category) {
+/**
+ * Pick the equipment slot for a catalog item. Mundane items map by
+ * category. Magic items carry their physical form on `data.magicItemKind`
+ * (set by the SRD/imported-content transforms): a "Plate Armor +1"
+ * lands as category='magic-item' but kind='armor', so we route it to
+ * the armor slot so it actually contributes to AC.
+ */
+function mapItemToSlot(item: ItemResult): EquipmentSlot {
+  if (item.category === 'magic-item') {
+    const kind = (item as { data?: { magicItemKind?: string | null } }).data?.magicItemKind;
+    if (kind === 'armor') return 'armor';
+    if (kind === 'shield') return 'shield';
+    if (kind === 'weapon') return 'weapon';
+    return 'other';
+  }
+  switch (item.category) {
     case 'weapon': return 'weapon';
     case 'armor': return 'armor';
     case 'shield': return 'shield';
     default: return 'other';
   }
+}
+
+/**
+ * Look for a numeric AC bonus in a magic item's description / properties.
+ * Covers Cloak of Protection ("+1 bonus to AC"), Ring of Protection,
+ * Bracers of Defense ("AC ... increase by 2"), and the +N suffix
+ * convention for magic armor/shields/weapons. Returns undefined when
+ * nothing matches — non-AC items should leave the field unset.
+ */
+function parseMagicACBonus(item: ItemResult): number | undefined {
+  if (item.category !== 'magic-item') return undefined;
+  const haystack = `${item.description ?? ''} ${(item.properties ?? []).join(' ')}`;
+  const patterns: RegExp[] = [
+    /\+\s*(\d+)\s+bonus to (?:your\s+)?(?:AC|Armor Class)/i,
+    /\+\s*(\d+)\s+to (?:your\s+)?(?:AC|Armor Class)/i,
+    /bonus to (?:your\s+)?(?:AC|Armor Class)(?:[^.]*?)of\s+\+?\s*(\d+)/i,
+    /(?:AC|Armor Class)(?:[^.]*?)(?:increases?|increased)\s+by\s+(\d+)/i,
+  ];
+  for (const re of patterns) {
+    const m = haystack.match(re);
+    if (m) return parseInt(m[1], 10);
+  }
+  // Fall back to a "+N" suffix on the item name — the conventional
+  // form for magic armor/shields/weapons ("Plate Armor +1").
+  const nameMatch = item.name.match(/\+\s*(\d+)\s*$/);
+  if (nameMatch) return parseInt(nameMatch[1], 10);
+  return undefined;
+}
+
+// Lets players add one-off items the SRD doesn't ship (DM-granted
+// quest items, custom homebrew gear, etc.) without round-tripping
+// through the homebrew pack authoring flow. The fields mirror the
+// ones GearTab actually displays, so anything entered here renders
+// the same way a catalog pick does.
+function CustomItemForm({
+  onBack,
+  onCommit,
+}: {
+  onBack: () => void;
+  onCommit: (item: Dnd5eEquipmentItem) => void;
+}) {
+  const [name, setName] = useState('');
+  const [slot, setSlot] = useState<EquipmentSlot>('other');
+  const [damage, setDamage] = useState('');
+  const [acBase, setAcBase] = useState('');
+  const [weight, setWeight] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const canCommit = name.trim().length > 0;
+
+  function build(): Dnd5eEquipmentItem {
+    const weightNum = weight ? parseFloat(weight) : undefined;
+    const acBaseNum = acBase ? parseInt(acBase, 10) : undefined;
+    return {
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: name.trim(),
+      slot,
+      equipped: false,
+      damage: slot === 'weapon' && damage.trim() ? damage.trim() : undefined,
+      acBase: slot === 'armor' && acBaseNum != null && !isNaN(acBaseNum) ? acBaseNum : undefined,
+      weight: weightNum != null && !isNaN(weightNum) ? weightNum : undefined,
+      notes: notes.trim() || undefined,
+      requiresAttunement: false,
+      attuned: false,
+    };
+  }
+
+  const SLOT_OPTIONS: Array<{ value: EquipmentSlot; label: string }> = [
+    { value: 'other', label: 'Gear' },
+    { value: 'weapon', label: 'Weapon' },
+    { value: 'armor', label: 'Armor' },
+    { value: 'shield', label: 'Shield' },
+  ];
+
+  return (
+    <ScrollView contentContainerStyle={s.detailWrap} keyboardShouldPersistTaps="handled">
+      <Pressable onPress={onBack} style={s.backLink}>
+        <MaterialCommunityIcons name="chevron-left" size={16} color={colors.onSurfaceVariant} />
+        <Text style={s.backText}>Back to catalog</Text>
+      </Pressable>
+
+      <Text style={s.fieldLabel}>Name</Text>
+      <TextInput
+        style={s.fieldInput}
+        value={name}
+        onChangeText={setName}
+        placeholder="Heirloom dagger, signet ring, lockpicks…"
+        placeholderTextColor={colors.outline}
+      />
+
+      <Text style={s.fieldLabel}>Slot</Text>
+      <View style={s.chipsRow}>
+        {SLOT_OPTIONS.map((opt) => (
+          <Chip
+            key={opt.value}
+            label={opt.label}
+            active={slot === opt.value}
+            onPress={() => setSlot(opt.value)}
+          />
+        ))}
+      </View>
+
+      {slot === 'weapon' && (
+        <>
+          <Text style={s.fieldLabel}>Damage</Text>
+          <TextInput
+            style={s.fieldInput}
+            value={damage}
+            onChangeText={setDamage}
+            placeholder="1d8 slashing"
+            placeholderTextColor={colors.outline}
+          />
+        </>
+      )}
+
+      {slot === 'armor' && (
+        <>
+          <Text style={s.fieldLabel}>Base AC</Text>
+          <TextInput
+            style={s.fieldInput}
+            value={acBase}
+            onChangeText={setAcBase}
+            placeholder="14"
+            placeholderTextColor={colors.outline}
+            keyboardType="number-pad"
+          />
+        </>
+      )}
+
+      <Text style={s.fieldLabel}>Weight (lb)</Text>
+      <TextInput
+        style={s.fieldInput}
+        value={weight}
+        onChangeText={setWeight}
+        placeholder="0"
+        placeholderTextColor={colors.outline}
+        keyboardType="decimal-pad"
+      />
+
+      <Text style={s.fieldLabel}>Notes</Text>
+      <TextInput
+        style={[s.fieldInput, s.fieldInputMulti]}
+        value={notes}
+        onChangeText={setNotes}
+        placeholder="Description, flavor, mechanics…"
+        placeholderTextColor={colors.outline}
+        multiline
+      />
+
+      <TouchableOpacity
+        style={[s.commitBtn, !canCommit && s.commitBtnDisabled]}
+        onPress={canCommit ? () => onCommit(build()) : undefined}
+        activeOpacity={canCommit ? 0.85 : 1}
+      >
+        <Text style={s.commitText}>Add item</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
 }
 
 const s = StyleSheet.create({
@@ -370,7 +566,11 @@ const s = StyleSheet.create({
   chipText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
   chipTextActive: { color: colors.onPrimary },
 
-  list: { maxHeight: '60%' },
+  // Lets the list grow to fill available card height when there's a lot
+  // of content, and stay snug to its content when the result set is
+  // short. Without this, an old `maxHeight: '60%'` left ~25% of the
+  // modal blank below short lists.
+  list: { flexShrink: 1, minHeight: 0 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingVertical: 10, paddingHorizontal: 6,
@@ -405,5 +605,35 @@ const s = StyleSheet.create({
     paddingVertical: 12, borderRadius: radius.lg,
     alignItems: 'center',
   },
+  commitBtnDisabled: { backgroundColor: colors.surfaceContainerHigh },
   commitText: { fontSize: 14, fontFamily: fonts.label, fontWeight: '700', color: colors.onPrimary, letterSpacing: 0.5 },
+
+  customAddBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 8, paddingHorizontal: 10,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderStyle: 'dashed',
+    backgroundColor: colors.surfaceContainer,
+    alignSelf: 'flex-start',
+    marginBottom: spacing.sm,
+  },
+  customAddText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.3,
+  },
+
+  fieldLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+    marginTop: spacing.sm, marginBottom: 4,
+  },
+  fieldInput: {
+    fontSize: 13, fontFamily: fonts.body, color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    paddingHorizontal: 12, paddingVertical: 9,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  fieldInputMulti: { minHeight: 64, textAlignVertical: 'top' },
 });
