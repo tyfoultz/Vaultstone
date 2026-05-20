@@ -1491,8 +1491,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     // attunement is just a cloak.
     const isEffective = (e: Dnd5eEquipmentItem) =>
       e.equipped && (!e.requiresAttunement || !!e.attuned);
-    const armor = equipment.find((e) => e.slot === 'armor' && e.equipped);
-    const shield = equipment.find((e) => e.slot === 'shield' && e.equipped);
+    // Heal a known upstream data bug: Open5e ships the SRD 2024 Shield
+    // as category='armor' with properties ['AC 2', 'Heavy Armor'], so
+    // any character that picked the Shield via the catalog before the
+    // mapping fix landed has it persisted with slot='armor'. Treat any
+    // equipped item named "Shield" as the shield slot for AC purposes,
+    // even when its stored slot says otherwise.
+    const looksLikeShield = (e: Dnd5eEquipmentItem) =>
+      e.slot === 'shield' || (e.slot === 'armor' && /^shield$/i.test(e.name.trim()));
+    const looksLikeArmor = (e: Dnd5eEquipmentItem) =>
+      e.slot === 'armor' && !looksLikeShield(e);
+    const armor = equipment.find((e) => looksLikeArmor(e) && e.equipped);
+    const shield = equipment.find((e) => looksLikeShield(e) && e.equipped);
     let base = 10 + abilityMod(scores.dexterity);
     if (armor) {
       const dexMod = abilityMod(scores.dexterity);

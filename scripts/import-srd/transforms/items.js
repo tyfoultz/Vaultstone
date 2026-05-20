@@ -175,12 +175,24 @@ function transformOne(item) {
   if (!srdVersion) return null;
 
   const sourceCategory = item.category?.key;
-  const ourCategory = CATEGORY_MAP[sourceCategory];
+  let ourCategory = CATEGORY_MAP[sourceCategory];
   if (!ourCategory) return null;
+
+  // Open5e SRD 2024 quirk: the Shield entry is labeled category='armor'
+  // with armor.category='heavy' and ac_display='2'. That's clearly an
+  // upstream data bug — it's the shield, not heavy armor. Reclassify by
+  // exact name so AC math + catalog filter chips both work. The 5.1
+  // dataset has it correctly as category='shield' and is unaffected.
+  if (ourCategory === 'armor' && /^shield$/i.test((item.name ?? '').trim())) {
+    ourCategory = 'shield';
+  }
 
   let properties = [];
   if (ourCategory === 'weapon') properties = weaponProperties(item);
-  else if (ourCategory === 'armor' || ourCategory === 'shield') properties = armorProperties(item);
+  else if (ourCategory === 'armor') properties = armorProperties(item);
+  // Shields don't get the "AC 2 / Heavy Armor" lines — those are
+  // misleading once routed to the shield category. The base +2 shield
+  // bonus is the SRD default and the runtime applies it.
 
   const slug = slugify(item.name);
   const out = {

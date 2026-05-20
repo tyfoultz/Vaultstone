@@ -323,6 +323,10 @@ export function itemResultToEquipment(item: ItemResult): Dnd5eEquipmentItem {
     if (/damage/i.test(p)) continue;
     if (/^ac\s+/i.test(p)) continue;
     if (/^mastery/i.test(p)) continue;
+    // The Open5e SRD 2024 Shield (misclassified as armor) ships
+    // properties=["AC 2", "Heavy Armor"]. Once we route it to the
+    // shield slot, the "Heavy Armor" tag is wrong and confusing.
+    if (slot === 'shield' && /^(heavy|medium|light)\s+armor$/i.test(p)) continue;
     flavorProps.push(p);
   }
 
@@ -350,8 +354,15 @@ export function itemResultToEquipment(item: ItemResult): Dnd5eEquipmentItem {
  * (set by the SRD/imported-content transforms): a "Plate Armor +1"
  * lands as category='magic-item' but kind='armor', so we route it to
  * the armor slot so it actually contributes to AC.
+ *
+ * Open5e SRD 2024 data quirk: the Shield entry ships as
+ * category='armor' with properties=["AC 2", "Heavy Armor"] — clearly
+ * an upstream data bug (it's a shield, not heavy armor). Detect by
+ * exact name and re-route to the shield slot so the +2 actually
+ * applies. The 5.1 dataset has it correctly as category='shield'.
  */
 function mapItemToSlot(item: ItemResult): EquipmentSlot {
+  if (item.category === 'armor' && /^shield$/i.test(item.name.trim())) return 'shield';
   if (item.category === 'magic-item') {
     const kind = (item as { data?: { magicItemKind?: string | null } }).data?.magicItemKind;
     if (kind === 'armor') return 'armor';

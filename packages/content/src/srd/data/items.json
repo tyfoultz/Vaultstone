@@ -2145,28 +2145,6 @@
     "data": {}
   },
   {
-    "key": "shield-srd-2-0",
-    "name": "Shield",
-    "type": "item",
-    "tier": "srd",
-    "system": "dnd5e",
-    "srdVersions": [
-      "SRD_2.0"
-    ],
-    "category": "armor",
-    "cost": {
-      "amount": 10,
-      "currency": "gp"
-    },
-    "weight": 6,
-    "properties": [
-      "AC 2",
-      "Heavy Armor"
-    ],
-    "description": "A shield.",
-    "data": {}
-  },
-  {
     "key": "splint-armor-srd-2-0",
     "name": "Splint Armor",
     "type": "item",
@@ -2484,6 +2462,24 @@
       "Light Armor"
     ],
     "description": "Made from tough but flexible leather, studded leather is reinforced with close-set rivets or spikes.",
+    "data": {}
+  },
+  {
+    "key": "shield-srd-2-0",
+    "name": "Shield",
+    "type": "item",
+    "tier": "srd",
+    "system": "dnd5e",
+    "srdVersions": [
+      "SRD_2.0"
+    ],
+    "category": "shield",
+    "cost": {
+      "amount": 10,
+      "currency": "gp"
+    },
+    "weight": 6,
+    "description": "A shield.",
     "data": {}
   },
   {
