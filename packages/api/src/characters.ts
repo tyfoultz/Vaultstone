@@ -35,9 +35,22 @@ export async function getCharacters(campaignId: string) {
 
 /** Fetch all characters owned by the currently authenticated user. */
 export async function getMyCharacters() {
+  // Explicit user_id filter — relying on RLS alone would also surface
+  // party-mates' characters now that campaign members can read each
+  // other's linked rows. The Characters list is strictly "mine"; the
+  // party tab uses a different fetch path that wants the full party.
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return supabase
+      .from('characters')
+      .select('*')
+      .eq('user_id', '00000000-0000-0000-0000-000000000000')
+      .order('created_at', { ascending: false });
+  }
   return supabase
     .from('characters')
     .select('*')
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 }
 
