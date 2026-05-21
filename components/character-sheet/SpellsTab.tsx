@@ -36,6 +36,10 @@ interface Props {
   scores: Dnd5eAbilityScores;
   prof: number;
   isOwner: boolean;
+  /** Manual mode reveals limit-edit affordances + applies any
+   *  cantripsKnown/preparedSpells overrides on the stats record. */
+  manualMode?: boolean;
+  onEditField?: (field: string, currentValue: string | number) => void;
   effectiveSpellcastingAbility?: string | null;
   onSpellSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
   onConcentrationClear?: () => void;
@@ -86,7 +90,8 @@ interface Props {
 }
 
 export function SpellsTab({
-  stats, resources, scores, prof, isOwner, effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
+  stats, resources, scores, prof, isOwner, manualMode, onEditField,
+  effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
   onOpenManage, spellbook, onTogglePrepared, onToggleAlwaysPrepared, spellcastingExplainers,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
@@ -188,14 +193,24 @@ export function SpellsTab({
   // the daily prepare cap — that's the whole reason 5e ships them as
   // a separate concept.
   const totalLeveledPrepared = preparedSpells.filter((s) => s.level > 0 && !s.alwaysPrepared).length;
-  const cantripLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
+  const computedCantripLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
     (acc, ex) => ex.cantripsKnown !== undefined ? (acc ?? 0) + ex.cantripsKnown : acc,
     undefined,
   );
-  const preparedLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
+  const computedPreparedLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
     (acc, ex) => ex.spellsKnownOrPrepared !== undefined ? (acc ?? 0) + ex.spellsKnownOrPrepared : acc,
     undefined,
   );
+  // Manual-mode override pattern, same shape as the AC fix: stored
+  // override applies only while Manual Mode is on. Off → fall back to
+  // computed. Off-mode characters can't silently inherit a stale
+  // override from an earlier Manual Mode session.
+  const cantripLimit = manualMode && stats.cantripsKnownOverride != null
+    ? stats.cantripsKnownOverride
+    : computedCantripLimit;
+  const preparedLimit = manualMode && stats.preparedSpellsOverride != null
+    ? stats.preparedSpellsOverride
+    : computedPreparedLimit;
 
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
@@ -213,7 +228,14 @@ export function SpellsTab({
             <Text style={s.statLabel}>SAVE DC</Text>
           </View>
           <View style={s.statDivider} />
-          <View style={s.statBlock}>
+          <TouchableOpacity
+            style={s.statBlock}
+            disabled={!manualMode || !onEditField}
+            onPress={manualMode && onEditField
+              ? () => onEditField('cantripsLimit', cantripLimit ?? totalCantripsKnown)
+              : undefined}
+            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+          >
             <Text style={[
               s.statValue,
               cantripLimit !== undefined && totalCantripsKnown >= cantripLimit && s.statValueAtLimit,
@@ -223,9 +245,16 @@ export function SpellsTab({
                 : String(totalCantripsKnown)}
             </Text>
             <Text style={s.statLabel}>CANTRIPS</Text>
-          </View>
+          </TouchableOpacity>
           <View style={s.statDivider} />
-          <View style={s.statBlock}>
+          <TouchableOpacity
+            style={s.statBlock}
+            disabled={!manualMode || !onEditField}
+            onPress={manualMode && onEditField
+              ? () => onEditField('preparedLimit', preparedLimit ?? totalLeveledPrepared)
+              : undefined}
+            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+          >
             <Text style={[
               s.statValue,
               preparedLimit !== undefined && totalLeveledPrepared >= preparedLimit && s.statValueAtLimit,
@@ -235,7 +264,7 @@ export function SpellsTab({
                 : String(totalLeveledPrepared)}
             </Text>
             <Text style={s.statLabel}>PREPARED</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       )}
 

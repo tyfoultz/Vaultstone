@@ -145,6 +145,15 @@ export interface Dnd5eStats {
   acOverride?: number;
   /** Manual-mode override for initiative bonus. */
   initiativeOverride?: number;
+  /** Manual-mode override for the cantrips-known limit. Useful for
+   *  subclass / feat / item grants that the class table doesn't
+   *  capture (e.g. Aberrant Mind extra cantrip via origin spells). */
+  cantripsKnownOverride?: number;
+  /** Manual-mode override for the prepared-spells limit (also stands
+   *  in for "spells known" on known-list classes). Useful for the same
+   *  grant cases above plus homebrew classes that don't ship a
+   *  progression table. */
+  preparedSpellsOverride?: number;
 
   /** Skills with expertise (double proficiency bonus). */
   skillExpertise?: string[];

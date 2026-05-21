@@ -1108,6 +1108,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   }
   const equipment: Dnd5eEquipmentItem[] = (resources?.equipment ?? []).map(hydrateEquipment);
   const computedAC = scores ? getEquippedAC() : 10;
+  // Class-table-derived spell limits, before any manual override.
+  // Surfaced into the Manage Spells modal and into the AC-style edit
+  // modal's "Computed from class: N" hint when the player taps the
+  // CANTRIPS / PREPARED stat in Manual Mode.
+  const baseSpellLimits = stats ? computeSpellLimits(stats, classResultsByKey) : { cantrips: undefined, spellbook: undefined, prepared: undefined };
   // Manual-mode overrides only apply when Manual Mode is actually on.
   // Without this gate, a stray value typed once stays as a silent
   // override forever — exactly the playtest bug where Oswald's AC was
@@ -1473,6 +1478,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     } else if (editingField === 'initiative') {
       const { initiativeOverride, ...rest } = stats;
       persistStats(rest as Dnd5eStats);
+    } else if (editingField === 'cantripsLimit') {
+      const { cantripsKnownOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
+    } else if (editingField === 'preparedLimit') {
+      const { preparedSpellsOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
     }
     setEditingField(null);
   }
@@ -1504,6 +1515,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       const signed = parseInt(val, 10);
       if (isNaN(signed)) { setEditingField(null); return; }
       persistStats({ ...stats, initiativeOverride: signed });
+    } else if (editingField === 'cantripsLimit') {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      persistStats({ ...stats, cantripsKnownOverride: num });
+    } else if (editingField === 'preparedLimit') {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      persistStats({ ...stats, preparedSpellsOverride: num });
     } else if (editingField === 'hpMax') {
       if (isNaN(num) || num < 1) { setEditingField(null); return; }
       persistStats({ ...stats, hpMax: num });
@@ -1866,6 +1883,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             scores={scores}
             prof={prof}
             isOwner={isOwner}
+            manualMode={manualMode}
+            onEditField={manualMode ? startEditField : undefined}
             effectiveSpellcastingAbility={getEffectiveSpellcastingAbility(stats, classResultsByKey, subclassResultsByKey)}
             onSpellSlotChange={(level, delta) => {
               if (!resources.spellSlots) return;
@@ -2748,6 +2767,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 : editingField === 'ac' ? 'Edit Armor Class'
                 : editingField === 'initiative' ? 'Edit Initiative'
                 : editingField === 'hpMax' ? 'Edit HP Max'
+                : editingField === 'cantripsLimit' ? 'Edit Cantrips Known'
+                : editingField === 'preparedLimit' ? 'Edit Spells Prepared'
                 : `Edit ${editingField ? (ABILITY_SHORT[editingField as keyof Dnd5eAbilityScores] || capitalize(editingField)) : ''}`}
             </Text>
             {editingField === 'hpCurrent' ? (
@@ -2819,10 +2840,35 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   : ''}
               </Text>
             )}
+            {editingField === 'cantripsLimit' && (
+              <Text style={s.fieldHint}>
+                {baseSpellLimits.cantrips !== undefined
+                  ? `Computed from class: ${baseSpellLimits.cantrips}`
+                  : 'No class table value — set a custom cap.'}
+                {stats?.cantripsKnownOverride != null && stats.cantripsKnownOverride !== baseSpellLimits.cantrips
+                  ? `  ·  override active (${stats.cantripsKnownOverride})`
+                  : ''}
+              </Text>
+            )}
+            {editingField === 'preparedLimit' && (
+              <Text style={s.fieldHint}>
+                {baseSpellLimits.prepared !== undefined
+                  ? `Computed from class: ${baseSpellLimits.prepared}`
+                  : baseSpellLimits.spellbook !== undefined
+                    ? `Computed from class: ${baseSpellLimits.spellbook} (known)`
+                    : 'No class table value — set a custom cap.'}
+                {stats?.preparedSpellsOverride != null
+                  && stats.preparedSpellsOverride !== baseSpellLimits.prepared
+                  && stats.preparedSpellsOverride !== baseSpellLimits.spellbook
+                  ? `  ·  override active (${stats.preparedSpellsOverride})`
+                  : ''}
+              </Text>
+            )}
             <View style={s.fieldBtnRow}>
-              {(editingField === 'ac' || editingField === 'initiative') &&
-                ((editingField === 'ac' && stats?.acOverride != null) ||
-                 (editingField === 'initiative' && stats?.initiativeOverride != null)) && (
+              {((editingField === 'ac' && stats?.acOverride != null)
+                || (editingField === 'initiative' && stats?.initiativeOverride != null)
+                || (editingField === 'cantripsLimit' && stats?.cantripsKnownOverride != null)
+                || (editingField === 'preparedLimit' && stats?.preparedSpellsOverride != null)) && (
                 <TouchableOpacity style={s.fieldResetBtn} onPress={resetEditField}>
                   <Text style={s.fieldResetBtnText}>Reset to computed</Text>
                 </TouchableOpacity>
@@ -3067,7 +3113,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           ]}
           existingKeys={new Set(getSpellbook(resources).map((s) => s.id))}
           existingSpells={getSpellbook(resources)}
-          spellLimits={computeSpellLimits(stats, classResultsByKey)}
+          spellLimits={{
+            ...baseSpellLimits,
+            ...(manualMode && stats?.cantripsKnownOverride != null
+              ? { cantrips: stats.cantripsKnownOverride } : {}),
+            ...(manualMode && stats?.preparedSpellsOverride != null
+              ? { prepared: stats.preparedSpellsOverride } : {}),
+          }}
           campaignId={character?.campaign_id ?? null}
           packIds={character?.pack_ids ?? []}
           srdVersion={stats.srdVersion}
