@@ -64,6 +64,10 @@ interface Props {
    *  resources.preparedSpells with alwaysPrepared=true (or strips the
    *  flag when toggled off). */
   onToggleAlwaysPrepared?: (spell: Dnd5ePreparedSpell) => void;
+  /** Update a spell's player notes (kept separate from the canonical
+   *  description). Caller persists the merged spell into preparedSpells
+   *  / spellbook. */
+  onSaveSpellNotes?: (spell: Dnd5ePreparedSpell, notes: string) => void;
   /** Per-class spellcasting explainer payload — drives the "How
    *  spellcasting works" panel. One entry per spellcasting class the
    *  character has a level in; empty for non-casters. The synthesized
@@ -92,7 +96,7 @@ interface Props {
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, manualMode, onEditField,
   effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
-  onOpenManage, spellbook, onTogglePrepared, onToggleAlwaysPrepared, spellcastingExplainers,
+  onOpenManage, spellbook, onTogglePrepared, onToggleAlwaysPrepared, onSaveSpellNotes, spellcastingExplainers,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
   const { width } = useWindowDimensions();
@@ -458,6 +462,7 @@ export function SpellsTab({
               prepared={true}
               alwaysPrepared={false}
               canToggle={false}
+              onSaveNotes={isOwner && onSaveSpellNotes ? (notes) => onSaveSpellNotes(spell, notes) : undefined}
             />
           ))}
         </View>
@@ -504,6 +509,7 @@ export function SpellsTab({
                 onToggleAlwaysPrepared={isOwner && onToggleAlwaysPrepared ? () => onToggleAlwaysPrepared(spell) : undefined}
                 togglesBlocked={!prep && atLimit}
                 onCast={isOwner && onSpellSlotChange ? () => onSpellSlotChange(level, -1) : undefined}
+                onSaveNotes={isOwner && onSaveSpellNotes ? (notes) => onSaveSpellNotes(spell, notes) : undefined}
               />
             );
           })}
@@ -641,7 +647,7 @@ function ordinal(n: number): string {
 }
 
 function SpellRow({
-  spell, slot, prepared, alwaysPrepared, canToggle, onTogglePrepared, onToggleAlwaysPrepared, togglesBlocked, onCast,
+  spell, slot, prepared, alwaysPrepared, canToggle, onTogglePrepared, onToggleAlwaysPrepared, togglesBlocked, onCast, onSaveNotes,
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
@@ -652,8 +658,14 @@ function SpellRow({
   onToggleAlwaysPrepared?: () => void;
   togglesBlocked?: boolean;
   onCast?: () => void;
+  onSaveNotes?: (notes: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // Local draft so the user can edit notes without persisting every
+  // keystroke — commits on blur or when the row collapses.
+  const [notesDraft, setNotesDraft] = useState<string | null>(null);
+  const notesActive = notesDraft !== null;
+  const notesValue = notesActive ? notesDraft! : (spell.notes ?? '');
   const isCantrip = spell.level === 0;
   const canCast = prepared && (isCantrip || (slot?.remaining ?? 0) > 0);
   // Cap-blocked applies only to the "newly prepare" direction. Once
@@ -792,6 +804,35 @@ function SpellRow({
               No description on file — re-add this spell through Manage Spells to fetch the latest text.
             </Text>
           )}
+
+          {/* Player notes — RP flavor, table rulings, "use against
+              undead" reminders. Lives separately from the catalog
+              description so editing here never overwrites the
+              upstream text. */}
+          {onSaveNotes ? (
+            <View style={s.spellNotesBox}>
+              <Text style={s.spellNotesLabel}>NOTES</Text>
+              <TextInput
+                style={s.spellNotesInput}
+                value={notesValue}
+                onChangeText={(t) => setNotesDraft(t)}
+                onBlur={() => {
+                  if (notesDraft !== null) {
+                    onSaveNotes(notesDraft);
+                    setNotesDraft(null);
+                  }
+                }}
+                placeholder="Add a personal note…"
+                placeholderTextColor={colors.outline}
+                multiline
+              />
+            </View>
+          ) : spell.notes ? (
+            <View style={s.spellNotesBox}>
+              <Text style={s.spellNotesLabel}>NOTES</Text>
+              <Text style={s.spellNotesText}>{spell.notes}</Text>
+            </View>
+          ) : null}
         </>
       ) : null}
     </View>
@@ -1111,6 +1152,25 @@ const s = StyleSheet.create({
     fontSize: 12, lineHeight: 18,
     color: colors.outline, fontFamily: fonts.body, fontStyle: 'italic',
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  spellNotesBox: {
+    marginTop: 10, paddingHorizontal: 10, paddingVertical: 8,
+    borderRadius: 8,
+    borderLeftWidth: 2, borderLeftColor: colors.primary,
+    backgroundColor: `${colors.primary}10`,
+  },
+  spellNotesLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.primary, marginBottom: 4,
+  },
+  spellNotesText: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurface,
+    lineHeight: 18, fontStyle: 'italic',
+  },
+  spellNotesInput: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurface,
+    lineHeight: 18, fontStyle: 'italic',
+    minHeight: 30, padding: 0,
   },
 
   // Empty

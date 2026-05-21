@@ -594,6 +594,12 @@ function FeatureCard({ feature, accent, canEdit, onEdit, onUse }: {
           {feature.description ? (
             <Text style={s.featureDesc}>{feature.description}</Text>
           ) : null}
+          {feature.notes ? (
+            <View style={s.featureNotesBox}>
+              <Text style={s.featureNotesLabel}>NOTES</Text>
+              <Text style={s.featureNotesText}>{feature.notes}</Text>
+            </View>
+          ) : null}
           {feature.uses && (
             <View style={s.usesRow}>
               <View style={s.pipsRow}>
@@ -888,6 +894,20 @@ const s = StyleSheet.create({
   featureDesc: {
     fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant,
     lineHeight: 18, marginTop: 10,
+  },
+  featureNotesBox: {
+    marginTop: 10, paddingHorizontal: 10, paddingVertical: 8,
+    borderRadius: radius.lg,
+    borderLeftWidth: 2, borderLeftColor: colors.primary,
+    backgroundColor: `${colors.primary}10`,
+  },
+  featureNotesLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.primary, marginBottom: 4,
+  },
+  featureNotesText: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurface,
+    lineHeight: 18, fontStyle: 'italic',
   },
 
   usesRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 12 },

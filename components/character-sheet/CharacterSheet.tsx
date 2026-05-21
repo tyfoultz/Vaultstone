@@ -17,7 +17,7 @@ import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, 
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius, ImageCropModal } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
-import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult, SkillResult, ItemResult } from '@vaultstone/types';
+import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, Dnd5ePreparedSpell, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult, SkillResult, ItemResult } from '@vaultstone/types';
 import { getClassEntries, getSpellbook } from '@vaultstone/types';
 import { HpModal } from './HpModal';
 import { ConditionsPanel } from './ConditionsPanel';
@@ -2011,6 +2011,23 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               persistResources({ ...resources, preparedSpells: next });
             }}
             spellcastingExplainers={spellcastingExplainersFor(stats, classResultsByKey, subclassResultsByKey)}
+            onSaveSpellNotes={(spell, notes) => {
+              // Player notes layer onto the spell entry. The spellbook
+              // is the master record (catalog spells live here too); we
+              // also mirror into preparedSpells when present, so both
+              // views show the latest text without a refetch.
+              const trimmed = notes.trim();
+              const noteVal = trimmed.length > 0 ? trimmed : undefined;
+              const patch = (sp: Dnd5ePreparedSpell) =>
+                sp.id === spell.id ? { ...sp, notes: noteVal } : sp;
+              const nextBook = getSpellbook(resources).map(patch);
+              const nextPrepared = (resources.preparedSpells ?? []).map(patch);
+              persistResources({
+                ...resources,
+                spellbook: nextBook,
+                preparedSpells: nextPrepared,
+              });
+            }}
           />
         );
       case 'skills':
@@ -3028,6 +3045,19 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   value={editFeature.description}
                   onChangeText={(t) => setEditFeature({ ...editFeature, description: t })}
                   placeholder="What does this feature do?"
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                />
+
+                <Text style={s.eqLabel}>Flavor / Notes</Text>
+                <TextInput
+                  style={[s.eqInput, { minHeight: 50, textAlignVertical: 'top' }]}
+                  value={editFeature.notes ?? ''}
+                  onChangeText={(t) => setEditFeature({
+                    ...editFeature,
+                    notes: t.length > 0 ? t : undefined,
+                  })}
+                  placeholder="Personal take, table rulings, RP flavor — kept separate from the description."
                   placeholderTextColor={colors.textSecondary}
                   multiline
                 />

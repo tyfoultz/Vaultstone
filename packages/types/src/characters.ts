@@ -277,6 +277,13 @@ export interface Dnd5eFeature {
   uses?: { current: number; max: number; recharge: 'short' | 'long' } | null;
   /** If set, surfaces this feature in the Combat tab Actions section */
   actionType?: 'action' | 'bonus' | 'reaction' | 'free';
+  /**
+   * Player-authored flavor / RP / table notes layered on top of the
+   * canonical description. Lives separately so editing the player's
+   * personal take doesn't overwrite the original feature text. Renders
+   * below the description on the trait card.
+   */
+  notes?: string;
 }
 
 export interface Dnd5eAbility {
