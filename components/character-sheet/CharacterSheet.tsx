@@ -363,7 +363,12 @@ function spellcastingExplainersFor(
 }
 
 function StatCell({ icon, value, label, color, centered, editable, onPress }: { icon: string; value: string; label: string; color: string; centered?: boolean; editable?: boolean; onPress?: () => void }) {
-  const Wrapper = editable && onPress ? TouchableOpacity : View;
+  // `onPress` alone makes the cell tappable (e.g. hit-die spend). The
+  // `editable` flag is reserved for manual-mode overrides — it adds
+  // the hashed-border edit-affordance treatment + the pencil glyph,
+  // signaling "tap to set a custom value". Action-only cells skip
+  // both decorations.
+  const Wrapper = onPress ? TouchableOpacity : View;
   return (
     <Wrapper style={[statCellStyle.cell, centered && statCellStyle.cellCentered, editable && statCellStyle.cellEditable]} onPress={onPress} activeOpacity={0.7}>
       <MaterialCommunityIcons name={icon as any} size={16} color={color} style={{ opacity: 0.75 }} />
@@ -2451,7 +2456,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     value={`${resources?.hitDiceRemaining ?? stats.level}/${stats.level}`}
                     label={`Hit Die · d${stats.hitDie}`}
                     color={colors.onSurface}
-                    editable={canEditAny && (resources?.hitDiceRemaining ?? stats.level) > 0}
                     onPress={canEditAny && (resources?.hitDiceRemaining ?? stats.level) > 0
                       ? () => setSpendHitDieOpen(true)
                       : undefined}
