@@ -96,7 +96,61 @@ export function ItemPickerModal({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [list, search, category]);
 
-  const preview = previewKey ? list.find((it) => it.key === previewKey) : null;
+  // Collapse magic-item variants into a single row. Open5e ships +N
+  // variants with names like "Longsword (+1)", "Longsword (+2)", and
+  // the mundane "Longsword" lives in items.json — same base item,
+  // different enhancement. Group by stripped base name + slot so the
+  // catalog isn't a wall of +N rows; the detail view exposes a chip
+  // picker to switch between variants.
+  const grouped = useMemo(() => {
+    const stripVariant = (name: string) => name.replace(/\s*\(\+\d+\)\s*$/, '').trim();
+    const parsePlus = (name: string): number => {
+      const m = name.match(/\(\+(\d+)\)\s*$/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+    const groupKey = (it: ItemResult) => {
+      const base = stripVariant(it.name).toLowerCase();
+      // Different slots → different objects (a Shield +1 isn't a
+      // Longsword +1), so include the resolved slot in the key.
+      return `${mapItemToSlot(it)}::${base}`;
+    };
+    const groups = new Map<string, { baseName: string; variants: ItemResult[] }>();
+    for (const it of filtered) {
+      const k = groupKey(it);
+      const cur = groups.get(k);
+      if (cur) cur.variants.push(it);
+      else groups.set(k, { baseName: stripVariant(it.name), variants: [it] });
+    }
+    // Sort variants by plus tier inside each group so the chip strip
+    // reads +0 → +1 → +2 → +3.
+    for (const g of groups.values()) {
+      g.variants.sort((a, b) => parsePlus(a.name) - parsePlus(b.name));
+    }
+    // Group order follows the picker's sort (alphabetical by base
+    // name). Lone groups behave like the old single-row entries.
+    return Array.from(groups.values())
+      .sort((a, b) => a.baseName.localeCompare(b.baseName));
+  }, [filtered]);
+
+  // When the player taps a row, the picker tracks which group is
+  // selected (by base key) and which variant within it is active.
+  // Defaults to the mundane (+0) variant if present, else the first.
+  const [variantPlus, setVariantPlus] = useState<number>(0);
+  useEffect(() => {
+    if (!previewKey) return;
+    setVariantPlus(0);
+  }, [previewKey]);
+
+  const previewGroup = previewKey
+    ? grouped.find((g) => g.variants.some((v) => v.key === previewKey))
+    : null;
+  const preview = previewGroup
+    ? previewGroup.variants.find((v) => {
+        const m = v.name.match(/\(\+(\d+)\)\s*$/);
+        const p = m ? parseInt(m[1], 10) : 0;
+        return p === variantPlus;
+      }) ?? previewGroup.variants[0]
+    : (previewKey ? list.find((it) => it.key === previewKey) : null);
 
   function commit(item: ItemResult) {
     onPick(itemResultToEquipment(item));
@@ -131,7 +185,14 @@ export function ItemPickerModal({
               onCommit={commitCustom}
             />
           ) : preview ? (
-            <ItemDetail item={preview} onBack={() => setPreviewKey(null)} onPick={() => commit(preview)} />
+            <ItemDetail
+              item={preview}
+              variants={previewGroup && previewGroup.variants.length > 1 ? previewGroup.variants : null}
+              selectedPlus={variantPlus}
+              onSelectPlus={setVariantPlus}
+              onBack={() => setPreviewKey(null)}
+              onPick={() => commit(preview)}
+            />
           ) : (
             <>
               <View style={s.searchRow}>
@@ -166,28 +227,37 @@ export function ItemPickerModal({
               </TouchableOpacity>
 
               <ScrollView style={s.list} contentContainerStyle={{ paddingBottom: spacing.md }}>
-                {filtered.length === 0 ? (
+                {grouped.length === 0 ? (
                   <Text style={s.emptyText}>No matching items.</Text>
                 ) : null}
-                {filtered.map((it) => (
-                  <Pressable key={it.key} style={s.row} onPress={() => setPreviewKey(it.key)}>
-                    <View style={s.iconBox}>
-                      <MaterialCommunityIcons name={iconFor(it.category) as any} size={16} color={colors.outline} />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={s.rowName}>{it.name}</Text>
-                      <Text style={s.rowMeta} numberOfLines={1}>
-                        {CATEGORY_LABELS[it.category as CategoryFilter] ?? it.category}
-                        {it.rarity ? ` · ${it.rarity}` : ''}
-                        {it.requiresAttunement ? ' · attunement' : ''}
-                      </Text>
-                    </View>
-                    {it.cost ? (
-                      <Text style={s.rowCost}>{it.cost.amount} {it.cost.currency}</Text>
-                    ) : null}
-                    <MaterialCommunityIcons name="chevron-right" size={18} color={colors.outline} />
-                  </Pressable>
-                ))}
+                {grouped.map((group) => {
+                  // The base variant (mundane / +0) is the representative
+                  // for the row; if the group is magic-only, fall back to
+                  // the lowest +N entry. Category + rarity meta line
+                  // mirrors the variant the user would land on by default.
+                  const head = group.variants[0];
+                  const hasVariants = group.variants.length > 1;
+                  return (
+                    <Pressable key={head.key} style={s.row} onPress={() => setPreviewKey(head.key)}>
+                      <View style={s.iconBox}>
+                        <MaterialCommunityIcons name={iconFor(head.category) as any} size={16} color={colors.outline} />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={s.rowName}>{group.baseName}</Text>
+                        <Text style={s.rowMeta} numberOfLines={1}>
+                          {CATEGORY_LABELS[head.category as CategoryFilter] ?? head.category}
+                          {head.rarity ? ` · ${head.rarity}` : ''}
+                          {head.requiresAttunement ? ' · attunement' : ''}
+                          {hasVariants ? ` · ${group.variants.length} variants` : ''}
+                        </Text>
+                      </View>
+                      {head.cost ? (
+                        <Text style={s.rowCost}>{head.cost.amount} {head.cost.currency}</Text>
+                      ) : null}
+                      <MaterialCommunityIcons name="chevron-right" size={18} color={colors.outline} />
+                    </Pressable>
+                  );
+                })}
               </ScrollView>
             </>
           )}
@@ -215,13 +285,47 @@ function iconFor(category: ItemResult['category']): string {
   }
 }
 
-function ItemDetail({ item, onBack, onPick }: { item: ItemResult; onBack: () => void; onPick: () => void }) {
+function ItemDetail({ item, variants, selectedPlus, onSelectPlus, onBack, onPick }: {
+  item: ItemResult;
+  /** Sibling variants (incl. the current one) when the picker grouped
+   *  +N variants together. Null when the item is a one-off. */
+  variants?: ItemResult[] | null;
+  selectedPlus: number;
+  onSelectPlus: (p: number) => void;
+  onBack: () => void;
+  onPick: () => void;
+}) {
   return (
     <ScrollView contentContainerStyle={s.detailWrap}>
       <Pressable onPress={onBack} style={s.backLink}>
         <MaterialCommunityIcons name="chevron-left" size={16} color={colors.onSurfaceVariant} />
         <Text style={s.backText}>Back</Text>
       </Pressable>
+
+      {variants && variants.length > 1 ? (
+        <View style={s.variantStrip}>
+          <Text style={s.variantLabel}>Variant</Text>
+          <View style={s.variantChips}>
+            {variants.map((v) => {
+              const m = v.name.match(/\(\+(\d+)\)\s*$/);
+              const p = m ? parseInt(m[1], 10) : 0;
+              const active = p === selectedPlus;
+              return (
+                <TouchableOpacity
+                  key={v.key}
+                  onPress={() => onSelectPlus(p)}
+                  activeOpacity={0.7}
+                  style={[s.variantChip, active && s.variantChipActive]}
+                >
+                  <Text style={[s.variantChipText, active && s.variantChipTextActive]}>
+                    {p === 0 ? 'Mundane' : `+${p}`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
 
       <View style={s.metaGrid}>
         <DetailMeta label="Category" value={CATEGORY_LABELS[item.category as CategoryFilter] ?? item.category} />
@@ -627,6 +731,23 @@ const s = StyleSheet.create({
   backText: { fontSize: 13, color: colors.onSurfaceVariant, fontFamily: fonts.label, fontWeight: '600' },
   metaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
   metaCell: { minWidth: 100, paddingVertical: 4 },
+
+  variantStrip: { marginBottom: spacing.sm },
+  variantLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase',
+    color: colors.outline, marginBottom: 6,
+  },
+  variantChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  variantChip: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  variantChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  variantChipText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
+  variantChipTextActive: { color: colors.onPrimary },
   metaLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline },
   metaValue: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurface, marginTop: 2, textTransform: 'capitalize' },
   detailBlock: { marginVertical: spacing.sm },
