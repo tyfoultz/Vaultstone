@@ -3909,10 +3909,16 @@ const s = StyleSheet.create({
 
   // Left rail — now a vertical ScrollView so long content (lots of
   // skill rows, conditions, plus the campaign card) can scroll
-  // independently of the main pane. Width is fixed; the inner
-  // contentContainer holds the layout.
+  // independently of the main pane. ScrollView on React Native Web
+  // doesn't honor `width` the same way View does (the outer becomes a
+  // flex item that can grow). Lock the width with flexBasis +
+  // flexGrow/flexShrink so the rail stays exactly 260px regardless of
+  // the parent's flex direction.
   deskRail: {
     width: 260,
+    flexBasis: 260,
+    flexGrow: 0,
+    flexShrink: 0,
     backgroundColor: colors.surfaceContainerLowest,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.outlineVariant,
