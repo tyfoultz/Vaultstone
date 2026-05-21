@@ -267,6 +267,13 @@ export interface Dnd5eEquipmentItem {
   requiresAttunement?: boolean;
   /** Item weight in lbs */
   weight?: number;
+  /**
+   * When true, this item surfaces in a dedicated "Pinned" section on
+   * the Combat tab for one-tap access during play. Independent of the
+   * equipped/attuned flags so the player can pin consumables (potions,
+   * scrolls), thrown weapons they aren't actively wielding, etc.
+   */
+  pinnedToCombat?: boolean;
 }
 
 export interface Dnd5eFeature {

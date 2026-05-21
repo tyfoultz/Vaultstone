@@ -29,6 +29,7 @@ interface Props {
   onUpdateCoins?: (coins: NonNullable<Dnd5eResources['coins']>) => void;
   onToggleEquipped?: (id: string) => void;
   onToggleAttuned?: (id: string) => void;
+  onTogglePinnedToCombat?: (id: string) => void;
   onUpdateNotes?: (notes: string) => void;
   onUpdateTreasure?: (treasure: string) => void;
   /** Open the catalog item picker. The parent owns the modal so it can
@@ -39,7 +40,7 @@ interface Props {
 
 export function GearTab({
   stats, resources, isOwner, strengthScore,
-  onUpdateCoins, onToggleEquipped, onToggleAttuned, onUpdateNotes, onUpdateTreasure,
+  onUpdateCoins, onToggleEquipped, onToggleAttuned, onTogglePinnedToCombat, onUpdateNotes, onUpdateTreasure,
   onOpenItemPicker, onRemoveItem,
 }: Props) {
   const [detailItem, setDetailItem] = useState<Dnd5eEquipmentItem | null>(null);
@@ -93,6 +94,7 @@ export function GearTab({
               canToggle={isOwner}
               onToggle={() => onToggleEquipped?.(item.id)}
               onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
+              onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               onOpenDetail={() => setDetailItem(item)}
               isLast={i === equippedItems.length - 1}
@@ -112,6 +114,7 @@ export function GearTab({
               canToggle={isOwner}
               onToggle={() => onToggleEquipped?.(item.id)}
               onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
+              onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               onOpenDetail={() => setDetailItem(item)}
               isLast={i === carriedItems.length - 1}
@@ -223,11 +226,12 @@ function CardBlock({ title, action, onAction, children, style }: {
   );
 }
 
-function EquipRow({ item, canToggle, onToggle, onToggleAttuned, onRemove, onOpenDetail, isLast }: {
+function EquipRow({ item, canToggle, onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onOpenDetail, isLast }: {
   item: Dnd5eEquipmentItem;
   canToggle: boolean;
   onToggle: () => void;
   onToggleAttuned?: () => void;
+  onTogglePinnedToCombat?: () => void;
   onRemove?: () => void;
   onOpenDetail: () => void;
   isLast: boolean;
@@ -262,6 +266,20 @@ function EquipRow({ item, canToggle, onToggle, onToggleAttuned, onRemove, onOpen
             name={item.attuned ? 'star' : 'star-outline'}
             size={16}
             color={item.attuned ? colors.primary : colors.outline}
+          />
+        </TouchableOpacity>
+      )}
+      {canToggle && onTogglePinnedToCombat && (
+        <TouchableOpacity
+          onPress={onTogglePinnedToCombat}
+          hitSlop={8}
+          activeOpacity={0.7}
+          style={{ marginLeft: 6 }}
+        >
+          <MaterialCommunityIcons
+            name={item.pinnedToCombat ? 'pin' : 'pin-outline'}
+            size={15}
+            color={item.pinnedToCombat ? colors.primary : colors.outline}
           />
         </TouchableOpacity>
       )}

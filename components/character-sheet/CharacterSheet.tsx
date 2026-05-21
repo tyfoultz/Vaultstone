@@ -1720,6 +1720,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     saveEquipment(equipment.map((e) => e.id === id ? { ...e, equipped: !e.equipped } : e));
   }
 
+  function handleTogglePinnedToCombat(id: string) {
+    saveEquipment(equipment.map((e) =>
+      e.id === id ? { ...e, pinnedToCombat: !e.pinnedToCombat } : e,
+    ));
+  }
+
   function handleToggleAttuned(id: string) {
     const target = equipment.find((e) => e.id === id);
     if (!target?.requiresAttunement) return;
@@ -2138,6 +2144,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
             onToggleEquipped={handleToggleEquipped}
             onToggleAttuned={handleToggleAttuned}
+            onTogglePinnedToCombat={handleTogglePinnedToCombat}
             onUpdateNotes={(notes) => persistResources({ ...resources, notes })}
             onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
             onOpenItemPicker={() => setItemPickerOpen(true)}
