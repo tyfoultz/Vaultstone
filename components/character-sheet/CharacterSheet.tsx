@@ -671,11 +671,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const id = characterId;
   const router = useRouter();
   // Closing behavior — embedded callers pass `onClose` to drop the
-  // split target; standalone callers fall back to the router stack.
+  // split target; standalone callers go straight to the character list.
+  // We used to call router.back() first, but on web with multi-tab
+  // workspace history accumulating, "back" sometimes popped to a
+  // previous internal state instead of the list. The playtester
+  // described it as "cycling through tab changes". Always replace to
+  // the canonical destination — the back button on the character
+  // sheet means "exit to my characters", not "undo my last nav".
   const handleClose = () => {
     if (onClose) { onClose(); return; }
-    if (router.canGoBack()) router.back();
-    else router.replace('/(drawer)/characters');
+    router.replace('/(drawer)/characters');
   };
   const { updateCharacterLocally, setActiveCharacter } = useCharacterStore();
   const authUser = useAuthStore((state) => state.user);
@@ -1395,7 +1400,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   }
 
   const [portraitCropUri, setPortraitCropUri] = useState<string | null>(null);
-  const [cardCropUri, setCardCropUri] = useState<string | null>(null);
   const originalPickUriRef = useRef<string | null>(null);
 
   async function handlePickPortrait() {
@@ -1422,24 +1426,29 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
   async function handlePortraitCropConfirm(croppedUri: string) {
     setPortraitCropUri(null);
-    await uploadPortrait(croppedUri, 'image/jpeg');
-    if (originalPickUriRef.current) {
-      setCardCropUri(originalPickUriRef.current);
+    // Single crop for both surfaces — upload the same image to the
+    // portrait and card slots so we don't prompt the player to crop
+    // twice. The character list tile renders the same content as the
+    // sheet header (just framed differently by CSS), so one crop is
+    // enough. originalPickUriRef cleared once both uploads finish.
+    if (!character) {
+      originalPickUriRef.current = null;
+      return;
     }
-  }
-
-  async function handleCardCropConfirm(croppedUri: string) {
-    setCardCropUri(null);
-    originalPickUriRef.current = null;
-    if (!character) return;
     setPortraitUploading(true);
-    const { url } = await uploadCharacterCardImage(character.id, croppedUri, 'image/jpeg');
+    const [portraitRes, cardRes] = await Promise.all([
+      uploadCharacterPortrait(character.id, croppedUri, 'image/jpeg'),
+      uploadCharacterCardImage(character.id, croppedUri, 'image/jpeg'),
+    ]);
     setPortraitUploading(false);
-    if (url) {
-      const updated = { ...character, avatar_card_url: url };
-      setCharacter(updated);
-      updateCharacterLocally(character.id, { avatar_card_url: url });
+    const merged: Partial<Character> = {};
+    if (portraitRes.url) merged.avatar_url = portraitRes.url;
+    if (cardRes.url) merged.avatar_card_url = cardRes.url;
+    if (Object.keys(merged).length > 0) {
+      setCharacter((prev) => (prev ? { ...prev, ...merged } : prev));
+      updateCharacterLocally(character.id, merged);
     }
+    originalPickUriRef.current = null;
   }
 
   async function uploadPortrait(uri: string, mime: string) {
@@ -2240,7 +2249,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         <View style={s.deskShell}>
 
           {/* ── Left rail ───────────────────────────────────────────── */}
-          <View style={s.deskRail}>
+          <ScrollView
+            style={s.deskRail}
+            contentContainerStyle={s.deskRailContent}
+            showsVerticalScrollIndicator={false}
+          >
 
             {/* Back + portrait + name */}
             <View style={s.deskHeader}>
@@ -2563,7 +2576,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             </View>
 
             {/* ── Campaign link ─────────────────────────────────────── */}
-            <View style={{ flex: 1 }} />
             <TouchableOpacity
               style={s.deskCampSection}
               activeOpacity={character?.campaign_id ? 0.7 : 1}
@@ -2581,7 +2593,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               </View>
             </TouchableOpacity>
 
-          </View>
+          </ScrollView>
 
           {/* ── Center content pane ─────────────────────────────────── */}
           <View style={s.deskContent}>
@@ -3500,18 +3512,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         />
       ) : null}
 
-      {/* Card crop modal — offered after portrait crop */}
-      {cardCropUri ? (
-        <ImageCropModal
-          visible
-          imageUri={cardCropUri}
-          aspect={[2, 1]}
-          usageHint="Crop for the character card on the Characters page."
-          onCancel={() => { setCardCropUri(null); originalPickUriRef.current = null; }}
-          onConfirm={handleCardCropConfirm}
-        />
-      ) : null}
-
       {/* Add XP modal */}
       <Modal visible={xpAddMode} transparent animationType="fade">
         <Pressable style={s.modalBackdrop} onPress={() => setXpAddMode(false)}>
@@ -3907,13 +3907,19 @@ const s = StyleSheet.create({
     flex: 1, flexDirection: 'row',
   },
 
-  // Left rail
+  // Left rail — now a vertical ScrollView so long content (lots of
+  // skill rows, conditions, plus the campaign card) can scroll
+  // independently of the main pane. Width is fixed; the inner
+  // contentContainer holds the layout.
   deskRail: {
     width: 260,
     backgroundColor: colors.surfaceContainerLowest,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.outlineVariant,
+  },
+  deskRailContent: {
     flexDirection: 'column',
+    paddingBottom: 24,
   },
   deskHeader: {
     paddingTop: 16, paddingBottom: 12,

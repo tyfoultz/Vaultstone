@@ -308,8 +308,13 @@ export default function CharactersScreen() {
 
   // Drafts go between the "New" tile and completed characters so they're
   // discoverable but don't dominate the layout when there are several.
+  // The "+ New Character" tile only renders in the empty-state list —
+  // once the player has any characters or drafts, the header gains a
+  // compact "+ New" button instead so the big tile doesn't keep
+  // shouting "create" at someone who already has 3+ characters.
+  const hasAnyEntries = characters.length > 0 || drafts.length > 0;
   const data: ListItem[] = [
-    { kind: 'new' as const },
+    ...(hasAnyEntries ? [] : [{ kind: 'new' as const }]),
     ...drafts.map((row) => ({ kind: 'draft' as const, row })),
     ...characters.map((row) => ({ kind: 'character' as const, row })),
   ];
@@ -318,6 +323,16 @@ export default function CharactersScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Characters</Text>
+        {hasAnyEntries ? (
+          <TouchableOpacity
+            style={styles.headerNewBtn}
+            onPress={() => router.push('/character/new')}
+            activeOpacity={0.75}
+          >
+            <MaterialCommunityIcons name="plus" size={14} color={colors.brand} />
+            <Text style={styles.headerNewBtnText}>New</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {loading && <ActivityIndicator color={colors.brand} style={styles.loader} />}
@@ -366,6 +381,17 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: colors.textPrimary,
+  },
+  headerNewBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.brand,
+    backgroundColor: `${colors.brand}14`,
+  },
+  headerNewBtnText: {
+    fontSize: 12, fontWeight: '700', color: colors.brand,
+    letterSpacing: 0.3,
   },
   loader: { marginTop: 40 },
   error: {
