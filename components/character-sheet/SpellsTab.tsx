@@ -293,7 +293,15 @@ export function SpellsTab({
 
       {/* ── Spell slots overview table ── */}
       {spellSlots && ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => spellSlots[l].max > 0) && (
-        <SpellSlotTable spellSlots={spellSlots} isOwner={isOwner} onSlotChange={onSpellSlotChange} />
+        <SpellSlotTable
+          spellSlots={spellSlots}
+          isOwner={isOwner}
+          onSlotChange={onSpellSlotChange}
+          manualMode={!!manualMode}
+          onEditMax={manualMode && onEditField
+            ? (level, current) => onEditField(`slotMax_${level}`, current)
+            : undefined}
+        />
       )}
 
       {/* ── How spellcasting works (collapsible per-class explainer) ── */}
@@ -538,13 +546,23 @@ export function SpellsTab({
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function SpellSlotTable({ spellSlots, isOwner, onSlotChange }: {
+function SpellSlotTable({ spellSlots, isOwner, onSlotChange, manualMode, onEditMax }: {
   spellSlots: Record<number, { max: number; remaining: number }>;
   isOwner: boolean;
   onSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
+  manualMode?: boolean;
+  /** Tap on a Total cell in Manual Mode → opens the slot-max edit
+   *  affordance up in the CharacterSheet edit modal. */
+  onEditMax?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, current: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const activeLevels = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((l) => spellSlots[l].max > 0);
+  // In Manual Mode we want every level cell to be tappable, including
+  // ones the class table currently zeros out (so the player can grant
+  // a slot at a level their class doesn't reach yet). Outside Manual
+  // Mode keep the prior "hide empty levels" behavior to avoid clutter.
+  const activeLevels = manualMode
+    ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const)
+    : ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((l) => spellSlots[l].max > 0);
   if (activeLevels.length === 0) return null;
 
   return (
@@ -571,9 +589,17 @@ function SpellSlotTable({ spellSlots, isOwner, onSlotChange }: {
               <Text style={s.slotTableLabel}>Total</Text>
             </View>
             {activeLevels.map((l) => (
-              <View key={l} style={s.slotTableCell}>
-                <Text style={s.slotTableCellText}>{spellSlots[l].max}</Text>
-              </View>
+              <TouchableOpacity
+                key={l}
+                style={s.slotTableCell}
+                disabled={!manualMode || !onEditMax}
+                onPress={manualMode && onEditMax
+                  ? () => onEditMax(l, spellSlots[l]?.max ?? 0)
+                  : undefined}
+                activeOpacity={manualMode && onEditMax ? 0.7 : 1}
+              >
+                <Text style={s.slotTableCellText}>{spellSlots[l]?.max ?? 0}</Text>
+              </TouchableOpacity>
             ))}
           </View>
           <View style={s.slotTableRow}>

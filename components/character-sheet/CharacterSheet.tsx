@@ -1125,6 +1125,33 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     : null;
   const computedSpellAttack = computedSpellMod !== null ? prof + computedSpellMod : null;
   const computedSpellDC = computedSpellMod !== null ? 8 + prof + computedSpellMod : null;
+
+  // Spell-slot max overrides — applied only in Manual Mode. The
+  // synthesized `effectiveSpellSlots` becomes the source of truth for
+  // any descendant that reads `resources.spellSlots`; we splice it
+  // into the resources clone passed down to the Spells / Combat tabs.
+  // `remaining` is clamped to the override max so reducing the cap
+  // doesn't leave a stale higher remaining value showing.
+  const SLOT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+  type SpellSlotKey = typeof SLOT_LEVELS[number];
+  const effectiveSpellSlots = (() => {
+    const raw = resources?.spellSlots;
+    if (!raw) return null;
+    if (!manualMode || !stats?.spellSlotMaxOverrides) return raw;
+    const overrides = stats.spellSlotMaxOverrides;
+    const out = { ...raw } as typeof raw;
+    let touched = false;
+    for (const lvl of SLOT_LEVELS) {
+      const ov = overrides[lvl];
+      if (ov == null) continue;
+      out[lvl] = {
+        max: ov,
+        remaining: Math.min(raw[lvl]?.remaining ?? ov, ov),
+      };
+      touched = true;
+    }
+    return touched ? out : raw;
+  })();
   // Manual-mode overrides only apply when Manual Mode is actually on.
   // Without this gate, a stray value typed once stays as a silent
   // override forever — exactly the playtest bug where Oswald's AC was
@@ -1502,6 +1529,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     } else if (editingField === 'spellSaveDc') {
       const { spellSaveDcOverride, ...rest } = stats;
       persistStats(rest as Dnd5eStats);
+    } else if (typeof editingField === 'string' && editingField.startsWith('slotMax_')) {
+      const lvl = parseInt(editingField.slice('slotMax_'.length), 10);
+      if (Number.isFinite(lvl) && lvl >= 1 && lvl <= 9 && stats.spellSlotMaxOverrides) {
+        const { [lvl as keyof NonNullable<Dnd5eStats['spellSlotMaxOverrides']>]: _, ...remainingOverrides } = stats.spellSlotMaxOverrides;
+        const next: Dnd5eStats = { ...stats };
+        if (Object.keys(remainingOverrides).length === 0) {
+          delete next.spellSlotMaxOverrides;
+        } else {
+          next.spellSlotMaxOverrides = remainingOverrides as NonNullable<Dnd5eStats['spellSlotMaxOverrides']>;
+        }
+        persistStats(next);
+      }
     }
     setEditingField(null);
   }
@@ -1546,6 +1585,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     } else if (editingField === 'spellSaveDc') {
       if (isNaN(num) || num < 0) { setEditingField(null); return; }
       persistStats({ ...stats, spellSaveDcOverride: num });
+    } else if (typeof editingField === 'string' && editingField.startsWith('slotMax_')) {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      const lvl = parseInt(editingField.slice('slotMax_'.length), 10);
+      if (!Number.isFinite(lvl) || lvl < 1 || lvl > 9) { setEditingField(null); return; }
+      const prev = stats.spellSlotMaxOverrides ?? {};
+      persistStats({
+        ...stats,
+        spellSlotMaxOverrides: { ...prev, [lvl]: num },
+      });
     } else if (editingField === 'hpMax') {
       if (isNaN(num) || num < 1) { setEditingField(null); return; }
       persistStats({ ...stats, hpMax: num });
@@ -1878,7 +1926,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         return (
           <CombatTab
             stats={stats}
-            resources={resources}
+            resources={{ ...resources, spellSlots: effectiveSpellSlots }}
             scores={scores}
             prof={prof}
             activeConditions={activeConditions}
@@ -1904,7 +1952,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         return (
           <SpellsTab
             stats={stats}
-            resources={resources}
+            resources={{ ...resources, spellSlots: effectiveSpellSlots }}
             scores={scores}
             prof={prof}
             isOwner={isOwner}
@@ -2796,6 +2844,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 : editingField === 'preparedLimit' ? 'Edit Spells Prepared'
                 : editingField === 'spellAttack' ? 'Edit Spell Attack'
                 : editingField === 'spellSaveDc' ? 'Edit Spell Save DC'
+                : typeof editingField === 'string' && editingField.startsWith('slotMax_')
+                  ? `Edit Spell Slots (Level ${editingField.slice('slotMax_'.length)})`
                 : `Edit ${editingField ? (ABILITY_SHORT[editingField as keyof Dnd5eAbilityScores] || capitalize(editingField)) : ''}`}
             </Text>
             {editingField === 'hpCurrent' ? (
@@ -2911,13 +2961,30 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   : ''}
               </Text>
             )}
+            {typeof editingField === 'string' && editingField.startsWith('slotMax_') && (() => {
+              const lvl = parseInt(editingField.slice('slotMax_'.length), 10);
+              const k = lvl as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+              const computedMax = resources?.spellSlots?.[k]?.max ?? 0;
+              const override = stats?.spellSlotMaxOverrides?.[k];
+              return (
+                <Text style={s.fieldHint}>
+                  Computed from class: {computedMax}
+                  {override != null && override !== computedMax
+                    ? `  ·  override active (${override})`
+                    : ''}
+                </Text>
+              );
+            })()}
             <View style={s.fieldBtnRow}>
               {((editingField === 'ac' && stats?.acOverride != null)
                 || (editingField === 'initiative' && stats?.initiativeOverride != null)
                 || (editingField === 'cantripsLimit' && stats?.cantripsKnownOverride != null)
                 || (editingField === 'preparedLimit' && stats?.preparedSpellsOverride != null)
                 || (editingField === 'spellAttack' && stats?.spellAttackOverride != null)
-                || (editingField === 'spellSaveDc' && stats?.spellSaveDcOverride != null)) && (
+                || (editingField === 'spellSaveDc' && stats?.spellSaveDcOverride != null)
+                || (typeof editingField === 'string'
+                    && editingField.startsWith('slotMax_')
+                    && stats?.spellSlotMaxOverrides?.[parseInt(editingField.slice('slotMax_'.length), 10) as 1|2|3|4|5|6|7|8|9] != null)) && (
                 <TouchableOpacity style={s.fieldResetBtn} onPress={resetEditField}>
                   <Text style={s.fieldResetBtnText}>Reset to computed</Text>
                 </TouchableOpacity>

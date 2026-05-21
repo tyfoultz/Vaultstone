@@ -163,6 +163,24 @@ export interface Dnd5eStats {
    *  spellcasting mod by default). Same use cases as the attack
    *  override; some subclass features list a DC directly. */
   spellSaveDcOverride?: number;
+  /**
+   * Per-level overrides for the maximum spell slots. Survives
+   * level-up (the wizard recomputes from class tables and would
+   * otherwise clobber any hand-set value). Only applied while
+   * Manual Mode is on. When a level isn't in the record, falls
+   * back to the computed `resources.spellSlots[N].max`.
+   */
+  spellSlotMaxOverrides?: {
+    1?: number;
+    2?: number;
+    3?: number;
+    4?: number;
+    5?: number;
+    6?: number;
+    7?: number;
+    8?: number;
+    9?: number;
+  };
 
   /** Skills with expertise (double proficiency bonus). */
   skillExpertise?: string[];
