@@ -2425,7 +2425,19 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 {/* Row 3: Prof | Hit Die */}
                 <View style={s.deskStatRow}>
                   <StatCell icon="star-four-points" value={fmtMod(prof)} label="Prof" color={colors.onSurface} />
-                  <StatCell icon="dice-d8-outline" value={`d${stats.hitDie}`} label="Hit Die" color={colors.onSurface} />
+                  {/* Hit die cell shows remaining/max and, in canEdit
+                      mode with dice left, doubles as the spend button —
+                      rolls 1dN+CON, heals HP, decrements remaining. */}
+                  <StatCell
+                    icon="dice-d8-outline"
+                    value={`${resources?.hitDiceRemaining ?? stats.level}/${stats.level}`}
+                    label={`Hit Die · d${stats.hitDie}`}
+                    color={colors.onSurface}
+                    editable={canEditAny && (resources?.hitDiceRemaining ?? stats.level) > 0}
+                    onPress={canEditAny && (resources?.hitDiceRemaining ?? stats.level) > 0
+                      ? handleSpendHitDie
+                      : undefined}
+                  />
                 </View>
               </View>
             </View>
