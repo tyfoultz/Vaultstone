@@ -709,6 +709,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // 'short' | 'long' | null — tracks which rest the player is about to
   // confirm. Resets to null on dismiss.
   const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null);
+  // Open the spend-hit-die confirm dialog. The actual roll + HP /
+  // remaining mutation happens in handleSpendHitDie; this just gates
+  // the side effect behind a confirm so a stray tap doesn't burn a
+  // hit die mid-combat.
+  const [spendHitDieOpen, setSpendHitDieOpen] = useState(false);
   // Equipment-row delete confirmation. We can't use Alert.alert here —
   // React Native Web's port doesn't reliably invoke button callbacks,
   // so the user just sees a no-op when tapping the row's X. Mirroring
@@ -1979,7 +1984,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             stats={stats}
             resources={{ ...resources, spellSlots: effectiveSpellSlots }}
             scores={scores}
-            onSpendHitDie={handleSpendHitDie}
+            onSpendHitDie={() => setSpendHitDieOpen(true)}
             prof={prof}
             activeConditions={activeConditions}
             canEditAny={canEditAny}
@@ -2435,7 +2440,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     color={colors.onSurface}
                     editable={canEditAny && (resources?.hitDiceRemaining ?? stats.level) > 0}
                     onPress={canEditAny && (resources?.hitDiceRemaining ?? stats.level) > 0
-                      ? handleSpendHitDie
+                      ? () => setSpendHitDieOpen(true)
                       : undefined}
                   />
                 </View>
@@ -3283,6 +3288,51 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 activeOpacity={0.85}
               >
                 <Text style={s.restConfirmCommitText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Spend Hit Die confirm — same shape as the rest-confirm so the
+          two interactions feel like one pattern. Surfaces the roll
+          preview ("1d8 + 2 CON") and the remaining count so the player
+          can see what they're about to commit. */}
+      <Modal visible={spendHitDieOpen} transparent animationType="fade" onRequestClose={() => setSpendHitDieOpen(false)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setSpendHitDieOpen(false)}>
+          <Pressable style={s.restConfirmCard} onPress={() => {}}>
+            <View style={s.restConfirmHeader}>
+              <MaterialCommunityIcons name="dice-d8-outline" size={20} color={colors.primary} />
+              <Text style={s.modalTitle}>Spend a Hit Die?</Text>
+            </View>
+            {stats && resources && scores ? (() => {
+              const remaining = resources.hitDiceRemaining ?? stats.level;
+              const conMod = abilityMod(scores.constitution);
+              return (
+                <Text style={s.restConfirmBody}>
+                  Roll 1d{stats.hitDie}{conMod >= 0 ? ` + ${conMod}` : ` − ${Math.abs(conMod)}`} (CON)
+                  {' '}and add the result to your HP (capped at max).
+                  {' '}You have {remaining}/{stats.level} hit dice remaining.
+                </Text>
+              );
+            })() : null}
+            <View style={s.restConfirmActions}>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCancel]}
+                onPress={() => setSpendHitDieOpen(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.restConfirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCommit]}
+                onPress={() => {
+                  handleSpendHitDie();
+                  setSpendHitDieOpen(false);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={s.restConfirmCommitText}>Spend &amp; Roll</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
