@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   View, ScrollView, Pressable, StyleSheet, Platform,
 } from 'react-native';
@@ -55,25 +55,19 @@ export function usePinnedSpells() {
   return { pinned, pinSpell, unpinSpell, toggleMinimize };
 }
 
-export function PinnedSpellsOverlay({
-  pinned,
+function PinnedSpellCard({
+  entry,
+  index,
+  onMinimize,
   onUnpin,
-  onToggleMinimize,
 }: {
-  pinned: PinnedEntry[];
-  onUnpin: (name: string) => void;
-  onToggleMinimize: (name: string) => void;
+  entry: PinnedEntry;
+  index: number;
+  onMinimize: () => void;
+  onUnpin: () => void;
 }) {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
-
-  const expanded = pinned.find((p) => !p.minimized);
-
-  // Reset drag offset when the expanded spell changes
-  const expandedName = expanded?.name ?? null;
-  useEffect(() => {
-    setDragOffset({ x: 0, y: 0 });
-  }, [expandedName]);
 
   const handleTitleBarMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -89,11 +83,9 @@ export function PinnedSpellsOverlay({
 
       const onMouseMove = (ev: MouseEvent) => {
         if (!dragRef.current) return;
-        const dx = ev.clientX - dragRef.current.startX;
-        const dy = ev.clientY - dragRef.current.startY;
         setDragOffset({
-          x: dragRef.current.origX + dx,
-          y: dragRef.current.origY + dy,
+          x: dragRef.current.origX + (ev.clientX - dragRef.current.startX),
+          y: dragRef.current.origY + (ev.clientY - dragRef.current.startY),
         });
       };
 
@@ -113,55 +105,78 @@ export function PinnedSpellsOverlay({
     [dragOffset],
   );
 
+  return (
+    <View
+      style={[
+        st.floatingCard,
+        { top: 8 + index * 28, right: 8 + index * 28 },
+        Platform.OS === 'web' && {
+          transform: [{ translateX: dragOffset.x }, { translateY: dragOffset.y }],
+        },
+      ]}
+    >
+      <View
+        style={[
+          st.cardTitleBar,
+          Platform.OS === 'web' && { cursor: 'grab' } as never,
+        ]}
+        {...(Platform.OS === 'web' ? { onMouseDown: handleTitleBarMouseDown } : {})}
+      >
+        <Text variant="label-md" weight="bold" style={st.cardTitle} numberOfLines={1}>
+          {entry.name}
+        </Text>
+        <View style={st.cardActions}>
+          <Pressable
+            onPress={onMinimize}
+            style={st.cardAction}
+            {...(Platform.OS === 'web' ? { onMouseDown: (e: any) => e.stopPropagation() } : {})}
+          >
+            <MaterialCommunityIcons name="minus" size={16} color={colors.outline} />
+          </Pressable>
+          <Pressable
+            onPress={onUnpin}
+            style={st.cardAction}
+            {...(Platform.OS === 'web' ? { onMouseDown: (e: any) => e.stopPropagation() } : {})}
+          >
+            <MaterialCommunityIcons name="close" size={16} color={colors.outline} />
+          </Pressable>
+        </View>
+      </View>
+      <ScrollView style={st.cardBody} contentContainerStyle={st.cardBodyContent}>
+        {entry.spell ? (
+          <SpellCard spell={entry.spell} />
+        ) : (
+          <Text variant="body-sm" style={st.loadingText}>Loading...</Text>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+export function PinnedSpellsOverlay({
+  pinned,
+  onUnpin,
+  onToggleMinimize,
+}: {
+  pinned: PinnedEntry[];
+  onUnpin: (name: string) => void;
+  onToggleMinimize: (name: string) => void;
+}) {
   if (pinned.length === 0) return null;
+
+  const expandedEntries = pinned.filter((p) => !p.minimized);
 
   return (
     <>
-      {expanded && (
-        <View
-          style={[
-            st.floatingCard,
-            Platform.OS === 'web' && {
-              transform: [{ translateX: dragOffset.x }, { translateY: dragOffset.y }],
-            },
-          ]}
-        >
-          <View
-            style={[
-              st.cardTitleBar,
-              Platform.OS === 'web' && { cursor: 'grab' } as never,
-            ]}
-            {...(Platform.OS === 'web' ? { onMouseDown: handleTitleBarMouseDown } : {})}
-          >
-            <Text variant="label-md" weight="bold" style={st.cardTitle} numberOfLines={1}>
-              {expanded.name}
-            </Text>
-            <View style={st.cardActions}>
-              <Pressable
-                onPress={() => onToggleMinimize(expanded.name)}
-                style={st.cardAction}
-                {...(Platform.OS === 'web' ? { onMouseDown: (e: any) => e.stopPropagation() } : {})}
-              >
-                <MaterialCommunityIcons name="minus" size={16} color={colors.outline} />
-              </Pressable>
-              <Pressable
-                onPress={() => onUnpin(expanded.name)}
-                style={st.cardAction}
-                {...(Platform.OS === 'web' ? { onMouseDown: (e: any) => e.stopPropagation() } : {})}
-              >
-                <MaterialCommunityIcons name="close" size={16} color={colors.outline} />
-              </Pressable>
-            </View>
-          </View>
-          <ScrollView style={st.cardBody} contentContainerStyle={st.cardBodyContent}>
-            {expanded.spell ? (
-              <SpellCard spell={expanded.spell} />
-            ) : (
-              <Text variant="body-sm" style={st.loadingText}>Loading...</Text>
-            )}
-          </ScrollView>
-        </View>
-      )}
+      {expandedEntries.map((entry, i) => (
+        <PinnedSpellCard
+          key={entry.name}
+          entry={entry}
+          index={i}
+          onMinimize={() => onToggleMinimize(entry.name)}
+          onUnpin={() => onUnpin(entry.name)}
+        />
+      ))}
 
       <View style={st.pinnedBar}>
         <Text variant="label-sm" weight="bold" uppercase style={st.pinnedLabel}>
@@ -198,8 +213,6 @@ export function PinnedSpellsOverlay({
 const st = StyleSheet.create({
   floatingCard: {
     position: 'absolute',
-    top: 8,
-    right: 8,
     width: 360,
     maxHeight: 420,
     backgroundColor: colors.surfaceContainer,

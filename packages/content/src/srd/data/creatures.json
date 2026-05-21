@@ -94,16 +94,10 @@
     },
     "languages": "one language known by its creator",
     "damageResistances": [
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      }
+      "Piercing"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -293,10 +287,7 @@
       "passivePerception": 13
     },
     "damageResistances": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "actions": [
       {
@@ -1401,10 +1392,7 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -1835,20 +1823,11 @@
     },
     "languages": "Understands Common plus one other language but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -1911,20 +1890,11 @@
     },
     "languages": "understands the languages of its creator but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -2242,34 +2212,16 @@
     },
     "languages": "Understands Infernal but can't speak",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Frightened",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -2330,34 +2282,16 @@
     },
     "languages": "understands infernal but can't speak",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Frightened",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -3428,18 +3362,9 @@
       "passivePerception": 6
     },
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      }
+      "Blinded",
+      "Deafened",
+      "Frightened"
     ],
     "traits": [
       {
@@ -6438,44 +6363,17 @@
       "passivePerception": 7
     },
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Poison",
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -7148,30 +7046,15 @@
     },
     "languages": "Abyssal; telepathy 60 ft. (works only with creatures that understand Abyssal)",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Fire",
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "actions": [
       {
@@ -7232,30 +7115,15 @@
     },
     "languages": "Abyssal, telepathy 60 ft. (works only with creatures that understand Abyssal)",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Fire",
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "actions": [
       {
@@ -7593,44 +7461,17 @@
       "passivePerception": 7
     },
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Poison",
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Blinded",
+      "Charmed",
+      "Deafened",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -7703,10 +7544,7 @@
       "passivePerception": 13
     },
     "damageResistances": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "actions": [
       {
@@ -8356,14 +8194,8 @@
     },
     "languages": "Celestial; understands Common, Elvish, And Sylvan but can't speak them",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Necrotic",
+      "Radiant"
     ],
     "traits": [
       {
@@ -8983,10 +8815,7 @@
     },
     "languages": "Undercommon",
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      }
+      "Blinded"
     ],
     "traits": [
       {
@@ -9569,20 +9398,11 @@
     },
     "languages": "Understands Common plus one other language but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -9643,26 +9463,14 @@
     },
     "languages": "understands the languages it knew in life but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      }
+      "Bludgeoning"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -9883,24 +9691,12 @@
     },
     "languages": "Primordial (Aquan, Ignan)",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -9971,20 +9767,11 @@
     },
     "languages": "Aquan, Ignan",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -10125,52 +9912,19 @@
       "passivePerception": 11
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -10248,52 +10002,19 @@
       "passivePerception": 10
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -10431,52 +10152,19 @@
       "passivePerception": 15
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -10599,18 +10287,9 @@
       "passivePerception": 6
     },
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      }
+      "Blinded",
+      "Deafened",
+      "Frightened"
     ],
     "traits": [
       {
@@ -10818,20 +10497,11 @@
     },
     "languages": "Understands Common plus one other language but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -10895,10 +10565,7 @@
     },
     "languages": "understands the languages it knew in life but can't speak",
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -11698,20 +11365,11 @@
     },
     "languages": "Primordial (Auran, Terran)",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -11787,22 +11445,13 @@
     },
     "languages": "Auran, Terran",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -12395,18 +12044,9 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Acid",
+      "Cold",
+      "Fire"
     ],
     "traits": [
       {
@@ -12474,44 +12114,17 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Acid",
+      "Cold",
+      "Fire"
     ],
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      }
+      "Blinded",
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Prone"
     ],
     "traits": [
       {
@@ -12732,24 +12345,12 @@
     },
     "languages": "Primordial (Aquan, Auran)",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Cold",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -12825,30 +12426,15 @@
     },
     "languages": "Aquan, Auran",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Cold",
+      "Poison"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Bludgeoning",
+      "Fire"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -13055,24 +12641,12 @@
     },
     "languages": "Primordial (Ignan, Terran)",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -13142,26 +12716,14 @@
     },
     "languages": "Ignan, Terran",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -13248,10 +12810,7 @@
     },
     "languages": "Primordial (Ignan)",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -13318,24 +12877,12 @@
     },
     "languages": "Ignan",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -13862,14 +13409,8 @@
     },
     "languages": "Sahuagin",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Acid",
+      "Cold"
     ],
     "traits": [
       {
@@ -14257,74 +13798,26 @@
       "passivePerception": 10
     },
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Acid",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Thunder"
     ],
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -14396,88 +13889,31 @@
       "passivePerception": 10
     },
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Acid",
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Slashing",
+      "Thunder"
     ],
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Radiant"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      }
+      "Exhaustion",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained"
     ],
     "traits": [
       {
@@ -14556,52 +13992,19 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -14668,52 +14071,19 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -14870,52 +14240,19 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -14985,48 +14322,18 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -15133,52 +14440,19 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -15612,20 +14886,11 @@
       "passivePerception": 9
     },
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -15680,26 +14945,14 @@
       "passivePerception": 9
     },
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      }
+      "Bludgeoning"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -15910,44 +15163,17 @@
       "passivePerception": 6
     },
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Poison",
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -16007,48 +15233,18 @@
       "passivePerception": 6
     },
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Poison",
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Blinded",
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -16135,10 +15331,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -16217,10 +15410,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -16588,10 +15778,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "actions": [
       {
@@ -16670,10 +15857,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "actions": [
       {
@@ -17177,10 +16361,7 @@
     },
     "languages": "Dwarvish, Undercommon",
     "damageResistances": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "traits": [
       {
@@ -17264,24 +16445,12 @@
     },
     "languages": "Common",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -17346,24 +16515,12 @@
     },
     "languages": "Common",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -17445,14 +16602,8 @@
     },
     "languages": "Celestial; understands Common and Primordial (Auran) but can't speak them",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Necrotic",
+      "Radiant"
     ],
     "actions": [
       {
@@ -18170,10 +17321,7 @@
     },
     "languages": "Understands Common but can't speak",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      }
+      "Necrotic"
     ],
     "traits": [
       {
@@ -18674,26 +17822,14 @@
     },
     "languages": "Common, Infernal",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -18771,38 +17907,17 @@
     },
     "languages": "Infernal, Common",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -19175,30 +18290,15 @@
     },
     "languages": "Abyssal, Common",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Fire",
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -19277,42 +18377,18 @@
     },
     "languages": "Abyssal, Common",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -19427,74 +18503,26 @@
     },
     "languages": "Understands Common plus one other language but can't speak",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Acid",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Thunder"
     ],
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -19560,86 +18588,29 @@
     },
     "languages": "understands all languages it knew in life but can't speak",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Acid",
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Slashing",
+      "Thunder"
     ],
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -19718,18 +18689,9 @@
     },
     "languages": "Celestial, Common",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Necrotic",
+      "Psychic",
+      "Radiant"
     ],
     "traits": [
       {
@@ -20012,52 +18974,19 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -20383,44 +19312,17 @@
       "passivePerception": 6
     },
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Poison",
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -20658,20 +19560,11 @@
     },
     "languages": "one language known by its creator",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      }
+      "Bludgeoning",
+      "Piercing"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -20739,20 +19632,11 @@
     },
     "languages": "Ignan",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -20828,20 +19712,11 @@
     },
     "languages": "Primordial (Ignan)",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -21211,10 +20086,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -21299,10 +20171,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -21383,10 +20252,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -21476,10 +20342,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -22187,24 +21050,12 @@
     },
     "languages": "Primordial (Terran)",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -22272,38 +21123,17 @@
     },
     "languages": "Terran",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -22385,36 +21215,15 @@
       "passivePerception": 8
     },
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      }
+      "Blinded",
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Prone"
     ],
     "traits": [
       {
@@ -22483,30 +21292,12 @@
       "passivePerception": 8
     },
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      }
+      "Blinded",
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Prone"
     ],
     "traits": [
       {
@@ -22588,30 +21379,15 @@
     },
     "languages": "Common",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      }
+      "Necrotic"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -22677,30 +21453,15 @@
     },
     "languages": "Common",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      }
+      "Necrotic"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -23055,14 +21816,8 @@
     },
     "languages": "Celestial; understands Common, Elvish, And Sylvan but can't speak them",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Necrotic",
+      "Radiant"
     ],
     "actions": [
       {
@@ -23258,10 +22013,7 @@
       "passivePerception": 10
     },
     "conditionImmunities": [
-      {
-        "name": "Prone",
-        "key": "prone"
-      }
+      "Prone"
     ],
     "traits": [
       {
@@ -23355,16 +22107,10 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -23449,16 +22195,10 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -23594,18 +22334,9 @@
       "passivePerception": 12
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "traits": [
       {
@@ -24116,16 +22847,10 @@
       "passivePerception": 11
     },
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "conditionImmunities": [
-      {
-        "name": "Prone",
-        "key": "prone"
-      }
+      "Prone"
     ],
     "traits": [
       {
@@ -24199,16 +22924,10 @@
       "passivePerception": 11
     },
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "conditionImmunities": [
-      {
-        "name": "Prone",
-        "key": "prone"
-      }
+      "Prone"
     ],
     "traits": [
       {
@@ -24295,20 +23014,11 @@
     },
     "languages": "Understands Abyssal but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -24369,26 +23079,14 @@
     },
     "languages": "understands Abyssal but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      }
+      "Bludgeoning"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -24458,46 +23156,19 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      }
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Grappled",
+      "Prone",
+      "Restrained"
     ],
     "traits": [
       {
@@ -24567,46 +23238,19 @@
       "passivePerception": 8
     },
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Lightning",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      }
+      "Blinded",
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Prone"
     ],
     "traits": [
       {
@@ -24818,20 +23462,11 @@
     },
     "languages": "Understands Common and Giant but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -24895,16 +23530,10 @@
     },
     "languages": "understands Common and Giant but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -25236,10 +23865,7 @@
       "passivePerception": 15
     },
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "actions": [
       {
@@ -25635,44 +24261,17 @@
       "passivePerception": 6
     },
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Poison",
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Blinded",
+      "Charmed",
+      "Deafened",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -26073,10 +24672,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "actions": [
       {
@@ -26159,10 +24755,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "actions": [
       {
@@ -26226,52 +24819,19 @@
       "passivePerception": 10
     },
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -26486,18 +25046,9 @@
     },
     "languages": "Common (can't speak in rat form)",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "traits": [
       {
@@ -26599,10 +25150,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -26688,10 +25236,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "actions": [
       {
@@ -26758,66 +25303,24 @@
     },
     "languages": "Common plus one other language",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      }
+      "Acid",
+      "Cold",
+      "Fire",
+      "Necrotic"
     ],
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Lightning",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -26897,78 +25400,27 @@
     },
     "languages": "the languages it knew in life",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Acid",
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Necrotic",
+      "Piercing",
+      "Slashing",
+      "Thunder"
     ],
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Lightning",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -27240,30 +25692,15 @@
     },
     "languages": "Infernal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Frightened",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -27340,38 +25777,17 @@
     },
     "languages": "Infernal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -27465,10 +25881,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "actions": [
       {
@@ -27547,10 +25960,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "actions": [
       {
@@ -27776,10 +26186,7 @@
     },
     "languages": "Common",
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      }
+      "Charmed"
     ],
     "traits": [
       {
@@ -28011,10 +26418,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -28104,10 +26508,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -28368,10 +26769,7 @@
     },
     "languages": "Understands Infernal but can't speak",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -28446,10 +26844,7 @@
     },
     "languages": "understands Infernal but can't speak it",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -29187,36 +27582,15 @@
     },
     "languages": "Common plus two other languages",
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -29285,68 +27659,26 @@
     },
     "languages": "the languages it knew in life",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Necrotic",
+      "Piercing",
+      "Poison",
+      "Slashing"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
     ],
     "actions": [
       {
@@ -29420,10 +27752,7 @@
     },
     "languages": "Understands Abyssal, Common, And Infernal but can't speak",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -29494,10 +27823,7 @@
     },
     "languages": "understands Abyssal, Common, and Infernal but can't speak",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -29876,60 +28202,21 @@
     },
     "languages": "Understands Common but can't speak",
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Incapacitated",
-        "key": "incapacitated"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Stunned",
-        "key": "stunned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Grappled",
+      "Incapacitated",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Stunned"
     ],
     "traits": [
       {
@@ -30001,10 +28288,7 @@
     },
     "languages": "Common plus one other language",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      }
+      "Necrotic"
     ],
     "traits": [
       {
@@ -30315,18 +28599,9 @@
     },
     "languages": "Common (can't speak in wolf form)",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "traits": [
       {
@@ -30415,26 +28690,14 @@
     },
     "languages": "Common plus one other language",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      }
+      "Necrotic"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Exhaustion",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -30515,28 +28778,13 @@
     },
     "languages": "the languages it knew in life",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Necrotic",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -30621,10 +28869,7 @@
     },
     "languages": "Common, Giant",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -30694,10 +28939,7 @@
     },
     "languages": "Common, Giant, Winter Wolf",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -30841,48 +29083,18 @@
       "passivePerception": 8
     },
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Acid",
+      "Cold",
+      "Lightning"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      }
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Grappled",
+      "Prone",
+      "Restrained"
     ],
     "traits": [
       {
@@ -30956,48 +29168,18 @@
       "passivePerception": 8
     },
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Acid",
+      "Cold",
+      "Lightning",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      }
+      "Blinded",
+      "Charmed",
+      "Deafened",
+      "Exhaustion",
+      "Frightened",
+      "Prone"
     ],
     "traits": [
       {
@@ -31083,16 +29265,10 @@
     },
     "languages": "Understands Deep Speech but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -31172,16 +29348,10 @@
     },
     "languages": "understands Deep Speech but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -31268,14 +29438,8 @@
     },
     "languages": "All; telepathy 120 ft.",
     "damageImmunities": [
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Psychic",
+      "Radiant"
     ],
     "traits": [
       {
@@ -31358,28 +29522,13 @@
     },
     "languages": "all, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Radiant"
     ],
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Psychic",
+      "Slashing"
     ],
     "traits": [
       {
@@ -31771,74 +29920,26 @@
     },
     "languages": "Common plus one other language",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Acid",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Thunder"
     ],
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained"
     ],
     "traits": [
       {
@@ -31924,86 +30025,29 @@
     },
     "languages": "any languages it knew in life",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Acid",
+      "Bludgeoning",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Slashing",
+      "Thunder"
     ],
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Cold",
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained"
     ],
     "traits": [
       {
@@ -32244,22 +30288,10 @@
     },
     "languages": "Abyssal, Common, Infernal; telepathy 60 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Cold",
+      "Fire",
+      "Poison",
+      "Psychic"
     ],
     "traits": [
       {
@@ -32510,10 +30542,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -32592,10 +30621,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -32667,22 +30693,10 @@
     },
     "languages": "Abyssal, Common, Infernal; telepathy 60 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Cold",
+      "Fire",
+      "Poison",
+      "Psychic"
     ],
     "traits": [
       {
@@ -32772,34 +30786,13 @@
     },
     "languages": "Abyssal, Common, Infernal, telepathy 60 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Poison",
+      "Slashing"
     ],
     "traits": [
       {
@@ -33063,18 +31056,9 @@
     },
     "languages": "Common (can't speak in boar form)",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "traits": [
       {
@@ -33247,18 +31231,9 @@
     },
     "languages": "Common (can't speak in tiger form)",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "traits": [
       {
@@ -33354,54 +31329,21 @@
     },
     "languages": "Primordial (Auran)",
     "damageResistances": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Poison",
+      "Thunder"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -33473,66 +31415,24 @@
     },
     "languages": "Auran",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Bludgeoning",
+      "Lightning",
+      "Piercing",
+      "Slashing",
+      "Thunder"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -33621,26 +31521,14 @@
     },
     "languages": "Infernal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -33736,38 +31624,17 @@
     },
     "languages": "Infernal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -34007,32 +31874,14 @@
     },
     "languages": "Primordial (Terran)",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -34110,52 +31959,22 @@
     },
     "languages": "Terran",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Thunder"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -34231,48 +32050,18 @@
     },
     "languages": "Primordial (Ignan)",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -34350,62 +32139,23 @@
     },
     "languages": "Ignan",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -34484,40 +32234,16 @@
     },
     "languages": "Understands Common plus one other language but can't speak",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Lightning",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -34599,52 +32325,19 @@
     },
     "languages": "understands the languages of its creator but can't speak",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Lightning",
+      "Piercing",
+      "Poison",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -35279,10 +32972,7 @@
       "passivePerception": 14
     },
     "conditionImmunities": [
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      }
+      "Petrified"
     ],
     "traits": [
       {
@@ -35450,10 +33140,7 @@
     },
     "languages": "Common, Draconic",
     "damageResistances": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -35681,14 +33368,8 @@
     },
     "languages": "Abyssal, Common, Infernal, Primordial",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Cold",
+      "Fire"
     ],
     "traits": [
       {
@@ -35780,32 +33461,14 @@
     },
     "languages": "Abyssal, Common, Infernal, Primordial",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      }
+      "Charmed"
     ],
     "traits": [
       {
@@ -36237,10 +33900,7 @@
     },
     "languages": "Primordial (Ignan)",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -36312,30 +33972,15 @@
     },
     "languages": "Ignan",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -36419,30 +34064,15 @@
       "passivePerception": 10
     },
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Cold",
+      "Fire"
     ],
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "conditionImmunities": [
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      }
+      "Deafened",
+      "Exhaustion"
     ],
     "traits": [
       {
@@ -36517,34 +34147,16 @@
       "passivePerception": 10
     },
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Cold",
+      "Fire"
     ],
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "conditionImmunities": [
-      {
-        "name": "Blinded",
-        "key": "blinded"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      }
+      "Blinded",
+      "Deafened",
+      "Exhaustion"
     ],
     "traits": [
       {
@@ -36913,24 +34525,12 @@
     },
     "languages": "Celestial, Elvish, Sylvan; telepathy 120 ft.",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Paralyzed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -37025,24 +34625,12 @@
     },
     "languages": "Celestial, Elvish, Sylvan, telepathy 60 ft.",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Paralyzed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -37163,10 +34751,7 @@
     },
     "languages": "Common plus one other language",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      }
+      "Necrotic"
     ],
     "traits": [
       {
@@ -37255,22 +34840,10 @@
     },
     "languages": "the languages it knew in life",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Necrotic",
+      "Piercing",
+      "Slashing"
     ],
     "traits": [
       {
@@ -37361,54 +34934,21 @@
     },
     "languages": "Primordial (Aquan)",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Acid",
+      "Fire"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -37485,62 +35025,23 @@
     },
     "languages": "Aquan",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Acid",
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -37703,18 +35204,9 @@
     },
     "languages": "Common (can't speak in bear form)",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "traits": [
       {
@@ -37806,66 +35298,24 @@
     },
     "languages": "Common plus two other languages",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Acid",
+      "Cold",
+      "Fire"
     ],
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -37936,82 +35386,28 @@
     },
     "languages": "the languages it knew in life",
     "damageResistances": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Acid",
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Slashing",
+      "Thunder"
     ],
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained"
     ],
     "traits": [
       {
@@ -38091,24 +35487,12 @@
     },
     "languages": "Primordial (Terran)",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -38195,18 +35579,9 @@
     },
     "languages": "Terran",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "traits": [
       {
@@ -38649,44 +36024,17 @@
     },
     "languages": "Common, Primordial (Auran)",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -38767,58 +36115,22 @@
     },
     "languages": "Auran, understands Common but doesn't speak it",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Prone",
-        "key": "prone"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      },
-      {
-        "name": "Unconscious",
-        "key": "unconscious"
-      }
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
     ],
     "traits": [
       {
@@ -39444,30 +36756,15 @@
     },
     "languages": "Abyssal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Fire",
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -39554,42 +36851,18 @@
     },
     "languages": "Abyssal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -39832,10 +37105,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -39920,10 +37190,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -40039,10 +37306,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -40128,10 +37392,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -40364,10 +37625,7 @@
     },
     "languages": "Common, Giant",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -40553,36 +37811,15 @@
     },
     "languages": "Understands commands given in any language but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -40663,32 +37900,14 @@
     },
     "languages": "understands commands given in any language but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -40953,10 +38172,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -41041,10 +38257,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -41136,10 +38349,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "actions": [
       {
@@ -41224,10 +38434,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "actions": [
       {
@@ -41309,10 +38516,7 @@
     },
     "languages": "Common, Thieves' cant",
     "damageResistances": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "traits": [
       {
@@ -41398,10 +38602,7 @@
     },
     "languages": "Thieves' cant plus any two languages",
     "damageResistances": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "traits": [
       {
@@ -41491,26 +38692,14 @@
     },
     "languages": "Infernal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -41779,10 +38968,7 @@
     },
     "languages": "Giant",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "actions": [
       {
@@ -41861,10 +39047,7 @@
     },
     "languages": "Giant",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "actions": [
       {
@@ -41940,30 +39123,15 @@
     },
     "languages": "Abyssal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Fire",
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -42048,42 +39216,18 @@
     },
     "languages": "Abyssal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -42333,20 +39477,11 @@
     },
     "languages": "Abyssal, Common",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -42429,20 +39564,11 @@
     },
     "languages": "Abyssal, Common",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -42668,10 +39794,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -42762,10 +39885,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -42858,16 +39978,10 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -42953,16 +40067,10 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -43053,26 +40161,14 @@
     },
     "languages": "Infernal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -43158,38 +40254,17 @@
     },
     "languages": "Infernal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -43268,44 +40343,17 @@
     },
     "languages": "Common plus one other language",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Acid",
+      "Poison",
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -43389,56 +40437,20 @@
     },
     "languages": "understands the languages of its creator but can't speak",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      },
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Acid",
+      "Bludgeoning",
+      "Piercing",
+      "Poison",
+      "Psychic",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -43734,10 +40746,7 @@
     },
     "languages": "Giant",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -43811,10 +40820,7 @@
     },
     "languages": "Giant",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -43897,30 +40903,15 @@
     },
     "languages": "Abyssal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Fire",
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -44007,42 +40998,18 @@
     },
     "languages": "Abyssal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -44198,20 +41165,11 @@
     },
     "languages": "Common, Druidic, Elvish, Sylvan",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      }
+      "Bludgeoning",
+      "Piercing"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -44307,10 +41265,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "actions": [
       {
@@ -44389,10 +41344,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "actions": [
       {
@@ -44478,10 +41430,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "actions": [
       {
@@ -44566,10 +41515,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "actions": [
       {
@@ -44879,10 +41825,7 @@
     },
     "languages": "All; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Radiant"
     ],
     "traits": [
       {
@@ -44972,36 +41915,15 @@
     },
     "languages": "all, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Radiant",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened"
     ],
     "traits": [
       {
@@ -45104,28 +42026,13 @@
     },
     "languages": "Celestial, Common",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      }
+      "Charmed",
+      "Paralyzed",
+      "Poisoned",
+      "Restrained"
     ],
     "traits": [
       {
@@ -45209,20 +42116,11 @@
     },
     "languages": "Celestial, Common",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -45302,40 +42200,16 @@
     },
     "languages": "Understands Common plus two other languages but can't speak",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Poison",
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -45416,52 +42290,19 @@
     },
     "languages": "understands the languages of its creator but can't speak",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Poison",
+      "Psychic",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -45587,10 +42428,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -45682,10 +42520,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -45777,10 +42612,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -45859,10 +42691,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "actions": [
       {
@@ -45942,10 +42771,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "actions": [
       {
@@ -46026,10 +42852,7 @@
     },
     "languages": "Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "actions": [
       {
@@ -46116,38 +42939,17 @@
     },
     "languages": "Infernal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -46237,14 +43039,8 @@
     },
     "languages": "Primordial (Auran)",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Lightning",
+      "Thunder"
     ],
     "traits": [
       {
@@ -46340,14 +43136,8 @@
     },
     "languages": "Auran",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Lightning",
+      "Thunder"
     ],
     "traits": [
       {
@@ -46438,10 +43228,7 @@
     },
     "languages": "Primordial (Ignan)",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -46532,10 +43319,7 @@
     },
     "languages": "Ignan",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -46627,34 +43411,16 @@
     },
     "languages": "Common, Sphinx",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      }
+      "Charmed",
+      "Frightened"
     ],
     "traits": [
       {
@@ -46755,20 +43521,11 @@
     },
     "languages": "Infernal; telepathy 120 ft.",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -46856,38 +43613,17 @@
     },
     "languages": "Infernal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -46972,14 +43708,8 @@
       "passivePerception": 10
     },
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Cold",
+      "Fire"
     ],
     "traits": [
       {
@@ -47047,14 +43777,8 @@
       "passivePerception": 10
     },
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Cold",
+      "Fire"
     ],
     "traits": [
       {
@@ -47292,30 +44016,15 @@
     },
     "languages": "Celestial, Common",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Necrotic",
+      "Radiant"
     ],
     "damageImmunities": [
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      }
+      "Charmed",
+      "Frightened"
     ],
     "traits": [
       {
@@ -47414,16 +44123,10 @@
     },
     "languages": "Common plus five other languages",
     "damageImmunities": [
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      }
+      "Charmed"
     ],
     "traits": [
       {
@@ -47512,10 +44215,7 @@
     },
     "languages": "any six languages",
     "damageResistances": [
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      }
+      "Piercing"
     ],
     "traits": [
       {
@@ -47596,26 +44296,14 @@
     },
     "languages": "Infernal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -47707,38 +44395,17 @@
     },
     "languages": "Infernal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -47840,10 +44507,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -47955,10 +44619,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -48075,10 +44736,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -48183,10 +44841,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -48302,34 +44957,16 @@
     },
     "languages": "Abyssal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Fire",
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Frightened",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -48422,42 +45059,18 @@
     },
     "languages": "Abyssal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -48634,24 +45247,12 @@
     },
     "languages": "Common, Infernal",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      }
+      "Piercing"
     ],
     "traits": [
       {
@@ -48748,20 +45349,11 @@
     },
     "languages": "Common, Giant",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Lightning",
+      "Thunder"
     ],
     "traits": [
       {
@@ -48855,20 +45447,11 @@
     },
     "languages": "Common, Giant",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Thunder",
-        "key": "thunder"
-      }
+      "Lightning",
+      "Thunder"
     ],
     "traits": [
       {
@@ -48968,10 +45551,7 @@
     },
     "languages": "Common plus two other languages",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      }
+      "Necrotic"
     ],
     "traits": [
       {
@@ -49084,22 +45664,10 @@
     },
     "languages": "the languages it knew in life",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Necrotic",
+      "Piercing",
+      "Slashing"
     ],
     "traits": [
       {
@@ -49236,10 +45804,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -49348,10 +45913,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -49472,10 +46034,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -49586,10 +46145,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -49706,24 +46262,12 @@
     },
     "languages": "Infernal; telepathy 120 ft.",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Cold",
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -49811,34 +46355,16 @@
     },
     "languages": "Infernal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -49939,10 +46465,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -50057,10 +46580,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -50189,16 +46709,10 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -50310,16 +46824,10 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -50437,36 +46945,15 @@
     },
     "languages": "Common plus three other languages",
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -50586,54 +47073,21 @@
     },
     "languages": "the languages it knew in life",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Necrotic",
+      "Piercing",
+      "Poison",
+      "Slashing"
     ],
     "damageVulnerabilities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      }
+      "Bludgeoning"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -50914,10 +47368,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -51022,10 +47473,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -51142,10 +47590,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -51256,10 +47701,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -51371,44 +47813,17 @@
     },
     "languages": "Understands Common plus two other languages but can't speak",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Fire",
+      "Poison",
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -51493,56 +47908,20 @@
     },
     "languages": "understands the languages of its creator but can't speak",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Fire",
+      "Piercing",
+      "Poison",
+      "Psychic",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Petrified",
-        "key": "petrified"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -51674,30 +48053,15 @@
     },
     "languages": "Abyssal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Fire",
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -51793,42 +48157,18 @@
     },
     "languages": "Abyssal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -51937,10 +48277,7 @@
     },
     "languages": "All; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Radiant"
     ],
     "traits": [
       {
@@ -52039,36 +48376,15 @@
     },
     "languages": "all, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Radiant",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened"
     ],
     "traits": [
       {
@@ -52169,10 +48485,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -52288,10 +48601,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -52420,10 +48730,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -52528,10 +48835,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -52649,32 +48953,14 @@
     },
     "languages": "Common, Sphinx",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Psychic",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      }
+      "Charmed",
+      "Frightened"
     ],
     "traits": [
       {
@@ -52778,10 +49064,7 @@
     },
     "languages": "Draconic, Primordial (Aquan)",
     "damageResistances": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -52864,10 +49147,7 @@
     },
     "languages": "Aquan, Draconic",
     "damageResistances": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -52967,30 +49247,15 @@
     },
     "languages": "Celestial, Common",
     "damageResistances": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Necrotic",
+      "Radiant"
     ],
     "damageImmunities": [
-      {
-        "name": "Psychic",
-        "key": "psychic"
-      }
+      "Psychic"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      }
+      "Charmed",
+      "Frightened"
     ],
     "traits": [
       {
@@ -53089,38 +49354,17 @@
     },
     "languages": "Abyssal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Frightened",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -53216,42 +49460,18 @@
     },
     "languages": "Abyssal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Lightning",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -53361,10 +49581,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -53476,10 +49693,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -53601,10 +49815,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -53709,10 +49920,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -53830,26 +50038,14 @@
     },
     "languages": "Infernal; telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -53949,38 +50145,17 @@
     },
     "languages": "Infernal, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Cold",
+      "Piercing",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -54088,10 +50263,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -54200,10 +50372,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -54324,10 +50493,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -54438,10 +50604,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Acid",
-        "key": "acid"
-      }
+      "Acid"
     ],
     "traits": [
       {
@@ -54564,46 +50727,19 @@
     },
     "languages": "All",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Lightning"
     ],
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -54715,58 +50851,22 @@
     },
     "languages": "Common plus up to five other languages",
     "damageResistances": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      }
+      "Cold",
+      "Lightning",
+      "Necrotic"
     ],
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Poison",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -54871,32 +50971,14 @@
     },
     "languages": "All; telepathy 120 ft.",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      }
+      "Poison",
+      "Radiant"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -55009,50 +51091,20 @@
     },
     "languages": "all, telepathy 120 ft.",
     "damageResistances": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Radiant",
-        "key": "radiant"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Piercing",
+      "Radiant",
+      "Slashing"
     ],
     "damageImmunities": [
-      {
-        "name": "Necrotic",
-        "key": "necrotic"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Necrotic",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Exhaustion",
-        "key": "exhaustion"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -55177,10 +51229,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -55295,10 +51344,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -55427,16 +51473,10 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -55548,16 +51588,10 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Poisoned"
     ],
     "traits": [
       {
@@ -55677,10 +51711,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -55785,10 +51816,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Lightning"
     ],
     "traits": [
       {
@@ -55905,10 +51933,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -56019,10 +52044,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      }
+      "Cold"
     ],
     "traits": [
       {
@@ -56145,32 +52167,14 @@
     },
     "languages": "Understands Abyssal, Celestial, Infernal, And Primordial but can't speak; telepathy 120 ft.",
     "damageImmunities": [
-      {
-        "name": "Cold",
-        "key": "cold"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      }
+      "Cold",
+      "Lightning"
     ],
     "conditionImmunities": [
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Grappled",
-        "key": "grappled"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Restrained",
-        "key": "restrained"
-      }
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Restrained"
     ],
     "traits": [
       {
@@ -56278,32 +52282,14 @@
     },
     "languages": "understands Abyssal, Celestial, Infernal, and Primordial but can't speak, telepathy 120 ft.",
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Lightning",
-        "key": "lightning"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Lightning",
+      "Piercing",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      }
+      "Frightened",
+      "Paralyzed"
     ],
     "traits": [
       {
@@ -56425,10 +52411,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -56544,10 +52527,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -56676,10 +52656,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -56784,10 +52761,7 @@
     },
     "languages": "Common, Draconic",
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      }
+      "Fire"
     ],
     "traits": [
       {
@@ -56903,36 +52877,15 @@
       "passivePerception": 19
     },
     "damageImmunities": [
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      }
+      "Fire",
+      "Poison"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Deafened",
-        "key": "deafened"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Deafened",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
     ],
     "traits": [
       {
@@ -57045,44 +52998,17 @@
       "passivePerception": 10
     },
     "damageImmunities": [
-      {
-        "name": "Bludgeoning",
-        "key": "bludgeoning"
-      },
-      {
-        "name": "Fire",
-        "key": "fire"
-      },
-      {
-        "name": "Piercing",
-        "key": "piercing"
-      },
-      {
-        "name": "Poison",
-        "key": "poison"
-      },
-      {
-        "name": "Slashing",
-        "key": "slashing"
-      }
+      "Bludgeoning",
+      "Fire",
+      "Piercing",
+      "Poison",
+      "Slashing"
     ],
     "conditionImmunities": [
-      {
-        "name": "Charmed",
-        "key": "charmed"
-      },
-      {
-        "name": "Frightened",
-        "key": "frightened"
-      },
-      {
-        "name": "Paralyzed",
-        "key": "paralyzed"
-      },
-      {
-        "name": "Poisoned",
-        "key": "poisoned"
-      }
+      "Charmed",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
     ],
     "traits": [
       {

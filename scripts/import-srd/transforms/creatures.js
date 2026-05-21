@@ -166,9 +166,10 @@ function buildSenses(creature) {
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-/** Resistances/immunities arrays may be empty; Open5e also ships a display string. */
+/** Resistances/immunities arrays may be empty; Open5e ships {name,key} objects. */
 function arrayOrUndef(a) {
-  return Array.isArray(a) && a.length > 0 ? a.slice() : undefined;
+  if (!Array.isArray(a) || a.length === 0) return undefined;
+  return a.map(x => (typeof x === 'string' ? x : x?.name)).filter(Boolean);
 }
 
 function buildTraits(creature) {
