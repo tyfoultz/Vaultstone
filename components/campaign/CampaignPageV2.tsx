@@ -21,7 +21,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import {
-  supabase, getCampaignMembers, listCampaignPacks,
+  supabase, getCampaignMembers, listCampaignPacks, assignCharacterToCampaign,
   getActiveSession, startSession, endSession,
   getWorldsForCampaign,
   getCampaignCharacterRules,
@@ -252,6 +252,32 @@ export function CampaignPageV2({ campaignId }: Props) {
     })();
     return () => { cancelled = true; };
   }, [campaignId, refreshTick]);
+
+  // Auto-link a user's own character to their campaign_members row
+  // when the link is missing but a character pointing here exists.
+  // This bridges the "I created Oswald via the wizard but my
+  // campaign_members.character_id stayed null" gap that left the
+  // big "Create your character" CTA showing even after the character
+  // showed up in the party. Picks the first matching character if
+  // multiple exist; the user can still rebind via the manage flow.
+  useEffect(() => {
+    if (!user || !campaign) return;
+    if (campaign.dm_user_id === user.id) return; // DMs don't carry character_id
+    const myMembership = members.find((m) => m.user_id === user.id);
+    if (!myMembership) return;
+    if (myMembership.character_id) return;
+    const myCharacter = campaignCharacters.find((c) => c.user_id === user.id);
+    if (!myCharacter) return;
+    let cancelled = false;
+    (async () => {
+      const { error } = await assignCharacterToCampaign(campaignId, user.id, myCharacter.id);
+      if (cancelled || error) return;
+      setMembers((prev) =>
+        prev.map((m) => m.user_id === user.id ? { ...m, character_id: myCharacter.id } : m),
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId, members, campaignCharacters, user, campaign]);
 
   // Realtime: watch UPDATEs on every character whose campaign_id points
   // here so both the Party cards (HP / conditions / concentration) and
