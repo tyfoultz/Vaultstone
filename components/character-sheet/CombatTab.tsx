@@ -255,32 +255,6 @@ export function CombatTab({
             </CardBlock>
           )}
 
-          {/* Spell Slots */}
-          {isSpellcaster && (
-            <CardBlock title="Spell Slots">
-              {activeSlotLevels.length === 0 ? (
-                <Text style={s.emptyHint}>No spell slots — configure in Spells tab.</Text>
-              ) : (
-                activeSlotLevels.map((lvl) => {
-                  const slot = spellSlots![lvl];
-                  return (
-                    <View key={lvl} style={s.slotRow}>
-                      <Text style={s.slotOrdinal}>{SLOT_ORDINALS[lvl]}</Text>
-                      <View style={s.slotPips}>
-                        {Array.from({ length: slot.max }).map((_, i) => (
-                          <View
-                            key={i}
-                            style={[s.slotPip, i < slot.remaining ? s.slotPipFull : s.slotPipEmpty]}
-                          />
-                        ))}
-                      </View>
-                    </View>
-                  );
-                })
-              )}
-            </CardBlock>
-          )}
-
           {/* Class Resources */}
           {classResources.length > 0 && (
             <CardBlock title="Class Resources">
@@ -428,29 +402,6 @@ export function CombatTab({
         </>
       )}
 
-      {/* Spell slots (mobile) */}
-      {isSpellcaster && activeSlotLevels.length > 0 && (
-        <>
-          <SectionLabel style={{ marginTop: 14 }} accent>SPELL SLOTS</SectionLabel>
-          <View style={s.mobileCard}>
-            {activeSlotLevels.map((lvl, i) => {
-              const slot = spellSlots![lvl];
-              return (
-                <View key={lvl} style={[s.slotRow, { paddingHorizontal: 12, paddingVertical: 8 }, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant }]}>
-                  <Text style={s.slotOrdinal}>{SLOT_ORDINALS[lvl]}</Text>
-                  <View style={s.slotPips}>
-                    {Array.from({ length: slot.max }).map((_, j) => (
-                      <View key={j} style={[s.slotPip, j < slot.remaining ? s.slotPipFull : s.slotPipEmpty]} />
-                    ))}
-                  </View>
-                  <Text style={s.slotCount}>{slot.remaining}/{slot.max}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </>
-      )}
-
       {/* Conditions */}
       <SectionLabel style={{ marginTop: 14 }}>CONDITIONS</SectionLabel>
       <ConditionsSection
@@ -497,6 +448,19 @@ export function CombatTab({
           characterLevel={stats.level}
           onUpdateAbilities={onUpdateAbilities}
         />
+      </View>
+
+      {/* Actions — desktop renders these inside a CardBlock; mobile
+          used to drop them entirely (so a player on a phone had no
+          quick reference for Dash / Dodge / Help / cantrips / class-
+          feature actions). Mirror the same ActionGroup composition
+          here. */}
+      <SectionLabel style={{ marginTop: 14 }} accent>ACTIONS</SectionLabel>
+      <View style={s.mobileCard}>
+        <ActionGroup label="Actions" items={actions} color={colors.primary} />
+        {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
+        {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} color={colors.hpDanger} />}
+        {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} color={colors.outline} />}
       </View>
 
       <View style={{ height: 16 }} />

@@ -1306,6 +1306,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         r.recharge === 'short' ? { ...r, current: r.max } : r,
       );
     }
+    // Tracked abilities live alongside classResources but on the
+    // `abilities[]` array. AbilitiesCardTab used to expose its own
+    // rest buttons; now that we route through the sidebar's Rest
+    // controls only, this is the place to restore short-rest uses.
+    if (resources.abilities && resources.abilities.length > 0) {
+      next.abilities = resources.abilities.map((a) =>
+        a.uses && a.uses.recharge === 'short' ? { ...a, uses: { ...a.uses, current: a.uses.max } } : a,
+      );
+    }
     persistResources(next);
   }
 
@@ -1327,6 +1336,14 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     }
     if (resources.classResources && resources.classResources.length > 0) {
       next.classResources = resources.classResources.map((r) => ({ ...r, current: r.max }));
+    }
+    // Long rest restores both short- and long-recharge abilities,
+    // plus features that recharge on dawn (treated like long rest
+    // for daily-cycle purposes — the SRD draws no distinction here).
+    if (resources.abilities && resources.abilities.length > 0) {
+      next.abilities = resources.abilities.map((a) =>
+        a.uses ? { ...a, uses: { ...a.uses, current: a.uses.max } } : a,
+      );
     }
     next.hpCurrent = stats.hpMax;
     next.hpTemp = 0;
