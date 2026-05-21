@@ -335,6 +335,16 @@ export interface Dnd5ePreparedSpell {
    *  expand on the Spells tab. Optional so legacy entries (added before
    *  the modal back-filled this) still load cleanly. */
   description?: string;
+  /**
+   * Spells that are always treated as prepared — typically Cleric
+   * domain spells, Paladin oath spells, or any spell granted by a
+   * subclass / feat / species that doesn't count against the player's
+   * prepared limit. Survives long rests; cannot be unprepared by the
+   * normal toggle. The player flips it on/off from the spell row's
+   * expansion when the spell came from a source that grants it
+   * always-prepared (or, for flexibility, on any spell).
+   */
+  alwaysPrepared?: boolean;
 }
 
 /** Generic per-class resource pool: Barbarian rages, Ki points, Channel Divinity, etc. */

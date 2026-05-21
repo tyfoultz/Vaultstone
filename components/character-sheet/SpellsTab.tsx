@@ -53,6 +53,13 @@ interface Props {
    *  auto-prepared by being in the spellbook). Caller writes
    *  resources.preparedSpells with the new entry added or removed. */
   onTogglePrepared?: (spell: Dnd5ePreparedSpell) => void;
+  /** Toggle a spell's always-prepared flag. Always-prepared spells
+   *  count as prepared regardless of the regular toggle and don't
+   *  consume the daily prepare cap — used for domain/oath spells and
+   *  any other source-granted "free" prep. Caller adds the spell to
+   *  resources.preparedSpells with alwaysPrepared=true (or strips the
+   *  flag when toggled off). */
+  onToggleAlwaysPrepared?: (spell: Dnd5ePreparedSpell) => void;
   /** Per-class spellcasting explainer payload — drives the "How
    *  spellcasting works" panel. One entry per spellcasting class the
    *  character has a level in; empty for non-casters. The synthesized
@@ -80,7 +87,7 @@ interface Props {
 
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
-  onOpenManage, spellbook, onTogglePrepared, spellcastingExplainers,
+  onOpenManage, spellbook, onTogglePrepared, onToggleAlwaysPrepared, spellcastingExplainers,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
   const { width } = useWindowDimensions();
@@ -127,11 +134,20 @@ export function SpellsTab({
     () => new Set(preparedSpells.map((sp) => sp.id)),
     [preparedSpells],
   );
+  // Index the prepared entries by id so the row can read per-spell
+  // flags (alwaysPrepared) without re-finding through the array each
+  // render.
+  const preparedById = useMemo(
+    () => new Map(preparedSpells.map((sp) => [sp.id, sp])),
+    [preparedSpells],
+  );
 
   // isPrepared — cantrips are always cast-ready, leveled spells need
   // an explicit entry in preparedSpells.
   const isPrepared = (sp: Dnd5ePreparedSpell) =>
     sp.level === 0 || preparedKeys.has(sp.id);
+  const isAlwaysPrepared = (sp: Dnd5ePreparedSpell) =>
+    preparedById.get(sp.id)?.alwaysPrepared === true;
 
   const filteredSpells = useMemo(() => {
     let spells = sourceList;
@@ -168,7 +184,10 @@ export function SpellsTab({
   // Wizard 3 / Cleric 2 cantrip caps add). undefined limit → no
   // denominator, just the count.
   const totalCantripsKnown = preparedSpells.filter((s) => s.level === 0).length;
-  const totalLeveledPrepared = preparedSpells.filter((s) => s.level > 0).length;
+  // Always-prepared spells (domain/oath/granted) don't count toward
+  // the daily prepare cap — that's the whole reason 5e ships them as
+  // a separate concept.
+  const totalLeveledPrepared = preparedSpells.filter((s) => s.level > 0 && !s.alwaysPrepared).length;
   const cantripLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
     (acc, ex) => ex.cantripsKnown !== undefined ? (acc ?? 0) + ex.cantripsKnown : acc,
     undefined,
@@ -377,6 +396,7 @@ export function SpellsTab({
               key={spell.id}
               spell={spell}
               prepared={true}
+              alwaysPrepared={false}
               canToggle={false}
             />
           ))}
@@ -410,6 +430,7 @@ export function SpellsTab({
           </View>
           {spells.map((spell) => {
             const prep = isPrepared(spell);
+            const always = isAlwaysPrepared(spell);
             const atLimit = preparedLimit !== undefined && totalLeveledPrepared >= preparedLimit;
             return (
               <SpellRow
@@ -417,8 +438,10 @@ export function SpellsTab({
                 spell={spell}
                 slot={slot}
                 prepared={prep}
+                alwaysPrepared={always}
                 canToggle={isOwner && !!onTogglePrepared}
                 onTogglePrepared={onTogglePrepared ? () => onTogglePrepared(spell) : undefined}
+                onToggleAlwaysPrepared={isOwner && onToggleAlwaysPrepared ? () => onToggleAlwaysPrepared(spell) : undefined}
                 togglesBlocked={!prep && atLimit}
                 onCast={isOwner && onSpellSlotChange ? () => onSpellSlotChange(level, -1) : undefined}
               />
@@ -540,20 +563,30 @@ function ordinal(n: number): string {
 }
 
 function SpellRow({
-  spell, slot, prepared, canToggle, onTogglePrepared, togglesBlocked, onCast,
+  spell, slot, prepared, alwaysPrepared, canToggle, onTogglePrepared, onToggleAlwaysPrepared, togglesBlocked, onCast,
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
   prepared: boolean;
+  alwaysPrepared: boolean;
   canToggle: boolean;
   onTogglePrepared?: () => void;
+  onToggleAlwaysPrepared?: () => void;
   togglesBlocked?: boolean;
   onCast?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isCantrip = spell.level === 0;
   const canCast = prepared && (isCantrip || (slot?.remaining ?? 0) > 0);
-  const toggleDisabled = !canToggle || (togglesBlocked && !prepared);
+  // Cap-blocked applies only to the "newly prepare" direction. Once
+  // prepared (or always-prepared), the player can always unprepare.
+  // Always-prepared spells skip the regular toggle entirely; they
+  // only flip via the "Always prepared" affordance in the expanded
+  // view so a stray tap doesn't blow away a domain-spell setup.
+  const toggleDisabled = !canToggle || alwaysPrepared || (togglesBlocked && !prepared);
+  const circleIconName = alwaysPrepared ? 'pin'
+    : isCantrip ? 'infinity'
+    : 'check';
 
   return (
     <View style={[s.spellCard, !prepared && s.spellCardDimmed]}>
@@ -564,19 +597,27 @@ function SpellRow({
         delayLongPress={300}
         activeOpacity={0.7}
       >
-        <View style={[
-          s.statusCircle,
-          prepared && s.statusCircleOn,
-          isCantrip && s.statusCircleCantrip,
-        ]}>
+        <TouchableOpacity
+          onPress={!toggleDisabled && onTogglePrepared
+            ? (e) => { e.stopPropagation?.(); onTogglePrepared(); }
+            : undefined}
+          activeOpacity={!toggleDisabled ? 0.6 : 1}
+          hitSlop={6}
+          style={[
+            s.statusCircle,
+            prepared && s.statusCircleOn,
+            isCantrip && s.statusCircleCantrip,
+            alwaysPrepared && s.statusCircleAlways,
+          ]}
+        >
           {prepared ? (
             <MaterialCommunityIcons
-              name={isCantrip ? 'infinity' : 'check'}
+              name={circleIconName}
               size={12}
               color={colors.onPrimary}
             />
           ) : null}
-        </View>
+        </TouchableOpacity>
         <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
         {spell.school ? (
           <View style={s.schoolChip}>
@@ -620,6 +661,51 @@ function SpellRow({
             ) : null}
             {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
           </View>
+
+          {/* Prepare controls — leveled spells only; cantrips are
+              always cast-ready. Two buttons so the player doesn't have
+              to discover the long-press gesture: a primary
+              Prepare/Unprepare and an "Always prepared" marker for
+              source-granted spells (domain / oath / etc.) that should
+              skip the daily cap. */}
+          {!isCantrip && canToggle && (onTogglePrepared || onToggleAlwaysPrepared) && (
+            <View style={s.prepBtnRow}>
+              {onTogglePrepared && !alwaysPrepared && (
+                <TouchableOpacity
+                  style={[s.prepBtn, prepared ? s.prepBtnOn : s.prepBtnOff,
+                    togglesBlocked && !prepared && s.prepBtnDisabled]}
+                  onPress={togglesBlocked && !prepared ? undefined : onTogglePrepared}
+                  activeOpacity={togglesBlocked && !prepared ? 1 : 0.7}
+                >
+                  <MaterialCommunityIcons
+                    name={prepared ? 'check-circle' : 'circle-outline'}
+                    size={13}
+                    color={prepared ? colors.onPrimary : colors.outline}
+                  />
+                  <Text style={[s.prepBtnText, prepared && s.prepBtnTextOn]}>
+                    {togglesBlocked && !prepared ? 'Prep cap reached'
+                      : prepared ? 'Prepared' : 'Prepare'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {onToggleAlwaysPrepared && (
+                <TouchableOpacity
+                  style={[s.prepBtn, alwaysPrepared ? s.prepBtnAlways : s.prepBtnOff]}
+                  onPress={onToggleAlwaysPrepared}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name="pin"
+                    size={13}
+                    color={alwaysPrepared ? colors.onPrimary : colors.outline}
+                  />
+                  <Text style={[s.prepBtnText, alwaysPrepared && s.prepBtnTextOn]}>
+                    {alwaysPrepared ? 'Always prepared' : 'Mark always prepared'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {spell.description ? (
             <Text style={s.descText}>{spell.description}</Text>
@@ -845,6 +931,29 @@ const s = StyleSheet.create({
   },
   statusCircleOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   statusCircleCantrip: { backgroundColor: colors.primary, borderColor: colors.primary, opacity: 0.85 },
+  statusCircleAlways: { backgroundColor: colors.gm, borderColor: colors.gm },
+
+  // Expanded-view prepare controls — explicit buttons so the player
+  // doesn't have to discover the long-press / circle-tap. Inline row
+  // sits above the description.
+  prepBtnRow: {
+    flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 8, flexWrap: 'wrap',
+  },
+  prepBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  prepBtnOff: { backgroundColor: colors.surfaceContainer },
+  prepBtnOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  prepBtnAlways: { backgroundColor: colors.gm, borderColor: colors.gm },
+  prepBtnDisabled: { opacity: 0.5 },
+  prepBtnText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant, letterSpacing: 0.3,
+  },
+  prepBtnTextOn: { color: colors.onPrimary },
   spellHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   spellName: {
     fontFamily: fonts.headline, fontWeight: '600',
