@@ -7,8 +7,8 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   supabase, getActiveSession,
-  getInitiativeOrder, addCombatant, removeCombatant, advanceTurn,
-  updateCombatant, updateCharacterHp, updateCharacterConditions,
+  getInitiativeOrder, addCombatant, removeCombatant, clearAllCombatants,
+  advanceTurn, updateCombatant, updateCharacterHp, updateCharacterConditions,
   rollCombatantInitiative, setCombatantInitOverride, startCombat,
   resetInitiative, endCombat, sortByInitiative,
 } from '@vaultstone/api';
@@ -91,6 +91,7 @@ export default function CombatScreen() {
   const [startingCombat, setStartingCombat] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [endingCombat, setEndingCombat] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
 
   // Multi-panel stat blocks: set of combatant IDs with open panels
   const [openStatBlocks, setOpenStatBlocks] = useState<string[]>([]);
@@ -506,6 +507,27 @@ export default function CombatScreen() {
     setEndingCombat(false);
   }
 
+  async function handleClearAll() {
+    if (!session || clearingAll || entries.length === 0) return;
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Remove all combatants? This cannot be undone.')
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Clear All Combatants?',
+            'This will remove every combatant from the tracker. This cannot be undone.',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Clear All', style: 'destructive', onPress: () => resolve(true) },
+            ],
+          );
+        });
+    if (!confirmed) return;
+    setClearingAll(true);
+    await clearAllCombatants(session.id);
+    await refetchEntries(session.id);
+    setClearingAll(false);
+  }
+
   async function handleNextTurn() {
     if (!session || advancing || entries.length === 0) return;
     setAdvancing(true);
@@ -652,6 +674,18 @@ export default function CombatScreen() {
                 />
                 <Text style={st.controlBtnText}>{addingParty ? 'Cancel' : 'Add Party'}</Text>
               </TouchableOpacity>
+              {entries.length > 0 && (
+                <TouchableOpacity
+                  style={[st.controlBtn, clearingAll && { opacity: 0.5 }]}
+                  onPress={handleClearAll}
+                  disabled={clearingAll}
+                >
+                  <MaterialCommunityIcons name="delete-sweep-outline" size={14} color={colors.hpDanger} />
+                  <Text style={[st.controlBtnText, { color: colors.hpDanger }]}>
+                    {clearingAll ? 'Clearing...' : 'Clear All'}
+                  </Text>
+                </TouchableOpacity>
+              )}
               {!combatStarted && !allRolled && entries.length > 0 && (
                 <TouchableOpacity
                   style={[st.controlBtn, rollingAll && { opacity: 0.5 }]}

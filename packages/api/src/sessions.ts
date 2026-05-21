@@ -399,6 +399,10 @@ export async function removeCombatant(id: string) {
   return supabase.from('initiative_order').delete().eq('id', id);
 }
 
+export async function clearAllCombatants(sessionId: string) {
+  return supabase.from('initiative_order').delete().eq('session_id', sessionId);
+}
+
 // Advance turn cursor to the next combatant by init order. If we wrap back
 // to the top, bump session.round. Safe to call with no active turn set —
 // picks the highest-init combatant.

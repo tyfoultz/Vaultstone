@@ -1095,7 +1095,10 @@ export default function EncounterBuilderScreen() {
           {creature ? (
             <>
               <Text style={st.statBlockTitle} numberOfLines={1}>{creature.name}</Text>
-              <TouchableOpacity onPress={() => clearSlot(slotIdx)} hitSlop={8} style={{ marginLeft: 'auto' }}>
+              <TouchableOpacity onPress={() => addCreatureToRoster(creature)} hitSlop={8} style={{ marginLeft: 'auto' }}>
+                <MaterialCommunityIcons name="plus-circle-outline" size={18} color={colors.brand} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => clearSlot(slotIdx)} hitSlop={8} style={{ marginLeft: 4 }}>
                 <MaterialCommunityIcons name="close" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </>
@@ -1401,7 +1404,12 @@ export default function EncounterBuilderScreen() {
             <View style={st.modalContainer}>
               <View style={st.modalHeader}>
                 <Text style={st.statBlockTitle} numberOfLines={1}>{mobileCreature?.name ?? ''}</Text>
-                <TouchableOpacity onPress={() => clearSlot(0)} hitSlop={8}>
+                {mobileCreature && (
+                  <TouchableOpacity onPress={() => addCreatureToRoster(mobileCreature)} hitSlop={8}>
+                    <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.brand} />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => clearSlot(0)} hitSlop={8} style={{ marginLeft: 4 }}>
                   <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
