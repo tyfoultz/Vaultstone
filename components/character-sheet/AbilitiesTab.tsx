@@ -42,6 +42,10 @@ interface Props {
   onAddFeature: (cat: 'classFeatures' | 'speciesTraits' | 'feats') => void;
   onEditFeature: (cat: 'classFeatures' | 'speciesTraits' | 'feats', feature: Dnd5eFeature) => void;
   onTraitChoice?: (traitName: string, optionName: string) => void;
+  /** Add / remove a stable hide-key from resources.hiddenFeatures. Cards
+   *  render dimmed and collapsed in place when their key is in the
+   *  hidden set — no section movement. */
+  onToggleHidden?: (key: string) => void;
 }
 
 const ACCENT_CLASS = colors.primary;
@@ -54,12 +58,26 @@ export function AbilitiesTab({
   stats, resources, isOwner,
   classResultsByKey, subclassResultsByKey, speciesResult, backgroundResult, originFeatResult,
   featResultsByKey, onSaveFeatPicks,
-  onToggleFeatureUse, onAddFeature, onEditFeature, onTraitChoice,
+  onToggleFeatureUse, onAddFeature, onEditFeature, onTraitChoice, onToggleHidden,
 }: Props) {
   const allCustomClassFeatures = resources.classFeatures ?? [];
   const allCustomSpeciesTraits = resources.speciesTraits ?? [];
   const feats = resources.feats ?? [];
   const entries = getClassEntries(stats);
+  // Hide-key helpers. Live features have no persisted id, so the keys
+  // derive from their source + name (slugified). Custom features get
+  // prefixed by category so a homebrew "Sneak Attack" doesn't collide
+  // with the catalog one. Cards stay in place when hidden — they
+  // collapse to a single dimmed line with an Unhide button.
+  const hiddenSet = useMemo(
+    () => new Set(resources.hiddenFeatures ?? []),
+    [resources.hiddenFeatures],
+  );
+  const slug = (s: string) => s.toLowerCase().replace(/\s+/g, '-');
+  const liveKey = (kind: 'class' | 'subclass' | 'species' | 'origin-feat', subjectKey: string, name: string) =>
+    `${kind}:${subjectKey}:${slug(name)}`.replace(/::/g, ':');
+  const customKey = (cat: 'classFeatures' | 'speciesTraits' | 'feats', id: string) =>
+    `custom:${cat}:${id}`;
 
   // For each class entry, collect the live features from the resolved
   // ClassResult that the character has unlocked at their current level.
@@ -132,16 +150,21 @@ export function AbilitiesTab({
           {features.length === 0 ? (
             <EmptyHint text={`No ${cls.name} features at this level yet.`} />
           ) : (
-            features.map((f, i) => (
-              <ContentFeatureCard
-                key={`class-${entry.classKey}-${i}-${f.name}`}
-                name={f.name}
-                description={f.description ?? ''}
-                level={f.level}
-                accent={ACCENT_CLASS}
-                indented={!!f.parentName}
-              />
-            ))
+            features.map((f, i) => {
+              const k = liveKey('class', entry.classKey, f.name);
+              return (
+                <ContentFeatureCard
+                  key={`class-${entry.classKey}-${i}-${f.name}`}
+                  name={f.name}
+                  description={f.description ?? ''}
+                  level={f.level}
+                  accent={ACCENT_CLASS}
+                  indented={!!f.parentName}
+                  hidden={hiddenSet.has(k)}
+                  onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+                />
+              );
+            })
           )}
         </View>
       ))}
@@ -152,16 +175,21 @@ export function AbilitiesTab({
       {customClassFeatures.length > 0 && (
         <>
           <SectionSubRow label="CUSTOM" accent={ACCENT_CLASS} onAdd={isOwner ? () => onAddFeature('classFeatures') : undefined} />
-          {customClassFeatures.map((f) => (
-            <FeatureCard
-              key={f.id}
-              feature={f}
-              accent={ACCENT_CLASS}
-              canEdit={isOwner}
-              onEdit={() => onEditFeature('classFeatures', f)}
-              onUse={(delta) => onToggleFeatureUse('classFeatures', f.id, delta)}
-            />
-          ))}
+          {customClassFeatures.map((f) => {
+            const k = customKey('classFeatures', f.id);
+            return (
+              <FeatureCard
+                key={f.id}
+                feature={f}
+                accent={ACCENT_CLASS}
+                canEdit={isOwner}
+                onEdit={() => onEditFeature('classFeatures', f)}
+                onUse={(delta) => onToggleFeatureUse('classFeatures', f.id, delta)}
+                hidden={hiddenSet.has(k)}
+                onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+              />
+            );
+          })}
         </>
       )}
       {customClassFeatures.length === 0 && isOwner && (
@@ -185,15 +213,20 @@ export function AbilitiesTab({
               {features.length === 0 ? (
                 <EmptyHint text={`No ${sub.name} features at this level yet.`} />
               ) : (
-                features.map((f, i) => (
-                  <ContentFeatureCard
-                    key={`sub-${entry.subclassKey}-${i}-${f.name}`}
-                    name={f.name}
-                    description={f.description}
-                    level={f.level}
-                    accent={ACCENT_SUBCLASS}
-                  />
-                ))
+                features.map((f, i) => {
+                  const k = liveKey('subclass', entry.subclassKey ?? '', f.name);
+                  return (
+                    <ContentFeatureCard
+                      key={`sub-${entry.subclassKey}-${i}-${f.name}`}
+                      name={f.name}
+                      description={f.description}
+                      level={f.level}
+                      accent={ACCENT_SUBCLASS}
+                      hidden={hiddenSet.has(k)}
+                      onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+                    />
+                  );
+                })
               )}
             </View>
           ))}
@@ -250,40 +283,55 @@ export function AbilitiesTab({
 
       {/* Origin feat: prefer the resolved FeatResult (full description +
           structured benefits) over the bare name we used to show. */}
-      {originFeatResult ? (
-        <ContentFeatureCard
-          name={originFeatResult.name}
-          description={[
-            originFeatResult.description ?? '',
-            ...(originFeatResult.benefits ?? []).map((b) => `• ${b}`),
-          ].filter(Boolean).join('\n\n')}
-          subtitle="Origin feat"
-          accent={ACCENT_FEAT}
-        />
-      ) : stats.originFeat ? (
-        <ContentFeatureCard
-          name={stats.originFeat}
-          subtitle="Origin feat"
-          accent={ACCENT_FEAT}
-          description="This feat was granted by your background at character creation."
-        />
-      ) : null}
+      {originFeatResult ? (() => {
+        const k = liveKey('origin-feat', '', originFeatResult.name);
+        return (
+          <ContentFeatureCard
+            name={originFeatResult.name}
+            description={[
+              originFeatResult.description ?? '',
+              ...(originFeatResult.benefits ?? []).map((b) => `• ${b}`),
+            ].filter(Boolean).join('\n\n')}
+            subtitle="Origin feat"
+            accent={ACCENT_FEAT}
+            hidden={hiddenSet.has(k)}
+            onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+          />
+        );
+      })() : stats.originFeat ? (() => {
+        const k = liveKey('origin-feat', '', stats.originFeat);
+        return (
+          <ContentFeatureCard
+            name={stats.originFeat}
+            subtitle="Origin feat"
+            accent={ACCENT_FEAT}
+            description="This feat was granted by your background at character creation."
+            hidden={hiddenSet.has(k)}
+            onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+          />
+        );
+      })() : null}
 
       {/* ── Species traits (live from ContentResolver) ── */}
       <SectionRow label="SPECIES TRAITS" accent={ACCENT_SPECIES} style={{ marginTop: 16 }} />
       {speciesResult && (speciesResult.traits ?? []).length > 0 ? (
-        speciesResult.traits.map((t, i) => (
-          <ContentFeatureCard
-            key={`species-${i}-${t.name}`}
-            name={t.name}
-            description={t.description}
-            accent={ACCENT_SPECIES}
-            level={t.level}
-            options={t.options}
-            selectedOption={stats.traitChoices?.[t.name]}
-            onPickOption={isOwner && onTraitChoice ? (opt) => onTraitChoice(t.name, opt) : undefined}
-          />
-        ))
+        speciesResult.traits.map((t, i) => {
+          const k = liveKey('species', '', t.name);
+          return (
+            <ContentFeatureCard
+              key={`species-${i}-${t.name}`}
+              name={t.name}
+              description={t.description}
+              accent={ACCENT_SPECIES}
+              level={t.level}
+              options={t.options}
+              selectedOption={stats.traitChoices?.[t.name]}
+              onPickOption={isOwner && onTraitChoice ? (opt) => onTraitChoice(t.name, opt) : undefined}
+              hidden={hiddenSet.has(k)}
+              onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+            />
+          );
+        })
       ) : !speciesResult ? (
         <EmptyHint text="Resolving species traits…" />
       ) : (
@@ -294,16 +342,21 @@ export function AbilitiesTab({
       {customSpeciesTraits.length > 0 && (
         <>
           <SectionSubRow label="CUSTOM" accent={ACCENT_SPECIES} onAdd={isOwner ? () => onAddFeature('speciesTraits') : undefined} />
-          {customSpeciesTraits.map((f) => (
-            <FeatureCard
-              key={f.id}
-              feature={f}
-              accent={ACCENT_SPECIES}
-              canEdit={isOwner}
-              onEdit={() => onEditFeature('speciesTraits', f)}
-              onUse={(delta) => onToggleFeatureUse('speciesTraits', f.id, delta)}
-            />
-          ))}
+          {customSpeciesTraits.map((f) => {
+            const k = customKey('speciesTraits', f.id);
+            return (
+              <FeatureCard
+                key={f.id}
+                feature={f}
+                accent={ACCENT_SPECIES}
+                canEdit={isOwner}
+                onEdit={() => onEditFeature('speciesTraits', f)}
+                onUse={(delta) => onToggleFeatureUse('speciesTraits', f.id, delta)}
+                hidden={hiddenSet.has(k)}
+                onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+              />
+            );
+          })}
         </>
       )}
       {customSpeciesTraits.length === 0 && isOwner && (
@@ -339,6 +392,7 @@ export function AbilitiesTab({
               .map((sk) => sk.toLowerCase())
               .filter((sk) => !picks.map((p) => p.toLowerCase()).includes(sk)),
           );
+          const k = customKey('feats', f.id);
           return (
             <View key={f.id}>
               <FeatureCard
@@ -347,6 +401,8 @@ export function AbilitiesTab({
                 canEdit={isOwner}
                 onEdit={() => onEditFeature('feats', f)}
                 onUse={(delta) => onToggleFeatureUse('feats', f.id, delta)}
+                hidden={hiddenSet.has(k)}
+                onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
               />
               {showGrantPicker ? (
                 <FeatGrantPicker
@@ -458,7 +514,7 @@ function SectionSubRow({ label, accent, onAdd }: {
 
 // Read-only feature card driven by ContentResolver data. No edit / use
 // affordances — the source is the catalog entry, not player state.
-function ContentFeatureCard({ name, description, accent, level, subtitle, indented, options, selectedOption, onPickOption }: {
+function ContentFeatureCard({ name, description, accent, level, subtitle, indented, options, selectedOption, onPickOption, hidden, onToggleHidden }: {
   name: string;
   description?: string;
   accent: string;
@@ -468,11 +524,31 @@ function ContentFeatureCard({ name, description, accent, level, subtitle, indent
   options?: Array<{ name: string; description: string }>;
   selectedOption?: string;
   onPickOption?: (optionName: string) => void;
+  /** When true, the card renders collapsed and dimmed with an Unhide
+   *  affordance — no expand chevron, no description body. */
+  hidden?: boolean;
+  /** Flip this feature's hide state. Undefined → no hide button shown. */
+  onToggleHidden?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [showAllOptions, setShowAllOptions] = useState(false);
   const hasOptions = Array.isArray(options) && options.length > 0;
   const selectedEntry = hasOptions ? options.find((o) => o.name === selectedOption) : null;
+  if (hidden) {
+    return (
+      <View style={[s.featureCard, indented && s.featureCardIndent, s.featureCardHidden]}>
+        <View style={s.featureHeader}>
+          <View style={[s.accentBar, { backgroundColor: accent, opacity: 0.4 }]} />
+          <Text style={[s.featureName, s.featureNameHidden]} numberOfLines={1}>{name}</Text>
+          {onToggleHidden ? (
+            <TouchableOpacity onPress={onToggleHidden} hitSlop={8} activeOpacity={0.7}>
+              <Text style={[s.hiddenUnhideText, { color: accent }]}>Unhide</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
   return (
     <View style={[s.featureCard, indented && s.featureCardIndent]}>
       <TouchableOpacity style={s.featureHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
@@ -485,6 +561,15 @@ function ContentFeatureCard({ name, description, accent, level, subtitle, indent
             <Text style={s.featureUses}>{subtitle ?? (level ? `Level ${level}` : '')}</Text>
           ) : null}
         </View>
+        {onToggleHidden ? (
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation?.(); onToggleHidden(); }}
+            hitSlop={8}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="eye-off-outline" size={14} color={colors.outline} />
+          </TouchableOpacity>
+        ) : null}
         <MaterialCommunityIcons
           name={open ? 'chevron-down' : 'chevron-right'}
           size={16}
@@ -559,14 +644,31 @@ function ContentFeatureCard({ name, description, accent, level, subtitle, indent
   );
 }
 
-function FeatureCard({ feature, accent, canEdit, onEdit, onUse }: {
+function FeatureCard({ feature, accent, canEdit, onEdit, onUse, hidden, onToggleHidden }: {
   feature: Dnd5eFeature;
   accent: string;
   canEdit: boolean;
   onEdit: () => void;
   onUse: (delta: number) => void;
+  hidden?: boolean;
+  onToggleHidden?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  if (hidden) {
+    return (
+      <View style={[s.featureCard, s.featureCardHidden]}>
+        <View style={s.featureHeader}>
+          <View style={[s.accentBar, { backgroundColor: accent, opacity: 0.4 }]} />
+          <Text style={[s.featureName, s.featureNameHidden]} numberOfLines={1}>{feature.name}</Text>
+          {onToggleHidden ? (
+            <TouchableOpacity onPress={onToggleHidden} hitSlop={8} activeOpacity={0.7}>
+              <Text style={[s.hiddenUnhideText, { color: accent }]}>Unhide</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
   return (
     <View style={s.featureCard}>
       <TouchableOpacity style={s.featureHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
@@ -582,6 +684,15 @@ function FeatureCard({ feature, accent, canEdit, onEdit, onUse }: {
             <MaterialCommunityIcons name="pencil-outline" size={14} color={colors.outline} />
           </TouchableOpacity>
         )}
+        {onToggleHidden ? (
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation?.(); onToggleHidden(); }}
+            hitSlop={8}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="eye-off-outline" size={14} color={colors.outline} />
+          </TouchableOpacity>
+        ) : null}
         <MaterialCommunityIcons
           name="chevron-right"
           size={16}
@@ -886,6 +997,19 @@ const s = StyleSheet.create({
   accentBar: { width: 4, height: 22, borderRadius: 2 },
   featureHeaderText: { flex: 1, minWidth: 0 },
   featureName: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  featureCardHidden: {
+    opacity: 0.55,
+    backgroundColor: colors.surfaceContainer,
+  },
+  featureNameHidden: {
+    flex: 1, fontWeight: '500',
+    color: colors.onSurfaceVariant,
+    textDecorationLine: 'line-through',
+  },
+  hiddenUnhideText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.4,
+  },
   featureUses: { fontSize: 10, color: colors.outline, marginTop: 1 },
   featureBody: {
     paddingHorizontal: 16, paddingBottom: 12,

@@ -462,6 +462,20 @@ export interface Dnd5eResources {
   concentrationSpell?: string | null;
   /** Optional class resource pools (rages, ki, superiority dice, etc.). */
   classResources?: Dnd5eClassResource[];
+  /**
+   * Stable keys for traits / features the player has hidden on the
+   * Traits tab. Hidden cards render in-place but dimmed and
+   * collapsed, with an Unhide button — they don't move sections.
+   * Key scheme:
+   *   - `class:<classKey>:<feature-name-lower>`
+   *   - `subclass:<subclassKey>:<feature-name-lower>`
+   *   - `species:<feature-name-lower>`
+   *   - `origin-feat:<feature-name-lower>`
+   *   - `custom:<category>:<feature-id>` for player-added entries
+   * Names are slugified (lowercase, spaces → hyphens) so the keys
+   * stay stable across edits to the canonical description.
+   */
+  hiddenFeatures?: string[];
   /** Personality text fields (traits, ideals, bonds, flaws, backstory, allies, faction). */
   personality?: Dnd5ePersonality;
   /** Physical appearance fields. */

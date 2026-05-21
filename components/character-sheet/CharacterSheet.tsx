@@ -2118,6 +2118,14 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               };
               persistStats(updated);
             }}
+            onToggleHidden={(key) => {
+              if (!resources) return;
+              const current = resources.hiddenFeatures ?? [];
+              const next = current.includes(key)
+                ? current.filter((k) => k !== key)
+                : [...current, key];
+              persistResources({ ...resources, hiddenFeatures: next });
+            }}
           />
         );
       case 'gear':
