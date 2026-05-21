@@ -75,6 +75,12 @@ export function SpellPickerModal({
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  // Off by default — the picker scopes to the character's class spell
+  // lists so a Wizard doesn't have to scroll past 200 Cleric spells.
+  // When on, the hard class scope is bypassed; useful for homebrew
+  // characters whose class isn't in the catalog, multiclass-prep
+  // scenarios, or just browsing.
+  const [showAllClasses, setShowAllClasses] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -86,6 +92,7 @@ export function SpellPickerModal({
     setExpandedKey(null);
     setFilterMenuOpen(false);
     setStatusMenuOpen(false);
+    setShowAllClasses(false);
     const cacheKey = `${srdVersion}|${campaignId ?? ''}|${(packIds ?? []).join(',')}`;
     if (_spellCache && _spellCache.key === cacheKey && Date.now() - _spellCache.fetchedAt < SPELL_CACHE_TTL) {
       setList(_spellCache.spells);
@@ -120,6 +127,7 @@ export function SpellPickerModal({
     const q = search.trim().toLowerCase();
     return list
       .filter((s) => {
+        if (showAllClasses) return true;
         if (s.classes.length === 0) return true;
         if (classNamesLc.size === 0) return true;
         return s.classes.some((cn) => classNamesLc.has(cn.toLowerCase()));
@@ -138,27 +146,27 @@ export function SpellPickerModal({
         || (s.description ?? '').toLowerCase().includes(q),
       )
       .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
-  }, [list, search, levelFilter, statusFilter, classFilter, schoolFilter, existingKeys, classNamesLc]);
+  }, [list, search, levelFilter, statusFilter, classFilter, schoolFilter, existingKeys, classNamesLc, showAllClasses]);
 
   const availableClasses = useMemo(() => {
     const set = new Set<string>();
     for (const sp of list) {
       for (const cn of sp.classes) {
-        if (classNamesLc.size === 0 || classNamesLc.has(cn.toLowerCase())) set.add(cn);
+        if (showAllClasses || classNamesLc.size === 0 || classNamesLc.has(cn.toLowerCase())) set.add(cn);
       }
     }
     return [...set].sort();
-  }, [list, classNamesLc]);
+  }, [list, classNamesLc, showAllClasses]);
 
   const availableSchools = useMemo(() => {
     const set = new Set<string>();
     for (const sp of list) {
-      if (sp.classes.length === 0 || classNamesLc.size === 0 || sp.classes.some((cn) => classNamesLc.has(cn.toLowerCase()))) {
+      if (showAllClasses || sp.classes.length === 0 || classNamesLc.size === 0 || sp.classes.some((cn) => classNamesLc.has(cn.toLowerCase()))) {
         if (sp.school) set.add(sp.school);
       }
     }
     return [...set].sort();
-  }, [list, classNamesLc]);
+  }, [list, classNamesLc, showAllClasses]);
 
   // Levels actually present in the (class-filtered) catalog drive the
   // dropdown options — no point listing 9th-level when the character has
@@ -166,13 +174,13 @@ export function SpellPickerModal({
   const availableLevels = useMemo(() => {
     const set = new Set<number>();
     for (const s of list) {
-      if (s.classes.length === 0 || classNamesLc.size === 0
+      if (showAllClasses || s.classes.length === 0 || classNamesLc.size === 0
         || s.classes.some((cn) => classNamesLc.has(cn.toLowerCase()))) {
         set.add(s.level);
       }
     }
     return [...set].sort((a, b) => a - b);
-  }, [list, classNamesLc]);
+  }, [list, classNamesLc, showAllClasses]);
 
   function commit(spell: SpellResult) {
     const prepared: Dnd5ePreparedSpell = {
@@ -225,7 +233,16 @@ export function SpellPickerModal({
       else leveledCount++;
     }
     const cantripLimit = spellLimits?.cantrips;
-    const leveledLimit = spellLimits?.spellbook ?? spellLimits?.prepared;
+    // Manage Spells writes to the spellbook (the master learned pool),
+    // NOT today's prepared subset. Prepare-list classes (Wizard,
+    // Cleric, Druid, Paladin, Artificer) have an uncapped spellbook —
+    // they routinely learn more spells than they can prepare today,
+    // then swap during long rests. The old `?? prepared` fallback
+    // turned the prepared cap into a hard ceiling on the spellbook,
+    // so an Artificer who'd hit the prep limit with 4 L1 spells
+    // couldn't add L2 spells at all. Only enforce `spellbook` here;
+    // when it's undefined, no leveled cap applies in this modal.
+    const leveledLimit = spellLimits?.spellbook;
     const cantripText = cantripLimit !== undefined
       ? `${cantripCount}/${cantripLimit} cantrips`
       : cantripCount === 1 ? '1 cantrip' : `${cantripCount} cantrips`;
@@ -233,7 +250,7 @@ export function SpellPickerModal({
       ? `${leveledCount}/${leveledLimit} in spellbook`
       : `${leveledCount} in spellbook`;
     return { cantripText, leveledText, cantripCount, leveledCount, cantripLimit, leveledLimit };
-  }, [existingSpells, spellLimits?.cantrips, spellLimits?.spellbook, spellLimits?.prepared]);
+  }, [existingSpells, spellLimits?.cantrips, spellLimits?.spellbook]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -292,6 +309,22 @@ export function SpellPickerModal({
                   onChange={setSchoolFilter}
                   allLabel="All Schools"
                 />
+                {classNames.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setShowAllClasses((v) => !v)}
+                    activeOpacity={0.7}
+                    style={[s.allClassesToggle, showAllClasses && s.allClassesToggleActive]}
+                  >
+                    <MaterialCommunityIcons
+                      name={showAllClasses ? 'earth' : 'school-outline'}
+                      size={13}
+                      color={showAllClasses ? colors.onPrimary : colors.outline}
+                    />
+                    <Text style={[s.allClassesText, showAllClasses && s.allClassesTextActive]}>
+                      {showAllClasses ? 'All classes' : 'My classes'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               {preparedSummary ? (
@@ -705,6 +738,22 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     marginBottom: spacing.sm, flexWrap: 'wrap',
   },
+  allClassesToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  allClassesToggleActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  allClassesText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.outline, letterSpacing: 0.3,
+  },
+  allClassesTextActive: { color: colors.onPrimary },
   searchBox: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.surfaceContainerHigh,
