@@ -96,20 +96,37 @@ export function ItemPickerModal({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [list, search, category]);
 
-  // Collapse magic-item variants into a single row. Open5e ships +N
-  // variants with names like "Longsword (+1)", "Longsword (+2)", and
-  // the mundane "Longsword" lives in items.json — same base item,
-  // different enhancement. Group by stripped base name + slot so the
-  // catalog isn't a wall of +N rows; the detail view exposes a chip
-  // picker to switch between variants.
+  // Collapse magic-item variants into a single row. Variants ship in
+  // several naming flavors:
+  //   SRD            → "Longsword (+1)"           (parens suffix)
+  //   5e.tools alt 1 → "Longsword +1"             (bare suffix)
+  //   5e.tools alt 2 → "+1 Longsword"             (bare prefix)
+  // The 5e.tools import transform also stamps `data.baseItemRef.name`
+  // directly on each generated variant — we prefer that signal when
+  // present and fall back to regex stripping for everything else.
   const grouped = useMemo(() => {
-    const stripVariant = (name: string) => name.replace(/\s*\(\+\d+\)\s*$/, '').trim();
+    const stripVariant = (name: string) => name
+      .replace(/\s*\(\+\d+\)\s*$/, '')      // "Longsword (+1)"
+      .replace(/\s+\+\d+\s*$/, '')           // "Longsword +1"
+      .replace(/^\+\d+\s+/, '')              // "+1 Longsword"
+      .trim();
     const parsePlus = (name: string): number => {
-      const m = name.match(/\(\+(\d+)\)\s*$/);
-      return m ? parseInt(m[1], 10) : 0;
+      const m = name.match(/(?:\(\+(\d+)\)|\s\+(\d+)|^\+(\d+)\s)/);
+      if (!m) return 0;
+      const v = m[1] ?? m[2] ?? m[3];
+      return v ? parseInt(v, 10) : 0;
+    };
+    const baseRefName = (it: ItemResult): string | null => {
+      const ref = (it as { data?: { baseItemRef?: { name?: string } } }).data?.baseItemRef;
+      return ref?.name ?? null;
     };
     const groupKey = (it: ItemResult) => {
-      const base = stripVariant(it.name).toLowerCase();
+      // Prefer the import transform's explicit baseItemRef.name — it
+      // groups "Longsword", "+1 Longsword", "+2 Longsword", and
+      // "Adamantine Longsword" reliably even when the prefix/suffix
+      // varies. Falls back to regex-stripped name for SRD entries.
+      const explicitBase = baseRefName(it);
+      const base = (explicitBase ?? stripVariant(it.name)).toLowerCase();
       // Different slots → different objects (a Shield +1 isn't a
       // Longsword +1), so include the resolved slot in the key.
       return `${mapItemToSlot(it)}::${base}`;
@@ -121,10 +138,16 @@ export function ItemPickerModal({
       if (cur) cur.variants.push(it);
       else groups.set(k, { baseName: stripVariant(it.name), variants: [it] });
     }
-    // Sort variants by plus tier inside each group so the chip strip
-    // reads +0 → +1 → +2 → +3.
+    // Sort variants inside each group: mundane / +0 first, then
+    // +N ascending, then non-numeric variant labels (Adamantine,
+    // Vorpal, …) alphabetically. Keeps the chip strip readable.
     for (const g of groups.values()) {
-      g.variants.sort((a, b) => parsePlus(a.name) - parsePlus(b.name));
+      g.variants.sort((a, b) => {
+        const pa = parsePlus(a.name);
+        const pb = parsePlus(b.name);
+        if (pa !== pb) return pa - pb;
+        return a.name.localeCompare(b.name);
+      });
     }
     // Group order follows the picker's sort (alphabetical by base
     // name). Lone groups behave like the old single-row entries.
@@ -132,24 +155,20 @@ export function ItemPickerModal({
       .sort((a, b) => a.baseName.localeCompare(b.baseName));
   }, [filtered]);
 
-  // When the player taps a row, the picker tracks which group is
-  // selected (by base key) and which variant within it is active.
-  // Defaults to the mundane (+0) variant if present, else the first.
-  const [variantPlus, setVariantPlus] = useState<number>(0);
+  // When the player taps a row, the picker tracks which variant is
+  // selected within the group by the variant's own catalog key.
+  // Defaults to the head variant (mundane / lowest +N) on open.
+  const [variantKey, setVariantKey] = useState<string | null>(null);
   useEffect(() => {
     if (!previewKey) return;
-    setVariantPlus(0);
+    setVariantKey(previewKey);
   }, [previewKey]);
 
   const previewGroup = previewKey
     ? grouped.find((g) => g.variants.some((v) => v.key === previewKey))
     : null;
   const preview = previewGroup
-    ? previewGroup.variants.find((v) => {
-        const m = v.name.match(/\(\+(\d+)\)\s*$/);
-        const p = m ? parseInt(m[1], 10) : 0;
-        return p === variantPlus;
-      }) ?? previewGroup.variants[0]
+    ? previewGroup.variants.find((v) => v.key === variantKey) ?? previewGroup.variants[0]
     : (previewKey ? list.find((it) => it.key === previewKey) : null);
 
   function commit(item: ItemResult) {
@@ -188,8 +207,9 @@ export function ItemPickerModal({
             <ItemDetail
               item={preview}
               variants={previewGroup && previewGroup.variants.length > 1 ? previewGroup.variants : null}
-              selectedPlus={variantPlus}
-              onSelectPlus={setVariantPlus}
+              groupBaseName={previewGroup?.baseName}
+              selectedKey={preview.key}
+              onSelectKey={setVariantKey}
               onBack={() => setPreviewKey(null)}
               onPick={() => commit(preview)}
             />
@@ -285,16 +305,34 @@ function iconFor(category: ItemResult['category']): string {
   }
 }
 
-function ItemDetail({ item, variants, selectedPlus, onSelectPlus, onBack, onPick }: {
+function ItemDetail({ item, variants, groupBaseName, selectedKey, onSelectKey, onBack, onPick }: {
   item: ItemResult;
   /** Sibling variants (incl. the current one) when the picker grouped
-   *  +N variants together. Null when the item is a one-off. */
+   *  related rows together. Null when the item is a one-off. */
   variants?: ItemResult[] | null;
-  selectedPlus: number;
-  onSelectPlus: (p: number) => void;
+  groupBaseName?: string;
+  selectedKey: string;
+  onSelectKey: (key: string) => void;
   onBack: () => void;
   onPick: () => void;
 }) {
+  // Chip label: prefer the import transform's explicit variantLabel
+  // (e.g. "+1", "Adamantine", "Vorpal"), else infer from the name —
+  // either a +N suffix/prefix or, when the variant matches the group's
+  // base name, "Mundane".
+  const variantChipLabel = (v: ItemResult): string => {
+    const explicit = (v as { data?: { variantLabel?: string } }).data?.variantLabel;
+    if (explicit && explicit.trim().length > 0) return explicit.trim();
+    const plusMatch = v.name.match(/(?:\(\+(\d+)\)|\s\+(\d+)|^\+(\d+)\s)/);
+    if (plusMatch) {
+      const plus = plusMatch[1] ?? plusMatch[2] ?? plusMatch[3];
+      if (plus) return `+${plus}`;
+    }
+    if (groupBaseName && v.name.toLowerCase() === groupBaseName.toLowerCase()) {
+      return 'Mundane';
+    }
+    return v.name;
+  };
   return (
     <ScrollView contentContainerStyle={s.detailWrap}>
       <Pressable onPress={onBack} style={s.backLink}>
@@ -307,18 +345,16 @@ function ItemDetail({ item, variants, selectedPlus, onSelectPlus, onBack, onPick
           <Text style={s.variantLabel}>Variant</Text>
           <View style={s.variantChips}>
             {variants.map((v) => {
-              const m = v.name.match(/\(\+(\d+)\)\s*$/);
-              const p = m ? parseInt(m[1], 10) : 0;
-              const active = p === selectedPlus;
+              const active = v.key === selectedKey;
               return (
                 <TouchableOpacity
                   key={v.key}
-                  onPress={() => onSelectPlus(p)}
+                  onPress={() => onSelectKey(v.key)}
                   activeOpacity={0.7}
                   style={[s.variantChip, active && s.variantChipActive]}
                 >
                   <Text style={[s.variantChipText, active && s.variantChipTextActive]}>
-                    {p === 0 ? 'Mundane' : `+${p}`}
+                    {variantChipLabel(v)}
                   </Text>
                 </TouchableOpacity>
               );
