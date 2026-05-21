@@ -1113,6 +1113,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // modal's "Computed from class: N" hint when the player taps the
   // CANTRIPS / PREPARED stat in Manual Mode.
   const baseSpellLimits = stats ? computeSpellLimits(stats, classResultsByKey) : { cantrips: undefined, spellbook: undefined, prepared: undefined };
+  // Computed spell attack / save DC, used by the edit-modal hint when
+  // Manual Mode overrides are in play. Mirrors the formula in SpellsTab
+  // (prof + spellMod for attack; 8 + prof + spellMod for DC). Returns
+  // null when the character has no spellcasting ability resolved.
+  const spellcastingAbilityForHint = stats
+    ? getEffectiveSpellcastingAbility(stats, classResultsByKey, subclassResultsByKey)
+    : null;
+  const computedSpellMod = spellcastingAbilityForHint && scores
+    ? abilityMod(scores[spellcastingAbilityForHint.toLowerCase() as keyof Dnd5eAbilityScores] ?? 10)
+    : null;
+  const computedSpellAttack = computedSpellMod !== null ? prof + computedSpellMod : null;
+  const computedSpellDC = computedSpellMod !== null ? 8 + prof + computedSpellMod : null;
   // Manual-mode overrides only apply when Manual Mode is actually on.
   // Without this gate, a stray value typed once stays as a silent
   // override forever — exactly the playtest bug where Oswald's AC was
@@ -1484,6 +1496,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     } else if (editingField === 'preparedLimit') {
       const { preparedSpellsOverride, ...rest } = stats;
       persistStats(rest as Dnd5eStats);
+    } else if (editingField === 'spellAttack') {
+      const { spellAttackOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
+    } else if (editingField === 'spellSaveDc') {
+      const { spellSaveDcOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
     }
     setEditingField(null);
   }
@@ -1521,6 +1539,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     } else if (editingField === 'preparedLimit') {
       if (isNaN(num) || num < 0) { setEditingField(null); return; }
       persistStats({ ...stats, preparedSpellsOverride: num });
+    } else if (editingField === 'spellAttack') {
+      const signed = parseInt(val, 10);
+      if (isNaN(signed)) { setEditingField(null); return; }
+      persistStats({ ...stats, spellAttackOverride: signed });
+    } else if (editingField === 'spellSaveDc') {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      persistStats({ ...stats, spellSaveDcOverride: num });
     } else if (editingField === 'hpMax') {
       if (isNaN(num) || num < 1) { setEditingField(null); return; }
       persistStats({ ...stats, hpMax: num });
@@ -2769,6 +2794,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 : editingField === 'hpMax' ? 'Edit HP Max'
                 : editingField === 'cantripsLimit' ? 'Edit Cantrips Known'
                 : editingField === 'preparedLimit' ? 'Edit Spells Prepared'
+                : editingField === 'spellAttack' ? 'Edit Spell Attack'
+                : editingField === 'spellSaveDc' ? 'Edit Spell Save DC'
                 : `Edit ${editingField ? (ABILITY_SHORT[editingField as keyof Dnd5eAbilityScores] || capitalize(editingField)) : ''}`}
             </Text>
             {editingField === 'hpCurrent' ? (
@@ -2864,11 +2891,33 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   : ''}
               </Text>
             )}
+            {editingField === 'spellAttack' && (
+              <Text style={s.fieldHint}>
+                {computedSpellAttack !== null
+                  ? `Computed (prof + spell mod): ${fmtMod(computedSpellAttack)}`
+                  : 'No spellcasting ability — set a custom bonus.'}
+                {stats?.spellAttackOverride != null && stats.spellAttackOverride !== computedSpellAttack
+                  ? `  ·  override active (${fmtMod(stats.spellAttackOverride)})`
+                  : ''}
+              </Text>
+            )}
+            {editingField === 'spellSaveDc' && (
+              <Text style={s.fieldHint}>
+                {computedSpellDC !== null
+                  ? `Computed (8 + prof + spell mod): ${computedSpellDC}`
+                  : 'No spellcasting ability — set a custom DC.'}
+                {stats?.spellSaveDcOverride != null && stats.spellSaveDcOverride !== computedSpellDC
+                  ? `  ·  override active (${stats.spellSaveDcOverride})`
+                  : ''}
+              </Text>
+            )}
             <View style={s.fieldBtnRow}>
               {((editingField === 'ac' && stats?.acOverride != null)
                 || (editingField === 'initiative' && stats?.initiativeOverride != null)
                 || (editingField === 'cantripsLimit' && stats?.cantripsKnownOverride != null)
-                || (editingField === 'preparedLimit' && stats?.preparedSpellsOverride != null)) && (
+                || (editingField === 'preparedLimit' && stats?.preparedSpellsOverride != null)
+                || (editingField === 'spellAttack' && stats?.spellAttackOverride != null)
+                || (editingField === 'spellSaveDc' && stats?.spellSaveDcOverride != null)) && (
                 <TouchableOpacity style={s.fieldResetBtn} onPress={resetEditField}>
                   <Text style={s.fieldResetBtnText}>Reset to computed</Text>
                 </TouchableOpacity>

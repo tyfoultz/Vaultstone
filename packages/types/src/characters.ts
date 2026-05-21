@@ -154,6 +154,15 @@ export interface Dnd5eStats {
    *  grant cases above plus homebrew classes that don't ship a
    *  progression table. */
   preparedSpellsOverride?: number;
+  /** Manual-mode override for the spell attack bonus (proficiency +
+   *  spellcasting mod by default). Useful for magic items / class
+   *  features that bump the attack without changing the underlying
+   *  ability score. */
+  spellAttackOverride?: number;
+  /** Manual-mode override for the spell save DC (8 + proficiency +
+   *  spellcasting mod by default). Same use cases as the attack
+   *  override; some subclass features list a DC directly. */
+  spellSaveDcOverride?: number;
 
   /** Skills with expertise (double proficiency bonus). */
   skillExpertise?: string[];

@@ -114,8 +114,17 @@ export function SpellsTab({
   const spellMod = spellAbility
     ? abilityMod(scores[spellAbility.toLowerCase() as keyof Dnd5eAbilityScores] ?? 10)
     : null;
-  const spellDC = spellMod !== null ? 8 + prof + spellMod : null;
-  const spellAttack = spellMod !== null ? prof + spellMod : null;
+  const computedSpellDC = spellMod !== null ? 8 + prof + spellMod : null;
+  const computedSpellAttack = spellMod !== null ? prof + spellMod : null;
+  // Manual-mode overrides — same pattern as AC / Initiative / spell
+  // limits. Apply only while Manual Mode is on so flipping it off
+  // reverts to the ability-mod calc cleanly.
+  const spellDC = manualMode && stats.spellSaveDcOverride != null
+    ? stats.spellSaveDcOverride
+    : computedSpellDC;
+  const spellAttack = manualMode && stats.spellAttackOverride != null
+    ? stats.spellAttackOverride
+    : computedSpellAttack;
 
   const availableLevels = useMemo(() => {
     const levels = new Set<number>();
@@ -218,15 +227,29 @@ export function SpellsTab({
       {/* ── Spellcasting stats header ── */}
       {spellAbility && (
         <View style={s.statsRow}>
-          <View style={s.statBlock}>
+          <TouchableOpacity
+            style={s.statBlock}
+            disabled={!manualMode || !onEditField}
+            onPress={manualMode && onEditField
+              ? () => onEditField('spellAttack', spellAttack ?? 0)
+              : undefined}
+            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+          >
             <Text style={s.statValue}>{spellAttack !== null ? fmtMod(spellAttack) : '—'}</Text>
             <Text style={s.statLabel}>SPELL ATTACK</Text>
-          </View>
+          </TouchableOpacity>
           <View style={s.statDivider} />
-          <View style={s.statBlock}>
+          <TouchableOpacity
+            style={s.statBlock}
+            disabled={!manualMode || !onEditField}
+            onPress={manualMode && onEditField
+              ? () => onEditField('spellSaveDc', spellDC ?? 0)
+              : undefined}
+            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+          >
             <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
             <Text style={s.statLabel}>SAVE DC</Text>
-          </View>
+          </TouchableOpacity>
           <View style={s.statDivider} />
           <TouchableOpacity
             style={s.statBlock}
