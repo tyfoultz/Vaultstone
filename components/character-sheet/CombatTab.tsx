@@ -107,6 +107,9 @@ interface Props {
   onRoll: (result: RollResult) => void;
   onToggleCondition: (c: string) => void;
   onSetExhaustion: (level: number) => void;
+  /** Spend one hit die for short-rest healing. Rolls 1dN+CON, adds
+   *  result to HP (capped at max), decrements remaining. */
+  onSpendHitDie?: () => void;
   getAttackBonus: (item: Dnd5eEquipmentItem) => number;
   // ── Abilities-card embed ─────────────────────────────────────────
   // The old standalone Abilities tab now renders inside this tab so
@@ -136,7 +139,7 @@ function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void
 export function CombatTab({
   stats, resources, scores, prof,
   activeConditions, canEditAny, equipment, isDesktop, manualMode, conditionCatalog,
-  liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, getAttackBonus,
+  liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, onSpendHitDie, getAttackBonus,
   classResultsByKey, subclassResultsByKey, speciesResult, onUpdateAbilities,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
@@ -425,6 +428,8 @@ export function CombatTab({
           label="Hit Dice"
           value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`}
           suffix={`d${stats.hitDie}`}
+          editable={canEditAny && (resources.hitDiceRemaining ?? stats.level) > 0 && !!onSpendHitDie}
+          onPress={canEditAny && onSpendHitDie ? onSpendHitDie : undefined}
         />
         <PassiveCard
           label="Speed"

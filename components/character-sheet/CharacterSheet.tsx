@@ -1298,6 +1298,34 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // and any classResources flagged short-rest. Doesn't touch HP, slots
   // generally, exhaustion, or hit dice — those are long-rest only or
   // require explicit player action.
+  /**
+   * Spend one hit die during a short rest: roll 1d(hitDie) + CON mod
+   * (min 1), add the result to HP (capped at hpMax), decrement
+   * remaining hit dice. Mirrors the 5e short-rest healing rule.
+   * Surfaces the roll via the RollToast like every other dice action.
+   */
+  function handleSpendHitDie() {
+    if (!resources || !stats || !scores || !canEditAny) return;
+    const remaining = resources.hitDiceRemaining ?? stats.level;
+    if (remaining <= 0) return;
+    const die = stats.hitDie || 8;
+    const conMod = abilityMod(scores.constitution);
+    const roll = Math.floor(Math.random() * die) + 1;
+    const heal = Math.max(1, roll + conMod);
+    const next: Dnd5eResources = {
+      ...resources,
+      hitDiceRemaining: remaining - 1,
+      hpCurrent: Math.min(stats.hpMax, (resources.hpCurrent ?? 0) + heal),
+    };
+    persistResources(next);
+    handleRoll({
+      label: `Spent hit die (d${die}${conMod >= 0 ? '+' : ''}${conMod} CON)`,
+      rolls: [roll],
+      bonus: conMod,
+      total: roll + conMod,
+    });
+  }
+
   function handleShortRest() {
     if (!resources || !canEditAny) return;
     const next: Dnd5eResources = { ...resources };
@@ -1951,6 +1979,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             stats={stats}
             resources={{ ...resources, spellSlots: effectiveSpellSlots }}
             scores={scores}
+            onSpendHitDie={handleSpendHitDie}
             prof={prof}
             activeConditions={activeConditions}
             canEditAny={canEditAny}
