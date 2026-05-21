@@ -11,7 +11,7 @@ if (Platform.OS === 'web') {
   createPortal = require('react-dom').createPortal;
 }
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { supabase, getActiveSession, updateEncounter, addCombatant } from '@vaultstone/api';
+import { supabase, getActiveSession, getInitiativeOrder, updateEncounter, addCombatant, clearAllCombatants } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import { colors, spacing, useBreakpoint } from '@vaultstone/ui';
 import { getCreatureCatalog, loadCreatureByKey } from '../../../../components/creatures/creatureCache';
@@ -723,6 +723,29 @@ export default function EncounterBuilderScreen() {
       }
       setLoadingCombat(false);
       return;
+    }
+
+    const { data: existing } = await getInitiativeOrder(session.id);
+    if (existing && existing.length > 0) {
+      const confirmed = Platform.OS === 'web'
+        ? window.confirm(
+            `There are ${existing.length} combatant(s) in the tracker. Replace them with this encounter?`,
+          )
+        : await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              'Replace Combatants?',
+              `There are ${existing.length} combatant(s) already in the tracker. Loading this encounter will replace them.`,
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Replace', style: 'destructive', onPress: () => resolve(true) },
+              ],
+            );
+          });
+      if (!confirmed) {
+        setLoadingCombat(false);
+        return;
+      }
+      await clearAllCombatants(session.id);
     }
 
     const inserts: Promise<any>[] = [];
