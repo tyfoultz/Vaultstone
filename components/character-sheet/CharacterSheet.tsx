@@ -3032,6 +3032,36 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   multiline
                 />
 
+                <Text style={s.eqLabel}>Action Type</Text>
+                <View style={s.eqSlotRow}>
+                  {([
+                    { value: undefined, label: 'None' },
+                    { value: 'action', label: 'Action' },
+                    { value: 'bonus', label: 'Bonus' },
+                    { value: 'reaction', label: 'Reaction' },
+                    { value: 'free', label: 'Free' },
+                  ] as Array<{ value: Dnd5eFeature['actionType']; label: string }>).map((opt) => {
+                    const active = (editFeature.actionType ?? undefined) === opt.value;
+                    return (
+                      <TouchableOpacity
+                        key={opt.label}
+                        style={[s.eqSlotBtn, active && s.eqSlotBtnActive]}
+                        onPress={() => {
+                          const next = { ...editFeature };
+                          if (opt.value === undefined) delete next.actionType;
+                          else next.actionType = opt.value;
+                          setEditFeature(next);
+                        }}
+                      >
+                        <Text style={[s.eqSlotText, active && s.eqSlotTextActive]}>{opt.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={s.fieldHint}>
+                  Action / Bonus / Reaction / Free entries also appear on the Combat tab.
+                </Text>
+
                 <Text style={s.eqLabel}>Has Limited Uses?</Text>
                 <View style={s.eqSlotRow}>
                   <TouchableOpacity

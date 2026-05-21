@@ -81,6 +81,10 @@ export function SpellPickerModal({
   // characters whose class isn't in the catalog, multiclass-prep
   // scenarios, or just browsing.
   const [showAllClasses, setShowAllClasses] = useState(false);
+  // One-off custom spell entry — for spells the catalog doesn't ship
+  // (DM-granted, homebrew lineage spells, etc.). Same pattern as the
+  // ItemPickerModal custom-item form.
+  const [customOpen, setCustomOpen] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -93,6 +97,7 @@ export function SpellPickerModal({
     setFilterMenuOpen(false);
     setStatusMenuOpen(false);
     setShowAllClasses(false);
+    setCustomOpen(false);
     const cacheKey = `${srdVersion}|${campaignId ?? ''}|${(packIds ?? []).join(',')}`;
     if (_spellCache && _spellCache.key === cacheKey && Date.now() - _spellCache.fetchedAt < SPELL_CACHE_TTL) {
       setList(_spellCache.spells);
@@ -257,7 +262,9 @@ export function SpellPickerModal({
       <Pressable style={s.backdrop} onPress={onClose}>
         <Pressable style={s.card} onPress={() => {}}>
           <View style={s.header}>
-            <Text style={s.title} numberOfLines={1}>Add a spell</Text>
+            <Text style={s.title} numberOfLines={1}>
+              {customOpen ? 'Custom spell' : 'Add a spell'}
+            </Text>
             <TouchableOpacity onPress={onClose} hitSlop={10}>
               <MaterialCommunityIcons name="close" size={22} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
@@ -267,6 +274,11 @@ export function SpellPickerModal({
             <View style={s.loadingWrap}>
               <ActivityIndicator color={colors.primary} />
             </View>
+          ) : customOpen ? (
+            <CustomSpellForm
+              onBack={() => setCustomOpen(false)}
+              onCommit={(spell) => { onPick(spell); setCustomOpen(false); }}
+            />
           ) : (
             <>
               <View style={s.searchRow}>
@@ -325,6 +337,14 @@ export function SpellPickerModal({
                     </Text>
                   </TouchableOpacity>
                 )}
+                <TouchableOpacity
+                  onPress={() => setCustomOpen(true)}
+                  activeOpacity={0.7}
+                  style={s.customAddBtn}
+                >
+                  <MaterialCommunityIcons name="plus-circle-outline" size={13} color={colors.primary} />
+                  <Text style={s.customAddText}>Custom spell</Text>
+                </TouchableOpacity>
               </View>
 
               {preparedSummary ? (
@@ -699,6 +719,131 @@ function sourceCodeFor(sp: SpellResult): string | null {
   return null;
 }
 
+// Inline form for one-off spell entries the catalog doesn't ship —
+// DM-granted spells, homebrew lineage spells, or anything the player
+// wants to track outside the standard catalog flow.
+function CustomSpellForm({
+  onBack,
+  onCommit,
+}: {
+  onBack: () => void;
+  onCommit: (spell: Dnd5ePreparedSpell) => void;
+}) {
+  const [name, setName] = useState('');
+  const [level, setLevel] = useState(0);
+  const [school, setSchool] = useState('');
+  const [castingTime, setCastingTime] = useState('');
+  const [range, setRange] = useState('');
+  const [duration, setDuration] = useState('');
+  const [description, setDescription] = useState('');
+
+  const canCommit = name.trim().length > 0;
+
+  function build(): Dnd5ePreparedSpell {
+    return {
+      id: `custom-spell-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: name.trim(),
+      level,
+      school: school.trim() || undefined,
+      castingTime: castingTime.trim() || undefined,
+      range: range.trim() || undefined,
+      duration: duration.trim() || undefined,
+      description: description.trim() || undefined,
+      source: 'Custom',
+    };
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingBottom: spacing.lg }} keyboardShouldPersistTaps="handled">
+      <Pressable onPress={onBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.sm }}>
+        <MaterialCommunityIcons name="chevron-left" size={16} color={colors.onSurfaceVariant} />
+        <Text style={{ fontSize: 13, color: colors.onSurfaceVariant, fontFamily: fonts.label, fontWeight: '600' }}>
+          Back to catalog
+        </Text>
+      </Pressable>
+
+      <Text style={s.customFieldLabel}>Name</Text>
+      <TextInput
+        style={s.customFieldInput}
+        value={name}
+        onChangeText={setName}
+        placeholder="Spell name"
+        placeholderTextColor={colors.outline}
+      />
+
+      <Text style={s.customFieldLabel}>Level</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => (
+          <TouchableOpacity
+            key={lv}
+            onPress={() => setLevel(lv)}
+            activeOpacity={0.7}
+            style={[s.customLevelChip, level === lv && s.customLevelChipActive]}
+          >
+            <Text style={[s.customLevelChipText, level === lv && s.customLevelChipTextActive]}>
+              {lv === 0 ? 'Cantrip' : String(lv)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={s.customFieldLabel}>School</Text>
+      <TextInput
+        style={s.customFieldInput}
+        value={school}
+        onChangeText={setSchool}
+        placeholder="Evocation, Abjuration, …"
+        placeholderTextColor={colors.outline}
+      />
+
+      <Text style={s.customFieldLabel}>Casting Time</Text>
+      <TextInput
+        style={s.customFieldInput}
+        value={castingTime}
+        onChangeText={setCastingTime}
+        placeholder="1 action, 1 bonus, …"
+        placeholderTextColor={colors.outline}
+      />
+
+      <Text style={s.customFieldLabel}>Range</Text>
+      <TextInput
+        style={s.customFieldInput}
+        value={range}
+        onChangeText={setRange}
+        placeholder="Self, 60 ft, Touch, …"
+        placeholderTextColor={colors.outline}
+      />
+
+      <Text style={s.customFieldLabel}>Duration</Text>
+      <TextInput
+        style={s.customFieldInput}
+        value={duration}
+        onChangeText={setDuration}
+        placeholder="Instantaneous, 1 minute, …"
+        placeholderTextColor={colors.outline}
+      />
+
+      <Text style={s.customFieldLabel}>Description</Text>
+      <TextInput
+        style={[s.customFieldInput, { minHeight: 80, textAlignVertical: 'top' }]}
+        value={description}
+        onChangeText={setDescription}
+        placeholder="Effect, on-hit, save, etc."
+        placeholderTextColor={colors.outline}
+        multiline
+      />
+
+      <TouchableOpacity
+        onPress={canCommit ? () => onCommit(build()) : undefined}
+        activeOpacity={canCommit ? 0.85 : 1}
+        style={[s.customCommitBtn, !canCommit && s.customCommitBtnDisabled]}
+      >
+        <Text style={s.customCommitText}>Add spell</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
 function DetailMeta({ label, value }: { label: string; value: string }) {
   return (
     <View style={s.metaCell}>
@@ -754,6 +899,50 @@ const s = StyleSheet.create({
     color: colors.outline, letterSpacing: 0.3,
   },
   allClassesTextActive: { color: colors.onPrimary },
+
+  customAddBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  customAddText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.3,
+  },
+  customFieldLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+    marginTop: spacing.sm, marginBottom: 4,
+  },
+  customFieldInput: {
+    fontSize: 13, fontFamily: fonts.body, color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    paddingHorizontal: 12, paddingVertical: 9,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  customLevelChip: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  customLevelChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  customLevelChipText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
+  customLevelChipTextActive: { color: colors.onPrimary },
+  customCommitBtn: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingVertical: 12, borderRadius: radius.lg,
+    alignItems: 'center',
+  },
+  customCommitBtnDisabled: { backgroundColor: colors.surfaceContainerHigh },
+  customCommitText: {
+    fontSize: 14, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onPrimary, letterSpacing: 0.5,
+  },
   searchBox: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.surfaceContainerHigh,

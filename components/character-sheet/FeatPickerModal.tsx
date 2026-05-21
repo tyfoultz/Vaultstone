@@ -49,6 +49,11 @@ export function FeatPickerModal({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [previewKey, setPreviewKey] = useState<string | null>(null);
+  // One-off custom feat entry — same pattern as the spell / item
+  // pickers. The user provides a name + freeform description; the
+  // catalog-side prereq checker is skipped since custom feats won't
+  // have a structured `prerequisitesRaw` shape to evaluate.
+  const [customOpen, setCustomOpen] = useState(false);
 
   const character = useMemo<PrereqCharacter>(() => buildPrereqCharacter(stats), [stats]);
   const existingKeys = useMemo(() => new Set(existing.map((f) => f.id)), [existing]);
@@ -58,6 +63,7 @@ export function FeatPickerModal({
     setLoading(true);
     setSearch('');
     setPreviewKey(null);
+    setCustomOpen(false);
     const includeHomebrew = !!campaignId || (packIds?.length ?? 0) > 0;
     const tiers: Array<'srd' | 'homebrew'> = includeHomebrew ? ['srd', 'homebrew'] : ['srd'];
     ContentResolver.search({
@@ -99,7 +105,7 @@ export function FeatPickerModal({
       <Pressable style={s.backdrop} onPress={onClose}>
         <Pressable style={s.card} onPress={() => {}}>
           <View style={s.header}>
-            <Text style={s.title}>{preview ? preview.name : 'Add a feat'}</Text>
+            <Text style={s.title}>{customOpen ? 'Custom feat' : preview ? preview.name : 'Add a feat'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={10}>
               <MaterialCommunityIcons name="close" size={22} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
@@ -109,6 +115,11 @@ export function FeatPickerModal({
             <View style={s.loadingWrap}>
               <ActivityIndicator color={colors.primary} />
             </View>
+          ) : customOpen ? (
+            <CustomFeatForm
+              onBack={() => setCustomOpen(false)}
+              onCommit={(feature) => { onPick(feature); onClose(); }}
+            />
           ) : preview ? (
             <FeatDetail
               feat={preview}
@@ -129,6 +140,14 @@ export function FeatPickerModal({
                   onChangeText={setSearch}
                 />
               </View>
+              <TouchableOpacity
+                style={s.customAddBtn}
+                onPress={() => setCustomOpen(true)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="plus-circle-outline" size={14} color={colors.primary} />
+                <Text style={s.customAddText}>Add custom feat</Text>
+              </TouchableOpacity>
               <ScrollView style={s.list} contentContainerStyle={{ paddingBottom: spacing.md }}>
                 {filtered.length === 0 ? (
                   <Text style={s.emptyText}>
@@ -243,6 +262,69 @@ function buildPrereqCharacter(stats: Dnd5eStats): PrereqCharacter {
   };
 }
 
+// Inline form for one-off feat entries the catalog doesn't ship —
+// homebrew feats, DM-granted feats, or anything the player wants to
+// track outside the standard catalog flow. Skips the prereq checker
+// since custom feats won't have structured prereq data to evaluate.
+function CustomFeatForm({
+  onBack,
+  onCommit,
+}: {
+  onBack: () => void;
+  onCommit: (feature: Dnd5eFeature) => void;
+}) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+
+  const canCommit = name.trim().length > 0;
+
+  function build(): Dnd5eFeature {
+    return {
+      id: `custom-feat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: name.trim(),
+      description: description.trim(),
+    };
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingBottom: spacing.lg }} keyboardShouldPersistTaps="handled">
+      <Pressable onPress={onBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.sm }}>
+        <MaterialCommunityIcons name="chevron-left" size={16} color={colors.onSurfaceVariant} />
+        <Text style={{ fontSize: 13, color: colors.onSurfaceVariant, fontFamily: fonts.label, fontWeight: '600' }}>
+          Back to catalog
+        </Text>
+      </Pressable>
+
+      <Text style={s.customFieldLabel}>Name</Text>
+      <TextInput
+        style={s.customFieldInput}
+        value={name}
+        onChangeText={setName}
+        placeholder="Feat name"
+        placeholderTextColor={colors.outline}
+      />
+
+      <Text style={s.customFieldLabel}>Description</Text>
+      <TextInput
+        style={[s.customFieldInput, { minHeight: 100, textAlignVertical: 'top' }]}
+        value={description}
+        onChangeText={setDescription}
+        placeholder="Benefits, prerequisites, mechanics, …"
+        placeholderTextColor={colors.outline}
+        multiline
+      />
+
+      <TouchableOpacity
+        onPress={canCommit ? () => onCommit(build()) : undefined}
+        activeOpacity={canCommit ? 0.85 : 1}
+        style={[s.customCommitBtn, !canCommit && s.customCommitBtnDisabled]}
+      >
+        <Text style={s.customCommitText}>Add feat</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
 const s = StyleSheet.create({
   backdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
@@ -330,4 +412,41 @@ const s = StyleSheet.create({
   commitBtnDisabled: { backgroundColor: colors.surfaceContainerHighest },
   commitText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '700', color: colors.onPrimary, letterSpacing: 0.5 },
   commitTextDisabled: { color: colors.outline },
+
+  customAddBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 8, paddingHorizontal: 10,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant, borderStyle: 'dashed',
+    backgroundColor: colors.surfaceContainer,
+    alignSelf: 'flex-start',
+    marginBottom: spacing.sm,
+  },
+  customAddText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.3,
+  },
+  customFieldLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+    marginTop: spacing.sm, marginBottom: 4,
+  },
+  customFieldInput: {
+    fontSize: 13, fontFamily: fonts.body, color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    paddingHorizontal: 12, paddingVertical: 9,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  customCommitBtn: {
+    marginTop: spacing.lg, paddingVertical: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+  },
+  customCommitBtnDisabled: { backgroundColor: colors.surfaceContainerHigh },
+  customCommitText: {
+    fontSize: 14, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onPrimary, letterSpacing: 0.5,
+  },
 });
