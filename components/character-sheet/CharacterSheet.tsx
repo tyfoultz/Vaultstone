@@ -13,7 +13,7 @@ import {
   getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, uploadCharacterCardImage, supabase,
   getCampaignCharacterRules, resolveRuleValues, deleteCharacter,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, getEffectiveSpellcastingAbility } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, getEffectiveSpellcastingAbility, getEquippedAC as getEquippedACShared } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius, ImageCropModal } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
@@ -1724,49 +1724,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     return abilityMod(scores[ability]) + prof;
   }
 
+  // AC math is shared with the party views via @vaultstone/systems.
+  // The local wrapper feeds in the hydrated equipment so re-parsed
+  // miscACBonus / acBase values from the catalog apply here too.
   function getEquippedAC(): number {
-    if (!scores) return 10;
-    // An item's magical contribution only applies when worn AND, if it
-    // requires attunement, attuned. Cloak of Protection without
-    // attunement is just a cloak.
-    const isEffective = (e: Dnd5eEquipmentItem) =>
-      e.equipped && (!e.requiresAttunement || !!e.attuned);
-    // Heal a known upstream data bug: Open5e ships the SRD 2024 Shield
-    // as category='armor' with properties ['AC 2', 'Heavy Armor'], so
-    // any character that picked the Shield via the catalog before the
-    // mapping fix landed has it persisted with slot='armor'. Treat any
-    // equipped item named "Shield" as the shield slot for AC purposes,
-    // even when its stored slot says otherwise.
-    const looksLikeShield = (e: Dnd5eEquipmentItem) =>
-      e.slot === 'shield' || (e.slot === 'armor' && /^shield$/i.test(e.name.trim()));
-    const looksLikeArmor = (e: Dnd5eEquipmentItem) =>
-      e.slot === 'armor' && !looksLikeShield(e);
-    const armor = equipment.find((e) => looksLikeArmor(e) && e.equipped);
-    const shield = equipment.find((e) => looksLikeShield(e) && e.equipped);
-    let base = 10 + abilityMod(scores.dexterity);
-    if (armor) {
-      const dexMod = abilityMod(scores.dexterity);
-      const dexBonus = armor.dexCap !== undefined && armor.dexCap !== null
-        ? Math.min(dexMod, armor.dexCap)
-        : dexMod;
-      base = (armor.acBase ?? 10) + dexBonus;
-      // Magic armor (Plate +1, etc.) contributes its enhancement via
-      // miscACBonus on top of the base AC.
-      if (isEffective(armor) && armor.miscACBonus) base += armor.miscACBonus;
-    }
-    if (shield) {
-      base += shield.acBonus ?? 2;
-      if (isEffective(shield) && shield.miscACBonus) base += shield.miscACBonus;
-    }
-    // Magic items in other slots (cloak, ring, amulet, bracers) add
-    // their AC bonus directly. Skip armor/shield since they were
-    // already accounted for above.
-    for (const e of equipment) {
-      if (e.slot === 'armor' || e.slot === 'shield') continue;
-      if (!isEffective(e) || !e.miscACBonus) continue;
-      base += e.miscACBonus;
-    }
-    return base;
+    if (!stats || !resources || !scores) return 10;
+    return getEquippedACShared(stats, { ...resources, equipment });
   }
 
   function saveEquipment(items: Dnd5eEquipmentItem[]) {

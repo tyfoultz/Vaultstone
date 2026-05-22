@@ -10,6 +10,7 @@ import {
   getActiveSession, getSessionParticipants,
 } from '@vaultstone/api';
 import { useAuthStore, useUiStore } from '@vaultstone/store';
+import { getEquippedAC } from '@vaultstone/systems';
 import { colors, spacing } from '@vaultstone/ui';
 import {
   DEFAULT_PARTY_VIEW_SETTINGS,
@@ -44,21 +45,9 @@ const ROLE_LABEL: Record<string, string> = { gm: 'DM', co_gm: 'Co-DM', player: '
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-function computeAc(stats: Dnd5eStats, resources: Dnd5eResources): number {
-  const scores = stats.abilityScores;
-  const dexMod = abilityMod(scores.dexterity);
-  const equipment: Dnd5eEquipmentItem[] = resources.equipment ?? [];
-  const armor = equipment.find((e) => e.slot === 'armor' && e.equipped);
-  const shield = equipment.find((e) => e.slot === 'shield' && e.equipped);
-  let base = 10 + dexMod;
-  if (armor) {
-    const cap = armor.dexCap;
-    const dexBonus = cap !== undefined && cap !== null ? Math.min(dexMod, cap) : dexMod;
-    base = (armor.acBase ?? 10) + dexBonus;
-  }
-  if (shield) base += shield.acBonus ?? 2;
-  return base;
-}
+// AC math lives in @vaultstone/systems so the campaign party tab,
+// PartyMemberCard, world home, and character sheet all stay in sync.
+const computeAc = getEquippedAC;
 
 function hpColor(current: number, max: number): string {
   if (max <= 0) return colors.textSecondary;
