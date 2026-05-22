@@ -52,8 +52,9 @@ function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 const computeAc = getEquippedAC;
 
 /**
- * HP tier drives the left accent stripe + bar color + bloodied banner.
- * Mirrors the mockup's healthy / bloodied / dying / unconscious states.
+ * HP tier drives the left accent stripe (3-tier categorical) and the
+ * unconscious banner. Kept coarse so the at-a-glance status reads bold
+ * — fine-grained quantitative shading lives on the HP bar via hpBarColor.
  */
 function hpTier(current: number, max: number): 'healthy' | 'bloodied' | 'dying' | 'unconscious' {
   if (max <= 0 || current === 0) return 'unconscious';
@@ -69,12 +70,22 @@ const STRIPE_COLOR: Record<ReturnType<typeof hpTier>, string> = {
   dying: colors.hpDanger,
   unconscious: colors.hpDanger,
 };
-const BAR_COLOR: Record<ReturnType<typeof hpTier>, string> = {
-  healthy: colors.hpHealthy,
-  bloodied: colors.hpWarning,
-  dying: colors.hpDanger,
-  unconscious: colors.hpDanger,
-};
+
+/**
+ * Five-tier HP-bar gradient — mirrors the character sheet's `hpColor`
+ * so the party panel and the sheet read consistently. Bands:
+ *   >=100% green | >75% yellow-green | >50% yellow | >25% orange | <=25% red
+ */
+function hpBarColor(current: number, max: number): string {
+  if (max <= 0) return colors.hpDanger;
+  if (current === 0) return colors.hpDanger;
+  const ratio = current / max;
+  if (ratio >= 1) return colors.hpHealthy;
+  if (ratio > 0.75) return '#A3D977';
+  if (ratio > 0.5) return colors.hpWarning;
+  if (ratio > 0.25) return '#F97316';
+  return colors.hpDanger;
+}
 
 /** Two-letter shorthand from a character name, for the portrait fallback. */
 function initials(name: string): string {
@@ -106,7 +117,7 @@ export function PartyMemberCard({
   const hpTemp = resources.hpTemp ?? 0;
   const tier = hpTier(hpCurrent, hpMax);
   const stripeColor = STRIPE_COLOR[tier];
-  const barColor = BAR_COLOR[tier];
+  const barColor = hpBarColor(hpCurrent, hpMax);
   const hpBarPct = hpMax > 0 ? Math.max(0, Math.min(1, hpCurrent / hpMax)) : 0;
 
   const ac = computeAc(stats, resources);
