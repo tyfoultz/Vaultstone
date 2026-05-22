@@ -1235,6 +1235,19 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const canEditAny = isOwner || isDmOfLinkedCampaign;
   const isReadOnly = !canEditAny;
 
+  // Sheet-access guard. Players can see each other's party-card vitals
+  // (HP, conditions) but not the full sheet — that's reserved for the
+  // owner and the DM of the linked campaign. If a viewer navigates
+  // here without those rights (deep link, refresh from a stale tab),
+  // bounce them back to their characters list.
+  const canViewSheet = isOwner || isDmOfLinkedCampaign;
+  useEffect(() => {
+    if (!character || !authUser) return;
+    if (canViewSheet) return;
+    if (onClose) onClose();
+    else router.replace('/(drawer)/characters');
+  }, [character, authUser, canViewSheet, onClose]);
+
   // Keys inside resources that the RPC's whitelist accepts. Anything not in
   // this set is owner-only — the DM sheet silently skips writes for them.
   const RPC_RESOURCE_KEYS: (keyof Dnd5eResources)[] = [

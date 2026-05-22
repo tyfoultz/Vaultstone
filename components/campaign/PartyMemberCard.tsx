@@ -30,6 +30,12 @@ type Props = {
     avatar_url: string | null;
     avatar_card_url: string | null;
   };
+  /** When true, tapping the card opens the full character sheet. DMs
+   *  see this for every party card; players only see it for their own.
+   *  When false, the card renders read-only (party stats stay visible
+   *  but the tap is suppressed) — keeps party at-a-glance HP/conditions
+   *  for everyone without exposing the full sheet to other players. */
+  canOpen?: boolean;
 };
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
@@ -101,7 +107,7 @@ function initials(name: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-export function PartyMemberCard({ playerName: _playerName, character }: Props) {
+export function PartyMemberCard({ playerName: _playerName, character, canOpen = true }: Props) {
   const openSplit = useSplitPaneStore((s) => s.openSplit);
   const stats = character.base_stats as Dnd5eStats | null;
   const resources = character.resources as Dnd5eResources | null;
@@ -172,8 +178,9 @@ export function PartyMemberCard({ playerName: _playerName, character }: Props) {
         s.card,
         tier === 'unconscious' ? s.cardUnconscious : null,
       ]}
-      onPress={() => openSplit({ kind: 'character', characterId: character.id })}
-      activeOpacity={0.85}
+      onPress={canOpen ? () => openSplit({ kind: 'character', characterId: character.id }) : undefined}
+      activeOpacity={canOpen ? 0.85 : 1}
+      disabled={!canOpen}
     >
       {/* Left-edge accent stripe — color-codes HP tier */}
       <View style={[s.stripe, { backgroundColor: stripeColor }]} />

@@ -936,6 +936,7 @@ function PartyPanel({
               <PartyMemberCard
                 playerName={nameByUser.get(c.user_id) ?? 'Unknown'}
                 character={c}
+                canOpen={isDM || c.user_id === currentUserId}
               />
             </View>
           ))}
