@@ -2198,6 +2198,9 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             stats={stats}
             resources={resources}
             isOwner={isOwner}
+            speciesLabel={speciesResult?.name ?? null}
+            classLabel={stats.classKey ? classResultsByKey[stats.classKey]?.name ?? null : null}
+            backgroundLabel={backgroundResult?.name ?? null}
             onPersonalityChange={(field, value) =>
               persistResources({ ...resources, personality: { ...resources.personality, [field]: value } })
             }

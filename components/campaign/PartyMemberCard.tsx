@@ -17,6 +17,7 @@ import { colors, spacing, fonts, Icon } from '@vaultstone/ui';
 import type {
   Dnd5eStats, Dnd5eResources,
 } from '@vaultstone/types';
+import { useResolvedContentLabels } from './useResolvedContentLabels';
 
 type Props = {
   /** Display name (player profile name, falls back to "Unknown"). */
@@ -31,6 +32,10 @@ type Props = {
     avatar_url: string | null;
     avatar_card_url: string | null;
   };
+  /** Campaign the character belongs to. Used to scope the homebrew-content
+   *  name lookup so `homebrew_<uuid>` keys render as the user's actual
+   *  species/class/background name instead of the row id. */
+  campaignId?: string | null;
   /** When true, tapping the card opens the full character sheet. DMs
    *  see this for every party card; players only see it for their own.
    *  When false, the card renders read-only (party stats stay visible
@@ -45,24 +50,6 @@ function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 // sheet so the party card, campaign party tab, and world home all
 // show the same number for the same equipment.
 const computeAc = getEquippedAC;
-
-/**
- * Strip imported-content prefix and SRD edition suffix from a content
- * key, then title-case. e.g. `imported_dnd5e_2014_class_phb_warlock`
- * reads as "Warlock".
- */
-function prettifyKey(key: string | null | undefined): string | null {
-  if (!key) return null;
-  let s = key;
-  const importedMatch = s.match(/^imported_[^_]+_[^_]+_[^_]+_[^_]+_(.+)$/);
-  if (importedMatch) s = importedMatch[1];
-  s = s.replace(/-srd-[\d-]+$/i, '');
-  return s
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ');
-}
 
 /**
  * HP tier drives the left accent stripe + bar color + bloodied banner.
@@ -97,10 +84,13 @@ function initials(name: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-export function PartyMemberCard({ playerName: _playerName, character, canOpen = true }: Props) {
+export function PartyMemberCard({
+  playerName: _playerName, character, campaignId, canOpen = true,
+}: Props) {
   const openSplit = useSplitPaneStore((s) => s.openSplit);
   const stats = character.base_stats as Dnd5eStats | null;
   const resources = character.resources as Dnd5eResources | null;
+  const { speciesLabel, classLabel, backgroundLabel } = useResolvedContentLabels(stats, { campaignId });
 
   if (!stats || !resources) {
     return (
@@ -121,9 +111,6 @@ export function PartyMemberCard({ playerName: _playerName, character, canOpen = 
 
   const ac = computeAc(stats, resources);
 
-  const speciesLabel = prettifyKey(stats.speciesKey);
-  const classLabel = prettifyKey(stats.classKey);
-  const backgroundLabel = prettifyKey(stats.backgroundKey);
   const level = stats.level ?? 1;
 
   // Passive senses — 10 + ability mod + (prof bonus if proficient).

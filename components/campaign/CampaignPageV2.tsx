@@ -549,6 +549,7 @@ export function CampaignPageV2({ campaignId }: Props) {
             ) : null}
 
             <PartyPanel
+              campaignId={campaign.id}
               members={members}
               characters={campaignCharacters}
               isDM={isDM}
@@ -576,6 +577,7 @@ export function CampaignPageV2({ campaignId }: Props) {
               onPickCover={handlePickCover}
             >
               <CampaignMembersCard
+                campaignId={campaign.id}
                 members={members}
                 characters={campaignCharacters}
                 currentUserId={user?.id ?? null}
@@ -878,11 +880,13 @@ function PrimaryAction({
 // ── Party ───────────────────────────────────────────────────────────
 
 function PartyPanel({
+  campaignId,
   members,
   characters,
   isDM,
   currentUserId,
 }: {
+  campaignId: string;
   members: Member[];
   /** Full campaign roster — every character whose campaign_id points
    *  here. PartyPanel renders one card per character (not per member),
@@ -936,6 +940,7 @@ function PartyPanel({
               <PartyMemberCard
                 playerName={nameByUser.get(c.user_id) ?? 'Unknown'}
                 character={c}
+                campaignId={campaignId}
                 canOpen={isDM || c.user_id === currentUserId}
               />
             </View>

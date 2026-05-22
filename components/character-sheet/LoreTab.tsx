@@ -17,11 +17,13 @@ type SubTab = 'about' | 'journal';
  *   wizard-srd-2-0 → "Wizard"
  *   half-elf → "Half Elf"
  *
- * Mirrors the prettifyKey used in CampaignMembersCard / PartyMemberCard
- * so identity rows read as human content names instead of raw lookups.
+ * Returns null for `homebrew_<uuid>` keys — those carry no usable signal
+ * in the slug, so the caller (CharacterSheet) supplies the resolved name
+ * via the `*Label` props instead.
  */
 function prettifyKey(key: string | null | undefined): string | null {
   if (!key) return null;
+  if (/^homebrew_[0-9a-f-]+$/i.test(key)) return null;
   let s = key;
   const importedMatch = s.match(/^imported_[^_]+_[^_]+_[^_]+_[^_]+_(.+)$/);
   if (importedMatch) s = importedMatch[1];
@@ -56,6 +58,13 @@ interface Props {
   stats: Dnd5eStats;
   resources: Dnd5eResources;
   isOwner: boolean;
+  /** Resolved content names from the parent CharacterSheet's
+   *  ContentResolver lookup. Override the local slug prettifier so
+   *  homebrew species/class/background show their real name instead of
+   *  the row UUID. */
+  speciesLabel?: string | null;
+  classLabel?: string | null;
+  backgroundLabel?: string | null;
   onPersonalityChange?: (field: keyof Dnd5ePersonality, value: string) => void;
   onAppearanceChange?: (field: keyof Dnd5eAppearance, value: string) => void;
   /** Persist the full journal array. Called on add, edit, and delete
@@ -66,6 +75,7 @@ interface Props {
 
 export function LoreTab({
   stats, resources, isOwner,
+  speciesLabel, classLabel, backgroundLabel,
   onPersonalityChange, onAppearanceChange, onUpdateJournal,
 }: Props) {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('journal');
@@ -102,6 +112,9 @@ export function LoreTab({
           appearance={appearance}
           xp={resources.xp}
           isOwner={isOwner}
+          speciesLabel={speciesLabel}
+          classLabel={classLabel}
+          backgroundLabel={backgroundLabel}
           onPersonalityChange={onPersonalityChange}
           onAppearanceChange={onAppearanceChange}
         />
@@ -161,6 +174,7 @@ const APPEARANCE_FIELDS: Array<{ key: keyof Dnd5eAppearance; label: string }> = 
  */
 function AboutPane({
   stats, personality, appearance, xp, isOwner,
+  speciesLabel, classLabel, backgroundLabel,
   onPersonalityChange, onAppearanceChange,
 }: {
   stats: Dnd5eStats;
@@ -168,6 +182,9 @@ function AboutPane({
   appearance: Dnd5eAppearance;
   xp?: number;
   isOwner: boolean;
+  speciesLabel?: string | null;
+  classLabel?: string | null;
+  backgroundLabel?: string | null;
   onPersonalityChange?: (field: keyof Dnd5ePersonality, value: string) => void;
   onAppearanceChange?: (field: keyof Dnd5eAppearance, value: string) => void;
 }) {
@@ -178,9 +195,9 @@ function AboutPane({
       {/* Identity card */}
       <SectionLabel>CHARACTER</SectionLabel>
       <View style={s.identCard}>
-        <IdentRow label="Species"    value={prettifyKey(stats.speciesKey) ?? '—'} />
-        <IdentRow label="Class"      value={`${prettifyKey(stats.classKey) ?? '—'} · Level ${stats.level}`} />
-        <IdentRow label="Background" value={prettifyKey(stats.backgroundKey) ?? '—'} />
+        <IdentRow label="Species"    value={speciesLabel ?? prettifyKey(stats.speciesKey) ?? '—'} />
+        <IdentRow label="Class"      value={`${classLabel ?? prettifyKey(stats.classKey) ?? '—'} · Level ${stats.level}`} />
+        <IdentRow label="Background" value={backgroundLabel ?? prettifyKey(stats.backgroundKey) ?? '—'} />
         <IdentRow label="Rules"      value={stats.srdVersion === 'SRD_2.0' ? '2024 D&D' : '2014 D&D'} />
         {stats.originFeat ? (
           <IdentRow label="Origin Feat" value={stats.originFeat} accent last />
