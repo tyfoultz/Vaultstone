@@ -3,7 +3,7 @@ import { useDrag, useDrop } from 'react-dnd';
 import { SharedDndProvider } from '../DndProviderContext';
 import {
   View, Text, Image, TouchableOpacity, TextInput,
-  ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform, useWindowDimensions,
+  ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform, useWindowDimensions, Alert,
 } from 'react-native';
 import { ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -17,7 +17,7 @@ import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, 
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius, ImageCropModal } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
-import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult, SkillResult } from '@vaultstone/types';
+import type { Database, Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, CharacterSettings, Dnd5eEquipmentItem, EquipmentSlot, Dnd5eFeature, Dnd5ePreparedSpell, ClassResult, SubclassResult, SpeciesResult, BackgroundResult, FeatResult, ConditionResult, SkillResult, ItemResult } from '@vaultstone/types';
 import { getClassEntries, getSpellbook } from '@vaultstone/types';
 import { HpModal } from './HpModal';
 import { ConditionsPanel } from './ConditionsPanel';
@@ -31,7 +31,7 @@ import { GearTab } from './GearTab';
 import { LoreTab } from './LoreTab';
 import { FeatPickerModal } from './FeatPickerModal';
 import { SpellPickerModal } from './SpellPickerModal';
-import { ItemPickerModal } from './ItemPickerModal';
+import { ItemPickerModal, itemResultToEquipment } from './ItemPickerModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
@@ -363,7 +363,12 @@ function spellcastingExplainersFor(
 }
 
 function StatCell({ icon, value, label, color, centered, editable, onPress }: { icon: string; value: string; label: string; color: string; centered?: boolean; editable?: boolean; onPress?: () => void }) {
-  const Wrapper = editable && onPress ? TouchableOpacity : View;
+  // `onPress` alone makes the cell tappable (e.g. hit-die spend). The
+  // `editable` flag is reserved for manual-mode overrides — it adds
+  // the hashed-border edit-affordance treatment + the pencil glyph,
+  // signaling "tap to set a custom value". Action-only cells skip
+  // both decorations.
+  const Wrapper = onPress ? TouchableOpacity : View;
   return (
     <Wrapper style={[statCellStyle.cell, centered && statCellStyle.cellCentered, editable && statCellStyle.cellEditable]} onPress={onPress} activeOpacity={0.7}>
       <MaterialCommunityIcons name={icon as any} size={16} color={color} style={{ opacity: 0.75 }} />
@@ -671,11 +676,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const id = characterId;
   const router = useRouter();
   // Closing behavior — embedded callers pass `onClose` to drop the
-  // split target; standalone callers fall back to the router stack.
+  // split target; standalone callers go straight to the character list.
+  // We used to call router.back() first, but on web with multi-tab
+  // workspace history accumulating, "back" sometimes popped to a
+  // previous internal state instead of the list. The playtester
+  // described it as "cycling through tab changes". Always replace to
+  // the canonical destination — the back button on the character
+  // sheet means "exit to my characters", not "undo my last nav".
   const handleClose = () => {
     if (onClose) { onClose(); return; }
-    if (router.canGoBack()) router.back();
-    else router.replace('/(drawer)/characters');
+    router.replace('/(drawer)/characters');
   };
   const { updateCharacterLocally, setActiveCharacter } = useCharacterStore();
   const authUser = useAuthStore((state) => state.user);
@@ -709,6 +719,17 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // 'short' | 'long' | null — tracks which rest the player is about to
   // confirm. Resets to null on dismiss.
   const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null);
+  // Open the spend-hit-die confirm dialog. The actual roll + HP /
+  // remaining mutation happens in handleSpendHitDie; this just gates
+  // the side effect behind a confirm so a stray tap doesn't burn a
+  // hit die mid-combat.
+  const [spendHitDieOpen, setSpendHitDieOpen] = useState(false);
+  // Equipment-row delete confirmation. We can't use Alert.alert here —
+  // React Native Web's port doesn't reliably invoke button callbacks,
+  // so the user just sees a no-op when tapping the row's X. Mirroring
+  // the restConfirm pattern with a state-driven modal works on both
+  // native and web.
+  const [removeEquipId, setRemoveEquipId] = useState<string | null>(null);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   /** Campaign rule `enforce_feat_prerequisites` resolved from the
    *  character's linked campaign. Standalone characters fall through
@@ -743,6 +764,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const [featResultsByKey, setFeatResultsByKey] = useState<Map<string, FeatResult>>(new Map());
   const [conditionResults, setConditionResults] = useState<ConditionResult[]>(_cached?.conditionResults ?? []);
   const [skillResults, setSkillResults] = useState<SkillResult[]>(_cached?.skillResults ?? []);
+  // Item catalog, indexed by `ItemResult.key`. Lets getEquippedAC
+  // re-derive mechanical fields (acBase, dexCap, acBonus, miscACBonus)
+  // for equipment items that were stored before the current parser
+  // existed. Without this, characters created early carry stub
+  // equipment items with only name+slot and the AC math silently
+  // falls back to defaults.
+  const [itemResultsByKey, setItemResultsByKey] = useState<Map<string, ItemResult>>(new Map());
 
   useEffect(() => {
     if (!id) return;
@@ -875,7 +903,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           ? (character?.pack_ids as string[])
           : undefined,
       };
-      const [speciesResults, classResults, subclassResults, backgroundResults, featResults, conditionResultsAll, skillResultsAll] = await Promise.all([
+      const hasEquipment = (charResources?.equipment ?? []).length > 0;
+      const [speciesResults, classResults, subclassResults, backgroundResults, featResults, conditionResultsAll, skillResultsAll, itemResultsAll] = await Promise.all([
         speciesKey ? ContentResolver.search({ ...tierArgs, type: 'species' }) : Promise.resolve([]),
         classKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'class' }) : Promise.resolve([]),
         subclassKeys.length > 0 ? ContentResolver.search({ ...tierArgs, type: 'subclass' }) : Promise.resolve([]),
@@ -883,6 +912,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         (originFeatName || hasFeats) ? ContentResolver.search({ ...tierArgs, type: 'feat' }) : Promise.resolve([]),
         ContentResolver.search({ ...tierArgs, type: 'condition' }),
         ContentResolver.search({ ...tierArgs, type: 'skill' }),
+        hasEquipment ? ContentResolver.search({ ...tierArgs, type: 'item' }) : Promise.resolve([]),
       ]);
       if (cancelled) return;
 
@@ -944,6 +974,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
       setConditionResults(conditionResultsAll as ConditionResult[]);
       setSkillResults(skillResultsAll as SkillResult[]);
+      if (hasEquipment) {
+        const map = new Map<string, ItemResult>();
+        for (const r of itemResultsAll as ItemResult[]) map.set(r.key, r);
+        setItemResultsByKey(map);
+      }
 
       if (typeof id === 'string') {
         const specHit = speciesKey ? speciesResults.find((r) => r.key === speciesKey) as SpeciesResult | undefined : null;
@@ -1056,11 +1091,89 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     return base + (stats.savingThrowProficiencies.includes(ability) ? prof : 0);
   }
 
-  const equipment: Dnd5eEquipmentItem[] = resources?.equipment ?? [];
+  // Re-hydrate equipment items from the live catalog. Existing
+  // characters carry equipment shapes from older versions of the
+  // parser — some are missing acBase, dexCap, miscACBonus, or carry
+  // a stale slot (Shield routed to 'armor' before the SRD fix). We
+  // look each item up by id (which equals the catalog's ItemResult.key
+  // for catalog-picked items, with an optional `-N` wizard suffix),
+  // re-run the current parser, and overlay the freshly-derived
+  // mechanical fields onto the stored user-state (id / equipped /
+  // attuned / notes stay as the player set them).
+  function hydrateEquipment(e: Dnd5eEquipmentItem): Dnd5eEquipmentItem {
+    if (itemResultsByKey.size === 0) return e;
+    // The wizard appends `-0`, `-1`, etc. for quantity duplicates;
+    // strip the last numeric suffix to find the catalog key.
+    const baseKey = e.id.replace(/-\d+$/, '');
+    const catalog = itemResultsByKey.get(e.id) ?? itemResultsByKey.get(baseKey);
+    if (!catalog) return e;
+    const fresh = itemResultToEquipment(catalog);
+    return {
+      ...e,
+      slot: fresh.slot,
+      damage: e.damage ?? fresh.damage,
+      acBase: e.acBase ?? fresh.acBase,
+      dexCap: e.dexCap ?? fresh.dexCap,
+      acBonus: e.acBonus ?? fresh.acBonus,
+      miscACBonus: e.miscACBonus ?? fresh.miscACBonus,
+      properties: e.properties ?? fresh.properties,
+      requiresAttunement: e.requiresAttunement ?? fresh.requiresAttunement,
+      weight: e.weight ?? fresh.weight,
+    };
+  }
+  const equipment: Dnd5eEquipmentItem[] = (resources?.equipment ?? []).map(hydrateEquipment);
   const computedAC = scores ? getEquippedAC() : 10;
-  const ac = stats?.acOverride ?? computedAC;
+  // Class-table-derived spell limits, before any manual override.
+  // Surfaced into the Manage Spells modal and into the AC-style edit
+  // modal's "Computed from class: N" hint when the player taps the
+  // CANTRIPS / PREPARED stat in Manual Mode.
+  const baseSpellLimits = stats ? computeSpellLimits(stats, classResultsByKey) : { cantrips: undefined, spellbook: undefined, prepared: undefined };
+  // Computed spell attack / save DC, used by the edit-modal hint when
+  // Manual Mode overrides are in play. Mirrors the formula in SpellsTab
+  // (prof + spellMod for attack; 8 + prof + spellMod for DC). Returns
+  // null when the character has no spellcasting ability resolved.
+  const spellcastingAbilityForHint = stats
+    ? getEffectiveSpellcastingAbility(stats, classResultsByKey, subclassResultsByKey)
+    : null;
+  const computedSpellMod = spellcastingAbilityForHint && scores
+    ? abilityMod(scores[spellcastingAbilityForHint.toLowerCase() as keyof Dnd5eAbilityScores] ?? 10)
+    : null;
+  const computedSpellAttack = computedSpellMod !== null ? prof + computedSpellMod : null;
+  const computedSpellDC = computedSpellMod !== null ? 8 + prof + computedSpellMod : null;
+
+  // Spell-slot max overrides — applied only in Manual Mode. The
+  // synthesized `effectiveSpellSlots` becomes the source of truth for
+  // any descendant that reads `resources.spellSlots`; we splice it
+  // into the resources clone passed down to the Spells / Combat tabs.
+  // `remaining` is clamped to the override max so reducing the cap
+  // doesn't leave a stale higher remaining value showing.
+  const SLOT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+  type SpellSlotKey = typeof SLOT_LEVELS[number];
+  const effectiveSpellSlots = (() => {
+    const raw = resources?.spellSlots;
+    if (!raw) return null;
+    if (!manualMode || !stats?.spellSlotMaxOverrides) return raw;
+    const overrides = stats.spellSlotMaxOverrides;
+    const out = { ...raw } as typeof raw;
+    let touched = false;
+    for (const lvl of SLOT_LEVELS) {
+      const ov = overrides[lvl];
+      if (ov == null) continue;
+      out[lvl] = {
+        max: ov,
+        remaining: Math.min(raw[lvl]?.remaining ?? ov, ov),
+      };
+      touched = true;
+    }
+    return touched ? out : raw;
+  })();
+  // Manual-mode overrides only apply when Manual Mode is actually on.
+  // Without this gate, a stray value typed once stays as a silent
+  // override forever — exactly the playtest bug where Oswald's AC was
+  // stuck at 14 despite armor/shield/cloak all wired correctly.
+  const ac = manualMode && stats?.acOverride != null ? stats.acOverride : computedAC;
   const computedInitiative = scores ? abilityMod(scores.dexterity) : 0;
-  const initiative = stats?.initiativeOverride ?? computedInitiative;
+  const initiative = manualMode && stats?.initiativeOverride != null ? stats.initiativeOverride : computedInitiative;
   const passivePerception = 10 + skillMod('perception');
 
   const liveActionFeatures: Dnd5eFeature[] = useMemo(() => {
@@ -1121,6 +1234,19 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const isOwner = !!character && !!authUser && character.user_id === authUser.id;
   const canEditAny = isOwner || isDmOfLinkedCampaign;
   const isReadOnly = !canEditAny;
+
+  // Sheet-access guard. Players can see each other's party-card vitals
+  // (HP, conditions) but not the full sheet — that's reserved for the
+  // owner and the DM of the linked campaign. If a viewer navigates
+  // here without those rights (deep link, refresh from a stale tab),
+  // bounce them back to their characters list.
+  const canViewSheet = isOwner || isDmOfLinkedCampaign;
+  useEffect(() => {
+    if (!character || !authUser) return;
+    if (canViewSheet) return;
+    if (onClose) onClose();
+    else router.replace('/(drawer)/characters');
+  }, [character, authUser, canViewSheet, onClose]);
 
   // Keys inside resources that the RPC's whitelist accepts. Anything not in
   // this set is owner-only — the DM sheet silently skips writes for them.
@@ -1200,12 +1326,49 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // and any classResources flagged short-rest. Doesn't touch HP, slots
   // generally, exhaustion, or hit dice — those are long-rest only or
   // require explicit player action.
+  /**
+   * Spend one hit die during a short rest: roll 1d(hitDie) + CON mod
+   * (min 1), add the result to HP (capped at hpMax), decrement
+   * remaining hit dice. Mirrors the 5e short-rest healing rule.
+   * Surfaces the roll via the RollToast like every other dice action.
+   */
+  function handleSpendHitDie() {
+    if (!resources || !stats || !scores || !canEditAny) return;
+    const remaining = resources.hitDiceRemaining ?? stats.level;
+    if (remaining <= 0) return;
+    const die = stats.hitDie || 8;
+    const conMod = abilityMod(scores.constitution);
+    const roll = Math.floor(Math.random() * die) + 1;
+    const heal = Math.max(1, roll + conMod);
+    const next: Dnd5eResources = {
+      ...resources,
+      hitDiceRemaining: remaining - 1,
+      hpCurrent: Math.min(stats.hpMax, (resources.hpCurrent ?? 0) + heal),
+    };
+    persistResources(next);
+    handleRoll({
+      label: `Spent hit die (d${die}${conMod >= 0 ? '+' : ''}${conMod} CON)`,
+      rolls: [roll],
+      bonus: conMod,
+      total: roll + conMod,
+    });
+  }
+
   function handleShortRest() {
     if (!resources || !canEditAny) return;
     const next: Dnd5eResources = { ...resources };
     if (resources.classResources && resources.classResources.length > 0) {
       next.classResources = resources.classResources.map((r) =>
         r.recharge === 'short' ? { ...r, current: r.max } : r,
+      );
+    }
+    // Tracked abilities live alongside classResources but on the
+    // `abilities[]` array. AbilitiesCardTab used to expose its own
+    // rest buttons; now that we route through the sidebar's Rest
+    // controls only, this is the place to restore short-rest uses.
+    if (resources.abilities && resources.abilities.length > 0) {
+      next.abilities = resources.abilities.map((a) =>
+        a.uses && a.uses.recharge === 'short' ? { ...a, uses: { ...a.uses, current: a.uses.max } } : a,
       );
     }
     persistResources(next);
@@ -1230,6 +1393,14 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     if (resources.classResources && resources.classResources.length > 0) {
       next.classResources = resources.classResources.map((r) => ({ ...r, current: r.max }));
     }
+    // Long rest restores both short- and long-recharge abilities,
+    // plus features that recharge on dawn (treated like long rest
+    // for daily-cycle purposes — the SRD draws no distinction here).
+    if (resources.abilities && resources.abilities.length > 0) {
+      next.abilities = resources.abilities.map((a) =>
+        a.uses ? { ...a, uses: { ...a.uses, current: a.uses.max } } : a,
+      );
+    }
     next.hpCurrent = stats.hpMax;
     next.hpTemp = 0;
     next.hitDiceRemaining = stats.level;
@@ -1247,7 +1418,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   }
 
   const [portraitCropUri, setPortraitCropUri] = useState<string | null>(null);
-  const [cardCropUri, setCardCropUri] = useState<string | null>(null);
   const originalPickUriRef = useRef<string | null>(null);
 
   async function handlePickPortrait() {
@@ -1274,24 +1444,29 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
   async function handlePortraitCropConfirm(croppedUri: string) {
     setPortraitCropUri(null);
-    await uploadPortrait(croppedUri, 'image/jpeg');
-    if (originalPickUriRef.current) {
-      setCardCropUri(originalPickUriRef.current);
+    // Single crop for both surfaces — upload the same image to the
+    // portrait and card slots so we don't prompt the player to crop
+    // twice. The character list tile renders the same content as the
+    // sheet header (just framed differently by CSS), so one crop is
+    // enough. originalPickUriRef cleared once both uploads finish.
+    if (!character) {
+      originalPickUriRef.current = null;
+      return;
     }
-  }
-
-  async function handleCardCropConfirm(croppedUri: string) {
-    setCardCropUri(null);
-    originalPickUriRef.current = null;
-    if (!character) return;
     setPortraitUploading(true);
-    const { url } = await uploadCharacterCardImage(character.id, croppedUri, 'image/jpeg');
+    const [portraitRes, cardRes] = await Promise.all([
+      uploadCharacterPortrait(character.id, croppedUri, 'image/jpeg'),
+      uploadCharacterCardImage(character.id, croppedUri, 'image/jpeg'),
+    ]);
     setPortraitUploading(false);
-    if (url) {
-      const updated = { ...character, avatar_card_url: url };
-      setCharacter(updated);
-      updateCharacterLocally(character.id, { avatar_card_url: url });
+    const merged: Partial<Character> = {};
+    if (portraitRes.url) merged.avatar_url = portraitRes.url;
+    if (cardRes.url) merged.avatar_card_url = cardRes.url;
+    if (Object.keys(merged).length > 0) {
+      setCharacter((prev) => (prev ? { ...prev, ...merged } : prev));
+      updateCharacterLocally(character.id, merged);
     }
+    originalPickUriRef.current = null;
   }
 
   async function uploadPortrait(uri: string, mime: string) {
@@ -1404,6 +1579,49 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     setFieldInput(String(currentValue));
   }
 
+  /**
+   * Drop a manual-mode override for AC or Initiative so the computed
+   * value takes over again. Without this, a player who once typed a
+   * value into the AC stat cell has no in-app way to "undo" the
+   * override short of overwriting it with another number — which just
+   * persists a new override.
+   */
+  function resetEditField() {
+    if (!stats || !editingField) return;
+    if (editingField === 'ac') {
+      const { acOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
+    } else if (editingField === 'initiative') {
+      const { initiativeOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
+    } else if (editingField === 'cantripsLimit') {
+      const { cantripsKnownOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
+    } else if (editingField === 'preparedLimit') {
+      const { preparedSpellsOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
+    } else if (editingField === 'spellAttack') {
+      const { spellAttackOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
+    } else if (editingField === 'spellSaveDc') {
+      const { spellSaveDcOverride, ...rest } = stats;
+      persistStats(rest as Dnd5eStats);
+    } else if (typeof editingField === 'string' && editingField.startsWith('slotMax_')) {
+      const lvl = parseInt(editingField.slice('slotMax_'.length), 10);
+      if (Number.isFinite(lvl) && lvl >= 1 && lvl <= 9 && stats.spellSlotMaxOverrides) {
+        const { [lvl as keyof NonNullable<Dnd5eStats['spellSlotMaxOverrides']>]: _, ...remainingOverrides } = stats.spellSlotMaxOverrides;
+        const next: Dnd5eStats = { ...stats };
+        if (Object.keys(remainingOverrides).length === 0) {
+          delete next.spellSlotMaxOverrides;
+        } else {
+          next.spellSlotMaxOverrides = remainingOverrides as NonNullable<Dnd5eStats['spellSlotMaxOverrides']>;
+        }
+        persistStats(next);
+      }
+    }
+    setEditingField(null);
+  }
+
   function saveEditField() {
     if (!stats || !scores || !editingField) return;
     const val = fieldInput.trim();
@@ -1431,6 +1649,28 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       const signed = parseInt(val, 10);
       if (isNaN(signed)) { setEditingField(null); return; }
       persistStats({ ...stats, initiativeOverride: signed });
+    } else if (editingField === 'cantripsLimit') {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      persistStats({ ...stats, cantripsKnownOverride: num });
+    } else if (editingField === 'preparedLimit') {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      persistStats({ ...stats, preparedSpellsOverride: num });
+    } else if (editingField === 'spellAttack') {
+      const signed = parseInt(val, 10);
+      if (isNaN(signed)) { setEditingField(null); return; }
+      persistStats({ ...stats, spellAttackOverride: signed });
+    } else if (editingField === 'spellSaveDc') {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      persistStats({ ...stats, spellSaveDcOverride: num });
+    } else if (typeof editingField === 'string' && editingField.startsWith('slotMax_')) {
+      if (isNaN(num) || num < 0) { setEditingField(null); return; }
+      const lvl = parseInt(editingField.slice('slotMax_'.length), 10);
+      if (!Number.isFinite(lvl) || lvl < 1 || lvl > 9) { setEditingField(null); return; }
+      const prev = stats.spellSlotMaxOverrides ?? {};
+      persistStats({
+        ...stats,
+        spellSlotMaxOverrides: { ...prev, [lvl]: num },
+      });
     } else if (editingField === 'hpMax') {
       if (isNaN(num) || num < 1) { setEditingField(null); return; }
       persistStats({ ...stats, hpMax: num });
@@ -1486,8 +1726,23 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
   function getEquippedAC(): number {
     if (!scores) return 10;
-    const armor = equipment.find((e) => e.slot === 'armor' && e.equipped);
-    const shield = equipment.find((e) => e.slot === 'shield' && e.equipped);
+    // An item's magical contribution only applies when worn AND, if it
+    // requires attunement, attuned. Cloak of Protection without
+    // attunement is just a cloak.
+    const isEffective = (e: Dnd5eEquipmentItem) =>
+      e.equipped && (!e.requiresAttunement || !!e.attuned);
+    // Heal a known upstream data bug: Open5e ships the SRD 2024 Shield
+    // as category='armor' with properties ['AC 2', 'Heavy Armor'], so
+    // any character that picked the Shield via the catalog before the
+    // mapping fix landed has it persisted with slot='armor'. Treat any
+    // equipped item named "Shield" as the shield slot for AC purposes,
+    // even when its stored slot says otherwise.
+    const looksLikeShield = (e: Dnd5eEquipmentItem) =>
+      e.slot === 'shield' || (e.slot === 'armor' && /^shield$/i.test(e.name.trim()));
+    const looksLikeArmor = (e: Dnd5eEquipmentItem) =>
+      e.slot === 'armor' && !looksLikeShield(e);
+    const armor = equipment.find((e) => looksLikeArmor(e) && e.equipped);
+    const shield = equipment.find((e) => looksLikeShield(e) && e.equipped);
     let base = 10 + abilityMod(scores.dexterity);
     if (armor) {
       const dexMod = abilityMod(scores.dexterity);
@@ -1495,8 +1750,22 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         ? Math.min(dexMod, armor.dexCap)
         : dexMod;
       base = (armor.acBase ?? 10) + dexBonus;
+      // Magic armor (Plate +1, etc.) contributes its enhancement via
+      // miscACBonus on top of the base AC.
+      if (isEffective(armor) && armor.miscACBonus) base += armor.miscACBonus;
     }
-    if (shield) base += shield.acBonus ?? 2;
+    if (shield) {
+      base += shield.acBonus ?? 2;
+      if (isEffective(shield) && shield.miscACBonus) base += shield.miscACBonus;
+    }
+    // Magic items in other slots (cloak, ring, amulet, bracers) add
+    // their AC bonus directly. Skip armor/shield since they were
+    // already accounted for above.
+    for (const e of equipment) {
+      if (e.slot === 'armor' || e.slot === 'shield') continue;
+      if (!isEffective(e) || !e.miscACBonus) continue;
+      base += e.miscACBonus;
+    }
     return base;
   }
 
@@ -1526,6 +1795,30 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
   function handleToggleEquipped(id: string) {
     saveEquipment(equipment.map((e) => e.id === id ? { ...e, equipped: !e.equipped } : e));
+  }
+
+  function handleTogglePinnedToCombat(id: string) {
+    saveEquipment(equipment.map((e) =>
+      e.id === id ? { ...e, pinnedToCombat: !e.pinnedToCombat } : e,
+    ));
+  }
+
+  function handleToggleAttuned(id: string) {
+    const target = equipment.find((e) => e.id === id);
+    if (!target?.requiresAttunement) return;
+    // Enforce the 3-slot 5e attunement cap. Only fire when the user
+    // is attempting to attune (not unattune) and would exceed.
+    if (!target.attuned) {
+      const currentAttuned = equipment.filter((e) => e.requiresAttunement && e.attuned).length;
+      if (currentAttuned >= 3) {
+        Alert.alert(
+          'Attunement slots full',
+          'You can be attuned to at most 3 items at once. Unattune another item first.',
+        );
+        return;
+      }
+    }
+    saveEquipment(equipment.map((e) => e.id === id ? { ...e, attuned: !e.attuned } : e));
   }
 
   function getFeatureList(cat: 'classFeatures' | 'speciesTraits' | 'feats'): Dnd5eFeature[] {
@@ -1716,8 +2009,9 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         return (
           <CombatTab
             stats={stats}
-            resources={resources}
+            resources={{ ...resources, spellSlots: effectiveSpellSlots }}
             scores={scores}
+            onSpendHitDie={() => setSpendHitDieOpen(true)}
             prof={prof}
             activeConditions={activeConditions}
             canEditAny={canEditAny}
@@ -1742,10 +2036,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         return (
           <SpellsTab
             stats={stats}
-            resources={resources}
+            resources={{ ...resources, spellSlots: effectiveSpellSlots }}
             scores={scores}
             prof={prof}
             isOwner={isOwner}
+            manualMode={manualMode}
+            onEditField={manualMode ? startEditField : undefined}
             effectiveSpellcastingAbility={getEffectiveSpellcastingAbility(stats, classResultsByKey, subclassResultsByKey)}
             onSpellSlotChange={(level, delta) => {
               if (!resources.spellSlots) return;
@@ -1764,13 +2060,58 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               // ignore toggles on them at the parent level too.
               if (spell.level === 0) return;
               const current = resources.preparedSpells ?? [];
-              const already = current.some((sp) => sp.id === spell.id);
-              const next = already
+              const existing = current.find((sp) => sp.id === spell.id);
+              // Don't let the regular toggle blow away an always-prepared
+              // marker — that flips only via the dedicated affordance.
+              if (existing?.alwaysPrepared) return;
+              const next = existing
                 ? current.filter((sp) => sp.id !== spell.id)
                 : [...current, spell];
               persistResources({ ...resources, preparedSpells: next });
             }}
+            onToggleAlwaysPrepared={(spell) => {
+              if (spell.level === 0) return;
+              const current = resources.preparedSpells ?? [];
+              const existing = current.find((sp) => sp.id === spell.id);
+              let next: typeof current;
+              if (existing) {
+                if (existing.alwaysPrepared) {
+                  // Toggling off: strip the flag but keep the spell in
+                  // the prepared list as a regular pick — the player
+                  // can unprepare it via the normal toggle afterward.
+                  next = current.map((sp) =>
+                    sp.id === spell.id ? { ...sp, alwaysPrepared: false } : sp,
+                  );
+                } else {
+                  // Promote an existing prepared entry to always-prepared.
+                  next = current.map((sp) =>
+                    sp.id === spell.id ? { ...sp, alwaysPrepared: true } : sp,
+                  );
+                }
+              } else {
+                // Not yet in the prepared list — add it as always-prepared.
+                next = [...current, { ...spell, alwaysPrepared: true }];
+              }
+              persistResources({ ...resources, preparedSpells: next });
+            }}
             spellcastingExplainers={spellcastingExplainersFor(stats, classResultsByKey, subclassResultsByKey)}
+            onSaveSpellNotes={(spell, notes) => {
+              // Player notes layer onto the spell entry. The spellbook
+              // is the master record (catalog spells live here too); we
+              // also mirror into preparedSpells when present, so both
+              // views show the latest text without a refetch.
+              const trimmed = notes.trim();
+              const noteVal = trimmed.length > 0 ? trimmed : undefined;
+              const patch = (sp: Dnd5ePreparedSpell) =>
+                sp.id === spell.id ? { ...sp, notes: noteVal } : sp;
+              const nextBook = getSpellbook(resources).map(patch);
+              const nextPrepared = (resources.preparedSpells ?? []).map(patch);
+              persistResources({
+                ...resources,
+                spellbook: nextBook,
+                preparedSpells: nextPrepared,
+              });
+            }}
           />
         );
       case 'skills':
@@ -1861,24 +2202,31 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               };
               persistStats(updated);
             }}
+            onToggleHidden={(key) => {
+              if (!resources) return;
+              const current = resources.hiddenFeatures ?? [];
+              const next = current.includes(key)
+                ? current.filter((k) => k !== key)
+                : [...current, key];
+              persistResources({ ...resources, hiddenFeatures: next });
+            }}
           />
         );
       case 'gear':
         return (
           <GearTab
             stats={stats}
-            resources={resources}
+            resources={{ ...resources, equipment }}
             isOwner={isOwner}
             strengthScore={scores.strength}
             onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
             onToggleEquipped={handleToggleEquipped}
+            onToggleAttuned={handleToggleAttuned}
+            onTogglePinnedToCombat={handleTogglePinnedToCombat}
             onUpdateNotes={(notes) => persistResources({ ...resources, notes })}
             onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
             onOpenItemPicker={() => setItemPickerOpen(true)}
-            onRemoveItem={(id) => {
-              const next = (resources.equipment ?? []).filter((it) => it.id !== id);
-              persistResources({ ...resources, equipment: next });
-            }}
+            onRemoveItem={(id) => setRemoveEquipId(id)}
           />
         );
       case 'lore':
@@ -1919,7 +2267,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         <View style={s.deskShell}>
 
           {/* ── Left rail ───────────────────────────────────────────── */}
-          <View style={s.deskRail}>
+          <ScrollView
+            style={s.deskRail}
+            contentContainerStyle={s.deskRailContent}
+            showsVerticalScrollIndicator={false}
+          >
 
             {/* Back + portrait + name */}
             <View style={s.deskHeader}>
@@ -2109,7 +2461,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 {/* Row 3: Prof | Hit Die */}
                 <View style={s.deskStatRow}>
                   <StatCell icon="star-four-points" value={fmtMod(prof)} label="Prof" color={colors.onSurface} />
-                  <StatCell icon="dice-d8-outline" value={`d${stats.hitDie}`} label="Hit Die" color={colors.onSurface} />
+                  {/* Hit die cell shows remaining/max and, in canEdit
+                      mode with dice left, doubles as the spend button —
+                      rolls 1dN+CON, heals HP, decrements remaining. */}
+                  <StatCell
+                    icon="dice-d8-outline"
+                    value={`${resources?.hitDiceRemaining ?? stats.level}/${stats.level}`}
+                    label={`Hit Die · d${stats.hitDie}`}
+                    color={colors.onSurface}
+                    onPress={canEditAny && (resources?.hitDiceRemaining ?? stats.level) > 0
+                      ? () => setSpendHitDieOpen(true)
+                      : undefined}
+                  />
                 </View>
               </View>
             </View>
@@ -2230,7 +2593,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             </View>
 
             {/* ── Campaign link ─────────────────────────────────────── */}
-            <View style={{ flex: 1 }} />
             <TouchableOpacity
               style={s.deskCampSection}
               activeOpacity={character?.campaign_id ? 0.7 : 1}
@@ -2248,7 +2610,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               </View>
             </TouchableOpacity>
 
-          </View>
+          </ScrollView>
 
           {/* ── Center content pane ─────────────────────────────────── */}
           <View style={s.deskContent}>
@@ -2602,6 +2964,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 : editingField === 'ac' ? 'Edit Armor Class'
                 : editingField === 'initiative' ? 'Edit Initiative'
                 : editingField === 'hpMax' ? 'Edit HP Max'
+                : editingField === 'cantripsLimit' ? 'Edit Cantrips Known'
+                : editingField === 'preparedLimit' ? 'Edit Spells Prepared'
+                : editingField === 'spellAttack' ? 'Edit Spell Attack'
+                : editingField === 'spellSaveDc' ? 'Edit Spell Save DC'
+                : typeof editingField === 'string' && editingField.startsWith('slotMax_')
+                  ? `Edit Spell Slots (Level ${editingField.slice('slotMax_'.length)})`
                 : `Edit ${editingField ? (ABILITY_SHORT[editingField as keyof Dnd5eAbilityScores] || capitalize(editingField)) : ''}`}
             </Text>
             {editingField === 'hpCurrent' ? (
@@ -2653,9 +3021,102 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 onSubmitEditing={saveEditField}
               />
             )}
-            <TouchableOpacity style={s.fieldSaveBtn} onPress={saveEditField}>
-              <Text style={s.fieldSaveBtnText}>Save</Text>
-            </TouchableOpacity>
+            {/* Show what the equipment-based calculation would yield,
+                so the user can see whether their override matches or
+                diverges. AC + Initiative are the two calculated stats
+                that carry overrides today. */}
+            {editingField === 'ac' && (
+              <Text style={s.fieldHint}>
+                Computed from gear: {computedAC}
+                {stats?.acOverride != null && stats.acOverride !== computedAC
+                  ? `  ·  override active (${stats.acOverride})`
+                  : ''}
+              </Text>
+            )}
+            {editingField === 'initiative' && (
+              <Text style={s.fieldHint}>
+                Computed from DEX: {fmtMod(computedInitiative)}
+                {stats?.initiativeOverride != null && stats.initiativeOverride !== computedInitiative
+                  ? `  ·  override active (${fmtMod(stats.initiativeOverride)})`
+                  : ''}
+              </Text>
+            )}
+            {editingField === 'cantripsLimit' && (
+              <Text style={s.fieldHint}>
+                {baseSpellLimits.cantrips !== undefined
+                  ? `Computed from class: ${baseSpellLimits.cantrips}`
+                  : 'No class table value — set a custom cap.'}
+                {stats?.cantripsKnownOverride != null && stats.cantripsKnownOverride !== baseSpellLimits.cantrips
+                  ? `  ·  override active (${stats.cantripsKnownOverride})`
+                  : ''}
+              </Text>
+            )}
+            {editingField === 'preparedLimit' && (
+              <Text style={s.fieldHint}>
+                {baseSpellLimits.prepared !== undefined
+                  ? `Computed from class: ${baseSpellLimits.prepared}`
+                  : baseSpellLimits.spellbook !== undefined
+                    ? `Computed from class: ${baseSpellLimits.spellbook} (known)`
+                    : 'No class table value — set a custom cap.'}
+                {stats?.preparedSpellsOverride != null
+                  && stats.preparedSpellsOverride !== baseSpellLimits.prepared
+                  && stats.preparedSpellsOverride !== baseSpellLimits.spellbook
+                  ? `  ·  override active (${stats.preparedSpellsOverride})`
+                  : ''}
+              </Text>
+            )}
+            {editingField === 'spellAttack' && (
+              <Text style={s.fieldHint}>
+                {computedSpellAttack !== null
+                  ? `Computed (prof + spell mod): ${fmtMod(computedSpellAttack)}`
+                  : 'No spellcasting ability — set a custom bonus.'}
+                {stats?.spellAttackOverride != null && stats.spellAttackOverride !== computedSpellAttack
+                  ? `  ·  override active (${fmtMod(stats.spellAttackOverride)})`
+                  : ''}
+              </Text>
+            )}
+            {editingField === 'spellSaveDc' && (
+              <Text style={s.fieldHint}>
+                {computedSpellDC !== null
+                  ? `Computed (8 + prof + spell mod): ${computedSpellDC}`
+                  : 'No spellcasting ability — set a custom DC.'}
+                {stats?.spellSaveDcOverride != null && stats.spellSaveDcOverride !== computedSpellDC
+                  ? `  ·  override active (${stats.spellSaveDcOverride})`
+                  : ''}
+              </Text>
+            )}
+            {typeof editingField === 'string' && editingField.startsWith('slotMax_') && (() => {
+              const lvl = parseInt(editingField.slice('slotMax_'.length), 10);
+              const k = lvl as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+              const computedMax = resources?.spellSlots?.[k]?.max ?? 0;
+              const override = stats?.spellSlotMaxOverrides?.[k];
+              return (
+                <Text style={s.fieldHint}>
+                  Computed from class: {computedMax}
+                  {override != null && override !== computedMax
+                    ? `  ·  override active (${override})`
+                    : ''}
+                </Text>
+              );
+            })()}
+            <View style={s.fieldBtnRow}>
+              {((editingField === 'ac' && stats?.acOverride != null)
+                || (editingField === 'initiative' && stats?.initiativeOverride != null)
+                || (editingField === 'cantripsLimit' && stats?.cantripsKnownOverride != null)
+                || (editingField === 'preparedLimit' && stats?.preparedSpellsOverride != null)
+                || (editingField === 'spellAttack' && stats?.spellAttackOverride != null)
+                || (editingField === 'spellSaveDc' && stats?.spellSaveDcOverride != null)
+                || (typeof editingField === 'string'
+                    && editingField.startsWith('slotMax_')
+                    && stats?.spellSlotMaxOverrides?.[parseInt(editingField.slice('slotMax_'.length), 10) as 1|2|3|4|5|6|7|8|9] != null)) && (
+                <TouchableOpacity style={s.fieldResetBtn} onPress={resetEditField}>
+                  <Text style={s.fieldResetBtnText}>Reset to computed</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[s.fieldSaveBtn, { flex: 1 }]} onPress={saveEditField}>
+                <Text style={s.fieldSaveBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -2694,6 +3155,49 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   placeholderTextColor={colors.textSecondary}
                   multiline
                 />
+
+                <Text style={s.eqLabel}>Flavor / Notes</Text>
+                <TextInput
+                  style={[s.eqInput, { minHeight: 50, textAlignVertical: 'top' }]}
+                  value={editFeature.notes ?? ''}
+                  onChangeText={(t) => setEditFeature({
+                    ...editFeature,
+                    notes: t.length > 0 ? t : undefined,
+                  })}
+                  placeholder="Personal take, table rulings, RP flavor — kept separate from the description."
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                />
+
+                <Text style={s.eqLabel}>Action Type</Text>
+                <View style={s.eqSlotRow}>
+                  {([
+                    { value: undefined, label: 'None' },
+                    { value: 'action', label: 'Action' },
+                    { value: 'bonus', label: 'Bonus' },
+                    { value: 'reaction', label: 'Reaction' },
+                    { value: 'free', label: 'Free' },
+                  ] as Array<{ value: Dnd5eFeature['actionType']; label: string }>).map((opt) => {
+                    const active = (editFeature.actionType ?? undefined) === opt.value;
+                    return (
+                      <TouchableOpacity
+                        key={opt.label}
+                        style={[s.eqSlotBtn, active && s.eqSlotBtnActive]}
+                        onPress={() => {
+                          const next = { ...editFeature };
+                          if (opt.value === undefined) delete next.actionType;
+                          else next.actionType = opt.value;
+                          setEditFeature(next);
+                        }}
+                      >
+                        <Text style={[s.eqSlotText, active && s.eqSlotTextActive]}>{opt.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={s.fieldHint}>
+                  Action / Bonus / Reaction / Free entries also appear on the Combat tab.
+                </Text>
 
                 <Text style={s.eqLabel}>Has Limited Uses?</Text>
                 <View style={s.eqSlotRow}>
@@ -2779,6 +3283,91 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         />
       ) : null}
 
+      {/* Equipment removal confirmation. Pulls the item name fresh on
+          each render so the prompt always matches the row the user
+          tapped. Uses the same restConfirmCard styling so the two
+          dialogs feel like one pattern. */}
+      <Modal visible={!!removeEquipId} transparent animationType="fade" onRequestClose={() => setRemoveEquipId(null)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setRemoveEquipId(null)}>
+          <Pressable style={s.restConfirmCard} onPress={() => {}}>
+            <View style={s.restConfirmHeader}>
+              <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.primary} />
+              <Text style={s.modalTitle}>Remove item?</Text>
+            </View>
+            <Text style={s.restConfirmBody}>
+              Remove {(resources?.equipment ?? []).find((it) => it.id === removeEquipId)?.name ?? 'this item'} from your gear?
+              This can't be undone — you'll need to re-add it from the catalog.
+            </Text>
+            <View style={s.restConfirmActions}>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCancel]}
+                onPress={() => setRemoveEquipId(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.restConfirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCommit]}
+                onPress={() => {
+                  if (!resources || !removeEquipId) { setRemoveEquipId(null); return; }
+                  const next = (resources.equipment ?? []).filter((it) => it.id !== removeEquipId);
+                  persistResources({ ...resources, equipment: next });
+                  setRemoveEquipId(null);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={s.restConfirmCommitText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Spend Hit Die confirm — same shape as the rest-confirm so the
+          two interactions feel like one pattern. Surfaces the roll
+          preview ("1d8 + 2 CON") and the remaining count so the player
+          can see what they're about to commit. */}
+      <Modal visible={spendHitDieOpen} transparent animationType="fade" onRequestClose={() => setSpendHitDieOpen(false)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setSpendHitDieOpen(false)}>
+          <Pressable style={s.restConfirmCard} onPress={() => {}}>
+            <View style={s.restConfirmHeader}>
+              <MaterialCommunityIcons name="dice-d8-outline" size={20} color={colors.primary} />
+              <Text style={s.modalTitle}>Spend a Hit Die?</Text>
+            </View>
+            {stats && resources && scores ? (() => {
+              const remaining = resources.hitDiceRemaining ?? stats.level;
+              const conMod = abilityMod(scores.constitution);
+              return (
+                <Text style={s.restConfirmBody}>
+                  Roll 1d{stats.hitDie}{conMod >= 0 ? ` + ${conMod}` : ` − ${Math.abs(conMod)}`} (CON)
+                  {' '}and add the result to your HP (capped at max).
+                  {' '}You have {remaining}/{stats.level} hit dice remaining.
+                </Text>
+              );
+            })() : null}
+            <View style={s.restConfirmActions}>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCancel]}
+                onPress={() => setSpendHitDieOpen(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.restConfirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.restConfirmBtn, s.restConfirmCommit]}
+                onPress={() => {
+                  handleSpendHitDie();
+                  setSpendHitDieOpen(false);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={s.restConfirmCommitText}>Spend &amp; Roll</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Rest confirmation modal — gates short/long rest commits since
           the underlying writes touch a lot of state (HP, slots, hit
           dice, exhaustion) that's painful to undo. The body lists what
@@ -2852,7 +3441,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           ]}
           existingKeys={new Set(getSpellbook(resources).map((s) => s.id))}
           existingSpells={getSpellbook(resources)}
-          spellLimits={computeSpellLimits(stats, classResultsByKey)}
+          spellLimits={{
+            ...baseSpellLimits,
+            ...(manualMode && stats?.cantripsKnownOverride != null
+              ? { cantrips: stats.cantripsKnownOverride } : {}),
+            ...(manualMode && stats?.preparedSpellsOverride != null
+              ? { prepared: stats.preparedSpellsOverride } : {}),
+          }}
           campaignId={character?.campaign_id ?? null}
           packIds={character?.pack_ids ?? []}
           srdVersion={stats.srdVersion}
@@ -2907,7 +3502,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             const id = existing.some((e) => e.id === item.id)
               ? `${item.id}-${Date.now()}`
               : item.id;
-            const next = [...existing, { ...item, id }];
+            // Auto-equip newly-added weapons/armor/shields when the slot
+            // is currently empty. The first sword/armor you pick up is
+            // overwhelmingly the one you want active — making the user
+            // hunt for a toggle to make AC respond was the playtest bug.
+            const slotEquipped = item.slot === 'armor' || item.slot === 'shield'
+              ? existing.some((e) => e.equipped && e.slot === item.slot)
+              : false;
+            const equipped = item.equipped
+              || (!slotEquipped && (item.slot === 'armor' || item.slot === 'shield' || item.slot === 'weapon'));
+            const next = [...existing, { ...item, id, equipped }];
             persistResources({ ...resources, equipment: next });
           }}
         />
@@ -2922,18 +3526,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           usageHint="Crop your character portrait."
           onCancel={() => setPortraitCropUri(null)}
           onConfirm={handlePortraitCropConfirm}
-        />
-      ) : null}
-
-      {/* Card crop modal — offered after portrait crop */}
-      {cardCropUri ? (
-        <ImageCropModal
-          visible
-          imageUri={cardCropUri}
-          aspect={[2, 1]}
-          usageHint="Crop for the character card on the Characters page."
-          onCancel={() => { setCardCropUri(null); originalPickUriRef.current = null; }}
-          onConfirm={handleCardCropConfirm}
         />
       ) : null}
 
@@ -3332,13 +3924,25 @@ const s = StyleSheet.create({
     flex: 1, flexDirection: 'row',
   },
 
-  // Left rail
+  // Left rail — now a vertical ScrollView so long content (lots of
+  // skill rows, conditions, plus the campaign card) can scroll
+  // independently of the main pane. ScrollView on React Native Web
+  // doesn't honor `width` the same way View does (the outer becomes a
+  // flex item that can grow). Lock the width with flexBasis +
+  // flexGrow/flexShrink so the rail stays exactly 260px regardless of
+  // the parent's flex direction.
   deskRail: {
     width: 260,
+    flexBasis: 260,
+    flexGrow: 0,
+    flexShrink: 0,
     backgroundColor: colors.surfaceContainerLowest,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.outlineVariant,
+  },
+  deskRailContent: {
     flexDirection: 'column',
+    paddingBottom: 24,
   },
   deskHeader: {
     paddingTop: 16, paddingBottom: 12,
@@ -4155,6 +4759,24 @@ const s = StyleSheet.create({
     paddingVertical: 12, alignItems: 'center',
   },
   fieldSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  fieldHint: {
+    fontSize: 11, fontFamily: fonts.body,
+    color: colors.outline, textAlign: 'center',
+    marginTop: -spacing.sm, marginBottom: spacing.sm,
+  },
+  fieldBtnRow: {
+    flexDirection: 'row', gap: spacing.sm, alignItems: 'stretch',
+  },
+  fieldResetBtn: {
+    paddingHorizontal: 12, paddingVertical: 12,
+    borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  fieldResetBtnText: {
+    color: colors.onSurfaceVariant, fontSize: 12, fontWeight: '600',
+    fontFamily: fonts.label, letterSpacing: 0.3,
+  },
 
   // ── Left rail: ability scores + saves (Option C combined rows) ──────────
   deskSection: {

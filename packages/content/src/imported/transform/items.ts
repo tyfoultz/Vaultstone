@@ -426,9 +426,22 @@ function collectProperties(it: RawItem): string[] {
     }
   }
 
-  // Armor base AC + stealth + strength prereq.
+  // Armor base AC + type + stealth + strength prereq.
   if (typeof it.ac === 'number') {
     out.push(`Base AC ${it.ac}`);
+  }
+  // Armor type — Light/Medium/Heavy. The runtime AC parser needs this
+  // to decide the DEX cap (full / max 2 / none); without it, imported
+  // armor falls back to full-DEX which silently over-grants AC for
+  // medium and heavy gear. The upstream `type` code is the source of
+  // truth: LA/MA/HA → Light/Medium/Heavy Armor.
+  const armorTypeLabel =
+    it.type === 'LA' ? 'Light Armor'
+    : it.type === 'MA' ? 'Medium Armor'
+    : it.type === 'HA' ? 'Heavy Armor'
+    : null;
+  if (armorTypeLabel) {
+    out.push(armorTypeLabel);
   }
   if (it.stealth === true) {
     out.push('Disadvantage on Stealth');

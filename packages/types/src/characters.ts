@@ -145,6 +145,42 @@ export interface Dnd5eStats {
   acOverride?: number;
   /** Manual-mode override for initiative bonus. */
   initiativeOverride?: number;
+  /** Manual-mode override for the cantrips-known limit. Useful for
+   *  subclass / feat / item grants that the class table doesn't
+   *  capture (e.g. Aberrant Mind extra cantrip via origin spells). */
+  cantripsKnownOverride?: number;
+  /** Manual-mode override for the prepared-spells limit (also stands
+   *  in for "spells known" on known-list classes). Useful for the same
+   *  grant cases above plus homebrew classes that don't ship a
+   *  progression table. */
+  preparedSpellsOverride?: number;
+  /** Manual-mode override for the spell attack bonus (proficiency +
+   *  spellcasting mod by default). Useful for magic items / class
+   *  features that bump the attack without changing the underlying
+   *  ability score. */
+  spellAttackOverride?: number;
+  /** Manual-mode override for the spell save DC (8 + proficiency +
+   *  spellcasting mod by default). Same use cases as the attack
+   *  override; some subclass features list a DC directly. */
+  spellSaveDcOverride?: number;
+  /**
+   * Per-level overrides for the maximum spell slots. Survives
+   * level-up (the wizard recomputes from class tables and would
+   * otherwise clobber any hand-set value). Only applied while
+   * Manual Mode is on. When a level isn't in the record, falls
+   * back to the computed `resources.spellSlots[N].max`.
+   */
+  spellSlotMaxOverrides?: {
+    1?: number;
+    2?: number;
+    3?: number;
+    4?: number;
+    5?: number;
+    6?: number;
+    7?: number;
+    8?: number;
+    9?: number;
+  };
 
   /** Skills with expertise (double proficiency bonus). */
   skillExpertise?: string[];
@@ -216,6 +252,13 @@ export interface Dnd5eEquipmentItem {
   dexCap?: number | null;
   /** For shields: AC bonus (typically +2) */
   acBonus?: number;
+  /**
+   * Generic AC bonus from a magical effect (Cloak of Protection +1,
+   * Ring of Protection +1, Bracers of Defense +2, etc.). Stacks on top
+   * of armor + shield AC. Applied when the item is equipped AND, if it
+   * requires attunement, is attuned.
+   */
+  miscACBonus?: number;
   /** Freeform notes */
   notes?: string;
   /** Whether this item requires and is currently attuned */
@@ -224,6 +267,13 @@ export interface Dnd5eEquipmentItem {
   requiresAttunement?: boolean;
   /** Item weight in lbs */
   weight?: number;
+  /**
+   * When true, this item surfaces in a dedicated "Pinned" section on
+   * the Combat tab for one-tap access during play. Independent of the
+   * equipped/attuned flags so the player can pin consumables (potions,
+   * scrolls), thrown weapons they aren't actively wielding, etc.
+   */
+  pinnedToCombat?: boolean;
 }
 
 export interface Dnd5eFeature {
@@ -234,6 +284,13 @@ export interface Dnd5eFeature {
   uses?: { current: number; max: number; recharge: 'short' | 'long' } | null;
   /** If set, surfaces this feature in the Combat tab Actions section */
   actionType?: 'action' | 'bonus' | 'reaction' | 'free';
+  /**
+   * Player-authored flavor / RP / table notes layered on top of the
+   * canonical description. Lives separately so editing the player's
+   * personal take doesn't overwrite the original feature text. Renders
+   * below the description on the trait card.
+   */
+  notes?: string;
 }
 
 export interface Dnd5eAbility {
@@ -328,6 +385,16 @@ export interface Dnd5ePreparedSpell {
    *  expand on the Spells tab. Optional so legacy entries (added before
    *  the modal back-filled this) still load cleanly. */
   description?: string;
+  /**
+   * Spells that are always treated as prepared — typically Cleric
+   * domain spells, Paladin oath spells, or any spell granted by a
+   * subclass / feat / species that doesn't count against the player's
+   * prepared limit. Survives long rests; cannot be unprepared by the
+   * normal toggle. The player flips it on/off from the spell row's
+   * expansion when the spell came from a source that grants it
+   * always-prepared (or, for flexibility, on any spell).
+   */
+  alwaysPrepared?: boolean;
 }
 
 /** Generic per-class resource pool: Barbarian rages, Ki points, Channel Divinity, etc. */
@@ -402,6 +469,20 @@ export interface Dnd5eResources {
   concentrationSpell?: string | null;
   /** Optional class resource pools (rages, ki, superiority dice, etc.). */
   classResources?: Dnd5eClassResource[];
+  /**
+   * Stable keys for traits / features the player has hidden on the
+   * Traits tab. Hidden cards render in-place but dimmed and
+   * collapsed, with an Unhide button — they don't move sections.
+   * Key scheme:
+   *   - `class:<classKey>:<feature-name-lower>`
+   *   - `subclass:<subclassKey>:<feature-name-lower>`
+   *   - `species:<feature-name-lower>`
+   *   - `origin-feat:<feature-name-lower>`
+   *   - `custom:<category>:<feature-id>` for player-added entries
+   * Names are slugified (lowercase, spaces → hyphens) so the keys
+   * stay stable across edits to the canonical description.
+   */
+  hiddenFeatures?: string[];
   /** Personality text fields (traits, ideals, bonds, flaws, backstory, allies, faction). */
   personality?: Dnd5ePersonality;
   /** Physical appearance fields. */

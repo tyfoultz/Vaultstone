@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eAbilityScores, SkillResult } from '@vaultstone/types';
@@ -57,6 +57,7 @@ export function SkillsTab({
   const [detailFor, setDetailFor] = useState<{ name: string; description: string; ability: string } | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [toolEditMode, setToolEditMode] = useState(false);
+  const [newToolName, setNewToolName] = useState('');
 
   const expertise = stats.skillExpertise ?? [];
   const toolExpertise = stats.toolExpertise ?? [];
@@ -91,9 +92,17 @@ export function SkillsTab({
     const exp = [...expertise];
     const isProf = profs.includes(name);
     const isExpert = exp.includes(name);
+    // Three-state cycle: untrained → proficient → expertise →
+    // untrained. The previous expertise→untrained branch only stripped
+    // expertise, leaving the skill still proficient, so the user got
+    // stuck in a proficient↔expertise loop with no way back to
+    // untrained from the inline toggle.
     if (isExpert) {
-      // expertise → remove expertise (keep proficiency)
-      onUpdateProficiencies(profs, exp.filter((s) => s !== name));
+      // expertise → untrained (drop both)
+      onUpdateProficiencies(
+        profs.filter((s) => s !== name),
+        exp.filter((s) => s !== name),
+      );
     } else if (isProf) {
       // proficient → expertise
       onUpdateProficiencies(profs, [...exp, name]);
@@ -121,6 +130,25 @@ export function SkillsTab({
     } else {
       onUpdateToolProficiencies(profs, [...exp, name]);
     }
+  }
+
+  function addToolProficiency(name: string) {
+    if (!onUpdateToolProficiencies) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    // Case-insensitive duplicate check so "thieves' tools" doesn't
+    // get added twice with different casing.
+    const existing = stats.toolProficiencies.map((t) => t.toLowerCase());
+    if (existing.includes(trimmed.toLowerCase())) return;
+    onUpdateToolProficiencies([...stats.toolProficiencies, trimmed], toolExpertise);
+  }
+
+  function removeToolProficiency(name: string) {
+    if (!onUpdateToolProficiencies) return;
+    onUpdateToolProficiencies(
+      stats.toolProficiencies.filter((t) => t !== name),
+      toolExpertise.filter((t) => t !== name),
+    );
   }
 
   return (
@@ -244,10 +272,18 @@ export function SkillsTab({
       </View>
 
       {/* ── Tool Proficiencies ── */}
-      {stats.toolProficiencies.length > 0 ? (
+      {/* Always show the section header when the player can edit, even
+          if the list is empty — gives a discoverable spot to add the
+          first tool. Read-only viewers still only see the section when
+          tools exist. */}
+      {(stats.toolProficiencies.length > 0 || (isOwner && onUpdateToolProficiencies)) ? (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
-            <SectionLabel>{toolEditMode ? 'TOOLS · TAP TO TOGGLE EXPERTISE' : 'TOOLS · TAP TO ROLL'}</SectionLabel>
+            <SectionLabel>
+              {toolEditMode
+                ? 'TOOLS · TAP TO TOGGLE EXPERTISE · LONG-PRESS TO REMOVE'
+                : 'TOOLS · TAP TO ROLL'}
+            </SectionLabel>
             {isOwner && onUpdateToolProficiencies ? (
               <TouchableOpacity onPress={() => setToolEditMode(!toolEditMode)} style={s.editBtn}>
                 <Text style={s.editBtnText}>{toolEditMode ? 'Done' : 'Edit'}</Text>
@@ -255,6 +291,11 @@ export function SkillsTab({
             ) : null}
           </View>
           <View style={s.skillsCard}>
+            {stats.toolProficiencies.length === 0 ? (
+              <Text style={s.emptyToolsHint}>
+                No tool proficiencies yet. Tap Edit to add Thieves' Tools, an artisan's set, an instrument, etc.
+              </Text>
+            ) : null}
             {stats.toolProficiencies.map((name, i) => {
               const isExpert = toolExpertise.includes(name);
               const bonus = prof * (isExpert ? 2 : 1);
@@ -267,6 +308,7 @@ export function SkillsTab({
                     const r = Math.floor(Math.random() * 20) + 1;
                     onRoll({ label: name, rolls: [r], bonus, total: r + bonus, crit: r === 20, fumble: r === 1 });
                   }}
+                  onLongPress={toolEditMode ? () => removeToolProficiency(name) : undefined}
                   activeOpacity={0.7}
                 >
                   <View style={[s.profDot, s.profDotFilled, isExpert && s.profDotExpert]} />
@@ -281,6 +323,33 @@ export function SkillsTab({
               );
             })}
           </View>
+          {toolEditMode && onUpdateToolProficiencies ? (
+            <View style={s.addToolRow}>
+              <TextInput
+                style={s.addToolInput}
+                value={newToolName}
+                onChangeText={setNewToolName}
+                placeholder="Add a tool (Thieves' Tools, Painter's Supplies, …)"
+                placeholderTextColor={colors.outline}
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  addToolProficiency(newToolName);
+                  setNewToolName('');
+                }}
+              />
+              <TouchableOpacity
+                style={[s.addToolBtn, !newToolName.trim() && s.addToolBtnDisabled]}
+                onPress={() => {
+                  addToolProficiency(newToolName);
+                  setNewToolName('');
+                }}
+                disabled={!newToolName.trim()}
+                activeOpacity={newToolName.trim() ? 0.85 : 1}
+              >
+                <Text style={s.addToolBtnText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </>
       ) : null}
 
@@ -328,6 +397,31 @@ const s = StyleSheet.create({
   profDotExpert: { backgroundColor: '#e6a255', borderColor: '#e6a255' },
   editBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100, borderWidth: 1, borderColor: colors.outlineVariant, marginBottom: 10 },
   editBtnText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
+  emptyToolsHint: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.outline,
+    fontStyle: 'italic', padding: 12, lineHeight: 18,
+  },
+  addToolRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginTop: 8,
+  },
+  addToolInput: {
+    flex: 1, fontSize: 13, fontFamily: fonts.body, color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  addToolBtn: {
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
+  },
+  addToolBtnDisabled: { backgroundColor: colors.surfaceContainerHigh },
+  addToolBtnText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onPrimary, letterSpacing: 0.3,
+  },
   skillNameWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   skillName: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant },
   skillNameProf: { color: colors.onSurface, fontWeight: '600' },

@@ -893,7 +893,12 @@ export default function NewCharacterScreen() {
               user hasn't committed to a campaign yet). Renders
               above the active step so the player has rules context
               before each decision. */}
-          {STEPS[step]?.key !== 'ruleset' && STEPS[step]?.key !== 'rules' ? <CampaignRulesSummary /> : null}
+          {/* Surface the campaign-rules summary once on the very first
+              wizard step (skipping the dedicated ruleset/rules steps,
+              which already cover the same ground). Previously this
+              rendered above every step, which on mobile meant the
+              player had to scroll past it on every page. */}
+          {step === 0 && STEPS[step]?.key !== 'ruleset' && STEPS[step]?.key !== 'rules' ? <CampaignRulesSummary /> : null}
           {(() => {
             const key = STEPS[step]?.key;
             // Helper to advance to the step after the current one. Uses the

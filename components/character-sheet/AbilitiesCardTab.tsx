@@ -120,6 +120,26 @@ export function AbilitiesCardTab({
     setImportModal(false);
   }
 
+  const Outer = embedded ? View : ScrollView;
+  const outerProps = embedded
+    ? {} // host owns padding (e.g. the CombatTab CardBlock body)
+    : { contentContainerStyle: s.container, showsVerticalScrollIndicator: false };
+
+  // Rest buttons live here ONLY when we're rendering our own section
+  // header. The desktop CombatTab uses `headerless` because the host
+  // CardBlock + the character sheet's sidebar both already expose Rest
+  // — duplicating the buttons here was the playtest "extra rest
+  // buttons" complaint. Mobile keeps them: it has no sidebar.
+  function handleReorder(id: string, direction: -1 | 1) {
+    const i = abilities.findIndex((a) => a.id === id);
+    if (i < 0) return;
+    const j = i + direction;
+    if (j < 0 || j >= abilities.length) return;
+    const next = abilities.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    onUpdateAbilities(next);
+  }
+
   function handleRestoreAll(rechargeType: 'short' | 'long') {
     const updated = abilities.map((a) => {
       if (!a.uses) return a;
@@ -133,16 +153,7 @@ export function AbilitiesCardTab({
     });
     onUpdateAbilities(updated);
   }
-
-  const Outer = embedded ? View : ScrollView;
-  const outerProps = embedded
-    ? {} // host owns padding (e.g. the CombatTab CardBlock body)
-    : { contentContainerStyle: s.container, showsVerticalScrollIndicator: false };
-
-  // Rest buttons appear whether the header is shown or not — the host
-  // (e.g. CardBlock in CombatTab desktop) provides the title, but rest
-  // controls are content actions and stay with the body.
-  const restButtons = isOwner && abilities.some((a) => a.uses) ? (
+  const restButtons = !headerless && isOwner && abilities.some((a) => a.uses) ? (
     <View style={{ flexDirection: 'row', gap: 6 }}>
       <TouchableOpacity style={s.restBtn} onPress={() => handleRestoreAll('short')}>
         <MaterialCommunityIcons name="weather-sunset-up" size={12} color={colors.outline} />
@@ -157,18 +168,12 @@ export function AbilitiesCardTab({
 
   return (
     <Outer {...outerProps}>
-      {headerless ? (
-        restButtons ? (
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 6 }}>
-            {restButtons}
-          </View>
-        ) : null
-      ) : (
+      {!headerless ? (
         <View style={s.headerRow}>
           <SectionLabel>ABILITIES</SectionLabel>
           {restButtons}
         </View>
-      )}
+      ) : null}
 
       {abilities.length === 0 ? (
         <View style={s.emptyWrap}>
@@ -178,13 +183,17 @@ export function AbilitiesCardTab({
         </View>
       ) : null}
 
-      {abilities.map((ability) => (
+      {abilities.map((ability, idx) => (
         <AbilityCard
           key={ability.id}
           ability={ability}
           isOwner={isOwner}
           onUse={(d) => handleUse(ability.id, d)}
           onEdit={() => { setEditAbility({ ...ability }); setEditModal(true); }}
+          canMoveUp={idx > 0}
+          canMoveDown={idx < abilities.length - 1}
+          onMoveUp={() => handleReorder(ability.id, -1)}
+          onMoveDown={() => handleReorder(ability.id, 1)}
         />
       ))}
 
@@ -322,11 +331,15 @@ function ImportFeaturesModal({ features, onImport, onClose }: {
   );
 }
 
-function AbilityCard({ ability, isOwner, onUse, onEdit }: {
+function AbilityCard({ ability, isOwner, onUse, onEdit, canMoveUp, canMoveDown, onMoveUp, onMoveDown }: {
   ability: Dnd5eAbility;
   isOwner: boolean;
   onUse: (delta: number) => void;
   onEdit: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const hasUses = !!ability.uses;
@@ -388,10 +401,32 @@ function AbilityCard({ ability, isOwner, onUse, onEdit }: {
           ) : null}
 
           {isOwner ? (
-            <TouchableOpacity style={s.editRow} onPress={onEdit}>
-              <MaterialCommunityIcons name="pencil-outline" size={12} color={colors.outline} />
-              <Text style={s.editText}>Edit</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+              <View style={{ flexDirection: 'row', gap: 4 }}>
+                <TouchableOpacity
+                  onPress={canMoveUp ? onMoveUp : undefined}
+                  disabled={!canMoveUp}
+                  hitSlop={6}
+                  activeOpacity={canMoveUp ? 0.7 : 1}
+                  style={[s.reorderBtn, !canMoveUp && s.reorderBtnDisabled]}
+                >
+                  <MaterialCommunityIcons name="arrow-up" size={12} color={canMoveUp ? colors.onSurfaceVariant : colors.outline} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={canMoveDown ? onMoveDown : undefined}
+                  disabled={!canMoveDown}
+                  hitSlop={6}
+                  activeOpacity={canMoveDown ? 0.7 : 1}
+                  style={[s.reorderBtn, !canMoveDown && s.reorderBtnDisabled]}
+                >
+                  <MaterialCommunityIcons name="arrow-down" size={12} color={canMoveDown ? colors.onSurfaceVariant : colors.outline} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={s.editRow} onPress={onEdit}>
+                <MaterialCommunityIcons name="pencil-outline" size={12} color={colors.outline} />
+                <Text style={s.editText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -614,8 +649,15 @@ const s = StyleSheet.create({
   },
   usesBtnText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '600', color: colors.onSurfaceVariant },
 
-  editRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, alignSelf: 'flex-end' },
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   editText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', color: colors.outline },
+  reorderBtn: {
+    width: 22, height: 22, borderRadius: 4,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  reorderBtnDisabled: { opacity: 0.4 },
 
   importBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,

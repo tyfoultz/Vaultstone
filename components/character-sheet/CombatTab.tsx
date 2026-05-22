@@ -107,6 +107,9 @@ interface Props {
   onRoll: (result: RollResult) => void;
   onToggleCondition: (c: string) => void;
   onSetExhaustion: (level: number) => void;
+  /** Spend one hit die for short-rest healing. Rolls 1dN+CON, adds
+   *  result to HP (capped at max), decrements remaining. */
+  onSpendHitDie?: () => void;
   getAttackBonus: (item: Dnd5eEquipmentItem) => number;
   // ── Abilities-card embed ─────────────────────────────────────────
   // The old standalone Abilities tab now renders inside this tab so
@@ -136,10 +139,15 @@ function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void
 export function CombatTab({
   stats, resources, scores, prof,
   activeConditions, canEditAny, equipment, isDesktop, manualMode, conditionCatalog,
-  liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, getAttackBonus,
+  liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, onSpendHitDie, getAttackBonus,
   classResultsByKey, subclassResultsByKey, speciesResult, onUpdateAbilities,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
+  // Player-pinned equipment surfaces in its own quick-access section.
+  // Independent of the equipped/attuned filter so consumables (potions,
+  // scrolls), thrown weapons, and ad-hoc utility items can sit here
+  // without being "worn".
+  const pinnedItems = equipment.filter((e) => e.pinnedToCombat);
 
   const isSpellcaster = !!stats.spellcastingAbility;
   const spellSlots = resources.spellSlots ?? (isSpellcaster ? DEFAULT_SLOTS : null);
@@ -219,29 +227,34 @@ export function CombatTab({
             )}
           </CardBlock>
 
-          {/* Spell Slots */}
-          {isSpellcaster && (
-            <CardBlock title="Spell Slots">
-              {activeSlotLevels.length === 0 ? (
-                <Text style={s.emptyHint}>No spell slots — configure in Spells tab.</Text>
-              ) : (
-                activeSlotLevels.map((lvl) => {
-                  const slot = spellSlots![lvl];
-                  return (
-                    <View key={lvl} style={s.slotRow}>
-                      <Text style={s.slotOrdinal}>{SLOT_ORDINALS[lvl]}</Text>
-                      <View style={s.slotPips}>
-                        {Array.from({ length: slot.max }).map((_, i) => (
-                          <View
-                            key={i}
-                            style={[s.slotPip, i < slot.remaining ? s.slotPipFull : s.slotPipEmpty]}
-                          />
-                        ))}
-                      </View>
-                    </View>
-                  );
-                })
-              )}
+          {/* Pinned equipment — anything the player flagged via the
+              pin icon on the Gear tab. Sits between Attacks and Spell
+              Slots so consumables are within thumb-reach mid-combat. */}
+          {pinnedItems.length > 0 && (
+            <CardBlock title="Pinned">
+              {pinnedItems.map((item, i) => (
+                <View key={item.id} style={[s.pinnedRow, i < pinnedItems.length - 1 && s.pinnedRowBorder]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.pinnedName}>{item.name}</Text>
+                    {item.damage ? (
+                      <Text style={s.pinnedSub}>{item.damage}</Text>
+                    ) : item.notes ? (
+                      <Text style={s.pinnedSub} numberOfLines={1}>{item.notes}</Text>
+                    ) : (
+                      <Text style={s.pinnedSub}>{item.slot}{item.equipped ? ' · equipped' : ''}{item.attuned ? ' · attuned' : ''}</Text>
+                    )}
+                  </View>
+                  {item.damage && item.slot === 'weapon' ? (
+                    <TouchableOpacity
+                      style={s.atkBtnDmg}
+                      onPress={() => rollDamage(`${item.name} damage`, item.damage!, onRoll)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ))}
             </CardBlock>
           )}
 
@@ -359,25 +372,35 @@ export function CombatTab({
         </View>
       )}
 
-      {/* Spell slots (mobile) */}
-      {isSpellcaster && activeSlotLevels.length > 0 && (
+      {/* Pinned equipment (mobile) — mirrors the desktop "Pinned"
+          card. Sits between attacks and spell slots. */}
+      {pinnedItems.length > 0 && (
         <>
-          <SectionLabel style={{ marginTop: 14 }} accent>SPELL SLOTS</SectionLabel>
+          <SectionLabel style={{ marginTop: 14 }} accent>PINNED</SectionLabel>
           <View style={s.mobileCard}>
-            {activeSlotLevels.map((lvl, i) => {
-              const slot = spellSlots![lvl];
-              return (
-                <View key={lvl} style={[s.slotRow, { paddingHorizontal: 12, paddingVertical: 8 }, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant }]}>
-                  <Text style={s.slotOrdinal}>{SLOT_ORDINALS[lvl]}</Text>
-                  <View style={s.slotPips}>
-                    {Array.from({ length: slot.max }).map((_, j) => (
-                      <View key={j} style={[s.slotPip, j < slot.remaining ? s.slotPipFull : s.slotPipEmpty]} />
-                    ))}
-                  </View>
-                  <Text style={s.slotCount}>{slot.remaining}/{slot.max}</Text>
+            {pinnedItems.map((item, i) => (
+              <View key={item.id} style={[s.pinnedRow, { paddingHorizontal: 12 }, i < pinnedItems.length - 1 && s.pinnedRowBorder]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.pinnedName}>{item.name}</Text>
+                  {item.damage ? (
+                    <Text style={s.pinnedSub}>{item.damage}</Text>
+                  ) : item.notes ? (
+                    <Text style={s.pinnedSub} numberOfLines={1}>{item.notes}</Text>
+                  ) : (
+                    <Text style={s.pinnedSub}>{item.slot}{item.equipped ? ' · equipped' : ''}{item.attuned ? ' · attuned' : ''}</Text>
+                  )}
                 </View>
-              );
-            })}
+                {item.damage && item.slot === 'weapon' ? (
+                  <TouchableOpacity
+                    style={s.atkBtnDmg}
+                    onPress={() => rollDamage(`${item.name} damage`, item.damage!, onRoll)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))}
           </View>
         </>
       )}
@@ -405,6 +428,8 @@ export function CombatTab({
           label="Hit Dice"
           value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`}
           suffix={`d${stats.hitDie}`}
+          editable={canEditAny && (resources.hitDiceRemaining ?? stats.level) > 0 && !!onSpendHitDie}
+          onPress={canEditAny && onSpendHitDie ? onSpendHitDie : undefined}
         />
         <PassiveCard
           label="Speed"
@@ -428,6 +453,19 @@ export function CombatTab({
           characterLevel={stats.level}
           onUpdateAbilities={onUpdateAbilities}
         />
+      </View>
+
+      {/* Actions — desktop renders these inside a CardBlock; mobile
+          used to drop them entirely (so a player on a phone had no
+          quick reference for Dash / Dodge / Help / cantrips / class-
+          feature actions). Mirror the same ActionGroup composition
+          here. */}
+      <SectionLabel style={{ marginTop: 14 }} accent>ACTIONS</SectionLabel>
+      <View style={s.mobileCard}>
+        <ActionGroup label="Actions" items={actions} color={colors.primary} />
+        {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
+        {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} color={colors.hpDanger} />}
+        {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} color={colors.outline} />}
       </View>
 
       <View style={{ height: 16 }} />
@@ -740,6 +778,13 @@ const s = StyleSheet.create({
     paddingVertical: 7,
   },
   attackRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
+  pinnedRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 7,
+  },
+  pinnedRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
+  pinnedName: { fontSize: 11, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  pinnedSub: { fontSize: 8, color: colors.outline, marginTop: 1, textTransform: 'capitalize' },
   attackName: { fontSize: 11, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
   attackSub: { fontSize: 8, color: colors.outline, marginTop: 1 },
   atkBtnHit: {

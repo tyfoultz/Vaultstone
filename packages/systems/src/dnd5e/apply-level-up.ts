@@ -218,8 +218,30 @@ export function applyLevelUp(
   // ── Hit dice ──
   resources.hitDiceRemaining = (resources.hitDiceRemaining ?? 0) + 1;
 
-  // ── Spell slots (recompute from full multiclass picture) ──
-  resources.spellSlots = spellSlotsForCharacter(entries, classByKey, subclassByKey);
+  // ── Spell slots (recompute max, preserve spent) ──
+  // `spellSlotsForCharacter` always returns `remaining = max` for every
+  // slot level — it has no access to the before-state. Calling it
+  // unconditionally on level-up wiped the player's spent slots; a
+  // wizard mid-adventure who'd cast a Fireball would see their L3
+  // slot count refill the instant they hit "Confirm" on level-up.
+  // We recompute the fresh max (slots can grow with level, scale via
+  // multiclass tables, or unlock new tiers) but read the spent count
+  // forward so a slot that was 1/4 stays 1/4 unless the max changed.
+  const freshSlots = spellSlotsForCharacter(entries, classByKey, subclassByKey);
+  const prevSlots = before.resources.spellSlots;
+  if (prevSlots) {
+    for (let lvl = 1; lvl <= 9; lvl++) {
+      const i = lvl as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+      const prev = prevSlots[i];
+      const fresh = freshSlots[i];
+      // "Used" = the count the player has spent. Survives a max
+      // bump (extra slots come in unspent) and clamps to zero if
+      // the max somehow shrank (respec / class swap edge cases).
+      const used = Math.max(0, (prev.max ?? 0) - (prev.remaining ?? 0));
+      fresh.remaining = Math.max(0, fresh.max - used);
+    }
+  }
+  resources.spellSlots = freshSlots;
 
   // ── Class features unlocked at this level ──
   if (pick.classFeaturesUnlocked && pick.classFeaturesUnlocked.length > 0) {

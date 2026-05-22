@@ -36,6 +36,10 @@ interface Props {
   scores: Dnd5eAbilityScores;
   prof: number;
   isOwner: boolean;
+  /** Manual mode reveals limit-edit affordances + applies any
+   *  cantripsKnown/preparedSpells overrides on the stats record. */
+  manualMode?: boolean;
+  onEditField?: (field: string, currentValue: string | number) => void;
   effectiveSpellcastingAbility?: string | null;
   onSpellSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
   onConcentrationClear?: () => void;
@@ -53,6 +57,17 @@ interface Props {
    *  auto-prepared by being in the spellbook). Caller writes
    *  resources.preparedSpells with the new entry added or removed. */
   onTogglePrepared?: (spell: Dnd5ePreparedSpell) => void;
+  /** Toggle a spell's always-prepared flag. Always-prepared spells
+   *  count as prepared regardless of the regular toggle and don't
+   *  consume the daily prepare cap — used for domain/oath spells and
+   *  any other source-granted "free" prep. Caller adds the spell to
+   *  resources.preparedSpells with alwaysPrepared=true (or strips the
+   *  flag when toggled off). */
+  onToggleAlwaysPrepared?: (spell: Dnd5ePreparedSpell) => void;
+  /** Update a spell's player notes (kept separate from the canonical
+   *  description). Caller persists the merged spell into preparedSpells
+   *  / spellbook. */
+  onSaveSpellNotes?: (spell: Dnd5ePreparedSpell, notes: string) => void;
   /** Per-class spellcasting explainer payload — drives the "How
    *  spellcasting works" panel. One entry per spellcasting class the
    *  character has a level in; empty for non-casters. The synthesized
@@ -79,8 +94,9 @@ interface Props {
 }
 
 export function SpellsTab({
-  stats, resources, scores, prof, isOwner, effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
-  onOpenManage, spellbook, onTogglePrepared, spellcastingExplainers,
+  stats, resources, scores, prof, isOwner, manualMode, onEditField,
+  effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
+  onOpenManage, spellbook, onTogglePrepared, onToggleAlwaysPrepared, onSaveSpellNotes, spellcastingExplainers,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
   const { width } = useWindowDimensions();
@@ -102,8 +118,17 @@ export function SpellsTab({
   const spellMod = spellAbility
     ? abilityMod(scores[spellAbility.toLowerCase() as keyof Dnd5eAbilityScores] ?? 10)
     : null;
-  const spellDC = spellMod !== null ? 8 + prof + spellMod : null;
-  const spellAttack = spellMod !== null ? prof + spellMod : null;
+  const computedSpellDC = spellMod !== null ? 8 + prof + spellMod : null;
+  const computedSpellAttack = spellMod !== null ? prof + spellMod : null;
+  // Manual-mode overrides — same pattern as AC / Initiative / spell
+  // limits. Apply only while Manual Mode is on so flipping it off
+  // reverts to the ability-mod calc cleanly.
+  const spellDC = manualMode && stats.spellSaveDcOverride != null
+    ? stats.spellSaveDcOverride
+    : computedSpellDC;
+  const spellAttack = manualMode && stats.spellAttackOverride != null
+    ? stats.spellAttackOverride
+    : computedSpellAttack;
 
   const availableLevels = useMemo(() => {
     const levels = new Set<number>();
@@ -127,11 +152,20 @@ export function SpellsTab({
     () => new Set(preparedSpells.map((sp) => sp.id)),
     [preparedSpells],
   );
+  // Index the prepared entries by id so the row can read per-spell
+  // flags (alwaysPrepared) without re-finding through the array each
+  // render.
+  const preparedById = useMemo(
+    () => new Map(preparedSpells.map((sp) => [sp.id, sp])),
+    [preparedSpells],
+  );
 
   // isPrepared — cantrips are always cast-ready, leveled spells need
   // an explicit entry in preparedSpells.
   const isPrepared = (sp: Dnd5ePreparedSpell) =>
     sp.level === 0 || preparedKeys.has(sp.id);
+  const isAlwaysPrepared = (sp: Dnd5ePreparedSpell) =>
+    preparedById.get(sp.id)?.alwaysPrepared === true;
 
   const filteredSpells = useMemo(() => {
     let spells = sourceList;
@@ -168,15 +202,28 @@ export function SpellsTab({
   // Wizard 3 / Cleric 2 cantrip caps add). undefined limit → no
   // denominator, just the count.
   const totalCantripsKnown = preparedSpells.filter((s) => s.level === 0).length;
-  const totalLeveledPrepared = preparedSpells.filter((s) => s.level > 0).length;
-  const cantripLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
+  // Always-prepared spells (domain/oath/granted) don't count toward
+  // the daily prepare cap — that's the whole reason 5e ships them as
+  // a separate concept.
+  const totalLeveledPrepared = preparedSpells.filter((s) => s.level > 0 && !s.alwaysPrepared).length;
+  const computedCantripLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
     (acc, ex) => ex.cantripsKnown !== undefined ? (acc ?? 0) + ex.cantripsKnown : acc,
     undefined,
   );
-  const preparedLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
+  const computedPreparedLimit = (spellcastingExplainers ?? []).reduce<number | undefined>(
     (acc, ex) => ex.spellsKnownOrPrepared !== undefined ? (acc ?? 0) + ex.spellsKnownOrPrepared : acc,
     undefined,
   );
+  // Manual-mode override pattern, same shape as the AC fix: stored
+  // override applies only while Manual Mode is on. Off → fall back to
+  // computed. Off-mode characters can't silently inherit a stale
+  // override from an earlier Manual Mode session.
+  const cantripLimit = manualMode && stats.cantripsKnownOverride != null
+    ? stats.cantripsKnownOverride
+    : computedCantripLimit;
+  const preparedLimit = manualMode && stats.preparedSpellsOverride != null
+    ? stats.preparedSpellsOverride
+    : computedPreparedLimit;
 
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
@@ -184,17 +231,38 @@ export function SpellsTab({
       {/* ── Spellcasting stats header ── */}
       {spellAbility && (
         <View style={s.statsRow}>
-          <View style={s.statBlock}>
+          <TouchableOpacity
+            style={s.statBlock}
+            disabled={!manualMode || !onEditField}
+            onPress={manualMode && onEditField
+              ? () => onEditField('spellAttack', spellAttack ?? 0)
+              : undefined}
+            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+          >
             <Text style={s.statValue}>{spellAttack !== null ? fmtMod(spellAttack) : '—'}</Text>
             <Text style={s.statLabel}>SPELL ATTACK</Text>
-          </View>
+          </TouchableOpacity>
           <View style={s.statDivider} />
-          <View style={s.statBlock}>
+          <TouchableOpacity
+            style={s.statBlock}
+            disabled={!manualMode || !onEditField}
+            onPress={manualMode && onEditField
+              ? () => onEditField('spellSaveDc', spellDC ?? 0)
+              : undefined}
+            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+          >
             <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
             <Text style={s.statLabel}>SAVE DC</Text>
-          </View>
+          </TouchableOpacity>
           <View style={s.statDivider} />
-          <View style={s.statBlock}>
+          <TouchableOpacity
+            style={s.statBlock}
+            disabled={!manualMode || !onEditField}
+            onPress={manualMode && onEditField
+              ? () => onEditField('cantripsLimit', cantripLimit ?? totalCantripsKnown)
+              : undefined}
+            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+          >
             <Text style={[
               s.statValue,
               cantripLimit !== undefined && totalCantripsKnown >= cantripLimit && s.statValueAtLimit,
@@ -204,9 +272,16 @@ export function SpellsTab({
                 : String(totalCantripsKnown)}
             </Text>
             <Text style={s.statLabel}>CANTRIPS</Text>
-          </View>
+          </TouchableOpacity>
           <View style={s.statDivider} />
-          <View style={s.statBlock}>
+          <TouchableOpacity
+            style={s.statBlock}
+            disabled={!manualMode || !onEditField}
+            onPress={manualMode && onEditField
+              ? () => onEditField('preparedLimit', preparedLimit ?? totalLeveledPrepared)
+              : undefined}
+            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+          >
             <Text style={[
               s.statValue,
               preparedLimit !== undefined && totalLeveledPrepared >= preparedLimit && s.statValueAtLimit,
@@ -216,13 +291,21 @@ export function SpellsTab({
                 : String(totalLeveledPrepared)}
             </Text>
             <Text style={s.statLabel}>PREPARED</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       )}
 
       {/* ── Spell slots overview table ── */}
       {spellSlots && ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => spellSlots[l].max > 0) && (
-        <SpellSlotTable spellSlots={spellSlots} isOwner={isOwner} onSlotChange={onSpellSlotChange} />
+        <SpellSlotTable
+          spellSlots={spellSlots}
+          isOwner={isOwner}
+          onSlotChange={onSpellSlotChange}
+          manualMode={!!manualMode}
+          onEditMax={manualMode && onEditField
+            ? (level, current) => onEditField(`slotMax_${level}`, current)
+            : undefined}
+        />
       )}
 
       {/* ── How spellcasting works (collapsible per-class explainer) ── */}
@@ -377,7 +460,9 @@ export function SpellsTab({
               key={spell.id}
               spell={spell}
               prepared={true}
+              alwaysPrepared={false}
               canToggle={false}
+              onSaveNotes={isOwner && onSaveSpellNotes ? (notes) => onSaveSpellNotes(spell, notes) : undefined}
             />
           ))}
         </View>
@@ -410,6 +495,7 @@ export function SpellsTab({
           </View>
           {spells.map((spell) => {
             const prep = isPrepared(spell);
+            const always = isAlwaysPrepared(spell);
             const atLimit = preparedLimit !== undefined && totalLeveledPrepared >= preparedLimit;
             return (
               <SpellRow
@@ -417,10 +503,13 @@ export function SpellsTab({
                 spell={spell}
                 slot={slot}
                 prepared={prep}
+                alwaysPrepared={always}
                 canToggle={isOwner && !!onTogglePrepared}
                 onTogglePrepared={onTogglePrepared ? () => onTogglePrepared(spell) : undefined}
+                onToggleAlwaysPrepared={isOwner && onToggleAlwaysPrepared ? () => onToggleAlwaysPrepared(spell) : undefined}
                 togglesBlocked={!prep && atLimit}
                 onCast={isOwner && onSpellSlotChange ? () => onSpellSlotChange(level, -1) : undefined}
+                onSaveNotes={isOwner && onSaveSpellNotes ? (notes) => onSaveSpellNotes(spell, notes) : undefined}
               />
             );
           })}
@@ -463,13 +552,23 @@ export function SpellsTab({
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function SpellSlotTable({ spellSlots, isOwner, onSlotChange }: {
+function SpellSlotTable({ spellSlots, isOwner, onSlotChange, manualMode, onEditMax }: {
   spellSlots: Record<number, { max: number; remaining: number }>;
   isOwner: boolean;
   onSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
+  manualMode?: boolean;
+  /** Tap on a Total cell in Manual Mode → opens the slot-max edit
+   *  affordance up in the CharacterSheet edit modal. */
+  onEditMax?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, current: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const activeLevels = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((l) => spellSlots[l].max > 0);
+  // In Manual Mode we want every level cell to be tappable, including
+  // ones the class table currently zeros out (so the player can grant
+  // a slot at a level their class doesn't reach yet). Outside Manual
+  // Mode keep the prior "hide empty levels" behavior to avoid clutter.
+  const activeLevels = manualMode
+    ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const)
+    : ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((l) => spellSlots[l].max > 0);
   if (activeLevels.length === 0) return null;
 
   return (
@@ -496,9 +595,17 @@ function SpellSlotTable({ spellSlots, isOwner, onSlotChange }: {
               <Text style={s.slotTableLabel}>Total</Text>
             </View>
             {activeLevels.map((l) => (
-              <View key={l} style={s.slotTableCell}>
-                <Text style={s.slotTableCellText}>{spellSlots[l].max}</Text>
-              </View>
+              <TouchableOpacity
+                key={l}
+                style={s.slotTableCell}
+                disabled={!manualMode || !onEditMax}
+                onPress={manualMode && onEditMax
+                  ? () => onEditMax(l, spellSlots[l]?.max ?? 0)
+                  : undefined}
+                activeOpacity={manualMode && onEditMax ? 0.7 : 1}
+              >
+                <Text style={s.slotTableCellText}>{spellSlots[l]?.max ?? 0}</Text>
+              </TouchableOpacity>
             ))}
           </View>
           <View style={s.slotTableRow}>
@@ -540,20 +647,36 @@ function ordinal(n: number): string {
 }
 
 function SpellRow({
-  spell, slot, prepared, canToggle, onTogglePrepared, togglesBlocked, onCast,
+  spell, slot, prepared, alwaysPrepared, canToggle, onTogglePrepared, onToggleAlwaysPrepared, togglesBlocked, onCast, onSaveNotes,
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
   prepared: boolean;
+  alwaysPrepared: boolean;
   canToggle: boolean;
   onTogglePrepared?: () => void;
+  onToggleAlwaysPrepared?: () => void;
   togglesBlocked?: boolean;
   onCast?: () => void;
+  onSaveNotes?: (notes: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // Local draft so the user can edit notes without persisting every
+  // keystroke — commits on blur or when the row collapses.
+  const [notesDraft, setNotesDraft] = useState<string | null>(null);
+  const notesActive = notesDraft !== null;
+  const notesValue = notesActive ? notesDraft! : (spell.notes ?? '');
   const isCantrip = spell.level === 0;
   const canCast = prepared && (isCantrip || (slot?.remaining ?? 0) > 0);
-  const toggleDisabled = !canToggle || (togglesBlocked && !prepared);
+  // Cap-blocked applies only to the "newly prepare" direction. Once
+  // prepared (or always-prepared), the player can always unprepare.
+  // Always-prepared spells skip the regular toggle entirely; they
+  // only flip via the "Always prepared" affordance in the expanded
+  // view so a stray tap doesn't blow away a domain-spell setup.
+  const toggleDisabled = !canToggle || alwaysPrepared || (togglesBlocked && !prepared);
+  const circleIconName = alwaysPrepared ? 'pin'
+    : isCantrip ? 'infinity'
+    : 'check';
 
   return (
     <View style={[s.spellCard, !prepared && s.spellCardDimmed]}>
@@ -564,19 +687,27 @@ function SpellRow({
         delayLongPress={300}
         activeOpacity={0.7}
       >
-        <View style={[
-          s.statusCircle,
-          prepared && s.statusCircleOn,
-          isCantrip && s.statusCircleCantrip,
-        ]}>
+        <TouchableOpacity
+          onPress={!toggleDisabled && onTogglePrepared
+            ? (e) => { e.stopPropagation?.(); onTogglePrepared(); }
+            : undefined}
+          activeOpacity={!toggleDisabled ? 0.6 : 1}
+          hitSlop={6}
+          style={[
+            s.statusCircle,
+            prepared && s.statusCircleOn,
+            isCantrip && s.statusCircleCantrip,
+            alwaysPrepared && s.statusCircleAlways,
+          ]}
+        >
           {prepared ? (
             <MaterialCommunityIcons
-              name={isCantrip ? 'infinity' : 'check'}
+              name={circleIconName}
               size={12}
               color={colors.onPrimary}
             />
           ) : null}
-        </View>
+        </TouchableOpacity>
         <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
         {spell.school ? (
           <View style={s.schoolChip}>
@@ -621,6 +752,51 @@ function SpellRow({
             {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
           </View>
 
+          {/* Prepare controls — leveled spells only; cantrips are
+              always cast-ready. Two buttons so the player doesn't have
+              to discover the long-press gesture: a primary
+              Prepare/Unprepare and an "Always prepared" marker for
+              source-granted spells (domain / oath / etc.) that should
+              skip the daily cap. */}
+          {!isCantrip && canToggle && (onTogglePrepared || onToggleAlwaysPrepared) && (
+            <View style={s.prepBtnRow}>
+              {onTogglePrepared && !alwaysPrepared && (
+                <TouchableOpacity
+                  style={[s.prepBtn, prepared ? s.prepBtnOn : s.prepBtnOff,
+                    togglesBlocked && !prepared && s.prepBtnDisabled]}
+                  onPress={togglesBlocked && !prepared ? undefined : onTogglePrepared}
+                  activeOpacity={togglesBlocked && !prepared ? 1 : 0.7}
+                >
+                  <MaterialCommunityIcons
+                    name={prepared ? 'check-circle' : 'circle-outline'}
+                    size={13}
+                    color={prepared ? colors.onPrimary : colors.outline}
+                  />
+                  <Text style={[s.prepBtnText, prepared && s.prepBtnTextOn]}>
+                    {togglesBlocked && !prepared ? 'Prep cap reached'
+                      : prepared ? 'Prepared' : 'Prepare'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {onToggleAlwaysPrepared && (
+                <TouchableOpacity
+                  style={[s.prepBtn, alwaysPrepared ? s.prepBtnAlways : s.prepBtnOff]}
+                  onPress={onToggleAlwaysPrepared}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name="pin"
+                    size={13}
+                    color={alwaysPrepared ? colors.onPrimary : colors.outline}
+                  />
+                  <Text style={[s.prepBtnText, alwaysPrepared && s.prepBtnTextOn]}>
+                    {alwaysPrepared ? 'Always prepared' : 'Mark always prepared'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           {spell.description ? (
             <Text style={s.descText}>{spell.description}</Text>
           ) : (
@@ -628,6 +804,35 @@ function SpellRow({
               No description on file — re-add this spell through Manage Spells to fetch the latest text.
             </Text>
           )}
+
+          {/* Player notes — RP flavor, table rulings, "use against
+              undead" reminders. Lives separately from the catalog
+              description so editing here never overwrites the
+              upstream text. */}
+          {onSaveNotes ? (
+            <View style={s.spellNotesBox}>
+              <Text style={s.spellNotesLabel}>NOTES</Text>
+              <TextInput
+                style={s.spellNotesInput}
+                value={notesValue}
+                onChangeText={(t) => setNotesDraft(t)}
+                onBlur={() => {
+                  if (notesDraft !== null) {
+                    onSaveNotes(notesDraft);
+                    setNotesDraft(null);
+                  }
+                }}
+                placeholder="Add a personal note…"
+                placeholderTextColor={colors.outline}
+                multiline
+              />
+            </View>
+          ) : spell.notes ? (
+            <View style={s.spellNotesBox}>
+              <Text style={s.spellNotesLabel}>NOTES</Text>
+              <Text style={s.spellNotesText}>{spell.notes}</Text>
+            </View>
+          ) : null}
         </>
       ) : null}
     </View>
@@ -845,6 +1050,29 @@ const s = StyleSheet.create({
   },
   statusCircleOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   statusCircleCantrip: { backgroundColor: colors.primary, borderColor: colors.primary, opacity: 0.85 },
+  statusCircleAlways: { backgroundColor: colors.gm, borderColor: colors.gm },
+
+  // Expanded-view prepare controls — explicit buttons so the player
+  // doesn't have to discover the long-press / circle-tap. Inline row
+  // sits above the description.
+  prepBtnRow: {
+    flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 8, flexWrap: 'wrap',
+  },
+  prepBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  prepBtnOff: { backgroundColor: colors.surfaceContainer },
+  prepBtnOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  prepBtnAlways: { backgroundColor: colors.gm, borderColor: colors.gm },
+  prepBtnDisabled: { opacity: 0.5 },
+  prepBtnText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant, letterSpacing: 0.3,
+  },
+  prepBtnTextOn: { color: colors.onPrimary },
   spellHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   spellName: {
     fontFamily: fonts.headline, fontWeight: '600',
@@ -924,6 +1152,25 @@ const s = StyleSheet.create({
     fontSize: 12, lineHeight: 18,
     color: colors.outline, fontFamily: fonts.body, fontStyle: 'italic',
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  spellNotesBox: {
+    marginTop: 10, paddingHorizontal: 10, paddingVertical: 8,
+    borderRadius: 8,
+    borderLeftWidth: 2, borderLeftColor: colors.primary,
+    backgroundColor: `${colors.primary}10`,
+  },
+  spellNotesLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.primary, marginBottom: 4,
+  },
+  spellNotesText: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurface,
+    lineHeight: 18, fontStyle: 'italic',
+  },
+  spellNotesInput: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurface,
+    lineHeight: 18, fontStyle: 'italic',
+    minHeight: 30, padding: 0,
   },
 
   // Empty

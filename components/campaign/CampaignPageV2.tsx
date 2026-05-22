@@ -21,7 +21,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import {
-  supabase, getCampaignMembers, listCampaignPacks,
+  supabase, getCampaignMembers, listCampaignPacks, assignCharacterToCampaign,
   getActiveSession, startSession, endSession,
   getWorldsForCampaign,
   getCampaignCharacterRules,
@@ -34,7 +34,7 @@ import {
 } from '@vaultstone/api';
 import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { CharacterCreationRulesModal } from './CharacterCreationRulesModal';
-import { useAuthStore, useCampaignStore, useSplitPaneStore } from '@vaultstone/store';
+import { useAuthStore, useCampaignStore } from '@vaultstone/store';
 import {
   colors, spacing, radius,
   Card, ContentWidth, GhostButton, GradientButton, Icon, ImageCropModal,
@@ -252,6 +252,32 @@ export function CampaignPageV2({ campaignId }: Props) {
     })();
     return () => { cancelled = true; };
   }, [campaignId, refreshTick]);
+
+  // Auto-link a user's own character to their campaign_members row
+  // when the link is missing but a character pointing here exists.
+  // This bridges the "I created Oswald via the wizard but my
+  // campaign_members.character_id stayed null" gap that left the
+  // big "Create your character" CTA showing even after the character
+  // showed up in the party. Picks the first matching character if
+  // multiple exist; the user can still rebind via the manage flow.
+  useEffect(() => {
+    if (!user || !campaign) return;
+    if (campaign.dm_user_id === user.id) return; // DMs don't carry character_id
+    const myMembership = members.find((m) => m.user_id === user.id);
+    if (!myMembership) return;
+    if (myMembership.character_id) return;
+    const myCharacter = campaignCharacters.find((c) => c.user_id === user.id);
+    if (!myCharacter) return;
+    let cancelled = false;
+    (async () => {
+      const { error } = await assignCharacterToCampaign(campaignId, user.id, myCharacter.id);
+      if (cancelled || error) return;
+      setMembers((prev) =>
+        prev.map((m) => m.user_id === user.id ? { ...m, character_id: myCharacter.id } : m),
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId, members, campaignCharacters, user, campaign]);
 
   // Realtime: watch UPDATEs on every character whose campaign_id points
   // here so both the Party cards (HP / conditions / concentration) and
@@ -814,10 +840,12 @@ function ChecklistItem({
 
 // ── Primary action (role-specific) ──────────────────────────────────
 
-// Player-only primary CTA. Renders either "Create your character"
-// when no character is linked yet, or a quick-jump snapshot of the
-// player's pinned character. DM session controls live separately in
-// SessionControlCard below the party.
+// Player-only primary CTA — renders the "Create your character" card
+// only when no character is linked yet. Once a character is set, the
+// CTA disappears entirely: the Party panel below already surfaces the
+// player's own row as a tappable card that opens the sheet, so a
+// dedicated "Your character" snapshot above duplicated that
+// affordance.
 function PrimaryAction({
   myMember,
   campaignId,
@@ -826,54 +854,22 @@ function PrimaryAction({
   campaignId: string;
 }) {
   const router = useRouter();
-  const openSplit = useSplitPaneStore((s) => s.openSplit);
 
-  // Player without a character — primary CTA is "create your
-  // character" routing to the campaign-aware wizard.
-  if (!myMember?.character_id) {
-    return (
-      <Card tier="container" padding="md" style={s.primaryActionCard}>
-        <View style={{ flex: 1 }}>
-          <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
-            Create your character
-          </Text>
-          <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 4 }}>
-            Build a character using the campaign's allowed sources and rules.
-          </Text>
-        </View>
-        <GradientButton
-          label="Create character"
-          onPress={() => router.push(`/campaign/${campaignId}/pick-character` as Href)}
-        />
-      </Card>
-    );
-  }
+  if (myMember?.character_id) return null;
 
-  // Player with a character — surface a quick character snapshot.
-  const stats = myMember.characters?.base_stats as Dnd5eStats | null;
-  const className = stats?.classKey
-    ? stats.classKey.charAt(0).toUpperCase() + stats.classKey.slice(1)
-    : '';
-  const level = stats?.level ?? 1;
   return (
     <Card tier="container" padding="md" style={s.primaryActionCard}>
       <View style={{ flex: 1 }}>
-        <MetaLabel size="sm">Your character</MetaLabel>
-        <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface, marginTop: 2 }}>
-          {myMember.characters?.name ?? 'Unnamed'}
+        <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
+          Create your character
         </Text>
-        <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 2 }}>
-          {className ? `${className} · Level ${level}` : `Level ${level}`}
+        <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 4 }}>
+          Build a character using the campaign's allowed sources and rules.
         </Text>
       </View>
-      <GhostButton
-        label="Open sheet"
-        icon="open-in-new"
-        onPress={() => {
-          if (myMember.character_id) {
-            openSplit({ kind: 'character', characterId: myMember.character_id });
-          }
-        }}
+      <GradientButton
+        label="Create character"
+        onPress={() => router.push(`/campaign/${campaignId}/pick-character` as Href)}
       />
     </Card>
   );
@@ -940,6 +936,7 @@ function PartyPanel({
               <PartyMemberCard
                 playerName={nameByUser.get(c.user_id) ?? 'Unknown'}
                 character={c}
+                canOpen={isDM || c.user_id === currentUserId}
               />
             </View>
           ))}
