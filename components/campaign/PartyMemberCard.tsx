@@ -52,9 +52,10 @@ function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 const computeAc = getEquippedAC;
 
 /**
- * HP tier drives the left accent stripe (3-tier categorical) and the
- * unconscious banner. Kept coarse so the at-a-glance status reads bold
- * — fine-grained quantitative shading lives on the HP bar via hpBarColor.
+ * Coarse HP tier — only used to flag `unconscious` for the
+ * card-background tint and the death-saves row swap. Fine-grained
+ * color now flows through `hpBarColor` (5-tier gradient shared with
+ * the character sheet).
  */
 function hpTier(current: number, max: number): 'healthy' | 'bloodied' | 'dying' | 'unconscious' {
   if (max <= 0 || current === 0) return 'unconscious';
@@ -64,16 +65,10 @@ function hpTier(current: number, max: number): 'healthy' | 'bloodied' | 'dying' 
   return 'dying';
 }
 
-const STRIPE_COLOR: Record<ReturnType<typeof hpTier>, string> = {
-  healthy: colors.hpHealthy,
-  bloodied: colors.hpWarning,
-  dying: colors.hpDanger,
-  unconscious: colors.hpDanger,
-};
-
 /**
- * Five-tier HP-bar gradient — mirrors the character sheet's `hpColor`
- * so the party panel and the sheet read consistently. Bands:
+ * Five-tier HP gradient — mirrors the character sheet's `hpColor` so
+ * the party panel and the sheet read consistently. Drives both the
+ * left accent stripe and the HP-bar fill. Bands:
  *   >=100% green | >75% yellow-green | >50% yellow | >25% orange | <=25% red
  */
 function hpBarColor(current: number, max: number): string {
@@ -116,8 +111,8 @@ export function PartyMemberCard({
   const hpMax = stats.hpMax ?? 0;
   const hpTemp = resources.hpTemp ?? 0;
   const tier = hpTier(hpCurrent, hpMax);
-  const stripeColor = STRIPE_COLOR[tier];
   const barColor = hpBarColor(hpCurrent, hpMax);
+  const stripeColor = barColor;
   const hpBarPct = hpMax > 0 ? Math.max(0, Math.min(1, hpCurrent / hpMax)) : 0;
 
   const ac = computeAc(stats, resources);
