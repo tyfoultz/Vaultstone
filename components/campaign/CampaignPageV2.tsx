@@ -1091,48 +1091,69 @@ function ReferencesCard({
   children?: React.ReactNode;
 }) {
   const router = useRouter();
+  // Collapsed by default — this card aggregates references + roster,
+  // which is supporting info that doesn't need to push the at-a-glance
+  // party + session controls down the page. State is per-mount; expand
+  // is a single click away when the DM needs to manage world/packs/etc.
+  const [expanded, setExpanded] = useState(false);
   return (
-    <Card tier="container" padding="md" style={{ gap: spacing.md }}>
-      <View style={{ gap: spacing.sm }}>
+    <Card tier="container" padding="md" style={{ gap: expanded ? spacing.md : 0 }}>
+      <Pressable
+        onPress={() => setExpanded((v) => !v)}
+        style={s.aboutHeader}
+        accessibilityRole="button"
+        accessibilityLabel={expanded ? 'Collapse About this Campaign' : 'Expand About this Campaign'}
+      >
         <MetaLabel size="sm">About this Campaign</MetaLabel>
-        <View style={s.referencesGrid}>
-          <ReferenceRow
-            label="World"
-            value={world?.name ?? '—'}
-            ctaIcon="open-in-new"
-            onPress={world ? () => router.push(`/world/${world.id}` as Href) : undefined}
-          />
-          <ReferenceRow
-            label="Content packs"
-            value={packs.length > 0
-              ? `${packs.length} attached`
-              : 'SRD only'}
-            ctaIcon="folder-open"
-            onPress={onManageContent}
-          />
-          <ReferenceRow
-            label="Character rules"
-            value={rulesSet ? 'Configured' : 'Not set'}
-            ctaIcon="tune"
-            onPress={onConfigureRules}
-          />
-          {isDM ? (
-            <ReferenceRow
-              label="Campaign cover"
-              value={
-                coverUploading
-                  ? 'Uploading…'
-                  : coverImageUrl
-                    ? 'Edit image'
-                    : 'Add image'
-              }
-              ctaIcon="image"
-              onPress={coverUploading ? undefined : onPickCover}
-            />
-          ) : null}
-        </View>
-      </View>
-      {children}
+        <Icon
+          name={expanded ? 'expand-less' : 'expand-more'}
+          size={20}
+          color={colors.onSurfaceVariant}
+        />
+      </Pressable>
+      {expanded ? (
+        <>
+          <View style={{ gap: spacing.sm }}>
+            <View style={s.referencesGrid}>
+              <ReferenceRow
+                label="World"
+                value={world?.name ?? '—'}
+                ctaIcon="open-in-new"
+                onPress={world ? () => router.push(`/world/${world.id}` as Href) : undefined}
+              />
+              <ReferenceRow
+                label="Content packs"
+                value={packs.length > 0
+                  ? `${packs.length} attached`
+                  : 'SRD only'}
+                ctaIcon="folder-open"
+                onPress={onManageContent}
+              />
+              <ReferenceRow
+                label="Character rules"
+                value={rulesSet ? 'Configured' : 'Not set'}
+                ctaIcon="tune"
+                onPress={onConfigureRules}
+              />
+              {isDM ? (
+                <ReferenceRow
+                  label="Campaign cover"
+                  value={
+                    coverUploading
+                      ? 'Uploading…'
+                      : coverImageUrl
+                        ? 'Edit image'
+                        : 'Add image'
+                  }
+                  ctaIcon="image"
+                  onPress={coverUploading ? undefined : onPickCover}
+                />
+              ) : null}
+            </View>
+          </View>
+          {children}
+        </>
+      ) : null}
     </Card>
   );
 }
@@ -1315,6 +1336,14 @@ const s = StyleSheet.create({
   },
 
   referencesGrid: { gap: spacing.xs },
+  /** Pressable header row for the collapsible About-this-Campaign card.
+   *  Lays the eyebrow label and the expand chevron on the same line so
+   *  the whole row is one tap target. */
+  aboutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   /** Layout for the Manage Campaign action buttons. flex-start so a
    *  single-button variant doesn't stretch. */
   manageActionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
