@@ -90,7 +90,7 @@ export function PartyMemberCard({
   const openSplit = useSplitPaneStore((s) => s.openSplit);
   const stats = character.base_stats as Dnd5eStats | null;
   const resources = character.resources as Dnd5eResources | null;
-  const { speciesLabel, classLabel, backgroundLabel } = useResolvedContentLabels(stats, { campaignId });
+  const { speciesLabel, classLabel, subclassLabel } = useResolvedContentLabels(stats, { campaignId });
 
   if (!stats || !resources) {
     return (
@@ -125,14 +125,15 @@ export function PartyMemberCard({
   const passiveInv = passive(intMod, 'investigation');
   const passiveIns = passive(wisMod, 'insight');
 
-  // Subtitle reads like "Owlin Artificer · Archaeologist · L3".
-  // Level moves here from the old chip slot so the shield AC badge
-  // can take the top-right corner of the card.
+  // Subtitle reads like "L3 - Owlin Champion Fighter": level first,
+  // then species + (subclass) + class. Background is intentionally
+  // dropped — the at-a-glance subtitle prioritizes combat-relevant
+  // identity, and background is one tap away in the character sheet's
+  // Lore tab.
   const subtitle = [
-    speciesLabel && classLabel ? `${speciesLabel} ${classLabel}` : (speciesLabel ?? classLabel),
-    backgroundLabel,
     `L${level}`,
-  ].filter(Boolean).join(' · ');
+    [speciesLabel, subclassLabel, classLabel].filter(Boolean).join(' '),
+  ].filter((part) => part && part.length > 0).join(' - ');
 
   // Death-save pips when unconscious — read off resources.deathSaves
   // if present, otherwise zero. The shape is `{ successes, failures }`.

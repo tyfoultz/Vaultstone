@@ -166,15 +166,18 @@ export function CampaignMembersCard({
 function CharacterRow({ character, campaignId }: { character: CampaignCharacter; campaignId: string }) {
   const openSplit = useSplitPaneStore((s) => s.openSplit);
   const stats = character.base_stats as Dnd5eStats | null;
-  const { speciesLabel, classLabel } = useResolvedContentLabels(stats, { campaignId });
+  const { speciesLabel, classLabel, subclassLabel } = useResolvedContentLabels(stats, { campaignId });
   const level = stats?.level ?? null;
   const settings = stats?.settings as CharacterSettings | undefined;
   const isInactive = settings?.active === false;
 
+  // Mirrors PartyMemberCard's subtitle format: "L7 - Half Elf Rogue",
+  // "L3 - Owlin Champion Fighter". Background is intentionally dropped.
+  const identity = [speciesLabel, subclassLabel, classLabel].filter(Boolean).join(' ');
   const meta = [
-    speciesLabel,
-    classLabel ? (level ? `${classLabel} ${level}` : classLabel) : null,
-  ].filter(Boolean).join(' · ');
+    level ? `L${level}` : null,
+    identity || null,
+  ].filter(Boolean).join(' - ');
 
   // Tapping a character row from inside the campaign view opens the
   // sheet in the campaign's split pane (web + native, the campaign

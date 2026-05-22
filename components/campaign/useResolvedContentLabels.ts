@@ -5,6 +5,7 @@ import type { Dnd5eStats } from '@vaultstone/types';
 export type ResolvedContentLabels = {
   speciesLabel: string | null;
   classLabel: string | null;
+  subclassLabel: string | null;
   backgroundLabel: string | null;
 };
 
@@ -33,10 +34,22 @@ export function prettifyContentKey(key: string | null | undefined): string | nul
 }
 
 /**
- * Resolve human names for a character's species / class / background.
- * Sync prettify covers SRD + imported keys; only `homebrew_*` keys trigger
- * a ContentResolver lookup so the homebrew tier's name field (the user's
- * actual species name) shows instead of the row UUID.
+ * Pick the primary class entry's subclass key. Multi-class characters
+ * carry a `classes[]` list with one entry flagged `primary: true`;
+ * single-class legacy characters have no `classes[]`, in which case
+ * there's no subclass selection to surface here.
+ */
+function primarySubclassKey(stats: Dnd5eStats | null): string | null {
+  const entries = stats?.classes;
+  if (!entries || entries.length === 0) return null;
+  return entries.find((e) => e.primary)?.subclassKey ?? entries[0].subclassKey ?? null;
+}
+
+/**
+ * Resolve human names for a character's species / class / subclass /
+ * background. Sync prettify covers SRD + imported keys; only `homebrew_*`
+ * keys trigger a ContentResolver lookup so the homebrew tier's name
+ * field (the user's actual species name) shows instead of the row UUID.
  *
  * Scoped by `campaignId` so only packs attached to this campaign are
  * searched — matches the wizard / character-sheet resolver scope.
@@ -47,6 +60,7 @@ export function useResolvedContentLabels(
 ): ResolvedContentLabels {
   const speciesKey = stats?.speciesKey ?? null;
   const classKey = stats?.classKey ?? null;
+  const subclassKey = primarySubclassKey(stats);
   const backgroundKey = stats?.backgroundKey ?? null;
   const srdVersion = stats?.srdVersion;
   const campaignId = opts.campaignId ?? null;
@@ -54,6 +68,7 @@ export function useResolvedContentLabels(
   const [resolved, setResolved] = useState<ResolvedContentLabels>({
     speciesLabel: prettifyContentKey(speciesKey),
     classLabel: prettifyContentKey(classKey),
+    subclassLabel: prettifyContentKey(subclassKey),
     backgroundLabel: prettifyContentKey(backgroundKey),
   });
 
@@ -61,12 +76,14 @@ export function useResolvedContentLabels(
     const sync: ResolvedContentLabels = {
       speciesLabel: prettifyContentKey(speciesKey),
       classLabel: prettifyContentKey(classKey),
+      subclassLabel: prettifyContentKey(subclassKey),
       backgroundLabel: prettifyContentKey(backgroundKey),
     };
 
     const needsHomebrew =
       (speciesKey?.startsWith('homebrew_') && !sync.speciesLabel) ||
       (classKey?.startsWith('homebrew_') && !sync.classLabel) ||
+      (subclassKey?.startsWith('homebrew_') && !sync.subclassLabel) ||
       (backgroundKey?.startsWith('homebrew_') && !sync.backgroundLabel);
 
     if (!needsHomebrew || !campaignId) {
@@ -82,12 +99,15 @@ export function useResolvedContentLabels(
         tiers: ['homebrew'] as Array<'srd' | 'homebrew'>,
         campaignId,
       };
-      const [speciesResults, classResults, backgroundResults] = await Promise.all([
+      const [speciesResults, classResults, subclassResults, backgroundResults] = await Promise.all([
         speciesKey?.startsWith('homebrew_')
           ? ContentResolver.search({ ...tierArgs, type: 'species' })
           : Promise.resolve([]),
         classKey?.startsWith('homebrew_')
           ? ContentResolver.search({ ...tierArgs, type: 'class' })
+          : Promise.resolve([]),
+        subclassKey?.startsWith('homebrew_')
+          ? ContentResolver.search({ ...tierArgs, type: 'subclass' })
           : Promise.resolve([]),
         backgroundKey?.startsWith('homebrew_')
           ? ContentResolver.search({ ...tierArgs, type: 'background' })
@@ -103,6 +123,10 @@ export function useResolvedContentLabels(
           classKey?.startsWith('homebrew_')
             ? classResults.find((r) => r.key === classKey)?.name ?? null
             : sync.classLabel,
+        subclassLabel:
+          subclassKey?.startsWith('homebrew_')
+            ? subclassResults.find((r) => r.key === subclassKey)?.name ?? null
+            : sync.subclassLabel,
         backgroundLabel:
           backgroundKey?.startsWith('homebrew_')
             ? backgroundResults.find((r) => r.key === backgroundKey)?.name ?? null
@@ -110,7 +134,7 @@ export function useResolvedContentLabels(
       });
     })();
     return () => { cancelled = true; };
-  }, [speciesKey, classKey, backgroundKey, srdVersion, campaignId]);
+  }, [speciesKey, classKey, subclassKey, backgroundKey, srdVersion, campaignId]);
 
   return resolved;
 }
