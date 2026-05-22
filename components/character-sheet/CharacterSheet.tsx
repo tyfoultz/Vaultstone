@@ -1773,6 +1773,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     ));
   }
 
+  function handleUpdateItemQuantity(id: string, quantity: number) {
+    // Clamp to non-negative integers. 1 is the implicit default so we
+    // strip the field rather than write `1` back — keeps the JSON small
+    // and matches how older rows look on the wire.
+    const clamped = Number.isFinite(quantity) ? Math.max(0, Math.floor(quantity)) : 1;
+    saveEquipment(equipment.map((e) =>
+      e.id === id ? { ...e, quantity: clamped === 1 ? undefined : clamped } : e,
+    ));
+  }
+
   function handleToggleAttuned(id: string) {
     const target = equipment.find((e) => e.id === id);
     if (!target?.requiresAttunement) return;
@@ -2198,6 +2208,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onOpenItemPicker={() => setItemPickerOpen(true)}
             onRemoveItem={(id) => setRemoveEquipId(id)}
             onUpdateItemValue={handleUpdateItemValue}
+            onUpdateItemQuantity={handleUpdateItemQuantity}
           />
         );
       case 'lore':

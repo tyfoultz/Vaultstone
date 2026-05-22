@@ -39,9 +39,13 @@ interface Props {
   /** Commit a player-edited Value for an equipment item. Empty/whitespace
    *  strings clear the field (the row falls back to em-dash). */
   onUpdateItemValue?: (id: string, value: string) => void;
+  /** Commit a player-edited Quantity for an equipment item. The parent
+   *  is responsible for clamping (non-negative integers) and dropping
+   *  the field when it matches the implicit default of 1. */
+  onUpdateItemQuantity?: (id: string, quantity: number) => void;
 }
 
-type SortKey = 'name' | 'type' | 'value';
+type SortKey = 'name' | 'type' | 'qty' | 'value';
 type SortDir = 'asc' | 'desc';
 
 const SLOT_LABEL: Record<string, string> = {
@@ -54,7 +58,7 @@ const SLOT_LABEL: Record<string, string> = {
 export function GearTab({
   stats, resources, isOwner, strengthScore,
   onUpdateCoins, onToggleEquipped, onToggleAttuned, onTogglePinnedToCombat, onUpdateNotes, onUpdateTreasure,
-  onOpenItemPicker, onRemoveItem, onUpdateItemValue,
+  onOpenItemPicker, onRemoveItem, onUpdateItemValue, onUpdateItemQuantity,
 }: Props) {
   const [detailItem, setDetailItem] = useState<Dnd5eEquipmentItem | null>(null);
   const [search, setSearch] = useState('');
@@ -86,6 +90,15 @@ export function GearTab({
       const bT = SLOT_LABEL[b.slot] ?? b.slot;
       if (aT === bT) return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
       return aT.localeCompare(bT) * dir;
+    }
+    if (sortKey === 'qty') {
+      // Quantity treats undefined as the implicit default of 1 (not as
+      // "empty") since every item has a real quantity at the table —
+      // a missing field just means the player hasn't bumped the stack.
+      const aQ = a.quantity ?? 1;
+      const bQ = b.quantity ?? 1;
+      if (aQ === bQ) return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      return (aQ - bQ) * dir;
     }
     // value
     const aV = (a.value ?? '').trim();
@@ -163,6 +176,7 @@ export function GearTab({
         <View style={s.tableHeader}>
           <SortHeader label="Name" active={sortKey === 'name'} dir={sortDir} onPress={() => toggleSort('name')} style={s.tableCellName} />
           <SortHeader label="Type" active={sortKey === 'type'} dir={sortDir} onPress={() => toggleSort('type')} style={s.tableCellType} />
+          <SortHeader label="QTY" active={sortKey === 'qty'} dir={sortDir} onPress={() => toggleSort('qty')} style={s.tableCellQty} />
           <SortHeader label="Value" active={sortKey === 'value'} dir={sortDir} onPress={() => toggleSort('value')} style={s.tableCellValue} />
           <View style={s.tableCellControls} />
         </View>
@@ -183,6 +197,7 @@ export function GearTab({
               onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
+              onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
               onOpenDetail={() => setDetailItem(item)}
             />
           ))
@@ -241,6 +256,13 @@ export function GearTab({
         <EquipmentDetailModal
           item={detailItem}
           onClose={() => setDetailItem(null)}
+          onUpdateValue={isOwner && onUpdateItemValue
+            ? (v: string) => onUpdateItemValue(detailItem.id, v)
+            : undefined}
+          onUpdateQuantity={isOwner && onUpdateItemQuantity
+            ? (q: number) => onUpdateItemQuantity(detailItem.id, q)
+            : undefined}
+          canEdit={isOwner}
         />
       )}
 
@@ -318,7 +340,7 @@ function SortHeader({
 
 function InventoryRow({
   item, canEdit, isLast,
-  onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onUpdateValue, onOpenDetail,
+  onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onUpdateValue, onUpdateQuantity, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
   canEdit: boolean;
@@ -328,6 +350,7 @@ function InventoryRow({
   onTogglePinnedToCombat?: () => void;
   onRemove?: () => void;
   onUpdateValue?: (v: string) => void;
+  onUpdateQuantity?: (q: number) => void;
   onOpenDetail: () => void;
 }) {
   const armorType = armorTypeLabel(item);
@@ -351,6 +374,14 @@ function InventoryRow({
       </Pressable>
 
       <Text style={[s.tableCellType, s.tableCellTypeText]}>{typeLabel}</Text>
+
+      <View style={s.tableCellQty}>
+        <InlineQuantityCell
+          quantity={item.quantity ?? 1}
+          editable={canEdit && !!onUpdateQuantity}
+          onCommit={(q) => onUpdateQuantity?.(q)}
+        />
+      </View>
 
       <View style={s.tableCellValue}>
         <InlineValueCell value={item.value ?? ''} editable={canEdit && !!onUpdateValue} onCommit={(v) => onUpdateValue?.(v)} />
@@ -395,32 +426,98 @@ function InventoryRow({
 }
 
 /**
+ * Inline editable cell for the QTY column. Treats quantity 1 as the
+ * implicit default so existing rows (and freshly-picked items) read
+ * naturally without forcing the player to type "1". Commits on blur
+ * or submit; invalid input reverts to the previous quantity.
+ */
+function InlineQuantityCell({
+  quantity, editable, onCommit, size = 'sm',
+}: {
+  quantity: number;
+  editable: boolean;
+  onCommit: (q: number) => void;
+  size?: 'sm' | 'md';
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(String(quantity));
+  useEffect(() => { setText(String(quantity)); }, [quantity]);
+
+  const textStyle = size === 'md' ? s.tableCellQtyTextMd : s.tableCellQtyText;
+  const inputStyle = size === 'md' ? s.tableCellQtyInputMd : s.tableCellQtyInput;
+
+  function commit() {
+    setEditing(false);
+    const parsed = parseInt(text, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setText(String(quantity));
+      return;
+    }
+    if (parsed !== quantity) onCommit(parsed);
+  }
+
+  if (!editable) {
+    return <Text style={textStyle}>{quantity}</Text>;
+  }
+
+  if (editing) {
+    return (
+      <TextInput
+        style={inputStyle}
+        value={text}
+        onChangeText={setText}
+        onBlur={commit}
+        onSubmitEditing={commit}
+        autoFocus
+        keyboardType="number-pad"
+        selectTextOnFocus
+        returnKeyType="done"
+      />
+    );
+  }
+
+  return (
+    <TouchableOpacity onPress={() => setEditing(true)} activeOpacity={0.7} hitSlop={4}>
+      <Text style={textStyle}>{quantity}</Text>
+    </TouchableOpacity>
+  );
+}
+
+/**
  * Inline editable cell for the Value column. Tap-to-edit so the table
  * stays compact; renders an em-dash placeholder when empty. Commits on
  * blur or submit. Read-only mode skips the Pressable wrap so the row
  * doesn't get a misleading tap target.
  */
 function InlineValueCell({
-  value, editable, onCommit,
+  value, editable, onCommit, size = 'sm',
 }: {
   value: string;
   editable: boolean;
   onCommit: (v: string) => void;
+  /** `sm` (default) renders at the inventory-row size (11pt); `md`
+   *  bumps to 13pt for the detail modal so the value sits flush with
+   *  the rest of the meta-data column. */
+  size?: 'sm' | 'md';
 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(value);
   useEffect(() => { setText(value); }, [value]);
 
+  const textStyle = size === 'md' ? s.tableCellValueTextMd : s.tableCellValueText;
+  const placeholderStyle = size === 'md' ? s.tableCellValuePlaceholderMd : s.tableCellValuePlaceholder;
+  const inputStyle = size === 'md' ? s.tableCellValueInputMd : s.tableCellValueInput;
+
   if (!editable) {
     return value
-      ? <Text style={s.tableCellValueText}>{value}</Text>
-      : <Text style={s.tableCellValuePlaceholder}>—</Text>;
+      ? <Text style={textStyle}>{value}</Text>
+      : <Text style={placeholderStyle}>—</Text>;
   }
 
   if (editing) {
     return (
       <TextInput
-        style={s.tableCellValueInput}
+        style={inputStyle}
         value={text}
         onChangeText={setText}
         onBlur={() => { setEditing(false); onCommit(text); }}
@@ -436,8 +533,8 @@ function InlineValueCell({
   return (
     <TouchableOpacity onPress={() => setEditing(true)} activeOpacity={0.7} hitSlop={4}>
       {value
-        ? <Text style={s.tableCellValueText}>{value}</Text>
-        : <Text style={s.tableCellValuePlaceholder}>—</Text>}
+        ? <Text style={textStyle}>{value}</Text>
+        : <Text style={placeholderStyle}>—</Text>}
     </TouchableOpacity>
   );
 }
@@ -445,9 +542,19 @@ function InlineValueCell({
 function EquipmentDetailModal({
   item,
   onClose,
+  onUpdateValue,
+  onUpdateQuantity,
+  canEdit,
 }: {
   item: Dnd5eEquipmentItem;
   onClose: () => void;
+  /** When provided, Value renders as an inline editable field — matches
+   *  the row-level affordance so the modal isn't a read-only dead end. */
+  onUpdateValue?: (v: string) => void;
+  /** When provided, Quantity renders as an inline editable field
+   *  alongside Value. */
+  onUpdateQuantity?: (q: number) => void;
+  canEdit: boolean;
 }) {
   const armorType = armorTypeLabel(item);
   const rows: Array<{ label: string; value: string }> = [];
@@ -489,6 +596,30 @@ function EquipmentDetailModal({
                   <Text style={s.detailMetaValue}>{r.value}</Text>
                 </View>
               ))}
+            </View>
+            <View style={s.detailEditableRow}>
+              <View style={s.detailEditableCell}>
+                <Text style={s.detailMetaLabel}>Quantity</Text>
+                <View style={s.detailValueInline}>
+                  <InlineQuantityCell
+                    quantity={item.quantity ?? 1}
+                    editable={canEdit && !!onUpdateQuantity}
+                    onCommit={(q) => onUpdateQuantity?.(q)}
+                    size="md"
+                  />
+                </View>
+              </View>
+              <View style={s.detailEditableCell}>
+                <Text style={s.detailMetaLabel}>Value</Text>
+                <View style={s.detailValueInline}>
+                  <InlineValueCell
+                    value={item.value ?? ''}
+                    editable={canEdit && !!onUpdateValue}
+                    onCommit={(v) => onUpdateValue?.(v)}
+                    size="md"
+                  />
+                </View>
+              </View>
             </View>
             {item.properties && item.properties.length > 0 ? (
               <View style={{ marginTop: spacing.sm }}>
@@ -695,12 +826,32 @@ const s = StyleSheet.create({
   tableCellNamePills: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   tableCellType: { width: 72 },
   tableCellTypeText: { fontSize: 10, fontFamily: fonts.body, color: colors.onSurfaceVariant },
+  tableCellQty: { width: 48, justifyContent: 'flex-start' },
+  tableCellQtyText: { fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
+  tableCellQtyInput: {
+    fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.primary,
+    paddingVertical: 0, minWidth: 32,
+  },
+  tableCellQtyTextMd: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
+  tableCellQtyInputMd: {
+    fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.primary,
+    paddingVertical: 0, minWidth: 40,
+  },
   tableCellValue: { width: 88, justifyContent: 'flex-start' },
   tableCellValueText: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurface },
   tableCellValuePlaceholder: { fontSize: 11, fontFamily: fonts.body, color: colors.outline },
   tableCellValueInput: {
     fontSize: 11, fontFamily: fonts.body, color: colors.primary,
     paddingVertical: 0, minWidth: 60,
+  },
+  /** `md` variants of the Value cell text/input styles — used by the
+   *  detail modal so the inline editor matches the rest of the meta
+   *  column's 13pt body type. */
+  tableCellValueTextMd: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurface },
+  tableCellValuePlaceholderMd: { fontSize: 13, fontFamily: fonts.body, color: colors.outline },
+  tableCellValueInputMd: {
+    fontSize: 13, fontFamily: fonts.body, color: colors.primary,
+    paddingVertical: 0, minWidth: 80,
   },
   tableCellControls: {
     width: 110,
@@ -791,6 +942,19 @@ const s = StyleSheet.create({
     letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
   },
   detailMetaValue: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurface, marginTop: 2 },
+  /** Wraps the inline value editor inside the detail modal so the row
+   *  visually matches `detailMetaValue` (margin + larger text size).
+   *  Bumps the InlineValueCell's child text via the parent fontSize
+   *  override since the cell inherits its own size for the table cell. */
+  detailValueInline: { marginTop: 2 },
+  /** Two-column row inside the detail modal that holds the editable
+   *  Quantity and Value fields side by side. */
+  detailEditableRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  detailEditableCell: { minWidth: 100, flex: 1 },
   detailBullet: { fontSize: 12, color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 2 },
   detailNotes: { fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 19, marginTop: 4 },
 });
