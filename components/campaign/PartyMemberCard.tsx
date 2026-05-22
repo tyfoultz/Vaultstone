@@ -130,9 +130,22 @@ export function PartyMemberCard({
   // dropped — the at-a-glance subtitle prioritizes combat-relevant
   // identity, and background is one tap away in the character sheet's
   // Lore tab.
+  //
+  // Many homebrew packs name species/subclass with the class baked in
+  // ("Owlin Artificer", "Champion Fighter") because that's how the
+  // pre-rework subtitle read. Strip a trailing class word from species
+  // and subclass so we don't print the class three times.
+  const escapedClass = classLabel?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const trimClass = (label: string | null) =>
+    label && escapedClass
+      ? label.replace(new RegExp(`\\s+${escapedClass}$`, 'i'), '').trim() || null
+      : label;
+  const identity = [trimClass(speciesLabel), trimClass(subclassLabel), classLabel]
+    .filter(Boolean)
+    .join(' ');
   const subtitle = [
     `L${level}`,
-    [speciesLabel, subclassLabel, classLabel].filter(Boolean).join(' '),
+    identity || null,
   ].filter((part) => part && part.length > 0).join(' - ');
 
   // Death-save pips when unconscious — read off resources.deathSaves
