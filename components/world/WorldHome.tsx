@@ -18,8 +18,9 @@ import {
   usePagesStore,
   useSectionsStore,
 } from '@vaultstone/store';
+import { getEquippedAC } from '@vaultstone/systems';
 import { Chip, GhostButton, GradientButton, Icon, MetaLabel, Text, colors, radius, spacing, useBreakpoint } from '@vaultstone/ui';
-import type { Database, TimelineCalendarSchema, WorldSection } from '@vaultstone/types';
+import type { Database, Dnd5eResources, Dnd5eStats, TimelineCalendarSchema, WorldSection } from '@vaultstone/types';
 
 import { useActiveSection } from './ActiveSectionContext';
 import { CreatePageModal } from './CreatePageModal';
@@ -54,22 +55,15 @@ function formatKey(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).replace(/^Srd /, '');
 }
 
+// AC math lives in @vaultstone/systems — shared with the character
+// sheet and party views. WorldHome receives untyped row shapes from
+// the world query, so we cast at the boundary.
 function computeAC(stats: Record<string, unknown>, resources: Record<string, unknown> | null): number {
-  const scores = stats?.abilityScores as Record<string, number> | undefined;
-  if (!scores) return 10;
-  const dexMod = Math.floor((scores.dexterity - 10) / 2);
-  const equipment = (resources?.equipment ?? []) as Array<{
-    slot: string; equipped: boolean; acBase?: number; acBonus?: number; dexCap?: number | null;
-  }>;
-  const armor = equipment.find((e) => e.slot === 'armor' && e.equipped);
-  const shield = equipment.find((e) => e.slot === 'shield' && e.equipped);
-  let base = 10 + dexMod;
-  if (armor) {
-    const dexBonus = armor.dexCap != null ? Math.min(dexMod, armor.dexCap) : dexMod;
-    base = (armor.acBase ?? 10) + dexBonus;
-  }
-  if (shield) base += shield.acBonus ?? 2;
-  return base;
+  if (!stats?.abilityScores) return 10;
+  return getEquippedAC(
+    stats as unknown as Dnd5eStats,
+    (resources ?? { equipment: [] }) as unknown as Dnd5eResources,
+  );
 }
 
 // CSS grid lives inline; see note in SectionPageGrid.tsx.

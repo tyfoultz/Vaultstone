@@ -12,9 +12,10 @@
 
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { useSplitPaneStore } from '@vaultstone/store';
+import { getEquippedAC } from '@vaultstone/systems';
 import { colors, spacing, fonts, Icon } from '@vaultstone/ui';
 import type {
-  Dnd5eStats, Dnd5eResources, Dnd5eEquipmentItem,
+  Dnd5eStats, Dnd5eResources,
 } from '@vaultstone/types';
 
 type Props = {
@@ -40,21 +41,10 @@ type Props = {
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 
-function computeAc(stats: Dnd5eStats, resources: Dnd5eResources): number {
-  const scores = stats.abilityScores;
-  const dexMod = abilityMod(scores.dexterity);
-  const equipment: Dnd5eEquipmentItem[] = resources.equipment ?? [];
-  const armor = equipment.find((e) => e.slot === 'armor' && e.equipped);
-  const shield = equipment.find((e) => e.slot === 'shield' && e.equipped);
-  let base = 10 + dexMod;
-  if (armor) {
-    const cap = armor.dexCap;
-    const dexBonus = cap !== undefined && cap !== null ? Math.min(dexMod, cap) : dexMod;
-    base = (armor.acBase ?? 10) + dexBonus;
-  }
-  if (shield) base += shield.acBonus ?? 2;
-  return base;
-}
+// AC math lives in @vaultstone/systems — shared with the character
+// sheet so the party card, campaign party tab, and world home all
+// show the same number for the same equipment.
+const computeAc = getEquippedAC;
 
 /**
  * Strip imported-content prefix and SRD edition suffix from a content
