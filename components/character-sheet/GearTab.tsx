@@ -71,6 +71,18 @@ export function GearTab({
   const attuned = equipment.filter((i) => i.requiresAttunement && i.attuned);
   const attunementMax = 3;
 
+  // Equipped section reuses the full inventory row layout but sorts
+  // by slot then name so weapons/armor/shields cluster predictably —
+  // matches the at-a-glance ordering a player wants when scanning
+  // "what's on me." Equipped items also appear in the full Inventory
+  // table below so this section is a focused subset, not a partition.
+  const equippedItems = [...equipment.filter((i) => i.equipped)].sort((a, b) => {
+    const aT = SLOT_LABEL[a.slot] ?? a.slot;
+    const bT = SLOT_LABEL[b.slot] ?? b.slot;
+    if (aT !== bT) return aT.localeCompare(bT);
+    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+  });
+
   // Search filter — case-insensitive substring match on item name.
   const term = search.trim().toLowerCase();
   const filtered = term
@@ -150,11 +162,44 @@ export function GearTab({
         })}
       </View>
 
+      {/* Equipped — at-a-glance section above the main Inventory table.
+          Reuses the InventoryRow layout (same columns + controls) so
+          interactions stay consistent, but skips search/sort since
+          the equipped list is short. Items also still appear in the
+          full Inventory table below; this is just a focused view of
+          "what's in my hands right now." */}
+      {equippedItems.length > 0 ? (
+        <CardBlock title="Equipped">
+          <View style={s.tableHeader}>
+            <View style={[s.tableHeaderCell, s.tableCellName]}><Text style={s.tableHeaderText}>Name</Text></View>
+            <View style={[s.tableHeaderCell, s.tableCellType]}><Text style={s.tableHeaderText}>Type</Text></View>
+            <View style={[s.tableHeaderCell, s.tableCellQty]}><Text style={s.tableHeaderText}>QTY</Text></View>
+            <View style={[s.tableHeaderCell, s.tableCellValue]}><Text style={s.tableHeaderText}>Value</Text></View>
+            <View style={s.tableCellControls} />
+          </View>
+          {equippedItems.map((item, i) => (
+            <InventoryRow
+              key={item.id}
+              item={item}
+              canEdit={isOwner}
+              isLast={i === equippedItems.length - 1}
+              onToggle={() => onToggleEquipped?.(item.id)}
+              onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
+              onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
+              onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
+              onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
+              onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
+              onOpenDetail={() => setDetailItem(item)}
+            />
+          ))}
+        </CardBlock>
+      ) : null}
+
       {/* Inventory — single sortable, searchable table with Name /
-          Type / Value columns plus a trailing controls cluster (pin,
-          attune, equipped checkbox, remove). Replaces the old split
-          Equipped + Carrying lists; sort by Type clusters by slot
-          when that grouping matters. */}
+          Type / QTY / Value columns plus a trailing controls cluster
+          (pin, attune, equipped checkbox, remove). Includes equipped
+          items too so the table is the canonical "all my gear" view;
+          the Equipped section above is just a focused subset. */}
       <CardBlock title="Inventory" action={isOwner ? '+ Add' : undefined} onAction={onOpenItemPicker}>
         <View style={s.searchWrap}>
           <MaterialCommunityIcons name="magnify" size={14} color={colors.outline} />
