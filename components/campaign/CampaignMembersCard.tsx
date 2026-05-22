@@ -180,12 +180,13 @@ function CharacterRow({ character, campaignId }: { character: CampaignCharacter;
   ].filter(Boolean).join(' - ');
 
   // Tapping a character row from inside the campaign view opens the
-  // sheet in the campaign's split pane (web + native, the campaign
-  // route swaps to a mobile-tab layout). The standalone navigate
-  // path is kept as a fallback for any future caller that uses the
-  // row outside the campaign context.
+  // sheet in a new tab on the focused side (next to the campaign tab)
+  // so the route stays full-screen. The user can drag the tab across
+  // to opt into split view. The standalone navigate path is kept as
+  // a fallback for any future caller that uses the row outside the
+  // campaign context.
   function handleOpen() {
-    openSplit({ kind: 'character', characterId: character.id });
+    openSplit({ kind: 'character', characterId: character.id }, { preferSide: 'focused' });
   }
 
   return (

@@ -165,7 +165,12 @@ export function PartyMemberCard({
         s.card,
         tier === 'unconscious' ? s.cardUnconscious : null,
       ]}
-      onPress={canOpen ? () => openSplit({ kind: 'character', characterId: character.id }) : undefined}
+      onPress={canOpen
+        // Open the sheet in a new tab on the focused side (next to
+        // the campaign tab) so the route stays full-screen. The user
+        // can drag the tab across to opt into split view.
+        ? () => openSplit({ kind: 'character', characterId: character.id }, { preferSide: 'focused' })
+        : undefined}
       activeOpacity={canOpen ? 0.85 : 1}
       disabled={!canOpen}
     >
