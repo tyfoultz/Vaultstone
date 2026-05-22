@@ -11,6 +11,8 @@
 // condition / concentration changes without a manual refetch.
 
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
 import { useSplitPaneStore } from '@vaultstone/store';
 import { getEquippedAC } from '@vaultstone/systems';
 import { colors, spacing, fonts, Icon } from '@vaultstone/ui';
@@ -183,10 +185,25 @@ export function PartyMemberCard({
       <View style={[s.stripe, { backgroundColor: stripeColor }]} />
 
       {/* Shield-wrapped AC badge, top-right of the card. The shield
-          icon is rendered behind the number; rim color tracks HP tier
-          so the AC reads at the same glance as the stripe. */}
+          glyph is masked with a static brand gradient (primary →
+          primary-container) — keeps the AC visually distinct from the
+          HP gradient so it reads as a defense stat at a glance. */}
       <View style={s.acBadge}>
-        <Icon name="shield" size={36} color={stripeColor} />
+        <MaskedView
+          style={s.acShieldMask}
+          maskElement={
+            <View style={s.acShieldMaskInner}>
+              <Icon name="shield" size={36} color="#000" />
+            </View>
+          }
+        >
+          <LinearGradient
+            colors={[colors.primary, colors.primaryContainer]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.acShieldGradient}
+          />
+        </MaskedView>
         <Text style={s.acBadgeNum}>{ac}</Text>
       </View>
 
@@ -359,9 +376,11 @@ const s = StyleSheet.create({
    *  the absolutely-positioned shield AC badge. */
   namePad: { paddingRight: 44 },
 
-  /** Shield-wrapped AC badge, top-right corner. The shield icon and
-   *  the number are absolutely-stacked; rim color matches the HP-tier
-   *  stripe so the AC reads at the same glance. */
+  /** Shield-wrapped AC badge, top-right corner. The shield glyph is
+   *  masked over a brand-purple LinearGradient (primary →
+   *  primary-container); the AC number is absolutely-stacked on top.
+   *  Static gradient keeps the AC visually distinct from the HP
+   *  gradient so it reads as a defense stat at a glance. */
   acBadge: {
     position: 'absolute',
     top: 8,
@@ -370,6 +389,21 @@ const s = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /** MaskedView footprint matches the icon's intrinsic 36×36 box so
+   *  the gradient fill lines up with the glyph silhouette. */
+  acShieldMask: {
+    width: 36,
+    height: 36,
+  },
+  acShieldMaskInner: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  acShieldGradient: {
+    flex: 1,
   },
   acBadgeNum: {
     position: 'absolute',
