@@ -10,6 +10,33 @@ export type ResolvedContentLabels = {
 };
 
 /**
+ * Build the "Species Subclass Class" identity line for a party card
+ * subtitle. Many homebrew packs name species and subclasses with the
+ * class baked in ("Owlin Artificer", "Champion Fighter") — a holdover
+ * from the pre-rework subtitle format. To avoid printing the class
+ * twice, drop any word from species and subclass that matches the
+ * class label (case-insensitive). Operates word-by-word so it handles
+ * leading, middle, or trailing dupes without regex escaping.
+ */
+export function composeIdentity(
+  speciesLabel: string | null,
+  subclassLabel: string | null,
+  classLabel: string | null,
+): string {
+  const classWords = (classLabel ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+  const classWordSet = new Set(classWords);
+  const stripClassWords = (label: string | null): string | null => {
+    if (!label) return null;
+    if (classWordSet.size === 0) return label;
+    const kept = label.split(/\s+/).filter((w) => w && !classWordSet.has(w.toLowerCase()));
+    return kept.length > 0 ? kept.join(' ') : null;
+  };
+  return [stripClassWords(speciesLabel), stripClassWords(subclassLabel), classLabel]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/**
  * Friendly fallback for any content key. Strips imported-content prefixes
  * and SRD edition suffixes, then title-cases. Returns null when the key
  * looks like a `homebrew_<uuid>` row id — those carry no usable signal in

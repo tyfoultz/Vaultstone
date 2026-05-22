@@ -19,7 +19,7 @@ import { colors, spacing, fonts, Icon } from '@vaultstone/ui';
 import type {
   Dnd5eStats, Dnd5eResources,
 } from '@vaultstone/types';
-import { useResolvedContentLabels } from './useResolvedContentLabels';
+import { useResolvedContentLabels, composeIdentity } from './useResolvedContentLabels';
 
 type Props = {
   /** Display name (player profile name, falls back to "Unknown"). */
@@ -138,19 +138,7 @@ export function PartyMemberCard({
   // dropped — the at-a-glance subtitle prioritizes combat-relevant
   // identity, and background is one tap away in the character sheet's
   // Lore tab.
-  //
-  // Many homebrew packs name species/subclass with the class baked in
-  // ("Owlin Artificer", "Champion Fighter") because that's how the
-  // pre-rework subtitle read. Strip a trailing class word from species
-  // and subclass so we don't print the class three times.
-  const escapedClass = classLabel?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const trimClass = (label: string | null) =>
-    label && escapedClass
-      ? label.replace(new RegExp(`\\s+${escapedClass}$`, 'i'), '').trim() || null
-      : label;
-  const identity = [trimClass(speciesLabel), trimClass(subclassLabel), classLabel]
-    .filter(Boolean)
-    .join(' ');
+  const identity = composeIdentity(speciesLabel, subclassLabel, classLabel);
   const subtitle = [
     `L${level}`,
     identity || null,

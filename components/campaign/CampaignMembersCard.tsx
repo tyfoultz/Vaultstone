@@ -16,7 +16,7 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import { useSplitPaneStore } from '@vaultstone/store';
 import { Card, GhostButton, MetaLabel, Text, colors, spacing, radius, fonts } from '@vaultstone/ui';
 import type { Dnd5eStats, CharacterSettings } from '@vaultstone/types';
-import { useResolvedContentLabels } from './useResolvedContentLabels';
+import { useResolvedContentLabels, composeIdentity } from './useResolvedContentLabels';
 
 type Member = {
   user_id: string;
@@ -173,17 +173,7 @@ function CharacterRow({ character, campaignId }: { character: CampaignCharacter;
 
   // Mirrors PartyMemberCard's subtitle format: "L7 - Half Elf Rogue",
   // "L3 - Owlin Champion Fighter". Background is intentionally dropped.
-  // Many homebrew packs name species/subclass with the class baked in
-  // (e.g. "Champion Fighter"); strip a trailing class word so we don't
-  // print the class three times.
-  const escapedClass = classLabel?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const trimClass = (label: string | null) =>
-    label && escapedClass
-      ? label.replace(new RegExp(`\\s+${escapedClass}$`, 'i'), '').trim() || null
-      : label;
-  const identity = [trimClass(speciesLabel), trimClass(subclassLabel), classLabel]
-    .filter(Boolean)
-    .join(' ');
+  const identity = composeIdentity(speciesLabel, subclassLabel, classLabel);
   const meta = [
     level ? `L${level}` : null,
     identity || null,
