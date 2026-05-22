@@ -261,6 +261,9 @@ export interface Dnd5eEquipmentItem {
   miscACBonus?: number;
   /** Freeform notes */
   notes?: string;
+  /** Player-supplied freeform value, e.g. "15 gp", "priceless". Surfaced
+   *  as an editable column in the Gear tab's inventory table. */
+  value?: string;
   /** Whether this item requires and is currently attuned */
   attuned?: boolean;
   /** Whether this item is a magic item requiring attunement */

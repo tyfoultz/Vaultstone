@@ -36,23 +36,77 @@ interface Props {
    *  pass the campaign + pack scope into ContentResolver. */
   onOpenItemPicker?: () => void;
   onRemoveItem?: (id: string) => void;
+  /** Commit a player-edited Value for an equipment item. Empty/whitespace
+   *  strings clear the field (the row falls back to em-dash). */
+  onUpdateItemValue?: (id: string, value: string) => void;
 }
+
+type SortKey = 'name' | 'type' | 'value';
+type SortDir = 'asc' | 'desc';
+
+const SLOT_LABEL: Record<string, string> = {
+  weapon: 'Weapon',
+  armor: 'Armor',
+  shield: 'Shield',
+  other: 'Other',
+};
 
 export function GearTab({
   stats, resources, isOwner, strengthScore,
   onUpdateCoins, onToggleEquipped, onToggleAttuned, onTogglePinnedToCombat, onUpdateNotes, onUpdateTreasure,
-  onOpenItemPicker, onRemoveItem,
+  onOpenItemPicker, onRemoveItem, onUpdateItemValue,
 }: Props) {
   const [detailItem, setDetailItem] = useState<Dnd5eEquipmentItem | null>(null);
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
   const equipment = resources.equipment ?? [];
   const coins = resources.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
-
-  const equippedItems = equipment.filter((i) => i.equipped);
-  const carriedItems = equipment.filter((i) => !i.equipped);
 
   // Attunement
   const attuned = equipment.filter((i) => i.requiresAttunement && i.attuned);
   const attunementMax = 3;
+
+  // Search filter — case-insensitive substring match on item name.
+  const term = search.trim().toLowerCase();
+  const filtered = term
+    ? equipment.filter((i) => i.name.toLowerCase().includes(term))
+    : equipment;
+
+  // Sort. Items missing the active sort field always sort to the bottom,
+  // independent of direction — so "—" rows don't intermix with sorted
+  // values and force the player to scroll past them.
+  const dir = sortDir === 'asc' ? 1 : -1;
+  const rows = [...filtered].sort((a, b) => {
+    if (sortKey === 'name') {
+      return a.name.toLowerCase().localeCompare(b.name.toLowerCase()) * dir;
+    }
+    if (sortKey === 'type') {
+      const aT = SLOT_LABEL[a.slot] ?? a.slot;
+      const bT = SLOT_LABEL[b.slot] ?? b.slot;
+      if (aT === bT) return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      return aT.localeCompare(bT) * dir;
+    }
+    // value
+    const aV = (a.value ?? '').trim();
+    const bV = (b.value ?? '').trim();
+    if (!aV && !bV) return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+    if (!aV) return 1;
+    if (!bV) return -1;
+    if (aV.toLowerCase() === bV.toLowerCase()) {
+      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+    }
+    return aV.toLowerCase().localeCompare(bV.toLowerCase()) * dir;
+  });
+
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
 
   // Carry weight
   const carryMax = strengthScore * 15;
@@ -83,44 +137,56 @@ export function GearTab({
         })}
       </View>
 
-      {/* Equipped */}
-      <CardBlock title="Equipped" action={isOwner ? '+ Add' : undefined} onAction={onOpenItemPicker}>
-        {equippedItems.length === 0
-          ? <Text style={s.emptyHint}>Nothing equipped.</Text>
-          : equippedItems.map((item, i) => (
-            <EquipRow
-              key={item.id}
-              item={item}
-              canToggle={isOwner}
-              onToggle={() => onToggleEquipped?.(item.id)}
-              onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
-              onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
-              onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
-              onOpenDetail={() => setDetailItem(item)}
-              isLast={i === equippedItems.length - 1}
-            />
-          ))
-        }
-      </CardBlock>
+      {/* Inventory — single sortable, searchable table with Name /
+          Type / Value columns plus a trailing controls cluster (pin,
+          attune, equipped checkbox, remove). Replaces the old split
+          Equipped + Carrying lists; sort by Type clusters by slot
+          when that grouping matters. */}
+      <CardBlock title="Inventory" action={isOwner ? '+ Add' : undefined} onAction={onOpenItemPicker}>
+        <View style={s.searchWrap}>
+          <MaterialCommunityIcons name="magnify" size={14} color={colors.outline} />
+          <TextInput
+            style={s.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search items"
+            placeholderTextColor={colors.outline}
+            returnKeyType="search"
+          />
+          {search.length > 0 ? (
+            <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+              <MaterialCommunityIcons name="close-circle" size={14} color={colors.outline} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
-      {/* Carrying */}
-      <CardBlock title="Carrying" action={isOwner ? '+ Add' : undefined} onAction={onOpenItemPicker}>
-        {carriedItems.length === 0
-          ? <Text style={s.emptyHint}>Nothing else carried.</Text>
-          : carriedItems.map((item, i) => (
-            <EquipRow
+        <View style={s.tableHeader}>
+          <SortHeader label="Name" active={sortKey === 'name'} dir={sortDir} onPress={() => toggleSort('name')} style={s.tableCellName} />
+          <SortHeader label="Type" active={sortKey === 'type'} dir={sortDir} onPress={() => toggleSort('type')} style={s.tableCellType} />
+          <SortHeader label="Value" active={sortKey === 'value'} dir={sortDir} onPress={() => toggleSort('value')} style={s.tableCellValue} />
+          <View style={s.tableCellControls} />
+        </View>
+
+        {equipment.length === 0 ? (
+          <Text style={s.emptyHint}>No items yet. Tap + Add to start.</Text>
+        ) : rows.length === 0 ? (
+          <Text style={s.emptyHint}>No items match your search.</Text>
+        ) : (
+          rows.map((item, i) => (
+            <InventoryRow
               key={item.id}
               item={item}
-              canToggle={isOwner}
+              canEdit={isOwner}
+              isLast={i === rows.length - 1}
               onToggle={() => onToggleEquipped?.(item.id)}
               onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
               onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
+              onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
               onOpenDetail={() => setDetailItem(item)}
-              isLast={i === carriedItems.length - 1}
             />
           ))
-        }
+        )}
       </CardBlock>
 
       {/* Currency */}
@@ -226,78 +292,153 @@ function CardBlock({ title, action, onAction, children, style }: {
   );
 }
 
-function EquipRow({ item, canToggle, onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onOpenDetail, isLast }: {
+function SortHeader({
+  label, active, dir, onPress, style,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  onPress: () => void;
+  style: any;
+}) {
+  return (
+    <Pressable onPress={onPress} hitSlop={4} style={[s.tableHeaderCell, style]}>
+      <Text style={[s.tableHeaderText, active && s.tableHeaderTextActive]}>{label}</Text>
+      {active ? (
+        <MaterialCommunityIcons
+          name={dir === 'asc' ? 'chevron-up' : 'chevron-down'}
+          size={12}
+          color={colors.onSurfaceVariant}
+          style={s.sortChevron}
+        />
+      ) : null}
+    </Pressable>
+  );
+}
+
+function InventoryRow({
+  item, canEdit, isLast,
+  onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onUpdateValue, onOpenDetail,
+}: {
   item: Dnd5eEquipmentItem;
-  canToggle: boolean;
+  canEdit: boolean;
+  isLast: boolean;
   onToggle: () => void;
   onToggleAttuned?: () => void;
   onTogglePinnedToCombat?: () => void;
   onRemove?: () => void;
+  onUpdateValue?: (v: string) => void;
   onOpenDetail: () => void;
-  isLast: boolean;
 }) {
   const armorType = armorTypeLabel(item);
+  const typeLabel = SLOT_LABEL[item.slot] ?? item.slot;
   return (
-    <Pressable
-      onPress={onOpenDetail}
-      style={({ pressed }) => [
-        s.equipRow,
-        !isLast && s.equipRowBorder,
-        pressed && { backgroundColor: colors.surfaceContainerHigh },
-      ]}
-    >
-      <Text style={s.equipName} numberOfLines={1}>{item.name}</Text>
-      <View style={s.equipPills}>
-        {armorType && <Pill label={armorType} />}
-        {item.slot === 'armor' && !armorType && <Pill label="Armor" />}
-        {item.slot === 'shield' && <Pill label="Shield" />}
-        {item.slot === 'weapon' && item.damage && <Pill label={item.damage} />}
-        {item.miscACBonus ? <Pill label={`+${item.miscACBonus} AC`} variant="primary" /> : null}
-        {item.attuned && <Pill label="Attuned" variant="primary" />}
+    <View style={[s.tableRow, !isLast && s.tableRowBorder]}>
+      {/* Name cell — tap to open the detail modal. Pills wrap below
+          the name so narrow viewports don't push them off-screen. */}
+      <Pressable onPress={onOpenDetail} style={s.tableCellName}>
+        <Text style={s.tableCellNameText} numberOfLines={2}>{item.name}</Text>
+        {(armorType || item.slot === 'armor' || item.slot === 'shield' || (item.slot === 'weapon' && item.damage) || item.miscACBonus || item.attuned) ? (
+          <View style={s.tableCellNamePills}>
+            {armorType && <Pill label={armorType} />}
+            {item.slot === 'armor' && !armorType && <Pill label="Armor" />}
+            {item.slot === 'shield' && <Pill label="Shield" />}
+            {item.slot === 'weapon' && item.damage && <Pill label={item.damage} />}
+            {item.miscACBonus ? <Pill label={`+${item.miscACBonus} AC`} variant="primary" /> : null}
+            {item.attuned && <Pill label="Attuned" variant="primary" />}
+          </View>
+        ) : null}
+      </Pressable>
+
+      <Text style={[s.tableCellType, s.tableCellTypeText]}>{typeLabel}</Text>
+
+      <View style={s.tableCellValue}>
+        <InlineValueCell value={item.value ?? ''} editable={canEdit && !!onUpdateValue} onCommit={(v) => onUpdateValue?.(v)} />
       </View>
-      {canToggle && item.requiresAttunement && onToggleAttuned && (
-        <TouchableOpacity
-          onPress={onToggleAttuned}
-          hitSlop={8}
-          activeOpacity={0.7}
-          style={{ marginLeft: 6 }}
-        >
-          <MaterialCommunityIcons
-            name={item.attuned ? 'star' : 'star-outline'}
-            size={16}
-            color={item.attuned ? colors.primary : colors.outline}
-          />
-        </TouchableOpacity>
-      )}
-      {canToggle && onTogglePinnedToCombat && (
-        <TouchableOpacity
-          onPress={onTogglePinnedToCombat}
-          hitSlop={8}
-          activeOpacity={0.7}
-          style={{ marginLeft: 6 }}
-        >
-          <MaterialCommunityIcons
-            name={item.pinnedToCombat ? 'pin' : 'pin-outline'}
-            size={15}
-            color={item.pinnedToCombat ? colors.primary : colors.outline}
-          />
-        </TouchableOpacity>
-      )}
-      {canToggle && (
-        <TouchableOpacity onPress={onToggle} hitSlop={8} activeOpacity={0.7} style={{ marginLeft: 6 }}>
-          <MaterialCommunityIcons
-            name={item.equipped ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
-            size={16}
-            color={item.equipped ? colors.primary : colors.outline}
-          />
-        </TouchableOpacity>
-      )}
-      {onRemove && (
-        <TouchableOpacity onPress={onRemove} hitSlop={8} activeOpacity={0.7} style={{ marginLeft: 6 }}>
-          <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
-        </TouchableOpacity>
-      )}
-    </Pressable>
+
+      <View style={s.tableCellControls}>
+        {canEdit && onTogglePinnedToCombat && (
+          <TouchableOpacity onPress={onTogglePinnedToCombat} hitSlop={6} activeOpacity={0.7}>
+            <MaterialCommunityIcons
+              name={item.pinnedToCombat ? 'pin' : 'pin-outline'}
+              size={15}
+              color={item.pinnedToCombat ? colors.primary : colors.outline}
+            />
+          </TouchableOpacity>
+        )}
+        {canEdit && item.requiresAttunement && onToggleAttuned && (
+          <TouchableOpacity onPress={onToggleAttuned} hitSlop={6} activeOpacity={0.7}>
+            <MaterialCommunityIcons
+              name={item.attuned ? 'star' : 'star-outline'}
+              size={16}
+              color={item.attuned ? colors.primary : colors.outline}
+            />
+          </TouchableOpacity>
+        )}
+        {canEdit && (
+          <TouchableOpacity onPress={onToggle} hitSlop={6} activeOpacity={0.7}>
+            <MaterialCommunityIcons
+              name={item.equipped ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+              size={16}
+              color={item.equipped ? colors.primary : colors.outline}
+            />
+          </TouchableOpacity>
+        )}
+        {onRemove && (
+          <TouchableOpacity onPress={onRemove} hitSlop={6} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Inline editable cell for the Value column. Tap-to-edit so the table
+ * stays compact; renders an em-dash placeholder when empty. Commits on
+ * blur or submit. Read-only mode skips the Pressable wrap so the row
+ * doesn't get a misleading tap target.
+ */
+function InlineValueCell({
+  value, editable, onCommit,
+}: {
+  value: string;
+  editable: boolean;
+  onCommit: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value);
+  useEffect(() => { setText(value); }, [value]);
+
+  if (!editable) {
+    return value
+      ? <Text style={s.tableCellValueText}>{value}</Text>
+      : <Text style={s.tableCellValuePlaceholder}>—</Text>;
+  }
+
+  if (editing) {
+    return (
+      <TextInput
+        style={s.tableCellValueInput}
+        value={text}
+        onChangeText={setText}
+        onBlur={() => { setEditing(false); onCommit(text); }}
+        onSubmitEditing={() => { setEditing(false); onCommit(text); }}
+        autoFocus
+        placeholder="e.g. 15 gp"
+        placeholderTextColor={colors.outline}
+        returnKeyType="done"
+      />
+    );
+  }
+
+  return (
+    <TouchableOpacity onPress={() => setEditing(true)} activeOpacity={0.7} hitSlop={4}>
+      {value
+        ? <Text style={s.tableCellValueText}>{value}</Text>
+        : <Text style={s.tableCellValuePlaceholder}>—</Text>}
+    </TouchableOpacity>
   );
 }
 
@@ -518,14 +659,54 @@ const s = StyleSheet.create({
   },
   cardBody: { padding: 4 },
 
-  // Equip rows
-  equipRow: {
+  // Inventory table
+  searchWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 11,
+    marginHorizontal: 8, marginTop: 6, marginBottom: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.outlineVariant,
   },
-  equipRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  equipName: { flex: 1, fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
-  equipPills: { flexDirection: 'row', gap: 4, flexShrink: 1 },
+  searchInput: {
+    flex: 1, fontSize: 11, fontFamily: fonts.body, color: colors.onSurface,
+    paddingVertical: 0,
+  },
+  tableHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  tableHeaderCell: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  tableHeaderText: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
+  },
+  tableHeaderTextActive: { color: colors.onSurfaceVariant },
+  sortChevron: { marginLeft: 0 },
+  tableRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  tableRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
+  tableCellName: { flex: 1, gap: 3 },
+  tableCellNameText: { fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
+  tableCellNamePills: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  tableCellType: { width: 72 },
+  tableCellTypeText: { fontSize: 10, fontFamily: fonts.body, color: colors.onSurfaceVariant },
+  tableCellValue: { width: 88, justifyContent: 'flex-start' },
+  tableCellValueText: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurface },
+  tableCellValuePlaceholder: { fontSize: 11, fontFamily: fonts.body, color: colors.outline },
+  tableCellValueInput: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.primary,
+    paddingVertical: 0, minWidth: 60,
+  },
+  tableCellControls: {
+    width: 110,
+    flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center',
+    gap: 8,
+  },
 
   // Pills
   pill: {

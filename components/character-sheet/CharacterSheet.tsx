@@ -1766,6 +1766,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     ));
   }
 
+  function handleUpdateItemValue(id: string, value: string) {
+    const trimmed = value.trim();
+    saveEquipment(equipment.map((e) =>
+      e.id === id ? { ...e, value: trimmed ? trimmed : undefined } : e,
+    ));
+  }
+
   function handleToggleAttuned(id: string) {
     const target = equipment.find((e) => e.id === id);
     if (!target?.requiresAttunement) return;
@@ -2190,6 +2197,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
             onOpenItemPicker={() => setItemPickerOpen(true)}
             onRemoveItem={(id) => setRemoveEquipId(id)}
+            onUpdateItemValue={handleUpdateItemValue}
           />
         );
       case 'lore':
