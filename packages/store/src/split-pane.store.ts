@@ -54,10 +54,18 @@ interface SplitPaneState {
   splitRatio: number;
   focusedSide: Side;
 
-  /** Add a new tab on the focused side (deduped). If an equivalent
-   *  target is already open on either side, focus it instead of
-   *  opening a duplicate. */
-  openSplit: (target: SplitTarget) => void;
+  /** Add a new tab (deduped). If an equivalent target is already open
+   *  on either side, focus it instead of opening a duplicate.
+   *
+   *  Landing side:
+   *    - default: right side, which pops the layout into split mode
+   *      alongside the campaign tab on the left.
+   *    - `preferSide: 'focused'`: same side as the currently focused
+   *      pane. The new tab takes the foreground but the layout stays
+   *      single-pane until the user drags it across.
+   *    - `preferSide: 'left' | 'right'`: explicit landing side.
+   */
+  openSplit: (target: SplitTarget, opts?: { preferSide?: Side | 'focused' }) => void;
   /** Close the tab at (side, index). No-op for the campaign tab. */
   closeSplitTab: (side: Side, index: number) => void;
   /** Convenience: close the active tab on the focused side. */
@@ -92,7 +100,7 @@ export const useSplitPaneStore = create<SplitPaneState>((set, get) => ({
   splitRatio: 0.5,
   focusedSide: 'left',
 
-  openSplit: (target) => {
+  openSplit: (target, opts) => {
     const { leftTabs, rightTabs, focusedSide } = get();
     // Dedupe across both sides — focus the existing tab if any.
     const leftIdx = leftTabs.findIndex((t) => sameTarget(t, target));
@@ -105,29 +113,38 @@ export const useSplitPaneStore = create<SplitPaneState>((set, get) => ({
       set({ rightActiveIndex: rightIdx, focusedSide: 'right' });
       return;
     }
-    // New tab lands on the right side by default (the campaign sits
-    // on the left), unless the right side is the active one and the
-    // user explicitly focused something elsewhere — we still go right
-    // because the "campaign + sheet" model is the dominant case.
-    // If the right side is empty, it pops open at 50/50.
-    const wasRightEmpty = rightTabs.length === 0;
-    if (focusedSide === 'left' && leftTabs.length === 0) {
-      // Edge case: campaign was dragged out and the user is opening
-      // a fresh tab while no left tab exists. Land on left.
+    // Default landing side: right, so the campaign-on-left + sheet-on-
+    // right model pops into split mode automatically. Callers that
+    // want the new tab to land alongside the focused tab (full-screen
+    // until the user drags it across) can opt in via
+    // `{ preferSide: 'focused' }`.
+    const preferSide = opts?.preferSide;
+    const targetSide: Side = preferSide === 'focused'
+      ? focusedSide
+      : preferSide === 'left'
+        ? 'left'
+        : preferSide === 'right'
+          ? 'right'
+          : focusedSide === 'left' && leftTabs.length === 0
+            ? 'left'
+            : 'right';
+    if (targetSide === 'left') {
+      const nextLeft = [...leftTabs, target];
       set({
-        leftTabs: [target],
-        leftActiveIndex: 0,
+        leftTabs: nextLeft,
+        leftActiveIndex: nextLeft.length - 1,
         focusedSide: 'left',
       });
-      return;
+    } else {
+      const wasRightEmpty = rightTabs.length === 0;
+      const nextRight = [...rightTabs, target];
+      set({
+        rightTabs: nextRight,
+        rightActiveIndex: nextRight.length - 1,
+        focusedSide: 'right',
+        splitRatio: wasRightEmpty ? 0.5 : get().splitRatio,
+      });
     }
-    const nextRight = [...rightTabs, target];
-    set({
-      rightTabs: nextRight,
-      rightActiveIndex: nextRight.length - 1,
-      focusedSide: 'right',
-      splitRatio: wasRightEmpty ? 0.5 : get().splitRatio,
-    });
   },
 
   closeSplitTab: (side, index) => {

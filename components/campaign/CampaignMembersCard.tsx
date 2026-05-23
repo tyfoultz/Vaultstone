@@ -16,6 +16,7 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import { useSplitPaneStore } from '@vaultstone/store';
 import { Card, GhostButton, MetaLabel, Text, colors, spacing, radius, fonts } from '@vaultstone/ui';
 import type { Dnd5eStats, CharacterSettings } from '@vaultstone/types';
+import { useResolvedContentLabels, composeIdentity } from './useResolvedContentLabels';
 
 type Member = {
   user_id: string;
@@ -32,6 +33,10 @@ type CampaignCharacter = {
 };
 
 type Props = {
+  /** Campaign the roster belongs to. Used to scope homebrew-content name
+   *  resolution so `homebrew_<uuid>` species/class keys render as the
+   *  user's actual content name instead of the row id. */
+  campaignId: string;
   members: Member[];
   characters: CampaignCharacter[];
   currentUserId: string | null;
@@ -54,19 +59,6 @@ const ROLE_LABEL: Record<Member['role'], string> = {
   player: 'Player',
 };
 
-function prettifyKey(key: string | null | undefined): string | null {
-  if (!key) return null;
-  let s = key;
-  const importedMatch = s.match(/^imported_[^_]+_[^_]+_[^_]+_[^_]+_(.+)$/);
-  if (importedMatch) s = importedMatch[1];
-  s = s.replace(/-srd-[\d-]+$/i, '');
-  return s
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ');
-}
-
 /** Two-letter initials for the member's avatar fallback. */
 function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -76,7 +68,7 @@ function initials(name: string): string {
 }
 
 export function CampaignMembersCard({
-  members, characters, currentUserId, isDM, onManageMembers, nested,
+  campaignId, members, characters, currentUserId, isDM, onManageMembers, nested,
 }: Props) {
   const playerCount = members.filter((m) => m.role !== 'gm').length;
   // Group characters by owner so we can render them under each member.
@@ -159,7 +151,7 @@ export function CampaignMembersCard({
               {ownedChars.length > 0 ? (
                 <View style={s.charsList}>
                   {ownedChars.map((c) => (
-                    <CharacterRow key={c.id} character={c} />
+                    <CharacterRow key={c.id} character={c} campaignId={campaignId} />
                   ))}
                 </View>
               ) : null}
@@ -171,27 +163,30 @@ export function CampaignMembersCard({
   );
 }
 
-function CharacterRow({ character }: { character: CampaignCharacter }) {
+function CharacterRow({ character, campaignId }: { character: CampaignCharacter; campaignId: string }) {
   const openSplit = useSplitPaneStore((s) => s.openSplit);
   const stats = character.base_stats as Dnd5eStats | null;
-  const speciesLabel = prettifyKey(stats?.speciesKey);
-  const classLabel = prettifyKey(stats?.classKey);
+  const { speciesLabel, classLabel, subclassLabel } = useResolvedContentLabels(stats, { campaignId });
   const level = stats?.level ?? null;
   const settings = stats?.settings as CharacterSettings | undefined;
   const isInactive = settings?.active === false;
 
+  // Mirrors PartyMemberCard's subtitle format: "L7 - Half Elf Rogue",
+  // "L3 - Owlin Champion Fighter". Background is intentionally dropped.
+  const identity = composeIdentity(speciesLabel, subclassLabel, classLabel);
   const meta = [
-    speciesLabel,
-    classLabel ? (level ? `${classLabel} ${level}` : classLabel) : null,
-  ].filter(Boolean).join(' · ');
+    level ? `L${level}` : null,
+    identity || null,
+  ].filter(Boolean).join(' - ');
 
   // Tapping a character row from inside the campaign view opens the
-  // sheet in the campaign's split pane (web + native, the campaign
-  // route swaps to a mobile-tab layout). The standalone navigate
-  // path is kept as a fallback for any future caller that uses the
-  // row outside the campaign context.
+  // sheet in a new tab on the focused side (next to the campaign tab)
+  // so the route stays full-screen. The user can drag the tab across
+  // to opt into split view. The standalone navigate path is kept as
+  // a fallback for any future caller that uses the row outside the
+  // campaign context.
   function handleOpen() {
-    openSplit({ kind: 'character', characterId: character.id });
+    openSplit({ kind: 'character', characterId: character.id }, { preferSide: 'focused' });
   }
 
   return (

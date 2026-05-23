@@ -1766,6 +1766,23 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     ));
   }
 
+  function handleUpdateItemValue(id: string, value: string) {
+    const trimmed = value.trim();
+    saveEquipment(equipment.map((e) =>
+      e.id === id ? { ...e, value: trimmed ? trimmed : undefined } : e,
+    ));
+  }
+
+  function handleUpdateItemQuantity(id: string, quantity: number) {
+    // Clamp to non-negative integers. 1 is the implicit default so we
+    // strip the field rather than write `1` back — keeps the JSON small
+    // and matches how older rows look on the wire.
+    const clamped = Number.isFinite(quantity) ? Math.max(0, Math.floor(quantity)) : 1;
+    saveEquipment(equipment.map((e) =>
+      e.id === id ? { ...e, quantity: clamped === 1 ? undefined : clamped } : e,
+    ));
+  }
+
   function handleToggleAttuned(id: string) {
     const target = equipment.find((e) => e.id === id);
     if (!target?.requiresAttunement) return;
@@ -2190,6 +2207,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onUpdateTreasure={(treasure) => persistResources({ ...resources, treasure })}
             onOpenItemPicker={() => setItemPickerOpen(true)}
             onRemoveItem={(id) => setRemoveEquipId(id)}
+            onUpdateItemValue={handleUpdateItemValue}
+            onUpdateItemQuantity={handleUpdateItemQuantity}
           />
         );
       case 'lore':
@@ -2198,6 +2217,9 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             stats={stats}
             resources={resources}
             isOwner={isOwner}
+            speciesLabel={speciesResult?.name ?? null}
+            classLabel={stats.classKey ? classResultsByKey[stats.classKey]?.name ?? null : null}
+            backgroundLabel={backgroundResult?.name ?? null}
             onPersonalityChange={(field, value) =>
               persistResources({ ...resources, personality: { ...resources.personality, [field]: value } })
             }

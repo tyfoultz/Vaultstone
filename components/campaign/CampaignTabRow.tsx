@@ -134,11 +134,14 @@ export function CampaignTabRow({ campaignId, mobileActiveSide, onMobileActiveSid
         <OpenTabPicker
           campaignId={campaignId}
           onPickCharacter={(characterId) => {
-            openSplit({ kind: 'character', characterId });
+            // New tabs from the + picker open on the focused side so
+            // the layout stays single-pane unless the user explicitly
+            // drags a tab across to split.
+            openSplit({ kind: 'character', characterId }, { preferSide: 'focused' });
             setPickerOpen(false);
           }}
           onPickWorldHome={(worldId) => {
-            openSplit({ kind: 'world-home', worldId });
+            openSplit({ kind: 'world-home', worldId }, { preferSide: 'focused' });
             setPickerOpen(false);
           }}
           onClose={() => setPickerOpen(false)}

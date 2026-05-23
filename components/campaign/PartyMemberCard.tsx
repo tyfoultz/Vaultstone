@@ -11,12 +11,15 @@
 // condition / concentration changes without a manual refetch.
 
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
 import { useSplitPaneStore } from '@vaultstone/store';
 import { getEquippedAC } from '@vaultstone/systems';
 import { colors, spacing, fonts, Icon } from '@vaultstone/ui';
 import type {
   Dnd5eStats, Dnd5eResources,
 } from '@vaultstone/types';
+import { useResolvedContentLabels, composeIdentity } from './useResolvedContentLabels';
 
 type Props = {
   /** Display name (player profile name, falls back to "Unknown"). */
@@ -31,6 +34,10 @@ type Props = {
     avatar_url: string | null;
     avatar_card_url: string | null;
   };
+  /** Campaign the character belongs to. Used to scope the homebrew-content
+   *  name lookup so `homebrew_<uuid>` keys render as the user's actual
+   *  species/class/background name instead of the row id. */
+  campaignId?: string | null;
   /** When true, tapping the card opens the full character sheet. DMs
    *  see this for every party card; players only see it for their own.
    *  When false, the card renders read-only (party stats stay visible
@@ -47,26 +54,10 @@ function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 const computeAc = getEquippedAC;
 
 /**
- * Strip imported-content prefix and SRD edition suffix from a content
- * key, then title-case. e.g. `imported_dnd5e_2014_class_phb_warlock`
- * reads as "Warlock".
- */
-function prettifyKey(key: string | null | undefined): string | null {
-  if (!key) return null;
-  let s = key;
-  const importedMatch = s.match(/^imported_[^_]+_[^_]+_[^_]+_[^_]+_(.+)$/);
-  if (importedMatch) s = importedMatch[1];
-  s = s.replace(/-srd-[\d-]+$/i, '');
-  return s
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ');
-}
-
-/**
- * HP tier drives the left accent stripe + bar color + bloodied banner.
- * Mirrors the mockup's healthy / bloodied / dying / unconscious states.
+ * Coarse HP tier — only used to flag `unconscious` for the
+ * card-background tint and the death-saves row swap. Fine-grained
+ * color now flows through `hpBarColor` (5-tier gradient shared with
+ * the character sheet).
  */
 function hpTier(current: number, max: number): 'healthy' | 'bloodied' | 'dying' | 'unconscious' {
   if (max <= 0 || current === 0) return 'unconscious';
@@ -76,18 +67,22 @@ function hpTier(current: number, max: number): 'healthy' | 'bloodied' | 'dying' 
   return 'dying';
 }
 
-const STRIPE_COLOR: Record<ReturnType<typeof hpTier>, string> = {
-  healthy: colors.hpHealthy,
-  bloodied: colors.hpWarning,
-  dying: colors.hpDanger,
-  unconscious: colors.hpDanger,
-};
-const BAR_COLOR: Record<ReturnType<typeof hpTier>, string> = {
-  healthy: colors.hpHealthy,
-  bloodied: colors.hpWarning,
-  dying: colors.hpDanger,
-  unconscious: colors.hpDanger,
-};
+/**
+ * Five-tier HP gradient — mirrors the character sheet's `hpColor` so
+ * the party panel and the sheet read consistently. Drives both the
+ * left accent stripe and the HP-bar fill. Bands:
+ *   >=100% green | >75% yellow-green | >50% yellow | >25% orange | <=25% red
+ */
+function hpBarColor(current: number, max: number): string {
+  if (max <= 0) return colors.hpDanger;
+  if (current === 0) return colors.hpDanger;
+  const ratio = current / max;
+  if (ratio >= 1) return colors.hpHealthy;
+  if (ratio > 0.75) return '#A3D977';
+  if (ratio > 0.5) return colors.hpWarning;
+  if (ratio > 0.25) return '#F97316';
+  return colors.hpDanger;
+}
 
 /** Two-letter shorthand from a character name, for the portrait fallback. */
 function initials(name: string): string {
@@ -97,10 +92,13 @@ function initials(name: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-export function PartyMemberCard({ playerName: _playerName, character, canOpen = true }: Props) {
+export function PartyMemberCard({
+  playerName: _playerName, character, campaignId, canOpen = true,
+}: Props) {
   const openSplit = useSplitPaneStore((s) => s.openSplit);
   const stats = character.base_stats as Dnd5eStats | null;
   const resources = character.resources as Dnd5eResources | null;
+  const { speciesLabel, classLabel, subclassLabel } = useResolvedContentLabels(stats, { campaignId });
 
   if (!stats || !resources) {
     return (
@@ -115,15 +113,12 @@ export function PartyMemberCard({ playerName: _playerName, character, canOpen = 
   const hpMax = stats.hpMax ?? 0;
   const hpTemp = resources.hpTemp ?? 0;
   const tier = hpTier(hpCurrent, hpMax);
-  const stripeColor = STRIPE_COLOR[tier];
-  const barColor = BAR_COLOR[tier];
+  const barColor = hpBarColor(hpCurrent, hpMax);
+  const stripeColor = barColor;
   const hpBarPct = hpMax > 0 ? Math.max(0, Math.min(1, hpCurrent / hpMax)) : 0;
 
   const ac = computeAc(stats, resources);
 
-  const speciesLabel = prettifyKey(stats.speciesKey);
-  const classLabel = prettifyKey(stats.classKey);
-  const backgroundLabel = prettifyKey(stats.backgroundKey);
   const level = stats.level ?? 1;
 
   // Passive senses — 10 + ability mod + (prof bonus if proficient).
@@ -138,14 +133,16 @@ export function PartyMemberCard({ playerName: _playerName, character, canOpen = 
   const passiveInv = passive(intMod, 'investigation');
   const passiveIns = passive(wisMod, 'insight');
 
-  // Subtitle reads like "Owlin Artificer · Archaeologist · L3".
-  // Level moves here from the old chip slot so the shield AC badge
-  // can take the top-right corner of the card.
+  // Subtitle reads like "L3 - Owlin Champion Fighter": level first,
+  // then species + (subclass) + class. Background is intentionally
+  // dropped — the at-a-glance subtitle prioritizes combat-relevant
+  // identity, and background is one tap away in the character sheet's
+  // Lore tab.
+  const identity = composeIdentity(speciesLabel, subclassLabel, classLabel);
   const subtitle = [
-    speciesLabel && classLabel ? `${speciesLabel} ${classLabel}` : (speciesLabel ?? classLabel),
-    backgroundLabel,
     `L${level}`,
-  ].filter(Boolean).join(' · ');
+    identity || null,
+  ].filter((part) => part && part.length > 0).join(' - ');
 
   // Death-save pips when unconscious — read off resources.deathSaves
   // if present, otherwise zero. The shape is `{ successes, failures }`.
@@ -168,7 +165,12 @@ export function PartyMemberCard({ playerName: _playerName, character, canOpen = 
         s.card,
         tier === 'unconscious' ? s.cardUnconscious : null,
       ]}
-      onPress={canOpen ? () => openSplit({ kind: 'character', characterId: character.id }) : undefined}
+      onPress={canOpen
+        // Open the sheet in a new tab on the focused side (next to
+        // the campaign tab) so the route stays full-screen. The user
+        // can drag the tab across to opt into split view.
+        ? () => openSplit({ kind: 'character', characterId: character.id }, { preferSide: 'focused' })
+        : undefined}
       activeOpacity={canOpen ? 0.85 : 1}
       disabled={!canOpen}
     >
@@ -176,10 +178,25 @@ export function PartyMemberCard({ playerName: _playerName, character, canOpen = 
       <View style={[s.stripe, { backgroundColor: stripeColor }]} />
 
       {/* Shield-wrapped AC badge, top-right of the card. The shield
-          icon is rendered behind the number; rim color tracks HP tier
-          so the AC reads at the same glance as the stripe. */}
+          glyph is masked with a static brand gradient (primary →
+          primary-container) — keeps the AC visually distinct from the
+          HP gradient so it reads as a defense stat at a glance. */}
       <View style={s.acBadge}>
-        <Icon name="shield" size={36} color={stripeColor} />
+        <MaskedView
+          style={s.acShieldMask}
+          maskElement={
+            <View style={s.acShieldMaskInner}>
+              <Icon name="shield" size={36} color="#000" />
+            </View>
+          }
+        >
+          <LinearGradient
+            colors={[colors.primary, colors.primaryContainer]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.acShieldGradient}
+          />
+        </MaskedView>
         <Text style={s.acBadgeNum}>{ac}</Text>
       </View>
 
@@ -352,9 +369,11 @@ const s = StyleSheet.create({
    *  the absolutely-positioned shield AC badge. */
   namePad: { paddingRight: 44 },
 
-  /** Shield-wrapped AC badge, top-right corner. The shield icon and
-   *  the number are absolutely-stacked; rim color matches the HP-tier
-   *  stripe so the AC reads at the same glance. */
+  /** Shield-wrapped AC badge, top-right corner. The shield glyph is
+   *  masked over a brand-purple LinearGradient (primary →
+   *  primary-container); the AC number is absolutely-stacked on top.
+   *  Static gradient keeps the AC visually distinct from the HP
+   *  gradient so it reads as a defense stat at a glance. */
   acBadge: {
     position: 'absolute',
     top: 8,
@@ -363,6 +382,21 @@ const s = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /** MaskedView footprint matches the icon's intrinsic 36×36 box so
+   *  the gradient fill lines up with the glyph silhouette. */
+  acShieldMask: {
+    width: 36,
+    height: 36,
+  },
+  acShieldMaskInner: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  acShieldGradient: {
+    flex: 1,
   },
   acBadgeNum: {
     position: 'absolute',

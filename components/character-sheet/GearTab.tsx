@@ -36,23 +36,102 @@ interface Props {
    *  pass the campaign + pack scope into ContentResolver. */
   onOpenItemPicker?: () => void;
   onRemoveItem?: (id: string) => void;
+  /** Commit a player-edited Value for an equipment item. Empty/whitespace
+   *  strings clear the field (the row falls back to em-dash). */
+  onUpdateItemValue?: (id: string, value: string) => void;
+  /** Commit a player-edited Quantity for an equipment item. The parent
+   *  is responsible for clamping (non-negative integers) and dropping
+   *  the field when it matches the implicit default of 1. */
+  onUpdateItemQuantity?: (id: string, quantity: number) => void;
 }
+
+type SortKey = 'name' | 'type' | 'qty' | 'value';
+type SortDir = 'asc' | 'desc';
+
+const SLOT_LABEL: Record<string, string> = {
+  weapon: 'Weapon',
+  armor: 'Armor',
+  shield: 'Shield',
+  other: 'Other',
+};
 
 export function GearTab({
   stats, resources, isOwner, strengthScore,
   onUpdateCoins, onToggleEquipped, onToggleAttuned, onTogglePinnedToCombat, onUpdateNotes, onUpdateTreasure,
-  onOpenItemPicker, onRemoveItem,
+  onOpenItemPicker, onRemoveItem, onUpdateItemValue, onUpdateItemQuantity,
 }: Props) {
   const [detailItem, setDetailItem] = useState<Dnd5eEquipmentItem | null>(null);
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
   const equipment = resources.equipment ?? [];
   const coins = resources.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
-
-  const equippedItems = equipment.filter((i) => i.equipped);
-  const carriedItems = equipment.filter((i) => !i.equipped);
 
   // Attunement
   const attuned = equipment.filter((i) => i.requiresAttunement && i.attuned);
   const attunementMax = 3;
+
+  // Equipped section reuses the full inventory row layout but sorts
+  // by slot then name so weapons/armor/shields cluster predictably —
+  // matches the at-a-glance ordering a player wants when scanning
+  // "what's on me." Equipped items also appear in the full Inventory
+  // table below so this section is a focused subset, not a partition.
+  const equippedItems = [...equipment.filter((i) => i.equipped)].sort((a, b) => {
+    const aT = SLOT_LABEL[a.slot] ?? a.slot;
+    const bT = SLOT_LABEL[b.slot] ?? b.slot;
+    if (aT !== bT) return aT.localeCompare(bT);
+    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+  });
+
+  // Search filter — case-insensitive substring match on item name.
+  const term = search.trim().toLowerCase();
+  const filtered = term
+    ? equipment.filter((i) => i.name.toLowerCase().includes(term))
+    : equipment;
+
+  // Sort. Items missing the active sort field always sort to the bottom,
+  // independent of direction — so "—" rows don't intermix with sorted
+  // values and force the player to scroll past them.
+  const dir = sortDir === 'asc' ? 1 : -1;
+  const rows = [...filtered].sort((a, b) => {
+    if (sortKey === 'name') {
+      return a.name.toLowerCase().localeCompare(b.name.toLowerCase()) * dir;
+    }
+    if (sortKey === 'type') {
+      const aT = SLOT_LABEL[a.slot] ?? a.slot;
+      const bT = SLOT_LABEL[b.slot] ?? b.slot;
+      if (aT === bT) return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      return aT.localeCompare(bT) * dir;
+    }
+    if (sortKey === 'qty') {
+      // Quantity treats undefined as the implicit default of 1 (not as
+      // "empty") since every item has a real quantity at the table —
+      // a missing field just means the player hasn't bumped the stack.
+      const aQ = a.quantity ?? 1;
+      const bQ = b.quantity ?? 1;
+      if (aQ === bQ) return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      return (aQ - bQ) * dir;
+    }
+    // value
+    const aV = (a.value ?? '').trim();
+    const bV = (b.value ?? '').trim();
+    if (!aV && !bV) return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+    if (!aV) return 1;
+    if (!bV) return -1;
+    if (aV.toLowerCase() === bV.toLowerCase()) {
+      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+    }
+    return aV.toLowerCase().localeCompare(bV.toLowerCase()) * dir;
+  });
+
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
 
   // Carry weight
   const carryMax = strengthScore * 15;
@@ -83,44 +162,91 @@ export function GearTab({
         })}
       </View>
 
-      {/* Equipped */}
-      <CardBlock title="Equipped" action={isOwner ? '+ Add' : undefined} onAction={onOpenItemPicker}>
-        {equippedItems.length === 0
-          ? <Text style={s.emptyHint}>Nothing equipped.</Text>
-          : equippedItems.map((item, i) => (
-            <EquipRow
+      {/* Equipped — at-a-glance section above the main Inventory table.
+          Reuses the InventoryRow layout (same columns + controls) so
+          interactions stay consistent, but skips search/sort since
+          the equipped list is short. Items also still appear in the
+          full Inventory table below; this is just a focused view of
+          "what's in my hands right now." */}
+      {equippedItems.length > 0 ? (
+        <CardBlock title="Equipped">
+          <View style={s.tableHeader}>
+            <View style={[s.tableHeaderCell, s.tableCellName]}><Text style={s.tableHeaderText}>Name</Text></View>
+            <View style={[s.tableHeaderCell, s.tableCellType]}><Text style={s.tableHeaderText}>Type</Text></View>
+            <View style={[s.tableHeaderCell, s.tableCellQty]}><Text style={s.tableHeaderText}>QTY</Text></View>
+            <View style={[s.tableHeaderCell, s.tableCellValue]}><Text style={s.tableHeaderText}>Value</Text></View>
+            <View style={s.tableCellControls} />
+          </View>
+          {equippedItems.map((item, i) => (
+            <InventoryRow
               key={item.id}
               item={item}
-              canToggle={isOwner}
-              onToggle={() => onToggleEquipped?.(item.id)}
-              onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
-              onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
-              onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
-              onOpenDetail={() => setDetailItem(item)}
+              canEdit={isOwner}
               isLast={i === equippedItems.length - 1}
-            />
-          ))
-        }
-      </CardBlock>
-
-      {/* Carrying */}
-      <CardBlock title="Carrying" action={isOwner ? '+ Add' : undefined} onAction={onOpenItemPicker}>
-        {carriedItems.length === 0
-          ? <Text style={s.emptyHint}>Nothing else carried.</Text>
-          : carriedItems.map((item, i) => (
-            <EquipRow
-              key={item.id}
-              item={item}
-              canToggle={isOwner}
               onToggle={() => onToggleEquipped?.(item.id)}
               onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
               onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
+              onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
+              onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
               onOpenDetail={() => setDetailItem(item)}
-              isLast={i === carriedItems.length - 1}
+            />
+          ))}
+        </CardBlock>
+      ) : null}
+
+      {/* Inventory — single sortable, searchable table with Name /
+          Type / QTY / Value columns plus a trailing controls cluster
+          (pin, attune, equipped checkbox, remove). Includes equipped
+          items too so the table is the canonical "all my gear" view;
+          the Equipped section above is just a focused subset. */}
+      <CardBlock title="Inventory" action={isOwner ? '+ Add' : undefined} onAction={onOpenItemPicker}>
+        <View style={s.searchWrap}>
+          <MaterialCommunityIcons name="magnify" size={14} color={colors.outline} />
+          <TextInput
+            style={s.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search items"
+            placeholderTextColor={colors.outline}
+            returnKeyType="search"
+          />
+          {search.length > 0 ? (
+            <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+              <MaterialCommunityIcons name="close-circle" size={14} color={colors.outline} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        <View style={s.tableHeader}>
+          <SortHeader label="Name" active={sortKey === 'name'} dir={sortDir} onPress={() => toggleSort('name')} style={s.tableCellName} />
+          <SortHeader label="Type" active={sortKey === 'type'} dir={sortDir} onPress={() => toggleSort('type')} style={s.tableCellType} />
+          <SortHeader label="QTY" active={sortKey === 'qty'} dir={sortDir} onPress={() => toggleSort('qty')} style={s.tableCellQty} />
+          <SortHeader label="Value" active={sortKey === 'value'} dir={sortDir} onPress={() => toggleSort('value')} style={s.tableCellValue} />
+          <View style={s.tableCellControls} />
+        </View>
+
+        {equipment.length === 0 ? (
+          <Text style={s.emptyHint}>No items yet. Tap + Add to start.</Text>
+        ) : rows.length === 0 ? (
+          <Text style={s.emptyHint}>No items match your search.</Text>
+        ) : (
+          rows.map((item, i) => (
+            <InventoryRow
+              key={item.id}
+              item={item}
+              canEdit={isOwner}
+              isLast={i === rows.length - 1}
+              onToggle={() => onToggleEquipped?.(item.id)}
+              onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
+              onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
+              onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
+              onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
+              onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
+              onOpenDetail={() => setDetailItem(item)}
             />
           ))
-        }
+        )}
       </CardBlock>
 
       {/* Currency */}
@@ -175,6 +301,13 @@ export function GearTab({
         <EquipmentDetailModal
           item={detailItem}
           onClose={() => setDetailItem(null)}
+          onUpdateValue={isOwner && onUpdateItemValue
+            ? (v: string) => onUpdateItemValue(detailItem.id, v)
+            : undefined}
+          onUpdateQuantity={isOwner && onUpdateItemQuantity
+            ? (q: number) => onUpdateItemQuantity(detailItem.id, q)
+            : undefined}
+          canEdit={isOwner}
         />
       )}
 
@@ -226,87 +359,247 @@ function CardBlock({ title, action, onAction, children, style }: {
   );
 }
 
-function EquipRow({ item, canToggle, onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onOpenDetail, isLast }: {
+function SortHeader({
+  label, active, dir, onPress, style,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  onPress: () => void;
+  style: any;
+}) {
+  return (
+    <Pressable onPress={onPress} hitSlop={4} style={[s.tableHeaderCell, style]}>
+      <Text style={[s.tableHeaderText, active && s.tableHeaderTextActive]}>{label}</Text>
+      {active ? (
+        <MaterialCommunityIcons
+          name={dir === 'asc' ? 'chevron-up' : 'chevron-down'}
+          size={12}
+          color={colors.onSurfaceVariant}
+          style={s.sortChevron}
+        />
+      ) : null}
+    </Pressable>
+  );
+}
+
+function InventoryRow({
+  item, canEdit, isLast,
+  onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onUpdateValue, onUpdateQuantity, onOpenDetail,
+}: {
   item: Dnd5eEquipmentItem;
-  canToggle: boolean;
+  canEdit: boolean;
+  isLast: boolean;
   onToggle: () => void;
   onToggleAttuned?: () => void;
   onTogglePinnedToCombat?: () => void;
   onRemove?: () => void;
+  onUpdateValue?: (v: string) => void;
+  onUpdateQuantity?: (q: number) => void;
   onOpenDetail: () => void;
-  isLast: boolean;
 }) {
   const armorType = armorTypeLabel(item);
+  const typeLabel = SLOT_LABEL[item.slot] ?? item.slot;
   return (
-    <Pressable
-      onPress={onOpenDetail}
-      style={({ pressed }) => [
-        s.equipRow,
-        !isLast && s.equipRowBorder,
-        pressed && { backgroundColor: colors.surfaceContainerHigh },
-      ]}
-    >
-      <Text style={s.equipName} numberOfLines={1}>{item.name}</Text>
-      <View style={s.equipPills}>
-        {armorType && <Pill label={armorType} />}
-        {item.slot === 'armor' && !armorType && <Pill label="Armor" />}
-        {item.slot === 'shield' && <Pill label="Shield" />}
-        {item.slot === 'weapon' && item.damage && <Pill label={item.damage} />}
-        {item.miscACBonus ? <Pill label={`+${item.miscACBonus} AC`} variant="primary" /> : null}
-        {item.attuned && <Pill label="Attuned" variant="primary" />}
+    <View style={[s.tableRow, !isLast && s.tableRowBorder]}>
+      {/* Name cell — tap to open the detail modal. Pills wrap below
+          the name so narrow viewports don't push them off-screen. */}
+      <Pressable onPress={onOpenDetail} style={s.tableCellName}>
+        <Text style={s.tableCellNameText} numberOfLines={2}>{item.name}</Text>
+        {(armorType || item.slot === 'armor' || item.slot === 'shield' || (item.slot === 'weapon' && item.damage) || item.miscACBonus || item.attuned) ? (
+          <View style={s.tableCellNamePills}>
+            {armorType && <Pill label={armorType} />}
+            {item.slot === 'armor' && !armorType && <Pill label="Armor" />}
+            {item.slot === 'shield' && <Pill label="Shield" />}
+            {item.slot === 'weapon' && item.damage && <Pill label={item.damage} />}
+            {item.miscACBonus ? <Pill label={`+${item.miscACBonus} AC`} variant="primary" /> : null}
+            {item.attuned && <Pill label="Attuned" variant="primary" />}
+          </View>
+        ) : null}
+      </Pressable>
+
+      <Text style={[s.tableCellType, s.tableCellTypeText]}>{typeLabel}</Text>
+
+      <View style={s.tableCellQty}>
+        <InlineQuantityCell
+          quantity={item.quantity ?? 1}
+          editable={canEdit && !!onUpdateQuantity}
+          onCommit={(q) => onUpdateQuantity?.(q)}
+        />
       </View>
-      {canToggle && item.requiresAttunement && onToggleAttuned && (
-        <TouchableOpacity
-          onPress={onToggleAttuned}
-          hitSlop={8}
-          activeOpacity={0.7}
-          style={{ marginLeft: 6 }}
-        >
-          <MaterialCommunityIcons
-            name={item.attuned ? 'star' : 'star-outline'}
-            size={16}
-            color={item.attuned ? colors.primary : colors.outline}
-          />
-        </TouchableOpacity>
-      )}
-      {canToggle && onTogglePinnedToCombat && (
-        <TouchableOpacity
-          onPress={onTogglePinnedToCombat}
-          hitSlop={8}
-          activeOpacity={0.7}
-          style={{ marginLeft: 6 }}
-        >
-          <MaterialCommunityIcons
-            name={item.pinnedToCombat ? 'pin' : 'pin-outline'}
-            size={15}
-            color={item.pinnedToCombat ? colors.primary : colors.outline}
-          />
-        </TouchableOpacity>
-      )}
-      {canToggle && (
-        <TouchableOpacity onPress={onToggle} hitSlop={8} activeOpacity={0.7} style={{ marginLeft: 6 }}>
-          <MaterialCommunityIcons
-            name={item.equipped ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
-            size={16}
-            color={item.equipped ? colors.primary : colors.outline}
-          />
-        </TouchableOpacity>
-      )}
-      {onRemove && (
-        <TouchableOpacity onPress={onRemove} hitSlop={8} activeOpacity={0.7} style={{ marginLeft: 6 }}>
-          <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
-        </TouchableOpacity>
-      )}
-    </Pressable>
+
+      <View style={s.tableCellValue}>
+        <InlineValueCell value={item.value ?? ''} editable={canEdit && !!onUpdateValue} onCommit={(v) => onUpdateValue?.(v)} />
+      </View>
+
+      <View style={s.tableCellControls}>
+        {canEdit && onTogglePinnedToCombat && (
+          <TouchableOpacity onPress={onTogglePinnedToCombat} hitSlop={6} activeOpacity={0.7}>
+            <MaterialCommunityIcons
+              name={item.pinnedToCombat ? 'pin' : 'pin-outline'}
+              size={15}
+              color={item.pinnedToCombat ? colors.primary : colors.outline}
+            />
+          </TouchableOpacity>
+        )}
+        {canEdit && item.requiresAttunement && onToggleAttuned && (
+          <TouchableOpacity onPress={onToggleAttuned} hitSlop={6} activeOpacity={0.7}>
+            <MaterialCommunityIcons
+              name={item.attuned ? 'star' : 'star-outline'}
+              size={16}
+              color={item.attuned ? colors.primary : colors.outline}
+            />
+          </TouchableOpacity>
+        )}
+        {canEdit && (
+          <TouchableOpacity onPress={onToggle} hitSlop={6} activeOpacity={0.7}>
+            <MaterialCommunityIcons
+              name={item.equipped ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+              size={16}
+              color={item.equipped ? colors.primary : colors.outline}
+            />
+          </TouchableOpacity>
+        )}
+        {onRemove && (
+          <TouchableOpacity onPress={onRemove} hitSlop={6} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Inline editable cell for the QTY column. Treats quantity 1 as the
+ * implicit default so existing rows (and freshly-picked items) read
+ * naturally without forcing the player to type "1". Commits on blur
+ * or submit; invalid input reverts to the previous quantity.
+ */
+function InlineQuantityCell({
+  quantity, editable, onCommit, size = 'sm',
+}: {
+  quantity: number;
+  editable: boolean;
+  onCommit: (q: number) => void;
+  size?: 'sm' | 'md';
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(String(quantity));
+  useEffect(() => { setText(String(quantity)); }, [quantity]);
+
+  const textStyle = size === 'md' ? s.tableCellQtyTextMd : s.tableCellQtyText;
+  const inputStyle = size === 'md' ? s.tableCellQtyInputMd : s.tableCellQtyInput;
+
+  function commit() {
+    setEditing(false);
+    const parsed = parseInt(text, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setText(String(quantity));
+      return;
+    }
+    if (parsed !== quantity) onCommit(parsed);
+  }
+
+  if (!editable) {
+    return <Text style={textStyle}>{quantity}</Text>;
+  }
+
+  if (editing) {
+    return (
+      <TextInput
+        style={inputStyle}
+        value={text}
+        onChangeText={setText}
+        onBlur={commit}
+        onSubmitEditing={commit}
+        autoFocus
+        keyboardType="number-pad"
+        selectTextOnFocus
+        returnKeyType="done"
+      />
+    );
+  }
+
+  return (
+    <TouchableOpacity onPress={() => setEditing(true)} activeOpacity={0.7} hitSlop={4}>
+      <Text style={textStyle}>{quantity}</Text>
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * Inline editable cell for the Value column. Tap-to-edit so the table
+ * stays compact; renders an em-dash placeholder when empty. Commits on
+ * blur or submit. Read-only mode skips the Pressable wrap so the row
+ * doesn't get a misleading tap target.
+ */
+function InlineValueCell({
+  value, editable, onCommit, size = 'sm',
+}: {
+  value: string;
+  editable: boolean;
+  onCommit: (v: string) => void;
+  /** `sm` (default) renders at the inventory-row size (11pt); `md`
+   *  bumps to 13pt for the detail modal so the value sits flush with
+   *  the rest of the meta-data column. */
+  size?: 'sm' | 'md';
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value);
+  useEffect(() => { setText(value); }, [value]);
+
+  const textStyle = size === 'md' ? s.tableCellValueTextMd : s.tableCellValueText;
+  const placeholderStyle = size === 'md' ? s.tableCellValuePlaceholderMd : s.tableCellValuePlaceholder;
+  const inputStyle = size === 'md' ? s.tableCellValueInputMd : s.tableCellValueInput;
+
+  if (!editable) {
+    return value
+      ? <Text style={textStyle}>{value}</Text>
+      : <Text style={placeholderStyle}>—</Text>;
+  }
+
+  if (editing) {
+    return (
+      <TextInput
+        style={inputStyle}
+        value={text}
+        onChangeText={setText}
+        onBlur={() => { setEditing(false); onCommit(text); }}
+        onSubmitEditing={() => { setEditing(false); onCommit(text); }}
+        autoFocus
+        placeholder="e.g. 15 gp"
+        placeholderTextColor={colors.outline}
+        returnKeyType="done"
+      />
+    );
+  }
+
+  return (
+    <TouchableOpacity onPress={() => setEditing(true)} activeOpacity={0.7} hitSlop={4}>
+      {value
+        ? <Text style={textStyle}>{value}</Text>
+        : <Text style={placeholderStyle}>—</Text>}
+    </TouchableOpacity>
   );
 }
 
 function EquipmentDetailModal({
   item,
   onClose,
+  onUpdateValue,
+  onUpdateQuantity,
+  canEdit,
 }: {
   item: Dnd5eEquipmentItem;
   onClose: () => void;
+  /** When provided, Value renders as an inline editable field — matches
+   *  the row-level affordance so the modal isn't a read-only dead end. */
+  onUpdateValue?: (v: string) => void;
+  /** When provided, Quantity renders as an inline editable field
+   *  alongside Value. */
+  onUpdateQuantity?: (q: number) => void;
+  canEdit: boolean;
 }) {
   const armorType = armorTypeLabel(item);
   const rows: Array<{ label: string; value: string }> = [];
@@ -348,6 +641,30 @@ function EquipmentDetailModal({
                   <Text style={s.detailMetaValue}>{r.value}</Text>
                 </View>
               ))}
+            </View>
+            <View style={s.detailEditableRow}>
+              <View style={s.detailEditableCell}>
+                <Text style={s.detailMetaLabel}>Quantity</Text>
+                <View style={s.detailValueInline}>
+                  <InlineQuantityCell
+                    quantity={item.quantity ?? 1}
+                    editable={canEdit && !!onUpdateQuantity}
+                    onCommit={(q) => onUpdateQuantity?.(q)}
+                    size="md"
+                  />
+                </View>
+              </View>
+              <View style={s.detailEditableCell}>
+                <Text style={s.detailMetaLabel}>Value</Text>
+                <View style={s.detailValueInline}>
+                  <InlineValueCell
+                    value={item.value ?? ''}
+                    editable={canEdit && !!onUpdateValue}
+                    onCommit={(v) => onUpdateValue?.(v)}
+                    size="md"
+                  />
+                </View>
+              </View>
             </View>
             {item.properties && item.properties.length > 0 ? (
               <View style={{ marginTop: spacing.sm }}>
@@ -518,14 +835,74 @@ const s = StyleSheet.create({
   },
   cardBody: { padding: 4 },
 
-  // Equip rows
-  equipRow: {
+  // Inventory table
+  searchWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 11,
+    marginHorizontal: 8, marginTop: 6, marginBottom: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.outlineVariant,
   },
-  equipRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  equipName: { flex: 1, fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
-  equipPills: { flexDirection: 'row', gap: 4, flexShrink: 1 },
+  searchInput: {
+    flex: 1, fontSize: 11, fontFamily: fonts.body, color: colors.onSurface,
+    paddingVertical: 0,
+  },
+  tableHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  tableHeaderCell: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  tableHeaderText: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
+  },
+  tableHeaderTextActive: { color: colors.onSurfaceVariant },
+  sortChevron: { marginLeft: 0 },
+  tableRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  tableRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
+  tableCellName: { flex: 1, gap: 3 },
+  tableCellNameText: { fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
+  tableCellNamePills: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  tableCellType: { width: 72 },
+  tableCellTypeText: { fontSize: 10, fontFamily: fonts.body, color: colors.onSurfaceVariant },
+  tableCellQty: { width: 48, justifyContent: 'flex-start' },
+  tableCellQtyText: { fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
+  tableCellQtyInput: {
+    fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.primary,
+    paddingVertical: 0, minWidth: 32,
+  },
+  tableCellQtyTextMd: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
+  tableCellQtyInputMd: {
+    fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.primary,
+    paddingVertical: 0, minWidth: 40,
+  },
+  tableCellValue: { width: 88, justifyContent: 'flex-start' },
+  tableCellValueText: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurface },
+  tableCellValuePlaceholder: { fontSize: 11, fontFamily: fonts.body, color: colors.outline },
+  tableCellValueInput: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.primary,
+    paddingVertical: 0, minWidth: 60,
+  },
+  /** `md` variants of the Value cell text/input styles — used by the
+   *  detail modal so the inline editor matches the rest of the meta
+   *  column's 13pt body type. */
+  tableCellValueTextMd: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurface },
+  tableCellValuePlaceholderMd: { fontSize: 13, fontFamily: fonts.body, color: colors.outline },
+  tableCellValueInputMd: {
+    fontSize: 13, fontFamily: fonts.body, color: colors.primary,
+    paddingVertical: 0, minWidth: 80,
+  },
+  tableCellControls: {
+    width: 110,
+    flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center',
+    gap: 8,
+  },
 
   // Pills
   pill: {
@@ -610,6 +987,19 @@ const s = StyleSheet.create({
     letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
   },
   detailMetaValue: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurface, marginTop: 2 },
+  /** Wraps the inline value editor inside the detail modal so the row
+   *  visually matches `detailMetaValue` (margin + larger text size).
+   *  Bumps the InlineValueCell's child text via the parent fontSize
+   *  override since the cell inherits its own size for the table cell. */
+  detailValueInline: { marginTop: 2 },
+  /** Two-column row inside the detail modal that holds the editable
+   *  Quantity and Value fields side by side. */
+  detailEditableRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  detailEditableCell: { minWidth: 100, flex: 1 },
   detailBullet: { fontSize: 12, color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 2 },
   detailNotes: { fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 19, marginTop: 4 },
 });
