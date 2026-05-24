@@ -386,11 +386,6 @@ export function SpellsTab({
             ) : (
               <Text style={s.levelSub}>At will</Text>
             )}
-            {isOwner && onOpenManage ? (
-              <TouchableOpacity style={s.levelAddBtn} onPress={onOpenManage} activeOpacity={0.7} accessibilityLabel="Add cantrip">
-                <MaterialCommunityIcons name="plus" size={12} color={colors.primary} />
-              </TouchableOpacity>
-            ) : null}
           </View>
           <LevelGradient />
           <SpellTableHeader />
@@ -440,11 +435,6 @@ export function SpellsTab({
                 </View>
               </View>
             )}
-            {isOwner && onOpenManage ? (
-              <TouchableOpacity style={s.levelAddBtn} onPress={onOpenManage} activeOpacity={0.7} accessibilityLabel={`Add ${ordinal(level)}-level spell`}>
-                <MaterialCommunityIcons name="plus" size={12} color={colors.primary} />
-              </TouchableOpacity>
-            ) : null}
           </View>
           <LevelGradient />
           {spells.length > 0 ? <SpellTableHeader /> : null}
@@ -1084,16 +1074,6 @@ const s = StyleSheet.create({
     height: 2, borderRadius: 1,
     marginHorizontal: 4, marginBottom: 6,
     opacity: 0.45,
-  },
-  /** Small + affordance on each level header — opens the catalog
-   *  spell picker (Manage Spells flow). Matches the equivalent
-   *  affordance on the Combat tab section headers. */
-  levelAddBtn: {
-    width: 22, height: 22, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: `${colors.primary}66`,
-    backgroundColor: `${colors.primary}14`,
-    marginLeft: 6,
   },
   // Status circle to the left of the spell name. Hollow when
   // unprepared, primary-filled when prepared. Cantrips render with an
