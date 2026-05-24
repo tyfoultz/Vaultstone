@@ -56,6 +56,32 @@ const SRD_ACTION_KEYS = new Set([
 ]);
 
 /**
+ * MaterialCommunityIcons glyph for each SRD standard-action key, so a player
+ * can scan the action list visually instead of reading every name. Custom /
+ * homebrew feature actions (anything not in this map) fall back to a generic
+ * sparkle, which also visually distinguishes them from SRD reference rows.
+ */
+const ACTION_ICONS: Record<string, React.ComponentProps<typeof MaterialCommunityIcons>['name']> = {
+  attack: 'sword-cross',
+  dash: 'run-fast',
+  disengage: 'arrow-expand-right',
+  dodge: 'shield-half-full',
+  help: 'hand-heart',
+  hide: 'eye-off',
+  ready: 'timer-sand',
+  search: 'magnify',
+  'use-an-object': 'cube-outline',
+  utilize: 'cube-outline',
+  'cast-a-spell': 'auto-fix',
+  magic: 'auto-fix',
+  influence: 'account-voice',
+  study: 'book-open-variant',
+  'opportunity-attack': 'sword',
+  'two-weapon-fighting': 'sword',
+  'nick-offhand': 'knife',
+};
+
+/**
  * Resolve the bundled standard-action list for the character's edition and
  * shape it into the `Dnd5eFeature` form used by the action group renderer.
  * Replaces an earlier hardcoded SRD_ACTIONS / SRD_REACTIONS / SRD_SPELL_ACTION
@@ -304,7 +330,7 @@ export function CombatTab({
           </CardBlock>
 
           {/* Actions */}
-          <CardBlock title="Actions">
+          <CardBlock title="Standard Actions">
             <ActionGroup label="Actions" items={actions} color={colors.primary} />
             {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
             {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} color={colors.hpDanger} />}
@@ -460,7 +486,7 @@ export function CombatTab({
           quick reference for Dash / Dodge / Help / cantrips / class-
           feature actions). Mirror the same ActionGroup composition
           here. */}
-      <SectionLabel style={{ marginTop: 14 }} accent>ACTIONS</SectionLabel>
+      <SectionLabel style={{ marginTop: 14 }} accent>STANDARD ACTIONS</SectionLabel>
       <View style={s.mobileCard}>
         <ActionGroup label="Actions" items={actions} color={colors.primary} />
         {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
@@ -648,12 +674,12 @@ export function ConditionsSection({
 }
 
 function ActionGroup({ label, items, color }: { label: string; items: Dnd5eFeature[]; color: string }) {
-  // Group-level collapse: groups start open so all actions are visible
-  // at a glance; the chevron on the header lets the player fold groups
-  // they don't care about this turn (e.g. collapse Reactions when on
-  // their own turn). Individual action descriptions are always shown
-  // when the group is open — no per-row expand.
-  const [expanded, setExpanded] = useState(true);
+  // Group-level collapse: groups start collapsed so the Combat tab leads
+  // with attacks / abilities / resources without a wall of SRD action
+  // text pushing them off-screen. The header chevron expands the group
+  // when the player needs the reference (e.g. checking Dodge mechanics
+  // or a class-feature action's description).
+  const [expanded, setExpanded] = useState(false);
   return (
     <View style={s.actionGroup}>
       <TouchableOpacity
@@ -680,23 +706,43 @@ function ActionGroup({ label, items, color }: { label: string; items: Dnd5eFeatu
 }
 
 function ActionRow({ feature, color }: { feature: Dnd5eFeature; color: string }) {
+  // Description starts hidden so the list scans as a clean roster of action
+  // names; tapping the row reveals the prose for the rules-reference use case
+  // (e.g. "how does Dodge actually work?"). Rows without a description stay
+  // inert — no chevron, no tap target.
+  const [expanded, setExpanded] = useState(false);
+  const iconName = ACTION_ICONS[feature.id] ?? 'star-four-points';
+  const hasDesc = !!feature.description;
+  const Wrapper = hasDesc ? TouchableOpacity : View;
   return (
-    <View style={s.actionCard}>
+    <Wrapper
+      style={s.actionCard}
+      onPress={hasDesc ? () => setExpanded((v) => !v) : undefined}
+      activeOpacity={0.7}
+    >
       <View style={[s.actionCardBar, { backgroundColor: color }]} />
       <View style={s.actionCardBody}>
         <View style={s.actionCardTitleRow}>
+          <MaterialCommunityIcons name={iconName} size={13} color={color} style={{ marginRight: 2 }} />
           <Text style={s.actionCardName} numberOfLines={1}>{feature.name}</Text>
           {feature.uses ? (
             <Text style={[s.actionCardUses, { color }]}>
               {feature.uses.current}/{feature.uses.max}
             </Text>
           ) : null}
+          {hasDesc ? (
+            <MaterialCommunityIcons
+              name={expanded ? 'chevron-up' : 'chevron-down'}
+              size={12}
+              color={colors.outline}
+            />
+          ) : null}
         </View>
-        {feature.description ? (
+        {expanded && feature.description ? (
           <Text style={s.actionCardDesc}>{feature.description}</Text>
         ) : null}
       </View>
-    </View>
+    </Wrapper>
   );
 }
 
