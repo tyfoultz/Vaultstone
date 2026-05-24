@@ -2062,42 +2062,19 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
             onOpenManage={() => setSpellPickerOpen(true)}
             spellbook={getSpellbook(resources)}
-            onTogglePrepared={(spell) => {
+            onSetPrepStatus={(spell, status) => {
               // Cantrips are auto-prepared by being in the spellbook;
-              // ignore toggles on them at the parent level too.
+              // ignore the chip cycle for them at the parent level too.
               if (spell.level === 0) return;
               const current = resources.preparedSpells ?? [];
-              const existing = current.find((sp) => sp.id === spell.id);
-              // Don't let the regular toggle blow away an always-prepared
-              // marker — that flips only via the dedicated affordance.
-              if (existing?.alwaysPrepared) return;
-              const next = existing
-                ? current.filter((sp) => sp.id !== spell.id)
-                : [...current, spell];
-              persistResources({ ...resources, preparedSpells: next });
-            }}
-            onToggleAlwaysPrepared={(spell) => {
-              if (spell.level === 0) return;
-              const current = resources.preparedSpells ?? [];
-              const existing = current.find((sp) => sp.id === spell.id);
+              const without = current.filter((sp) => sp.id !== spell.id);
               let next: typeof current;
-              if (existing) {
-                if (existing.alwaysPrepared) {
-                  // Toggling off: strip the flag but keep the spell in
-                  // the prepared list as a regular pick — the player
-                  // can unprepare it via the normal toggle afterward.
-                  next = current.map((sp) =>
-                    sp.id === spell.id ? { ...sp, alwaysPrepared: false } : sp,
-                  );
-                } else {
-                  // Promote an existing prepared entry to always-prepared.
-                  next = current.map((sp) =>
-                    sp.id === spell.id ? { ...sp, alwaysPrepared: true } : sp,
-                  );
-                }
+              if (status === 'unprepared') {
+                next = without;
+              } else if (status === 'prepared') {
+                next = [...without, { ...spell, alwaysPrepared: false }];
               } else {
-                // Not yet in the prepared list — add it as always-prepared.
-                next = [...current, { ...spell, alwaysPrepared: true }];
+                next = [...without, { ...spell, alwaysPrepared: true }];
               }
               persistResources({ ...resources, preparedSpells: next });
             }}

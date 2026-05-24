@@ -96,17 +96,16 @@ interface Props {
    *  flips its status. Cantrips always render as prepared since 5e
    *  cantrips are always cast-ready. */
   spellbook?: Dnd5ePreparedSpell[];
-  /** Toggle a spell's prepared state (leveled only — cantrips are
-   *  auto-prepared by being in the spellbook). Caller writes
-   *  resources.preparedSpells with the new entry added or removed. */
-  onTogglePrepared?: (spell: Dnd5ePreparedSpell) => void;
-  /** Toggle a spell's always-prepared flag. Always-prepared spells
-   *  count as prepared regardless of the regular toggle and don't
-   *  consume the daily prepare cap — used for domain/oath spells and
-   *  any other source-granted "free" prep. Caller adds the spell to
-   *  resources.preparedSpells with alwaysPrepared=true (or strips the
-   *  flag when toggled off). */
-  onToggleAlwaysPrepared?: (spell: Dnd5ePreparedSpell) => void;
+  /** Set a spell's prep status directly. The PREP-column chip cycles
+   *  through Unprepared → Prepared → Always Prepared → Unprepared with
+   *  a single tap per step; the parent persists the change in one
+   *  resources.preparedSpells write so cycling from Always → Unprepared
+   *  (which needs to clear both the prepared entry and the
+   *  alwaysPrepared flag) doesn't race two separate writes against
+   *  each other. Replaces the prior onTogglePrepared +
+   *  onToggleAlwaysPrepared prop pair. Cantrips ignore this — they're
+   *  always cast-ready by being in the spellbook. */
+  onSetPrepStatus?: (spell: Dnd5ePreparedSpell, status: 'unprepared' | 'prepared' | 'always') => void;
   /** Update a spell's player notes (kept separate from the canonical
    *  description). Caller persists the merged spell into preparedSpells
    *  / spellbook. */
@@ -139,7 +138,7 @@ interface Props {
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, manualMode, onEditField,
   effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
-  onOpenManage, spellbook, onTogglePrepared, onToggleAlwaysPrepared, onSaveSpellNotes, spellcastingExplainers,
+  onOpenManage, spellbook, onSetPrepStatus, onSaveSpellNotes, spellcastingExplainers,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
   const { width } = useWindowDimensions();
@@ -460,11 +459,9 @@ export function SpellsTab({
                 slot={slot}
                 prepared={prep}
                 alwaysPrepared={always}
-                canToggle={isOwner && !!onTogglePrepared}
-                onTogglePrepared={onTogglePrepared ? () => onTogglePrepared(spell) : undefined}
-                onToggleAlwaysPrepared={isOwner && onToggleAlwaysPrepared ? () => onToggleAlwaysPrepared(spell) : undefined}
+                canToggle={isOwner && !!onSetPrepStatus}
+                onSetPrepStatus={onSetPrepStatus ? (status) => onSetPrepStatus(spell, status) : undefined}
                 togglesBlocked={!prep && atLimit}
-                onCast={isOwner && onSpellSlotChange ? () => onSpellSlotChange(level, -1) : undefined}
                 onSaveNotes={isOwner && onSaveSpellNotes ? (notes) => onSaveSpellNotes(spell, notes) : undefined}
               />
             );
@@ -615,17 +612,15 @@ function LevelGradient() {
 }
 
 function SpellRow({
-  spell, slot, prepared, alwaysPrepared, canToggle, onTogglePrepared, onToggleAlwaysPrepared, togglesBlocked, onCast, onSaveNotes,
+  spell, slot, prepared, alwaysPrepared, canToggle, onSetPrepStatus, togglesBlocked, onSaveNotes,
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
   prepared: boolean;
   alwaysPrepared: boolean;
   canToggle: boolean;
-  onTogglePrepared?: () => void;
-  onToggleAlwaysPrepared?: () => void;
+  onSetPrepStatus?: (status: 'unprepared' | 'prepared' | 'always') => void;
   togglesBlocked?: boolean;
-  onCast?: () => void;
   onSaveNotes?: (notes: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -635,42 +630,47 @@ function SpellRow({
   const notesActive = notesDraft !== null;
   const notesValue = notesActive ? notesDraft! : (spell.notes ?? '');
   const isCantrip = spell.level === 0;
-  const canCast = prepared && (isCantrip || (slot?.remaining ?? 0) > 0);
-  // Cap-blocked applies only to the "newly prepare" direction. Once
-  // prepared (or always-prepared), the player can always unprepare.
-  // Always-prepared spells skip the regular toggle entirely; they
-  // only flip via the "Always prepared" affordance in the expanded
-  // view so a stray tap doesn't blow away a domain-spell setup.
-  const toggleDisabled = !canToggle || alwaysPrepared || (togglesBlocked && !prepared);
   const accentColor = schoolColor(spell.school);
   const iconName = schoolIcon(spell.school);
-  // Mute the bar (and meta-line school text) on unprepared leveled spells
-  // so prepared ones pop visually — the colored bars become a scan signal
-  // for "what's actually castable today" rather than just decoration.
+  // Mute the bar on unprepared leveled spells so prepared ones pop
+  // visually — the colored bars become a scan signal for "what's actually
+  // castable today" rather than just decoration.
   const barColor = prepared ? accentColor : `${accentColor}55`;
 
-  // PREP-column tap handler — what the user gets depends on state:
-  //   cantrip       → no-op (always cast-ready, no slot to spend)
-  //   prepared      → cast (consume slot via onCast)
-  //   unprepared    → toggle to prepared (if allowed)
-  //   always-prep   → cast (same as prepared); pin/unpin lives in expanded view
+  // PREP-column chip cycles Unprepared → Prepared → Always → Unprepared
+  // on each tap (cantrips skip the cycle — they're always cast-ready).
+  // The Always → Unprepared transition needs to clear both the prepared
+  // entry and the alwaysPrepared flag in one persistResources call, which
+  // is why this delegates to a single onSetPrepStatus rather than chained
+  // toggle callbacks (race risk).
   function handlePrepColPress(e: any) {
     e?.stopPropagation?.();
-    if (isCantrip) return;
-    if (prepared && canCast && onCast) {
-      onCast();
-    } else if (!prepared && !toggleDisabled && onTogglePrepared) {
-      onTogglePrepared();
-    }
+    if (isCantrip || !canToggle || !onSetPrepStatus) return;
+    // Block the Unprepared → Prepared step when the daily prep cap is full.
+    if (!prepared && togglesBlocked) return;
+    const next: 'unprepared' | 'prepared' | 'always' = alwaysPrepared
+      ? 'unprepared'
+      : prepared
+        ? 'always'
+        : 'prepared';
+    onSetPrepStatus(next);
   }
+  // PREP-column visual state. Each tap advances one step in the cycle.
+  const prepLabel = isCantrip
+    ? 'At Will'
+    : alwaysPrepared
+      ? 'Always'
+      : prepared
+        ? 'Prepared'
+        : togglesBlocked
+          ? 'Capped'
+          : 'Prep';
 
   return (
     <View style={[s.spellCard, !prepared && s.spellCardDimmed]}>
       <TouchableOpacity
         style={s.spellCardHead}
         onPress={() => setExpanded((v) => !v)}
-        onLongPress={canToggle && !toggleDisabled ? onTogglePrepared : undefined}
-        delayLongPress={300}
         activeOpacity={0.7}
       >
         <View style={[s.spellCardBar, { backgroundColor: barColor }]} />
@@ -712,24 +712,25 @@ function SpellRow({
             <View style={s.spellPrepCol}>
               <TouchableOpacity
                 onPress={handlePrepColPress}
-                activeOpacity={isCantrip ? 1 : 0.7}
-                disabled={isCantrip || (prepared && !canCast) || (!prepared && toggleDisabled)}
+                activeOpacity={isCantrip || !canToggle ? 1 : 0.7}
+                disabled={isCantrip || !canToggle || (!prepared && togglesBlocked)}
                 style={[
                   s.prepChip,
                   isCantrip && s.prepChipAtWill,
-                  prepared && !isCantrip && s.prepChipCast,
-                  prepared && !canCast && !isCantrip && s.prepChipDisabled,
+                  prepared && !isCantrip && !alwaysPrepared && s.prepChipCast,
                   !prepared && !isCantrip && s.prepChipUnprep,
                   alwaysPrepared && s.prepChipAlways,
+                  !prepared && togglesBlocked && s.prepChipDisabled,
                 ]}
               >
                 <Text style={[
                   s.prepChipText,
                   isCantrip && s.prepChipTextAtWill,
-                  prepared && !isCantrip && s.prepChipTextCast,
+                  prepared && !isCantrip && !alwaysPrepared && s.prepChipTextCast,
                   !prepared && !isCantrip && s.prepChipTextUnprep,
+                  alwaysPrepared && s.prepChipTextAlways,
                 ]}>
-                  {isCantrip ? 'At Will' : prepared ? 'Cast' : 'Prep'}
+                  {prepLabel}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -739,18 +740,12 @@ function SpellRow({
               color={colors.outline}
             />
           </View>
-          {/* Meta sub line — ritual + always-prepared tags only. School
-              and concentration moved into the SCHOOL column above. */}
-          {(spell.ritual || alwaysPrepared) ? (
+          {/* Meta sub line — ritual tag only. Always-prepared status is
+              carried entirely by the PREP-column chip now; school +
+              concentration sit in the SCHOOL column. */}
+          {spell.ritual ? (
             <View style={s.spellMetaSub}>
-              {spell.ritual ? (
-                <Text style={s.spellMetaText}>ritual</Text>
-              ) : null}
-              {alwaysPrepared ? (
-                <Text style={[s.spellMetaText, { color: colors.gm }]}>
-                  {spell.ritual ? '· ' : ''}always prepared
-                </Text>
-              ) : null}
+              <Text style={s.spellMetaText}>ritual</Text>
             </View>
           ) : null}
         </View>
@@ -767,50 +762,10 @@ function SpellRow({
             {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
           </View>
 
-          {/* Prepare controls — leveled spells only; cantrips are
-              always cast-ready. Two buttons so the player doesn't have
-              to discover the long-press gesture: a primary
-              Prepare/Unprepare and an "Always prepared" marker for
-              source-granted spells (domain / oath / etc.) that should
-              skip the daily cap. */}
-          {!isCantrip && canToggle && (onTogglePrepared || onToggleAlwaysPrepared) && (
-            <View style={s.prepBtnRow}>
-              {onTogglePrepared && !alwaysPrepared && (
-                <TouchableOpacity
-                  style={[s.prepBtn, prepared ? s.prepBtnOn : s.prepBtnOff,
-                    togglesBlocked && !prepared && s.prepBtnDisabled]}
-                  onPress={togglesBlocked && !prepared ? undefined : onTogglePrepared}
-                  activeOpacity={togglesBlocked && !prepared ? 1 : 0.7}
-                >
-                  <MaterialCommunityIcons
-                    name={prepared ? 'check-circle' : 'circle-outline'}
-                    size={13}
-                    color={prepared ? colors.onPrimary : colors.outline}
-                  />
-                  <Text style={[s.prepBtnText, prepared && s.prepBtnTextOn]}>
-                    {togglesBlocked && !prepared ? 'Prep cap reached'
-                      : prepared ? 'Prepared' : 'Prepare'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {onToggleAlwaysPrepared && (
-                <TouchableOpacity
-                  style={[s.prepBtn, alwaysPrepared ? s.prepBtnAlways : s.prepBtnOff]}
-                  onPress={onToggleAlwaysPrepared}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name="pin"
-                    size={13}
-                    color={alwaysPrepared ? colors.onPrimary : colors.outline}
-                  />
-                  <Text style={[s.prepBtnText, alwaysPrepared && s.prepBtnTextOn]}>
-                    {alwaysPrepared ? 'Always prepared' : 'Mark always prepared'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+          {/* The expanded view used to host duplicate Prepare /
+              Mark always prepared buttons; the PREP-column chip on the
+              header row now cycles through all three states so the
+              duplicates were redundant. */}
 
           {spell.description ? (
             <Text style={s.descText}>{spell.description}</Text>
@@ -1120,6 +1075,7 @@ const s = StyleSheet.create({
   prepChipTextAtWill: { color: colors.primary },
   prepChipTextCast: { color: colors.primary },
   prepChipTextUnprep: { color: colors.outline },
+  prepChipTextAlways: { color: colors.gm },
 
   /** Thin gradient strip between the level title and the table header.
    *  Quiet decoration — feels like a magical seam without competing
