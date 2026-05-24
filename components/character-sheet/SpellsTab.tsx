@@ -324,7 +324,7 @@ export function SpellsTab({
                 activeOpacity={0.7}
               >
                 <MaterialCommunityIcons name="book-open-variant" size={22} color={colors.primary} />
-                <Text style={s.statActionLabel}>HOW IT WORKS</Text>
+                <Text style={s.statActionLabel}>SPELLCASTING</Text>
               </TouchableOpacity>
             </>
           ) : null}
