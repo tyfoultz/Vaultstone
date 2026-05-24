@@ -51,7 +51,7 @@ const SCHOOL_COLORS: Record<string, string> = {
  */
 const SCHOOL_ICONS: Record<string, React.ComponentProps<typeof MaterialCommunityIcons>['name']> = {
   abjuration: 'shield-half-full',
-  conjuration: 'spider-web',
+  conjuration: 'creation',
   divination: 'eye',
   enchantment: 'heart-flash',
   evocation: 'fire',
@@ -643,10 +643,15 @@ function ordinal(n: number): string {
 function SpellTableHeader() {
   return (
     <View style={s.spellHeaderRow}>
+      {/* Empty cell that mirrors the row's icon slot so NAME header
+       *  aligns with the spell-name text below regardless of how many
+       *  leading glyphs the row has. */}
+      <View style={s.spellIconCol} />
       <Text style={[s.spellHeaderCell, { flex: 1 }]}>NAME</Text>
-      <Text style={[s.spellHeaderCell, s.spellRangeCol]}>RANGE</Text>
-      <Text style={[s.spellHeaderCell, s.spellTimeCol]}>TIME</Text>
-      <Text style={[s.spellHeaderCell, s.spellPrepCol]}>PREP</Text>
+      <View style={s.spellSchoolCol}><Text style={s.spellHeaderCell}>SCHOOL</Text></View>
+      <View style={s.spellRangeCol}><Text style={s.spellHeaderCell}>RANGE</Text></View>
+      <View style={s.spellTimeCol}><Text style={s.spellHeaderCell}>TIME</Text></View>
+      <View style={s.spellPrepCol}><Text style={s.spellHeaderCell}>PREP</Text></View>
     </View>
   );
 }
@@ -730,24 +735,33 @@ function SpellRow({
         <View style={[s.spellCardBar, { backgroundColor: barColor }]} />
         <View style={s.spellCardBody}>
           <View style={s.spellTitleRow}>
-            <MaterialCommunityIcons name={iconName} size={14} color={accentColor} style={{ marginRight: 2 }} />
-            {spell.concentration ? (
-              <MaterialCommunityIcons
-                name="atom-variant"
-                size={12}
-                color={colors.primary}
-                accessibilityLabel="Requires concentration"
-              />
-            ) : null}
-            {isCantrip ? (
-              <MaterialCommunityIcons
-                name="infinity"
-                size={12}
-                color={accentColor}
-                accessibilityLabel="At-will cantrip"
-              />
-            ) : null}
+            {/* Fixed-width icon slot — guarantees the spell name starts
+             *  at the same x across rows regardless of which leading
+             *  glyphs apply. School icon is the always-present anchor;
+             *  the cantrip ∞ from Phase 2 is gone (the PREP "At Will"
+             *  chip carries that signal). Concentration moves into the
+             *  SCHOOL column as an inline atom-variant badge. */}
+            <View style={s.spellIconCol}>
+              <MaterialCommunityIcons name={iconName} size={13} color={accentColor} />
+            </View>
             <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
+            <View style={s.spellSchoolCol}>
+              <Text
+                style={[s.spellSchoolText, { color: prepared ? accentColor : `${accentColor}99` }]}
+                numberOfLines={1}
+              >
+                {spell.school?.toLowerCase() ?? '—'}
+              </Text>
+              {spell.concentration ? (
+                <MaterialCommunityIcons
+                  name="atom-variant"
+                  size={11}
+                  color={colors.primary}
+                  style={{ marginLeft: 3 }}
+                  accessibilityLabel="Requires concentration"
+                />
+              ) : null}
+            </View>
             <View style={s.spellRangeCol}>
               <Text style={s.spellColText} numberOfLines={1}>{spell.range ?? '—'}</Text>
             </View>
@@ -784,20 +798,20 @@ function SpellRow({
               color={colors.outline}
             />
           </View>
-          {/* Meta sub line — school in its accent color + ritual /
-              concentration indicators. Replaces the standalone school
-              chip + R / C badges from the prior row layout. */}
-          <View style={s.spellMetaSub}>
-            {spell.school ? (
-              <Text style={[s.spellMetaText, { color: prepared ? accentColor : `${accentColor}99` }]}>{spell.school.toLowerCase()}</Text>
-            ) : null}
-            {spell.ritual ? (
-              <Text style={s.spellMetaText}>· ritual</Text>
-            ) : null}
-            {alwaysPrepared ? (
-              <Text style={[s.spellMetaText, { color: colors.gm }]}>· always prepared</Text>
-            ) : null}
-          </View>
+          {/* Meta sub line — ritual + always-prepared tags only. School
+              and concentration moved into the SCHOOL column above. */}
+          {(spell.ritual || alwaysPrepared) ? (
+            <View style={s.spellMetaSub}>
+              {spell.ritual ? (
+                <Text style={s.spellMetaText}>ritual</Text>
+              ) : null}
+              {alwaysPrepared ? (
+                <Text style={[s.spellMetaText, { color: colors.gm }]}>
+                  {spell.ritual ? '· ' : ''}always prepared
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       </TouchableOpacity>
 
@@ -1088,7 +1102,7 @@ const s = StyleSheet.create({
   spellCardHead: { flex: 1, flexDirection: 'row', alignItems: 'stretch' },
   spellCardBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 1 },
   spellTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  spellMetaSub: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginLeft: 18 },
+  spellMetaSub: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginLeft: 28 },
   spellMetaText: { fontSize: 10, fontFamily: fonts.label, color: colors.outline, textTransform: 'lowercase' as const },
 
   /** Table header strip rendered above each spell list. Padded 10px on
@@ -1107,9 +1121,23 @@ const s = StyleSheet.create({
     fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
     color: colors.onSurfaceVariant, textAlign: 'center' as const,
   },
-  spellRangeCol: { width: 72, alignItems: 'center' },
-  spellTimeCol: { width: 72, alignItems: 'center' },
-  spellPrepCol: { width: 64, alignItems: 'center' },
+  /** School-tinted text — same size/weight as spellColText but caller
+   *  passes the school accent color (or dimmed variant when the spell
+   *  is unprepared) so the column reinforces the bar/icon color. */
+  spellSchoolText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    textAlign: 'center' as const, textTransform: 'lowercase' as const,
+  },
+  /** Fixed-width leading slot for the school glyph. Mirrored in the
+   *  header (empty cell) so spell-name text aligns across all rows
+   *  whether or not the row has badges. */
+  spellIconCol: { width: 22, alignItems: 'center' },
+  /** School column — fits "transmutation" (the longest school name) at
+   *  fontSize 10 plus an optional inline concentration badge. */
+  spellSchoolCol: { width: 92, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  spellRangeCol: { width: 64, alignItems: 'center' },
+  spellTimeCol: { width: 64, alignItems: 'center' },
+  spellPrepCol: { width: 60, alignItems: 'center' },
 
   /** Prep-column chip — visual state depends on cantrip / prepared /
    *  unprepared / always-prepared. Replaces the old standalone status
@@ -1183,10 +1211,13 @@ const s = StyleSheet.create({
   },
   prepBtnTextOn: { color: colors.onPrimary },
   spellHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  /** Spell name — matches the Combat-tab equipCardName / cardName
+   *  density (12 / headline / 600) so the two tabs feel like one
+   *  family. The flex:1 sits inside the title row's gap-6 layout
+   *  so columns slide past on the right without wrapping. */
   spellName: {
-    fontFamily: fonts.headline, fontWeight: '600',
-    fontSize: 16, color: colors.onSurface, letterSpacing: 0.1,
-    flexShrink: 1,
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, letterSpacing: -0.1,
   },
   schoolChip: {
     paddingHorizontal: 8, paddingVertical: 3,
