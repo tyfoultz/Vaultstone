@@ -752,7 +752,12 @@ function SpellRow({
       </TouchableOpacity>
 
       {expanded ? (
-        <>
+        // Wrap the expanded body in a padded container so the meta
+        // strip, description, and notes box are inset from the card's
+        // outer border. The wrapper's left padding (10) matches the
+        // header row's content origin (2px bar + 8px body padding) so
+        // expanded content lines up with the spell name above.
+        <View style={s.spellCardExpanded}>
           <View style={s.metaStrip}>
             {spell.castingTime ? <MetaItem label="Time" value={spell.castingTime} /> : null}
             {spell.range ? <MetaItem label="Range" value={spell.range} /> : null}
@@ -761,11 +766,6 @@ function SpellRow({
             ) : null}
             {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
           </View>
-
-          {/* The expanded view used to host duplicate Prepare /
-              Mark always prepared buttons; the PREP-column chip on the
-              header row now cycles through all three states so the
-              duplicates were redundant. */}
 
           {spell.description ? (
             <Text style={s.descText}>{spell.description}</Text>
@@ -781,7 +781,7 @@ function SpellRow({
               upstream text. */}
           {onSaveNotes ? (
             <View style={s.spellNotesBox}>
-              <Text style={s.spellNotesLabel}>NOTES</Text>
+              <Text style={s.spellNotesLabel}>FLAVOR NOTES</Text>
               <TextInput
                 style={s.spellNotesInput}
                 value={notesValue}
@@ -799,11 +799,11 @@ function SpellRow({
             </View>
           ) : spell.notes ? (
             <View style={s.spellNotesBox}>
-              <Text style={s.spellNotesLabel}>NOTES</Text>
+              <Text style={s.spellNotesLabel}>FLAVOR NOTES</Text>
               <Text style={s.spellNotesText}>{spell.notes}</Text>
             </View>
           ) : null}
-        </>
+        </View>
       ) : null}
     </View>
   );
@@ -1184,10 +1184,16 @@ const s = StyleSheet.create({
   castBtnTextAtWill: { color: colors.onSurfaceVariant },
   castBtnTextDisabled: { color: colors.outline },
 
+  /** Padded container for the expanded body (meta strip + description
+   *  + notes). Indented 10px on the left so contents align with the
+   *  spell name above (which sits past the 2px accent bar + 8px body
+   *  padding); 10px on the right keeps the description and the notes
+   *  box from kissing the card's right border. */
+  spellCardExpanded: { paddingHorizontal: 10, paddingBottom: 10 },
   metaStrip: {
     flexDirection: 'row', flexWrap: 'wrap',
     gap: 18,
-    marginTop: 12,
+    marginTop: 8,
   },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaItemLabel: {
