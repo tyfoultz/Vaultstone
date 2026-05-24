@@ -74,7 +74,6 @@ export function SpellPickerModal({
   // so the list doesn't grow unbounded as the player browses).
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   // Off by default — the picker scopes to the character's class spell
   // lists so a Wizard doesn't have to scroll past 200 Cleric spells.
   // When on, the hard class scope is bypassed; useful for homebrew
@@ -95,7 +94,6 @@ export function SpellPickerModal({
     setSchoolFilter('all');
     setExpandedKey(null);
     setFilterMenuOpen(false);
-    setStatusMenuOpen(false);
     setShowAllClasses(false);
     setCustomOpen(false);
     const cacheKey = `${srdVersion}|${campaignId ?? ''}|${(packIds ?? []).join(',')}`;
@@ -217,10 +215,6 @@ export function SpellPickerModal({
       ? 'Cantrips'
       : `${LEVEL_LABELS[levelFilter] ?? String(levelFilter)} level`;
 
-  const statusLabel = statusFilter === 'all'
-    ? 'All'
-    : statusFilter === 'added' ? 'Added' : 'Unadded';
-
   // Two-bucket summary for the spellbook view: cantrips known +
   // leveled spells in the spellbook. Each bucket renders as
   // `current/limit` when the parent supplied a limit via `spellLimits`,
@@ -293,6 +287,43 @@ export function SpellPickerModal({
                   />
                 </View>
               </View>
+              {/* Status filter — promoted from a dropdown into a prominent
+                  chip toggle row at the top of the picker. Two chips on
+                  a 3-state field: neither selected → All; tap Unadded to
+                  hide spells already on the sheet; tap Added to scope to
+                  just the spells you've already picked (useful for
+                  un-adding). Tapping the active chip again clears back
+                  to All. */}
+              <View style={s.statusToggleRow}>
+                <TouchableOpacity
+                  style={[s.statusToggleChip, statusFilter === 'unadded' && s.statusToggleChipActive]}
+                  onPress={() => setStatusFilter(statusFilter === 'unadded' ? 'all' : 'unadded')}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name={statusFilter === 'unadded' ? 'circle-outline' : 'circle-outline'}
+                    size={13}
+                    color={statusFilter === 'unadded' ? colors.onPrimary : colors.outline}
+                  />
+                  <Text style={[s.statusToggleText, statusFilter === 'unadded' && s.statusToggleTextActive]}>
+                    UNADDED
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.statusToggleChip, statusFilter === 'added' && s.statusToggleChipActive]}
+                  onPress={() => setStatusFilter(statusFilter === 'added' ? 'all' : 'added')}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name="check-circle"
+                    size={13}
+                    color={statusFilter === 'added' ? colors.onPrimary : colors.outline}
+                  />
+                  <Text style={[s.statusToggleText, statusFilter === 'added' && s.statusToggleTextActive]}>
+                    ADDED
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <View style={s.controlsRow}>
                 <LevelFilterDropdown
                   value={levelFilter}
@@ -300,12 +331,6 @@ export function SpellPickerModal({
                   onChange={setLevelFilter}
                   onOpenNativeMenu={() => setFilterMenuOpen(true)}
                   label={filterLabel}
-                />
-                <StatusFilterDropdown
-                  value={statusFilter}
-                  onChange={setStatusFilter}
-                  onOpenNativeMenu={() => setStatusMenuOpen(true)}
-                  label={statusLabel}
                 />
                 {availableClasses.length > 1 && (
                   <StringFilterDropdown
@@ -529,26 +554,6 @@ export function SpellPickerModal({
         </Pressable>
       </Modal>
 
-      {/* Status filter dropdown — same popover-Modal pattern, three-way. */}
-      <Modal
-        visible={statusMenuOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setStatusMenuOpen(false)}
-      >
-        <Pressable style={s.menuBackdrop} onPress={() => setStatusMenuOpen(false)}>
-          <Pressable style={s.menuCard} onPress={() => {}}>
-            {(['all', 'unadded', 'added'] as const).map((opt) => (
-              <FilterMenuItem
-                key={opt}
-                label={opt === 'all' ? 'All' : opt === 'added' ? 'Added' : 'Unadded'}
-                active={statusFilter === opt}
-                onPress={() => { setStatusFilter(opt); setStatusMenuOpen(false); }}
-              />
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
     </Modal>
   );
 }
@@ -599,50 +604,6 @@ function LevelFilterDropdown({
   }
   return (
     <TouchableOpacity style={s.filterBtn} onPress={onOpenNativeMenu} activeOpacity={0.75}>
-      <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
-      <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
-    </TouchableOpacity>
-  );
-}
-
-// Status filter dropdown — same web/native split as LevelFilterDropdown.
-// Three-way: all / unadded / added (we order with unadded ahead of
-// added since "show me what I haven't picked yet" is the more common
-// browse intent).
-function StatusFilterDropdown({
-  value, onChange, onOpenNativeMenu, label,
-}: {
-  value: 'all' | 'added' | 'unadded';
-  onChange: (next: 'all' | 'added' | 'unadded') => void;
-  onOpenNativeMenu: () => void;
-  label: string;
-}) {
-  if (Platform.OS === 'web') {
-    return (
-      <View style={[s.filterBtn, s.filterBtnNarrow]}>
-        <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
-        <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {(() => {
-          const Select = 'select' as any;
-          const Option = 'option' as any;
-          return (
-            <Select
-              style={s.htmlSelect}
-              value={value}
-              onChange={(e: { target: { value: string } }) => onChange(e.target.value as 'all' | 'added' | 'unadded')}
-            >
-              <Option value="all">All</Option>
-              <Option value="unadded">Unadded</Option>
-              <Option value="added">Added</Option>
-            </Select>
-          );
-        })()}
-      </View>
-    );
-  }
-  return (
-    <TouchableOpacity style={[s.filterBtn, s.filterBtnNarrow]} onPress={onOpenNativeMenu} activeOpacity={0.75}>
       <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
       <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
     </TouchableOpacity>
@@ -879,6 +840,26 @@ const s = StyleSheet.create({
   searchRow: {
     marginBottom: spacing.sm,
   },
+  /** Prominent status filter chip row — sits between the search box
+   *  and the dropdown filters. Two chips on a 3-state field: All =
+   *  neither active. Replaces the cramped StatusFilterDropdown so the
+   *  most-used filter ("show me what I haven't added yet") is one tap. */
+  statusToggleRow: {
+    flexDirection: 'row', gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  statusToggleChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+  },
+  statusToggleChipActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  statusToggleText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.outline,
+  },
+  statusToggleTextActive: { color: colors.onPrimary },
   controlsRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     marginBottom: spacing.sm, flexWrap: 'wrap',
