@@ -733,6 +733,39 @@ export function ConditionsSection({
 }
 
 /**
+ * Pick a MaterialCommunityIcons glyph for a weapon based on its name
+ * (with a `range` fallback for unknown ranged weapons). Name matching
+ * covers the common 5e weapons; unmatched melee weapons land on the
+ * generic crossed-swords glyph, unmatched ranged on the bow icon.
+ *
+ * Conservative icon set — only glyphs verified present in MCI 7.x are
+ * referenced so swapping the icon font doesn't break the sheet.
+ */
+function getWeaponIcon(item: Dnd5eEquipmentItem): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  const name = item.name.toLowerCase();
+  // Ranged weapons (bows / crossbows / slings / blowguns)
+  if (/(crossbow|bow|sling|blowgun)/.test(name)) return 'bow-arrow';
+  // Thrown projectiles (darts, javelins)
+  if (/(dart|javelin)/.test(name)) return 'arrow-projectile';
+  // Slashing — axes
+  if (/(axe|hatchet)/.test(name)) return 'axe';
+  // Slashing — light blades
+  if (/(dagger|knife|dirk|stiletto)/.test(name)) return 'knife';
+  // Bludgeoning — hammers
+  if (/(warhammer|hammer|maul|mallet)/.test(name)) return 'hammer';
+  // Bludgeoning — mace family (gavel reads as a small blunt instrument)
+  if (/(mace|flail|morningstar|club|cudgel)/.test(name)) return 'gavel';
+  // Quarterstaff / staff — use a generic stick-like glyph
+  if (/(staff|quarterstaff)/.test(name)) return 'baseball-bat';
+  // Whip — chain/whip-like glyph
+  if (/whip/.test(name)) return 'snake';
+  // Generic ranged fallback (range field set but name didn't match)
+  if (item.range) return 'bow-arrow';
+  // Default melee fallback (swords, rapiers, scimitars, etc.)
+  return 'sword-cross';
+}
+
+/**
  * Equipment card — bordered row with a left accent bar + icon, matching the
  * action-card visual language. Used by both Attacks (weapons) and Pinned
  * items. The whole card is tappable: opens the EquipmentDetailModal when a
@@ -746,7 +779,7 @@ function WeaponCard({
   onRoll: (r: RollResult) => void;
   onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
 }) {
-  const iconName = item.range ? 'bow-arrow' : 'sword-cross';
+  const iconName = getWeaponIcon(item);
   return (
     <TouchableOpacity
       style={s.equipCard}
