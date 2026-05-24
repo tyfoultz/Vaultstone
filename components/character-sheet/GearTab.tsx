@@ -43,6 +43,10 @@ interface Props {
    *  is responsible for clamping (non-negative integers) and dropping
    *  the field when it matches the implicit default of 1. */
   onUpdateItemQuantity?: (id: string, quantity: number) => void;
+  /** Open the shared EquipmentDetailModal. Lifted to CharacterSheet so
+   *  the Combat tab (and any future surface) can trigger the same modal
+   *  without duplicating it. */
+  onOpenEquipmentDetail?: (item: Dnd5eEquipmentItem) => void;
 }
 
 type SortKey = 'name' | 'type' | 'qty' | 'value';
@@ -59,8 +63,8 @@ export function GearTab({
   stats, resources, isOwner, strengthScore,
   onUpdateCoins, onToggleEquipped, onToggleAttuned, onTogglePinnedToCombat, onUpdateNotes, onUpdateTreasure,
   onOpenItemPicker, onRemoveItem, onUpdateItemValue, onUpdateItemQuantity,
+  onOpenEquipmentDetail,
 }: Props) {
-  const [detailItem, setDetailItem] = useState<Dnd5eEquipmentItem | null>(null);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -189,7 +193,7 @@ export function GearTab({
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
               onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
-              onOpenDetail={() => setDetailItem(item)}
+              onOpenDetail={() => onOpenEquipmentDetail?.(item)}
             />
           ))}
         </CardBlock>
@@ -243,7 +247,7 @@ export function GearTab({
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
               onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
-              onOpenDetail={() => setDetailItem(item)}
+              onOpenDetail={() => onOpenEquipmentDetail?.(item)}
             />
           ))
         )}
@@ -297,19 +301,9 @@ export function GearTab({
         />
       </CardBlock>
 
-      {detailItem && (
-        <EquipmentDetailModal
-          item={detailItem}
-          onClose={() => setDetailItem(null)}
-          onUpdateValue={isOwner && onUpdateItemValue
-            ? (v: string) => onUpdateItemValue(detailItem.id, v)
-            : undefined}
-          onUpdateQuantity={isOwner && onUpdateItemQuantity
-            ? (q: number) => onUpdateItemQuantity(detailItem.id, q)
-            : undefined}
-          canEdit={isOwner}
-        />
-      )}
+      {/* EquipmentDetailModal is now rendered at the CharacterSheet
+          level so the Combat tab (and any future surface) can trigger
+          the same modal via `onOpenEquipmentDetail`. */}
 
     </ScrollView>
   );
@@ -584,7 +578,7 @@ function InlineValueCell({
   );
 }
 
-function EquipmentDetailModal({
+export function EquipmentDetailModal({
   item,
   onClose,
   onUpdateValue,

@@ -123,6 +123,10 @@ interface Props {
    *  manualMode is on (the strip rolls the save instead when
    *  manual mode is off). */
   onToggleSaveProficiency?: (ability: keyof Dnd5eAbilityScores) => void;
+  /** Open the shared EquipmentDetailModal for a weapon. Wired through
+   *  CharacterSheet so the modal state lives at the sheet level — same
+   *  affordance the Gear tab uses when tapping an inventory row name. */
+  onOpenEquipmentDetail?: (item: Dnd5eEquipmentItem) => void;
 }
 
 function rollD20(label: string, bonus: number, onRoll: (r: RollResult) => void) {
@@ -145,7 +149,7 @@ export function CombatTab({
   activeConditions, canEditAny, equipment, isDesktop, manualMode, conditionCatalog,
   liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, onSpendHitDie, getAttackBonus,
   classResultsByKey, subclassResultsByKey, speciesResult, onUpdateAbilities,
-  onToggleSaveProficiency,
+  onToggleSaveProficiency, onOpenEquipmentDetail,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
   // Player-pinned equipment surfaces in its own quick-access section.
@@ -212,33 +216,42 @@ export function CombatTab({
             <View>
               <View style={s.attacksHeader}>
                 <Text style={[s.attacksHdrCell, { flex: 1 }]}>WEAPON</Text>
-                <Text style={[s.attacksHdrCell, { width: 60, textAlign: 'center' }]}>HIT</Text>
-                <Text style={[s.attacksHdrCell, { width: 68, textAlign: 'center' }]}>DMG</Text>
+                <Text style={[s.attacksHdrCell, s.attackHitCol]}>HIT</Text>
+                <Text style={[s.attacksHdrCell, s.attackDmgCol]}>DMG</Text>
               </View>
               {weapons.map((w, i) => {
                 const atkBonus = getAttackBonus(w);
                 return (
                   <View key={w.id} style={[s.attackRow, i < weapons.length - 1 && s.attackRowBorder]}>
-                    <View style={{ flex: 1 }}>
+                    <TouchableOpacity
+                      style={{ flex: 1 }}
+                      onPress={onOpenEquipmentDetail ? () => onOpenEquipmentDetail(w) : undefined}
+                      activeOpacity={onOpenEquipmentDetail ? 0.7 : 1}
+                      disabled={!onOpenEquipmentDetail}
+                    >
                       <Text style={s.attackName}>{w.name}</Text>
                       <Text style={s.attackSub}>{w.slot}{w.range ? ` · ${w.range} ft` : ''}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={s.atkBtnHit}
-                      onPress={() => rollD20(`${w.name} attack`, atkBonus, onRoll)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
                     </TouchableOpacity>
-                    {w.damage ? (
+                    <View style={s.attackHitCol}>
                       <TouchableOpacity
-                        style={s.atkBtnDmg}
-                        onPress={() => rollDamage(`${w.name} damage`, w.damage!, onRoll)}
+                        style={s.atkBtnHit}
+                        onPress={() => rollD20(`${w.name} attack`, atkBonus, onRoll)}
                         activeOpacity={0.7}
                       >
-                        <Text style={s.atkBtnDmgText}>{w.damage.split(' ')[0]}</Text>
+                        <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
                       </TouchableOpacity>
-                    ) : null}
+                    </View>
+                    <View style={s.attackDmgCol}>
+                      {w.damage ? (
+                        <TouchableOpacity
+                          style={s.atkBtnDmg}
+                          onPress={() => rollDamage(`${w.name} damage`, w.damage!, onRoll)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={s.atkBtnDmgText}>{w.damage.split(' ')[0]}</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
                   </View>
                 );
               })}
@@ -807,6 +820,11 @@ const s = StyleSheet.create({
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
   },
+  /** Fixed-width columns shared between the header cells and the chip
+   *  wrappers underneath, so the Hit / Damage chips center under their
+   *  column headers instead of right-aligning at the row edge. */
+  attackHitCol: { width: 72, alignItems: 'center', textAlign: 'center' as const },
+  attackDmgCol: { width: 72, alignItems: 'center', textAlign: 'center' as const },
   attackRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: 7,

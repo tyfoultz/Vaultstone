@@ -27,7 +27,7 @@ import { CombatTab, ConditionsSection } from './CombatTab';
 import { SkillsTab } from './SkillsTab';
 import { AbilitiesTab } from './AbilitiesTab';
 import { SpellsTab } from './SpellsTab';
-import { GearTab } from './GearTab';
+import { GearTab, EquipmentDetailModal } from './GearTab';
 import { LoreTab } from './LoreTab';
 import { FeatPickerModal } from './FeatPickerModal';
 import { SpellPickerModal } from './SpellPickerModal';
@@ -731,6 +731,9 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // native and web.
   const [removeEquipId, setRemoveEquipId] = useState<string | null>(null);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
+  // Lifted from GearTab so the Combat tab (and any future surface)
+  // can open the same EquipmentDetailModal without duplicating it.
+  const [detailEquipment, setDetailEquipment] = useState<Dnd5eEquipmentItem | null>(null);
   /** Campaign rule `enforce_feat_prerequisites` resolved from the
    *  character's linked campaign. Standalone characters fall through
    *  to true (the system's bundled default). */
@@ -2010,6 +2013,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             subclassResultsByKey={subclassResultsByKey}
             speciesResult={speciesResult}
             onUpdateAbilities={(abilities) => persistResources({ ...resources, abilities })}
+            onOpenEquipmentDetail={setDetailEquipment}
             onToggleSaveProficiency={manualMode ? (ability) => {
               const profs = [...(stats.savingThrowProficiencies ?? [])];
               const next = profs.includes(ability)
@@ -2216,6 +2220,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onRemoveItem={(id) => setRemoveEquipId(id)}
             onUpdateItemValue={handleUpdateItemValue}
             onUpdateItemQuantity={handleUpdateItemQuantity}
+            onOpenEquipmentDetail={setDetailEquipment}
           />
         );
       case 'lore':
@@ -3476,6 +3481,22 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             const next = [...existing, { ...item, id, equipped }];
             persistResources({ ...resources, equipment: next });
           }}
+        />
+      ) : null}
+
+      {/* Equipment detail modal — lifted from GearTab so it can be
+          triggered from the Combat tab's weapon rows too. */}
+      {detailEquipment ? (
+        <EquipmentDetailModal
+          item={detailEquipment}
+          onClose={() => setDetailEquipment(null)}
+          onUpdateValue={isOwner
+            ? (v: string) => handleUpdateItemValue(detailEquipment.id, v)
+            : undefined}
+          onUpdateQuantity={isOwner
+            ? (q: number) => handleUpdateItemQuantity(detailEquipment.id, q)
+            : undefined}
+          canEdit={isOwner}
         />
       ) : null}
 
