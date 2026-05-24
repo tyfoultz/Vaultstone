@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Pressable, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
@@ -22,6 +22,17 @@ interface Props {
    *  providing the section title (e.g. a CardBlock wrapper). The rest
    *  buttons still render, right-aligned. */
   headerless?: boolean;
+  /** Signal-style add trigger from the parent. Bumping `counter`
+   *  re-fires the request even when {kind} is unchanged. Used by
+   *  CombatTab's Abilities + button (kind='menu') and Actions +
+   *  button (kind='custom' with actionType preset). */
+  addRequest?:
+    | ({ kind: 'menu' } & { counter: number })
+    | ({ kind: 'custom'; actionType?: string } & { counter: number })
+    | null;
+  /** Acknowledgement callback fired once a request has been opened, so
+   *  the parent can clear its trigger state. */
+  onAddRequestConsumed?: () => void;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -48,11 +59,44 @@ type ImportableFeature = {
 export function AbilitiesCardTab({
   resources, isOwner, classResultsByKey, subclassResultsByKey, speciesResult,
   characterLevel, onUpdateAbilities, embedded, headerless,
+  addRequest, onAddRequestConsumed,
 }: Props) {
   const abilities = resources.abilities ?? [];
   const [editModal, setEditModal] = useState(false);
   const [editAbility, setEditAbility] = useState<Dnd5eAbility | null>(null);
   const [importModal, setImportModal] = useState(false);
+  // Intermediary "Add Ability" chooser modal — shown when the parent
+  // triggers addRequest with kind='menu'. Houses the two existing add
+  // affordances (import from class features + add custom) that used to
+  // live as full-width buttons at the bottom of the abilities list.
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const lastAddCounterRef = useRef<number | null>(null);
+
+  function openCustomAddFlow(actionType?: string) {
+    setEditAbility({
+      id: Date.now().toString(),
+      name: '',
+      description: '',
+      source: 'Custom',
+      actionType: (actionType ?? 'action') as Dnd5eAbility['actionType'],
+      uses: null,
+    });
+    setEditModal(true);
+  }
+
+  // Consume the parent's addRequest signal. `counter` is the freshness
+  // marker so repeat triggers fire even when {kind} is unchanged.
+  useEffect(() => {
+    if (!addRequest) return;
+    if (lastAddCounterRef.current === addRequest.counter) return;
+    lastAddCounterRef.current = addRequest.counter;
+    if (addRequest.kind === 'menu') {
+      setAddMenuOpen(true);
+    } else {
+      openCustomAddFlow(addRequest.actionType);
+    }
+    onAddRequestConsumed?.();
+  }, [addRequest, onAddRequestConsumed]);
 
   const importableFeatures = useMemo(() => {
     const features: ImportableFeature[] = [];
@@ -204,32 +248,51 @@ export function AbilitiesCardTab({
         />
       ))}
 
-      {isOwner ? (
-        <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
-          {importableFeatures.length > 0 ? (
-            <TouchableOpacity style={s.importBtn} onPress={() => setImportModal(true)}>
-              <MaterialCommunityIcons name="download-outline" size={16} color={colors.secondary} />
-              <Text style={s.importBtnText}>Import from class features ({importableFeatures.length})</Text>
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity
-            style={s.addBtn}
-            onPress={() => {
-              setEditAbility({
-                id: Date.now().toString(),
-                name: '',
-                description: '',
-                source: 'Custom',
-                actionType: 'action',
-                uses: null,
-              });
-              setEditModal(true);
-            }}
-          >
-            <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
-            <Text style={s.addBtnText}>Add custom ability</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Intermediary "Add Ability" chooser — opened by Combat's
+          Abilities + button via addRequest{kind:'menu'}. Houses the
+          two add affordances (import / custom) that used to live as
+          full-width buttons below the abilities list. */}
+      {addMenuOpen && isOwner ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setAddMenuOpen(false)}>
+          <Pressable style={s.addMenuBackdrop} onPress={() => setAddMenuOpen(false)}>
+            <Pressable style={s.addMenuCard} onPress={() => {}}>
+              <View style={s.addMenuHeader}>
+                <Text style={s.addMenuTitle}>Add Ability</Text>
+                <TouchableOpacity onPress={() => setAddMenuOpen(false)} hitSlop={10} activeOpacity={0.7}>
+                  <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ gap: 6 }}>
+                {importableFeatures.length > 0 ? (
+                  <TouchableOpacity
+                    style={s.addMenuOption}
+                    onPress={() => { setAddMenuOpen(false); setImportModal(true); }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="download-outline" size={18} color={colors.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.addMenuOptionLabel}>Import from class features ({importableFeatures.length})</Text>
+                      <Text style={s.addMenuOptionDesc}>Pull tracked-use features your class grants at your current level.</Text>
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={16} color={colors.outline} />
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity
+                  style={s.addMenuOption}
+                  onPress={() => { setAddMenuOpen(false); openCustomAddFlow(); }}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="plus" size={18} color={colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.addMenuOptionLabel}>Add custom ability</Text>
+                    <Text style={s.addMenuOptionDesc}>Create a homebrew or item-granted feature from scratch.</Text>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={16} color={colors.outline} />
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       ) : null}
 
       {editModal && editAbility ? (
@@ -731,6 +794,29 @@ const s = StyleSheet.create({
     borderRadius: radius.lg, backgroundColor: colors.primary + '08',
   },
   addBtnText: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.primary },
+
+  // Intermediary "Add Ability" chooser modal — mirrors the AddSheetModal
+  // visual used by CombatTab so the section + buttons feel like one
+  // pattern across the sheet.
+  addMenuBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  addMenuCard: {
+    width: '100%', maxWidth: 380,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 12, padding: 16, gap: 12,
+  },
+  addMenuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  addMenuTitle: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  addMenuOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  addMenuOptionLabel: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface },
+  addMenuOptionDesc: { fontSize: 10, fontFamily: fonts.body, color: colors.onSurfaceVariant, marginTop: 2 },
 
   importRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,

@@ -734,6 +734,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // Lifted from GearTab so the Combat tab (and any future surface)
   // can open the same EquipmentDetailModal without duplicating it.
   const [detailEquipment, setDetailEquipment] = useState<Dnd5eEquipmentItem | null>(null);
+  // Cross-tab trigger for the Abilities add flow. Combat's section + buttons
+  // (Abilities header + Actions header) set this, AbilitiesCardTab consumes
+  // it via a useEffect to open either the Import / Add-custom chooser
+  // (kind='menu') or the AbilityEditModal with a preset actionType
+  // (kind='custom'). `counter` is a freshness marker — re-firing the same
+  // request bumps the value so the useEffect re-runs even when {kind} is
+  // identical to last time.
+  const [pendingAbilityAdd, setPendingAbilityAdd] = useState<
+    | ({ kind: 'menu' } & { counter: number })
+    | ({ kind: 'custom'; actionType?: string } & { counter: number })
+    | null
+  >(null);
   /** Campaign rule `enforce_feat_prerequisites` resolved from the
    *  character's linked campaign. Standalone characters fall through
    *  to true (the system's bundled default). */
@@ -2014,6 +2026,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             speciesResult={speciesResult}
             onUpdateAbilities={(abilities) => persistResources({ ...resources, abilities })}
             onOpenEquipmentDetail={setDetailEquipment}
+            onOpenItemPicker={() => setItemPickerOpen(true)}
+            onTriggerAbilityAdd={(req) => setPendingAbilityAdd({ ...req, counter: Date.now() })}
+            abilityAddRequest={pendingAbilityAdd}
+            onAbilityAddConsumed={() => setPendingAbilityAdd(null)}
             onToggleSaveProficiency={manualMode ? (ability) => {
               const profs = [...(stats.savingThrowProficiencies ?? [])];
               const next = profs.includes(ability)

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, TextInput, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import { getSrdContent } from '@vaultstone/content';
@@ -153,6 +153,25 @@ interface Props {
    *  CharacterSheet so the modal state lives at the sheet level — same
    *  affordance the Gear tab uses when tapping an inventory row name. */
   onOpenEquipmentDetail?: (item: Dnd5eEquipmentItem) => void;
+  /** Open the shared ItemPickerModal — invoked from the Attacks + button
+   *  intermediary modal. Wires to CharacterSheet's existing item picker
+   *  state (same one the Gear tab "Add" button uses). */
+  onOpenItemPicker?: () => void;
+  /** Trigger the abilities add flow. `kind: 'menu'` opens the
+   *  Import / Add-custom chooser (used by the Abilities + button);
+   *  `kind: 'custom'` skips the chooser and opens the AbilityEditModal
+   *  with the supplied actionType preset (used by the Actions + button
+   *  to add a custom standard action). Both routes ultimately update
+   *  resources.abilities through AbilitiesCardTab. */
+  onTriggerAbilityAdd?: (req: { kind: 'menu' } | { kind: 'custom'; actionType?: string }) => void;
+  /** Pass-through to the embedded AbilitiesCardTab — see CharacterSheet
+   *  for the state shape. CombatTab itself doesn't read this; it just
+   *  forwards both prongs of the signal-style trigger. */
+  abilityAddRequest?:
+    | ({ kind: 'menu' } & { counter: number })
+    | ({ kind: 'custom'; actionType?: string } & { counter: number })
+    | null;
+  onAbilityAddConsumed?: () => void;
 }
 
 function rollD20(label: string, bonus: number, onRoll: (r: RollResult) => void) {
@@ -175,8 +194,14 @@ export function CombatTab({
   activeConditions, canEditAny, equipment, isDesktop, manualMode, conditionCatalog,
   liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, onSpendHitDie, getAttackBonus,
   classResultsByKey, subclassResultsByKey, speciesResult, onUpdateAbilities,
-  onToggleSaveProficiency, onOpenEquipmentDetail,
+  onToggleSaveProficiency, onOpenEquipmentDetail, onOpenItemPicker, onTriggerAbilityAdd,
+  abilityAddRequest, onAbilityAddConsumed,
 }: Props) {
+  // Intermediary "Add to <section>" modals. Each section header + button
+  // opens its own picker so the user always sees the same modal shape,
+  // even when only one option exists (keeps the affordance consistent).
+  const [addAttacksOpen, setAddAttacksOpen] = useState(false);
+  const [addActionsOpen, setAddActionsOpen] = useState(false);
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
   // Player-pinned equipment surfaces in its own quick-access section.
   // Independent of the equipped/attuned filter so consumables (potions,
@@ -221,6 +246,7 @@ export function CombatTab({
   // Saving Throws strip leads the tab (moved out of the left sidebar).
   if (isDesktop) {
     return (
+      <>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.deskScrollContent} showsVerticalScrollIndicator={false}>
 
           <SectionLabel accent>SAVING THROWS</SectionLabel>
@@ -235,7 +261,11 @@ export function CombatTab({
           />
 
           {/* Attacks */}
-          <SectionLabel style={s.deskSectionLabel} accent>ATTACKS</SectionLabel>
+          <SectionLabel
+            style={s.deskSectionLabel}
+            accent
+            right={onOpenItemPicker ? <SectionAddButton label="Add to Attacks" onPress={() => setAddAttacksOpen(true)} /> : undefined}
+          >ATTACKS</SectionLabel>
           {weapons.length === 0 ? (
             <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
           ) : (
@@ -309,7 +339,11 @@ export function CombatTab({
               Abilities tab. Sits above Actions since tracked-use class
               features are typically resolved before falling back to
               generic actions on the same turn. */}
-          <SectionLabel style={s.deskSectionLabel} accent>ABILITIES</SectionLabel>
+          <SectionLabel
+            style={s.deskSectionLabel}
+            accent
+            right={onTriggerAbilityAdd ? <SectionAddButton label="Add ability" onPress={() => onTriggerAbilityAdd({ kind: 'menu' })} /> : undefined}
+          >ABILITIES</SectionLabel>
           <AbilitiesCardTab
             embedded
             headerless
@@ -320,13 +354,19 @@ export function CombatTab({
             speciesResult={speciesResult}
             characterLevel={stats.level}
             onUpdateAbilities={onUpdateAbilities}
+            addRequest={abilityAddRequest}
+            onAddRequestConsumed={onAbilityAddConsumed}
           />
 
           {/* Actions — umbrella section. Inner groups are typed by action
               economy: "Standard Actions" is the 5e canonical Action-cost
               group (Attack, Dash, Dodge, etc.); Bonus / Reactions / Free
               are their own economy types. */}
-          <SectionLabel style={s.deskSectionLabel} accent>ACTIONS</SectionLabel>
+          <SectionLabel
+            style={s.deskSectionLabel}
+            accent
+            right={onTriggerAbilityAdd ? <SectionAddButton label="Add action" onPress={() => setAddActionsOpen(true)} /> : undefined}
+          >ACTIONS</SectionLabel>
           <View>
             <ActionGroup label="Standard Actions" items={actions} color={colors.primary} />
             {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
@@ -335,6 +375,8 @@ export function CombatTab({
           </View>
 
       </ScrollView>
+      {renderAddModals()}
+      </>
     );
   }
 
@@ -342,6 +384,7 @@ export function CombatTab({
   const passivePerception = 10 + (abilityMod(scores.wisdom) + (stats.skillProficiencies.includes('perception') ? prof : 0));
 
   return (
+    <>
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
       {/* Saving throws */}
@@ -356,7 +399,11 @@ export function CombatTab({
       />
 
       {/* Attacks */}
-      <SectionLabel style={{ marginTop: 14 }} accent>ATTACKS</SectionLabel>
+      <SectionLabel
+        style={{ marginTop: 14 }}
+        accent
+        right={onOpenItemPicker ? <SectionAddButton label="Add to Attacks" onPress={() => setAddAttacksOpen(true)} /> : undefined}
+      >ATTACKS</SectionLabel>
       {weapons.length === 0 ? (
         <View style={s.mobileEmptyHint}>
           <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
@@ -455,7 +502,11 @@ export function CombatTab({
           quick reference for Dash / Dodge / Help / cantrips / class-
           feature actions). Mirror the same ActionGroup composition
           here. */}
-      <SectionLabel style={{ marginTop: 14 }} accent>STANDARD ACTIONS</SectionLabel>
+      <SectionLabel
+        style={{ marginTop: 14 }}
+        accent
+        right={onTriggerAbilityAdd ? <SectionAddButton label="Add action" onPress={() => setAddActionsOpen(true)} /> : undefined}
+      >ACTIONS</SectionLabel>
       <View style={s.mobileCard}>
         <ActionGroup label="Standard Actions" items={actions} color={colors.primary} />
         {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
@@ -465,7 +516,46 @@ export function CombatTab({
 
       <View style={{ height: 16 }} />
     </ScrollView>
+    {renderAddModals()}
+    </>
   );
+
+  /**
+   * Shared by both desktop and mobile branches. Renders the two
+   * intermediary modals owned by this component (Attacks + Actions);
+   * the Abilities flow lives in CharacterSheet and is triggered via
+   * the `onTriggerAbilityAdd` prop directly from the section header.
+   */
+  function renderAddModals() {
+    return (
+      <>
+        {addAttacksOpen ? (
+          <AddSheetModal
+            title="Add to Attacks"
+            options={[{
+              label: 'Add weapon',
+              icon: 'sword',
+              description: 'Open the item catalog to pick a weapon for your inventory.',
+              onPress: () => onOpenItemPicker?.(),
+            }]}
+            onClose={() => setAddAttacksOpen(false)}
+          />
+        ) : null}
+        {addActionsOpen ? (
+          <AddSheetModal
+            title="Add Action"
+            options={[{
+              label: 'Add custom action',
+              icon: 'flash',
+              description: 'Create a custom standard-action ability (homebrew). Shows up in Abilities too.',
+              onPress: () => onTriggerAbilityAdd?.({ kind: 'custom', actionType: 'action' }),
+            }]}
+            onClose={() => setAddActionsOpen(false)}
+          />
+        ) : null}
+      </>
+    );
+  }
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
@@ -869,12 +959,78 @@ function ActionRow({ feature, color }: { feature: Dnd5eFeature; color: string })
   );
 }
 
-function SectionLabel({ children, style, accent }: { children: string; style?: any; accent?: boolean }) {
+function SectionLabel({ children, style, accent, right }: { children: string; style?: any; accent?: boolean; right?: React.ReactNode }) {
   return (
     <View style={[s.sectionRow, style]}>
       <Text style={[s.sectionLabel, accent && s.sectionLabelAccent]}>{children}</Text>
       <View style={[s.sectionLine, accent && s.sectionLineAccent]} />
+      {right}
     </View>
+  );
+}
+
+/**
+ * Small "+" affordance rendered in a SectionLabel's right slot. Outlined
+ * pill matching the design tokens — primary tint at low opacity so it
+ * sits alongside the section divider without competing for attention.
+ */
+function SectionAddButton({ onPress, label }: { onPress: () => void; label: string }) {
+  return (
+    <TouchableOpacity style={s.sectionAddBtn} onPress={onPress} activeOpacity={0.7} accessibilityLabel={label}>
+      <MaterialCommunityIcons name="plus" size={12} color={colors.primary} />
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * Reusable bottom-sheet picker used by the section + buttons. Each option
+ * is a row with an icon, label, and (optional) one-line description.
+ * Selecting an option fires its callback and dismisses the modal.
+ */
+function AddSheetModal({ title, options, onClose }: {
+  title: string;
+  options: Array<{
+    label: string;
+    icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+    description?: string;
+    onPress: () => void;
+    disabled?: boolean;
+  }>;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.addSheetBackdrop} onPress={onClose}>
+        <Pressable style={s.addSheetCard} onPress={() => {}}>
+          <View style={s.addSheetHeader}>
+            <Text style={s.addSheetTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={10} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+            </TouchableOpacity>
+          </View>
+          <View style={{ gap: 6 }}>
+            {options.map((opt) => (
+              <TouchableOpacity
+                key={opt.label}
+                style={[s.addSheetOption, opt.disabled && s.addSheetOptionDisabled]}
+                onPress={() => { if (opt.disabled) return; opt.onPress(); onClose(); }}
+                activeOpacity={opt.disabled ? 1 : 0.7}
+                disabled={opt.disabled}
+              >
+                <MaterialCommunityIcons name={opt.icon} size={18} color={opt.disabled ? colors.outline : colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.addSheetOptionLabel, opt.disabled && { color: colors.outline }]}>{opt.label}</Text>
+                  {opt.description ? (
+                    <Text style={s.addSheetOptionDesc}>{opt.description}</Text>
+                  ) : null}
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={16} color={colors.outline} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -1067,6 +1223,35 @@ const s = StyleSheet.create({
   mobileEmptyHint: { paddingVertical: 6 },
 
   sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  /** Small outlined + affordance that sits in the right slot of a
+   *  SectionLabel — opens the section's intermediary "Add to X" modal. */
+  sectionAddBtn: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: `${colors.primary}66`,
+    backgroundColor: `${colors.primary}14`,
+  },
+  // AddSheetModal — reusable "Add to <section>" intermediary picker.
+  addSheetBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  addSheetCard: {
+    width: '100%', maxWidth: 380,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 12, padding: 16, gap: 12,
+  },
+  addSheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  addSheetTitle: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  addSheetOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  addSheetOptionDisabled: { opacity: 0.5 },
+  addSheetOptionLabel: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface },
+  addSheetOptionDesc: { fontSize: 10, fontFamily: fonts.body, color: colors.onSurfaceVariant, marginTop: 2 },
   sectionLabel: {
     fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.5, textTransform: 'uppercase', color: colors.outline,
