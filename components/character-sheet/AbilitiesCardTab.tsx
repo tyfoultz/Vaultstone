@@ -184,6 +184,7 @@ export function AbilitiesCardTab({
       ) : (
         <View style={s.tableHeaderRow}>
           <Text style={[s.tableHeaderCell, { flex: 1 }]}>NAME</Text>
+          <Text style={[s.tableHeaderCell, s.sourceCol]}>SOURCE</Text>
           <Text style={[s.tableHeaderCell, s.typeCol]}>TYPE</Text>
           <Text style={[s.tableHeaderCell, s.usesCol]}>USES</Text>
         </View>
@@ -363,6 +364,9 @@ function AbilityCard({ ability, isOwner, onUse, onEdit, canMoveUp, canMoveDown, 
         <View style={s.cardHeaderBody}>
           <View style={s.cardTitleRow}>
             <Text style={s.cardName} numberOfLines={1}>{ability.name}</Text>
+            <View style={s.sourceCol}>
+              <Text style={s.sourceCellText} numberOfLines={1}>{ability.source ?? '—'}</Text>
+            </View>
             <View style={s.typeCol}>
               <Text style={s.typeCellText} numberOfLines={1}>{typeShort}</Text>
             </View>
@@ -381,14 +385,9 @@ function AbilityCard({ ability, isOwner, onUse, onEdit, canMoveUp, canMoveDown, 
               color={colors.outline}
             />
           </View>
-          {(ability.source || rechargeLabel) ? (
+          {rechargeLabel ? (
             <View style={s.cardMeta}>
-              {ability.source ? (
-                <Text style={s.cardMetaText}>{ability.source}</Text>
-              ) : null}
-              {rechargeLabel ? (
-                <Text style={s.cardMetaText}>{ability.source ? '· ' : ''}{rechargeLabel}</Text>
-              ) : null}
+              <Text style={s.cardMetaText}>Recharge: {rechargeLabel}</Text>
             </View>
           ) : null}
         </View>
@@ -674,6 +673,11 @@ const s = StyleSheet.create({
   },
   /** Fixed-width columns shared between the AbilityCard title row and
    *  the header strip above so each column lines up cleanly. */
+  sourceCol: { width: 92, alignItems: 'center' },
+  sourceCellText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, textAlign: 'center' as const,
+  },
   typeCol: { width: 72, alignItems: 'center' },
   typeCellText: {
     fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
