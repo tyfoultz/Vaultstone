@@ -336,10 +336,13 @@ export function CombatTab({
             onUpdateAbilities={onUpdateAbilities}
           />
 
-          {/* Standard Actions */}
-          <SectionLabel style={s.deskSectionLabel} accent>STANDARD ACTIONS</SectionLabel>
+          {/* Actions — umbrella section. Inner groups are typed by action
+              economy: "Standard Actions" is the 5e canonical Action-cost
+              group (Attack, Dash, Dodge, etc.); Bonus / Reactions / Free
+              are their own economy types. */}
+          <SectionLabel style={s.deskSectionLabel} accent>ACTIONS</SectionLabel>
           <View>
-            <ActionGroup label="Actions" items={actions} color={colors.primary} />
+            <ActionGroup label="Standard Actions" items={actions} color={colors.primary} />
             {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
             {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} color={colors.hpDanger} />}
             {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} color={colors.outline} />}
@@ -486,7 +489,7 @@ export function CombatTab({
           here. */}
       <SectionLabel style={{ marginTop: 14 }} accent>ACTIONS</SectionLabel>
       <View style={s.mobileCard}>
-        <ActionGroup label="Actions" items={actions} color={colors.primary} />
+        <ActionGroup label="Standard Actions" items={actions} color={colors.primary} />
         {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
         {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} color={colors.hpDanger} />}
         {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} color={colors.outline} />}
@@ -988,7 +991,6 @@ const s = StyleSheet.create({
   actionCards: { gap: 3 },
   actionCard: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: 6, overflow: 'hidden',
   },
