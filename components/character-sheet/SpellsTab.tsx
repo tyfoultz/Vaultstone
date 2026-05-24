@@ -1044,8 +1044,12 @@ const s = StyleSheet.create({
   pipFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
 
   // ── Spell card (table-style chassis matching CombatTab's equipCard) ─────
+  // Outer card is flex column so the expanded body stacks BELOW the
+  // header row. The header row (spellCardHead) is itself flex row to
+  // place the accent bar next to the body content. Mixing those two
+  // axes on a single element put expanded content next to the header
+  // and broke the layout when a spell was prepared/expanded.
   spellCard: {
-    flexDirection: 'row',
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: 6, overflow: 'hidden',
     marginBottom: 4,
