@@ -259,6 +259,19 @@ export function SpellPickerModal({
             <Text style={s.title} numberOfLines={1}>
               {customOpen ? 'Custom spell' : 'Add a spell'}
             </Text>
+            {/* Custom spell entry — moved up to the header so the filter
+                row carries only filters, not actions. */}
+            {!customOpen ? (
+              <TouchableOpacity
+                onPress={() => setCustomOpen(true)}
+                activeOpacity={0.7}
+                style={s.headerCustomBtn}
+                accessibilityLabel="Add a custom spell"
+              >
+                <MaterialCommunityIcons name="plus-circle-outline" size={14} color={colors.primary} />
+                <Text style={s.headerCustomText}>Custom</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity onPress={onClose} hitSlop={10}>
               <MaterialCommunityIcons name="close" size={22} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
@@ -287,43 +300,42 @@ export function SpellPickerModal({
                   />
                 </View>
               </View>
-              {/* Status filter — promoted from a dropdown into a prominent
-                  chip toggle row at the top of the picker. Two chips on
-                  a 3-state field: neither selected → All; tap Unadded to
-                  hide spells already on the sheet; tap Added to scope to
-                  just the spells you've already picked (useful for
-                  un-adding). Tapping the active chip again clears back
-                  to All. */}
+              {/* Status filter — single chip that cycles All → Unadded
+                  → Added → All on each tap. Labels + colors swap with
+                  the state so the affordance is self-documenting. */}
               <View style={s.statusToggleRow}>
                 <TouchableOpacity
-                  style={[s.statusToggleChip, statusFilter === 'unadded' && s.statusToggleChipActive]}
-                  onPress={() => setStatusFilter(statusFilter === 'unadded' ? 'all' : 'unadded')}
+                  style={[
+                    s.statusToggleChip,
+                    statusFilter === 'unadded' && s.statusToggleChipUnadded,
+                    statusFilter === 'added' && s.statusToggleChipAdded,
+                  ]}
+                  onPress={() => {
+                    const nextStatus: typeof statusFilter = statusFilter === 'all'
+                      ? 'unadded'
+                      : statusFilter === 'unadded' ? 'added' : 'all';
+                    setStatusFilter(nextStatus);
+                  }}
                   activeOpacity={0.7}
                 >
                   <MaterialCommunityIcons
-                    name={statusFilter === 'unadded' ? 'circle-outline' : 'circle-outline'}
+                    name={statusFilter === 'added' ? 'check-circle' : statusFilter === 'unadded' ? 'circle-slice-3' : 'filter-variant'}
                     size={13}
-                    color={statusFilter === 'unadded' ? colors.onPrimary : colors.outline}
+                    color={statusFilter === 'all' ? colors.outline : colors.onPrimary}
                   />
-                  <Text style={[s.statusToggleText, statusFilter === 'unadded' && s.statusToggleTextActive]}>
-                    UNADDED
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.statusToggleChip, statusFilter === 'added' && s.statusToggleChipActive]}
-                  onPress={() => setStatusFilter(statusFilter === 'added' ? 'all' : 'added')}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name="check-circle"
-                    size={13}
-                    color={statusFilter === 'added' ? colors.onPrimary : colors.outline}
-                  />
-                  <Text style={[s.statusToggleText, statusFilter === 'added' && s.statusToggleTextActive]}>
-                    ADDED
+                  <Text style={[
+                    s.statusToggleText,
+                    statusFilter !== 'all' && s.statusToggleTextActive,
+                  ]}>
+                    {statusFilter === 'all' ? 'ALL SPELLS' : statusFilter === 'unadded' ? 'UNADDED' : 'ADDED'}
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Filter dropdowns — tightened into one consistent row.
+                  Class shows only on multiclass; the My/All classes
+                  scope toggle is an icon-only affordance at the end so
+                  it doesn't compete with the actual filter selects. */}
               <View style={s.controlsRow}>
                 <LevelFilterDropdown
                   value={levelFilter}
@@ -350,26 +362,16 @@ export function SpellPickerModal({
                   <TouchableOpacity
                     onPress={() => setShowAllClasses((v) => !v)}
                     activeOpacity={0.7}
-                    style={[s.allClassesToggle, showAllClasses && s.allClassesToggleActive]}
+                    style={[s.scopeToggleBtn, showAllClasses && s.scopeToggleBtnActive]}
+                    accessibilityLabel={showAllClasses ? 'Showing all classes — tap to limit to your classes' : 'Limited to your classes — tap to show every class'}
                   >
                     <MaterialCommunityIcons
                       name={showAllClasses ? 'earth' : 'school-outline'}
-                      size={13}
+                      size={14}
                       color={showAllClasses ? colors.onPrimary : colors.outline}
                     />
-                    <Text style={[s.allClassesText, showAllClasses && s.allClassesTextActive]}>
-                      {showAllClasses ? 'All classes' : 'My classes'}
-                    </Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity
-                  onPress={() => setCustomOpen(true)}
-                  activeOpacity={0.7}
-                  style={s.customAddBtn}
-                >
-                  <MaterialCommunityIcons name="plus-circle-outline" size={13} color={colors.primary} />
-                  <Text style={s.customAddText}>Custom spell</Text>
-                </TouchableOpacity>
               </View>
 
               {preparedSummary ? (
@@ -840,21 +842,20 @@ const s = StyleSheet.create({
   searchRow: {
     marginBottom: spacing.sm,
   },
-  /** Prominent status filter chip row — sits between the search box
-   *  and the dropdown filters. Two chips on a 3-state field: All =
-   *  neither active. Replaces the cramped StatusFilterDropdown so the
-   *  most-used filter ("show me what I haven't added yet") is one tap. */
-  statusToggleRow: {
-    flexDirection: 'row', gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
+  /** Status filter — single chip that cycles All → Unadded → Added →
+   *  All on each tap. Sits in its own row right under the search box
+   *  so the most-used filter ("hide what I've already added") is one
+   *  tap and always visible. */
+  statusToggleRow: { marginBottom: spacing.sm },
   statusToggleChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 7,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
+    alignSelf: 'flex-start',
   },
-  statusToggleChipActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  statusToggleChipUnadded: { borderColor: colors.primary, backgroundColor: colors.primary },
+  statusToggleChipAdded: { borderColor: colors.gm, backgroundColor: colors.gm },
   statusToggleText: {
     fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1, color: colors.outline,
@@ -864,31 +865,30 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     marginBottom: spacing.sm, flexWrap: 'wrap',
   },
-  allClassesToggle: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: radius.lg,
+  /** Compact icon-only scope toggle that lives at the end of the
+   *  controls row — flips the picker between "spells my classes know"
+   *  and "every spell in the catalog". Icon-only because the label was
+   *  duplicating the filter dropdowns visually. */
+  scopeToggleBtn: {
+    width: 32, height: 32, borderRadius: radius.lg,
+    alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainer,
   },
-  allClassesToggleActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  allClassesText: {
-    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
-    color: colors.outline, letterSpacing: 0.3,
-  },
-  allClassesTextActive: { color: colors.onPrimary },
+  scopeToggleBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
 
-  customAddBtn: {
+  /** Custom-spell entry in the modal header — small primary-tinted
+   *  chip next to the close button. Moved up from the filter row so
+   *  the filter row carries filters only. */
+  headerCustomBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6,
+    paddingHorizontal: 8, paddingVertical: 5,
     borderRadius: radius.lg,
-    borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outlineVariant,
-    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: `${colors.primary}66`,
+    backgroundColor: `${colors.primary}14`,
+    marginRight: spacing.sm,
   },
-  customAddText: {
+  headerCustomText: {
     fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
     color: colors.primary, letterSpacing: 0.3,
   },
