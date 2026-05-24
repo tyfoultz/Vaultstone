@@ -181,7 +181,13 @@ export function AbilitiesCardTab({
           <Text style={s.emptyText}>No abilities tracked yet.</Text>
           <Text style={s.emptyHint}>Add class features, racial abilities, or item powers to track uses during play.</Text>
         </View>
-      ) : null}
+      ) : (
+        <View style={s.tableHeaderRow}>
+          <Text style={[s.tableHeaderCell, { flex: 1 }]}>NAME</Text>
+          <Text style={[s.tableHeaderCell, s.typeCol]}>TYPE</Text>
+          <Text style={[s.tableHeaderCell, s.usesCol]}>USES</Text>
+        </View>
+      )}
 
       {abilities.map((ability, idx) => (
         <AbilityCard
@@ -343,6 +349,13 @@ function AbilityCard({ ability, isOwner, onUse, onEdit, canMoveUp, canMoveDown, 
 }) {
   const [open, setOpen] = useState(false);
   const hasUses = !!ability.uses;
+  const typeLabel = ability.actionType ? (ACTION_LABELS[ability.actionType] ?? ability.actionType) : '—';
+  // Trim "Bonus Action" → "Bonus" for the narrow TYPE column;
+  // "Reaction" / "Free" / "Passive" / "Action" are fine as-is.
+  const typeShort = typeLabel === 'Bonus Action' ? 'Bonus' : typeLabel;
+  const rechargeLabel = ability.uses
+    ? ability.uses.recharge === 'short' ? 'SR' : ability.uses.recharge === 'long' ? 'LR' : 'Dawn'
+    : null;
   return (
     <View style={s.card}>
       <TouchableOpacity style={s.cardHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
@@ -350,28 +363,34 @@ function AbilityCard({ ability, isOwner, onUse, onEdit, canMoveUp, canMoveDown, 
         <View style={s.cardHeaderBody}>
           <View style={s.cardTitleRow}>
             <Text style={s.cardName} numberOfLines={1}>{ability.name}</Text>
-            {hasUses ? (
-              <View style={s.usesCompact}>
-                <Text style={s.usesCompactText}>{ability.uses!.current}/{ability.uses!.max}</Text>
-              </View>
-            ) : null}
+            <View style={s.typeCol}>
+              <Text style={s.typeCellText} numberOfLines={1}>{typeShort}</Text>
+            </View>
+            <View style={s.usesCol}>
+              {hasUses ? (
+                <View style={s.usesCompact}>
+                  <Text style={s.usesCompactText}>{ability.uses!.current}/{ability.uses!.max}</Text>
+                </View>
+              ) : (
+                <Text style={s.usesEmpty}>—</Text>
+              )}
+            </View>
             <MaterialCommunityIcons
               name={open ? 'chevron-up' : 'chevron-down'}
               size={12}
               color={colors.outline}
             />
           </View>
-          <View style={s.cardMeta}>
-            {ability.actionType ? (
-              <Text style={s.cardMetaText}>{ACTION_LABELS[ability.actionType] ?? ability.actionType}</Text>
-            ) : null}
-            {ability.source ? (
-              <Text style={s.cardMetaText}>· {ability.source}</Text>
-            ) : null}
-            {ability.uses ? (
-              <Text style={s.cardMetaText}>· {ability.uses.recharge === 'short' ? 'SR' : ability.uses.recharge === 'long' ? 'LR' : 'Dawn'}</Text>
-            ) : null}
-          </View>
+          {(ability.source || rechargeLabel) ? (
+            <View style={s.cardMeta}>
+              {ability.source ? (
+                <Text style={s.cardMetaText}>{ability.source}</Text>
+              ) : null}
+              {rechargeLabel ? (
+                <Text style={s.cardMetaText}>{ability.source ? '· ' : ''}{rechargeLabel}</Text>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       </TouchableOpacity>
 
@@ -637,6 +656,30 @@ const s = StyleSheet.create({
     borderRadius: 100, backgroundColor: colors.primary + '22',
   },
   usesCompactText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
+  /** Em-dash placeholder when an ability has no tracked uses, kept inside
+   *  the USES column so the chevron stays aligned across rows. */
+  usesEmpty: { fontSize: 10, fontFamily: fonts.label, color: colors.outline },
+
+  /** Attacks-style table header strip above the ability cards. Padded
+   *  10px on the left so NAME starts past the bar + body padding. */
+  tableHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    marginBottom: 4,
+  },
+  tableHeaderCell: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+  },
+  /** Fixed-width columns shared between the AbilityCard title row and
+   *  the header strip above so each column lines up cleanly. */
+  typeCol: { width: 72, alignItems: 'center' },
+  typeCellText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, textAlign: 'center' as const,
+  },
+  usesCol: { width: 44, alignItems: 'center' },
 
   cardBody: {
     paddingHorizontal: 12, paddingBottom: 8,
