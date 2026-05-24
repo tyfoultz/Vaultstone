@@ -27,6 +27,48 @@ const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
 const CHIP_LABELS = ['CANTRIP', '1ST', '2ND', '3RD', '4TH', '5TH', '6TH', '7TH', '8TH', '9TH'];
 const LEVEL_LABELS = ['', '1ST LEVEL', '2ND LEVEL', '3RD LEVEL', '4TH LEVEL', '5TH LEVEL', '6TH LEVEL', '7TH LEVEL', '8TH LEVEL', '9TH LEVEL'];
 
+/**
+ * School palette — semi-saturated accent colors keyed to the eight 5e
+ * schools of magic. Painted onto each spell card's left bar and used as
+ * the icon tint + the school name color in the meta sub line. Picked to
+ * stay readable on the Noir surface without going neon.
+ */
+const SCHOOL_COLORS: Record<string, string> = {
+  abjuration: '#79b8ff',
+  conjuration: '#f0b94c',
+  divination: '#a8d4e6',
+  enchantment: '#ec7dca',
+  evocation: '#e95c4b',
+  illusion: '#c084fc',
+  necromancy: '#66c489',
+  transmutation: '#d4824d',
+};
+
+/**
+ * MaterialCommunityIcons glyph per school. Mirrors the accent color so
+ * the card has a coherent left edge (bar color + icon hue match).
+ */
+const SCHOOL_ICONS: Record<string, React.ComponentProps<typeof MaterialCommunityIcons>['name']> = {
+  abjuration: 'shield-half-full',
+  conjuration: 'spider-web',
+  divination: 'eye',
+  enchantment: 'heart-flash',
+  evocation: 'fire',
+  illusion: 'drama-masks',
+  necromancy: 'skull',
+  transmutation: 'swap-vertical-circle',
+};
+
+function schoolColor(school?: string | null): string {
+  if (!school) return '#9ca3af';
+  return SCHOOL_COLORS[school.toLowerCase()] ?? '#9ca3af';
+}
+
+function schoolIcon(school?: string | null): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  if (!school) return 'star-four-points';
+  return SCHOOL_ICONS[school.toLowerCase()] ?? 'star-four-points';
+}
+
 type FilterKey = 'all' | 'conc' | number;
 type StatusFilter = 'all' | 'prepared' | 'unprepared';
 
@@ -375,11 +417,9 @@ export function SpellsTab({
             </TouchableOpacity>
           )}
         </View>
-        {isOwner && onOpenManage && (
-          <TouchableOpacity style={s.manageBtn} activeOpacity={0.7} onPress={onOpenManage}>
-            <Text style={s.manageBtnText}>MANAGE SPELLS</Text>
-          </TouchableOpacity>
-        )}
+        {/* Manage Spells button was here; per-section + buttons on each
+            level header now own the add affordance (replaces the
+            floating top-level button so the search row stays clean). */}
       </View>
 
       {/* ── Level filter chips ── */}
@@ -456,7 +496,13 @@ export function SpellsTab({
             ) : (
               <Text style={s.levelSub}>At will</Text>
             )}
+            {isOwner && onOpenManage ? (
+              <TouchableOpacity style={s.levelAddBtn} onPress={onOpenManage} activeOpacity={0.7} accessibilityLabel="Add cantrip">
+                <MaterialCommunityIcons name="plus" size={12} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null}
           </View>
+          <SpellTableHeader />
           {cantrips.map((spell) => (
             <SpellRow
               key={spell.id}
@@ -503,7 +549,13 @@ export function SpellsTab({
                 </View>
               </View>
             )}
+            {isOwner && onOpenManage ? (
+              <TouchableOpacity style={s.levelAddBtn} onPress={onOpenManage} activeOpacity={0.7} accessibilityLabel={`Add ${ordinal(level)}-level spell`}>
+                <MaterialCommunityIcons name="plus" size={12} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null}
           </View>
+          {spells.length > 0 ? <SpellTableHeader /> : null}
           {spells.map((spell) => {
             const prep = isPrepared(spell);
             const always = isAlwaysPrepared(spell);
@@ -578,6 +630,24 @@ function ordinal(n: number): string {
   return n + (suffixes[(v - 20) % 10] ?? suffixes[v] ?? suffixes[0]);
 }
 
+/**
+ * Header strip rendered above every spell list (cantrips + each leveled
+ * group). Matches the Combat-tab table style: small uppercase labels
+ * sitting in fixed-width columns that line up with the SpellRow cells
+ * below. 10px left padding accounts for the 2px school accent bar plus
+ * 8px body padding on each card.
+ */
+function SpellTableHeader() {
+  return (
+    <View style={s.spellHeaderRow}>
+      <Text style={[s.spellHeaderCell, { flex: 1 }]}>NAME</Text>
+      <Text style={[s.spellHeaderCell, s.spellRangeCol]}>RANGE</Text>
+      <Text style={[s.spellHeaderCell, s.spellTimeCol]}>TIME</Text>
+      <Text style={[s.spellHeaderCell, s.spellPrepCol]}>PREP</Text>
+    </View>
+  );
+}
+
 function SpellRow({
   spell, slot, prepared, alwaysPrepared, canToggle, onTogglePrepared, onToggleAlwaysPrepared, togglesBlocked, onCast, onSaveNotes,
 }: {
@@ -606,71 +676,92 @@ function SpellRow({
   // only flip via the "Always prepared" affordance in the expanded
   // view so a stray tap doesn't blow away a domain-spell setup.
   const toggleDisabled = !canToggle || alwaysPrepared || (togglesBlocked && !prepared);
-  const circleIconName = alwaysPrepared ? 'pin'
-    : isCantrip ? 'infinity'
-    : 'check';
+  const accentColor = schoolColor(spell.school);
+  const iconName = schoolIcon(spell.school);
+
+  // PREP-column tap handler — what the user gets depends on state:
+  //   cantrip       → no-op (always cast-ready, no slot to spend)
+  //   prepared      → cast (consume slot via onCast)
+  //   unprepared    → toggle to prepared (if allowed)
+  //   always-prep   → cast (same as prepared); pin/unpin lives in expanded view
+  function handlePrepColPress(e: any) {
+    e?.stopPropagation?.();
+    if (isCantrip) return;
+    if (prepared && canCast && onCast) {
+      onCast();
+    } else if (!prepared && !toggleDisabled && onTogglePrepared) {
+      onTogglePrepared();
+    }
+  }
 
   return (
     <View style={[s.spellCard, !prepared && s.spellCardDimmed]}>
       <TouchableOpacity
-        style={s.spellHead}
+        style={s.spellCardHead}
         onPress={() => setExpanded((v) => !v)}
         onLongPress={canToggle && !toggleDisabled ? onTogglePrepared : undefined}
         delayLongPress={300}
         activeOpacity={0.7}
       >
-        <TouchableOpacity
-          onPress={!toggleDisabled && onTogglePrepared
-            ? (e) => { e.stopPropagation?.(); onTogglePrepared(); }
-            : undefined}
-          activeOpacity={!toggleDisabled ? 0.6 : 1}
-          hitSlop={6}
-          style={[
-            s.statusCircle,
-            prepared && s.statusCircleOn,
-            isCantrip && s.statusCircleCantrip,
-            alwaysPrepared && s.statusCircleAlways,
-          ]}
-        >
-          {prepared ? (
+        <View style={[s.spellCardBar, { backgroundColor: accentColor }]} />
+        <View style={s.spellCardBody}>
+          <View style={s.spellTitleRow}>
+            <MaterialCommunityIcons name={iconName} size={14} color={accentColor} style={{ marginRight: 2 }} />
+            <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
+            <View style={s.spellRangeCol}>
+              <Text style={s.spellColText} numberOfLines={1}>{spell.range ?? '—'}</Text>
+            </View>
+            <View style={s.spellTimeCol}>
+              <Text style={s.spellColText} numberOfLines={1}>{spell.castingTime ?? '—'}</Text>
+            </View>
+            <View style={s.spellPrepCol}>
+              <TouchableOpacity
+                onPress={handlePrepColPress}
+                activeOpacity={isCantrip ? 1 : 0.7}
+                disabled={isCantrip || (prepared && !canCast) || (!prepared && toggleDisabled)}
+                style={[
+                  s.prepChip,
+                  isCantrip && s.prepChipAtWill,
+                  prepared && !isCantrip && s.prepChipCast,
+                  prepared && !canCast && !isCantrip && s.prepChipDisabled,
+                  !prepared && !isCantrip && s.prepChipUnprep,
+                  alwaysPrepared && s.prepChipAlways,
+                ]}
+              >
+                <Text style={[
+                  s.prepChipText,
+                  isCantrip && s.prepChipTextAtWill,
+                  prepared && !isCantrip && s.prepChipTextCast,
+                  !prepared && !isCantrip && s.prepChipTextUnprep,
+                ]}>
+                  {isCantrip ? 'At Will' : prepared ? 'Cast' : 'Prep'}
+                </Text>
+              </TouchableOpacity>
+            </View>
             <MaterialCommunityIcons
-              name={circleIconName}
+              name={expanded ? 'chevron-up' : 'chevron-down'}
               size={12}
-              color={colors.onPrimary}
+              color={colors.outline}
             />
-          ) : null}
-        </TouchableOpacity>
-        <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
-        {spell.school ? (
-          <View style={s.schoolChip}>
-            <Text style={s.schoolChipText} numberOfLines={1}>{capitalize(spell.school)}</Text>
           </View>
-        ) : null}
-        {spell.ritual ? (
-          <View style={s.badgeIcon}>
-            <Text style={s.badgeIconText}>R</Text>
+          {/* Meta sub line — school in its accent color + ritual /
+              concentration indicators. Replaces the standalone school
+              chip + R / C badges from the prior row layout. */}
+          <View style={s.spellMetaSub}>
+            {spell.school ? (
+              <Text style={[s.spellMetaText, { color: accentColor }]}>{spell.school.toLowerCase()}</Text>
+            ) : null}
+            {spell.concentration ? (
+              <Text style={s.spellMetaText}>· concentration</Text>
+            ) : null}
+            {spell.ritual ? (
+              <Text style={s.spellMetaText}>· ritual</Text>
+            ) : null}
+            {alwaysPrepared ? (
+              <Text style={[s.spellMetaText, { color: colors.gm }]}>· always prepared</Text>
+            ) : null}
           </View>
-        ) : null}
-        {spell.concentration ? (
-          <View style={[s.badgeIcon, s.badgeIconConc]}>
-            <Text style={[s.badgeIconText, s.badgeIconTextConc]}>C</Text>
-          </View>
-        ) : null}
-        <TouchableOpacity
-          style={[s.castBtn, !canCast && s.castBtnDisabled, isCantrip && s.castBtnAtWill]}
-          onPress={canCast && !isCantrip && onCast ? (e) => { e.stopPropagation(); onCast(); } : undefined}
-          activeOpacity={canCast && !isCantrip ? 0.7 : 1}
-        >
-          <Text style={[s.castBtnText, !canCast && s.castBtnTextDisabled, isCantrip && s.castBtnTextAtWill]}>
-            {isCantrip ? 'At Will' : prepared ? 'Cast' : 'Unprepared'}
-          </Text>
-        </TouchableOpacity>
-        <MaterialCommunityIcons
-          name={expanded ? 'chevron-down' : 'chevron-right'}
-          size={16}
-          color={colors.outline}
-          style={{ marginLeft: 4 }}
-        />
+        </View>
       </TouchableOpacity>
 
       {expanded ? (
@@ -943,19 +1034,76 @@ const s = StyleSheet.create({
   },
   pipFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
 
-  // ── Spell card ──────────────────────────────────────────────────────────
+  // ── Spell card (table-style chassis matching CombatTab's equipCard) ─────
   spellCard: {
-    backgroundColor: colors.surfaceContainer,
+    flexDirection: 'row',
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: 12,
-    paddingVertical: 14, paddingHorizontal: 16,
-    marginBottom: 10,
+    borderRadius: 6, overflow: 'hidden',
+    marginBottom: 4,
   },
   // Unprepared spells dim ~50% so the prepared list visually pops while
-  // unprepared entries stay readable + scannable. Combined with the
-  // "Unprepared" cast button copy + hollow status circle, the row reads
-  // as "in your book but not prepared today".
+  // unprepared entries stay readable + scannable.
   spellCardDimmed: { opacity: 0.55 },
+  /** Full-height left accent bar, painted with the school color. */
+  spellCardBar: { width: 2, alignSelf: 'stretch' },
+  /** Card body — wraps the title row + meta sub line. The whole card is
+   *  tappable for expand; nested controls use stopPropagation. */
+  spellCardHead: { flex: 1, flexDirection: 'row', alignItems: 'stretch' },
+  spellCardBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 1 },
+  spellTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  spellMetaSub: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginLeft: 18 },
+  spellMetaText: { fontSize: 10, fontFamily: fonts.label, color: colors.outline, textTransform: 'lowercase' as const },
+
+  /** Table header strip rendered above each spell list. Padded 10px on
+   *  the left so NAME starts past the card's bar + body padding. */
+  spellHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    marginBottom: 4,
+  },
+  spellHeaderCell: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+  },
+  spellColText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, textAlign: 'center' as const,
+  },
+  spellRangeCol: { width: 72, alignItems: 'center' },
+  spellTimeCol: { width: 72, alignItems: 'center' },
+  spellPrepCol: { width: 64, alignItems: 'center' },
+
+  /** Prep-column chip — visual state depends on cantrip / prepared /
+   *  unprepared / always-prepared. Replaces the old standalone status
+   *  circle + cast button affordances with one compact control. */
+  prepChip: {
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: 'transparent',
+    minWidth: 56, alignItems: 'center',
+  },
+  prepChipAtWill: { borderColor: `${colors.primary}55` },
+  prepChipCast: { backgroundColor: `${colors.primary}22`, borderColor: `${colors.primary}66` },
+  prepChipDisabled: { opacity: 0.5 },
+  prepChipUnprep: { borderColor: colors.outlineVariant },
+  prepChipAlways: { borderColor: `${colors.gm}66`, backgroundColor: `${colors.gm}18` },
+  prepChipText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.outline, letterSpacing: 0.4 },
+  prepChipTextAtWill: { color: colors.primary },
+  prepChipTextCast: { color: colors.primary },
+  prepChipTextUnprep: { color: colors.outline },
+
+  /** Small + affordance on each level header — opens the catalog
+   *  spell picker (Manage Spells flow). Matches the equivalent
+   *  affordance on the Combat tab section headers. */
+  levelAddBtn: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: `${colors.primary}66`,
+    backgroundColor: `${colors.primary}14`,
+    marginLeft: 6,
+  },
   // Status circle to the left of the spell name. Hollow when
   // unprepared, primary-filled when prepared. Cantrips render with an
   // infinity glyph to signal "always available" rather than a check.
