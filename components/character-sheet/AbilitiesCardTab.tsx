@@ -347,8 +347,20 @@ function AbilityCard({ ability, isOwner, onUse, onEdit, canMoveUp, canMoveDown, 
     <View style={s.card}>
       <TouchableOpacity style={s.cardHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
         <View style={s.cardAccent} />
-        <View style={{ flex: 1 }}>
-          <Text style={s.cardName}>{ability.name}</Text>
+        <View style={s.cardHeaderBody}>
+          <View style={s.cardTitleRow}>
+            <Text style={s.cardName} numberOfLines={1}>{ability.name}</Text>
+            {hasUses ? (
+              <View style={s.usesCompact}>
+                <Text style={s.usesCompactText}>{ability.uses!.current}/{ability.uses!.max}</Text>
+              </View>
+            ) : null}
+            <MaterialCommunityIcons
+              name={open ? 'chevron-up' : 'chevron-down'}
+              size={12}
+              color={colors.outline}
+            />
+          </View>
           <View style={s.cardMeta}>
             {ability.actionType ? (
               <Text style={s.cardMetaText}>{ACTION_LABELS[ability.actionType] ?? ability.actionType}</Text>
@@ -361,16 +373,6 @@ function AbilityCard({ ability, isOwner, onUse, onEdit, canMoveUp, canMoveDown, 
             ) : null}
           </View>
         </View>
-        {hasUses ? (
-          <View style={s.usesCompact}>
-            <Text style={s.usesCompactText}>{ability.uses!.current}/{ability.uses!.max}</Text>
-          </View>
-        ) : null}
-        <MaterialCommunityIcons
-          name={open ? 'chevron-down' : 'chevron-right'}
-          size={16}
-          color={colors.outline}
-        />
       </TouchableOpacity>
 
       {open ? (
@@ -612,27 +614,35 @@ const s = StyleSheet.create({
   emptyText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurfaceVariant },
   emptyHint: { fontSize: 12, fontFamily: fonts.body, color: colors.outline, textAlign: 'center', paddingHorizontal: spacing.lg },
 
+  // Mirrors the action-card style on the Combat tab: no bg fill, thin
+  // outline, full-height accent bar, compact body. Tighter font sizes
+  // match the action-card density so abilities + actions read as one
+  // visual family in the embedded combat layout.
   card: {
-    backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.sm,
+    borderRadius: 6, overflow: 'hidden', marginBottom: 4,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
-  cardAccent: { width: 3, height: 28, borderRadius: 2, backgroundColor: colors.primary },
-  cardName: { fontSize: 14, fontFamily: fonts.body, fontWeight: '700', color: colors.onSurface },
-  cardMeta: { flexDirection: 'row', gap: 4, marginTop: 2 },
+  cardHeader: { flexDirection: 'row', alignItems: 'stretch' },
+  cardAccent: { width: 2, alignSelf: 'stretch', backgroundColor: colors.primary },
+  cardHeaderBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 1 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  cardName: {
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, letterSpacing: -0.1,
+  },
+  cardMeta: { flexDirection: 'row', gap: 4, marginLeft: 0 },
   cardMetaText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', color: colors.outline },
   usesCompact: {
-    paddingHorizontal: 8, paddingVertical: 3,
+    paddingHorizontal: 6, paddingVertical: 1,
     borderRadius: 100, backgroundColor: colors.primary + '22',
   },
-  usesCompactText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
+  usesCompactText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
 
   cardBody: {
-    paddingHorizontal: 16, paddingBottom: 12,
+    paddingHorizontal: 12, paddingBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
   },
-  cardDesc: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 10 },
+  cardDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 15, marginTop: 8 },
 
   usesRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 12 },
   pipsRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },

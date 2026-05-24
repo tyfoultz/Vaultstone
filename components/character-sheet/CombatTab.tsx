@@ -239,48 +239,16 @@ export function CombatTab({
           {weapons.length === 0 ? (
             <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
           ) : (
-            <View>
-              <View style={s.attacksHeader}>
-                <Text style={[s.attacksHdrCell, { flex: 1 }]}>WEAPON</Text>
-                <Text style={[s.attacksHdrCell, s.attackHitCol]}>HIT</Text>
-                <Text style={[s.attacksHdrCell, s.attackDmgCol]}>DMG</Text>
-              </View>
-              {weapons.map((w, i) => {
-                const atkBonus = getAttackBonus(w);
-                return (
-                  <View key={w.id} style={[s.attackRow, i < weapons.length - 1 && s.attackRowBorder]}>
-                    <TouchableOpacity
-                      style={{ flex: 1 }}
-                      onPress={onOpenEquipmentDetail ? () => onOpenEquipmentDetail(w) : undefined}
-                      activeOpacity={onOpenEquipmentDetail ? 0.7 : 1}
-                      disabled={!onOpenEquipmentDetail}
-                    >
-                      <Text style={s.attackName}>{w.name}</Text>
-                      <Text style={s.attackSub}>{w.slot}{w.range ? ` · ${w.range} ft` : ''}</Text>
-                    </TouchableOpacity>
-                    <View style={s.attackHitCol}>
-                      <TouchableOpacity
-                        style={s.atkBtnHit}
-                        onPress={() => rollD20(`${w.name} attack`, atkBonus, onRoll)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <View style={s.attackDmgCol}>
-                      {w.damage ? (
-                        <TouchableOpacity
-                          style={s.atkBtnDmg}
-                          onPress={() => rollDamage(`${w.name} damage`, w.damage!, onRoll)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={s.atkBtnDmgText}>{w.damage.split(' ')[0]}</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  </View>
-                );
-              })}
+            <View style={s.equipCardList}>
+              {weapons.map((w) => (
+                <WeaponCard
+                  key={w.id}
+                  item={w}
+                  atkBonus={getAttackBonus(w)}
+                  onRoll={onRoll}
+                  onOpenDetail={onOpenEquipmentDetail}
+                />
+              ))}
             </View>
           )}
 
@@ -290,29 +258,14 @@ export function CombatTab({
           {pinnedItems.length > 0 && (
             <>
               <SectionLabel style={s.deskSectionLabel} accent>PINNED</SectionLabel>
-              <View>
-                {pinnedItems.map((item, i) => (
-                  <View key={item.id} style={[s.pinnedRow, i < pinnedItems.length - 1 && s.pinnedRowBorder]}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.pinnedName}>{item.name}</Text>
-                      {item.damage ? (
-                        <Text style={s.pinnedSub}>{item.damage}</Text>
-                      ) : item.notes ? (
-                        <Text style={s.pinnedSub} numberOfLines={1}>{item.notes}</Text>
-                      ) : (
-                        <Text style={s.pinnedSub}>{item.slot}{item.equipped ? ' · equipped' : ''}{item.attuned ? ' · attuned' : ''}</Text>
-                      )}
-                    </View>
-                    {item.damage && item.slot === 'weapon' ? (
-                      <TouchableOpacity
-                        style={s.atkBtnDmg}
-                        onPress={() => rollDamage(`${item.name} damage`, item.damage!, onRoll)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
+              <View style={s.equipCardList}>
+                {pinnedItems.map((item) => (
+                  <PinnedCard
+                    key={item.id}
+                    item={item}
+                    onRoll={onRoll}
+                    onOpenDetail={onOpenEquipmentDetail}
+                  />
                 ))}
               </View>
             </>
@@ -402,26 +355,16 @@ export function CombatTab({
           <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
         </View>
       ) : (
-        <View style={s.mobileCard}>
-          {weapons.map((w, i) => {
-            const atkBonus = getAttackBonus(w);
-            return (
-              <View key={w.id} style={[s.attackRow, i < weapons.length - 1 && s.attackRowBorder]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.attackName}>{w.name}</Text>
-                  <Text style={s.attackSub}>{w.slot}</Text>
-                </View>
-                <TouchableOpacity style={s.atkBtnHit} onPress={() => rollD20(`${w.name} attack`, atkBonus, onRoll)} activeOpacity={0.7}>
-                  <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
-                </TouchableOpacity>
-                {w.damage && (
-                  <TouchableOpacity style={s.atkBtnDmg} onPress={() => rollDamage(`${w.name} damage`, w.damage!, onRoll)} activeOpacity={0.7}>
-                    <Text style={s.atkBtnDmgText}>{w.damage.split(' ')[0]}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })}
+        <View style={s.equipCardList}>
+          {weapons.map((w) => (
+            <WeaponCard
+              key={w.id}
+              item={w}
+              atkBonus={getAttackBonus(w)}
+              onRoll={onRoll}
+              onOpenDetail={onOpenEquipmentDetail}
+            />
+          ))}
         </View>
       )}
 
@@ -430,29 +373,14 @@ export function CombatTab({
       {pinnedItems.length > 0 && (
         <>
           <SectionLabel style={{ marginTop: 14 }} accent>PINNED</SectionLabel>
-          <View style={s.mobileCard}>
-            {pinnedItems.map((item, i) => (
-              <View key={item.id} style={[s.pinnedRow, { paddingHorizontal: 12 }, i < pinnedItems.length - 1 && s.pinnedRowBorder]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.pinnedName}>{item.name}</Text>
-                  {item.damage ? (
-                    <Text style={s.pinnedSub}>{item.damage}</Text>
-                  ) : item.notes ? (
-                    <Text style={s.pinnedSub} numberOfLines={1}>{item.notes}</Text>
-                  ) : (
-                    <Text style={s.pinnedSub}>{item.slot}{item.equipped ? ' · equipped' : ''}{item.attuned ? ' · attuned' : ''}</Text>
-                  )}
-                </View>
-                {item.damage && item.slot === 'weapon' ? (
-                  <TouchableOpacity
-                    style={s.atkBtnDmg}
-                    onPress={() => rollDamage(`${item.name} damage`, item.damage!, onRoll)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
+          <View style={s.equipCardList}>
+            {pinnedItems.map((item) => (
+              <PinnedCard
+                key={item.id}
+                item={item}
+                onRoll={onRoll}
+                onOpenDetail={onOpenEquipmentDetail}
+              />
             ))}
           </View>
         </>
@@ -701,6 +629,103 @@ export function ConditionsSection({
 }
 
 /**
+ * Equipment card — bordered row with a left accent bar + icon, matching the
+ * action-card visual language. Used by both Attacks (weapons) and Pinned
+ * items. The whole card is tappable: opens the EquipmentDetailModal when a
+ * handler is wired (same affordance the Gear tab uses).
+ */
+function WeaponCard({
+  item, atkBonus, onRoll, onOpenDetail,
+}: {
+  item: Dnd5eEquipmentItem;
+  atkBonus: number;
+  onRoll: (r: RollResult) => void;
+  onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
+}) {
+  const iconName = item.range ? 'bow-arrow' : 'sword-cross';
+  return (
+    <TouchableOpacity
+      style={s.equipCard}
+      onPress={onOpenDetail ? () => onOpenDetail(item) : undefined}
+      activeOpacity={onOpenDetail ? 0.7 : 1}
+      disabled={!onOpenDetail}
+    >
+      <View style={[s.equipCardBar, { backgroundColor: colors.primary }]} />
+      <View style={s.equipCardBody}>
+        <View style={s.equipCardTitleRow}>
+          <MaterialCommunityIcons name={iconName} size={13} color={colors.primary} style={{ marginRight: 2 }} />
+          <Text style={s.equipCardName} numberOfLines={1}>{item.name}</Text>
+          <TouchableOpacity
+            style={s.atkBtnHit}
+            onPress={(e) => { e.stopPropagation?.(); rollD20(`${item.name} attack`, atkBonus, onRoll); }}
+            activeOpacity={0.7}
+          >
+            <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
+          </TouchableOpacity>
+          {item.damage ? (
+            <TouchableOpacity
+              style={s.atkBtnDmg}
+              onPress={(e) => { e.stopPropagation?.(); rollDamage(`${item.name} damage`, item.damage!, onRoll); }}
+              activeOpacity={0.7}
+            >
+              <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        {item.range ? (
+          <Text style={s.equipCardSub}>range {item.range} ft</Text>
+        ) : null}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * Pinned-item card — same visual chassis as WeaponCard but with a pin icon
+ * (signals "you flagged this for quick combat access") and a flexible sub
+ * line covering damage / notes / slot+equipped/attuned status.
+ */
+function PinnedCard({
+  item, onRoll, onOpenDetail,
+}: {
+  item: Dnd5eEquipmentItem;
+  onRoll: (r: RollResult) => void;
+  onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
+}) {
+  const subText = item.notes
+    ? item.notes
+    : item.damage
+      ? item.damage
+      : `${item.slot}${item.equipped ? ' · equipped' : ''}${item.attuned ? ' · attuned' : ''}`;
+  return (
+    <TouchableOpacity
+      style={s.equipCard}
+      onPress={onOpenDetail ? () => onOpenDetail(item) : undefined}
+      activeOpacity={onOpenDetail ? 0.7 : 1}
+      disabled={!onOpenDetail}
+    >
+      <View style={[s.equipCardBar, { backgroundColor: colors.secondary }]} />
+      <View style={s.equipCardBody}>
+        <View style={s.equipCardTitleRow}>
+          <MaterialCommunityIcons name="pin" size={13} color={colors.secondary} style={{ marginRight: 2 }} />
+          <Text style={s.equipCardName} numberOfLines={1}>{item.name}</Text>
+          {item.damage && item.slot === 'weapon' ? (
+            <TouchableOpacity
+              style={s.atkBtnDmg}
+              onPress={(e) => { e.stopPropagation?.(); rollDamage(`${item.name} damage`, item.damage!, onRoll); }}
+              activeOpacity={0.7}
+            >
+              <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <Text style={s.equipCardSub} numberOfLines={1}>{subText}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+/**
  * Saving Throws strip — six rollable cells (STR/DEX/CON/INT/WIS/CHA),
  * one per ability. Shared between desktop and mobile; desktop renders a
  * 6-across horizontal strip and mobile keeps the 3-across grid.
@@ -859,35 +884,25 @@ const s = StyleSheet.create({
    *  bare (no-CardBlock) sections still read as discrete blocks. */
   deskSectionLabel: { marginTop: 18 },
 
-  // Attacks
-  attacksHeader: {
-    flexDirection: 'row', paddingBottom: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
-    marginBottom: 2,
+  // Equipment cards (Attacks + Pinned) — mirror the action-card visual:
+  // transparent bg, thin outline, full-height accent bar, compact body.
+  equipCardList: { gap: 4 },
+  equipCard: {
+    flexDirection: 'row',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 6, overflow: 'hidden',
   },
-  attacksHdrCell: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+  equipCardBar: { width: 2, alignSelf: 'stretch' },
+  equipCardBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 1 },
+  equipCardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  equipCardName: {
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, letterSpacing: -0.1,
   },
-  /** Fixed-width columns shared between the header cells and the chip
-   *  wrappers underneath, so the Hit / Damage chips center under their
-   *  column headers instead of right-aligning at the row edge. */
-  attackHitCol: { width: 72, alignItems: 'center', textAlign: 'center' as const },
-  attackDmgCol: { width: 72, alignItems: 'center', textAlign: 'center' as const },
-  attackRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 7,
+  equipCardSub: {
+    fontSize: 10, fontFamily: fonts.label, color: colors.outline,
+    marginLeft: 17, textTransform: 'capitalize',
   },
-  attackRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  pinnedRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 7,
-  },
-  pinnedRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  pinnedName: { fontSize: 11, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
-  pinnedSub: { fontSize: 8, color: colors.outline, marginTop: 1, textTransform: 'capitalize' },
-  attackName: { fontSize: 11, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
-  attackSub: { fontSize: 8, color: colors.outline, marginTop: 1 },
   atkBtnHit: {
     paddingHorizontal: 8, paddingVertical: 4,
     borderWidth: 1, borderColor: `${colors.primary}66`,
