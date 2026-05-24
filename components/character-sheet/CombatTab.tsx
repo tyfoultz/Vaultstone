@@ -193,6 +193,7 @@ export function CombatTab({
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.deskScrollContent} showsVerticalScrollIndicator={false}>
 
+          <SectionLabel accent>SAVING THROWS</SectionLabel>
           <SavingThrowsStrip
             scores={scores}
             stats={stats}
