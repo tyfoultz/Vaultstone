@@ -295,19 +295,6 @@ export function SpellsTab({
         </View>
       )}
 
-      {/* ── Spell slots overview table ── */}
-      {spellSlots && ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => spellSlots[l].max > 0) && (
-        <SpellSlotTable
-          spellSlots={spellSlots}
-          isOwner={isOwner}
-          onSlotChange={onSpellSlotChange}
-          manualMode={!!manualMode}
-          onEditMax={manualMode && onEditField
-            ? (level, current) => onEditField(`slotMax_${level}`, current)
-            : undefined}
-        />
-      )}
-
       {/* ── How spellcasting works (collapsible per-class explainer) ── */}
       {spellcastingExplainers && spellcastingExplainers.length > 0 && (
         <View style={s.explainerCard}>
@@ -453,7 +440,22 @@ export function SpellsTab({
         <View style={s.levelSection}>
           <View style={s.levelHead}>
             <Text style={s.levelTitle}>Cantrips</Text>
-            <Text style={s.levelSub}>At will</Text>
+            {cantripLimit !== undefined ? (
+              <View style={[s.slotSummary, manualMode && s.slotSummaryEditable]}>
+                {manualMode && onEditField ? (
+                  <TouchableOpacity
+                    onPress={() => onEditField('cantripsLimit', cantripLimit)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.levelSub}>{`${totalCantripsKnown} of ${cantripLimit} cantrips`}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={s.levelSub}>{`${totalCantripsKnown} of ${cantripLimit} cantrips`}</Text>
+                )}
+              </View>
+            ) : (
+              <Text style={s.levelSub}>At will</Text>
+            )}
           </View>
           {cantrips.map((spell) => (
             <SpellRow
@@ -474,22 +476,31 @@ export function SpellsTab({
           <View style={s.levelHead}>
             <Text style={s.levelTitle}>{`${ordinal(level)} Level`}</Text>
             {slot && slot.max > 0 && (
-              <Text style={s.levelSub}>{`${slot.remaining} of ${slot.max} slots`}</Text>
-            )}
-            {slot && slot.max > 0 && (
-              <View style={s.slotPipsRow}>
-                {Array.from({ length: slot.max }).map((_, i) => (
+              <View style={[s.slotSummary, manualMode && s.slotSummaryEditable]}>
+                {manualMode && onEditField ? (
                   <TouchableOpacity
-                    key={i}
-                    onPress={() => {
-                      if (!isOwner || !onSpellSlotChange) return;
-                      onSpellSlotChange(level, i < slot.remaining ? -1 : 1);
-                    }}
-                    activeOpacity={isOwner ? 0.7 : 1}
+                    onPress={() => onEditField(`slotMax_${level}`, slot.max)}
+                    activeOpacity={0.7}
                   >
-                    <View style={[s.pip, i < slot.remaining && s.pipFilled]} />
+                    <Text style={s.levelSub}>{`${slot.remaining} of ${slot.max} slots`}</Text>
                   </TouchableOpacity>
-                ))}
+                ) : (
+                  <Text style={s.levelSub}>{`${slot.remaining} of ${slot.max} slots`}</Text>
+                )}
+                <View style={s.slotPipsRowInline}>
+                  {Array.from({ length: slot.max }).map((_, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => {
+                        if (!isOwner || !onSpellSlotChange) return;
+                        onSpellSlotChange(level, i < slot.remaining ? -1 : 1);
+                      }}
+                      activeOpacity={isOwner ? 0.7 : 1}
+                    >
+                      <View style={[s.pip, i < slot.remaining && s.pipFilled]} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             )}
           </View>
@@ -551,85 +562,6 @@ export function SpellsTab({
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────────
-
-function SpellSlotTable({ spellSlots, isOwner, onSlotChange, manualMode, onEditMax }: {
-  spellSlots: Record<number, { max: number; remaining: number }>;
-  isOwner: boolean;
-  onSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
-  manualMode?: boolean;
-  /** Tap on a Total cell in Manual Mode → opens the slot-max edit
-   *  affordance up in the CharacterSheet edit modal. */
-  onEditMax?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, current: number) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  // In Manual Mode we want every level cell to be tappable, including
-  // ones the class table currently zeros out (so the player can grant
-  // a slot at a level their class doesn't reach yet). Outside Manual
-  // Mode keep the prior "hide empty levels" behavior to avoid clutter.
-  const activeLevels = manualMode
-    ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const)
-    : ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((l) => spellSlots[l].max > 0);
-  if (activeLevels.length === 0) return null;
-
-  return (
-    <View style={s.explainerCard}>
-      <TouchableOpacity style={s.explainerHeader} onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
-        <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.primary} />
-        <Text style={s.explainerTitle}>Spell Slots by Level</Text>
-        <MaterialCommunityIcons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.outline} />
-      </TouchableOpacity>
-      {expanded && (
-        <View style={s.slotTableBody}>
-          <View style={s.slotTableRow}>
-            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
-              <Text style={s.slotTableHeader}>Slot Level</Text>
-            </View>
-            {activeLevels.map((l) => (
-              <View key={l} style={s.slotTableCell}>
-                <Text style={s.slotTableHeader}>{ordinal(l)}</Text>
-              </View>
-            ))}
-          </View>
-          <View style={s.slotTableRow}>
-            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
-              <Text style={s.slotTableLabel}>Total</Text>
-            </View>
-            {activeLevels.map((l) => (
-              <TouchableOpacity
-                key={l}
-                style={s.slotTableCell}
-                disabled={!manualMode || !onEditMax}
-                onPress={manualMode && onEditMax
-                  ? () => onEditMax(l, spellSlots[l]?.max ?? 0)
-                  : undefined}
-                activeOpacity={manualMode && onEditMax ? 0.7 : 1}
-              >
-                <Text style={s.slotTableCellText}>{spellSlots[l]?.max ?? 0}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={s.slotTableRow}>
-            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
-              <Text style={s.slotTableLabel}>Remaining</Text>
-            </View>
-            {activeLevels.map((l) => (
-              <TouchableOpacity
-                key={l}
-                style={s.slotTableCell}
-                onPress={isOwner && onSlotChange ? () => onSlotChange(l, spellSlots[l].remaining > 0 ? -1 : 1) : undefined}
-                activeOpacity={isOwner ? 0.7 : 1}
-              >
-                <Text style={[s.slotTableCellText, spellSlots[l].remaining > 0 ? { color: colors.primary } : { color: colors.hpDanger }]}>
-                  {spellSlots[l].remaining}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
-    </View>
-  );
-}
 
 function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
@@ -929,33 +861,6 @@ const s = StyleSheet.create({
     fontSize: 12, fontFamily: fonts.body, color: colors.onSurface, fontWeight: '600',
   },
 
-  // Spell slot overview table
-  slotTableBody: {
-    borderTopWidth: 1, borderTopColor: colors.outlineVariant,
-  },
-  slotTableRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
-  },
-  slotTableCell: {
-    flex: 1, paddingVertical: 8, alignItems: 'center' as const, justifyContent: 'center' as const,
-    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.outlineVariant,
-  },
-  slotTableCellFirst: {
-    flex: 1.5,
-  },
-  slotTableHeader: {
-    fontSize: 10, fontFamily: fonts.label, fontWeight: '700' as const,
-    letterSpacing: 0.5, textTransform: 'uppercase' as const, color: colors.primary,
-  },
-  slotTableLabel: {
-    fontSize: 11, fontFamily: fonts.label, fontWeight: '600' as const, color: colors.onSurface,
-  },
-  slotTableCellText: {
-    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700' as const, color: colors.onSurface,
-    textAlign: 'center' as const,
-  },
-
   // Search row
   searchRow: { flexDirection: 'row', gap: 8, padding: 12 },
   searchBox: {
@@ -1019,7 +924,18 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 1.4,
   },
   levelSub: { fontSize: 11, color: colors.onSurfaceVariant, letterSpacing: 0.4 },
-  slotPipsRow: { marginLeft: 'auto', flexDirection: 'row', gap: 6 },
+  /** Right-aligned cluster of "X of Y slots" text + pips. Gets a dashed
+   *  border in Manual Mode to signal that the count is the edit affordance
+   *  for the slot maximum (or cantrip limit on the cantrips header). */
+  slotSummary: {
+    marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  slotSummaryEditable: { borderColor: colors.primary, borderStyle: 'dashed' as const },
+  /** Pips inside the slotSummary wrapper — follows the count text. */
+  slotPipsRowInline: { flexDirection: 'row', gap: 6 },
   pip: {
     width: 14, height: 14, borderRadius: 4,
     backgroundColor: colors.surfaceContainerHigh,
