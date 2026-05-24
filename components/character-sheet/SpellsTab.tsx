@@ -691,7 +691,7 @@ function SpellRow({
                 style={[s.spellSchoolText, { color: prepared ? accentColor : `${accentColor}99` }]}
                 numberOfLines={1}
               >
-                {spell.school?.toLowerCase() ?? '—'}
+                {spell.school ? capitalize(spell.school.toLowerCase()) : '—'}
               </Text>
               {spell.concentration ? (
                 <MaterialCommunityIcons
@@ -1043,7 +1043,7 @@ const s = StyleSheet.create({
    *  is unprepared) so the column reinforces the bar/icon color. */
   spellSchoolText: {
     fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
-    textAlign: 'center' as const, textTransform: 'lowercase' as const,
+    textAlign: 'center' as const,
   },
   /** Fixed-width leading slot for the school glyph. Mirrored in the
    *  header (empty cell) so spell-name text aligns across all rows
