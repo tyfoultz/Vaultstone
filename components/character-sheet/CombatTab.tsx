@@ -239,16 +239,23 @@ export function CombatTab({
           {weapons.length === 0 ? (
             <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
           ) : (
-            <View style={s.equipCardList}>
-              {weapons.map((w) => (
-                <WeaponCard
-                  key={w.id}
-                  item={w}
-                  atkBonus={getAttackBonus(w)}
-                  onRoll={onRoll}
-                  onOpenDetail={onOpenEquipmentDetail}
-                />
-              ))}
+            <View>
+              <View style={s.weaponHeaderRow}>
+                <Text style={[s.weaponHeaderCell, { flex: 1 }]}>WEAPON</Text>
+                <Text style={[s.weaponHeaderCell, s.weaponHitCol]}>HIT</Text>
+                <Text style={[s.weaponHeaderCell, s.weaponDmgCol]}>DMG</Text>
+              </View>
+              <View style={s.equipCardList}>
+                {weapons.map((w) => (
+                  <WeaponCard
+                    key={w.id}
+                    item={w}
+                    atkBonus={getAttackBonus(w)}
+                    onRoll={onRoll}
+                    onOpenDetail={onOpenEquipmentDetail}
+                  />
+                ))}
+              </View>
             </View>
           )}
 
@@ -355,16 +362,23 @@ export function CombatTab({
           <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
         </View>
       ) : (
-        <View style={s.equipCardList}>
-          {weapons.map((w) => (
-            <WeaponCard
-              key={w.id}
-              item={w}
-              atkBonus={getAttackBonus(w)}
-              onRoll={onRoll}
-              onOpenDetail={onOpenEquipmentDetail}
-            />
-          ))}
+        <View>
+          <View style={s.weaponHeaderRow}>
+            <Text style={[s.weaponHeaderCell, { flex: 1 }]}>WEAPON</Text>
+            <Text style={[s.weaponHeaderCell, s.weaponHitCol]}>HIT</Text>
+            <Text style={[s.weaponHeaderCell, s.weaponDmgCol]}>DMG</Text>
+          </View>
+          <View style={s.equipCardList}>
+            {weapons.map((w) => (
+              <WeaponCard
+                key={w.id}
+                item={w}
+                atkBonus={getAttackBonus(w)}
+                onRoll={onRoll}
+                onOpenDetail={onOpenEquipmentDetail}
+              />
+            ))}
+          </View>
         </View>
       )}
 
@@ -655,22 +669,26 @@ function WeaponCard({
         <View style={s.equipCardTitleRow}>
           <MaterialCommunityIcons name={iconName} size={13} color={colors.primary} style={{ marginRight: 2 }} />
           <Text style={s.equipCardName} numberOfLines={1}>{item.name}</Text>
-          <TouchableOpacity
-            style={s.atkBtnHit}
-            onPress={(e) => { e.stopPropagation?.(); rollD20(`${item.name} attack`, atkBonus, onRoll); }}
-            activeOpacity={0.7}
-          >
-            <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
-          </TouchableOpacity>
-          {item.damage ? (
+          <View style={s.weaponHitCol}>
             <TouchableOpacity
-              style={s.atkBtnDmg}
-              onPress={(e) => { e.stopPropagation?.(); rollDamage(`${item.name} damage`, item.damage!, onRoll); }}
+              style={s.atkBtnHit}
+              onPress={(e) => { e.stopPropagation?.(); rollD20(`${item.name} attack`, atkBonus, onRoll); }}
               activeOpacity={0.7}
             >
-              <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+              <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
             </TouchableOpacity>
-          ) : null}
+          </View>
+          <View style={s.weaponDmgCol}>
+            {item.damage ? (
+              <TouchableOpacity
+                style={s.atkBtnDmg}
+                onPress={(e) => { e.stopPropagation?.(); rollDamage(`${item.name} damage`, item.damage!, onRoll); }}
+                activeOpacity={0.7}
+              >
+                <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
         {item.range ? (
           <Text style={s.equipCardSub}>range {item.range} ft</Text>
@@ -903,6 +921,25 @@ const s = StyleSheet.create({
     fontSize: 10, fontFamily: fonts.label, color: colors.outline,
     marginLeft: 17, textTransform: 'capitalize',
   },
+  /** Attacks-table header strip — small uppercase labels above the
+   *  weapon card list. Padded 10px on the left so the WEAPON label
+   *  starts roughly above each card's body content (past the 2px bar
+   *  and 8px body padding). */
+  weaponHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    marginBottom: 4,
+  },
+  weaponHeaderCell: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+  },
+  /** Fixed-width chip columns shared between the WeaponCard title row
+   *  and the header strip above, so Hit / Dmg chips land directly
+   *  under their column headers. */
+  weaponHitCol: { width: 72, alignItems: 'center', textAlign: 'center' as const },
+  weaponDmgCol: { width: 72, alignItems: 'center', textAlign: 'center' as const },
   atkBtnHit: {
     paddingHorizontal: 8, paddingVertical: 4,
     borderWidth: 1, borderColor: `${colors.primary}66`,
