@@ -119,6 +119,10 @@ interface Props {
   subclassResultsByKey: Record<string, SubclassResult>;
   speciesResult: SpeciesResult | null;
   onUpdateAbilities: (abilities: Dnd5eAbility[]) => void;
+  /** Toggle save proficiency for an ability. Only fires while
+   *  manualMode is on (the strip rolls the save instead when
+   *  manual mode is off). */
+  onToggleSaveProficiency?: (ability: keyof Dnd5eAbilityScores) => void;
 }
 
 function rollD20(label: string, bonus: number, onRoll: (r: RollResult) => void) {
@@ -141,6 +145,7 @@ export function CombatTab({
   activeConditions, canEditAny, equipment, isDesktop, manualMode, conditionCatalog,
   liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, onSpendHitDie, getAttackBonus,
   classResultsByKey, subclassResultsByKey, speciesResult, onUpdateAbilities,
+  onToggleSaveProficiency,
 }: Props) {
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
   // Player-pinned equipment surfaces in its own quick-access section.
@@ -181,135 +186,150 @@ export function CombatTab({
   const freeActions = featureFree;
 
   // ── Desktop: single-column flat layout ────────────────────────────────────
+  // No outer CardBlock wrappers — sections are bare label + content rows,
+  // matching the Spells-tab visual language for cross-tab cohesion. The
+  // Saving Throws strip leads the tab (moved out of the left sidebar).
   if (isDesktop) {
     return (
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.deskScrollContent} showsVerticalScrollIndicator={false}>
+
+          <SavingThrowsStrip
+            scores={scores}
+            stats={stats}
+            prof={prof}
+            manualMode={manualMode}
+            onToggleSaveProficiency={onToggleSaveProficiency}
+            onRoll={onRoll}
+            isDesktop
+          />
 
           {/* Attacks */}
-          <CardBlock title="Attacks">
-            {weapons.length === 0 ? (
-              <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
-            ) : (
-              <>
-                <View style={s.attacksHeader}>
-                  <Text style={[s.attacksHdrCell, { flex: 1 }]}>WEAPON</Text>
-                  <Text style={[s.attacksHdrCell, { width: 60, textAlign: 'center' }]}>HIT</Text>
-                  <Text style={[s.attacksHdrCell, { width: 68, textAlign: 'center' }]}>DMG</Text>
-                </View>
-                {weapons.map((w, i) => {
-                  const atkBonus = getAttackBonus(w);
-                  return (
-                    <View key={w.id} style={[s.attackRow, i < weapons.length - 1 && s.attackRowBorder]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.attackName}>{w.name}</Text>
-                        <Text style={s.attackSub}>{w.slot}{w.range ? ` · ${w.range} ft` : ''}</Text>
-                      </View>
+          <SectionLabel style={s.deskSectionLabel} accent>ATTACKS</SectionLabel>
+          {weapons.length === 0 ? (
+            <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
+          ) : (
+            <View>
+              <View style={s.attacksHeader}>
+                <Text style={[s.attacksHdrCell, { flex: 1 }]}>WEAPON</Text>
+                <Text style={[s.attacksHdrCell, { width: 60, textAlign: 'center' }]}>HIT</Text>
+                <Text style={[s.attacksHdrCell, { width: 68, textAlign: 'center' }]}>DMG</Text>
+              </View>
+              {weapons.map((w, i) => {
+                const atkBonus = getAttackBonus(w);
+                return (
+                  <View key={w.id} style={[s.attackRow, i < weapons.length - 1 && s.attackRowBorder]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.attackName}>{w.name}</Text>
+                      <Text style={s.attackSub}>{w.slot}{w.range ? ` · ${w.range} ft` : ''}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={s.atkBtnHit}
+                      onPress={() => rollD20(`${w.name} attack`, atkBonus, onRoll)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
+                    </TouchableOpacity>
+                    {w.damage ? (
                       <TouchableOpacity
-                        style={s.atkBtnHit}
-                        onPress={() => rollD20(`${w.name} attack`, atkBonus, onRoll)}
+                        style={s.atkBtnDmg}
+                        onPress={() => rollDamage(`${w.name} damage`, w.damage!, onRoll)}
                         activeOpacity={0.7}
                       >
-                        <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
+                        <Text style={s.atkBtnDmgText}>{w.damage.split(' ')[0]}</Text>
                       </TouchableOpacity>
-                      {w.damage ? (
-                        <TouchableOpacity
-                          style={s.atkBtnDmg}
-                          onPress={() => rollDamage(`${w.name} damage`, w.damage!, onRoll)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={s.atkBtnDmgText}>{w.damage.split(' ')[0]}</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  );
-                })}
-              </>
-            )}
-          </CardBlock>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           {/* Pinned equipment — anything the player flagged via the
               pin icon on the Gear tab. Sits between Attacks and Spell
               Slots so consumables are within thumb-reach mid-combat. */}
           {pinnedItems.length > 0 && (
-            <CardBlock title="Pinned">
-              {pinnedItems.map((item, i) => (
-                <View key={item.id} style={[s.pinnedRow, i < pinnedItems.length - 1 && s.pinnedRowBorder]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.pinnedName}>{item.name}</Text>
-                    {item.damage ? (
-                      <Text style={s.pinnedSub}>{item.damage}</Text>
-                    ) : item.notes ? (
-                      <Text style={s.pinnedSub} numberOfLines={1}>{item.notes}</Text>
-                    ) : (
-                      <Text style={s.pinnedSub}>{item.slot}{item.equipped ? ' · equipped' : ''}{item.attuned ? ' · attuned' : ''}</Text>
-                    )}
+            <>
+              <SectionLabel style={s.deskSectionLabel} accent>PINNED</SectionLabel>
+              <View>
+                {pinnedItems.map((item, i) => (
+                  <View key={item.id} style={[s.pinnedRow, i < pinnedItems.length - 1 && s.pinnedRowBorder]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.pinnedName}>{item.name}</Text>
+                      {item.damage ? (
+                        <Text style={s.pinnedSub}>{item.damage}</Text>
+                      ) : item.notes ? (
+                        <Text style={s.pinnedSub} numberOfLines={1}>{item.notes}</Text>
+                      ) : (
+                        <Text style={s.pinnedSub}>{item.slot}{item.equipped ? ' · equipped' : ''}{item.attuned ? ' · attuned' : ''}</Text>
+                      )}
+                    </View>
+                    {item.damage && item.slot === 'weapon' ? (
+                      <TouchableOpacity
+                        style={s.atkBtnDmg}
+                        onPress={() => rollDamage(`${item.name} damage`, item.damage!, onRoll)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
-                  {item.damage && item.slot === 'weapon' ? (
-                    <TouchableOpacity
-                      style={s.atkBtnDmg}
-                      onPress={() => rollDamage(`${item.name} damage`, item.damage!, onRoll)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              ))}
-            </CardBlock>
+                ))}
+              </View>
+            </>
           )}
 
           {/* Class Resources */}
           {classResources.length > 0 && (
-            <CardBlock title="Class Resources">
-              {classResources.map((res) => (
-                <View key={res.key} style={s.resourceRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.resourceName}>{res.label}</Text>
-                    <Text style={s.resourceMeta}>
-                      {res.max} uses · {res.recharge === 'short' ? 'short rest' : 'long rest'}
-                    </Text>
+            <>
+              <SectionLabel style={s.deskSectionLabel} accent>CLASS RESOURCES</SectionLabel>
+              <View>
+                {classResources.map((res) => (
+                  <View key={res.key} style={s.resourceRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.resourceName}>{res.label}</Text>
+                      <Text style={s.resourceMeta}>
+                        {res.max} uses · {res.recharge === 'short' ? 'short rest' : 'long rest'}
+                      </Text>
+                    </View>
+                    <View style={s.resourcePips}>
+                      {Array.from({ length: res.max }).map((_, i) => (
+                        <View
+                          key={i}
+                          style={[s.resPip, i < res.current ? s.resPipFull : s.resPipEmpty]}
+                        />
+                      ))}
+                    </View>
                   </View>
-                  <View style={s.resourcePips}>
-                    {Array.from({ length: res.max }).map((_, i) => (
-                      <View
-                        key={i}
-                        style={[s.resPip, i < res.current ? s.resPipFull : s.resPipEmpty]}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ))}
-            </CardBlock>
+                ))}
+              </View>
+            </>
           )}
 
           {/* Active abilities — merged in from the old standalone
               Abilities tab. Sits above Actions since tracked-use class
               features are typically resolved before falling back to
-              generic actions on the same turn. Wrapped in a CardBlock
-              for visual consistency with the other Combat sections —
-              `headerless` suppresses the internal SectionLabel so
-              the CardBlock title strip is the sole header. */}
-          <CardBlock title="Abilities">
-            <AbilitiesCardTab
-              embedded
-              headerless
-              resources={resources}
-              isOwner={canEditAny}
-              classResultsByKey={classResultsByKey}
-              subclassResultsByKey={subclassResultsByKey}
-              speciesResult={speciesResult}
-              characterLevel={stats.level}
-              onUpdateAbilities={onUpdateAbilities}
-            />
-          </CardBlock>
+              generic actions on the same turn. */}
+          <SectionLabel style={s.deskSectionLabel} accent>ABILITIES</SectionLabel>
+          <AbilitiesCardTab
+            embedded
+            headerless
+            resources={resources}
+            isOwner={canEditAny}
+            classResultsByKey={classResultsByKey}
+            subclassResultsByKey={subclassResultsByKey}
+            speciesResult={speciesResult}
+            characterLevel={stats.level}
+            onUpdateAbilities={onUpdateAbilities}
+          />
 
-          {/* Actions */}
-          <CardBlock title="Actions">
+          {/* Standard Actions */}
+          <SectionLabel style={s.deskSectionLabel} accent>STANDARD ACTIONS</SectionLabel>
+          <View>
             <ActionGroup label="Actions" items={actions} color={colors.primary} />
             {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
             {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} color={colors.hpDanger} />}
             {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} color={colors.outline} />}
-          </CardBlock>
+          </View>
 
       </ScrollView>
     );
@@ -323,24 +343,14 @@ export function CombatTab({
 
       {/* Saving throws */}
       <SectionLabel>SAVING THROWS</SectionLabel>
-      <View style={s.savesGrid}>
-        {ABILITY_KEYS.map((abi) => {
-          const isProf = stats.savingThrowProficiencies.includes(abi);
-          const bonus = abilityMod(scores[abi]) + (isProf ? prof : 0);
-          return (
-            <TouchableOpacity
-              key={abi}
-              style={[s.saveRow, isProf && s.saveRowProf]}
-              onPress={() => rollD20(`${ABILITY_SHORT[abi]} save`, bonus, onRoll)}
-              activeOpacity={0.7}
-            >
-              <View style={[s.profDot, isProf && s.profDotFilled]} />
-              <Text style={[s.saveAbility, isProf && s.saveAbilityProf]}>{ABILITY_SHORT[abi]}</Text>
-              <Text style={[s.saveBonus, isProf && s.saveBonusProf]}>{fmtMod(bonus)}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <SavingThrowsStrip
+        scores={scores}
+        stats={stats}
+        prof={prof}
+        manualMode={manualMode}
+        onToggleSaveProficiency={onToggleSaveProficiency}
+        onRoll={onRoll}
+      />
 
       {/* Attacks */}
       <SectionLabel style={{ marginTop: 14 }} accent>ATTACKS</SectionLabel>
@@ -647,6 +657,59 @@ export function ConditionsSection({
   );
 }
 
+/**
+ * Saving Throws strip — six rollable cells (STR/DEX/CON/INT/WIS/CHA),
+ * one per ability. Shared between desktop and mobile; desktop renders a
+ * 6-across horizontal strip and mobile keeps the 3-across grid.
+ *
+ * Tap behavior depends on Manual Mode: when off, the cell rolls a save
+ * (d20 + ability mod + proficiency); when on, the cell toggles save
+ * proficiency for that ability (replaces the old left-sidebar editor).
+ */
+function SavingThrowsStrip({
+  scores, stats, prof, manualMode, onToggleSaveProficiency, onRoll, isDesktop,
+}: {
+  scores: Dnd5eAbilityScores;
+  stats: Dnd5eStats;
+  prof: number;
+  manualMode?: boolean;
+  onToggleSaveProficiency?: (ability: keyof Dnd5eAbilityScores) => void;
+  onRoll: (r: RollResult) => void;
+  isDesktop?: boolean;
+}) {
+  return (
+    <View style={isDesktop ? s.savesStripDesktop : s.savesGrid}>
+      {ABILITY_KEYS.map((abi) => {
+        const isProf = stats.savingThrowProficiencies.includes(abi);
+        const bonus = abilityMod(scores[abi]) + (isProf ? prof : 0);
+        const handlePress = () => {
+          if (manualMode && onToggleSaveProficiency) {
+            onToggleSaveProficiency(abi);
+          } else {
+            rollD20(`${ABILITY_SHORT[abi]} save`, bonus, onRoll);
+          }
+        };
+        return (
+          <TouchableOpacity
+            key={abi}
+            style={[
+              isDesktop ? s.saveCellDesktop : s.saveRow,
+              isProf && s.saveRowProf,
+              manualMode && s.saveCellManual,
+            ]}
+            onPress={handlePress}
+            activeOpacity={0.7}
+          >
+            <View style={[s.profDot, isProf && s.profDotFilled]} />
+            <Text style={[s.saveAbility, isProf && s.saveAbilityProf]}>{ABILITY_SHORT[abi]}</Text>
+            <Text style={[s.saveBonus, isProf && s.saveBonusProf]}>{fmtMod(bonus)}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 function ActionGroup({ label, items, color }: { label: string; items: Dnd5eFeature[]; color: string }) {
   // Group-level collapse: groups start open so all actions are visible
   // at a glance; the chevron on the header lets the player fold groups
@@ -700,18 +763,6 @@ function ActionRow({ feature, color }: { feature: Dnd5eFeature; color: string })
   );
 }
 
-function CardBlock({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <View style={s.card}>
-      <View style={s.cardHead}>
-        <Text style={s.cardTitle}>{title}</Text>
-        {hint && <Text style={s.cardHint}>{hint}</Text>}
-      </View>
-      <View style={s.cardBody}>{children}</View>
-    </View>
-  );
-}
-
 function SectionLabel({ children, style, accent }: { children: string; style?: any; accent?: boolean }) {
   return (
     <View style={[s.sectionRow, style]}>
@@ -736,32 +787,14 @@ function PassiveCard({ label, value, suffix, editable, onPress }: { label: strin
 }
 
 const s = StyleSheet.create({
-  // ── Desktop 2-column layout
-  desktopRoot: {
-    flex: 1, flexDirection: 'row', overflow: 'hidden',
-  },
-  col: { flex: 1 },
-  colContent: { padding: 8, gap: 6 },
-  colDivider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.outlineVariant },
-
-  // Card blocks
-  card: {
-    backgroundColor: colors.surfaceContainer,
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, overflow: 'hidden',
-  },
-  cardHead: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 10, paddingVertical: 7,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
-  },
-  cardTitle: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '800',
-    letterSpacing: 1, textTransform: 'uppercase', color: colors.onSurface,
-  },
-  cardHint: { fontSize: 8, fontFamily: fonts.label, color: colors.outline },
-  cardBody: { paddingHorizontal: 10, paddingVertical: 8 },
+  // ── Desktop layout
+  /** Desktop scroll padding. No `gap` — section spacing is handled by the
+   *  `marginTop` on each SectionLabel so the first section (saves strip)
+   *  hugs the top while subsequent sections get breathing room. */
+  deskScrollContent: { padding: 12, paddingTop: 12 },
+  /** Top margin applied to every SectionLabel after the first one, so the
+   *  bare (no-CardBlock) sections still read as discrete blocks. */
+  deskSectionLabel: { marginTop: 18 },
 
   // Attacks
   attacksHeader: {
@@ -955,8 +988,11 @@ const s = StyleSheet.create({
     fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 15,
   },
 
-  // Mobile saving throws
+  // Saving throws (shared mobile + desktop)
+  /** Mobile grid: 3 cells per row, wrap. */
   savesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  /** Desktop strip: single horizontal row of 6 equal-width cells. */
+  savesStripDesktop: { flexDirection: 'row', gap: 6 },
   saveRow: {
     width: '30.5%', flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 10, paddingVertical: 9,
@@ -964,6 +1000,19 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
   },
+  /** Desktop cell: same anatomy as the mobile saveRow but flex-1 for
+   *  even distribution across 6 columns instead of fixed-percent width. */
+  saveCellDesktop: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+  },
+  /** Visual hint when Manual Mode is on so tapping toggles proficiency
+   *  instead of rolling — dashed primary border mirrors the editable-field
+   *  affordance used elsewhere on the sheet. */
+  saveCellManual: { borderColor: colors.primary, borderStyle: 'dashed' as const },
   saveRowProf: { borderColor: `${colors.primary}55`, backgroundColor: `${colors.primaryContainer}22` },
   profDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: colors.outline },
   profDotFilled: { backgroundColor: colors.primary, borderColor: colors.primary },

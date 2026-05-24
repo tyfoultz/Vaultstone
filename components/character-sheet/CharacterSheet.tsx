@@ -2010,6 +2010,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             subclassResultsByKey={subclassResultsByKey}
             speciesResult={speciesResult}
             onUpdateAbilities={(abilities) => persistResources({ ...resources, abilities })}
+            onToggleSaveProficiency={manualMode ? (ability) => {
+              const profs = [...(stats.savingThrowProficiencies ?? [])];
+              const next = profs.includes(ability)
+                ? profs.filter((p) => p !== ability)
+                : [...profs, ability];
+              persistStats({ ...stats, savingThrowProficiencies: next });
+            } : undefined}
           />
         );
       case 'spells':
@@ -2542,40 +2549,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               })}
             </View>
 
-            {/* ── Saving Throws ─────────────────────────────────────── */}
-            <View style={s.deskSection}>
-              <Text style={s.deskSectionLabel}>Saving Throws</Text>
-              {ABILITY_KEYS.map((key) => {
-                const mod = abilityMod(scores[key]);
-                const isProficient = stats.savingThrowProficiencies?.includes(key) ?? false;
-                const saveBonus = mod + (isProficient ? prof : 0);
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    style={s.deskAbilityRow}
-                    onPress={() => {
-                      if (manualMode) {
-                        const profs = [...(stats.savingThrowProficiencies ?? [])];
-                        if (isProficient) {
-                          persistStats({ ...stats, savingThrowProficiencies: profs.filter((s) => s !== key) });
-                        } else {
-                          profs.push(key);
-                          persistStats({ ...stats, savingThrowProficiencies: profs });
-                        }
-                      } else {
-                        const r = Math.floor(Math.random() * 20) + 1;
-                        handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [r], bonus: saveBonus, total: r + saveBonus, crit: r === 20, fumble: r === 1 });
-                      }
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
-                    <Text style={s.deskAbilName}>{capitalize(key)}</Text>
-                    <Text style={[s.deskAbilSaveVal, isProficient && { color: colors.primary }]}>{fmtMod(saveBonus)}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {/* Saving throws were here; they now live at the top of the
+                Combat tab (see CombatTab → SavingThrowsStrip) so the
+                most-rolled stat on a turn is in the player's primary
+                eyeline instead of tucked into the left rail. */}
 
             {/* ── Campaign link ─────────────────────────────────────── */}
             <TouchableOpacity
