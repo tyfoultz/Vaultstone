@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, useWindowDimensions, Pressable,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, radius, spacing, MarkdownText } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5ePreparedSpell } from '@vaultstone/types';
@@ -502,6 +503,7 @@ export function SpellsTab({
               </TouchableOpacity>
             ) : null}
           </View>
+          <LevelGradient />
           <SpellTableHeader />
           {cantrips.map((spell) => (
             <SpellRow
@@ -555,6 +557,7 @@ export function SpellsTab({
               </TouchableOpacity>
             ) : null}
           </View>
+          <LevelGradient />
           {spells.length > 0 ? <SpellTableHeader /> : null}
           {spells.map((spell) => {
             const prep = isPrepared(spell);
@@ -648,6 +651,23 @@ function SpellTableHeader() {
   );
 }
 
+/**
+ * Thin horizontal gradient strip rendered between each level header and
+ * the spell list below it. Primary → rose-pink → transparent reads as a
+ * "magical seam" — quiet decoration that hints at arcane content
+ * without competing with the table rows for attention.
+ */
+function LevelGradient() {
+  return (
+    <LinearGradient
+      colors={[colors.primary, '#ec7dca', 'transparent']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={s.levelGradient}
+    />
+  );
+}
+
 function SpellRow({
   spell, slot, prepared, alwaysPrepared, canToggle, onTogglePrepared, onToggleAlwaysPrepared, togglesBlocked, onCast, onSaveNotes,
 }: {
@@ -678,6 +698,10 @@ function SpellRow({
   const toggleDisabled = !canToggle || alwaysPrepared || (togglesBlocked && !prepared);
   const accentColor = schoolColor(spell.school);
   const iconName = schoolIcon(spell.school);
+  // Mute the bar (and meta-line school text) on unprepared leveled spells
+  // so prepared ones pop visually — the colored bars become a scan signal
+  // for "what's actually castable today" rather than just decoration.
+  const barColor = prepared ? accentColor : `${accentColor}55`;
 
   // PREP-column tap handler — what the user gets depends on state:
   //   cantrip       → no-op (always cast-ready, no slot to spend)
@@ -703,10 +727,26 @@ function SpellRow({
         delayLongPress={300}
         activeOpacity={0.7}
       >
-        <View style={[s.spellCardBar, { backgroundColor: accentColor }]} />
+        <View style={[s.spellCardBar, { backgroundColor: barColor }]} />
         <View style={s.spellCardBody}>
           <View style={s.spellTitleRow}>
             <MaterialCommunityIcons name={iconName} size={14} color={accentColor} style={{ marginRight: 2 }} />
+            {spell.concentration ? (
+              <MaterialCommunityIcons
+                name="atom-variant"
+                size={12}
+                color={colors.primary}
+                accessibilityLabel="Requires concentration"
+              />
+            ) : null}
+            {isCantrip ? (
+              <MaterialCommunityIcons
+                name="infinity"
+                size={12}
+                color={accentColor}
+                accessibilityLabel="At-will cantrip"
+              />
+            ) : null}
             <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
             <View style={s.spellRangeCol}>
               <Text style={s.spellColText} numberOfLines={1}>{spell.range ?? '—'}</Text>
@@ -749,10 +789,7 @@ function SpellRow({
               chip + R / C badges from the prior row layout. */}
           <View style={s.spellMetaSub}>
             {spell.school ? (
-              <Text style={[s.spellMetaText, { color: accentColor }]}>{spell.school.toLowerCase()}</Text>
-            ) : null}
-            {spell.concentration ? (
-              <Text style={s.spellMetaText}>· concentration</Text>
+              <Text style={[s.spellMetaText, { color: prepared ? accentColor : `${accentColor}99` }]}>{spell.school.toLowerCase()}</Text>
             ) : null}
             {spell.ritual ? (
               <Text style={s.spellMetaText}>· ritual</Text>
@@ -1094,6 +1131,14 @@ const s = StyleSheet.create({
   prepChipTextCast: { color: colors.primary },
   prepChipTextUnprep: { color: colors.outline },
 
+  /** Thin gradient strip between the level title and the table header.
+   *  Quiet decoration — feels like a magical seam without competing
+   *  with the spell rows for attention. */
+  levelGradient: {
+    height: 2, borderRadius: 1,
+    marginHorizontal: 4, marginBottom: 6,
+    opacity: 0.45,
+  },
   /** Small + affordance on each level header — opens the catalog
    *  spell picker (Manage Spells flow). Matches the equivalent
    *  affordance on the Combat tab section headers. */
