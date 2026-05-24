@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, useWindowDimensions, Pressable,
+  View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, useWindowDimensions, Pressable, Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -269,6 +269,7 @@ export function SpellsTab({
     : computedPreparedLimit;
 
   return (
+    <>
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
 
       {/* ── Spellcasting stats header ── */}
@@ -297,109 +298,44 @@ export function SpellsTab({
             <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
             <Text style={s.statLabel}>SAVE DC</Text>
           </TouchableOpacity>
-          <View style={s.statDivider} />
-          <TouchableOpacity
-            style={s.statBlock}
-            disabled={!manualMode || !onEditField}
-            onPress={manualMode && onEditField
-              ? () => onEditField('cantripsLimit', cantripLimit ?? totalCantripsKnown)
-              : undefined}
-            activeOpacity={manualMode && onEditField ? 0.7 : 1}
-          >
-            <Text style={[
-              s.statValue,
-              cantripLimit !== undefined && totalCantripsKnown >= cantripLimit && s.statValueAtLimit,
-            ]}>
-              {cantripLimit !== undefined
-                ? `${totalCantripsKnown}/${cantripLimit}`
-                : String(totalCantripsKnown)}
-            </Text>
-            <Text style={s.statLabel}>CANTRIPS</Text>
-          </TouchableOpacity>
-          <View style={s.statDivider} />
-          <TouchableOpacity
-            style={s.statBlock}
-            disabled={!manualMode || !onEditField}
-            onPress={manualMode && onEditField
-              ? () => onEditField('preparedLimit', preparedLimit ?? totalLeveledPrepared)
-              : undefined}
-            activeOpacity={manualMode && onEditField ? 0.7 : 1}
-          >
-            <Text style={[
-              s.statValue,
-              preparedLimit !== undefined && totalLeveledPrepared >= preparedLimit && s.statValueAtLimit,
-            ]}>
-              {preparedLimit !== undefined
-                ? `${totalLeveledPrepared}/${preparedLimit}`
-                : String(totalLeveledPrepared)}
-            </Text>
-            <Text style={s.statLabel}>PREPARED</Text>
-          </TouchableOpacity>
+          {/* Action buttons take the slots where CANTRIPS + PREPARED
+              count stats used to live. The cantrips header already
+              shows "X of Y cantrips" and the per-level + buttons add
+              spells, so the at-a-glance counts were redundant here. */}
+          {isOwner && onOpenManage ? (
+            <>
+              <View style={s.statDivider} />
+              <TouchableOpacity
+                style={s.statActionBlock}
+                onPress={onOpenManage}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="bookshelf" size={22} color={colors.primary} />
+                <Text style={s.statActionLabel}>MANAGE SPELLS</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
+          {spellcastingExplainers && spellcastingExplainers.length > 0 ? (
+            <>
+              <View style={s.statDivider} />
+              <TouchableOpacity
+                style={s.statActionBlock}
+                onPress={() => setExplainerOpen(true)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="book-open-variant" size={22} color={colors.primary} />
+                <Text style={s.statActionLabel}>HOW IT WORKS</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
         </View>
       )}
 
-      {/* ── How spellcasting works (collapsible per-class explainer) ── */}
-      {spellcastingExplainers && spellcastingExplainers.length > 0 && (
-        <View style={s.explainerCard}>
-          <TouchableOpacity
-            style={s.explainerHeader}
-            onPress={() => setExplainerOpen((v) => !v)}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.primary} />
-            <Text style={s.explainerTitle}>
-              {spellcastingExplainers.length === 1
-                ? `How ${spellcastingExplainers[0].className} spellcasting works`
-                : 'How spellcasting works'}
-            </Text>
-            <MaterialCommunityIcons
-              name={explainerOpen ? 'chevron-up' : 'chevron-down'}
-              size={16}
-              color={colors.outline}
-            />
-          </TouchableOpacity>
-          {explainerOpen && (
-            <View style={s.explainerBody}>
-              {spellcastingExplainers.map((ex, i) => (
-                <View key={ex.className} style={i > 0 ? s.explainerSection : null}>
-                  {spellcastingExplainers.length > 1 && (
-                    <Text style={s.explainerClassLabel}>{ex.className.toUpperCase()}</Text>
-                  )}
-                  {/* Synthesized core stats — always shown so even classes
-                      with thin/missing prose (5.1 SRD, imported homebrew
-                      Artificer) surface the actual numbers a player needs
-                      at the table. */}
-                  <View style={s.synthGrid}>
-                    {ex.spellcastingAbility && (
-                      <SynthCell label="Ability" value={ex.spellcastingAbility} />
-                    )}
-                    {ex.spellcastingAbility && (
-                      <SynthCell label="Save DC" value={`8 + prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
-                    )}
-                    {ex.spellcastingAbility && (
-                      <SynthCell label="Spell Attack" value={`prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
-                    )}
-                    {ex.cantripsKnown !== undefined && (
-                      <SynthCell label="Cantrips Known" value={String(ex.cantripsKnown)} />
-                    )}
-                    {ex.spellsKnownOrPrepared !== undefined && ex.preparedLabel && (
-                      <SynthCell
-                        label={ex.preparedLabel}
-                        value={ex.preparedFormula
-                          ? `${ex.spellsKnownOrPrepared} (${ex.preparedFormula})`
-                          : String(ex.spellsKnownOrPrepared)}
-                      />
-                    )}
-                  </View>
-                  {ex.description ? (
-                    <MarkdownText style={s.explainerText}>{ex.description}</MarkdownText>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      )}
+      {/* "How spellcasting works" lived here as a collapsible card; it
+          now opens as a modal triggered from the HOW IT WORKS button
+          in the stats strip above. Keeps the top of the tab leading
+          with action surfaces (search + Manage + How it works) instead
+          of pushing them below a tall explainer card. */}
 
       {/* ── Search + Manage ── */}
       <View style={s.searchRow}>
@@ -613,6 +549,65 @@ export function SpellsTab({
 
       <View style={{ height: 24 }} />
     </ScrollView>
+
+    {/* "How spellcasting works" modal — replaces the standalone
+        collapsible card. Shows synthesized per-class stats + the
+        class-shipped prose. Same modal shape as the AddSheetModal
+        chassis on the Combat tab. */}
+    {explainerOpen && spellcastingExplainers && spellcastingExplainers.length > 0 ? (
+      <Modal visible transparent animationType="fade" onRequestClose={() => setExplainerOpen(false)}>
+        <Pressable style={s.explainerModalBackdrop} onPress={() => setExplainerOpen(false)}>
+          <Pressable style={s.explainerModalCard} onPress={() => {}}>
+            <View style={s.explainerModalHeader}>
+              <MaterialCommunityIcons name="book-open-variant" size={16} color={colors.primary} />
+              <Text style={s.explainerModalTitle}>
+                {spellcastingExplainers.length === 1
+                  ? `How ${spellcastingExplainers[0].className} spellcasting works`
+                  : 'How spellcasting works'}
+              </Text>
+              <TouchableOpacity onPress={() => setExplainerOpen(false)} hitSlop={10} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ paddingBottom: 8 }}>
+              {spellcastingExplainers.map((ex, i) => (
+                <View key={ex.className} style={i > 0 ? s.explainerSection : null}>
+                  {spellcastingExplainers.length > 1 && (
+                    <Text style={s.explainerClassLabel}>{ex.className.toUpperCase()}</Text>
+                  )}
+                  <View style={s.synthGrid}>
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Ability" value={ex.spellcastingAbility} />
+                    )}
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Save DC" value={`8 + prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
+                    )}
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Spell Attack" value={`prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
+                    )}
+                    {ex.cantripsKnown !== undefined && (
+                      <SynthCell label="Cantrips Known" value={String(ex.cantripsKnown)} />
+                    )}
+                    {ex.spellsKnownOrPrepared !== undefined && ex.preparedLabel && (
+                      <SynthCell
+                        label={ex.preparedLabel}
+                        value={ex.preparedFormula
+                          ? `${ex.spellsKnownOrPrepared} (${ex.preparedFormula})`
+                          : String(ex.spellsKnownOrPrepared)}
+                      />
+                    )}
+                  </View>
+                  {ex.description ? (
+                    <MarkdownText style={s.explainerText}>{ex.description}</MarkdownText>
+                  ) : null}
+                </View>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    ) : null}
+    </>
   );
 }
 
@@ -946,6 +941,30 @@ const s = StyleSheet.create({
   statValue: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
   statValueAtLimit: { color: colors.primary },
   statLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.5, color: colors.outline },
+  /** Action button that sits in the stats strip in place of a stat
+   *  block. Same flex sizing so the row stays evenly distributed;
+   *  icon + label replace the numeric value + label pairing. */
+  statActionBlock: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 2 },
+  statActionLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, color: colors.primary, textAlign: 'center' as const,
+  },
+
+  // "How spellcasting works" modal — replaces the standalone explainer
+  // card that used to sit between the stats strip and the search row.
+  explainerModalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  explainerModalCard: {
+    width: '100%', maxWidth: 520,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 12, padding: 16, gap: 12,
+  },
+  explainerModalHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  explainerModalTitle: {
+    flex: 1, fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
+  },
   statDivider: { width: StyleSheet.hairlineWidth, height: 30, backgroundColor: colors.outlineVariant, alignSelf: 'center' },
 
   // How-spellcasting-works collapsible card. The default is collapsed
