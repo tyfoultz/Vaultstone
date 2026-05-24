@@ -25,7 +25,6 @@ const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
   7: { max: 0, remaining: 0 }, 8: { max: 0, remaining: 0 }, 9: { max: 0, remaining: 0 },
 };
 
-const CHIP_LABELS = ['CANTRIP', '1ST', '2ND', '3RD', '4TH', '5TH', '6TH', '7TH', '8TH', '9TH'];
 const LEVEL_LABELS = ['', '1ST LEVEL', '2ND LEVEL', '3RD LEVEL', '4TH LEVEL', '5TH LEVEL', '6TH LEVEL', '7TH LEVEL', '8TH LEVEL', '9TH LEVEL'];
 
 /**
@@ -70,8 +69,9 @@ function schoolIcon(school?: string | null): React.ComponentProps<typeof Materia
   return SCHOOL_ICONS[school.toLowerCase()] ?? 'star-four-points';
 }
 
-type FilterKey = 'all' | 'conc' | number;
-type StatusFilter = 'all' | 'prepared' | 'unprepared';
+// Filter state was an enum for level / conc / status; the chip strip
+// that drove it is gone. A single `prepOnly` boolean — toggled from the
+// PREPARED button next to the search box — covers the common case.
 
 interface Props {
   stats: Dnd5eStats;
@@ -145,8 +145,7 @@ export function SpellsTab({
   const { width } = useWindowDimensions();
   const isWide = width >= 560;
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<FilterKey>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [prepOnly, setPrepOnly] = useState(false);
 
   const spellAbility = effectiveSpellcastingAbility ?? stats.spellcastingAbility;
   const isSpellcaster = !!spellAbility;
@@ -172,18 +171,6 @@ export function SpellsTab({
   const spellAttack = manualMode && stats.spellAttackOverride != null
     ? stats.spellAttackOverride
     : computedSpellAttack;
-
-  const availableLevels = useMemo(() => {
-    const levels = new Set<number>();
-    preparedSpells.forEach((sp) => levels.add(sp.level));
-    (spellbook ?? []).forEach((sp) => levels.add(sp.level));
-    if (spellSlots) {
-      ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).forEach((l) => {
-        if (spellSlots[l].max > 0) levels.add(l);
-      });
-    }
-    return [...levels].sort((a, b) => a - b);
-  }, [preparedSpells, spellbook, spellSlots]);
 
   // Source list: prefer the full spellbook so unprepared spells render
   // too. Falls back to preparedSpells when no spellbook was passed
@@ -221,13 +208,10 @@ export function SpellsTab({
         sp.source?.toLowerCase().includes(q)
       );
     }
-    if (filter === 'conc') spells = spells.filter((sp) => sp.concentration);
-    else if (filter !== 'all') spells = spells.filter((sp) => sp.level === filter);
-    if (statusFilter === 'prepared') spells = spells.filter(isPrepared);
-    else if (statusFilter === 'unprepared') spells = spells.filter((sp) => !isPrepared(sp));
+    if (prepOnly) spells = spells.filter(isPrepared);
     return spells;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceList, search, filter, statusFilter, preparedKeys]);
+  }, [sourceList, search, prepOnly, preparedKeys]);
 
   const byName = (a: Dnd5ePreparedSpell, b: Dnd5ePreparedSpell) => a.name.localeCompare(b.name);
   const cantrips = filteredSpells.filter((sp) => sp.level === 0).sort(byName);
@@ -235,10 +219,7 @@ export function SpellsTab({
     level: lvl,
     spells: filteredSpells.filter((sp) => sp.level === lvl).sort(byName),
     slot: spellSlots?.[lvl] ?? null,
-  })).filter((g) => {
-    if (filter !== 'all' && filter !== 'conc' && filter !== g.level) return false;
-    return g.spells.length > 0 || (g.slot && g.slot.max > 0);
-  });
+  })).filter((g) => g.spells.length > 0 || (g.slot && g.slot.max > 0));
 
   // Counts for the stats-row cells (CANTRIPS + PREPARED). Sum the limits
   // across explainer entries so multiclass shows the total (e.g.
@@ -337,7 +318,7 @@ export function SpellsTab({
           with action surfaces (search + Manage + How it works) instead
           of pushing them below a tall explainer card. */}
 
-      {/* ── Search + Manage ── */}
+      {/* ── Search + Prepared toggle ── */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
           <MaterialCommunityIcons name="magnify" size={15} color={colors.outline} />
@@ -354,50 +335,23 @@ export function SpellsTab({
             </TouchableOpacity>
           )}
         </View>
-        {/* Manage Spells button was here; per-section + buttons on each
-            level header now own the add affordance (replaces the
-            floating top-level button so the search row stays clean). */}
-      </View>
-
-      {/* ── Level filter chips ── */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filtersRow}>
-        <FilterChip label="ALL" active={filter === 'all'} onPress={() => setFilter('all')} />
-        {availableLevels.map((lvl) => (
-          <FilterChip
-            key={lvl}
-            label={CHIP_LABELS[lvl]}
-            active={filter === lvl}
-            onPress={() => setFilter(filter === lvl ? 'all' : lvl)}
-          />
-        ))}
+        {/* Prepared filter — only one toggle replaces the old level /
+            conc / unprepared chip strip. Most players reach for "show
+            only what I can actually cast right now" and either scroll
+            or search for the rest. */}
         <TouchableOpacity
-          style={[s.chip, filter === 'conc' && s.chipActive]}
-          onPress={() => setFilter(filter === 'conc' ? 'all' : 'conc')}
+          style={[s.prepFilterBtn, prepOnly && s.prepFilterBtnActive]}
+          onPress={() => setPrepOnly((v) => !v)}
           activeOpacity={0.7}
         >
           <MaterialCommunityIcons
-            name="diamond-stone"
-            size={11}
-            color={filter === 'conc' ? colors.onPrimary : colors.outline}
-            style={{ marginRight: 4 }}
+            name={prepOnly ? 'check-circle' : 'circle-outline'}
+            size={13}
+            color={prepOnly ? colors.onPrimary : colors.outline}
           />
-          <Text style={[s.chipText, filter === 'conc' && s.chipTextActive]}>CONC</Text>
+          <Text style={[s.prepFilterBtnText, prepOnly && s.prepFilterBtnTextActive]}>PREPARED</Text>
         </TouchableOpacity>
-
-        {/* Vertical divider so the prep-status filters read as a
-            distinct group from the level / conc filters. */}
-        <View style={s.chipDivider} />
-        <FilterChip
-          label="PREPARED"
-          active={statusFilter === 'prepared'}
-          onPress={() => setStatusFilter(statusFilter === 'prepared' ? 'all' : 'prepared')}
-        />
-        <FilterChip
-          label="UNPREPARED"
-          active={statusFilter === 'unprepared'}
-          onPress={() => setStatusFilter(statusFilter === 'unprepared' ? 'all' : 'unprepared')}
-        />
-      </ScrollView>
+      </View>
 
       {/* ── Concentration banner ── */}
       {concentration && (
@@ -612,14 +566,6 @@ export function SpellsTab({
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────────
-
-function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={[s.chip, active && s.chipActive]} onPress={onPress} activeOpacity={0.7}>
-      <Text style={[s.chipText, active && s.chipTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
 
 // 1 → "1st", 2 → "2nd", etc. — used in the level section header.
 function ordinal(n: number): string {
@@ -1031,29 +977,22 @@ const s = StyleSheet.create({
     borderRadius: radius.lg, paddingHorizontal: 10, paddingVertical: 7,
   },
   searchInput: { flex: 1, fontSize: 12, fontFamily: fonts.body, color: colors.onSurface },
-  manageBtn: {
-    flexDirection: 'row', alignItems: 'center',
+  /** Prepared toggle that sits to the right of the search box —
+   *  outline when off, primary fill when on. Single toggle replaces
+   *  the entire FilterChip strip that used to live below the search
+   *  (level chips, conc, prepared, unprepared). */
+  prepFilterBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 7,
-    borderWidth: 1.5, borderColor: colors.primary,
-    borderRadius: radius.lg, justifyContent: 'center',
-  },
-  manageBtnText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, color: colors.primary },
-
-  // Filter chips
-  filtersRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingBottom: 10 },
-  chipDivider: {
-    width: StyleSheet.hairlineWidth, height: 18,
-    backgroundColor: colors.outlineVariant, marginHorizontal: 4,
-  },
-  chip: {
-    flexDirection: 'row',
-    paddingHorizontal: 10, paddingVertical: 5,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: 100, alignItems: 'center', justifyContent: 'center', minWidth: 36,
+    borderRadius: radius.lg,
   },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
-  chipTextActive: { color: colors.onPrimary },
+  prepFilterBtnActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  prepFilterBtnText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.outline,
+  },
+  prepFilterBtnTextActive: { color: colors.onPrimary },
 
   // Concentration banner
   concBanner: {
