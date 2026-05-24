@@ -6,6 +6,7 @@ import {
   ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform, useWindowDimensions, Alert,
 } from 'react-native';
 import { ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -2257,8 +2258,14 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         <View style={s.deskShell}>
 
           {/* ── Left rail ───────────────────────────────────────────── */}
-          <ScrollView
+          <LinearGradient
+            colors={[`${colors.primary}26`, colors.surfaceContainerLowest, colors.surfaceContainerLowest]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0.4, y: 1 }}
             style={s.deskRail}
+          >
+          <ScrollView
+            style={s.deskRailInner}
             contentContainerStyle={s.deskRailContent}
             showsVerticalScrollIndicator={false}
           >
@@ -2571,6 +2578,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             </TouchableOpacity>
 
           </ScrollView>
+          </LinearGradient>
 
           {/* ── Center content pane ─────────────────────────────────── */}
           <View style={s.deskContent}>
@@ -2604,7 +2612,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
           {/* ── Activity log rail (right side, collapsible) ─────────── */}
           {!rightRailCollapsed && (
-            <View style={s.skillsRail}>
+            <LinearGradient
+              colors={[`${colors.gm}26`, colors.surfaceContainerLowest, colors.surfaceContainerLowest]}
+              start={{ x: 1, y: 0 }}
+              end={{ x: 0.6, y: 1 }}
+              style={s.skillsRail}
+            >
               <View style={s.skillsRailHead}>
                 <View>
                   <Text style={s.skillsRailTitle}>Activity Log</Text>
@@ -2633,7 +2646,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   })}
                 </ScrollView>
               )}
-            </View>
+            </LinearGradient>
           )}
           {rightRailCollapsed && (
             <TouchableOpacity style={s.skillsRailCollapsed} onPress={() => setRightRailCollapsed(false)} activeOpacity={0.7}>
@@ -3907,15 +3920,21 @@ const s = StyleSheet.create({
   // flex item that can grow). Lock the width with flexBasis +
   // flexGrow/flexShrink so the rail stays exactly 260px regardless of
   // the parent's flex direction.
+  /** Left rail container — width + flex constraints live here so the
+   *  LinearGradient wrapper sizes correctly. Background is painted by
+   *  the gradient (primary-tinted top-left fading to surface) instead
+   *  of a flat fill. */
   deskRail: {
     width: 260,
     flexBasis: 260,
     flexGrow: 0,
     flexShrink: 0,
-    backgroundColor: colors.surfaceContainerLowest,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.outlineVariant,
   },
+  /** Inner ScrollView — transparent so the LinearGradient wrapper
+   *  shows through. flex: 1 to fill the gradient container. */
+  deskRailInner: { flex: 1, backgroundColor: 'transparent' },
   deskRailContent: {
     flexDirection: 'column',
     paddingBottom: 24,
@@ -4847,9 +4866,12 @@ const s = StyleSheet.create({
   },
 
   // ── Right skills rail ────────────────────────────────────────────────────
+  /** Right activity rail container — sizing + border live here; the
+   *  LinearGradient wrapper paints the background (gm-orange tint top-
+   *  right fading to surface) so the rail mirrors the left rail's
+   *  purple gradient with the team's alt accent. */
   skillsRail: {
     width: 200, flexShrink: 0,
-    backgroundColor: colors.surfaceContainerLowest,
     borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.outlineVariant,
     flexDirection: 'column',
   },
