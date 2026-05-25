@@ -2385,7 +2385,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const portraitContent = portraitUploading
     ? <ActivityIndicator color={colors.primary} size="small" />
     : (character as any).avatar_url
-      ? <Image source={{ uri: (character as any).avatar_url }} style={isDesktop ? s.deskPortraitImg : s.heroPortraitImg} />
+      ? <Image source={{ uri: (character as any).avatar_url }} resizeMode="cover" style={isDesktop ? s.deskPortraitImg : s.heroPortraitImg} />
       : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 32 : 28} color={colors.outline} />;
 
   return (
@@ -4510,21 +4510,24 @@ const s = StyleSheet.create({
     borderColor: 'rgba(226,75,74,0.4)',
     backgroundColor: 'rgba(226,75,74,0.06)',
   },
-  /** 3:4 portrait that fills the card's full vertical space. */
-  /** Explicit 96×128 (3:4) instead of `aspectRatio + alignSelf:stretch`
-   *  — that combo collapses the portrait to ~0 width on RN Web when
-   *  the parent's height is content-driven (no portrait visible at all
-   *  in playtest). Fixed dimensions are predictable; card height becomes
-   *  max(portrait, body) which still reads well across content states. */
+  /** Fixed-width portrait that stretches to match the body column's
+   *  height so the bottom edges line up with the senses row. Width
+   *  stays 96 (avoids the aspectRatio+stretch trap on RN Web that
+   *  collapsed the portrait to 0 width when the parent's height was
+   *  content-driven); minHeight 128 keeps the 3:4 minimum so short-
+   *  content cards still get a reasonably tall avatar. */
   heroPortrait: {
-    width: 96, height: 128,
+    width: 96, minHeight: 128, alignSelf: 'stretch',
     borderRadius: 6,
     borderWidth: 1, borderColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center', justifyContent: 'center',
     overflow: 'hidden', flexShrink: 0,
   },
-  heroPortraitImg: { width: 96, height: 128 },
+  /** Inner image fills the (potentially taller) portrait container.
+   *  Image's own aspect ratio is preserved by resizeMode='cover';
+   *  excess is cropped top/bottom rather than stretched. */
+  heroPortraitImg: { width: '100%', height: '100%' },
   heroBody: { flex: 1, minWidth: 0, gap: 6 },
   /** First row of the body — AC shield inline at left, name/subtitle
    *  block flexing to fill the remainder. Right padding clears the
