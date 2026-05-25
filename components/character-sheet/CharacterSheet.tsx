@@ -1097,10 +1097,17 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     // so re-mounting the sheet (e.g. after the level-up wizard's
     // router.replace) hands back the already-subscribed channel —
     // and adding `.on('postgres_changes', ...)` to a subscribed
-    // channel throws. A unique name per mount sidesteps the cache
-    // entirely, mirroring the world-layout's pattern.
-    const channelName = `character:${id}:${Date.now()}`;
-    const channel = supabase
+    // channel throws. A unique name per mount sidesteps the cache.
+    //
+    // Date.now() alone can collide when the effect's cleanup + re-run
+    // happen in the same millisecond (React StrictMode double-invoke,
+    // split-pane remount races) — append a random suffix so the name
+    // can never alias, and wrap the whole setup in try/catch so a
+    // surprise collision doesn't white-screen the sheet.
+    const channelName = `character:${id}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
       .channel(channelName)
       .on(
         'postgres_changes',
@@ -1131,7 +1138,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         },
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    } catch (err) {
+      // Last-ditch guard: if Supabase still rejects the channel
+      // (cache collision, network race), skip realtime instead of
+      // tearing the whole sheet down to a white screen. The sheet
+      // still loads its initial data fine — the user just won't see
+      // other-viewer mutations live until next refresh.
+      console.warn('[CharacterSheet] realtime subscription failed:', err);
+      channel = null;
+    }
+    return () => { if (channel) supabase.removeChannel(channel); };
   }, [id]);
 
   const stats = character?.base_stats as Dnd5eStats | null;
@@ -2741,7 +2757,17 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             <TouchableOpacity
               style={s.deskCampSection}
               activeOpacity={character?.campaign_id ? 0.7 : 1}
-              onPress={() => character?.campaign_id && router.push(`/campaign/${character.campaign_id}`)}
+              onPress={() => {
+                if (!character?.campaign_id) return;
+                // When the sheet was opened from the campaign (split-
+                // pane / embedded), close the pane to return to the
+                // campaign tab rather than pushing a new route — that
+                // push double-mounts the campaign and tears the
+                // embedded sheet down mid-flight, which used to crash
+                // the realtime subscription and white-screen us.
+                if (onClose) onClose();
+                else router.push(`/campaign/${character.campaign_id}`);
+              }}
             >
               <View style={s.deskCampCard}>
                 <MaterialCommunityIcons name="castle" size={16} color={colors.primary} />
@@ -2869,7 +2895,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             {character?.campaign_id && linkedCampaignName ? (
               <TouchableOpacity
                 style={s.campaignChip}
-                onPress={() => router.push(`/campaign/${character.campaign_id}`)}
+                onPress={() => {
+                  // Same embedded-vs-standalone branching as the
+                  // desktop Campaign card — onClose pops the split
+                  // pane back to the campaign that opened us.
+                  if (onClose) onClose();
+                  else router.push(`/campaign/${character.campaign_id}`);
+                }}
                 activeOpacity={0.7}
               >
                 <MaterialCommunityIcons name="castle" size={13} color={colors.primary} />
