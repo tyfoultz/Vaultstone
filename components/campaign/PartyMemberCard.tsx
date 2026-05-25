@@ -308,9 +308,14 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(226,75,74,0.06)',
   },
 
+  /** Explicit 100×134 (3:4) instead of `aspectRatio + alignSelf:stretch`
+   *  — that combo collapses the portrait to zero width on RN Web when
+   *  the parent card's height is content-driven (no portrait visible
+   *  at all in the campaign party list). Fixed dimensions are
+   *  predictable; card height becomes max(portrait, body) which still
+   *  reads well across content states. */
   portrait: {
-    aspectRatio: 3 / 4, // width derived from card height — 3:4 locked
-    alignSelf: 'stretch', // fill the card's full vertical space
+    width: 100, height: 134,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
@@ -320,7 +325,7 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     flexShrink: 0,
   },
-  portraitImage: { width: '100%', height: '100%' },
+  portraitImage: { width: 100, height: 134 },
   portraitInitials: {
     fontFamily: fonts.headline,
     fontSize: 24,
