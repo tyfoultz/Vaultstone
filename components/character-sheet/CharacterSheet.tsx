@@ -2970,35 +2970,69 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </View>
               </View>
 
-              {/* HP block — tap to open the quick damage / heal modal,
-                  long-press to heal. */}
-              <TouchableOpacity
-                style={s.heroHpBlock}
-                onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
-                onLongPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
-                activeOpacity={canEditAny ? 0.7 : 1}
-                disabled={!canEditAny}
-              >
-                <View style={s.heroHpRow}>
-                  <View style={s.heroHpNumWrap}>
+              {/* HP block — same layout as the desktop sidebar:
+                  [damage btn] [HP nums tappable] [heal btn], then the
+                  full-width HP bar. Tap the number to open the HP
+                  modal (or the manual-mode field editor); damage/heal
+                  buttons open the quick-input pad in that mode. */}
+              <View style={s.heroHpBlock}>
+                <View style={s.heroHpCenterRow}>
+                  <TouchableOpacity
+                    style={s.heroHpActionBtn}
+                    onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
+                    disabled={!canEditAny}
+                    activeOpacity={0.7}
+                    hitSlop={6}
+                    accessibilityLabel="Apply damage"
+                  >
+                    <MaterialCommunityIcons name="sword" size={16} color={colors.hpDanger} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.heroHpNumsCenter}
+                    onPress={() => canEditAny && (manualMode ? startEditField('hpCurrent', resources.hpCurrent) : setHpModalVisible(true))}
+                    onLongPress={() => canEditAny && setHpModalVisible(true)}
+                    activeOpacity={canEditAny ? 0.7 : 1}
+                    disabled={!canEditAny}
+                  >
                     <Text style={[s.heroHpNum, { color: hpC }]}>{resources.hpCurrent}</Text>
-                    <Text style={s.heroHpMax}> / {stats.hpMax}</Text>
-                  </View>
-                  {resources.hpTemp > 0 ? (
-                    <View style={s.heroTempPill}>
-                      <Text style={s.heroTempPillText}>+{resources.hpTemp} TEMP</Text>
-                    </View>
-                  ) : null}
-                  {(showDeathSaves || isDead || isStabilized) && (
-                    <Text style={[
-                      s.heroHpState,
-                      isDead && { color: colors.hpDanger },
-                      isStabilized && { color: colors.hpHealthy },
-                    ]}>
-                      {isDead ? 'DEAD' : isStabilized ? 'STABLE' : 'DEATH SAVES'}
-                    </Text>
-                  )}
+                    <Text style={s.heroHpSep}>/</Text>
+                    {manualMode ? (
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); startEditField('hpMax', stats.hpMax); }} activeOpacity={0.7}>
+                        <Text style={[s.heroHpMax, { textDecorationLine: 'underline', textDecorationStyle: 'dashed' }]}>{stats.hpMax}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={s.heroHpMax}>{stats.hpMax}</Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.heroHpActionBtn}
+                    onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
+                    disabled={!canEditAny}
+                    activeOpacity={0.7}
+                    hitSlop={6}
+                    accessibilityLabel="Apply healing"
+                  >
+                    <MaterialCommunityIcons name="heart-plus" size={16} color={colors.hpHealthy} />
+                  </TouchableOpacity>
                 </View>
+                {(resources.hpTemp > 0 || showDeathSaves || isDead || isStabilized) ? (
+                  <View style={s.heroHpMetaRow}>
+                    {resources.hpTemp > 0 ? (
+                      <View style={s.heroTempPill}>
+                        <Text style={s.heroTempPillText}>+{resources.hpTemp} TEMP</Text>
+                      </View>
+                    ) : <View />}
+                    {(showDeathSaves || isDead || isStabilized) ? (
+                      <Text style={[
+                        s.heroHpState,
+                        isDead && { color: colors.hpDanger },
+                        isStabilized && { color: colors.hpHealthy },
+                      ]}>
+                        {isDead ? 'DEAD' : isStabilized ? 'STABLE' : 'DEATH SAVES'}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
                 <View style={s.heroHpTrack}>
                   <View style={[s.heroHpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
                   {resources.hpTemp > 0 && (
@@ -3007,7 +3041,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     }]} />
                   )}
                 </View>
-              </TouchableOpacity>
+              </View>
 
               {/* Compact 5-cell stat row — passive senses + proficiency
                   + hit dice. Tighter than the original 3-cell PER/INV/
@@ -4377,17 +4411,35 @@ const s = StyleSheet.create({
     color: colors.onPrimary,
   },
 
-  // HP block — tap to open quick damage/heal modal; long-press to heal.
-  heroHpBlock: { marginTop: 2 },
-  heroHpRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  heroHpNumWrap: { flexDirection: 'row', alignItems: 'baseline' },
-  heroHpNum: {
-    fontSize: 20, fontFamily: fonts.headline, fontWeight: '800',
-    color: colors.onSurface, lineHeight: 22,
+  // HP block — same layout as the desktop sidebar: damage btn + HP
+  // nums + heal btn over the HP bar. Numbers are tappable for the
+  // HP modal; damage/heal open the quick-input pad.
+  heroHpBlock: { marginTop: 2, gap: 4 },
+  heroHpCenterRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 2,
   },
-  heroHpMax: { fontSize: 12, color: colors.outline },
+  heroHpActionBtn: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  heroHpNumsCenter: {
+    flexDirection: 'row', alignItems: 'baseline',
+    gap: 2, paddingHorizontal: 8, paddingVertical: 2,
+  },
+  heroHpNum: {
+    fontSize: 22, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurface, lineHeight: 24,
+  },
+  heroHpSep: { fontSize: 13, color: colors.outline, marginHorizontal: 2 },
+  heroHpMax: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '600', color: colors.outline },
+  heroHpMetaRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
   heroHpState: {
-    marginLeft: 'auto',
     fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 0.8, color: colors.outline,
   },
