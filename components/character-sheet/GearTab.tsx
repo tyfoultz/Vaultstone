@@ -77,6 +77,11 @@ export function GearTab({
     | { kind: 'confirm-unattune'; item: Dnd5eEquipmentItem }
     | null
   >(null);
+  // Coin edit modal — tapping a coin tile opens a focused numeric
+  // editor instead of an always-mounted inline input. The inline
+  // input rendered a blue selection rim on web and made it easy to
+  // accidentally overwrite a stored amount with a stray keystroke.
+  const [editCoin, setEditCoin] = useState<{ key: keyof NonNullable<Dnd5eResources['coins']>; label: string } | null>(null);
   // On narrow viewports the TYPE + VALUE columns squeeze the name cell
   // small enough that long pills ("Versatile (1d8)", "1d8 piercing")
   // overflow into adjacent columns. Drop those two cols on mobile —
@@ -298,7 +303,7 @@ export function GearTab({
             value={coins[key]}
             color={color}
             editable={isOwner}
-            onChange={(v) => onUpdateCoins?.({ ...coins, [key]: v })}
+            onPress={isOwner ? () => setEditCoin({ key, label }) : undefined}
           />
         ))}
       </View>
@@ -355,6 +360,15 @@ export function GearTab({
           setAttunePicker(null);
         }}
         onClose={() => setAttunePicker(null)}
+      />
+      <CoinEditModal
+        open={!!editCoin}
+        label={editCoin?.label ?? ''}
+        currentValue={editCoin ? coins[editCoin.key] : 0}
+        onSave={(v) => {
+          if (editCoin) onUpdateCoins?.({ ...coins, [editCoin.key]: v });
+        }}
+        onClose={() => setEditCoin(null)}
       />
 
     </ScrollView>
@@ -882,47 +896,89 @@ function Pill({ label, variant }: { label: string; variant?: 'primary' | 'gm' })
   );
 }
 
-function CoinCell({ label, value, color, editable, onChange }: {
+/**
+ * Coin tile — displays the stored amount and (when editable) opens
+ * a focused CoinEditModal on tap. The previous always-mounted inline
+ * TextInput caused a blue web selection rim and made it easy to
+ * accidentally overwrite a value with a stray keystroke, so the edit
+ * flow is now an explicit modal.
+ */
+function CoinCell({ label, value, color, editable, onPress }: {
   label: string; value: number; color: string; editable: boolean;
-  onChange: (v: number) => void;
+  onPress?: () => void;
 }) {
-  // Always-rendered TextInput. The previous tap-to-edit pattern wrapped
-  // the cell in TouchableOpacity and only mounted the TextInput on
-  // `editing=true` — on mobile, the press-then-autoFocus handshake
-  // routinely failed (the keyboard never opened), making it impossible
-  // to edit gold. Keeping the input always mounted lets the user tap
-  // directly into it.
-  const [text, setText] = useState(String(value));
-  useEffect(() => { setText(String(value)); }, [value]);
+  return (
+    <Pressable
+      onPress={editable ? onPress : undefined}
+      disabled={!editable || !onPress}
+      style={({ pressed }) => [
+        s.coinCell,
+        pressed && editable ? s.coinCellPressed : null,
+      ]}
+    >
+      <View style={[s.coinDot, { backgroundColor: color }]} />
+      <Text style={s.coinValue}>{value}</Text>
+      <Text style={s.coinLabel}>{label}</Text>
+    </Pressable>
+  );
+}
 
-  function commit() {
+/**
+ * Modal numeric editor for a single coin denomination. Pre-fills with
+ * the current amount, selects on focus, commits on Save / clears on
+ * Cancel. Empty / invalid input is rejected silently (Save no-ops).
+ */
+function CoinEditModal({ open, label, currentValue, onSave, onClose }: {
+  open: boolean;
+  label: string;
+  currentValue: number;
+  onSave: (v: number) => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState(String(currentValue));
+  // Reset the buffer each time the modal opens for a different denom
+  // so the previous edit doesn't leak in.
+  useEffect(() => { if (open) setText(String(currentValue)); }, [open, currentValue]);
+
+  function handleSave() {
     const parsed = parseInt(text, 10);
     if (!isNaN(parsed) && parsed >= 0) {
-      if (parsed !== value) onChange(parsed);
-    } else {
-      setText(String(value));
+      if (parsed !== currentValue) onSave(parsed);
+      onClose();
     }
   }
 
   return (
-    <View style={s.coinCell}>
-      <View style={[s.coinDot, { backgroundColor: color }]} />
-      {editable ? (
-        <TextInput
-          style={s.coinInput}
-          value={text}
-          onChangeText={setText}
-          onBlur={commit}
-          onSubmitEditing={commit}
-          keyboardType="number-pad"
-          selectTextOnFocus
-          returnKeyType="done"
-        />
-      ) : (
-        <Text style={s.coinValue}>{value}</Text>
-      )}
-      <Text style={s.coinLabel}>{label}</Text>
-    </View>
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.attuneModalBackdrop} onPress={onClose}>
+        <Pressable style={s.attuneModalCard} onPress={() => {}}>
+          <View style={s.attuneModalHeader}>
+            <Text style={s.attuneModalTitle}>Edit {label}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={10} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+            </TouchableOpacity>
+          </View>
+          <TextInput
+            style={s.coinEditInput}
+            value={text}
+            onChangeText={setText}
+            onSubmitEditing={handleSave}
+            keyboardType="number-pad"
+            selectTextOnFocus
+            autoFocus
+            returnKeyType="done"
+          />
+          <View style={s.attuneConfirmActions}>
+            <TouchableOpacity onPress={onClose} style={[s.attuneConfirmBtn, s.attuneConfirmCancel]} activeOpacity={0.7}>
+              <Text style={s.attuneConfirmCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSave} style={[s.attuneConfirmBtn, s.coinEditSave]} activeOpacity={0.7}>
+              <Text style={s.coinEditSaveText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -1184,15 +1240,30 @@ const s = StyleSheet.create({
     borderRadius: radius.lg, paddingVertical: 8, paddingHorizontal: 2,
     gap: 3,
   },
+  coinCellPressed: { opacity: 0.7 },
   coinDot: { width: 7, height: 7, borderRadius: 4 },
   coinValue: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
-  coinInput: {
-    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.primary,
-    textAlign: 'center', minWidth: 30,
-  },
   coinLabel: {
     fontSize: 7, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
+  },
+  /** Modal numeric editor for a coin denomination. Mirrors the
+   *  attunement confirm chassis (shares backdrop / card / actions). */
+  coinEditInput: {
+    fontSize: 22, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, textAlign: 'center',
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    paddingVertical: 10, paddingHorizontal: 14,
+  },
+  coinEditSave: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primaryContainer,
+  },
+  coinEditSaveText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onPrimary, letterSpacing: 0.3,
   },
 
   // Carry capacity
