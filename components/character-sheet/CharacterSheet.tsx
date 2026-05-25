@@ -2518,10 +2518,44 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
               {/* Stat grid — AC full row, then 2+2 */}
               <View style={s.deskStatGrid}>
-                {/* Row 1: AC solo */}
+                {/* Row 1: AC solo — masked metallic shield holds the
+                    value, label sits to the right. Mirrors the
+                    party-card / mobile-hero AC shield treatment so the
+                    defense stat reads the same on every surface. */}
                 <View style={s.deskStatRow}>
-                  <StatCell icon="shield-outline" value={String(ac)} label="Armor Class" color={colors.secondary} centered
-                    editable={manualMode} onPress={manualMode ? () => startEditField('ac', ac) : undefined} />
+                  {(() => {
+                    const Wrapper = manualMode ? TouchableOpacity : View;
+                    return (
+                      <Wrapper
+                        style={[statCellStyle.cell, statCellStyle.cellCentered, manualMode && statCellStyle.cellEditable, s.deskAcCell]}
+                        onPress={manualMode ? () => startEditField('ac', ac) : undefined}
+                        activeOpacity={0.7}
+                      >
+                        <View style={s.deskAcShieldWrap}>
+                          <MaskedView
+                            style={s.deskAcShieldMask}
+                            maskElement={
+                              <View style={s.deskAcShieldMaskInner}>
+                                <MaterialCommunityIcons name="shield" size={44} color="#000" />
+                              </View>
+                            }
+                          >
+                            <LinearGradient
+                              colors={['#e2e6ec', '#9da5b1', '#5e646e']}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 0, y: 1 }}
+                              style={s.deskAcShieldGradient}
+                            />
+                          </MaskedView>
+                          <Text style={s.deskAcShieldNum}>{ac}</Text>
+                        </View>
+                        <View style={statCellStyle.text}>
+                          <Text style={s.deskAcLabel}>Armor Class</Text>
+                        </View>
+                        {manualMode && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
+                      </Wrapper>
+                    );
+                  })()}
                 </View>
                 {/* Row 2: Speed | Initiative */}
                 <View style={s.deskStatRow}>
@@ -4021,6 +4055,32 @@ const s = StyleSheet.create({
   },
 
   // ── HUD layout ──────────────────────────────────────────────────────────────
+  // Desktop AC shield cell — masked metallic shield containing the AC
+  // value, label sits to the right. Matches the party-card / mobile-
+  // hero shield treatment.
+  deskAcCell: { gap: 10 },
+  deskAcShieldWrap: {
+    width: 44, height: 48,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  deskAcShieldMask: { width: 44, height: 44 },
+  deskAcShieldMaskInner: {
+    flex: 1, backgroundColor: 'transparent',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  deskAcShieldGradient: { flex: 1 },
+  deskAcShieldNum: {
+    position: 'absolute', top: 14, left: 0, right: 0,
+    textAlign: 'center',
+    fontFamily: fonts.headline, fontSize: 16, fontWeight: '800',
+    color: colors.onPrimary,
+  },
+  deskAcLabel: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
+    letterSpacing: 0.8, color: colors.onSurfaceVariant,
+    textTransform: 'uppercase',
+  },
+
   // Mobile utility bar — Home + Campaign on the left; Lv↑ / Log /
   // Settings on the right. Sits above the hero card.
   utilityBar: {
