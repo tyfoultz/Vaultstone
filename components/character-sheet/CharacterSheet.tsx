@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -89,6 +90,27 @@ function getCachedContent(charId: string): ContentCache | null {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
+
+/**
+ * Passive-sense cell rendered in the mobile hero card. Icon + uppercase
+ * label + value, sitting in a small bordered tile so the row mirrors
+ * the desktop sidebar's Senses panel at a glance.
+ */
+function SenseCell({ icon, label, value }: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  label: string;
+  value: number;
+}) {
+  return (
+    <View style={s.heroStatCell}>
+      <View style={s.heroStatCellTop}>
+        <MaterialCommunityIcons name={icon} size={11} color={colors.outline} />
+        <Text style={s.heroStatCellLabel}>{label}</Text>
+      </View>
+      <Text style={s.heroStatCellValue}>{value}</Text>
+    </View>
+  );
+}
 function profBonus(level: number) { return Math.floor((level - 1) / 4) + 2; }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -1211,6 +1233,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const computedInitiative = scores ? abilityMod(scores.dexterity) : 0;
   const initiative = manualMode && stats?.initiativeOverride != null ? stats.initiativeOverride : computedInitiative;
   const passivePerception = 10 + skillMod('perception');
+  const passiveInvestigation = 10 + skillMod('investigation');
+  const passiveInsight = 10 + skillMod('insight');
 
   const liveActionFeatures: Dnd5eFeature[] = useMemo(() => {
     if (!stats) return [];
@@ -2295,8 +2319,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const portraitContent = portraitUploading
     ? <ActivityIndicator color={colors.primary} size="small" />
     : (character as any).avatar_url
-      ? <Image source={{ uri: (character as any).avatar_url }} style={isDesktop ? s.deskPortraitImg : s.chromePortraitImg} />
-      : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 32 : 24} color={colors.outline} />;
+      ? <Image source={{ uri: (character as any).avatar_url }} style={isDesktop ? s.deskPortraitImg : s.heroPortraitImg} />
+      : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 32 : 28} color={colors.outline} />;
 
   return (
     <View style={s.root}>
@@ -2725,37 +2749,31 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
            MOBILE LAYOUT — stacked HUD
            ════════════════════════════════════════════════════════════════ */
         <>
-          {/* Top Chrome */}
-          <View style={s.topChrome}>
-            <TouchableOpacity onPress={() => handleClose()} style={s.backBtn} hitSlop={8}>
+          {/* Utility bar — Home + Campaign on the left; Lv↑ / Log /
+              Settings on the right. The chunky Home button goes all the
+              way back to the home screen (drawer entry point); Campaign
+              jumps into the linked campaign hub. */}
+          <View style={s.utilityBar}>
+            <TouchableOpacity
+              onPress={() => router.replace('/(drawer)/home')}
+              style={s.homeBtn}
+              hitSlop={6}
+              activeOpacity={0.7}
+            >
               <MaterialCommunityIcons name="chevron-left" size={22} color={colors.onSurfaceVariant} />
+              <Text style={s.homeBtnLabel}>Home</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity style={s.chromePortrait} onPress={handlePickPortrait} disabled={portraitUploading} activeOpacity={0.85}>
-              {portraitContent}
-            </TouchableOpacity>
-
-            <View style={s.chromeIdentity}>
-              {editingName ? (
-                <TextInput
-                  style={s.chromeNameInput}
-                  value={nameInput}
-                  onChangeText={setNameInput}
-                  onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                  onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                  autoFocus returnKeyType="done"
-                />
-              ) : (
-                <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
-                  <Text style={s.chromeName} numberOfLines={1}>{stats.characterName}</Text>
-                </TouchableOpacity>
-              )}
-              <Text style={s.chromeSub} numberOfLines={1}>
-                {[speciesLabel, classLabel].filter(Boolean).join(' ')} ·{' '}
-                <>Lv {stats.level}</>
-              </Text>
-            </View>
-
+            {character?.campaign_id && linkedCampaignName ? (
+              <TouchableOpacity
+                style={s.campaignChip}
+                onPress={() => router.push(`/campaign/${character.campaign_id}`)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="castle" size={13} color={colors.primary} />
+                <Text style={s.campaignChipLabel} numberOfLines={1}>{linkedCampaignName}</Text>
+              </TouchableOpacity>
+            ) : null}
+            <View style={{ flex: 1 }} />
             {isOwner && stats.level < 20 ? (
               <TouchableOpacity
                 onPress={() => router.push(`/character/${id}/level-up`)}
@@ -2765,68 +2783,192 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={20} color={colors.primary} />
               </TouchableOpacity>
             ) : null}
-
-            <TouchableOpacity
-              style={[s.inspirationBtn, resources.inspiration && s.inspirationBtnActive]}
-              onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
-              activeOpacity={0.7} hitSlop={6}
-            >
-              <MaterialCommunityIcons
-                name={resources.inspiration ? 'star' : 'star-outline'}
-                size={18}
-                color={resources.inspiration ? colors.gm : colors.outline}
-              />
-            </TouchableOpacity>
-
             <TouchableOpacity onPress={() => setLogModal(true)} hitSlop={8} style={s.settingsIconBtn}>
               <MaterialCommunityIcons name="notebook-outline" size={20} color={colors.outline} />
             </TouchableOpacity>
-
             <TouchableOpacity onPress={() => setSettingsModal(true)} hitSlop={8} style={s.settingsIconBtn}>
               <MaterialCommunityIcons name="cog-outline" size={20} color={colors.outline} />
             </TouchableOpacity>
           </View>
 
-          {/* Stat Rail */}
-          <View style={s.statRail}>
-            <View style={s.railStat}>
-              <Text style={[s.railValue, { color: colors.secondary }]}>{ac}</Text>
-              <Text style={s.railLabel}>AC</Text>
+          {/* Hero card — mirrors the campaign PartyMemberCard chassis:
+              left-edge HP-tier stripe, 3:4 portrait, body column with
+              name + subtitle + HP block + passive senses + chips, AC
+              shield top-right. Adapted for self-view so taps are
+              actionable (HP → quick damage/heal modal, name → edit,
+              portrait → upload, inspiration / conditions → toggle). */}
+          <View style={[s.heroCard, isDead && s.heroCardUnconscious]}>
+            <View style={[s.heroStripe, { backgroundColor: hpC }]} />
+
+            {/* AC shield, top-right */}
+            <View style={s.heroAcBadge}>
+              <MaskedView
+                style={s.heroAcShieldMask}
+                maskElement={
+                  <View style={s.heroAcShieldMaskInner}>
+                    <MaterialCommunityIcons name="shield" size={36} color="#000" />
+                  </View>
+                }
+              >
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryContainer]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.heroAcShieldGradient}
+                />
+              </MaskedView>
+              <Text style={s.heroAcNum}>{ac}</Text>
+            </View>
+
+            {/* 3:4 portrait fills card height */}
+            <TouchableOpacity
+              style={s.heroPortrait}
+              onPress={handlePickPortrait}
+              disabled={portraitUploading || !isOwner}
+              activeOpacity={isOwner ? 0.85 : 1}
+            >
+              {portraitContent}
+            </TouchableOpacity>
+
+            {/* Body column */}
+            <View style={s.heroBody}>
+              {editingName ? (
+                <TextInput
+                  style={[s.heroNameInput, s.heroNamePad]}
+                  value={nameInput}
+                  onChangeText={setNameInput}
+                  onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                  onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                  autoFocus returnKeyType="done"
+                />
+              ) : (
+                <TouchableOpacity
+                  onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))}
+                  activeOpacity={isOwner ? 0.7 : 1}
+                >
+                  <Text style={[s.heroName, s.heroNamePad]} numberOfLines={1}>{stats.characterName}</Text>
+                </TouchableOpacity>
+              )}
+              <Text style={[s.heroSub, s.heroNamePad]} numberOfLines={1}>
+                L{stats.level} — {[speciesLabel, classLabel].filter(Boolean).join(' ')}
+              </Text>
+
+              {/* HP block — tap to open the quick damage / heal modal,
+                  long-press to heal. */}
+              <TouchableOpacity
+                style={s.heroHpBlock}
+                onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
+                onLongPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
+                activeOpacity={canEditAny ? 0.7 : 1}
+                disabled={!canEditAny}
+              >
+                <View style={s.heroHpRow}>
+                  <View style={s.heroHpNumWrap}>
+                    <Text style={[s.heroHpNum, { color: hpC }]}>{resources.hpCurrent}</Text>
+                    <Text style={s.heroHpMax}> / {stats.hpMax}</Text>
+                  </View>
+                  {resources.hpTemp > 0 ? (
+                    <View style={s.heroTempPill}>
+                      <Text style={s.heroTempPillText}>+{resources.hpTemp} TEMP</Text>
+                    </View>
+                  ) : null}
+                  {(showDeathSaves || isDead || isStabilized) && (
+                    <Text style={[
+                      s.heroHpState,
+                      isDead && { color: colors.hpDanger },
+                      isStabilized && { color: colors.hpHealthy },
+                    ]}>
+                      {isDead ? 'DEAD' : isStabilized ? 'STABLE' : 'DEATH SAVES'}
+                    </Text>
+                  )}
+                </View>
+                <View style={s.heroHpTrack}>
+                  <View style={[s.heroHpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
+                  {resources.hpTemp > 0 && (
+                    <View style={[s.heroHpTempFill, {
+                      width: `${Math.min((1 - hpRatio) * 100, (resources.hpTemp / stats.hpMax) * 100)}%` as any,
+                    }]} />
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {/* Passive senses row with icons. Eye → Perception,
+                  Magnify → Investigation, Brain → Insight. */}
+              <View style={s.heroStatsRow}>
+                <SenseCell icon="eye-outline" label="PER" value={passivePerception} />
+                <SenseCell icon="magnify" label="INV" value={passiveInvestigation} />
+                <SenseCell icon="brain" label="INS" value={passiveInsight} />
+              </View>
+
+              {/* Chip row — inspiration toggle + active conditions +
+                  exhaustion + concentration. */}
+              <View style={s.heroChipsRow}>
+                <TouchableOpacity
+                  onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
+                  activeOpacity={canEditAny ? 0.7 : 1}
+                  disabled={!canEditAny}
+                  style={[s.heroChip, resources.inspiration && s.heroChipInsp]}
+                >
+                  <Text style={[s.heroChipText, resources.inspiration && s.heroChipTextInsp]}>★ INSP</Text>
+                </TouchableOpacity>
+                {resources.concentrationSpell ? (
+                  <View style={[s.heroChip, s.heroChipConc]}>
+                    <Text style={[s.heroChipText, s.heroChipTextConc]}>✦ {resources.concentrationSpell.toUpperCase()}</Text>
+                  </View>
+                ) : null}
+                {activeConditions.map((c) => (
+                  <View key={c} style={[s.heroChip, s.heroChipCond]}>
+                    <Text style={[s.heroChipText, s.heroChipTextCond]}>{c.toUpperCase()}</Text>
+                  </View>
+                ))}
+                {(resources.exhaustionLevel ?? 0) > 0 ? (
+                  <View style={[s.heroChip, s.heroChipCond]}>
+                    <Text style={[s.heroChipText, s.heroChipTextCond]}>EXHAUSTION {resources.exhaustionLevel}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          </View>
+
+          {/* Supplementary strip — sidebar overflow stats + rest
+              buttons. INIT/SPD/PROF stay rail-style; Hit Die rolls into
+              the same row; Short / Long Rest sit at the right edge so
+              the action affordance is consistent across the strip. */}
+          <View style={s.heroSuppRow}>
+            <View style={s.suppStat}>
+              <Text style={s.suppStatLabel}>INIT</Text>
+              <Text style={s.suppStatValue}>{fmtMod(initiative)}</Text>
+            </View>
+            <View style={s.suppStat}>
+              <Text style={s.suppStatLabel}>SPD</Text>
+              <Text style={s.suppStatValue}>{stats.speed}</Text>
+            </View>
+            <View style={s.suppStat}>
+              <Text style={s.suppStatLabel}>PROF</Text>
+              <Text style={[s.suppStatValue, { color: colors.primary }]}>{fmtMod(prof)}</Text>
+            </View>
+            <View style={s.suppStat}>
+              <Text style={s.suppStatLabel}>HD</Text>
+              <Text style={s.suppStatValue}>{resources.hitDiceRemaining ?? stats.level}/{stats.level}</Text>
             </View>
             <TouchableOpacity
-              style={s.railHp}
-              onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
-              onLongPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
-              activeOpacity={0.8}
+              onPress={() => canEditAny && setRestConfirm('short')}
+              disabled={!canEditAny}
+              style={[s.suppRestBtn, !canEditAny && { opacity: 0.5 }]}
+              activeOpacity={0.7}
             >
-              <View style={s.hpNumRow}>
-                <Text style={[s.railHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
-                <Text style={s.railHpSep}>/</Text>
-                <Text style={s.railHpMax}>{stats.hpMax}</Text>
-                {resources.hpTemp > 0 && <Text style={s.railHpTemp}>+{resources.hpTemp}</Text>}
-              </View>
-              <View style={s.hpTrack}>
-                <View style={[s.hpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
-                {resources.hpTemp > 0 && (
-                  <View style={[s.hpTempFill, {
-                    width: `${Math.min((1 - hpRatio) * 100, (resources.hpTemp / stats.hpMax) * 100)}%` as any,
-                  }]} />
-                )}
-              </View>
-              <Text style={s.railLabel}>HP{showDeathSaves ? ' · SAVE' : isDead ? ' · DEAD' : isStabilized ? ' · STABLE' : ''}</Text>
+              <MaterialCommunityIcons name="weather-sunset-up" size={13} color={colors.outline} />
+              <Text style={s.suppRestText}>Short</Text>
             </TouchableOpacity>
-            <View style={s.railStat}>
-              <Text style={s.railValue}>{fmtMod(initiative)}</Text>
-              <Text style={s.railLabel}>INIT</Text>
-            </View>
-            <View style={s.railStat}>
-              <Text style={s.railValue}>{stats.speed}</Text>
-              <Text style={s.railLabel}>SPD</Text>
-            </View>
-            <View style={s.railStat}>
-              <Text style={[s.railValue, { color: colors.primary }]}>{fmtMod(prof)}</Text>
-              <Text style={s.railLabel}>PROF</Text>
-            </View>
+            <TouchableOpacity
+              onPress={() => canEditAny && setRestConfirm('long')}
+              disabled={!canEditAny}
+              style={[s.suppRestBtn, !canEditAny && { opacity: 0.5 }]}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="weather-night" size={13} color={colors.outline} />
+              <Text style={s.suppRestText}>Long</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Tab content */}
@@ -3878,11 +4020,43 @@ const s = StyleSheet.create({
   },
 
   // ── HUD layout ──────────────────────────────────────────────────────────────
-  topChrome: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 12, paddingVertical: 10,
+  // Mobile utility bar — Home + Campaign on the left; Lv↑ / Log /
+  // Settings on the right. Sits above the hero card.
+  utilityBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 10, paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainerLowest,
+  },
+  /** Chunky Home button — icon + label, sized up from the original
+   *  back chevron so it feels like a primary surface action and reads
+   *  as "go all the way home" rather than "go back one step". */
+  homeBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  homeBtnLabel: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant, letterSpacing: 0.3,
+    marginRight: 2,
+  },
+  /** Campaign chip next to Home — castle icon + campaign name, taps
+   *  to the linked campaign hub. Only rendered when the character is
+   *  on a campaign. */
+  campaignChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: `${colors.primary}55`,
+    backgroundColor: `${colors.primary}14`,
+    maxWidth: 160,
+  },
+  campaignChipLabel: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.3,
   },
   backBtn: { padding: 4 },
   // 3:4 card frame. Width fixed; height = width × 4/3. Square corners
@@ -3917,40 +4091,167 @@ const s = StyleSheet.create({
   inspirationBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
   settingsIconBtn: { padding: 4 },
 
-  statRail: {
+  // Mobile hero card — chassis lifted from the campaign PartyMemberCard
+  // and adapted for self-view (all taps actionable for the owner).
+  heroCard: {
     flexDirection: 'row', alignItems: 'stretch',
+    gap: spacing.sm + 4,
+    paddingTop: spacing.sm + 4, paddingBottom: spacing.sm + 4,
+    paddingLeft: spacing.sm + 8, paddingRight: spacing.sm + 4,
+    marginHorizontal: 10, marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+    position: 'relative', overflow: 'hidden',
+  },
+  heroCardUnconscious: {
+    borderColor: 'rgba(226,75,74,0.4)',
+    backgroundColor: 'rgba(226,75,74,0.06)',
+  },
+  /** Left-edge accent stripe — color-codes HP tier (matches party card). */
+  heroStripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
+  /** 3:4 portrait that fills the card's full vertical space. */
+  heroPortrait: {
+    aspectRatio: 3 / 4, alignSelf: 'stretch',
+    borderRadius: 6,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+    alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', flexShrink: 0,
+  },
+  heroPortraitImg: { width: '100%', height: '100%' },
+  heroBody: { flex: 1, minWidth: 0, gap: 6 },
+  heroName: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: -0.1,
+  },
+  heroNameInput: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.primary, borderBottomWidth: 1, borderBottomColor: colors.primary,
+    paddingVertical: 1,
+  },
+  /** Extra right padding so name + sub don't run under the absolute AC shield. */
+  heroNamePad: { paddingRight: 44 },
+  heroSub: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.outline, letterSpacing: 0.2,
+  },
+
+  // AC shield — same gradient masked icon as the party card.
+  heroAcBadge: {
+    position: 'absolute', top: 8, right: 8,
+    width: 40, height: 44, alignItems: 'center', justifyContent: 'center',
+  },
+  heroAcShieldMask: { width: 36, height: 36 },
+  heroAcShieldMaskInner: { flex: 1, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  heroAcShieldGradient: { flex: 1 },
+  heroAcNum: {
+    position: 'absolute', top: 12, left: 0, right: 0,
+    textAlign: 'center',
+    fontFamily: fonts.headline, fontSize: 13, fontWeight: '700',
+    color: colors.onSurface,
+  },
+
+  // HP block — tap to open quick damage/heal modal; long-press to heal.
+  heroHpBlock: { marginTop: 2 },
+  heroHpRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  heroHpNumWrap: { flexDirection: 'row', alignItems: 'baseline' },
+  heroHpNum: {
+    fontSize: 20, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurface, lineHeight: 22,
+  },
+  heroHpMax: { fontSize: 12, color: colors.outline },
+  heroHpState: {
+    marginLeft: 'auto',
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.8, color: colors.outline,
+  },
+  heroTempPill: {
+    paddingHorizontal: 6, paddingVertical: 1,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: 'rgba(173,198,255,0.3)',
+    backgroundColor: 'rgba(173,198,255,0.12)',
+  },
+  heroTempPillText: {
+    fontFamily: fonts.headline, fontSize: 10, fontWeight: '700',
+    color: colors.secondary, letterSpacing: 0.4,
+  },
+  heroHpTrack: {
+    height: 6, borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden', marginTop: 6,
+    flexDirection: 'row',
+  },
+  heroHpFill: { height: '100%', borderRadius: 999 },
+  heroHpTempFill: { height: '100%', backgroundColor: colors.secondary },
+
+  // Passive senses row — Eye / Magnify / Brain icons + label + value.
+  heroStatsRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  heroStatCell: {
+    flex: 1, alignItems: 'center',
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  heroStatCellTop: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  heroStatCellLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '600',
+    letterSpacing: 1.2, color: colors.outline, textTransform: 'uppercase',
+  },
+  heroStatCellValue: {
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, marginTop: 1,
+  },
+
+  // Status chip row — inspiration, concentration, conditions, exhaustion.
+  heroChipsRow: { flexDirection: 'row', gap: 4, flexWrap: 'wrap', marginTop: 4, minHeight: 18 },
+  heroChip: {
+    paddingHorizontal: 7, paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  heroChipText: {
+    fontFamily: fonts.label, fontSize: 9, fontWeight: '700',
+    letterSpacing: 0.6, color: colors.onSurfaceVariant,
+  },
+  heroChipInsp: { borderColor: 'rgba(230,162,85,0.35)', backgroundColor: 'rgba(230,162,85,0.12)' },
+  heroChipTextInsp: { color: colors.gm },
+  heroChipConc: { borderColor: 'rgba(211,187,255,0.3)', backgroundColor: 'rgba(211,187,255,0.1)' },
+  heroChipTextConc: { color: colors.primary },
+  heroChipCond: { borderColor: 'rgba(239,159,39,0.3)', backgroundColor: 'rgba(239,159,39,0.1)' },
+  heroChipTextCond: { color: colors.hpWarning },
+
+  // Supplementary strip under the hero card — INIT/SPD/PROF/HD inline +
+  // Short/Long rest buttons. Reads as one continuous row.
+  heroSuppRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  suppStat: {
+    flex: 1, alignItems: 'center', gap: 1,
+  },
+  suppStatLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.outline, textTransform: 'uppercase',
+  },
+  suppStatValue: {
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
+  },
+  suppRestBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainer,
   },
-  railStat: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 10, gap: 2,
-    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.outlineVariant,
+  suppRestText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.5, color: colors.onSurfaceVariant,
   },
-  railValue: {
-    fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
-  },
-  railLabel: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
-  },
-  railHp: {
-    flex: 2.2, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 8, paddingHorizontal: 8,
-    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.outlineVariant,
-    gap: 3,
-  },
-  hpNumRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
-  railHpCurrent: { fontSize: 20, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 22 },
-  railHpSep: { fontSize: 12, color: colors.outline, marginHorizontal: 1 },
-  railHpMax: { fontSize: 12, fontFamily: fonts.headline, fontWeight: '600', color: colors.outline },
-  railHpTemp: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: '#3B82F6', marginLeft: 2 },
-  hpTrack: {
-    width: '90%', height: 4, borderRadius: 2,
-    backgroundColor: colors.outlineVariant, flexDirection: 'row', overflow: 'hidden',
-  },
-  hpFill: { height: '100%', borderRadius: 2 },
-  hpTempFill: { height: '100%', backgroundColor: '#3B82F6' },
 
   // ── Tab bar ──────────────────────────────────────────────────────────────────
   tabBar: {
@@ -4179,92 +4480,9 @@ const s = StyleSheet.create({
     fontSize: 13, color: colors.textSecondary,
   },
 
-  // Hero
-  heroCard: {
-    ...CARD,
-    marginBottom: spacing.md,
-  },
-  heroTopRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  heroLeft: { position: 'relative' },
-  heroRightGrid: {
-    marginLeft: 'auto',
-    flexDirection: 'row', gap: 8,
-  },
-  heroRightBox: {
-    backgroundColor: colors.background, borderRadius: 8,
-    paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center',
-  },
-  heroRightValue: {
-    fontSize: 18, fontWeight: '700', color: colors.textPrimary,
-  },
-  heroRightLabel: {
-    fontSize: 9, fontWeight: '600', color: colors.textSecondary,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1,
-  },
-  heroXpRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-  },
-  heroXpAdd: {
-    width: 16, height: 16, borderRadius: 8,
-    borderWidth: 1, borderColor: colors.brand,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  heroNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  heroNameInput: {
-    fontSize: 22,
-    fontFamily: fonts.display,
-    color: colors.textPrimary,
-    borderBottomColor: colors.brand,
-    borderBottomWidth: 1,
-    paddingVertical: 2,
-    marginBottom: 2,
-  },
-  manualBadge: {
-    backgroundColor: colors.hpWarning + '22',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  manualBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.hpWarning,
-  },
-  heroAvatar: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: colors.background,
-    alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  heroAvatarImage: {
-    width: 64, height: 64, borderRadius: 32,
-  },
-  heroAvatarEditIcon: {
-    position: 'absolute', bottom: 2, right: 2,
-  },
-  heroBody: { flex: 1 },
-  heroName: {
-    fontSize: 22, fontFamily: fonts.display, color: colors.textPrimary,
-    marginBottom: 2,
-  },
-  heroSubtitle: {
-    fontSize: 15, color: colors.textSecondary, marginBottom: spacing.sm,
-  },
-  heroMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-  levelBadge: {
-    backgroundColor: colors.brand + '22', borderRadius: 6,
-    paddingHorizontal: 8, paddingVertical: 2,
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-  },
-  levelText: { fontSize: 12, fontWeight: '700', color: colors.brand },
-  heroDetail: { fontSize: 12, color: colors.textSecondary },
+  // (Legacy "Hero" card styles from an earlier sheet design were
+  // removed here — none of them were referenced. The mobile hero card
+  // above owns the `hero*` namespace now.)
 
   // Grid
   grid: {
