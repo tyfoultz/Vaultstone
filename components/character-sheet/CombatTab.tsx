@@ -387,34 +387,39 @@ export function CombatTab({
     <>
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
-      {/* Saving throws — 2-column layout. INIT and SPD get their own
-          cards on the left (visually emphasized, away from the d20
-          rolls); the 6 saves sit on the right in a 3×2 grid. */}
-      <SectionLabel>SAVING THROWS</SectionLabel>
-      <View style={s.savesLayout}>
-        <View style={s.savesLeftCol}>
-          <View style={s.savesLeftCard}>
-            <Text style={s.savesLeftLabel}>INIT</Text>
-            <Text style={s.savesLeftValue}>
+      {/* Movement stats — Speed + Initiative as compact cards with
+          icons (mirrors the desktop sidebar StatCell). Sits in its own
+          row above the saving throws header so it doesn't read as
+          part of the saves section. */}
+      <View style={s.moveStatsRow}>
+        <View style={s.moveStatCard}>
+          <MaterialCommunityIcons name="run-fast" size={14} color={colors.outline} />
+          <View style={s.moveStatText}>
+            <Text style={s.moveStatValue}>{stats.speed} ft</Text>
+            <Text style={s.moveStatLabel}>SPEED</Text>
+          </View>
+        </View>
+        <View style={s.moveStatCard}>
+          <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.outline} />
+          <View style={s.moveStatText}>
+            <Text style={s.moveStatValue}>
               {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
             </Text>
+            <Text style={s.moveStatLabel}>INITIATIVE</Text>
           </View>
-          <View style={s.savesLeftCard}>
-            <Text style={s.savesLeftLabel}>SPD</Text>
-            <Text style={s.savesLeftValue}>{stats.speed}</Text>
-          </View>
-        </View>
-        <View style={s.savesRightCol}>
-          <SavingThrowsStrip
-            scores={scores}
-            stats={stats}
-            prof={prof}
-            manualMode={manualMode}
-            onToggleSaveProficiency={onToggleSaveProficiency}
-            onRoll={onRoll}
-          />
         </View>
       </View>
+
+      {/* Saving throws — 6 cells in a 3×2 grid. */}
+      <SectionLabel style={{ marginTop: 12 }}>SAVING THROWS</SectionLabel>
+      <SavingThrowsStrip
+        scores={scores}
+        stats={stats}
+        prof={prof}
+        manualMode={manualMode}
+        onToggleSaveProficiency={onToggleSaveProficiency}
+        onRoll={onRoll}
+      />
 
       {/* Attacks */}
       <SectionLabel
@@ -1332,36 +1337,36 @@ const s = StyleSheet.create({
   /** Desktop strip: single horizontal row of 6 equal-width cells. */
   savesStripDesktop: { flexDirection: 'row', gap: 6 },
   saveRow: {
-    // 3 cells per row in the right column of the 2-column saves
-    // layout. INIT + SPD live in their own left-column cards now.
+    // 3 cells per row × 2 rows = 6 saves. INIT and SPD live in their
+    // own compact icon cards above the SAVING THROWS header.
     width: '32%', flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 6, paddingVertical: 7,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
   },
-  /** 2-column saves layout: INIT/SPD cards on the left, 6 saves on
-   *  the right in a 3×2 grid. Mirrors the desktop sidebar's emphasis
-   *  on movement stats as separate, glanceable info. */
-  savesLayout: { flexDirection: 'row', gap: 8 },
-  savesLeftCol: { width: 84, gap: 6 },
-  savesLeftCard: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 8,
+  /** Movement stats row — Speed + Initiative cards with leading
+   *  icons. Mirrors the desktop sidebar's StatCell anatomy (icon left,
+   *  value+label right) so the two surfaces feel consistent. Sits in
+   *  its own row above the SAVING THROWS header rather than under it. */
+  moveStatsRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  moveStatCard: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
-    minHeight: 44,
   },
-  savesLeftLabel: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+  moveStatText: { flex: 1, minWidth: 0 },
+  moveStatValue: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
+  },
+  moveStatLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1, color: colors.outline, textTransform: 'uppercase' as const,
+    marginTop: 1,
   },
-  savesLeftValue: {
-    fontSize: 18, fontFamily: fonts.headline, fontWeight: '800',
-    color: colors.onSurface, marginTop: 2,
-  },
-  savesRightCol: { flex: 1, minWidth: 0 },
   /** Desktop cell: same anatomy as the mobile saveRow but flex-1 for
    *  even distribution across 6 columns instead of fixed-percent width. */
   saveCellDesktop: {
