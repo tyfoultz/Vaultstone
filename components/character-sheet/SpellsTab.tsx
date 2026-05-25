@@ -875,17 +875,17 @@ const s = StyleSheet.create({
   // Spellcasting stats header
   statsRow: {
     flexDirection: 'row',
-    paddingVertical: 18, paddingHorizontal: 20,
+    paddingVertical: 10, paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
-  statBlock: { flex: 1, alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  statBlock: { flex: 1, alignItems: 'center', gap: 2 },
+  statValue: { fontSize: 20, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
   statValueAtLimit: { color: colors.primary },
   statLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.5, color: colors.outline },
   /** Action button that sits in the stats strip in place of a stat
    *  block. Same flex sizing so the row stays evenly distributed;
    *  icon + label replace the numeric value + label pairing. */
-  statActionBlock: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 2 },
+  statActionBlock: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 2 },
   statActionLabel: {
     fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.5, color: colors.primary, textAlign: 'center' as const,
@@ -964,7 +964,7 @@ const s = StyleSheet.create({
   },
 
   // Search row
-  searchRow: { flexDirection: 'row', gap: 8, padding: 12 },
+  searchRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
   searchBox: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.surfaceContainer,
@@ -1008,10 +1008,10 @@ const s = StyleSheet.create({
   concEndText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
 
   // ── Level section + slot pips ───────────────────────────────────────────
-  levelSection: { paddingHorizontal: 12, marginTop: 18 },
+  levelSection: { paddingHorizontal: 12, marginTop: 10 },
   levelHead: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    marginBottom: 10, paddingHorizontal: 4,
+    marginBottom: 6, paddingHorizontal: 4,
   },
   levelTitle: {
     fontFamily: fonts.headline, fontWeight: '600',
