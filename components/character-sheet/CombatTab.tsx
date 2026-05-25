@@ -1364,14 +1364,15 @@ const s = StyleSheet.create({
    *  trims to fit. Visible 8px gap between the two columns. */
   savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
   savesCol: { flex: 65, minWidth: 0 },
-  moveCol: { flex: 35, minWidth: 0, gap: 6 },
+  moveCol: { flex: 35, minWidth: 0, gap: 10 },
   /** Movement stat card — single line: icon · label (flex 1) · value
-   *  right-aligned. Padding matches a save cell's so two stacked
-   *  movement cards land at the same total height as the 2-row saves
-   *  grid next to them. */
+   *  right-aligned. flex: 1 makes the two cards split the available
+   *  column height evenly; combined with alignItems:stretch on the
+   *  outer row, the bottom of the second card aligns to the bottom
+   *  of the saves grid next door. */
   moveStatCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 8, paddingVertical: 7,
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
