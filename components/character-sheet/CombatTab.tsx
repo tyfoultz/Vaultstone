@@ -412,14 +412,14 @@ export function CombatTab({
               <Text style={s.moveStatValue}>
                 {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
               </Text>
-              <Text style={s.moveStatLabel}>INITIATIVE</Text>
+              <Text style={s.moveStatLabel}>INIT</Text>
             </View>
           </View>
           <View style={s.moveStatCard}>
             <MaterialCommunityIcons name="run-fast" size={14} color={colors.outline} />
             <View style={s.moveStatText}>
               <Text style={s.moveStatValue}>{stats.speed} ft</Text>
-              <Text style={s.moveStatLabel}>SPEED</Text>
+              <Text style={s.moveStatLabel}>SPD</Text>
             </View>
           </View>
         </View>
@@ -1361,12 +1361,13 @@ const s = StyleSheet.create({
   },
   /** 2-column saves + movement layout. Left column holds the SAVING
    *  THROWS header + 3×2 grid; right column has INIT (top) and SPD
-   *  (bottom) stacked. flex weights → ~62/38 width split; alignItems
-   *  stretch makes the right column match the left column's natural
-   *  content height so the two stacks land at the same total height. */
-  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
-  savesCol: { flex: 62, minWidth: 0 },
-  moveCol: { flex: 38, minWidth: 0, gap: 6 },
+   *  (bottom) stacked. flex weights → ~55/45 width split (movement
+   *  side gets more room so the value + label fit comfortably; saves
+   *  cells still fit at 32% of the slimmer left column). Gap 4px so
+   *  the two columns sit close together. */
+  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 4 },
+  savesCol: { flex: 55, minWidth: 0 },
+  moveCol: { flex: 45, minWidth: 0, gap: 4 },
   /** Movement stat card — icon left, value + label right. flex: 1 so
    *  two cards stacked in `moveCol` split the column height evenly. */
   moveStatCard: {
