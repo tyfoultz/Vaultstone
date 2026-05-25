@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Pressable, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
@@ -22,6 +22,17 @@ interface Props {
    *  providing the section title (e.g. a CardBlock wrapper). The rest
    *  buttons still render, right-aligned. */
   headerless?: boolean;
+  /** Signal-style add trigger from the parent. Bumping `counter`
+   *  re-fires the request even when {kind} is unchanged. Used by
+   *  CombatTab's Abilities + button (kind='menu') and Actions +
+   *  button (kind='custom' with actionType preset). */
+  addRequest?:
+    | ({ kind: 'menu' } & { counter: number })
+    | ({ kind: 'custom'; actionType?: string } & { counter: number })
+    | null;
+  /** Acknowledgement callback fired once a request has been opened, so
+   *  the parent can clear its trigger state. */
+  onAddRequestConsumed?: () => void;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -48,11 +59,44 @@ type ImportableFeature = {
 export function AbilitiesCardTab({
   resources, isOwner, classResultsByKey, subclassResultsByKey, speciesResult,
   characterLevel, onUpdateAbilities, embedded, headerless,
+  addRequest, onAddRequestConsumed,
 }: Props) {
   const abilities = resources.abilities ?? [];
   const [editModal, setEditModal] = useState(false);
   const [editAbility, setEditAbility] = useState<Dnd5eAbility | null>(null);
   const [importModal, setImportModal] = useState(false);
+  // Intermediary "Add Ability" chooser modal — shown when the parent
+  // triggers addRequest with kind='menu'. Houses the two existing add
+  // affordances (import from class features + add custom) that used to
+  // live as full-width buttons at the bottom of the abilities list.
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const lastAddCounterRef = useRef<number | null>(null);
+
+  function openCustomAddFlow(actionType?: string) {
+    setEditAbility({
+      id: Date.now().toString(),
+      name: '',
+      description: '',
+      source: 'Custom',
+      actionType: (actionType ?? 'action') as Dnd5eAbility['actionType'],
+      uses: null,
+    });
+    setEditModal(true);
+  }
+
+  // Consume the parent's addRequest signal. `counter` is the freshness
+  // marker so repeat triggers fire even when {kind} is unchanged.
+  useEffect(() => {
+    if (!addRequest) return;
+    if (lastAddCounterRef.current === addRequest.counter) return;
+    lastAddCounterRef.current = addRequest.counter;
+    if (addRequest.kind === 'menu') {
+      setAddMenuOpen(true);
+    } else {
+      openCustomAddFlow(addRequest.actionType);
+    }
+    onAddRequestConsumed?.();
+  }, [addRequest, onAddRequestConsumed]);
 
   const importableFeatures = useMemo(() => {
     const features: ImportableFeature[] = [];
@@ -181,7 +225,14 @@ export function AbilitiesCardTab({
           <Text style={s.emptyText}>No abilities tracked yet.</Text>
           <Text style={s.emptyHint}>Add class features, racial abilities, or item powers to track uses during play.</Text>
         </View>
-      ) : null}
+      ) : (
+        <View style={s.tableHeaderRow}>
+          <Text style={[s.tableHeaderCell, { flex: 1 }]}>NAME</Text>
+          <Text style={[s.tableHeaderCell, s.sourceCol]}>SOURCE</Text>
+          <Text style={[s.tableHeaderCell, s.typeCol]}>TYPE</Text>
+          <Text style={[s.tableHeaderCell, s.usesCol]}>USES</Text>
+        </View>
+      )}
 
       {abilities.map((ability, idx) => (
         <AbilityCard
@@ -197,32 +248,51 @@ export function AbilitiesCardTab({
         />
       ))}
 
-      {isOwner ? (
-        <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
-          {importableFeatures.length > 0 ? (
-            <TouchableOpacity style={s.importBtn} onPress={() => setImportModal(true)}>
-              <MaterialCommunityIcons name="download-outline" size={16} color={colors.secondary} />
-              <Text style={s.importBtnText}>Import from class features ({importableFeatures.length})</Text>
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity
-            style={s.addBtn}
-            onPress={() => {
-              setEditAbility({
-                id: Date.now().toString(),
-                name: '',
-                description: '',
-                source: 'Custom',
-                actionType: 'action',
-                uses: null,
-              });
-              setEditModal(true);
-            }}
-          >
-            <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
-            <Text style={s.addBtnText}>Add custom ability</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Intermediary "Add Ability" chooser — opened by Combat's
+          Abilities + button via addRequest{kind:'menu'}. Houses the
+          two add affordances (import / custom) that used to live as
+          full-width buttons below the abilities list. */}
+      {addMenuOpen && isOwner ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setAddMenuOpen(false)}>
+          <Pressable style={s.addMenuBackdrop} onPress={() => setAddMenuOpen(false)}>
+            <Pressable style={s.addMenuCard} onPress={() => {}}>
+              <View style={s.addMenuHeader}>
+                <Text style={s.addMenuTitle}>Add Ability</Text>
+                <TouchableOpacity onPress={() => setAddMenuOpen(false)} hitSlop={10} activeOpacity={0.7}>
+                  <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ gap: 6 }}>
+                {importableFeatures.length > 0 ? (
+                  <TouchableOpacity
+                    style={s.addMenuOption}
+                    onPress={() => { setAddMenuOpen(false); setImportModal(true); }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="download-outline" size={18} color={colors.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.addMenuOptionLabel}>Import from class features ({importableFeatures.length})</Text>
+                      <Text style={s.addMenuOptionDesc}>Pull tracked-use features your class grants at your current level.</Text>
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={16} color={colors.outline} />
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity
+                  style={s.addMenuOption}
+                  onPress={() => { setAddMenuOpen(false); openCustomAddFlow(); }}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="plus" size={18} color={colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.addMenuOptionLabel}>Add custom ability</Text>
+                    <Text style={s.addMenuOptionDesc}>Create a homebrew or item-granted feature from scratch.</Text>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={16} color={colors.outline} />
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       ) : null}
 
       {editModal && editAbility ? (
@@ -343,34 +413,47 @@ function AbilityCard({ ability, isOwner, onUse, onEdit, canMoveUp, canMoveDown, 
 }) {
   const [open, setOpen] = useState(false);
   const hasUses = !!ability.uses;
+  const typeLabel = ability.actionType ? (ACTION_LABELS[ability.actionType] ?? ability.actionType) : '—';
+  // Trim "Bonus Action" → "Bonus" for the narrow TYPE column;
+  // "Reaction" / "Free" / "Passive" / "Action" are fine as-is.
+  const typeShort = typeLabel === 'Bonus Action' ? 'Bonus' : typeLabel;
+  const rechargeLabel = ability.uses
+    ? ability.uses.recharge === 'short' ? 'SR' : ability.uses.recharge === 'long' ? 'LR' : 'Dawn'
+    : null;
   return (
     <View style={s.card}>
       <TouchableOpacity style={s.cardHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
         <View style={s.cardAccent} />
-        <View style={{ flex: 1 }}>
-          <Text style={s.cardName}>{ability.name}</Text>
-          <View style={s.cardMeta}>
-            {ability.actionType ? (
-              <Text style={s.cardMetaText}>{ACTION_LABELS[ability.actionType] ?? ability.actionType}</Text>
-            ) : null}
-            {ability.source ? (
-              <Text style={s.cardMetaText}>· {ability.source}</Text>
-            ) : null}
-            {ability.uses ? (
-              <Text style={s.cardMetaText}>· {ability.uses.recharge === 'short' ? 'SR' : ability.uses.recharge === 'long' ? 'LR' : 'Dawn'}</Text>
-            ) : null}
+        <View style={s.cardHeaderBody}>
+          <View style={s.cardTitleRow}>
+            <Text style={s.cardName} numberOfLines={1}>{ability.name}</Text>
+            <View style={s.sourceCol}>
+              <Text style={s.sourceCellText} numberOfLines={1}>{ability.source ?? '—'}</Text>
+            </View>
+            <View style={s.typeCol}>
+              <Text style={s.typeCellText} numberOfLines={1}>{typeShort}</Text>
+            </View>
+            <View style={s.usesCol}>
+              {hasUses ? (
+                <View style={s.usesCompact}>
+                  <Text style={s.usesCompactText}>{ability.uses!.current}/{ability.uses!.max}</Text>
+                </View>
+              ) : (
+                <Text style={s.usesEmpty}>—</Text>
+              )}
+            </View>
+            <MaterialCommunityIcons
+              name={open ? 'chevron-up' : 'chevron-down'}
+              size={12}
+              color={colors.outline}
+            />
           </View>
+          {rechargeLabel ? (
+            <View style={s.cardMeta}>
+              <Text style={s.cardMetaText}>Recharge: {rechargeLabel}</Text>
+            </View>
+          ) : null}
         </View>
-        {hasUses ? (
-          <View style={s.usesCompact}>
-            <Text style={s.usesCompactText}>{ability.uses!.current}/{ability.uses!.max}</Text>
-          </View>
-        ) : null}
-        <MaterialCommunityIcons
-          name={open ? 'chevron-down' : 'chevron-right'}
-          size={16}
-          color={colors.outline}
-        />
       </TouchableOpacity>
 
       {open ? (
@@ -612,27 +695,64 @@ const s = StyleSheet.create({
   emptyText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurfaceVariant },
   emptyHint: { fontSize: 12, fontFamily: fonts.body, color: colors.outline, textAlign: 'center', paddingHorizontal: spacing.lg },
 
+  // Mirrors the action-card style on the Combat tab: no bg fill, thin
+  // outline, full-height accent bar, compact body. Tighter font sizes
+  // match the action-card density so abilities + actions read as one
+  // visual family in the embedded combat layout.
   card: {
-    backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.sm,
+    borderRadius: 6, overflow: 'hidden', marginBottom: 4,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
-  cardAccent: { width: 3, height: 28, borderRadius: 2, backgroundColor: colors.primary },
-  cardName: { fontSize: 14, fontFamily: fonts.body, fontWeight: '700', color: colors.onSurface },
-  cardMeta: { flexDirection: 'row', gap: 4, marginTop: 2 },
+  cardHeader: { flexDirection: 'row', alignItems: 'stretch' },
+  cardAccent: { width: 2, alignSelf: 'stretch', backgroundColor: colors.primary },
+  cardHeaderBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 1 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  cardName: {
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, letterSpacing: -0.1,
+  },
+  cardMeta: { flexDirection: 'row', gap: 4, marginLeft: 0 },
   cardMetaText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', color: colors.outline },
   usesCompact: {
-    paddingHorizontal: 8, paddingVertical: 3,
+    paddingHorizontal: 6, paddingVertical: 1,
     borderRadius: 100, backgroundColor: colors.primary + '22',
   },
-  usesCompactText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
+  usesCompactText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
+  /** Em-dash placeholder when an ability has no tracked uses, kept inside
+   *  the USES column so the chevron stays aligned across rows. */
+  usesEmpty: { fontSize: 10, fontFamily: fonts.label, color: colors.outline },
+
+  /** Attacks-style table header strip above the ability cards. Padded
+   *  10px on the left so NAME starts past the bar + body padding. */
+  tableHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    marginBottom: 4,
+  },
+  tableHeaderCell: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+  },
+  /** Fixed-width columns shared between the AbilityCard title row and
+   *  the header strip above so each column lines up cleanly. */
+  sourceCol: { width: 92, alignItems: 'center' },
+  sourceCellText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, textAlign: 'center' as const,
+  },
+  typeCol: { width: 72, alignItems: 'center' },
+  typeCellText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, textAlign: 'center' as const,
+  },
+  usesCol: { width: 44, alignItems: 'center' },
 
   cardBody: {
-    paddingHorizontal: 16, paddingBottom: 12,
+    paddingHorizontal: 12, paddingBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
   },
-  cardDesc: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 10 },
+  cardDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 15, marginTop: 8 },
 
   usesRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 12 },
   pipsRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
@@ -674,6 +794,29 @@ const s = StyleSheet.create({
     borderRadius: radius.lg, backgroundColor: colors.primary + '08',
   },
   addBtnText: { fontSize: 13, fontFamily: fonts.body, fontWeight: '600', color: colors.primary },
+
+  // Intermediary "Add Ability" chooser modal — mirrors the AddSheetModal
+  // visual used by CombatTab so the section + buttons feel like one
+  // pattern across the sheet.
+  addMenuBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  addMenuCard: {
+    width: '100%', maxWidth: 380,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 12, padding: 16, gap: 12,
+  },
+  addMenuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  addMenuTitle: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  addMenuOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  addMenuOptionLabel: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface },
+  addMenuOptionDesc: { fontSize: 10, fontFamily: fonts.body, color: colors.onSurfaceVariant, marginTop: 2 },
 
   importRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,

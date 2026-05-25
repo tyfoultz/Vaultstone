@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, useWindowDimensions, Pressable,
+  View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, useWindowDimensions, Pressable, Modal,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, radius, spacing, MarkdownText } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5ePreparedSpell } from '@vaultstone/types';
@@ -24,11 +25,53 @@ const DEFAULT_SLOTS: Dnd5eResources['spellSlots'] = {
   7: { max: 0, remaining: 0 }, 8: { max: 0, remaining: 0 }, 9: { max: 0, remaining: 0 },
 };
 
-const CHIP_LABELS = ['CANTRIP', '1ST', '2ND', '3RD', '4TH', '5TH', '6TH', '7TH', '8TH', '9TH'];
 const LEVEL_LABELS = ['', '1ST LEVEL', '2ND LEVEL', '3RD LEVEL', '4TH LEVEL', '5TH LEVEL', '6TH LEVEL', '7TH LEVEL', '8TH LEVEL', '9TH LEVEL'];
 
-type FilterKey = 'all' | 'conc' | number;
-type StatusFilter = 'all' | 'prepared' | 'unprepared';
+/**
+ * School palette — semi-saturated accent colors keyed to the eight 5e
+ * schools of magic. Painted onto each spell card's left bar and used as
+ * the icon tint + the school name color in the meta sub line. Picked to
+ * stay readable on the Noir surface without going neon.
+ */
+const SCHOOL_COLORS: Record<string, string> = {
+  abjuration: '#79b8ff',
+  conjuration: '#f0b94c',
+  divination: '#a8d4e6',
+  enchantment: '#ec7dca',
+  evocation: '#e95c4b',
+  illusion: '#c084fc',
+  necromancy: '#66c489',
+  transmutation: '#d4824d',
+};
+
+/**
+ * MaterialCommunityIcons glyph per school. Mirrors the accent color so
+ * the card has a coherent left edge (bar color + icon hue match).
+ */
+const SCHOOL_ICONS: Record<string, React.ComponentProps<typeof MaterialCommunityIcons>['name']> = {
+  abjuration: 'shield-half-full',
+  conjuration: 'creation',
+  divination: 'eye',
+  enchantment: 'heart-flash',
+  evocation: 'fire',
+  illusion: 'drama-masks',
+  necromancy: 'skull',
+  transmutation: 'swap-vertical-circle',
+};
+
+function schoolColor(school?: string | null): string {
+  if (!school) return '#9ca3af';
+  return SCHOOL_COLORS[school.toLowerCase()] ?? '#9ca3af';
+}
+
+function schoolIcon(school?: string | null): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  if (!school) return 'star-four-points';
+  return SCHOOL_ICONS[school.toLowerCase()] ?? 'star-four-points';
+}
+
+// Filter state was an enum for level / conc / status; the chip strip
+// that drove it is gone. A single `prepOnly` boolean — toggled from the
+// PREPARED button next to the search box — covers the common case.
 
 interface Props {
   stats: Dnd5eStats;
@@ -53,17 +96,16 @@ interface Props {
    *  flips its status. Cantrips always render as prepared since 5e
    *  cantrips are always cast-ready. */
   spellbook?: Dnd5ePreparedSpell[];
-  /** Toggle a spell's prepared state (leveled only — cantrips are
-   *  auto-prepared by being in the spellbook). Caller writes
-   *  resources.preparedSpells with the new entry added or removed. */
-  onTogglePrepared?: (spell: Dnd5ePreparedSpell) => void;
-  /** Toggle a spell's always-prepared flag. Always-prepared spells
-   *  count as prepared regardless of the regular toggle and don't
-   *  consume the daily prepare cap — used for domain/oath spells and
-   *  any other source-granted "free" prep. Caller adds the spell to
-   *  resources.preparedSpells with alwaysPrepared=true (or strips the
-   *  flag when toggled off). */
-  onToggleAlwaysPrepared?: (spell: Dnd5ePreparedSpell) => void;
+  /** Set a spell's prep status directly. The PREP-column chip cycles
+   *  through Unprepared → Prepared → Always Prepared → Unprepared with
+   *  a single tap per step; the parent persists the change in one
+   *  resources.preparedSpells write so cycling from Always → Unprepared
+   *  (which needs to clear both the prepared entry and the
+   *  alwaysPrepared flag) doesn't race two separate writes against
+   *  each other. Replaces the prior onTogglePrepared +
+   *  onToggleAlwaysPrepared prop pair. Cantrips ignore this — they're
+   *  always cast-ready by being in the spellbook. */
+  onSetPrepStatus?: (spell: Dnd5ePreparedSpell, status: 'unprepared' | 'prepared' | 'always') => void;
   /** Update a spell's player notes (kept separate from the canonical
    *  description). Caller persists the merged spell into preparedSpells
    *  / spellbook. */
@@ -96,14 +138,13 @@ interface Props {
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, manualMode, onEditField,
   effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
-  onOpenManage, spellbook, onTogglePrepared, onToggleAlwaysPrepared, onSaveSpellNotes, spellcastingExplainers,
+  onOpenManage, spellbook, onSetPrepStatus, onSaveSpellNotes, spellcastingExplainers,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
   const { width } = useWindowDimensions();
   const isWide = width >= 560;
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<FilterKey>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [prepOnly, setPrepOnly] = useState(false);
 
   const spellAbility = effectiveSpellcastingAbility ?? stats.spellcastingAbility;
   const isSpellcaster = !!spellAbility;
@@ -129,18 +170,6 @@ export function SpellsTab({
   const spellAttack = manualMode && stats.spellAttackOverride != null
     ? stats.spellAttackOverride
     : computedSpellAttack;
-
-  const availableLevels = useMemo(() => {
-    const levels = new Set<number>();
-    preparedSpells.forEach((sp) => levels.add(sp.level));
-    (spellbook ?? []).forEach((sp) => levels.add(sp.level));
-    if (spellSlots) {
-      ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).forEach((l) => {
-        if (spellSlots[l].max > 0) levels.add(l);
-      });
-    }
-    return [...levels].sort((a, b) => a - b);
-  }, [preparedSpells, spellbook, spellSlots]);
 
   // Source list: prefer the full spellbook so unprepared spells render
   // too. Falls back to preparedSpells when no spellbook was passed
@@ -178,13 +207,10 @@ export function SpellsTab({
         sp.source?.toLowerCase().includes(q)
       );
     }
-    if (filter === 'conc') spells = spells.filter((sp) => sp.concentration);
-    else if (filter !== 'all') spells = spells.filter((sp) => sp.level === filter);
-    if (statusFilter === 'prepared') spells = spells.filter(isPrepared);
-    else if (statusFilter === 'unprepared') spells = spells.filter((sp) => !isPrepared(sp));
+    if (prepOnly) spells = spells.filter(isPrepared);
     return spells;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceList, search, filter, statusFilter, preparedKeys]);
+  }, [sourceList, search, prepOnly, preparedKeys]);
 
   const byName = (a: Dnd5ePreparedSpell, b: Dnd5ePreparedSpell) => a.name.localeCompare(b.name);
   const cantrips = filteredSpells.filter((sp) => sp.level === 0).sort(byName);
@@ -192,10 +218,7 @@ export function SpellsTab({
     level: lvl,
     spells: filteredSpells.filter((sp) => sp.level === lvl).sort(byName),
     slot: spellSlots?.[lvl] ?? null,
-  })).filter((g) => {
-    if (filter !== 'all' && filter !== 'conc' && filter !== g.level) return false;
-    return g.spells.length > 0 || (g.slot && g.slot.max > 0);
-  });
+  })).filter((g) => g.spells.length > 0 || (g.slot && g.slot.max > 0));
 
   // Counts for the stats-row cells (CANTRIPS + PREPARED). Sum the limits
   // across explainer entries so multiclass shows the total (e.g.
@@ -226,6 +249,7 @@ export function SpellsTab({
     : computedPreparedLimit;
 
   return (
+    <>
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
 
       {/* ── Spellcasting stats header ── */}
@@ -254,124 +278,46 @@ export function SpellsTab({
             <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
             <Text style={s.statLabel}>SAVE DC</Text>
           </TouchableOpacity>
-          <View style={s.statDivider} />
-          <TouchableOpacity
-            style={s.statBlock}
-            disabled={!manualMode || !onEditField}
-            onPress={manualMode && onEditField
-              ? () => onEditField('cantripsLimit', cantripLimit ?? totalCantripsKnown)
-              : undefined}
-            activeOpacity={manualMode && onEditField ? 0.7 : 1}
-          >
-            <Text style={[
-              s.statValue,
-              cantripLimit !== undefined && totalCantripsKnown >= cantripLimit && s.statValueAtLimit,
-            ]}>
-              {cantripLimit !== undefined
-                ? `${totalCantripsKnown}/${cantripLimit}`
-                : String(totalCantripsKnown)}
-            </Text>
-            <Text style={s.statLabel}>CANTRIPS</Text>
-          </TouchableOpacity>
-          <View style={s.statDivider} />
-          <TouchableOpacity
-            style={s.statBlock}
-            disabled={!manualMode || !onEditField}
-            onPress={manualMode && onEditField
-              ? () => onEditField('preparedLimit', preparedLimit ?? totalLeveledPrepared)
-              : undefined}
-            activeOpacity={manualMode && onEditField ? 0.7 : 1}
-          >
-            <Text style={[
-              s.statValue,
-              preparedLimit !== undefined && totalLeveledPrepared >= preparedLimit && s.statValueAtLimit,
-            ]}>
-              {preparedLimit !== undefined
-                ? `${totalLeveledPrepared}/${preparedLimit}`
-                : String(totalLeveledPrepared)}
-            </Text>
-            <Text style={s.statLabel}>PREPARED</Text>
-          </TouchableOpacity>
+          {/* Action buttons take the slots where CANTRIPS + PREPARED
+              count stats used to live. The cantrips header already
+              shows "X of Y cantrips" and the per-level + buttons add
+              spells, so the at-a-glance counts were redundant here. */}
+          {isOwner && onOpenManage ? (
+            <>
+              <View style={s.statDivider} />
+              <TouchableOpacity
+                style={s.statActionBlock}
+                onPress={onOpenManage}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="bookshelf" size={22} color={colors.primary} />
+                <Text style={s.statActionLabel}>MANAGE SPELLS</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
+          {spellcastingExplainers && spellcastingExplainers.length > 0 ? (
+            <>
+              <View style={s.statDivider} />
+              <TouchableOpacity
+                style={s.statActionBlock}
+                onPress={() => setExplainerOpen(true)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="book-open-variant" size={22} color={colors.primary} />
+                <Text style={s.statActionLabel}>SPELLCASTING</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
         </View>
       )}
 
-      {/* ── Spell slots overview table ── */}
-      {spellSlots && ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => spellSlots[l].max > 0) && (
-        <SpellSlotTable
-          spellSlots={spellSlots}
-          isOwner={isOwner}
-          onSlotChange={onSpellSlotChange}
-          manualMode={!!manualMode}
-          onEditMax={manualMode && onEditField
-            ? (level, current) => onEditField(`slotMax_${level}`, current)
-            : undefined}
-        />
-      )}
+      {/* "How spellcasting works" lived here as a collapsible card; it
+          now opens as a modal triggered from the HOW IT WORKS button
+          in the stats strip above. Keeps the top of the tab leading
+          with action surfaces (search + Manage + How it works) instead
+          of pushing them below a tall explainer card. */}
 
-      {/* ── How spellcasting works (collapsible per-class explainer) ── */}
-      {spellcastingExplainers && spellcastingExplainers.length > 0 && (
-        <View style={s.explainerCard}>
-          <TouchableOpacity
-            style={s.explainerHeader}
-            onPress={() => setExplainerOpen((v) => !v)}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.primary} />
-            <Text style={s.explainerTitle}>
-              {spellcastingExplainers.length === 1
-                ? `How ${spellcastingExplainers[0].className} spellcasting works`
-                : 'How spellcasting works'}
-            </Text>
-            <MaterialCommunityIcons
-              name={explainerOpen ? 'chevron-up' : 'chevron-down'}
-              size={16}
-              color={colors.outline}
-            />
-          </TouchableOpacity>
-          {explainerOpen && (
-            <View style={s.explainerBody}>
-              {spellcastingExplainers.map((ex, i) => (
-                <View key={ex.className} style={i > 0 ? s.explainerSection : null}>
-                  {spellcastingExplainers.length > 1 && (
-                    <Text style={s.explainerClassLabel}>{ex.className.toUpperCase()}</Text>
-                  )}
-                  {/* Synthesized core stats — always shown so even classes
-                      with thin/missing prose (5.1 SRD, imported homebrew
-                      Artificer) surface the actual numbers a player needs
-                      at the table. */}
-                  <View style={s.synthGrid}>
-                    {ex.spellcastingAbility && (
-                      <SynthCell label="Ability" value={ex.spellcastingAbility} />
-                    )}
-                    {ex.spellcastingAbility && (
-                      <SynthCell label="Save DC" value={`8 + prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
-                    )}
-                    {ex.spellcastingAbility && (
-                      <SynthCell label="Spell Attack" value={`prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
-                    )}
-                    {ex.cantripsKnown !== undefined && (
-                      <SynthCell label="Cantrips Known" value={String(ex.cantripsKnown)} />
-                    )}
-                    {ex.spellsKnownOrPrepared !== undefined && ex.preparedLabel && (
-                      <SynthCell
-                        label={ex.preparedLabel}
-                        value={ex.preparedFormula
-                          ? `${ex.spellsKnownOrPrepared} (${ex.preparedFormula})`
-                          : String(ex.spellsKnownOrPrepared)}
-                      />
-                    )}
-                  </View>
-                  {ex.description ? (
-                    <MarkdownText style={s.explainerText}>{ex.description}</MarkdownText>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* ── Search + Manage ── */}
+      {/* ── Search + Prepared toggle ── */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
           <MaterialCommunityIcons name="magnify" size={15} color={colors.outline} />
@@ -388,52 +334,23 @@ export function SpellsTab({
             </TouchableOpacity>
           )}
         </View>
-        {isOwner && onOpenManage && (
-          <TouchableOpacity style={s.manageBtn} activeOpacity={0.7} onPress={onOpenManage}>
-            <Text style={s.manageBtnText}>MANAGE SPELLS</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* ── Level filter chips ── */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filtersRow}>
-        <FilterChip label="ALL" active={filter === 'all'} onPress={() => setFilter('all')} />
-        {availableLevels.map((lvl) => (
-          <FilterChip
-            key={lvl}
-            label={CHIP_LABELS[lvl]}
-            active={filter === lvl}
-            onPress={() => setFilter(filter === lvl ? 'all' : lvl)}
-          />
-        ))}
+        {/* Prepared filter — only one toggle replaces the old level /
+            conc / unprepared chip strip. Most players reach for "show
+            only what I can actually cast right now" and either scroll
+            or search for the rest. */}
         <TouchableOpacity
-          style={[s.chip, filter === 'conc' && s.chipActive]}
-          onPress={() => setFilter(filter === 'conc' ? 'all' : 'conc')}
+          style={[s.prepFilterBtn, prepOnly && s.prepFilterBtnActive]}
+          onPress={() => setPrepOnly((v) => !v)}
           activeOpacity={0.7}
         >
           <MaterialCommunityIcons
-            name="diamond-stone"
-            size={11}
-            color={filter === 'conc' ? colors.onPrimary : colors.outline}
-            style={{ marginRight: 4 }}
+            name={prepOnly ? 'check-circle' : 'circle-outline'}
+            size={13}
+            color={prepOnly ? colors.onPrimary : colors.outline}
           />
-          <Text style={[s.chipText, filter === 'conc' && s.chipTextActive]}>CONC</Text>
+          <Text style={[s.prepFilterBtnText, prepOnly && s.prepFilterBtnTextActive]}>PREPARED</Text>
         </TouchableOpacity>
-
-        {/* Vertical divider so the prep-status filters read as a
-            distinct group from the level / conc filters. */}
-        <View style={s.chipDivider} />
-        <FilterChip
-          label="PREPARED"
-          active={statusFilter === 'prepared'}
-          onPress={() => setStatusFilter(statusFilter === 'prepared' ? 'all' : 'prepared')}
-        />
-        <FilterChip
-          label="UNPREPARED"
-          active={statusFilter === 'unprepared'}
-          onPress={() => setStatusFilter(statusFilter === 'unprepared' ? 'all' : 'unprepared')}
-        />
-      </ScrollView>
+      </View>
 
       {/* ── Concentration banner ── */}
       {concentration && (
@@ -453,8 +370,25 @@ export function SpellsTab({
         <View style={s.levelSection}>
           <View style={s.levelHead}>
             <Text style={s.levelTitle}>Cantrips</Text>
-            <Text style={s.levelSub}>At will</Text>
+            {cantripLimit !== undefined ? (
+              <View style={[s.slotSummary, manualMode && s.slotSummaryEditable]}>
+                {manualMode && onEditField ? (
+                  <TouchableOpacity
+                    onPress={() => onEditField('cantripsLimit', cantripLimit)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.levelSub}>{`${totalCantripsKnown} of ${cantripLimit} cantrips`}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={s.levelSub}>{`${totalCantripsKnown} of ${cantripLimit} cantrips`}</Text>
+                )}
+              </View>
+            ) : (
+              <Text style={s.levelSub}>At will</Text>
+            )}
           </View>
+          <LevelGradient />
+          <SpellTableHeader />
           {cantrips.map((spell) => (
             <SpellRow
               key={spell.id}
@@ -474,25 +408,36 @@ export function SpellsTab({
           <View style={s.levelHead}>
             <Text style={s.levelTitle}>{`${ordinal(level)} Level`}</Text>
             {slot && slot.max > 0 && (
-              <Text style={s.levelSub}>{`${slot.remaining} of ${slot.max} slots`}</Text>
-            )}
-            {slot && slot.max > 0 && (
-              <View style={s.slotPipsRow}>
-                {Array.from({ length: slot.max }).map((_, i) => (
+              <View style={[s.slotSummary, manualMode && s.slotSummaryEditable]}>
+                {manualMode && onEditField ? (
                   <TouchableOpacity
-                    key={i}
-                    onPress={() => {
-                      if (!isOwner || !onSpellSlotChange) return;
-                      onSpellSlotChange(level, i < slot.remaining ? -1 : 1);
-                    }}
-                    activeOpacity={isOwner ? 0.7 : 1}
+                    onPress={() => onEditField(`slotMax_${level}`, slot.max)}
+                    activeOpacity={0.7}
                   >
-                    <View style={[s.pip, i < slot.remaining && s.pipFilled]} />
+                    <Text style={s.levelSub}>{`${slot.remaining} of ${slot.max} slots`}</Text>
                   </TouchableOpacity>
-                ))}
+                ) : (
+                  <Text style={s.levelSub}>{`${slot.remaining} of ${slot.max} slots`}</Text>
+                )}
+                <View style={s.slotPipsRowInline}>
+                  {Array.from({ length: slot.max }).map((_, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => {
+                        if (!isOwner || !onSpellSlotChange) return;
+                        onSpellSlotChange(level, i < slot.remaining ? -1 : 1);
+                      }}
+                      activeOpacity={isOwner ? 0.7 : 1}
+                    >
+                      <View style={[s.pip, i < slot.remaining && s.pipFilled]} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             )}
           </View>
+          <LevelGradient />
+          {spells.length > 0 ? <SpellTableHeader /> : null}
           {spells.map((spell) => {
             const prep = isPrepared(spell);
             const always = isAlwaysPrepared(spell);
@@ -504,11 +449,9 @@ export function SpellsTab({
                 slot={slot}
                 prepared={prep}
                 alwaysPrepared={always}
-                canToggle={isOwner && !!onTogglePrepared}
-                onTogglePrepared={onTogglePrepared ? () => onTogglePrepared(spell) : undefined}
-                onToggleAlwaysPrepared={isOwner && onToggleAlwaysPrepared ? () => onToggleAlwaysPrepared(spell) : undefined}
+                canToggle={isOwner && !!onSetPrepStatus}
+                onSetPrepStatus={onSetPrepStatus ? (status) => onSetPrepStatus(spell, status) : undefined}
                 togglesBlocked={!prep && atLimit}
-                onCast={isOwner && onSpellSlotChange ? () => onSpellSlotChange(level, -1) : undefined}
                 onSaveNotes={isOwner && onSaveSpellNotes ? (notes) => onSaveSpellNotes(spell, notes) : undefined}
               />
             );
@@ -547,97 +490,69 @@ export function SpellsTab({
 
       <View style={{ height: 24 }} />
     </ScrollView>
+
+    {/* "How spellcasting works" modal — replaces the standalone
+        collapsible card. Shows synthesized per-class stats + the
+        class-shipped prose. Same modal shape as the AddSheetModal
+        chassis on the Combat tab. */}
+    {explainerOpen && spellcastingExplainers && spellcastingExplainers.length > 0 ? (
+      <Modal visible transparent animationType="fade" onRequestClose={() => setExplainerOpen(false)}>
+        <Pressable style={s.explainerModalBackdrop} onPress={() => setExplainerOpen(false)}>
+          <Pressable style={s.explainerModalCard} onPress={() => {}}>
+            <View style={s.explainerModalHeader}>
+              <MaterialCommunityIcons name="book-open-variant" size={16} color={colors.primary} />
+              <Text style={s.explainerModalTitle}>
+                {spellcastingExplainers.length === 1
+                  ? `How ${spellcastingExplainers[0].className} spellcasting works`
+                  : 'How spellcasting works'}
+              </Text>
+              <TouchableOpacity onPress={() => setExplainerOpen(false)} hitSlop={10} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ paddingBottom: 8 }}>
+              {spellcastingExplainers.map((ex, i) => (
+                <View key={ex.className} style={i > 0 ? s.explainerSection : null}>
+                  {spellcastingExplainers.length > 1 && (
+                    <Text style={s.explainerClassLabel}>{ex.className.toUpperCase()}</Text>
+                  )}
+                  <View style={s.synthGrid}>
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Ability" value={ex.spellcastingAbility} />
+                    )}
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Save DC" value={`8 + prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
+                    )}
+                    {ex.spellcastingAbility && (
+                      <SynthCell label="Spell Attack" value={`prof + ${shortAbility(ex.spellcastingAbility)} mod`} />
+                    )}
+                    {ex.cantripsKnown !== undefined && (
+                      <SynthCell label="Cantrips Known" value={String(ex.cantripsKnown)} />
+                    )}
+                    {ex.spellsKnownOrPrepared !== undefined && ex.preparedLabel && (
+                      <SynthCell
+                        label={ex.preparedLabel}
+                        value={ex.preparedFormula
+                          ? `${ex.spellsKnownOrPrepared} (${ex.preparedFormula})`
+                          : String(ex.spellsKnownOrPrepared)}
+                      />
+                    )}
+                  </View>
+                  {ex.description ? (
+                    <MarkdownText style={s.explainerText}>{ex.description}</MarkdownText>
+                  ) : null}
+                </View>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    ) : null}
+    </>
   );
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────────
-
-function SpellSlotTable({ spellSlots, isOwner, onSlotChange, manualMode, onEditMax }: {
-  spellSlots: Record<number, { max: number; remaining: number }>;
-  isOwner: boolean;
-  onSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
-  manualMode?: boolean;
-  /** Tap on a Total cell in Manual Mode → opens the slot-max edit
-   *  affordance up in the CharacterSheet edit modal. */
-  onEditMax?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, current: number) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  // In Manual Mode we want every level cell to be tappable, including
-  // ones the class table currently zeros out (so the player can grant
-  // a slot at a level their class doesn't reach yet). Outside Manual
-  // Mode keep the prior "hide empty levels" behavior to avoid clutter.
-  const activeLevels = manualMode
-    ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const)
-    : ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((l) => spellSlots[l].max > 0);
-  if (activeLevels.length === 0) return null;
-
-  return (
-    <View style={s.explainerCard}>
-      <TouchableOpacity style={s.explainerHeader} onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
-        <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.primary} />
-        <Text style={s.explainerTitle}>Spell Slots by Level</Text>
-        <MaterialCommunityIcons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.outline} />
-      </TouchableOpacity>
-      {expanded && (
-        <View style={s.slotTableBody}>
-          <View style={s.slotTableRow}>
-            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
-              <Text style={s.slotTableHeader}>Slot Level</Text>
-            </View>
-            {activeLevels.map((l) => (
-              <View key={l} style={s.slotTableCell}>
-                <Text style={s.slotTableHeader}>{ordinal(l)}</Text>
-              </View>
-            ))}
-          </View>
-          <View style={s.slotTableRow}>
-            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
-              <Text style={s.slotTableLabel}>Total</Text>
-            </View>
-            {activeLevels.map((l) => (
-              <TouchableOpacity
-                key={l}
-                style={s.slotTableCell}
-                disabled={!manualMode || !onEditMax}
-                onPress={manualMode && onEditMax
-                  ? () => onEditMax(l, spellSlots[l]?.max ?? 0)
-                  : undefined}
-                activeOpacity={manualMode && onEditMax ? 0.7 : 1}
-              >
-                <Text style={s.slotTableCellText}>{spellSlots[l]?.max ?? 0}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={s.slotTableRow}>
-            <View style={[s.slotTableCell, s.slotTableCellFirst]}>
-              <Text style={s.slotTableLabel}>Remaining</Text>
-            </View>
-            {activeLevels.map((l) => (
-              <TouchableOpacity
-                key={l}
-                style={s.slotTableCell}
-                onPress={isOwner && onSlotChange ? () => onSlotChange(l, spellSlots[l].remaining > 0 ? -1 : 1) : undefined}
-                activeOpacity={isOwner ? 0.7 : 1}
-              >
-                <Text style={[s.slotTableCellText, spellSlots[l].remaining > 0 ? { color: colors.primary } : { color: colors.hpDanger }]}>
-                  {spellSlots[l].remaining}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
-    </View>
-  );
-}
-
-function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={[s.chip, active && s.chipActive]} onPress={onPress} activeOpacity={0.7}>
-      <Text style={[s.chipText, active && s.chipTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
 
 // 1 → "1st", 2 → "2nd", etc. — used in the level section header.
 function ordinal(n: number): string {
@@ -646,18 +561,56 @@ function ordinal(n: number): string {
   return n + (suffixes[(v - 20) % 10] ?? suffixes[v] ?? suffixes[0]);
 }
 
+/**
+ * Header strip rendered above every spell list (cantrips + each leveled
+ * group). Matches the Combat-tab table style: small uppercase labels
+ * sitting in fixed-width columns that line up with the SpellRow cells
+ * below. 10px left padding accounts for the 2px school accent bar plus
+ * 8px body padding on each card.
+ */
+function SpellTableHeader() {
+  return (
+    <View style={s.spellHeaderRow}>
+      {/* Empty cell that mirrors the row's icon slot so NAME header
+       *  aligns with the spell-name text below regardless of how many
+       *  leading glyphs the row has. */}
+      <View style={s.spellIconCol} />
+      <Text style={[s.spellHeaderCell, { flex: 1 }]}>NAME</Text>
+      <View style={s.spellSchoolCol}><Text style={s.spellHeaderCell}>SCHOOL</Text></View>
+      <View style={s.spellRangeCol}><Text style={s.spellHeaderCell}>RANGE</Text></View>
+      <View style={s.spellTimeCol}><Text style={s.spellHeaderCell}>TIME</Text></View>
+      <View style={s.spellPrepCol}><Text style={s.spellHeaderCell}>PREP</Text></View>
+    </View>
+  );
+}
+
+/**
+ * Thin horizontal gradient strip rendered between each level header and
+ * the spell list below it. Primary → rose-pink → transparent reads as a
+ * "magical seam" — quiet decoration that hints at arcane content
+ * without competing with the table rows for attention.
+ */
+function LevelGradient() {
+  return (
+    <LinearGradient
+      colors={[colors.primary, '#ec7dca', 'transparent']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={s.levelGradient}
+    />
+  );
+}
+
 function SpellRow({
-  spell, slot, prepared, alwaysPrepared, canToggle, onTogglePrepared, onToggleAlwaysPrepared, togglesBlocked, onCast, onSaveNotes,
+  spell, slot, prepared, alwaysPrepared, canToggle, onSetPrepStatus, togglesBlocked, onSaveNotes,
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
   prepared: boolean;
   alwaysPrepared: boolean;
   canToggle: boolean;
-  onTogglePrepared?: () => void;
-  onToggleAlwaysPrepared?: () => void;
+  onSetPrepStatus?: (status: 'unprepared' | 'prepared' | 'always') => void;
   togglesBlocked?: boolean;
-  onCast?: () => void;
   onSaveNotes?: (notes: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -667,82 +620,134 @@ function SpellRow({
   const notesActive = notesDraft !== null;
   const notesValue = notesActive ? notesDraft! : (spell.notes ?? '');
   const isCantrip = spell.level === 0;
-  const canCast = prepared && (isCantrip || (slot?.remaining ?? 0) > 0);
-  // Cap-blocked applies only to the "newly prepare" direction. Once
-  // prepared (or always-prepared), the player can always unprepare.
-  // Always-prepared spells skip the regular toggle entirely; they
-  // only flip via the "Always prepared" affordance in the expanded
-  // view so a stray tap doesn't blow away a domain-spell setup.
-  const toggleDisabled = !canToggle || alwaysPrepared || (togglesBlocked && !prepared);
-  const circleIconName = alwaysPrepared ? 'pin'
-    : isCantrip ? 'infinity'
-    : 'check';
+  const accentColor = schoolColor(spell.school);
+  const iconName = schoolIcon(spell.school);
+  // Mute the bar on unprepared leveled spells so prepared ones pop
+  // visually — the colored bars become a scan signal for "what's actually
+  // castable today" rather than just decoration.
+  const barColor = prepared ? accentColor : `${accentColor}55`;
+
+  // PREP-column chip cycles Unprepared → Prepared → Always → Unprepared
+  // on each tap (cantrips skip the cycle — they're always cast-ready).
+  // The Always → Unprepared transition needs to clear both the prepared
+  // entry and the alwaysPrepared flag in one persistResources call, which
+  // is why this delegates to a single onSetPrepStatus rather than chained
+  // toggle callbacks (race risk).
+  function handlePrepColPress(e: any) {
+    e?.stopPropagation?.();
+    if (isCantrip || !canToggle || !onSetPrepStatus) return;
+    // Block the Unprepared → Prepared step when the daily prep cap is full.
+    if (!prepared && togglesBlocked) return;
+    const next: 'unprepared' | 'prepared' | 'always' = alwaysPrepared
+      ? 'unprepared'
+      : prepared
+        ? 'always'
+        : 'prepared';
+    onSetPrepStatus(next);
+  }
+  // PREP-column visual state. Each tap advances one step in the cycle.
+  const prepLabel = isCantrip
+    ? 'At Will'
+    : alwaysPrepared
+      ? 'Always'
+      : prepared
+        ? 'Prepared'
+        : togglesBlocked
+          ? 'Capped'
+          : 'Prep';
 
   return (
     <View style={[s.spellCard, !prepared && s.spellCardDimmed]}>
       <TouchableOpacity
-        style={s.spellHead}
+        style={s.spellCardHead}
         onPress={() => setExpanded((v) => !v)}
-        onLongPress={canToggle && !toggleDisabled ? onTogglePrepared : undefined}
-        delayLongPress={300}
         activeOpacity={0.7}
       >
-        <TouchableOpacity
-          onPress={!toggleDisabled && onTogglePrepared
-            ? (e) => { e.stopPropagation?.(); onTogglePrepared(); }
-            : undefined}
-          activeOpacity={!toggleDisabled ? 0.6 : 1}
-          hitSlop={6}
-          style={[
-            s.statusCircle,
-            prepared && s.statusCircleOn,
-            isCantrip && s.statusCircleCantrip,
-            alwaysPrepared && s.statusCircleAlways,
-          ]}
-        >
-          {prepared ? (
+        <View style={[s.spellCardBar, { backgroundColor: barColor }]} />
+        <View style={s.spellCardBody}>
+          <View style={s.spellTitleRow}>
+            {/* Fixed-width icon slot — guarantees the spell name starts
+             *  at the same x across rows regardless of which leading
+             *  glyphs apply. School icon is the always-present anchor;
+             *  the cantrip ∞ from Phase 2 is gone (the PREP "At Will"
+             *  chip carries that signal). Concentration moves into the
+             *  SCHOOL column as an inline atom-variant badge. */}
+            <View style={s.spellIconCol}>
+              <MaterialCommunityIcons name={iconName} size={13} color={accentColor} />
+            </View>
+            <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
+            <View style={s.spellSchoolCol}>
+              <Text
+                style={[s.spellSchoolText, { color: prepared ? accentColor : `${accentColor}99` }]}
+                numberOfLines={1}
+              >
+                {spell.school ? capitalize(spell.school.toLowerCase()) : '—'}
+              </Text>
+              {spell.concentration ? (
+                <MaterialCommunityIcons
+                  name="atom-variant"
+                  size={11}
+                  color={colors.primary}
+                  style={{ marginLeft: 3 }}
+                  accessibilityLabel="Requires concentration"
+                />
+              ) : null}
+            </View>
+            <View style={s.spellRangeCol}>
+              <Text style={s.spellColText} numberOfLines={1}>{spell.range ?? '—'}</Text>
+            </View>
+            <View style={s.spellTimeCol}>
+              <Text style={s.spellColText} numberOfLines={1}>{spell.castingTime ?? '—'}</Text>
+            </View>
+            <View style={s.spellPrepCol}>
+              <TouchableOpacity
+                onPress={handlePrepColPress}
+                activeOpacity={isCantrip || !canToggle ? 1 : 0.7}
+                disabled={isCantrip || !canToggle || (!prepared && togglesBlocked)}
+                style={[
+                  s.prepChip,
+                  isCantrip && s.prepChipAtWill,
+                  prepared && !isCantrip && !alwaysPrepared && s.prepChipCast,
+                  !prepared && !isCantrip && s.prepChipUnprep,
+                  alwaysPrepared && s.prepChipAlways,
+                  !prepared && togglesBlocked && s.prepChipDisabled,
+                ]}
+              >
+                <Text style={[
+                  s.prepChipText,
+                  isCantrip && s.prepChipTextAtWill,
+                  prepared && !isCantrip && !alwaysPrepared && s.prepChipTextCast,
+                  !prepared && !isCantrip && s.prepChipTextUnprep,
+                  alwaysPrepared && s.prepChipTextAlways,
+                ]}>
+                  {prepLabel}
+                </Text>
+              </TouchableOpacity>
+            </View>
             <MaterialCommunityIcons
-              name={circleIconName}
+              name={expanded ? 'chevron-up' : 'chevron-down'}
               size={12}
-              color={colors.onPrimary}
+              color={colors.outline}
             />
+          </View>
+          {/* Meta sub line — ritual tag only. Always-prepared status is
+              carried entirely by the PREP-column chip now; school +
+              concentration sit in the SCHOOL column. */}
+          {spell.ritual ? (
+            <View style={s.spellMetaSub}>
+              <Text style={s.spellMetaText}>ritual</Text>
+            </View>
           ) : null}
-        </TouchableOpacity>
-        <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
-        {spell.school ? (
-          <View style={s.schoolChip}>
-            <Text style={s.schoolChipText} numberOfLines={1}>{capitalize(spell.school)}</Text>
-          </View>
-        ) : null}
-        {spell.ritual ? (
-          <View style={s.badgeIcon}>
-            <Text style={s.badgeIconText}>R</Text>
-          </View>
-        ) : null}
-        {spell.concentration ? (
-          <View style={[s.badgeIcon, s.badgeIconConc]}>
-            <Text style={[s.badgeIconText, s.badgeIconTextConc]}>C</Text>
-          </View>
-        ) : null}
-        <TouchableOpacity
-          style={[s.castBtn, !canCast && s.castBtnDisabled, isCantrip && s.castBtnAtWill]}
-          onPress={canCast && !isCantrip && onCast ? (e) => { e.stopPropagation(); onCast(); } : undefined}
-          activeOpacity={canCast && !isCantrip ? 0.7 : 1}
-        >
-          <Text style={[s.castBtnText, !canCast && s.castBtnTextDisabled, isCantrip && s.castBtnTextAtWill]}>
-            {isCantrip ? 'At Will' : prepared ? 'Cast' : 'Unprepared'}
-          </Text>
-        </TouchableOpacity>
-        <MaterialCommunityIcons
-          name={expanded ? 'chevron-down' : 'chevron-right'}
-          size={16}
-          color={colors.outline}
-          style={{ marginLeft: 4 }}
-        />
+        </View>
       </TouchableOpacity>
 
       {expanded ? (
-        <>
+        // Wrap the expanded body in a padded container so the meta
+        // strip, description, and notes box are inset from the card's
+        // outer border. The wrapper's left padding (10) matches the
+        // header row's content origin (2px bar + 8px body padding) so
+        // expanded content lines up with the spell name above.
+        <View style={s.spellCardExpanded}>
           <View style={s.metaStrip}>
             {spell.castingTime ? <MetaItem label="Time" value={spell.castingTime} /> : null}
             {spell.range ? <MetaItem label="Range" value={spell.range} /> : null}
@@ -751,51 +756,6 @@ function SpellRow({
             ) : null}
             {spell.duration ? <MetaItem label="Dur" value={spell.duration} /> : null}
           </View>
-
-          {/* Prepare controls — leveled spells only; cantrips are
-              always cast-ready. Two buttons so the player doesn't have
-              to discover the long-press gesture: a primary
-              Prepare/Unprepare and an "Always prepared" marker for
-              source-granted spells (domain / oath / etc.) that should
-              skip the daily cap. */}
-          {!isCantrip && canToggle && (onTogglePrepared || onToggleAlwaysPrepared) && (
-            <View style={s.prepBtnRow}>
-              {onTogglePrepared && !alwaysPrepared && (
-                <TouchableOpacity
-                  style={[s.prepBtn, prepared ? s.prepBtnOn : s.prepBtnOff,
-                    togglesBlocked && !prepared && s.prepBtnDisabled]}
-                  onPress={togglesBlocked && !prepared ? undefined : onTogglePrepared}
-                  activeOpacity={togglesBlocked && !prepared ? 1 : 0.7}
-                >
-                  <MaterialCommunityIcons
-                    name={prepared ? 'check-circle' : 'circle-outline'}
-                    size={13}
-                    color={prepared ? colors.onPrimary : colors.outline}
-                  />
-                  <Text style={[s.prepBtnText, prepared && s.prepBtnTextOn]}>
-                    {togglesBlocked && !prepared ? 'Prep cap reached'
-                      : prepared ? 'Prepared' : 'Prepare'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {onToggleAlwaysPrepared && (
-                <TouchableOpacity
-                  style={[s.prepBtn, alwaysPrepared ? s.prepBtnAlways : s.prepBtnOff]}
-                  onPress={onToggleAlwaysPrepared}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name="pin"
-                    size={13}
-                    color={alwaysPrepared ? colors.onPrimary : colors.outline}
-                  />
-                  <Text style={[s.prepBtnText, alwaysPrepared && s.prepBtnTextOn]}>
-                    {alwaysPrepared ? 'Always prepared' : 'Mark always prepared'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
 
           {spell.description ? (
             <Text style={s.descText}>{spell.description}</Text>
@@ -811,7 +771,7 @@ function SpellRow({
               upstream text. */}
           {onSaveNotes ? (
             <View style={s.spellNotesBox}>
-              <Text style={s.spellNotesLabel}>NOTES</Text>
+              <Text style={s.spellNotesLabel}>FLAVOR NOTES</Text>
               <TextInput
                 style={s.spellNotesInput}
                 value={notesValue}
@@ -829,11 +789,11 @@ function SpellRow({
             </View>
           ) : spell.notes ? (
             <View style={s.spellNotesBox}>
-              <Text style={s.spellNotesLabel}>NOTES</Text>
+              <Text style={s.spellNotesLabel}>FLAVOR NOTES</Text>
               <Text style={s.spellNotesText}>{spell.notes}</Text>
             </View>
           ) : null}
-        </>
+        </View>
       ) : null}
     </View>
   );
@@ -872,6 +832,30 @@ const s = StyleSheet.create({
   statValue: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
   statValueAtLimit: { color: colors.primary },
   statLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.5, color: colors.outline },
+  /** Action button that sits in the stats strip in place of a stat
+   *  block. Same flex sizing so the row stays evenly distributed;
+   *  icon + label replace the numeric value + label pairing. */
+  statActionBlock: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 2 },
+  statActionLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, color: colors.primary, textAlign: 'center' as const,
+  },
+
+  // "How spellcasting works" modal — replaces the standalone explainer
+  // card that used to sit between the stats strip and the search row.
+  explainerModalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  explainerModalCard: {
+    width: '100%', maxWidth: 520,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 12, padding: 16, gap: 12,
+  },
+  explainerModalHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  explainerModalTitle: {
+    flex: 1, fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
+  },
   statDivider: { width: StyleSheet.hairlineWidth, height: 30, backgroundColor: colors.outlineVariant, alignSelf: 'center' },
 
   // How-spellcasting-works collapsible card. The default is collapsed
@@ -929,33 +913,6 @@ const s = StyleSheet.create({
     fontSize: 12, fontFamily: fonts.body, color: colors.onSurface, fontWeight: '600',
   },
 
-  // Spell slot overview table
-  slotTableBody: {
-    borderTopWidth: 1, borderTopColor: colors.outlineVariant,
-  },
-  slotTableRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
-  },
-  slotTableCell: {
-    flex: 1, paddingVertical: 8, alignItems: 'center' as const, justifyContent: 'center' as const,
-    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.outlineVariant,
-  },
-  slotTableCellFirst: {
-    flex: 1.5,
-  },
-  slotTableHeader: {
-    fontSize: 10, fontFamily: fonts.label, fontWeight: '700' as const,
-    letterSpacing: 0.5, textTransform: 'uppercase' as const, color: colors.primary,
-  },
-  slotTableLabel: {
-    fontSize: 11, fontFamily: fonts.label, fontWeight: '600' as const, color: colors.onSurface,
-  },
-  slotTableCellText: {
-    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700' as const, color: colors.onSurface,
-    textAlign: 'center' as const,
-  },
-
   // Search row
   searchRow: { flexDirection: 'row', gap: 8, padding: 12 },
   searchBox: {
@@ -965,29 +922,22 @@ const s = StyleSheet.create({
     borderRadius: radius.lg, paddingHorizontal: 10, paddingVertical: 7,
   },
   searchInput: { flex: 1, fontSize: 12, fontFamily: fonts.body, color: colors.onSurface },
-  manageBtn: {
-    flexDirection: 'row', alignItems: 'center',
+  /** Prepared toggle that sits to the right of the search box —
+   *  outline when off, primary fill when on. Single toggle replaces
+   *  the entire FilterChip strip that used to live below the search
+   *  (level chips, conc, prepared, unprepared). */
+  prepFilterBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 7,
-    borderWidth: 1.5, borderColor: colors.primary,
-    borderRadius: radius.lg, justifyContent: 'center',
-  },
-  manageBtnText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1, color: colors.primary },
-
-  // Filter chips
-  filtersRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingBottom: 10 },
-  chipDivider: {
-    width: StyleSheet.hairlineWidth, height: 18,
-    backgroundColor: colors.outlineVariant, marginHorizontal: 4,
-  },
-  chip: {
-    flexDirection: 'row',
-    paddingHorizontal: 10, paddingVertical: 5,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: 100, alignItems: 'center', justifyContent: 'center', minWidth: 36,
+    borderRadius: radius.lg,
   },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
-  chipTextActive: { color: colors.onPrimary },
+  prepFilterBtnActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  prepFilterBtnText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.outline,
+  },
+  prepFilterBtnTextActive: { color: colors.onPrimary },
 
   // Concentration banner
   concBanner: {
@@ -1019,7 +969,18 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 1.4,
   },
   levelSub: { fontSize: 11, color: colors.onSurfaceVariant, letterSpacing: 0.4 },
-  slotPipsRow: { marginLeft: 'auto', flexDirection: 'row', gap: 6 },
+  /** Right-aligned cluster of "X of Y slots" text + pips. Gets a dashed
+   *  border in Manual Mode to signal that the count is the edit affordance
+   *  for the slot maximum (or cantrip limit on the cantrips header). */
+  slotSummary: {
+    marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  slotSummaryEditable: { borderColor: colors.primary, borderStyle: 'dashed' as const },
+  /** Pips inside the slotSummary wrapper — follows the count text. */
+  slotPipsRowInline: { flexDirection: 'row', gap: 6 },
   pip: {
     width: 14, height: 14, borderRadius: 4,
     backgroundColor: colors.surfaceContainerHigh,
@@ -1027,19 +988,93 @@ const s = StyleSheet.create({
   },
   pipFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
 
-  // ── Spell card ──────────────────────────────────────────────────────────
+  // ── Spell card (table-style chassis matching CombatTab's equipCard) ─────
+  // Outer card is flex column so the expanded body stacks BELOW the
+  // header row. The header row (spellCardHead) is itself flex row to
+  // place the accent bar next to the body content. Mixing those two
+  // axes on a single element put expanded content next to the header
+  // and broke the layout when a spell was prepared/expanded.
   spellCard: {
-    backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: 12,
-    paddingVertical: 14, paddingHorizontal: 16,
-    marginBottom: 10,
+    borderRadius: 6, overflow: 'hidden',
+    marginBottom: 4,
   },
   // Unprepared spells dim ~50% so the prepared list visually pops while
-  // unprepared entries stay readable + scannable. Combined with the
-  // "Unprepared" cast button copy + hollow status circle, the row reads
-  // as "in your book but not prepared today".
+  // unprepared entries stay readable + scannable.
   spellCardDimmed: { opacity: 0.55 },
+  /** Full-height left accent bar, painted with the school color. */
+  spellCardBar: { width: 2, alignSelf: 'stretch' },
+  /** Card body — wraps the title row + meta sub line. The whole card is
+   *  tappable for expand; nested controls use stopPropagation. */
+  spellCardHead: { flex: 1, flexDirection: 'row', alignItems: 'stretch' },
+  spellCardBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 1 },
+  spellTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  spellMetaSub: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginLeft: 28 },
+  spellMetaText: { fontSize: 10, fontFamily: fonts.label, color: colors.outline, textTransform: 'lowercase' as const },
+
+  /** Table header strip rendered above each spell list. Padded 10px on
+   *  the left so NAME starts past the card's bar + body padding. */
+  spellHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    marginBottom: 4,
+  },
+  spellHeaderCell: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
+  },
+  spellColText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, textAlign: 'center' as const,
+  },
+  /** School-tinted text — same size/weight as spellColText but caller
+   *  passes the school accent color (or dimmed variant when the spell
+   *  is unprepared) so the column reinforces the bar/icon color. */
+  spellSchoolText: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    textAlign: 'center' as const,
+  },
+  /** Fixed-width leading slot for the school glyph. Mirrored in the
+   *  header (empty cell) so spell-name text aligns across all rows
+   *  whether or not the row has badges. */
+  spellIconCol: { width: 22, alignItems: 'center' },
+  /** School column — fits "transmutation" (the longest school name) at
+   *  fontSize 10 plus an optional inline concentration badge. */
+  spellSchoolCol: { width: 92, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  spellRangeCol: { width: 64, alignItems: 'center' },
+  spellTimeCol: { width: 64, alignItems: 'center' },
+  spellPrepCol: { width: 60, alignItems: 'center' },
+
+  /** Prep-column chip — visual state depends on cantrip / prepared /
+   *  unprepared / always-prepared. Replaces the old standalone status
+   *  circle + cast button affordances with one compact control. */
+  prepChip: {
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: 'transparent',
+    minWidth: 56, alignItems: 'center',
+  },
+  prepChipAtWill: { borderColor: `${colors.primary}55` },
+  prepChipCast: { backgroundColor: `${colors.primary}22`, borderColor: `${colors.primary}66` },
+  prepChipDisabled: { opacity: 0.5 },
+  prepChipUnprep: { borderColor: colors.outlineVariant },
+  prepChipAlways: { borderColor: `${colors.gm}66`, backgroundColor: `${colors.gm}18` },
+  prepChipText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.outline, letterSpacing: 0.4 },
+  prepChipTextAtWill: { color: colors.primary },
+  prepChipTextCast: { color: colors.primary },
+  prepChipTextUnprep: { color: colors.outline },
+  prepChipTextAlways: { color: colors.gm },
+
+  /** Thin gradient strip between the level title and the table header.
+   *  Quiet decoration — feels like a magical seam without competing
+   *  with the spell rows for attention. */
+  levelGradient: {
+    height: 2, borderRadius: 1,
+    marginHorizontal: 4, marginBottom: 6,
+    opacity: 0.45,
+  },
   // Status circle to the left of the spell name. Hollow when
   // unprepared, primary-filled when prepared. Cantrips render with an
   // infinity glyph to signal "always available" rather than a check.
@@ -1074,10 +1109,13 @@ const s = StyleSheet.create({
   },
   prepBtnTextOn: { color: colors.onPrimary },
   spellHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  /** Spell name — matches the Combat-tab equipCardName / cardName
+   *  density (12 / headline / 600) so the two tabs feel like one
+   *  family. The flex:1 sits inside the title row's gap-6 layout
+   *  so columns slide past on the right without wrapping. */
   spellName: {
-    fontFamily: fonts.headline, fontWeight: '600',
-    fontSize: 16, color: colors.onSurface, letterSpacing: 0.1,
-    flexShrink: 1,
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, letterSpacing: -0.1,
   },
   schoolChip: {
     paddingHorizontal: 8, paddingVertical: 3,
@@ -1126,10 +1164,16 @@ const s = StyleSheet.create({
   castBtnTextAtWill: { color: colors.onSurfaceVariant },
   castBtnTextDisabled: { color: colors.outline },
 
+  /** Padded container for the expanded body (meta strip + description
+   *  + notes). Indented 10px on the left so contents align with the
+   *  spell name above (which sits past the 2px accent bar + 8px body
+   *  padding); 10px on the right keeps the description and the notes
+   *  box from kissing the card's right border. */
+  spellCardExpanded: { paddingHorizontal: 10, paddingBottom: 10 },
   metaStrip: {
     flexDirection: 'row', flexWrap: 'wrap',
     gap: 18,
-    marginTop: 12,
+    marginTop: 8,
   },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaItemLabel: {

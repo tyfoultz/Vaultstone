@@ -6,6 +6,7 @@ import {
   ActivityIndicator, Modal, Pressable, Switch, StyleSheet, Platform, useWindowDimensions, Alert,
 } from 'react-native';
 import { ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -27,7 +28,7 @@ import { CombatTab, ConditionsSection } from './CombatTab';
 import { SkillsTab } from './SkillsTab';
 import { AbilitiesTab } from './AbilitiesTab';
 import { SpellsTab } from './SpellsTab';
-import { GearTab } from './GearTab';
+import { GearTab, EquipmentDetailModal } from './GearTab';
 import { LoreTab } from './LoreTab';
 import { FeatPickerModal } from './FeatPickerModal';
 import { SpellPickerModal } from './SpellPickerModal';
@@ -731,6 +732,21 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // native and web.
   const [removeEquipId, setRemoveEquipId] = useState<string | null>(null);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
+  // Lifted from GearTab so the Combat tab (and any future surface)
+  // can open the same EquipmentDetailModal without duplicating it.
+  const [detailEquipment, setDetailEquipment] = useState<Dnd5eEquipmentItem | null>(null);
+  // Cross-tab trigger for the Abilities add flow. Combat's section + buttons
+  // (Abilities header + Actions header) set this, AbilitiesCardTab consumes
+  // it via a useEffect to open either the Import / Add-custom chooser
+  // (kind='menu') or the AbilityEditModal with a preset actionType
+  // (kind='custom'). `counter` is a freshness marker — re-firing the same
+  // request bumps the value so the useEffect re-runs even when {kind} is
+  // identical to last time.
+  const [pendingAbilityAdd, setPendingAbilityAdd] = useState<
+    | ({ kind: 'menu' } & { counter: number })
+    | ({ kind: 'custom'; actionType?: string } & { counter: number })
+    | null
+  >(null);
   /** Campaign rule `enforce_feat_prerequisites` resolved from the
    *  character's linked campaign. Standalone characters fall through
    *  to true (the system's bundled default). */
@@ -2010,6 +2026,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             subclassResultsByKey={subclassResultsByKey}
             speciesResult={speciesResult}
             onUpdateAbilities={(abilities) => persistResources({ ...resources, abilities })}
+            onOpenEquipmentDetail={setDetailEquipment}
+            onOpenItemPicker={() => setItemPickerOpen(true)}
+            onTriggerAbilityAdd={(req) => setPendingAbilityAdd({ ...req, counter: Date.now() })}
+            abilityAddRequest={pendingAbilityAdd}
+            onAbilityAddConsumed={() => setPendingAbilityAdd(null)}
+            onToggleSaveProficiency={manualMode ? (ability) => {
+              const profs = [...(stats.savingThrowProficiencies ?? [])];
+              const next = profs.includes(ability)
+                ? profs.filter((p) => p !== ability)
+                : [...profs, ability];
+              persistStats({ ...stats, savingThrowProficiencies: next });
+            } : undefined}
           />
         );
       case 'spells':
@@ -2035,42 +2063,19 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
             onOpenManage={() => setSpellPickerOpen(true)}
             spellbook={getSpellbook(resources)}
-            onTogglePrepared={(spell) => {
+            onSetPrepStatus={(spell, status) => {
               // Cantrips are auto-prepared by being in the spellbook;
-              // ignore toggles on them at the parent level too.
+              // ignore the chip cycle for them at the parent level too.
               if (spell.level === 0) return;
               const current = resources.preparedSpells ?? [];
-              const existing = current.find((sp) => sp.id === spell.id);
-              // Don't let the regular toggle blow away an always-prepared
-              // marker — that flips only via the dedicated affordance.
-              if (existing?.alwaysPrepared) return;
-              const next = existing
-                ? current.filter((sp) => sp.id !== spell.id)
-                : [...current, spell];
-              persistResources({ ...resources, preparedSpells: next });
-            }}
-            onToggleAlwaysPrepared={(spell) => {
-              if (spell.level === 0) return;
-              const current = resources.preparedSpells ?? [];
-              const existing = current.find((sp) => sp.id === spell.id);
+              const without = current.filter((sp) => sp.id !== spell.id);
               let next: typeof current;
-              if (existing) {
-                if (existing.alwaysPrepared) {
-                  // Toggling off: strip the flag but keep the spell in
-                  // the prepared list as a regular pick — the player
-                  // can unprepare it via the normal toggle afterward.
-                  next = current.map((sp) =>
-                    sp.id === spell.id ? { ...sp, alwaysPrepared: false } : sp,
-                  );
-                } else {
-                  // Promote an existing prepared entry to always-prepared.
-                  next = current.map((sp) =>
-                    sp.id === spell.id ? { ...sp, alwaysPrepared: true } : sp,
-                  );
-                }
+              if (status === 'unprepared') {
+                next = without;
+              } else if (status === 'prepared') {
+                next = [...without, { ...spell, alwaysPrepared: false }];
               } else {
-                // Not yet in the prepared list — add it as always-prepared.
-                next = [...current, { ...spell, alwaysPrepared: true }];
+                next = [...without, { ...spell, alwaysPrepared: true }];
               }
               persistResources({ ...resources, preparedSpells: next });
             }}
@@ -2209,6 +2214,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onRemoveItem={(id) => setRemoveEquipId(id)}
             onUpdateItemValue={handleUpdateItemValue}
             onUpdateItemQuantity={handleUpdateItemQuantity}
+            onOpenEquipmentDetail={setDetailEquipment}
           />
         );
       case 'lore':
@@ -2252,8 +2258,14 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         <View style={s.deskShell}>
 
           {/* ── Left rail ───────────────────────────────────────────── */}
-          <ScrollView
+          <LinearGradient
+            colors={[`${colors.primary}26`, colors.surfaceContainerLowest, colors.surfaceContainerLowest]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0.4, y: 1 }}
             style={s.deskRail}
+          >
+          <ScrollView
+            style={s.deskRailInner}
             contentContainerStyle={s.deskRailContent}
             showsVerticalScrollIndicator={false}
           >
@@ -2542,40 +2554,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               })}
             </View>
 
-            {/* ── Saving Throws ─────────────────────────────────────── */}
-            <View style={s.deskSection}>
-              <Text style={s.deskSectionLabel}>Saving Throws</Text>
-              {ABILITY_KEYS.map((key) => {
-                const mod = abilityMod(scores[key]);
-                const isProficient = stats.savingThrowProficiencies?.includes(key) ?? false;
-                const saveBonus = mod + (isProficient ? prof : 0);
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    style={s.deskAbilityRow}
-                    onPress={() => {
-                      if (manualMode) {
-                        const profs = [...(stats.savingThrowProficiencies ?? [])];
-                        if (isProficient) {
-                          persistStats({ ...stats, savingThrowProficiencies: profs.filter((s) => s !== key) });
-                        } else {
-                          profs.push(key);
-                          persistStats({ ...stats, savingThrowProficiencies: profs });
-                        }
-                      } else {
-                        const r = Math.floor(Math.random() * 20) + 1;
-                        handleRoll({ label: `${ABILITY_SHORT[key]} Save`, rolls: [r], bonus: saveBonus, total: r + saveBonus, crit: r === 20, fumble: r === 1 });
-                      }
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
-                    <Text style={s.deskAbilName}>{capitalize(key)}</Text>
-                    <Text style={[s.deskAbilSaveVal, isProficient && { color: colors.primary }]}>{fmtMod(saveBonus)}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {/* Saving throws were here; they now live at the top of the
+                Combat tab (see CombatTab → SavingThrowsStrip) so the
+                most-rolled stat on a turn is in the player's primary
+                eyeline instead of tucked into the left rail. */}
 
             {/* ── Campaign link ─────────────────────────────────────── */}
             <TouchableOpacity
@@ -2596,6 +2578,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             </TouchableOpacity>
 
           </ScrollView>
+          </LinearGradient>
 
           {/* ── Center content pane ─────────────────────────────────── */}
           <View style={s.deskContent}>
@@ -2629,7 +2612,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
           {/* ── Activity log rail (right side, collapsible) ─────────── */}
           {!rightRailCollapsed && (
-            <View style={s.skillsRail}>
+            <LinearGradient
+              colors={[`${colors.gm}26`, colors.surfaceContainerLowest, colors.surfaceContainerLowest]}
+              start={{ x: 1, y: 0 }}
+              end={{ x: 0.6, y: 1 }}
+              style={s.skillsRail}
+            >
               <View style={s.skillsRailHead}>
                 <View>
                   <Text style={s.skillsRailTitle}>Activity Log</Text>
@@ -2658,13 +2646,24 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   })}
                 </ScrollView>
               )}
-            </View>
+            </LinearGradient>
           )}
           {rightRailCollapsed && (
-            <TouchableOpacity style={s.skillsRailCollapsed} onPress={() => setRightRailCollapsed(false)} activeOpacity={0.7}>
-              <MaterialCommunityIcons name="chevron-left" size={16} color={colors.outline} />
-              <Text style={s.skillsRailCollapsedLabel}>Log</Text>
-            </TouchableOpacity>
+            <LinearGradient
+              colors={[`${colors.gm}26`, colors.surfaceContainerLowest, colors.surfaceContainerLowest]}
+              start={{ x: 1, y: 0 }}
+              end={{ x: 0.6, y: 1 }}
+              style={s.skillsRailCollapsed}
+            >
+              <TouchableOpacity
+                style={s.skillsRailCollapsedInner}
+                onPress={() => setRightRailCollapsed(false)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="chevron-left" size={16} color={colors.outline} />
+                <Text style={s.skillsRailCollapsedLabel}>Log</Text>
+              </TouchableOpacity>
+            </LinearGradient>
           )}
 
         </View>
@@ -3502,6 +3501,22 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         />
       ) : null}
 
+      {/* Equipment detail modal — lifted from GearTab so it can be
+          triggered from the Combat tab's weapon rows too. */}
+      {detailEquipment ? (
+        <EquipmentDetailModal
+          item={detailEquipment}
+          onClose={() => setDetailEquipment(null)}
+          onUpdateValue={isOwner
+            ? (v: string) => handleUpdateItemValue(detailEquipment.id, v)
+            : undefined}
+          onUpdateQuantity={isOwner
+            ? (q: number) => handleUpdateItemQuantity(detailEquipment.id, q)
+            : undefined}
+          canEdit={isOwner}
+        />
+      ) : null}
+
       {/* Portrait crop modal — web only */}
       {portraitCropUri ? (
         <ImageCropModal
@@ -3916,15 +3931,21 @@ const s = StyleSheet.create({
   // flex item that can grow). Lock the width with flexBasis +
   // flexGrow/flexShrink so the rail stays exactly 260px regardless of
   // the parent's flex direction.
+  /** Left rail container — width + flex constraints live here so the
+   *  LinearGradient wrapper sizes correctly. Background is painted by
+   *  the gradient (primary-tinted top-left fading to surface) instead
+   *  of a flat fill. */
   deskRail: {
     width: 260,
     flexBasis: 260,
     flexGrow: 0,
     flexShrink: 0,
-    backgroundColor: colors.surfaceContainerLowest,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.outlineVariant,
   },
+  /** Inner ScrollView — transparent so the LinearGradient wrapper
+   *  shows through. flex: 1 to fill the gradient container. */
+  deskRailInner: { flex: 1, backgroundColor: 'transparent' },
   deskRailContent: {
     flexDirection: 'column',
     paddingBottom: 24,
@@ -4856,9 +4877,12 @@ const s = StyleSheet.create({
   },
 
   // ── Right skills rail ────────────────────────────────────────────────────
+  /** Right activity rail container — sizing + border live here; the
+   *  LinearGradient wrapper paints the background (gm-orange tint top-
+   *  right fading to surface) so the rail mirrors the left rail's
+   *  purple gradient with the team's alt accent. */
   skillsRail: {
     width: 200, flexShrink: 0,
-    backgroundColor: colors.surfaceContainerLowest,
     borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.outlineVariant,
     flexDirection: 'column',
   },
@@ -4914,11 +4938,16 @@ const s = StyleSheet.create({
     fontSize: 10, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic',
     padding: 10,
   },
+  /** Collapsed-state rail container — gm-orange gradient mirrors the
+   *  expanded rail so the team accent reads even when the log is
+   *  tucked away. Width + border live here on the gradient wrapper;
+   *  the inner TouchableOpacity handles tap + alignment. */
   skillsRailCollapsed: {
     width: 28, flexShrink: 0,
-    backgroundColor: colors.surfaceContainerLowest,
     borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.outlineVariant,
-    alignItems: 'center', paddingTop: 12, gap: 8,
+  },
+  skillsRailCollapsedInner: {
+    flex: 1, alignItems: 'center', paddingTop: 12, gap: 8,
   },
   skillsRailCollapsedLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',

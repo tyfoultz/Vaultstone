@@ -43,6 +43,10 @@ interface Props {
    *  is responsible for clamping (non-negative integers) and dropping
    *  the field when it matches the implicit default of 1. */
   onUpdateItemQuantity?: (id: string, quantity: number) => void;
+  /** Open the shared EquipmentDetailModal. Lifted to CharacterSheet so
+   *  the Combat tab (and any future surface) can trigger the same modal
+   *  without duplicating it. */
+  onOpenEquipmentDetail?: (item: Dnd5eEquipmentItem) => void;
 }
 
 type SortKey = 'name' | 'type' | 'qty' | 'value';
@@ -59,8 +63,8 @@ export function GearTab({
   stats, resources, isOwner, strengthScore,
   onUpdateCoins, onToggleEquipped, onToggleAttuned, onTogglePinnedToCombat, onUpdateNotes, onUpdateTreasure,
   onOpenItemPicker, onRemoveItem, onUpdateItemValue, onUpdateItemQuantity,
+  onOpenEquipmentDetail,
 }: Props) {
-  const [detailItem, setDetailItem] = useState<Dnd5eEquipmentItem | null>(null);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -147,7 +151,7 @@ export function GearTab({
     <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
 
       {/* Attunement Slots */}
-      <SectionLabel>Attunement Slots</SectionLabel>
+      <SectionLabel accent>ATTUNEMENT SLOTS</SectionLabel>
       <View style={s.attunementSlots}>
         {Array.from({ length: attunementMax }).map((_, i) => {
           const item = attuned[i];
@@ -169,30 +173,33 @@ export function GearTab({
           full Inventory table below; this is just a focused view of
           "what's in my hands right now." */}
       {equippedItems.length > 0 ? (
-        <CardBlock title="Equipped">
+        <>
+          <SectionLabel accent style={s.gearSectionLabel}>EQUIPPED</SectionLabel>
           <View style={s.tableHeader}>
-            <View style={[s.tableHeaderCell, s.tableCellName]}><Text style={s.tableHeaderText}>Name</Text></View>
-            <View style={[s.tableHeaderCell, s.tableCellType]}><Text style={s.tableHeaderText}>Type</Text></View>
+            <View style={s.invIconCol} />
+            <View style={[s.tableHeaderCell, s.tableCellName]}><Text style={s.tableHeaderText}>NAME</Text></View>
+            <View style={[s.tableHeaderCell, s.tableCellType]}><Text style={s.tableHeaderText}>TYPE</Text></View>
             <View style={[s.tableHeaderCell, s.tableCellQty]}><Text style={s.tableHeaderText}>QTY</Text></View>
-            <View style={[s.tableHeaderCell, s.tableCellValue]}><Text style={s.tableHeaderText}>Value</Text></View>
+            <View style={[s.tableHeaderCell, s.tableCellValue]}><Text style={s.tableHeaderText}>VALUE</Text></View>
             <View style={s.tableCellControls} />
           </View>
-          {equippedItems.map((item, i) => (
-            <InventoryRow
-              key={item.id}
-              item={item}
-              canEdit={isOwner}
-              isLast={i === equippedItems.length - 1}
-              onToggle={() => onToggleEquipped?.(item.id)}
-              onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
-              onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
-              onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
-              onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
-              onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
-              onOpenDetail={() => setDetailItem(item)}
-            />
-          ))}
-        </CardBlock>
+          <View style={s.invCardList}>
+            {equippedItems.map((item) => (
+              <InventoryRow
+                key={item.id}
+                item={item}
+                canEdit={isOwner}
+                onToggle={() => onToggleEquipped?.(item.id)}
+                onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
+                onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
+                onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
+                onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
+                onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
+                onOpenDetail={() => onOpenEquipmentDetail?.(item)}
+              />
+            ))}
+          </View>
+        </>
       ) : null}
 
       {/* Inventory — single sortable, searchable table with Name /
@@ -200,57 +207,62 @@ export function GearTab({
           (pin, attune, equipped checkbox, remove). Includes equipped
           items too so the table is the canonical "all my gear" view;
           the Equipped section above is just a focused subset. */}
-      <CardBlock title="Inventory" action={isOwner ? '+ Add' : undefined} onAction={onOpenItemPicker}>
-        <View style={s.searchWrap}>
-          <MaterialCommunityIcons name="magnify" size={14} color={colors.outline} />
-          <TextInput
-            style={s.searchInput}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search items"
-            placeholderTextColor={colors.outline}
-            returnKeyType="search"
-          />
-          {search.length > 0 ? (
-            <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
-              <MaterialCommunityIcons name="close-circle" size={14} color={colors.outline} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
+      <SectionLabel
+        accent
+        style={s.gearSectionLabel}
+        right={isOwner && onOpenItemPicker ? <SectionAddButton label="Add item" onPress={onOpenItemPicker} /> : undefined}
+      >INVENTORY</SectionLabel>
+      <View style={s.searchWrap}>
+        <MaterialCommunityIcons name="magnify" size={14} color={colors.outline} />
+        <TextInput
+          style={s.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search items"
+          placeholderTextColor={colors.outline}
+          returnKeyType="search"
+        />
+        {search.length > 0 ? (
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+            <MaterialCommunityIcons name="close-circle" size={14} color={colors.outline} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
-        <View style={s.tableHeader}>
-          <SortHeader label="Name" active={sortKey === 'name'} dir={sortDir} onPress={() => toggleSort('name')} style={s.tableCellName} />
-          <SortHeader label="Type" active={sortKey === 'type'} dir={sortDir} onPress={() => toggleSort('type')} style={s.tableCellType} />
-          <SortHeader label="QTY" active={sortKey === 'qty'} dir={sortDir} onPress={() => toggleSort('qty')} style={s.tableCellQty} />
-          <SortHeader label="Value" active={sortKey === 'value'} dir={sortDir} onPress={() => toggleSort('value')} style={s.tableCellValue} />
-          <View style={s.tableCellControls} />
-        </View>
+      <View style={s.tableHeader}>
+        <View style={s.invIconCol} />
+        <SortHeader label="NAME" active={sortKey === 'name'} dir={sortDir} onPress={() => toggleSort('name')} style={s.tableCellName} />
+        <SortHeader label="TYPE" active={sortKey === 'type'} dir={sortDir} onPress={() => toggleSort('type')} style={s.tableCellType} />
+        <SortHeader label="QTY" active={sortKey === 'qty'} dir={sortDir} onPress={() => toggleSort('qty')} style={s.tableCellQty} />
+        <SortHeader label="VALUE" active={sortKey === 'value'} dir={sortDir} onPress={() => toggleSort('value')} style={s.tableCellValue} />
+        <View style={s.tableCellControls} />
+      </View>
 
-        {equipment.length === 0 ? (
-          <Text style={s.emptyHint}>No items yet. Tap + Add to start.</Text>
-        ) : rows.length === 0 ? (
-          <Text style={s.emptyHint}>No items match your search.</Text>
-        ) : (
-          rows.map((item, i) => (
+      {equipment.length === 0 ? (
+        <Text style={s.emptyHint}>No items yet. Tap + Add to start.</Text>
+      ) : rows.length === 0 ? (
+        <Text style={s.emptyHint}>No items match your search.</Text>
+      ) : (
+        <View style={s.invCardList}>
+          {rows.map((item) => (
             <InventoryRow
               key={item.id}
               item={item}
               canEdit={isOwner}
-              isLast={i === rows.length - 1}
               onToggle={() => onToggleEquipped?.(item.id)}
               onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
               onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
               onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
-              onOpenDetail={() => setDetailItem(item)}
+              onOpenDetail={() => onOpenEquipmentDetail?.(item)}
             />
-          ))
-        )}
-      </CardBlock>
+          ))}
+        </View>
+      )}
 
       {/* Currency */}
-      <SectionLabel>Currency</SectionLabel>
+      <SectionLabel accent style={s.gearSectionLabel}>CURRENCY</SectionLabel>
       <View style={s.coinRow}>
         {COIN_LABELS.map(({ key, label, color }) => (
           <CoinCell
@@ -265,7 +277,8 @@ export function GearTab({
       </View>
 
       {/* Carry Capacity */}
-      <CardBlock title="Carry Capacity">
+      <SectionLabel accent style={s.gearSectionLabel}>CARRY CAPACITY</SectionLabel>
+      <View>
         <View style={s.carryNums}>
           <Text style={s.carryWeight}>{carryWeight}</Text>
           <Text style={s.carryMax}>/ {carryMax} lbs</Text>
@@ -274,42 +287,30 @@ export function GearTab({
           <View style={[s.carryFill, { width: `${carryRatio * 100}%` as any }]} />
         </View>
         <Text style={s.carryLoad}>{carryLoad} · STR {strengthScore} × 15</Text>
-      </CardBlock>
+      </View>
 
       {/* Treasure & Valuables */}
-      <CardBlock title="Treasure & Valuables">
-        <EditableText
-          value={resources.treasure ?? ''}
-          placeholder="Notable loot, gems, art objects…"
-          editable={isOwner}
-          onCommit={(v) => onUpdateTreasure?.(v)}
-        />
-      </CardBlock>
+      <SectionLabel accent style={s.gearSectionLabel}>TREASURE & VALUABLES</SectionLabel>
+      <EditableText
+        value={resources.treasure ?? ''}
+        placeholder="Notable loot, gems, art objects…"
+        editable={isOwner}
+        onCommit={(v) => onUpdateTreasure?.(v)}
+      />
 
       {/* Notes */}
-      <CardBlock title="Notes">
-        <EditableText
-          value={resources.notes ?? ''}
-          placeholder="Session notes, reminders, loot to identify…"
-          editable={isOwner}
-          onCommit={(v) => onUpdateNotes?.(v)}
-          multiline
-        />
-      </CardBlock>
+      <SectionLabel accent style={s.gearSectionLabel}>NOTES</SectionLabel>
+      <EditableText
+        value={resources.notes ?? ''}
+        placeholder="Session notes, reminders, loot to identify…"
+        editable={isOwner}
+        onCommit={(v) => onUpdateNotes?.(v)}
+        multiline
+      />
 
-      {detailItem && (
-        <EquipmentDetailModal
-          item={detailItem}
-          onClose={() => setDetailItem(null)}
-          onUpdateValue={isOwner && onUpdateItemValue
-            ? (v: string) => onUpdateItemValue(detailItem.id, v)
-            : undefined}
-          onUpdateQuantity={isOwner && onUpdateItemQuantity
-            ? (q: number) => onUpdateItemQuantity(detailItem.id, q)
-            : undefined}
-          canEdit={isOwner}
-        />
-      )}
+      {/* EquipmentDetailModal is now rendered at the CharacterSheet
+          level so the Combat tab (and any future surface) can trigger
+          the same modal via `onOpenEquipmentDetail`. */}
 
     </ScrollView>
   );
@@ -328,34 +329,36 @@ function armorTypeLabel(item: Dnd5eEquipmentItem): string | null {
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: string }) {
+function SectionLabel({ children, accent, right, style }: {
+  children: string;
+  /** Render the label in primary color — matches the Combat/Spells
+   *  "accent" section header treatment. */
+  accent?: boolean;
+  /** Optional trailing slot (e.g. a + add affordance) rendered past
+   *  the divider line, parallel to the SectionAddButton pattern on
+   *  the Combat tab. */
+  right?: React.ReactNode;
+  style?: any;
+}) {
   return (
-    <View style={s.sectionRow}>
-      <Text style={s.sectionLabel}>{children}</Text>
-      <View style={s.sectionLine} />
+    <View style={[s.sectionRow, style]}>
+      <Text style={[s.sectionLabel, accent && s.sectionLabelAccent]}>{children}</Text>
+      <View style={[s.sectionLine, accent && s.sectionLineAccent]} />
+      {right}
     </View>
   );
 }
 
-function CardBlock({ title, action, onAction, children, style }: {
-  title: string; action?: string; onAction?: () => void; children: React.ReactNode; style?: any;
-}) {
+/**
+ * Small outlined + affordance rendered in a SectionLabel's right slot.
+ * Matches the equivalent button on Combat/Spells section headers so
+ * the add-from-section pattern reads identically across tabs.
+ */
+function SectionAddButton({ onPress, label }: { onPress: () => void; label: string }) {
   return (
-    <View style={[s.card, style]}>
-      <View style={s.cardHead}>
-        <Text style={s.cardTitle}>{title}</Text>
-        {action && (
-          onAction ? (
-            <TouchableOpacity onPress={onAction} hitSlop={8} activeOpacity={0.7}>
-              <Text style={s.cardAction}>{action}</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={s.cardAction}>{action}</Text>
-          )
-        )}
-      </View>
-      <View style={s.cardBody}>{children}</View>
-    </View>
+    <TouchableOpacity style={s.sectionAddBtn} onPress={onPress} activeOpacity={0.7} accessibilityLabel={label}>
+      <MaterialCommunityIcons name="plus" size={12} color={colors.primary} />
+    </TouchableOpacity>
   );
 }
 
@@ -383,13 +386,36 @@ function SortHeader({
   );
 }
 
+/**
+ * Pick a slot-appropriate icon for the inventory row. Weapons share the
+ * Combat-tab name-pattern mapping (sword / bow / axe / etc.); armor +
+ * shield get shield glyphs; everything else lands on a generic sack
+ * icon so non-equippable items still anchor the icon column.
+ */
+function getItemIcon(item: Dnd5eEquipmentItem): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  if (item.slot === 'weapon') {
+    const name = item.name.toLowerCase();
+    if (/(crossbow|bow|sling|blowgun)/.test(name)) return 'bow-arrow';
+    if (/(dart|javelin)/.test(name)) return 'arrow-projectile';
+    if (/(axe|hatchet)/.test(name)) return 'axe';
+    if (/(dagger|knife|dirk|stiletto)/.test(name)) return 'knife';
+    if (/(warhammer|hammer|maul|mallet)/.test(name)) return 'hammer';
+    if (/(mace|flail|morningstar|club|cudgel)/.test(name)) return 'gavel';
+    if (/(staff|quarterstaff)/.test(name)) return 'baseball-bat';
+    if (/whip/.test(name)) return 'snake';
+    return item.range ? 'bow-arrow' : 'sword-cross';
+  }
+  if (item.slot === 'armor') return 'tshirt-crew-outline';
+  if (item.slot === 'shield') return 'shield-half-full';
+  return 'sack';
+}
+
 function InventoryRow({
-  item, canEdit, isLast,
+  item, canEdit,
   onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onUpdateValue, onUpdateQuantity, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
   canEdit: boolean;
-  isLast: boolean;
   onToggle: () => void;
   onToggleAttuned?: () => void;
   onTogglePinnedToCombat?: () => void;
@@ -400,13 +426,18 @@ function InventoryRow({
 }) {
   const armorType = armorTypeLabel(item);
   const typeLabel = SLOT_LABEL[item.slot] ?? item.slot;
+  const iconName = getItemIcon(item);
+  const hasPills = armorType || item.slot === 'armor' || item.slot === 'shield'
+    || (item.slot === 'weapon' && item.damage) || item.miscACBonus || item.attuned;
   return (
-    <View style={[s.tableRow, !isLast && s.tableRowBorder]}>
-      {/* Name cell — tap to open the detail modal. Pills wrap below
-          the name so narrow viewports don't push them off-screen. */}
-      <Pressable onPress={onOpenDetail} style={s.tableCellName}>
-        <Text style={s.tableCellNameText} numberOfLines={2}>{item.name}</Text>
-        {(armorType || item.slot === 'armor' || item.slot === 'shield' || (item.slot === 'weapon' && item.damage) || item.miscACBonus || item.attuned) ? (
+    <View style={s.invCard}>
+      <View style={[s.invCardBar, { backgroundColor: colors.primary }]} />
+      <View style={s.invIconCol}>
+        <MaterialCommunityIcons name={iconName} size={13} color={colors.primary} />
+      </View>
+      <Pressable onPress={onOpenDetail} style={[s.tableCellName, s.invNameCell]}>
+        <Text style={s.tableCellNameText} numberOfLines={1}>{item.name}</Text>
+        {hasPills ? (
           <View style={s.tableCellNamePills}>
             {armorType && <Pill label={armorType} />}
             {item.slot === 'armor' && !armorType && <Pill label="Armor" />}
@@ -584,7 +615,7 @@ function InlineValueCell({
   );
 }
 
-function EquipmentDetailModal({
+export function EquipmentDetailModal({
   item,
   onClose,
   onUpdateValue,
@@ -789,12 +820,42 @@ const s = StyleSheet.create({
   colContent: { padding: 12, gap: 12, paddingBottom: 24 },
   colDivider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.outlineVariant },
 
-  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 2 },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 8 },
   sectionLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.5, textTransform: 'uppercase', color: colors.outline,
   },
+  /** Primary-tinted variant — used by every section header in this tab
+   *  to match the Combat/Spells accent-label treatment. */
+  sectionLabelAccent: { color: colors.primary },
   sectionLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.outlineVariant },
+  sectionLineAccent: { backgroundColor: `${colors.primary}44` },
+  /** Top margin applied to every SectionLabel after the first one so
+   *  the bare (no-CardBlock) sections still read as discrete blocks. */
+  gearSectionLabel: { marginTop: 18 },
+  /** Small + affordance for SectionLabel right slot — mirrors Combat. */
+  sectionAddBtn: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: `${colors.primary}66`,
+    backgroundColor: `${colors.primary}14`,
+  },
+
+  // Inventory card chassis — mirrors the Combat equipCard pattern:
+  // transparent fill, thin outline, full-height 2px accent bar, compact
+  // body. Replaces the old flat tableRow + hairline separator look.
+  invCardList: { gap: 4 },
+  invCard: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 6, overflow: 'hidden',
+  },
+  invCardBar: { width: 2, alignSelf: 'stretch' },
+  /** Fixed-width icon slot mirrored in the table header (empty cell)
+   *  so the NAME column always lines up. */
+  invIconCol: { width: 28, alignItems: 'center', justifyContent: 'center' },
+  /** Tighten the name cell padding for the new card chassis. */
+  invNameCell: { paddingVertical: 6 },
 
   // Attunement
   attunementSlots: { flexDirection: 'row', gap: 5, marginBottom: 4 },

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, TextInput, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import { getSrdContent } from '@vaultstone/content';
@@ -54,6 +54,32 @@ const SRD_ACTION_KEYS = new Set([
   'influence', 'study', 'opportunity-attack',
   'two-weapon-fighting', 'nick-offhand',
 ]);
+
+/**
+ * MaterialCommunityIcons glyph for each SRD standard-action key, so a player
+ * can scan the action list visually instead of reading every name. Custom /
+ * homebrew feature actions (anything not in this map) fall back to a generic
+ * sparkle, which also visually distinguishes them from SRD reference rows.
+ */
+const ACTION_ICONS: Record<string, React.ComponentProps<typeof MaterialCommunityIcons>['name']> = {
+  attack: 'sword-cross',
+  dash: 'run-fast',
+  disengage: 'arrow-expand-right',
+  dodge: 'shield-half-full',
+  help: 'hand-heart',
+  hide: 'eye-off',
+  ready: 'timer-sand',
+  search: 'magnify',
+  'use-an-object': 'cube-outline',
+  utilize: 'cube-outline',
+  'cast-a-spell': 'auto-fix',
+  magic: 'auto-fix',
+  influence: 'account-voice',
+  study: 'book-open-variant',
+  'opportunity-attack': 'sword',
+  'two-weapon-fighting': 'sword',
+  'nick-offhand': 'knife',
+};
 
 /**
  * Resolve the bundled standard-action list for the character's edition and
@@ -119,6 +145,33 @@ interface Props {
   subclassResultsByKey: Record<string, SubclassResult>;
   speciesResult: SpeciesResult | null;
   onUpdateAbilities: (abilities: Dnd5eAbility[]) => void;
+  /** Toggle save proficiency for an ability. Only fires while
+   *  manualMode is on (the strip rolls the save instead when
+   *  manual mode is off). */
+  onToggleSaveProficiency?: (ability: keyof Dnd5eAbilityScores) => void;
+  /** Open the shared EquipmentDetailModal for a weapon. Wired through
+   *  CharacterSheet so the modal state lives at the sheet level — same
+   *  affordance the Gear tab uses when tapping an inventory row name. */
+  onOpenEquipmentDetail?: (item: Dnd5eEquipmentItem) => void;
+  /** Open the shared ItemPickerModal — invoked from the Attacks + button
+   *  intermediary modal. Wires to CharacterSheet's existing item picker
+   *  state (same one the Gear tab "Add" button uses). */
+  onOpenItemPicker?: () => void;
+  /** Trigger the abilities add flow. `kind: 'menu'` opens the
+   *  Import / Add-custom chooser (used by the Abilities + button);
+   *  `kind: 'custom'` skips the chooser and opens the AbilityEditModal
+   *  with the supplied actionType preset (used by the Actions + button
+   *  to add a custom standard action). Both routes ultimately update
+   *  resources.abilities through AbilitiesCardTab. */
+  onTriggerAbilityAdd?: (req: { kind: 'menu' } | { kind: 'custom'; actionType?: string }) => void;
+  /** Pass-through to the embedded AbilitiesCardTab — see CharacterSheet
+   *  for the state shape. CombatTab itself doesn't read this; it just
+   *  forwards both prongs of the signal-style trigger. */
+  abilityAddRequest?:
+    | ({ kind: 'menu' } & { counter: number })
+    | ({ kind: 'custom'; actionType?: string } & { counter: number })
+    | null;
+  onAbilityAddConsumed?: () => void;
 }
 
 function rollD20(label: string, bonus: number, onRoll: (r: RollResult) => void) {
@@ -141,7 +194,14 @@ export function CombatTab({
   activeConditions, canEditAny, equipment, isDesktop, manualMode, conditionCatalog,
   liveActionFeatures, onRoll, onEditField, onToggleCondition, onSetExhaustion, onSpendHitDie, getAttackBonus,
   classResultsByKey, subclassResultsByKey, speciesResult, onUpdateAbilities,
+  onToggleSaveProficiency, onOpenEquipmentDetail, onOpenItemPicker, onTriggerAbilityAdd,
+  abilityAddRequest, onAbilityAddConsumed,
 }: Props) {
+  // Intermediary "Add to <section>" modals. Each section header + button
+  // opens its own picker so the user always sees the same modal shape,
+  // even when only one option exists (keeps the affordance consistent).
+  const [addAttacksOpen, setAddAttacksOpen] = useState(false);
+  const [addActionsOpen, setAddActionsOpen] = useState(false);
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
   // Player-pinned equipment surfaces in its own quick-access section.
   // Independent of the equipped/attuned filter so consumables (potions,
@@ -181,137 +241,142 @@ export function CombatTab({
   const freeActions = featureFree;
 
   // ── Desktop: single-column flat layout ────────────────────────────────────
+  // No outer CardBlock wrappers — sections are bare label + content rows,
+  // matching the Spells-tab visual language for cross-tab cohesion. The
+  // Saving Throws strip leads the tab (moved out of the left sidebar).
   if (isDesktop) {
     return (
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
+      <>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.deskScrollContent} showsVerticalScrollIndicator={false}>
+
+          <SectionLabel accent>SAVING THROWS</SectionLabel>
+          <SavingThrowsStrip
+            scores={scores}
+            stats={stats}
+            prof={prof}
+            manualMode={manualMode}
+            onToggleSaveProficiency={onToggleSaveProficiency}
+            onRoll={onRoll}
+            isDesktop
+          />
 
           {/* Attacks */}
-          <CardBlock title="Attacks">
-            {weapons.length === 0 ? (
-              <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
-            ) : (
-              <>
-                <View style={s.attacksHeader}>
-                  <Text style={[s.attacksHdrCell, { flex: 1 }]}>WEAPON</Text>
-                  <Text style={[s.attacksHdrCell, { width: 60, textAlign: 'center' }]}>HIT</Text>
-                  <Text style={[s.attacksHdrCell, { width: 68, textAlign: 'center' }]}>DMG</Text>
-                </View>
-                {weapons.map((w, i) => {
-                  const atkBonus = getAttackBonus(w);
-                  return (
-                    <View key={w.id} style={[s.attackRow, i < weapons.length - 1 && s.attackRowBorder]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.attackName}>{w.name}</Text>
-                        <Text style={s.attackSub}>{w.slot}{w.range ? ` · ${w.range} ft` : ''}</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={s.atkBtnHit}
-                        onPress={() => rollD20(`${w.name} attack`, atkBonus, onRoll)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
-                      </TouchableOpacity>
-                      {w.damage ? (
-                        <TouchableOpacity
-                          style={s.atkBtnDmg}
-                          onPress={() => rollDamage(`${w.name} damage`, w.damage!, onRoll)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={s.atkBtnDmgText}>{w.damage.split(' ')[0]}</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  );
-                })}
-              </>
-            )}
-          </CardBlock>
+          <SectionLabel
+            style={s.deskSectionLabel}
+            accent
+            right={onOpenItemPicker ? <SectionAddButton label="Add to Attacks" onPress={() => setAddAttacksOpen(true)} /> : undefined}
+          >ATTACKS</SectionLabel>
+          {weapons.length === 0 ? (
+            <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
+          ) : (
+            <View>
+              <View style={s.weaponHeaderRow}>
+                <Text style={[s.weaponHeaderCell, { flex: 1 }]}>WEAPON</Text>
+                <Text style={[s.weaponHeaderCell, s.weaponHitCol]}>HIT</Text>
+                <Text style={[s.weaponHeaderCell, s.weaponDmgCol]}>DMG</Text>
+              </View>
+              <View style={s.equipCardList}>
+                {weapons.map((w) => (
+                  <WeaponCard
+                    key={w.id}
+                    item={w}
+                    atkBonus={getAttackBonus(w)}
+                    onRoll={onRoll}
+                    onOpenDetail={onOpenEquipmentDetail}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Pinned equipment — anything the player flagged via the
               pin icon on the Gear tab. Sits between Attacks and Spell
               Slots so consumables are within thumb-reach mid-combat. */}
           {pinnedItems.length > 0 && (
-            <CardBlock title="Pinned">
-              {pinnedItems.map((item, i) => (
-                <View key={item.id} style={[s.pinnedRow, i < pinnedItems.length - 1 && s.pinnedRowBorder]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.pinnedName}>{item.name}</Text>
-                    {item.damage ? (
-                      <Text style={s.pinnedSub}>{item.damage}</Text>
-                    ) : item.notes ? (
-                      <Text style={s.pinnedSub} numberOfLines={1}>{item.notes}</Text>
-                    ) : (
-                      <Text style={s.pinnedSub}>{item.slot}{item.equipped ? ' · equipped' : ''}{item.attuned ? ' · attuned' : ''}</Text>
-                    )}
-                  </View>
-                  {item.damage && item.slot === 'weapon' ? (
-                    <TouchableOpacity
-                      style={s.atkBtnDmg}
-                      onPress={() => rollDamage(`${item.name} damage`, item.damage!, onRoll)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              ))}
-            </CardBlock>
+            <>
+              <SectionLabel style={s.deskSectionLabel} accent>PINNED</SectionLabel>
+              <View style={s.equipCardList}>
+                {pinnedItems.map((item) => (
+                  <PinnedCard
+                    key={item.id}
+                    item={item}
+                    onRoll={onRoll}
+                    onOpenDetail={onOpenEquipmentDetail}
+                  />
+                ))}
+              </View>
+            </>
           )}
 
           {/* Class Resources */}
           {classResources.length > 0 && (
-            <CardBlock title="Class Resources">
-              {classResources.map((res) => (
-                <View key={res.key} style={s.resourceRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.resourceName}>{res.label}</Text>
-                    <Text style={s.resourceMeta}>
-                      {res.max} uses · {res.recharge === 'short' ? 'short rest' : 'long rest'}
-                    </Text>
+            <>
+              <SectionLabel style={s.deskSectionLabel} accent>CLASS RESOURCES</SectionLabel>
+              <View>
+                {classResources.map((res) => (
+                  <View key={res.key} style={s.resourceRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.resourceName}>{res.label}</Text>
+                      <Text style={s.resourceMeta}>
+                        {res.max} uses · {res.recharge === 'short' ? 'short rest' : 'long rest'}
+                      </Text>
+                    </View>
+                    <View style={s.resourcePips}>
+                      {Array.from({ length: res.max }).map((_, i) => (
+                        <View
+                          key={i}
+                          style={[s.resPip, i < res.current ? s.resPipFull : s.resPipEmpty]}
+                        />
+                      ))}
+                    </View>
                   </View>
-                  <View style={s.resourcePips}>
-                    {Array.from({ length: res.max }).map((_, i) => (
-                      <View
-                        key={i}
-                        style={[s.resPip, i < res.current ? s.resPipFull : s.resPipEmpty]}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ))}
-            </CardBlock>
+                ))}
+              </View>
+            </>
           )}
 
           {/* Active abilities — merged in from the old standalone
               Abilities tab. Sits above Actions since tracked-use class
               features are typically resolved before falling back to
-              generic actions on the same turn. Wrapped in a CardBlock
-              for visual consistency with the other Combat sections —
-              `headerless` suppresses the internal SectionLabel so
-              the CardBlock title strip is the sole header. */}
-          <CardBlock title="Abilities">
-            <AbilitiesCardTab
-              embedded
-              headerless
-              resources={resources}
-              isOwner={canEditAny}
-              classResultsByKey={classResultsByKey}
-              subclassResultsByKey={subclassResultsByKey}
-              speciesResult={speciesResult}
-              characterLevel={stats.level}
-              onUpdateAbilities={onUpdateAbilities}
-            />
-          </CardBlock>
+              generic actions on the same turn. */}
+          <SectionLabel
+            style={s.deskSectionLabel}
+            accent
+            right={onTriggerAbilityAdd ? <SectionAddButton label="Add ability" onPress={() => onTriggerAbilityAdd({ kind: 'menu' })} /> : undefined}
+          >ABILITIES</SectionLabel>
+          <AbilitiesCardTab
+            embedded
+            headerless
+            resources={resources}
+            isOwner={canEditAny}
+            classResultsByKey={classResultsByKey}
+            subclassResultsByKey={subclassResultsByKey}
+            speciesResult={speciesResult}
+            characterLevel={stats.level}
+            onUpdateAbilities={onUpdateAbilities}
+            addRequest={abilityAddRequest}
+            onAddRequestConsumed={onAbilityAddConsumed}
+          />
 
-          {/* Actions */}
-          <CardBlock title="Actions">
-            <ActionGroup label="Actions" items={actions} color={colors.primary} />
+          {/* Actions — umbrella section. Inner groups are typed by action
+              economy: "Standard Actions" is the 5e canonical Action-cost
+              group (Attack, Dash, Dodge, etc.); Bonus / Reactions / Free
+              are their own economy types. */}
+          <SectionLabel
+            style={s.deskSectionLabel}
+            accent
+            right={onTriggerAbilityAdd ? <SectionAddButton label="Add action" onPress={() => setAddActionsOpen(true)} /> : undefined}
+          >ACTIONS</SectionLabel>
+          <View>
+            <ActionGroup label="Standard Actions" items={actions} color={colors.primary} />
             {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
             {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} color={colors.hpDanger} />}
             {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} color={colors.outline} />}
-          </CardBlock>
+          </View>
 
       </ScrollView>
+      {renderAddModals()}
+      </>
     );
   }
 
@@ -319,56 +384,48 @@ export function CombatTab({
   const passivePerception = 10 + (abilityMod(scores.wisdom) + (stats.skillProficiencies.includes('perception') ? prof : 0));
 
   return (
+    <>
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
       {/* Saving throws */}
       <SectionLabel>SAVING THROWS</SectionLabel>
-      <View style={s.savesGrid}>
-        {ABILITY_KEYS.map((abi) => {
-          const isProf = stats.savingThrowProficiencies.includes(abi);
-          const bonus = abilityMod(scores[abi]) + (isProf ? prof : 0);
-          return (
-            <TouchableOpacity
-              key={abi}
-              style={[s.saveRow, isProf && s.saveRowProf]}
-              onPress={() => rollD20(`${ABILITY_SHORT[abi]} save`, bonus, onRoll)}
-              activeOpacity={0.7}
-            >
-              <View style={[s.profDot, isProf && s.profDotFilled]} />
-              <Text style={[s.saveAbility, isProf && s.saveAbilityProf]}>{ABILITY_SHORT[abi]}</Text>
-              <Text style={[s.saveBonus, isProf && s.saveBonusProf]}>{fmtMod(bonus)}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <SavingThrowsStrip
+        scores={scores}
+        stats={stats}
+        prof={prof}
+        manualMode={manualMode}
+        onToggleSaveProficiency={onToggleSaveProficiency}
+        onRoll={onRoll}
+      />
 
       {/* Attacks */}
-      <SectionLabel style={{ marginTop: 14 }} accent>ATTACKS</SectionLabel>
+      <SectionLabel
+        style={{ marginTop: 14 }}
+        accent
+        right={onOpenItemPicker ? <SectionAddButton label="Add to Attacks" onPress={() => setAddAttacksOpen(true)} /> : undefined}
+      >ATTACKS</SectionLabel>
       {weapons.length === 0 ? (
         <View style={s.mobileEmptyHint}>
           <Text style={s.emptyHint}>No weapons equipped — add gear in the Gear tab.</Text>
         </View>
       ) : (
-        <View style={s.mobileCard}>
-          {weapons.map((w, i) => {
-            const atkBonus = getAttackBonus(w);
-            return (
-              <View key={w.id} style={[s.attackRow, i < weapons.length - 1 && s.attackRowBorder]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.attackName}>{w.name}</Text>
-                  <Text style={s.attackSub}>{w.slot}</Text>
-                </View>
-                <TouchableOpacity style={s.atkBtnHit} onPress={() => rollD20(`${w.name} attack`, atkBonus, onRoll)} activeOpacity={0.7}>
-                  <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
-                </TouchableOpacity>
-                {w.damage && (
-                  <TouchableOpacity style={s.atkBtnDmg} onPress={() => rollDamage(`${w.name} damage`, w.damage!, onRoll)} activeOpacity={0.7}>
-                    <Text style={s.atkBtnDmgText}>{w.damage.split(' ')[0]}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })}
+        <View>
+          <View style={s.weaponHeaderRow}>
+            <Text style={[s.weaponHeaderCell, { flex: 1 }]}>WEAPON</Text>
+            <Text style={[s.weaponHeaderCell, s.weaponHitCol]}>HIT</Text>
+            <Text style={[s.weaponHeaderCell, s.weaponDmgCol]}>DMG</Text>
+          </View>
+          <View style={s.equipCardList}>
+            {weapons.map((w) => (
+              <WeaponCard
+                key={w.id}
+                item={w}
+                atkBonus={getAttackBonus(w)}
+                onRoll={onRoll}
+                onOpenDetail={onOpenEquipmentDetail}
+              />
+            ))}
+          </View>
         </View>
       )}
 
@@ -377,29 +434,14 @@ export function CombatTab({
       {pinnedItems.length > 0 && (
         <>
           <SectionLabel style={{ marginTop: 14 }} accent>PINNED</SectionLabel>
-          <View style={s.mobileCard}>
-            {pinnedItems.map((item, i) => (
-              <View key={item.id} style={[s.pinnedRow, { paddingHorizontal: 12 }, i < pinnedItems.length - 1 && s.pinnedRowBorder]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.pinnedName}>{item.name}</Text>
-                  {item.damage ? (
-                    <Text style={s.pinnedSub}>{item.damage}</Text>
-                  ) : item.notes ? (
-                    <Text style={s.pinnedSub} numberOfLines={1}>{item.notes}</Text>
-                  ) : (
-                    <Text style={s.pinnedSub}>{item.slot}{item.equipped ? ' · equipped' : ''}{item.attuned ? ' · attuned' : ''}</Text>
-                  )}
-                </View>
-                {item.damage && item.slot === 'weapon' ? (
-                  <TouchableOpacity
-                    style={s.atkBtnDmg}
-                    onPress={() => rollDamage(`${item.name} damage`, item.damage!, onRoll)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
+          <View style={s.equipCardList}>
+            {pinnedItems.map((item) => (
+              <PinnedCard
+                key={item.id}
+                item={item}
+                onRoll={onRoll}
+                onOpenDetail={onOpenEquipmentDetail}
+              />
             ))}
           </View>
         </>
@@ -460,9 +502,13 @@ export function CombatTab({
           quick reference for Dash / Dodge / Help / cantrips / class-
           feature actions). Mirror the same ActionGroup composition
           here. */}
-      <SectionLabel style={{ marginTop: 14 }} accent>ACTIONS</SectionLabel>
+      <SectionLabel
+        style={{ marginTop: 14 }}
+        accent
+        right={onTriggerAbilityAdd ? <SectionAddButton label="Add action" onPress={() => setAddActionsOpen(true)} /> : undefined}
+      >ACTIONS</SectionLabel>
       <View style={s.mobileCard}>
-        <ActionGroup label="Actions" items={actions} color={colors.primary} />
+        <ActionGroup label="Standard Actions" items={actions} color={colors.primary} />
         {bonuses.length > 0 && <ActionGroup label="Bonus Actions" items={bonuses} color={colors.secondary} />}
         {reactions.length > 0 && <ActionGroup label="Reactions" items={reactions} color={colors.hpDanger} />}
         {freeActions.length > 0 && <ActionGroup label="Free Actions" items={freeActions} color={colors.outline} />}
@@ -470,7 +516,46 @@ export function CombatTab({
 
       <View style={{ height: 16 }} />
     </ScrollView>
+    {renderAddModals()}
+    </>
   );
+
+  /**
+   * Shared by both desktop and mobile branches. Renders the two
+   * intermediary modals owned by this component (Attacks + Actions);
+   * the Abilities flow lives in CharacterSheet and is triggered via
+   * the `onTriggerAbilityAdd` prop directly from the section header.
+   */
+  function renderAddModals() {
+    return (
+      <>
+        {addAttacksOpen ? (
+          <AddSheetModal
+            title="Add to Attacks"
+            options={[{
+              label: 'Add weapon',
+              icon: 'sword',
+              description: 'Open the item catalog to pick a weapon for your inventory.',
+              onPress: () => onOpenItemPicker?.(),
+            }]}
+            onClose={() => setAddAttacksOpen(false)}
+          />
+        ) : null}
+        {addActionsOpen ? (
+          <AddSheetModal
+            title="Add Action"
+            options={[{
+              label: 'Add custom action',
+              icon: 'flash',
+              description: 'Create a custom standard-action ability (homebrew). Shows up in Abilities too.',
+              onPress: () => onTriggerAbilityAdd?.({ kind: 'custom', actionType: 'action' }),
+            }]}
+            onClose={() => setAddActionsOpen(false)}
+          />
+        ) : null}
+      </>
+    );
+  }
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
@@ -647,13 +732,200 @@ export function ConditionsSection({
   );
 }
 
+/**
+ * Pick a MaterialCommunityIcons glyph for a weapon based on its name
+ * (with a `range` fallback for unknown ranged weapons). Name matching
+ * covers the common 5e weapons; unmatched melee weapons land on the
+ * generic crossed-swords glyph, unmatched ranged on the bow icon.
+ *
+ * Conservative icon set — only glyphs verified present in MCI 7.x are
+ * referenced so swapping the icon font doesn't break the sheet.
+ */
+function getWeaponIcon(item: Dnd5eEquipmentItem): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  const name = item.name.toLowerCase();
+  // Ranged weapons (bows / crossbows / slings / blowguns)
+  if (/(crossbow|bow|sling|blowgun)/.test(name)) return 'bow-arrow';
+  // Thrown projectiles (darts, javelins)
+  if (/(dart|javelin)/.test(name)) return 'arrow-projectile';
+  // Slashing — axes
+  if (/(axe|hatchet)/.test(name)) return 'axe';
+  // Slashing — light blades
+  if (/(dagger|knife|dirk|stiletto)/.test(name)) return 'knife';
+  // Bludgeoning — hammers
+  if (/(warhammer|hammer|maul|mallet)/.test(name)) return 'hammer';
+  // Bludgeoning — mace family (gavel reads as a small blunt instrument)
+  if (/(mace|flail|morningstar|club|cudgel)/.test(name)) return 'gavel';
+  // Quarterstaff / staff — use a generic stick-like glyph
+  if (/(staff|quarterstaff)/.test(name)) return 'baseball-bat';
+  // Whip — chain/whip-like glyph
+  if (/whip/.test(name)) return 'snake';
+  // Generic ranged fallback (range field set but name didn't match)
+  if (item.range) return 'bow-arrow';
+  // Default melee fallback (swords, rapiers, scimitars, etc.)
+  return 'sword-cross';
+}
+
+/**
+ * Equipment card — bordered row with a left accent bar + icon, matching the
+ * action-card visual language. Used by both Attacks (weapons) and Pinned
+ * items. The whole card is tappable: opens the EquipmentDetailModal when a
+ * handler is wired (same affordance the Gear tab uses).
+ */
+function WeaponCard({
+  item, atkBonus, onRoll, onOpenDetail,
+}: {
+  item: Dnd5eEquipmentItem;
+  atkBonus: number;
+  onRoll: (r: RollResult) => void;
+  onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
+}) {
+  const iconName = getWeaponIcon(item);
+  return (
+    <TouchableOpacity
+      style={s.equipCard}
+      onPress={onOpenDetail ? () => onOpenDetail(item) : undefined}
+      activeOpacity={onOpenDetail ? 0.7 : 1}
+      disabled={!onOpenDetail}
+    >
+      <View style={[s.equipCardBar, { backgroundColor: colors.primary }]} />
+      <View style={s.equipCardBody}>
+        <View style={s.equipCardTitleRow}>
+          <MaterialCommunityIcons name={iconName} size={13} color={colors.primary} style={{ marginRight: 2 }} />
+          <Text style={s.equipCardName} numberOfLines={1}>{item.name}</Text>
+          <View style={s.weaponHitCol}>
+            <TouchableOpacity
+              style={s.atkBtnHit}
+              onPress={(e) => { e.stopPropagation?.(); rollD20(`${item.name} attack`, atkBonus, onRoll); }}
+              activeOpacity={0.7}
+            >
+              <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={s.weaponDmgCol}>
+            {item.damage ? (
+              <TouchableOpacity
+                style={s.atkBtnDmg}
+                onPress={(e) => { e.stopPropagation?.(); rollDamage(`${item.name} damage`, item.damage!, onRoll); }}
+                activeOpacity={0.7}
+              >
+                <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+        {item.range ? (
+          <Text style={s.equipCardSub}>range {item.range} ft</Text>
+        ) : null}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * Pinned-item card — same visual chassis as WeaponCard but with a pin icon
+ * (signals "you flagged this for quick combat access") and a flexible sub
+ * line covering damage / notes / slot+equipped/attuned status.
+ */
+function PinnedCard({
+  item, onRoll, onOpenDetail,
+}: {
+  item: Dnd5eEquipmentItem;
+  onRoll: (r: RollResult) => void;
+  onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
+}) {
+  const subText = item.notes
+    ? item.notes
+    : item.damage
+      ? item.damage
+      : `${item.slot}${item.equipped ? ' · equipped' : ''}${item.attuned ? ' · attuned' : ''}`;
+  return (
+    <TouchableOpacity
+      style={s.equipCard}
+      onPress={onOpenDetail ? () => onOpenDetail(item) : undefined}
+      activeOpacity={onOpenDetail ? 0.7 : 1}
+      disabled={!onOpenDetail}
+    >
+      <View style={[s.equipCardBar, { backgroundColor: colors.secondary }]} />
+      <View style={s.equipCardBody}>
+        <View style={s.equipCardTitleRow}>
+          <MaterialCommunityIcons name="pin" size={13} color={colors.secondary} style={{ marginRight: 2 }} />
+          <Text style={s.equipCardName} numberOfLines={1}>{item.name}</Text>
+          {item.damage && item.slot === 'weapon' ? (
+            <TouchableOpacity
+              style={s.atkBtnDmg}
+              onPress={(e) => { e.stopPropagation?.(); rollDamage(`${item.name} damage`, item.damage!, onRoll); }}
+              activeOpacity={0.7}
+            >
+              <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <Text style={s.equipCardSub} numberOfLines={1}>{subText}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * Saving Throws strip — six rollable cells (STR/DEX/CON/INT/WIS/CHA),
+ * one per ability. Shared between desktop and mobile; desktop renders a
+ * 6-across horizontal strip and mobile keeps the 3-across grid.
+ *
+ * Tap behavior depends on Manual Mode: when off, the cell rolls a save
+ * (d20 + ability mod + proficiency); when on, the cell toggles save
+ * proficiency for that ability (replaces the old left-sidebar editor).
+ */
+function SavingThrowsStrip({
+  scores, stats, prof, manualMode, onToggleSaveProficiency, onRoll, isDesktop,
+}: {
+  scores: Dnd5eAbilityScores;
+  stats: Dnd5eStats;
+  prof: number;
+  manualMode?: boolean;
+  onToggleSaveProficiency?: (ability: keyof Dnd5eAbilityScores) => void;
+  onRoll: (r: RollResult) => void;
+  isDesktop?: boolean;
+}) {
+  return (
+    <View style={isDesktop ? s.savesStripDesktop : s.savesGrid}>
+      {ABILITY_KEYS.map((abi) => {
+        const isProf = stats.savingThrowProficiencies.includes(abi);
+        const bonus = abilityMod(scores[abi]) + (isProf ? prof : 0);
+        const handlePress = () => {
+          if (manualMode && onToggleSaveProficiency) {
+            onToggleSaveProficiency(abi);
+          } else {
+            rollD20(`${ABILITY_SHORT[abi]} save`, bonus, onRoll);
+          }
+        };
+        return (
+          <TouchableOpacity
+            key={abi}
+            style={[
+              isDesktop ? s.saveCellDesktop : s.saveRow,
+              isProf && s.saveRowProf,
+              manualMode && s.saveCellManual,
+            ]}
+            onPress={handlePress}
+            activeOpacity={0.7}
+          >
+            <View style={[s.profDot, isProf && s.profDotFilled]} />
+            <Text style={[s.saveAbility, isProf && s.saveAbilityProf]}>{ABILITY_SHORT[abi]}</Text>
+            <Text style={[s.saveBonus, isProf && s.saveBonusProf]}>{fmtMod(bonus)}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 function ActionGroup({ label, items, color }: { label: string; items: Dnd5eFeature[]; color: string }) {
-  // Group-level collapse: groups start open so all actions are visible
-  // at a glance; the chevron on the header lets the player fold groups
-  // they don't care about this turn (e.g. collapse Reactions when on
-  // their own turn). Individual action descriptions are always shown
-  // when the group is open — no per-row expand.
-  const [expanded, setExpanded] = useState(true);
+  // Group-level collapse: groups start collapsed so the Combat tab leads
+  // with attacks / abilities / resources without a wall of SRD action
+  // text pushing them off-screen. The header chevron expands the group
+  // when the player needs the reference (e.g. checking Dodge mechanics
+  // or a class-feature action's description).
+  const [expanded, setExpanded] = useState(false);
   return (
     <View style={s.actionGroup}>
       <TouchableOpacity
@@ -680,44 +952,118 @@ function ActionGroup({ label, items, color }: { label: string; items: Dnd5eFeatu
 }
 
 function ActionRow({ feature, color }: { feature: Dnd5eFeature; color: string }) {
+  // Description starts hidden so the list scans as a clean roster of action
+  // names; tapping the row reveals the prose for the rules-reference use case
+  // (e.g. "how does Dodge actually work?"). Rows without a description stay
+  // inert — no chevron, no tap target.
+  const [expanded, setExpanded] = useState(false);
+  const iconName = ACTION_ICONS[feature.id] ?? 'star-four-points';
+  const hasDesc = !!feature.description;
+  const Wrapper = hasDesc ? TouchableOpacity : View;
   return (
-    <View style={s.actionCard}>
+    <Wrapper
+      style={s.actionCard}
+      onPress={hasDesc ? () => setExpanded((v) => !v) : undefined}
+      activeOpacity={0.7}
+    >
       <View style={[s.actionCardBar, { backgroundColor: color }]} />
       <View style={s.actionCardBody}>
         <View style={s.actionCardTitleRow}>
+          <MaterialCommunityIcons name={iconName} size={13} color={color} style={{ marginRight: 2 }} />
           <Text style={s.actionCardName} numberOfLines={1}>{feature.name}</Text>
           {feature.uses ? (
             <Text style={[s.actionCardUses, { color }]}>
               {feature.uses.current}/{feature.uses.max}
             </Text>
           ) : null}
+          {hasDesc ? (
+            <MaterialCommunityIcons
+              name={expanded ? 'chevron-up' : 'chevron-down'}
+              size={12}
+              color={colors.outline}
+            />
+          ) : null}
         </View>
-        {feature.description ? (
+        {expanded && feature.description ? (
           <Text style={s.actionCardDesc}>{feature.description}</Text>
         ) : null}
       </View>
-    </View>
+    </Wrapper>
   );
 }
 
-function CardBlock({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <View style={s.card}>
-      <View style={s.cardHead}>
-        <Text style={s.cardTitle}>{title}</Text>
-        {hint && <Text style={s.cardHint}>{hint}</Text>}
-      </View>
-      <View style={s.cardBody}>{children}</View>
-    </View>
-  );
-}
-
-function SectionLabel({ children, style, accent }: { children: string; style?: any; accent?: boolean }) {
+function SectionLabel({ children, style, accent, right }: { children: string; style?: any; accent?: boolean; right?: React.ReactNode }) {
   return (
     <View style={[s.sectionRow, style]}>
       <Text style={[s.sectionLabel, accent && s.sectionLabelAccent]}>{children}</Text>
       <View style={[s.sectionLine, accent && s.sectionLineAccent]} />
+      {right}
     </View>
+  );
+}
+
+/**
+ * Small "+" affordance rendered in a SectionLabel's right slot. Outlined
+ * pill matching the design tokens — primary tint at low opacity so it
+ * sits alongside the section divider without competing for attention.
+ */
+function SectionAddButton({ onPress, label }: { onPress: () => void; label: string }) {
+  return (
+    <TouchableOpacity style={s.sectionAddBtn} onPress={onPress} activeOpacity={0.7} accessibilityLabel={label}>
+      <MaterialCommunityIcons name="plus" size={12} color={colors.primary} />
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * Reusable bottom-sheet picker used by the section + buttons. Each option
+ * is a row with an icon, label, and (optional) one-line description.
+ * Selecting an option fires its callback and dismisses the modal.
+ */
+function AddSheetModal({ title, options, onClose }: {
+  title: string;
+  options: Array<{
+    label: string;
+    icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+    description?: string;
+    onPress: () => void;
+    disabled?: boolean;
+  }>;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.addSheetBackdrop} onPress={onClose}>
+        <Pressable style={s.addSheetCard} onPress={() => {}}>
+          <View style={s.addSheetHeader}>
+            <Text style={s.addSheetTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={10} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+            </TouchableOpacity>
+          </View>
+          <View style={{ gap: 6 }}>
+            {options.map((opt) => (
+              <TouchableOpacity
+                key={opt.label}
+                style={[s.addSheetOption, opt.disabled && s.addSheetOptionDisabled]}
+                onPress={() => { if (opt.disabled) return; opt.onPress(); onClose(); }}
+                activeOpacity={opt.disabled ? 1 : 0.7}
+                disabled={opt.disabled}
+              >
+                <MaterialCommunityIcons name={opt.icon} size={18} color={opt.disabled ? colors.outline : colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.addSheetOptionLabel, opt.disabled && { color: colors.outline }]}>{opt.label}</Text>
+                  {opt.description ? (
+                    <Text style={s.addSheetOptionDesc}>{opt.description}</Text>
+                  ) : null}
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={16} color={colors.outline} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -736,57 +1082,53 @@ function PassiveCard({ label, value, suffix, editable, onPress }: { label: strin
 }
 
 const s = StyleSheet.create({
-  // ── Desktop 2-column layout
-  desktopRoot: {
-    flex: 1, flexDirection: 'row', overflow: 'hidden',
-  },
-  col: { flex: 1 },
-  colContent: { padding: 8, gap: 6 },
-  colDivider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.outlineVariant },
+  // ── Desktop layout
+  /** Desktop scroll padding. No `gap` — section spacing is handled by the
+   *  `marginTop` on each SectionLabel so the first section (saves strip)
+   *  hugs the top while subsequent sections get breathing room. */
+  deskScrollContent: { padding: 12, paddingTop: 12 },
+  /** Top margin applied to every SectionLabel after the first one, so the
+   *  bare (no-CardBlock) sections still read as discrete blocks. */
+  deskSectionLabel: { marginTop: 18 },
 
-  // Card blocks
-  card: {
-    backgroundColor: colors.surfaceContainer,
+  // Equipment cards (Attacks + Pinned) — mirror the action-card visual:
+  // transparent bg, thin outline, full-height accent bar, compact body.
+  equipCardList: { gap: 4 },
+  equipCard: {
+    flexDirection: 'row',
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, overflow: 'hidden',
+    borderRadius: 6, overflow: 'hidden',
   },
-  cardHead: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 10, paddingVertical: 7,
-    backgroundColor: colors.surfaceContainerLowest,
+  equipCardBar: { width: 2, alignSelf: 'stretch' },
+  equipCardBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 1 },
+  equipCardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  equipCardName: {
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, letterSpacing: -0.1,
+  },
+  equipCardSub: {
+    fontSize: 10, fontFamily: fonts.label, color: colors.outline,
+    marginLeft: 17, textTransform: 'capitalize',
+  },
+  /** Attacks-table header strip — small uppercase labels above the
+   *  weapon card list. Padded 10px on the left so the WEAPON label
+   *  starts roughly above each card's body content (past the 2px bar
+   *  and 8px body padding). */
+  weaponHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingBottom: 4,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    marginBottom: 4,
   },
-  cardTitle: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '800',
-    letterSpacing: 1, textTransform: 'uppercase', color: colors.onSurface,
-  },
-  cardHint: { fontSize: 8, fontFamily: fonts.label, color: colors.outline },
-  cardBody: { paddingHorizontal: 10, paddingVertical: 8 },
-
-  // Attacks
-  attacksHeader: {
-    flexDirection: 'row', paddingBottom: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
-    marginBottom: 2,
-  },
-  attacksHdrCell: {
+  weaponHeaderCell: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline,
   },
-  attackRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 7,
-  },
-  attackRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  pinnedRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 7,
-  },
-  pinnedRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  pinnedName: { fontSize: 11, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
-  pinnedSub: { fontSize: 8, color: colors.outline, marginTop: 1, textTransform: 'capitalize' },
-  attackName: { fontSize: 11, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
-  attackSub: { fontSize: 8, color: colors.outline, marginTop: 1 },
+  /** Fixed-width chip columns shared between the WeaponCard title row
+   *  and the header strip above, so Hit / Dmg chips land directly
+   *  under their column headers. */
+  weaponHitCol: { width: 72, alignItems: 'center', textAlign: 'center' as const },
+  weaponDmgCol: { width: 72, alignItems: 'center', textAlign: 'center' as const },
   atkBtnHit: {
     paddingHorizontal: 8, paddingVertical: 4,
     borderWidth: 1, borderColor: `${colors.primary}66`,
@@ -914,6 +1256,35 @@ const s = StyleSheet.create({
   mobileEmptyHint: { paddingVertical: 6 },
 
   sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  /** Small outlined + affordance that sits in the right slot of a
+   *  SectionLabel — opens the section's intermediary "Add to X" modal. */
+  sectionAddBtn: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: `${colors.primary}66`,
+    backgroundColor: `${colors.primary}14`,
+  },
+  // AddSheetModal — reusable "Add to <section>" intermediary picker.
+  addSheetBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  addSheetCard: {
+    width: '100%', maxWidth: 380,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 12, padding: 16, gap: 12,
+  },
+  addSheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  addSheetTitle: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  addSheetOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  addSheetOptionDisabled: { opacity: 0.5 },
+  addSheetOptionLabel: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface },
+  addSheetOptionDesc: { fontSize: 10, fontFamily: fonts.body, color: colors.onSurfaceVariant, marginTop: 2 },
   sectionLabel: {
     fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.5, textTransform: 'uppercase', color: colors.outline,
@@ -936,7 +1307,6 @@ const s = StyleSheet.create({
   actionCards: { gap: 3 },
   actionCard: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: 6, overflow: 'hidden',
   },
@@ -955,8 +1325,11 @@ const s = StyleSheet.create({
     fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 15,
   },
 
-  // Mobile saving throws
+  // Saving throws (shared mobile + desktop)
+  /** Mobile grid: 3 cells per row, wrap. */
   savesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  /** Desktop strip: single horizontal row of 6 equal-width cells. */
+  savesStripDesktop: { flexDirection: 'row', gap: 6 },
   saveRow: {
     width: '30.5%', flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 10, paddingVertical: 9,
@@ -964,6 +1337,19 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
   },
+  /** Desktop cell: same anatomy as the mobile saveRow but flex-1 for
+   *  even distribution across 6 columns instead of fixed-percent width. */
+  saveCellDesktop: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+  },
+  /** Visual hint when Manual Mode is on so tapping toggles proficiency
+   *  instead of rolling — dashed primary border mirrors the editable-field
+   *  affordance used elsewhere on the sheet. */
+  saveCellManual: { borderColor: colors.primary, borderStyle: 'dashed' as const },
   saveRowProf: { borderColor: `${colors.primary}55`, backgroundColor: `${colors.primaryContainer}22` },
   profDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: colors.outline },
   profDotFilled: { backgroundColor: colors.primary, borderColor: colors.primary },

@@ -134,11 +134,199 @@ export function AbilitiesTab({
     [allCustomSpeciesTraits, resolvedSpeciesTraitNames],
   );
 
+  // Per-section collapse state. Sections start collapsed so the tab
+  // opens as a clean list of headers; players expand the ones they
+  // care about for the current task. Order in this object reflects
+  // the new top-to-bottom render order: Proficiencies leads.
+  const [collapsed, setCollapsed] = useState<{
+    proficiencies: boolean;
+    classFeatures: boolean;
+    subclassFeatures: boolean;
+    background: boolean;
+    speciesTraits: boolean;
+    feats: boolean;
+  }>({
+    proficiencies: true,
+    classFeatures: true,
+    subclassFeatures: true,
+    background: true,
+    speciesTraits: true,
+    feats: true,
+  });
+  const toggle = (key: keyof typeof collapsed) =>
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
 
+      {/* ── Proficiencies (moved to top; was at the bottom) ─────────── */}
+      <SectionRow
+        label="PROFICIENCIES"
+        accent={ACCENT_CLASS}
+        collapsed={collapsed.proficiencies}
+        onToggle={() => toggle('proficiencies')}
+      />
+      {!collapsed.proficiencies && (
+        <View style={s.profCard}>
+          <ProfLineWithSources
+            label="Armor"
+            items={mergeProfsWithSources({
+              stored: stats.armorProficiencies,
+              classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.armorProficiencies })),
+            })}
+          />
+          <ProfLineWithSources
+            label="Weapons"
+            items={mergeProfsWithSources({
+              stored: stats.weaponProficiencies,
+              classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.weaponProficiencies })),
+            })}
+          />
+          <ProfLineWithSources
+            label="Tools"
+            items={mergeProfsWithSources({
+              stored: stats.toolProficiencies,
+              classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.toolProficiencies ?? [] })),
+              background: backgroundResult?.toolProficiency
+                ? { source: backgroundResult.name, items: [backgroundResult.toolProficiency] }
+                : null,
+            })}
+          />
+          <ProfLineWithSources
+            label="Saving Throws"
+            items={mergeProfsWithSources({
+              stored: stats.savingThrowProficiencies.map((s) => capitalize(s)),
+              classGroups: classGroups
+                .filter((g) => g.entry.primary)
+                .map((g) => ({ source: g.cls.name, items: g.cls.savingThrows.map((s) => capitalize(s)) })),
+            })}
+          />
+          <ProfLineWithSources
+            label="Skills"
+            items={mergeProfsWithSources({
+              stored: stats.skillProficiencies.map((s) => titleCase(s)),
+              background: backgroundResult
+                ? { source: backgroundResult.name, items: backgroundResult.skillProficiencies.map((s) => titleCase(s)) }
+                : null,
+            })}
+          />
+          <ProfLineWithSources
+            label="Languages"
+            items={mergeProfsWithSources({
+              stored: stats.languages,
+              background: backgroundResult && backgroundResult.languages > 0
+                ? { source: backgroundResult.name, items: [`+${backgroundResult.languages} of player choice`] }
+                : null,
+            })}
+          />
+        </View>
+      )}
+
+      {/* Section order: Proficiencies (above) → Feats → Subclass →
+          Class → Species → Background. Player-curated lists (feats +
+          subclass picks) lead so the most actionable / referenced
+          sections sit closest to the top. Background trails since
+          it's a one-time bookkeeping reference. */}
+
+      {/* ── Feats ── */}
+      <SectionRow
+        label="FEATS"
+        accent={ACCENT_CLASS}
+        style={{ marginTop: 16 }}
+        onAdd={isOwner ? () => onAddFeature('feats') : undefined}
+        collapsed={collapsed.feats}
+        onToggle={() => toggle('feats')}
+      />
+      {!collapsed.feats && (feats.length === 0 ? (
+        <EmptyHint text="No feats added yet." />
+      ) : (
+        feats.map((f) => {
+          const featResult = featResultsByKey.get(f.id);
+          const skillGrant = featResult?.grants?.skills;
+          const picks = resources.featPicks?.[f.id]?.skills ?? [];
+          const showGrantPicker = !!skillGrant && isOwner;
+          // Skills the character already has from other sources — used
+          // to disable duplicate-prof chips in the picker. We strip
+          // *this feat's own picks* first so deselecting one doesn't
+          // immediately re-disable it.
+          const otherProfs = new Set(
+            (stats.skillProficiencies ?? [])
+              .map((sk) => sk.toLowerCase())
+              .filter((sk) => !picks.map((p) => p.toLowerCase()).includes(sk)),
+          );
+          const k = customKey('feats', f.id);
+          return (
+            <View key={f.id}>
+              <FeatureCard
+                feature={f}
+                accent={ACCENT_FEAT}
+                canEdit={isOwner}
+                onEdit={() => onEditFeature('feats', f)}
+                onUse={(delta) => onToggleFeatureUse('feats', f.id, delta)}
+                hidden={hiddenSet.has(k)}
+                onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+              />
+              {showGrantPicker ? (
+                <FeatGrantPicker
+                  featKey={f.id}
+                  grant={skillGrant!}
+                  picked={picks}
+                  existingProfs={otherProfs}
+                  onChange={(next) => onSaveFeatPicks(f.id, { ...resources.featPicks?.[f.id], skills: next })}
+                />
+              ) : null}
+            </View>
+          );
+        })
+      ))}
+
+      {/* ── Subclass features (live from ContentResolver) ── */}
+      {subclassGroups.length > 0 && (
+        <>
+          <SectionRow
+            label="SUBCLASS FEATURES"
+            accent={ACCENT_CLASS}
+            style={{ marginTop: 16 }}
+            collapsed={collapsed.subclassFeatures}
+            onToggle={() => toggle('subclassFeatures')}
+          />
+          {!collapsed.subclassFeatures && subclassGroups.map(({ entry, sub, features }) => (
+            <View key={`sub-${entry.subclassKey}`}>
+              {subclassGroups.length > 1 && (
+                <Text style={s.groupSubhead}>{sub.name}</Text>
+              )}
+              {features.length === 0 ? (
+                <EmptyHint text={`No ${sub.name} features at this level yet.`} />
+              ) : (
+                features.map((f, i) => {
+                  const k = liveKey('subclass', entry.subclassKey ?? '', f.name);
+                  return (
+                    <ContentFeatureCard
+                      key={`sub-${entry.subclassKey}-${i}-${f.name}`}
+                      name={f.name}
+                      description={f.description}
+                      level={f.level}
+                      accent={ACCENT_SUBCLASS}
+                      hidden={hiddenSet.has(k)}
+                      onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+                    />
+                  );
+                })
+              )}
+            </View>
+          ))}
+        </>
+      )}
+
       {/* ── Class features (live from ContentResolver) ── */}
-      <SectionRow label="CLASS FEATURES" accent={ACCENT_CLASS} />
+      <SectionRow
+        label="CLASS FEATURES"
+        accent={ACCENT_CLASS}
+        style={{ marginTop: 16 }}
+        collapsed={collapsed.classFeatures}
+        onToggle={() => toggle('classFeatures')}
+      />
+      {!collapsed.classFeatures && (<>
       {classGroups.length === 0 && customClassFeatures.length === 0 && (
         <EmptyHint text="No class features yet — pick a class to unlock features at each level." />
       )}
@@ -200,120 +388,17 @@ export function AbilitiesTab({
           </TouchableOpacity>
         </View>
       )}
-
-      {/* ── Subclass features (live from ContentResolver) ── */}
-      {subclassGroups.length > 0 && (
-        <>
-          <SectionRow label="SUBCLASS FEATURES" accent={ACCENT_SUBCLASS} style={{ marginTop: 16 }} />
-          {subclassGroups.map(({ entry, sub, features }) => (
-            <View key={`sub-${entry.subclassKey}`}>
-              {subclassGroups.length > 1 && (
-                <Text style={s.groupSubhead}>{sub.name}</Text>
-              )}
-              {features.length === 0 ? (
-                <EmptyHint text={`No ${sub.name} features at this level yet.`} />
-              ) : (
-                features.map((f, i) => {
-                  const k = liveKey('subclass', entry.subclassKey ?? '', f.name);
-                  return (
-                    <ContentFeatureCard
-                      key={`sub-${entry.subclassKey}-${i}-${f.name}`}
-                      name={f.name}
-                      description={f.description}
-                      level={f.level}
-                      accent={ACCENT_SUBCLASS}
-                      hidden={hiddenSet.has(k)}
-                      onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
-                    />
-                  );
-                })
-              )}
-            </View>
-          ))}
-        </>
-      )}
-
-      {/* ── Background ── */}
-      {(backgroundResult || stats.originFeat) && (
-        <SectionRow label="BACKGROUND" accent={ACCENT_BG} style={{ marginTop: 16 }} />
-      )}
-      {backgroundResult && (
-        <View style={s.bgCard}>
-          <Text style={s.bgName}>{backgroundResult.name}</Text>
-          {backgroundResult.skillProficiencies.length > 0 && (
-            <Text style={s.bgMeta}>Skills: {backgroundResult.skillProficiencies.join(', ')}</Text>
-          )}
-          {backgroundResult.toolProficiency && (
-            <Text style={s.bgMeta}>Tool: {backgroundResult.toolProficiency}</Text>
-          )}
-          {backgroundResult.languages > 0 && (
-            <Text style={s.bgMeta}>Languages: +{backgroundResult.languages}</Text>
-          )}
-          {Array.isArray(backgroundResult.startingEquipment) && backgroundResult.startingEquipment.length > 0 ? (
-            <Text style={s.bgEquip}>
-              {backgroundResult.startingEquipment
-                .map((opt) => {
-                  const parts: string[] = [];
-                  if (opt.items && opt.items.length > 0) {
-                    parts.push(opt.items.map((i) => {
-                      const n = normalizeStartingEquipmentItem(i);
-                      return n.qty && n.qty > 1 ? `${n.qty} × ${n.name}` : n.name;
-                    }).join(', '));
-                  }
-                  if (opt.gold) {
-                    if (opt.gold.dice) {
-                      parts.push(`${opt.gold.dice} ${opt.gold.currency}`);
-                    } else if (typeof opt.gold.amount === 'number') {
-                      parts.push(`${opt.gold.amount} ${opt.gold.currency}`);
-                    }
-                  }
-                  const inner = parts.join(' + ');
-                  return opt.label ? `${opt.label}: ${inner}` : inner;
-                })
-                .filter(Boolean)
-                .join('  /  ')}
-            </Text>
-          ) : backgroundResult.startingEquipmentText ? (
-            // Legacy freeform string from older imports that predate
-            // the structured shape. Render as-is.
-            <Text style={s.bgEquip}>{backgroundResult.startingEquipmentText}</Text>
-          ) : null}
-        </View>
-      )}
-
-      {/* Origin feat: prefer the resolved FeatResult (full description +
-          structured benefits) over the bare name we used to show. */}
-      {originFeatResult ? (() => {
-        const k = liveKey('origin-feat', '', originFeatResult.name);
-        return (
-          <ContentFeatureCard
-            name={originFeatResult.name}
-            description={[
-              originFeatResult.description ?? '',
-              ...(originFeatResult.benefits ?? []).map((b) => `• ${b}`),
-            ].filter(Boolean).join('\n\n')}
-            subtitle="Origin feat"
-            accent={ACCENT_FEAT}
-            hidden={hiddenSet.has(k)}
-            onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
-          />
-        );
-      })() : stats.originFeat ? (() => {
-        const k = liveKey('origin-feat', '', stats.originFeat);
-        return (
-          <ContentFeatureCard
-            name={stats.originFeat}
-            subtitle="Origin feat"
-            accent={ACCENT_FEAT}
-            description="This feat was granted by your background at character creation."
-            hidden={hiddenSet.has(k)}
-            onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
-          />
-        );
-      })() : null}
+      </>)}
 
       {/* ── Species traits (live from ContentResolver) ── */}
-      <SectionRow label="SPECIES TRAITS" accent={ACCENT_SPECIES} style={{ marginTop: 16 }} />
+      <SectionRow
+        label="SPECIES TRAITS"
+        accent={ACCENT_CLASS}
+        style={{ marginTop: 16 }}
+        collapsed={collapsed.speciesTraits}
+        onToggle={() => toggle('speciesTraits')}
+      />
+      {!collapsed.speciesTraits && (<>
       {speciesResult && (speciesResult.traits ?? []).length > 0 ? (
         speciesResult.traits.map((t, i) => {
           const k = liveKey('species', '', t.name);
@@ -367,132 +452,142 @@ export function AbilitiesTab({
           </TouchableOpacity>
         </View>
       )}
+      </>)}
 
-      {/* ── Feats ── */}
-      <SectionRow
-        label="FEATS"
-        accent={ACCENT_FEAT}
-        style={{ marginTop: 16 }}
-        onAdd={isOwner ? () => onAddFeature('feats') : undefined}
-      />
-      {feats.length === 0 ? (
-        <EmptyHint text="No feats added yet." />
-      ) : (
-        feats.map((f) => {
-          const featResult = featResultsByKey.get(f.id);
-          const skillGrant = featResult?.grants?.skills;
-          const picks = resources.featPicks?.[f.id]?.skills ?? [];
-          const showGrantPicker = !!skillGrant && isOwner;
-          // Skills the character already has from other sources — used
-          // to disable duplicate-prof chips in the picker. We strip
-          // *this feat's own picks* first so deselecting one doesn't
-          // immediately re-disable it.
-          const otherProfs = new Set(
-            (stats.skillProficiencies ?? [])
-              .map((sk) => sk.toLowerCase())
-              .filter((sk) => !picks.map((p) => p.toLowerCase()).includes(sk)),
-          );
-          const k = customKey('feats', f.id);
-          return (
-            <View key={f.id}>
-              <FeatureCard
-                feature={f}
-                accent={ACCENT_FEAT}
-                canEdit={isOwner}
-                onEdit={() => onEditFeature('feats', f)}
-                onUse={(delta) => onToggleFeatureUse('feats', f.id, delta)}
-                hidden={hiddenSet.has(k)}
-                onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
-              />
-              {showGrantPicker ? (
-                <FeatGrantPicker
-                  featKey={f.id}
-                  grant={skillGrant!}
-                  picked={picks}
-                  existingProfs={otherProfs}
-                  onChange={(next) => onSaveFeatPicks(f.id, { ...resources.featPicks?.[f.id], skills: next })}
-                />
-              ) : null}
-            </View>
-          );
-        })
+      {/* ── Background ── */}
+      {(backgroundResult || stats.originFeat) && (
+        <SectionRow
+          label="BACKGROUND"
+          accent={ACCENT_CLASS}
+          style={{ marginTop: 16 }}
+          collapsed={collapsed.background}
+          onToggle={() => toggle('background')}
+        />
+      )}
+      {!collapsed.background && backgroundResult && (
+        <View style={s.bgCard}>
+          <Text style={s.bgName}>{backgroundResult.name}</Text>
+          {backgroundResult.skillProficiencies.length > 0 && (
+            <Text style={s.bgMeta}>Skills: {backgroundResult.skillProficiencies.join(', ')}</Text>
+          )}
+          {backgroundResult.toolProficiency && (
+            <Text style={s.bgMeta}>Tool: {backgroundResult.toolProficiency}</Text>
+          )}
+          {backgroundResult.languages > 0 && (
+            <Text style={s.bgMeta}>Languages: +{backgroundResult.languages}</Text>
+          )}
+          {Array.isArray(backgroundResult.startingEquipment) && backgroundResult.startingEquipment.length > 0 ? (
+            <Text style={s.bgEquip}>
+              {backgroundResult.startingEquipment
+                .map((opt) => {
+                  const parts: string[] = [];
+                  if (opt.items && opt.items.length > 0) {
+                    parts.push(opt.items.map((i) => {
+                      const n = normalizeStartingEquipmentItem(i);
+                      return n.qty && n.qty > 1 ? `${n.qty} × ${n.name}` : n.name;
+                    }).join(', '));
+                  }
+                  if (opt.gold) {
+                    if (opt.gold.dice) {
+                      parts.push(`${opt.gold.dice} ${opt.gold.currency}`);
+                    } else if (typeof opt.gold.amount === 'number') {
+                      parts.push(`${opt.gold.amount} ${opt.gold.currency}`);
+                    }
+                  }
+                  const inner = parts.join(' + ');
+                  return opt.label ? `${opt.label}: ${inner}` : inner;
+                })
+                .filter(Boolean)
+                .join('  /  ')}
+            </Text>
+          ) : backgroundResult.startingEquipmentText ? (
+            // Legacy freeform string from older imports that predate
+            // the structured shape. Render as-is.
+            <Text style={s.bgEquip}>{backgroundResult.startingEquipmentText}</Text>
+          ) : null}
+        </View>
       )}
 
-      {/* ── Proficiencies (live from class + background, with attribution) ── */}
-      <SectionRow label="PROFICIENCIES" style={{ marginTop: 16 }} />
-      <View style={s.profCard}>
-        <ProfLineWithSources
-          label="Armor"
-          items={mergeProfsWithSources({
-            stored: stats.armorProficiencies,
-            classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.armorProficiencies })),
-          })}
-        />
-        <ProfLineWithSources
-          label="Weapons"
-          items={mergeProfsWithSources({
-            stored: stats.weaponProficiencies,
-            classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.weaponProficiencies })),
-          })}
-        />
-        <ProfLineWithSources
-          label="Tools"
-          items={mergeProfsWithSources({
-            stored: stats.toolProficiencies,
-            classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.toolProficiencies ?? [] })),
-            background: backgroundResult?.toolProficiency
-              ? { source: backgroundResult.name, items: [backgroundResult.toolProficiency] }
-              : null,
-          })}
-        />
-        <ProfLineWithSources
-          label="Saving Throws"
-          items={mergeProfsWithSources({
-            stored: stats.savingThrowProficiencies.map((s) => capitalize(s)),
-            classGroups: classGroups
-              .filter((g) => g.entry.primary)
-              .map((g) => ({ source: g.cls.name, items: g.cls.savingThrows.map((s) => capitalize(s)) })),
-          })}
-        />
-        <ProfLineWithSources
-          label="Skills"
-          items={mergeProfsWithSources({
-            stored: stats.skillProficiencies.map((s) => titleCase(s)),
-            background: backgroundResult
-              ? { source: backgroundResult.name, items: backgroundResult.skillProficiencies.map((s) => titleCase(s)) }
-              : null,
-          })}
-        />
-        <ProfLineWithSources
-          label="Languages"
-          items={mergeProfsWithSources({
-            stored: stats.languages,
-            background: backgroundResult && backgroundResult.languages > 0
-              ? { source: backgroundResult.name, items: [`+${backgroundResult.languages} of player choice`] }
-              : null,
-          })}
-        />
-      </View>
+      {/* Origin feat: prefer the resolved FeatResult (full description +
+          structured benefits) over the bare name we used to show. Hidden
+          when the Background section is collapsed since it visually sits
+          inside that section. */}
+      {!collapsed.background && originFeatResult ? (() => {
+        const k = liveKey('origin-feat', '', originFeatResult.name);
+        return (
+          <ContentFeatureCard
+            name={originFeatResult.name}
+            description={[
+              originFeatResult.description ?? '',
+              ...(originFeatResult.benefits ?? []).map((b) => `• ${b}`),
+            ].filter(Boolean).join('\n\n')}
+            subtitle="Origin feat"
+            accent={ACCENT_FEAT}
+            hidden={hiddenSet.has(k)}
+            onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+          />
+        );
+      })() : !collapsed.background && stats.originFeat ? (() => {
+        const k = liveKey('origin-feat', '', stats.originFeat);
+        return (
+          <ContentFeatureCard
+            name={stats.originFeat}
+            subtitle="Origin feat"
+            accent={ACCENT_FEAT}
+            description="This feat was granted by your background at character creation."
+            hidden={hiddenSet.has(k)}
+            onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+          />
+        );
+      })() : null}
 
       <View style={{ height: 16 }} />
     </ScrollView>
   );
 }
 
-function SectionRow({ label, accent, style, onAdd }: {
-  label: string; accent?: string; style?: any; onAdd?: () => void;
+function SectionRow({ label, accent, style, onAdd, collapsed, onToggle }: {
+  label: string;
+  accent?: string;
+  style?: any;
+  onAdd?: () => void;
+  /** When defined, the row renders a chevron and becomes tappable —
+   *  consumer wires `onToggle` to flip its collapse state. Add-button
+   *  taps inside the row stopPropagation so + doesn't bubble into
+   *  toggle. */
+  collapsed?: boolean;
+  onToggle?: () => void;
 }) {
-  return (
-    <View style={[s.sectionRow, style]}>
+  const body = (
+    <>
+      {onToggle ? (
+        <MaterialCommunityIcons
+          name={collapsed ? 'chevron-right' : 'chevron-down'}
+          size={14}
+          color={accent ?? colors.outline}
+        />
+      ) : null}
       <Text style={[s.sectionLabel, accent && { color: accent }]}>{label}</Text>
       <View style={[s.sectionLine, accent && { backgroundColor: `${accent}44` }]} />
       {onAdd && (
-        <TouchableOpacity onPress={onAdd} style={s.addBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={(e) => { e.stopPropagation?.(); onAdd(); }}
+          style={s.addBtn}
+          activeOpacity={0.7}
+        >
           <MaterialCommunityIcons name="plus" size={14} color={accent ?? colors.outline} />
         </TouchableOpacity>
       )}
-    </View>
+    </>
   );
+  if (onToggle) {
+    return (
+      <TouchableOpacity style={[s.sectionRow, style]} onPress={onToggle} activeOpacity={0.7}>
+        {body}
+      </TouchableOpacity>
+    );
+  }
+  return <View style={[s.sectionRow, style]}>{body}</View>;
 }
 
 // Lighter heading rule for the "Custom" subsection inside a section group.
@@ -539,42 +634,49 @@ function ContentFeatureCard({ name, description, accent, level, subtitle, indent
       <View style={[s.featureCard, indented && s.featureCardIndent, s.featureCardHidden]}>
         <View style={s.featureHeader}>
           <View style={[s.accentBar, { backgroundColor: accent, opacity: 0.4 }]} />
-          <Text style={[s.featureName, s.featureNameHidden]} numberOfLines={1}>{name}</Text>
-          {onToggleHidden ? (
-            <TouchableOpacity onPress={onToggleHidden} hitSlop={8} activeOpacity={0.7}>
-              <Text style={[s.hiddenUnhideText, { color: accent }]}>Unhide</Text>
-            </TouchableOpacity>
-          ) : null}
+          <View style={s.featureHeaderBody}>
+            <View style={s.featureTitleRow}>
+              <Text style={[s.featureName, s.featureNameHidden]} numberOfLines={1}>{name}</Text>
+              {onToggleHidden ? (
+                <TouchableOpacity onPress={onToggleHidden} hitSlop={8} activeOpacity={0.7}>
+                  <Text style={[s.hiddenUnhideText, { color: accent }]}>Unhide</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
         </View>
       </View>
     );
   }
+  const metaText = selectedOption
+    ? selectedOption
+    : subtitle ?? (level ? `Level ${level}` : null);
   return (
     <View style={[s.featureCard, indented && s.featureCardIndent]}>
       <TouchableOpacity style={s.featureHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
         <View style={[s.accentBar, { backgroundColor: accent }]} />
-        <View style={s.featureHeaderText}>
-          <Text style={s.featureName}>{name}</Text>
-          {selectedOption ? (
-            <Text style={s.featureUses}>{selectedOption}</Text>
-          ) : (subtitle || level) ? (
-            <Text style={s.featureUses}>{subtitle ?? (level ? `Level ${level}` : '')}</Text>
-          ) : null}
+        <View style={s.featureHeaderBody}>
+          <View style={s.featureTitleRow}>
+            <Text style={s.featureName} numberOfLines={1}>{name}</Text>
+            {metaText ? (
+              <Text style={s.featureUses} numberOfLines={1}>{metaText}</Text>
+            ) : null}
+            {onToggleHidden ? (
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation?.(); onToggleHidden(); }}
+                hitSlop={8}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="eye-off-outline" size={13} color={colors.outline} />
+              </TouchableOpacity>
+            ) : null}
+            <MaterialCommunityIcons
+              name={open ? 'chevron-up' : 'chevron-down'}
+              size={12}
+              color={colors.outline}
+            />
+          </View>
         </View>
-        {onToggleHidden ? (
-          <TouchableOpacity
-            onPress={(e) => { e.stopPropagation?.(); onToggleHidden(); }}
-            hitSlop={8}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons name="eye-off-outline" size={14} color={colors.outline} />
-          </TouchableOpacity>
-        ) : null}
-        <MaterialCommunityIcons
-          name={open ? 'chevron-down' : 'chevron-right'}
-          size={16}
-          color={colors.outline}
-        />
       </TouchableOpacity>
       {open ? (
         <View style={s.featureBody}>
@@ -659,12 +761,16 @@ function FeatureCard({ feature, accent, canEdit, onEdit, onUse, hidden, onToggle
       <View style={[s.featureCard, s.featureCardHidden]}>
         <View style={s.featureHeader}>
           <View style={[s.accentBar, { backgroundColor: accent, opacity: 0.4 }]} />
-          <Text style={[s.featureName, s.featureNameHidden]} numberOfLines={1}>{feature.name}</Text>
-          {onToggleHidden ? (
-            <TouchableOpacity onPress={onToggleHidden} hitSlop={8} activeOpacity={0.7}>
-              <Text style={[s.hiddenUnhideText, { color: accent }]}>Unhide</Text>
-            </TouchableOpacity>
-          ) : null}
+          <View style={s.featureHeaderBody}>
+            <View style={s.featureTitleRow}>
+              <Text style={[s.featureName, s.featureNameHidden]} numberOfLines={1}>{feature.name}</Text>
+              {onToggleHidden ? (
+                <TouchableOpacity onPress={onToggleHidden} hitSlop={8} activeOpacity={0.7}>
+                  <Text style={[s.hiddenUnhideText, { color: accent }]}>Unhide</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
         </View>
       </View>
     );
@@ -673,32 +779,35 @@ function FeatureCard({ feature, accent, canEdit, onEdit, onUse, hidden, onToggle
     <View style={s.featureCard}>
       <TouchableOpacity style={s.featureHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
         <View style={[s.accentBar, { backgroundColor: accent }]} />
-        <View style={s.featureHeaderText}>
-          <Text style={s.featureName}>{feature.name}</Text>
-          {feature.uses && (
-            <Text style={s.featureUses}>{feature.uses.current}/{feature.uses.max} · {feature.uses.recharge}</Text>
-          )}
+        <View style={s.featureHeaderBody}>
+          <View style={s.featureTitleRow}>
+            <Text style={s.featureName} numberOfLines={1}>{feature.name}</Text>
+            {feature.uses ? (
+              <Text style={s.featureUses}>
+                {feature.uses.current}/{feature.uses.max} · {feature.uses.recharge}
+              </Text>
+            ) : null}
+            {canEdit ? (
+              <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); onEdit(); }} hitSlop={8}>
+                <MaterialCommunityIcons name="pencil-outline" size={13} color={colors.outline} />
+              </TouchableOpacity>
+            ) : null}
+            {onToggleHidden ? (
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation?.(); onToggleHidden(); }}
+                hitSlop={8}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="eye-off-outline" size={13} color={colors.outline} />
+              </TouchableOpacity>
+            ) : null}
+            <MaterialCommunityIcons
+              name={open ? 'chevron-up' : 'chevron-down'}
+              size={12}
+              color={colors.outline}
+            />
+          </View>
         </View>
-        {canEdit && (
-          <TouchableOpacity onPress={onEdit} hitSlop={8}>
-            <MaterialCommunityIcons name="pencil-outline" size={14} color={colors.outline} />
-          </TouchableOpacity>
-        )}
-        {onToggleHidden ? (
-          <TouchableOpacity
-            onPress={(e) => { e.stopPropagation?.(); onToggleHidden(); }}
-            hitSlop={8}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons name="eye-off-outline" size={14} color={colors.outline} />
-          </TouchableOpacity>
-        ) : null}
-        <MaterialCommunityIcons
-          name="chevron-right"
-          size={16}
-          color={colors.outline}
-          style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}
-        />
       </TouchableOpacity>
       {open && (
         <View style={s.featureBody}>
@@ -984,40 +1093,50 @@ const s = StyleSheet.create({
   addCustomBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 },
   addCustomText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '600', letterSpacing: 0.5 },
 
+  // Feature card chassis — mirrors the Combat/Spells equipCard pattern:
+  // transparent fill, thin outline, full-height 2px accent bar, compact
+  // body. The two card variants (ContentFeatureCard for catalog
+  // features + FeatureCard for tracked-use custom entries) both use
+  // these styles for cross-tab visual cohesion.
   featureCard: {
-    backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, overflow: 'hidden', marginBottom: 8,
+    borderRadius: 6, overflow: 'hidden', marginBottom: 4,
   },
   featureCardIndent: { marginLeft: 16 },
-  featureHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingRight: 12, paddingVertical: 11, gap: 10,
+  featureHeader: { flexDirection: 'row', alignItems: 'stretch' },
+  /** Full-height accent bar — width 2 matches the spell + ability cards. */
+  accentBar: { width: 2, alignSelf: 'stretch' },
+  /** Padded body wrapper inside the header row — owns the title row +
+   *  meta sub line. Padding here (instead of on featureHeader) lets the
+   *  bar stretch the full row height. */
+  featureHeaderBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 1 },
+  featureTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  featureName: {
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, letterSpacing: -0.1,
   },
-  accentBar: { width: 4, height: 22, borderRadius: 2 },
-  featureHeaderText: { flex: 1, minWidth: 0 },
-  featureName: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
-  featureCardHidden: {
-    opacity: 0.55,
-    backgroundColor: colors.surfaceContainer,
-  },
+  featureCardHidden: { opacity: 0.55 },
   featureNameHidden: {
-    flex: 1, fontWeight: '500',
+    fontWeight: '500',
     color: colors.onSurfaceVariant,
     textDecorationLine: 'line-through',
   },
   hiddenUnhideText: {
-    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 0.4,
   },
-  featureUses: { fontSize: 10, color: colors.outline, marginTop: 1 },
+  featureUses: { fontSize: 10, color: colors.outline },
+  /** Expanded body — inset 10px on the left so description text aligns
+   *  with the spell name above (which sits past the 2px bar + 8px body
+   *  padding). Bottom padding keeps the description from kissing the
+   *  card border. */
   featureBody: {
-    paddingHorizontal: 16, paddingBottom: 12,
+    paddingHorizontal: 10, paddingBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
   },
   featureDesc: {
-    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant,
-    lineHeight: 18, marginTop: 10,
+    fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    lineHeight: 15, marginTop: 8,
   },
   featureNotesBox: {
     marginTop: 10, paddingHorizontal: 10, paddingVertical: 8,
