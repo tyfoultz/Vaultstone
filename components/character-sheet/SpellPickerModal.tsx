@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, Modal, Pressable, ScrollView, TouchableOpacity,
-  ActivityIndicator, TextInput, StyleSheet, Platform,
+  ActivityIndicator, TextInput, StyleSheet,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ContentResolver } from '@vaultstone/content';
@@ -82,7 +82,10 @@ export function SpellPickerModal({
   // tapping a different row swaps the expansion (only one open at a time
   // so the list doesn't grow unbounded as the player browses).
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  // Single filter sheet replaces the row of inline pills — tap the
+  // Filter button next to search to open it. All status / level /
+  // class / school controls live inside that sheet.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   // One-off custom spell entry — for spells the catalog doesn't ship
   // (DM-granted, homebrew lineage spells, etc.). Same pattern as the
   // ItemPickerModal custom-item form.
@@ -96,7 +99,7 @@ export function SpellPickerModal({
     setClassFilter(classNames.length > 0 ? 'mine' : 'all');
     setSchoolFilter('all');
     setExpandedKey(null);
-    setFilterMenuOpen(false);
+    setFiltersOpen(false);
     setCustomOpen(false);
     const cacheKey = `${srdVersion}|${campaignId ?? ''}|${(packIds ?? []).join(',')}`;
     if (_spellCache && _spellCache.key === cacheKey && Date.now() - _spellCache.fetchedAt < SPELL_CACHE_TTL) {
@@ -216,11 +219,16 @@ export function SpellPickerModal({
     setExpandedKey(null);
   }
 
-  const filterLabel = levelFilter === 'all'
-    ? 'All Levels'
-    : levelFilter === 0
-      ? 'Cantrips'
-      : `${LEVEL_LABELS[levelFilter] ?? String(levelFilter)} level`;
+  // Badge count for the Filter button — counts only non-default
+  // values. Default class scope is 'mine' when the player has classes
+  // (matching the modal default), else 'all'; deviating from that
+  // counts as one active filter.
+  const defaultClassScope: string | 'mine' | 'all' = classNames.length > 0 ? 'mine' : 'all';
+  const activeFilterCount =
+    (statusFilter !== 'all' ? 1 : 0) +
+    (levelFilter !== 'all' ? 1 : 0) +
+    (classFilter !== defaultClassScope ? 1 : 0) +
+    (schoolFilter !== 'all' ? 1 : 0);
 
   // Two-bucket summary for the spellbook view: cantrips known +
   // leveled spells in the spellbook. Each bucket renders as
@@ -306,58 +314,21 @@ export function SpellPickerModal({
                     onChangeText={setSearch}
                   />
                 </View>
-              </View>
-              {/* Unified filter row — status chip + level / class /
-                  school dropdowns sit on a single wrapped row. The
-                  status chip cycles All → Unadded → Added on tap with
-                  its label + color swapping to match state. */}
-              <View style={s.controlsRow}>
                 <TouchableOpacity
-                  style={[
-                    s.statusToggleChip,
-                    statusFilter === 'unadded' && s.statusToggleChipUnadded,
-                    statusFilter === 'added' && s.statusToggleChipAdded,
-                  ]}
-                  onPress={() => {
-                    const nextStatus: typeof statusFilter = statusFilter === 'all'
-                      ? 'unadded'
-                      : statusFilter === 'unadded' ? 'added' : 'all';
-                    setStatusFilter(nextStatus);
-                  }}
+                  style={[s.filterTriggerBtn, activeFilterCount > 0 && s.filterTriggerBtnActive]}
+                  onPress={() => setFiltersOpen(true)}
                   activeOpacity={0.7}
+                  accessibilityLabel="Open filters"
                 >
                   <MaterialCommunityIcons
-                    name={statusFilter === 'added' ? 'check-circle' : statusFilter === 'unadded' ? 'circle-slice-3' : 'filter-variant'}
-                    size={13}
-                    color={statusFilter === 'all' ? colors.outline : colors.onPrimary}
+                    name="filter-variant"
+                    size={16}
+                    color={activeFilterCount > 0 ? colors.onPrimary : colors.outline}
                   />
-                  <Text style={[
-                    s.statusToggleText,
-                    statusFilter !== 'all' && s.statusToggleTextActive,
-                  ]}>
-                    {statusFilter === 'all' ? 'ALL SPELLS' : statusFilter === 'unadded' ? 'UNADDED' : 'ADDED'}
+                  <Text style={[s.filterTriggerText, activeFilterCount > 0 && s.filterTriggerTextActive]}>
+                    {activeFilterCount > 0 ? `Filters · ${activeFilterCount}` : 'Filters'}
                   </Text>
                 </TouchableOpacity>
-                <LevelFilterDropdown
-                  value={levelFilter}
-                  availableLevels={availableLevels}
-                  onChange={setLevelFilter}
-                  onOpenNativeMenu={() => setFilterMenuOpen(true)}
-                  label={filterLabel}
-                />
-                {classNames.length > 0 ? (
-                  <ClassScopeDropdown
-                    value={classFilter}
-                    options={availableClasses}
-                    onChange={setClassFilter}
-                  />
-                ) : null}
-                <StringFilterDropdown
-                  value={schoolFilter}
-                  options={availableSchools}
-                  onChange={setSchoolFilter}
-                  allLabel="All Schools"
-                />
               </View>
 
               {preparedSummary ? (
@@ -515,29 +486,86 @@ export function SpellPickerModal({
         </Pressable>
       </Pressable>
 
-      {/* Level filter dropdown — popover-style modal anchored visually
-          to the filter button. Single-select; "All Levels" resets. */}
+      {/* Unified filter sheet — all four filters (status, level,
+          class scope, school) on one screen. Each filter is a chip
+          group; tapping commits live. Reset button clears every
+          filter back to defaults; close X dismisses without reset. */}
       <Modal
-        visible={filterMenuOpen}
+        visible={filtersOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => setFilterMenuOpen(false)}
+        onRequestClose={() => setFiltersOpen(false)}
       >
-        <Pressable style={s.menuBackdrop} onPress={() => setFilterMenuOpen(false)}>
-          <Pressable style={s.menuCard} onPress={() => {}}>
-            <FilterMenuItem
-              label="All Levels"
-              active={levelFilter === 'all'}
-              onPress={() => { setLevelFilter('all'); setFilterMenuOpen(false); }}
-            />
-            {availableLevels.map((lvl) => (
-              <FilterMenuItem
-                key={lvl}
-                label={lvl === 0 ? 'Cantrips' : `${LEVEL_LABELS[lvl] ?? String(lvl)} level`}
-                active={levelFilter === lvl}
-                onPress={() => { setLevelFilter(lvl); setFilterMenuOpen(false); }}
-              />
-            ))}
+        <Pressable style={s.menuBackdrop} onPress={() => setFiltersOpen(false)}>
+          <Pressable style={s.filtersSheet} onPress={() => {}}>
+            <View style={s.filtersHeader}>
+              <Text style={s.filtersTitle}>Filter spells</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {activeFilterCount > 0 ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setStatusFilter('all');
+                      setLevelFilter('all');
+                      setClassFilter(defaultClassScope);
+                      setSchoolFilter('all');
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.filtersResetText}>Reset</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity onPress={() => setFiltersOpen(false)} hitSlop={10}>
+                  <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+              <FilterSection label="Status">
+                <FilterChip label="All spells" active={statusFilter === 'all'} onPress={() => setStatusFilter('all')} />
+                <FilterChip label="Unadded" active={statusFilter === 'unadded'} onPress={() => setStatusFilter('unadded')} />
+                <FilterChip label="Added" active={statusFilter === 'added'} onPress={() => setStatusFilter('added')} />
+              </FilterSection>
+              <FilterSection label="Level">
+                <FilterChip label="All levels" active={levelFilter === 'all'} onPress={() => setLevelFilter('all')} />
+                {availableLevels.map((lvl) => (
+                  <FilterChip
+                    key={lvl}
+                    label={lvl === 0 ? 'Cantrips' : `${LEVEL_LABELS[lvl] ?? String(lvl)} lvl`}
+                    active={levelFilter === lvl}
+                    onPress={() => setLevelFilter(lvl)}
+                  />
+                ))}
+              </FilterSection>
+              {classNames.length > 0 || availableClasses.length > 0 ? (
+                <FilterSection label="Class">
+                  {classNames.length > 0 ? (
+                    <FilterChip label="My classes" active={classFilter === 'mine'} onPress={() => setClassFilter('mine')} />
+                  ) : null}
+                  {availableClasses.map((cn) => (
+                    <FilterChip
+                      key={cn}
+                      label={cn}
+                      active={classFilter === cn}
+                      onPress={() => setClassFilter(cn)}
+                    />
+                  ))}
+                  <FilterChip label="All classes" active={classFilter === 'all'} onPress={() => setClassFilter('all')} />
+                </FilterSection>
+              ) : null}
+              {availableSchools.length > 0 ? (
+                <FilterSection label="School">
+                  <FilterChip label="All schools" active={schoolFilter === 'all'} onPress={() => setSchoolFilter('all')} />
+                  {availableSchools.map((sch) => (
+                    <FilterChip
+                      key={sch}
+                      label={sch}
+                      active={schoolFilter === sch}
+                      onPress={() => setSchoolFilter(sch)}
+                    />
+                  ))}
+                </FilterSection>
+              ) : null}
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -548,151 +576,34 @@ export function SpellPickerModal({
 
 // Level filter dropdown — uses a native HTML <select> on web for the
 // real OS dropdown UI (proper keyboard navigation, no popover-clipping
-// at modal edges, no extra Modal stacking). On native (iOS/Android)
-// there's no equivalent primitive, so it falls through to opening the
-// popover Modal the parent owns.
-function LevelFilterDropdown({
-  value, availableLevels, onChange, onOpenNativeMenu, label,
-}: {
-  value: number | 'all';
-  availableLevels: number[];
-  onChange: (next: number | 'all') => void;
-  onOpenNativeMenu: () => void;
-  label: string;
-}) {
-  if (Platform.OS === 'web') {
-    return (
-      <View style={s.filterBtn}>
-        <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
-        <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {(() => {
-          const Select = 'select' as any;
-          const Option = 'option' as any;
-          return (
-            <Select
-              style={s.htmlSelect}
-              value={value === 'all' ? 'all' : String(value)}
-              onChange={(e: { target: { value: string } }) => {
-                const v = e.target.value;
-                onChange(v === 'all' ? 'all' : parseInt(v, 10));
-              }}
-            >
-              <Option value="all">All Levels</Option>
-              {availableLevels.map((lvl) => (
-                <Option key={lvl} value={String(lvl)}>
-                  {lvl === 0 ? 'Cantrips' : `${LEVEL_LABELS[lvl] ?? String(lvl)} level`}
-                </Option>
-              ))}
-            </Select>
-          );
-        })()}
-      </View>
-    );
-  }
+/**
+ * Section header + chip wrap for one filter dimension inside the
+ * unified filter sheet. Chips render as a wrapping row so long
+ * option lists (levels 0–9, all schools) flow naturally instead of
+ * forcing a horizontal scroll.
+ */
+function FilterSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <TouchableOpacity style={s.filterBtn} onPress={onOpenNativeMenu} activeOpacity={0.75}>
-      <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
-      <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
-    </TouchableOpacity>
+    <View style={{ gap: 6 }}>
+      <Text style={s.filterSectionLabel}>{label}</Text>
+      <View style={s.filterChipWrap}>{children}</View>
+    </View>
   );
 }
 
 /**
- * Class-scope dropdown — three flavors of value: 'mine' (default,
- * limits to the player's classes), <class name> (single class), and
- * 'all' (no class filter). Replaces the old icon-only scope toggle +
- * conditional class filter pair so the row no longer wraps when the
- * scope changes.
+ * One radio-style chip inside a FilterSection. Filled-primary when
+ * active, outlined when inactive — matches the existing chip
+ * vocabulary on the character sheet.
  */
-function ClassScopeDropdown({
-  value, options, onChange,
-}: {
-  value: string | 'mine' | 'all';
-  options: string[];
-  onChange: (next: string | 'mine' | 'all') => void;
-}) {
-  const label = value === 'mine' ? 'My Classes' : value === 'all' ? 'All Classes' : value;
-  if (Platform.OS === 'web') {
-    return (
-      <View style={s.filterBtn}>
-        <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
-        <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
-        {(() => {
-          const Select = 'select' as any;
-          const Option = 'option' as any;
-          return (
-            <Select
-              style={s.htmlSelect}
-              value={value}
-              onChange={(e: { target: { value: string } }) => onChange(e.target.value as string | 'mine' | 'all')}
-            >
-              <Option value="mine">My Classes</Option>
-              {options.map((opt) => (
-                <Option key={opt} value={opt}>{opt}</Option>
-              ))}
-              <Option value="all">All Classes</Option>
-            </Select>
-          );
-        })()}
-      </View>
-    );
-  }
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <View style={s.filterBtn}>
-      <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
-      <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
-    </View>
-  );
-}
-
-function StringFilterDropdown({
-  value, options, onChange, allLabel,
-}: {
-  value: string | 'all';
-  options: string[];
-  onChange: (next: string | 'all') => void;
-  allLabel: string;
-}) {
-  if (Platform.OS === 'web') {
-    return (
-      <View style={s.filterBtn}>
-        <Text style={s.filterBtnLabel} numberOfLines={1}>{value === 'all' ? allLabel : value}</Text>
-        <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
-        {(() => {
-          const Select = 'select' as any;
-          const Option = 'option' as any;
-          return (
-            <Select
-              style={s.htmlSelect}
-              value={value}
-              onChange={(e: { target: { value: string } }) => onChange(e.target.value === 'all' ? 'all' : e.target.value)}
-            >
-              <Option value="all">{allLabel}</Option>
-              {options.map((opt) => (
-                <Option key={opt} value={opt}>{opt}</Option>
-              ))}
-            </Select>
-          );
-        })()}
-      </View>
-    );
-  }
-  return (
-    <View style={s.filterBtn}>
-      <Text style={s.filterBtnLabel} numberOfLines={1}>{value === 'all' ? allLabel : value}</Text>
-      <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
-    </View>
-  );
-}
-
-function FilterMenuItem({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={[s.menuItem, active && s.menuItemActive]} onPress={onPress} activeOpacity={0.7}>
-      <Text style={[s.menuItemText, active && s.menuItemTextActive]}>{label}</Text>
-      {active ? (
-        <MaterialCommunityIcons name="check" size={16} color={colors.primary} />
-      ) : null}
+    <TouchableOpacity
+      style={[s.filterSheetChip, active && s.filterSheetChipActive]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Text style={[s.filterSheetChipText, active && s.filterSheetChipTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -873,30 +784,32 @@ const s = StyleSheet.create({
   },
   loadingWrap: { paddingVertical: 40, alignItems: 'center' },
 
+  /** Search row — search input flexes to fill, filter trigger sits at
+   *  the right edge. All filter controls (status / level / class /
+   *  school) live in the sheet that the trigger opens. */
   searchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  /** Status filter chip — cycles All → Unadded → Added → All on each
-   *  tap. Sits inline in the main controlsRow next to the level /
-   *  class / school dropdowns. */
-  statusToggleChip: {
+  /** Filter trigger — outlined when no filters are active, primary
+   *  fill when at least one filter deviates from default. Active form
+   *  shows the count so the player knows how many filters they have on
+   *  without opening the sheet. */
+  filterTriggerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderWidth: 1, borderColor: colors.outlineVariant,
+    paddingHorizontal: 12, paddingVertical: 9,
     borderRadius: radius.lg,
-    alignSelf: 'flex-start',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerHigh,
   },
-  statusToggleChipUnadded: { borderColor: colors.primary, backgroundColor: colors.primary },
-  statusToggleChipAdded: { borderColor: colors.gm, backgroundColor: colors.gm },
-  statusToggleText: {
-    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1, color: colors.outline,
+  filterTriggerBtnActive: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
   },
-  statusToggleTextActive: { color: colors.onPrimary },
-  controlsRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    marginBottom: spacing.sm, flexWrap: 'wrap',
+  filterTriggerText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.6, color: colors.outline,
   },
+  filterTriggerTextActive: { color: colors.onPrimary },
   /** Custom-spell entry in the modal header — small primary-tinted
    *  chip next to the close button. Moved up from the filter row so
    *  the filter row carries filters only. */
@@ -953,17 +866,6 @@ const s = StyleSheet.create({
   searchInput: {
     flex: 1, fontSize: 13, fontFamily: fonts.body, color: colors.onSurface,
   },
-  filterBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.surfaceContainerHigh,
-    borderRadius: radius.lg,
-    paddingHorizontal: 12, paddingVertical: 9,
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    minWidth: 140,
-    // Anchor the absolutely-positioned <select> overlay (web only).
-    position: 'relative',
-  },
-  filterBtnNarrow: { minWidth: 110 },
   summaryRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingBottom: spacing.sm, paddingHorizontal: 2,
@@ -980,19 +882,45 @@ const s = StyleSheet.create({
   summaryDot: {
     fontSize: 11, fontFamily: fonts.label, color: colors.outlineVariant, letterSpacing: 0.4,
   },
-  // Web-only: a real <select> is layered over the styled button so the
-  // browser opens its native dropdown on click while the visual chrome
-  // (chevron, label, surface) stays on-brand.
-  htmlSelect: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    opacity: 0, cursor: 'pointer', appearance: 'none',
-    border: 0, background: 'transparent', width: '100%', height: '100%',
-    color: colors.onSurface, fontSize: 12,
-  } as any,
-  filterBtnLabel: {
-    flex: 1, fontSize: 12, fontFamily: fonts.label, fontWeight: '600',
+  /** Unified filter sheet — opened by the trigger button in the search
+   *  row. Holds chip groups for status / level / class / school so
+   *  the picker's main chrome stays at one row of input + filter. */
+  filtersSheet: {
+    width: '92%', maxWidth: 420, maxHeight: '88%',
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, padding: 16, gap: 12,
+  },
+  filtersHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  filtersTitle: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface, letterSpacing: 0.3,
   },
+  filtersResetText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.6, color: colors.primary,
+  },
+  filterSectionLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, textTransform: 'uppercase' as const, color: colors.outline,
+  },
+  filterChipWrap: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+  },
+  filterSheetChip: {
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  filterSheetChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filterSheetChipText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, letterSpacing: 0.3,
+  },
+  filterSheetChipTextActive: { color: colors.onPrimary },
 
   // No maxHeight — let the ScrollView take only the space it needs.
   // The outer card's maxHeight (88%) caps the whole modal when the
@@ -1091,25 +1019,10 @@ const s = StyleSheet.create({
   commitText: { fontSize: 13, fontFamily: fonts.label, fontWeight: '700', color: colors.onPrimary, letterSpacing: 0.5 },
   commitTextDisabled: { color: colors.outline },
 
-  // Filter dropdown menu
+  /** Backdrop for the unified filter sheet (modal overlay). */
   menuBackdrop: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.35)',
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: spacing.md,
   },
-  menuCard: {
-    width: '100%', maxWidth: 280,
-    backgroundColor: colors.surfaceContainerHigh,
-    borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    padding: 6,
-  },
-  menuItem: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 10, paddingHorizontal: 12,
-    borderRadius: radius.lg,
-  },
-  menuItemActive: { backgroundColor: colors.surfaceContainerHighest },
-  menuItemText: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant },
-  menuItemTextActive: { color: colors.onSurface, fontWeight: '600' },
 });
