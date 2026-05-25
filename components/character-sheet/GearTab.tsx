@@ -68,6 +68,15 @@ export function GearTab({
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  // Attunement slot interaction: tapping an empty slot opens a picker
+  // of attunable-but-not-yet-attuned items; tapping an occupied slot
+  // prompts to unattune from that item. Centralizes the attune toggle
+  // on the slots strip so the inventory rows stay focused on edit/use.
+  const [attunePicker, setAttunePicker] = useState<
+    | { kind: 'pick' }
+    | { kind: 'confirm-unattune'; item: Dnd5eEquipmentItem }
+    | null
+  >(null);
   // On narrow viewports the TYPE + VALUE columns squeeze the name cell
   // small enough that long pills ("Versatile (1d8)", "1d8 piercing")
   // overflow into adjacent columns. Drop those two cols on mobile —
@@ -156,18 +165,34 @@ export function GearTab({
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
 
-      {/* Attunement Slots */}
+      {/* Attunement Slots — tap a filled slot to unattune, an empty
+          slot to pick from attunable inventory. Owner-only. */}
       <SectionLabel accent>ATTUNEMENT SLOTS</SectionLabel>
       <View style={s.attunementSlots}>
         {Array.from({ length: attunementMax }).map((_, i) => {
           const item = attuned[i];
+          const handlePress = !isOwner || !onToggleAttuned
+            ? undefined
+            : () => {
+                if (item) setAttunePicker({ kind: 'confirm-unattune', item });
+                else setAttunePicker({ kind: 'pick' });
+              };
           return (
-            <View key={i} style={[s.attuneSlot, item ? s.attuneSlotActive : s.attuneSlotEmpty]}>
+            <Pressable
+              key={i}
+              onPress={handlePress}
+              disabled={!handlePress}
+              style={({ pressed }) => [
+                s.attuneSlot,
+                item ? s.attuneSlotActive : s.attuneSlotEmpty,
+                pressed && handlePress ? s.attuneSlotPressed : null,
+              ]}
+            >
               <Text style={s.attuneLbl}>Slot {i + 1}</Text>
               {item
                 ? <Text style={s.attuneName} numberOfLines={1}>{item.name}</Text>
-                : <Text style={s.attuneEmpty}>— empty —</Text>}
-            </View>
+                : <Text style={s.attuneEmpty}>{handlePress ? '+ add' : '— empty —'}</Text>}
+            </Pressable>
           );
         })}
       </View>
@@ -197,7 +222,6 @@ export function GearTab({
                 canEdit={isOwner}
                 compact={isMobile}
                 onToggle={() => onToggleEquipped?.(item.id)}
-                onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
                 onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
                 onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
                 onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
@@ -258,7 +282,6 @@ export function GearTab({
               canEdit={isOwner}
               compact={isMobile}
               onToggle={() => onToggleEquipped?.(item.id)}
-              onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
               onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
               onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
@@ -319,6 +342,24 @@ export function GearTab({
       {/* EquipmentDetailModal is now rendered at the CharacterSheet
           level so the Combat tab (and any future surface) can trigger
           the same modal via `onOpenEquipmentDetail`. */}
+
+      <AttunementPickerModal
+        visible={attunePicker?.kind === 'pick'}
+        candidates={equipment.filter((i) => i.requiresAttunement && !i.attuned)}
+        onPick={(id) => {
+          onToggleAttuned?.(id);
+          setAttunePicker(null);
+        }}
+        onClose={() => setAttunePicker(null)}
+      />
+      <UnattuneConfirmModal
+        item={attunePicker?.kind === 'confirm-unattune' ? attunePicker.item : null}
+        onConfirm={(id) => {
+          onToggleAttuned?.(id);
+          setAttunePicker(null);
+        }}
+        onClose={() => setAttunePicker(null)}
+      />
 
     </ScrollView>
   );
@@ -420,7 +461,7 @@ function getItemIcon(item: Dnd5eEquipmentItem): React.ComponentProps<typeof Mate
 
 function InventoryRow({
   item, canEdit, compact,
-  onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onUpdateValue, onUpdateQuantity, onOpenDetail,
+  onToggle, onTogglePinnedToCombat, onRemove, onUpdateValue, onUpdateQuantity, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
   canEdit: boolean;
@@ -428,7 +469,6 @@ function InventoryRow({
    *  name cell has enough width for its pills to wrap cleanly. */
   compact?: boolean;
   onToggle: () => void;
-  onToggleAttuned?: () => void;
   onTogglePinnedToCombat?: () => void;
   onRemove?: () => void;
   onUpdateValue?: (v: string) => void;
@@ -442,7 +482,7 @@ function InventoryRow({
     || (item.slot === 'weapon' && item.damage) || item.miscACBonus || item.attuned;
   return (
     <View style={s.invCard}>
-      <View style={[s.invCardBar, { backgroundColor: colors.primary }]} />
+      <View style={[s.invCardBar, { backgroundColor: item.attuned ? colors.hpWarning : colors.primary }]} />
       <View style={s.invIconCol}>
         <MaterialCommunityIcons name={iconName} size={13} color={colors.primary} />
       </View>
@@ -483,15 +523,6 @@ function InventoryRow({
               name={item.pinnedToCombat ? 'pin' : 'pin-outline'}
               size={15}
               color={item.pinnedToCombat ? colors.primary : colors.outline}
-            />
-          </TouchableOpacity>
-        )}
-        {canEdit && item.requiresAttunement && onToggleAttuned && (
-          <TouchableOpacity onPress={onToggleAttuned} hitSlop={6} activeOpacity={0.7}>
-            <MaterialCommunityIcons
-              name={item.attuned ? 'star' : 'star-outline'}
-              size={16}
-              color={item.attuned ? colors.primary : colors.outline}
             />
           </TouchableOpacity>
         )}
@@ -731,6 +762,90 @@ export function EquipmentDetailModal({
   );
 }
 
+/**
+ * Modal listing inventory items that require attunement but aren't yet
+ * attuned. Tapping an item attunes it and closes. Renders an empty
+ * state when no attunable items exist (so the player knows the slot
+ * is reachable but the inventory has nothing to fill it).
+ */
+function AttunementPickerModal({ visible, candidates, onPick, onClose }: {
+  visible: boolean;
+  candidates: Dnd5eEquipmentItem[];
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.attuneModalBackdrop} onPress={onClose}>
+        <Pressable style={s.attuneModalCard} onPress={() => {}}>
+          <View style={s.attuneModalHeader}>
+            <Text style={s.attuneModalTitle}>Attune to…</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={10} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+            </TouchableOpacity>
+          </View>
+          {candidates.length === 0 ? (
+            <Text style={s.attuneModalEmpty}>
+              No attunable items in your inventory yet. Items in the catalog flagged "Requires Attunement" will show up here.
+            </Text>
+          ) : (
+            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              {candidates.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={s.attuneCandidateRow}
+                  onPress={() => onPick(item.id)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name={getItemIcon(item)} size={14} color={colors.primary} />
+                  <Text style={s.attuneCandidateName} numberOfLines={1}>{item.name}</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={16} color={colors.outline} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/**
+ * Small confirm dialog for unattuning. Triggered by tapping an occupied
+ * attunement slot — keeps the destructive step explicit since attune /
+ * unattune happens during a long rest in fiction.
+ */
+function UnattuneConfirmModal({ item, onConfirm, onClose }: {
+  item: Dnd5eEquipmentItem | null;
+  onConfirm: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={!!item} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.attuneModalBackdrop} onPress={onClose}>
+        <Pressable style={s.attuneModalCard} onPress={() => {}}>
+          <Text style={s.attuneModalTitle}>Unattune?</Text>
+          <Text style={s.attuneConfirmBody}>
+            Release attunement from <Text style={s.attuneConfirmName}>{item?.name}</Text>?
+          </Text>
+          <View style={s.attuneConfirmActions}>
+            <TouchableOpacity onPress={onClose} style={[s.attuneConfirmBtn, s.attuneConfirmCancel]} activeOpacity={0.7}>
+              <Text style={s.attuneConfirmCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => item && onConfirm(item.id)}
+              style={[s.attuneConfirmBtn, s.attuneConfirmDestructive]}
+              activeOpacity={0.7}
+            >
+              <Text style={s.attuneConfirmDestructiveText}>Unattune</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function Pill({ label, variant }: { label: string; variant?: 'primary' | 'gm' }) {
   const pillStyle = variant === 'primary'
     ? [s.pill, s.pillPrimary]
@@ -876,16 +991,64 @@ const s = StyleSheet.create({
     flex: 1, borderRadius: 6, padding: 9,
   },
   attuneSlotActive: {
-    backgroundColor: `${colors.primary}18`,
-    borderWidth: 1, borderColor: `${colors.primary}55`,
+    backgroundColor: `${colors.hpWarning}18`,
+    borderWidth: 1, borderColor: `${colors.hpWarning}66`,
   },
   attuneSlotEmpty: {
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
   },
+  /** Pressed-state feedback for the interactive slot. */
+  attuneSlotPressed: { opacity: 0.7 },
   attuneLbl: { fontSize: 7, color: colors.outline, letterSpacing: 0.8, textTransform: 'uppercase' },
-  attuneName: { fontSize: 9, fontWeight: '700', color: colors.primary, marginTop: 2 },
+  attuneName: { fontSize: 9, fontWeight: '700', color: colors.hpWarning, marginTop: 2 },
   attuneEmpty: { fontSize: 9, color: colors.outline, marginTop: 2 },
+
+  // Attunement picker / unattune confirm modal
+  attuneModalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center', padding: 20,
+  },
+  attuneModalCard: {
+    width: '100%', maxWidth: 360,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, padding: 14, gap: 10,
+  },
+  attuneModalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  attuneModalTitle: {
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: 0.3,
+  },
+  attuneModalEmpty: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    lineHeight: 18, fontStyle: 'italic',
+  },
+  attuneCandidateRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 10, paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  },
+  attuneCandidateName: {
+    flex: 1, fontSize: 12, fontFamily: fonts.body, fontWeight: '600',
+    color: colors.onSurface,
+  },
+  attuneConfirmBody: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    lineHeight: 18,
+  },
+  attuneConfirmName: { color: colors.onSurface, fontWeight: '700' },
+  attuneConfirmActions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end', marginTop: 4 },
+  attuneConfirmBtn: {
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: radius.lg, borderWidth: 1,
+  },
+  attuneConfirmCancel: { borderColor: colors.outlineVariant, backgroundColor: 'transparent' },
+  attuneConfirmCancelText: { fontSize: 12, fontFamily: fonts.label, fontWeight: '700', color: colors.onSurfaceVariant },
+  attuneConfirmDestructive: { borderColor: `${colors.hpWarning}88`, backgroundColor: `${colors.hpWarning}22` },
+  attuneConfirmDestructiveText: { fontSize: 12, fontFamily: fonts.label, fontWeight: '700', color: colors.hpWarning },
 
   // Card block
   card: {
