@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, spacing, radius } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius, useBreakpoint } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eEquipmentItem } from '@vaultstone/types';
 
 const COIN_LABELS: Array<{ key: keyof NonNullable<Dnd5eResources['coins']>; label: string; color: string }> = [
@@ -68,6 +68,12 @@ export function GearTab({
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  // On narrow viewports the TYPE + VALUE columns squeeze the name cell
+  // small enough that long pills ("Versatile (1d8)", "1d8 piercing")
+  // overflow into adjacent columns. Drop those two cols on mobile —
+  // the slot icon already conveys type, and value is empty for the
+  // vast majority of inventory rows.
+  const { isMobile } = useBreakpoint();
   const equipment = resources.equipment ?? [];
   const coins = resources.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
 
@@ -178,9 +184,9 @@ export function GearTab({
           <View style={s.tableHeader}>
             <View style={s.invIconCol} />
             <View style={[s.tableHeaderCell, s.tableCellName]}><Text style={s.tableHeaderText}>NAME</Text></View>
-            <View style={[s.tableHeaderCell, s.tableCellType]}><Text style={s.tableHeaderText}>TYPE</Text></View>
+            {!isMobile && <View style={[s.tableHeaderCell, s.tableCellType]}><Text style={s.tableHeaderText}>TYPE</Text></View>}
             <View style={[s.tableHeaderCell, s.tableCellQty]}><Text style={s.tableHeaderText}>QTY</Text></View>
-            <View style={[s.tableHeaderCell, s.tableCellValue]}><Text style={s.tableHeaderText}>VALUE</Text></View>
+            {!isMobile && <View style={[s.tableHeaderCell, s.tableCellValue]}><Text style={s.tableHeaderText}>VALUE</Text></View>}
             <View style={s.tableCellControls} />
           </View>
           <View style={s.invCardList}>
@@ -189,6 +195,7 @@ export function GearTab({
                 key={item.id}
                 item={item}
                 canEdit={isOwner}
+                compact={isMobile}
                 onToggle={() => onToggleEquipped?.(item.id)}
                 onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
                 onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
@@ -232,9 +239,9 @@ export function GearTab({
       <View style={s.tableHeader}>
         <View style={s.invIconCol} />
         <SortHeader label="NAME" active={sortKey === 'name'} dir={sortDir} onPress={() => toggleSort('name')} style={s.tableCellName} />
-        <SortHeader label="TYPE" active={sortKey === 'type'} dir={sortDir} onPress={() => toggleSort('type')} style={s.tableCellType} />
+        {!isMobile && <SortHeader label="TYPE" active={sortKey === 'type'} dir={sortDir} onPress={() => toggleSort('type')} style={s.tableCellType} />}
         <SortHeader label="QTY" active={sortKey === 'qty'} dir={sortDir} onPress={() => toggleSort('qty')} style={s.tableCellQty} />
-        <SortHeader label="VALUE" active={sortKey === 'value'} dir={sortDir} onPress={() => toggleSort('value')} style={s.tableCellValue} />
+        {!isMobile && <SortHeader label="VALUE" active={sortKey === 'value'} dir={sortDir} onPress={() => toggleSort('value')} style={s.tableCellValue} />}
         <View style={s.tableCellControls} />
       </View>
 
@@ -249,6 +256,7 @@ export function GearTab({
               key={item.id}
               item={item}
               canEdit={isOwner}
+              compact={isMobile}
               onToggle={() => onToggleEquipped?.(item.id)}
               onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
               onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
@@ -411,11 +419,14 @@ function getItemIcon(item: Dnd5eEquipmentItem): React.ComponentProps<typeof Mate
 }
 
 function InventoryRow({
-  item, canEdit,
+  item, canEdit, compact,
   onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onUpdateValue, onUpdateQuantity, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
   canEdit: boolean;
+  /** Mobile-density variant — drops the TYPE and VALUE columns so the
+   *  name cell has enough width for its pills to wrap cleanly. */
+  compact?: boolean;
   onToggle: () => void;
   onToggleAttuned?: () => void;
   onTogglePinnedToCombat?: () => void;
@@ -449,7 +460,7 @@ function InventoryRow({
         ) : null}
       </Pressable>
 
-      <Text style={[s.tableCellType, s.tableCellTypeText]}>{typeLabel}</Text>
+      {!compact && <Text style={[s.tableCellType, s.tableCellTypeText]}>{typeLabel}</Text>}
 
       <View style={s.tableCellQty}>
         <InlineQuantityCell
@@ -459,9 +470,11 @@ function InventoryRow({
         />
       </View>
 
-      <View style={s.tableCellValue}>
-        <InlineValueCell value={item.value ?? ''} editable={canEdit && !!onUpdateValue} onCommit={(v) => onUpdateValue?.(v)} />
-      </View>
+      {!compact && (
+        <View style={s.tableCellValue}>
+          <InlineValueCell value={item.value ?? ''} editable={canEdit && !!onUpdateValue} onCommit={(v) => onUpdateValue?.(v)} />
+        </View>
+      )}
 
       <View style={s.tableCellControls}>
         {canEdit && onTogglePinnedToCombat && (
@@ -927,7 +940,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 10,
   },
   tableRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  tableCellName: { flex: 1, gap: 3 },
+  tableCellName: { flex: 1, minWidth: 0, gap: 3 },
   tableCellNameText: { fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
   tableCellNamePills: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   tableCellType: { width: 72 },
