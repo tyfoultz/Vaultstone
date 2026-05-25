@@ -745,6 +745,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
    *  the mobile hero card — chooses Short vs Long before opening the
    *  existing restConfirm modal. */
   const [restChooserOpen, setRestChooserOpen] = useState(false);
+  /** Hit dice the player wants to spend during the upcoming short rest
+   *  (0..hitDiceRemaining). Picked via a stepper in the restConfirm
+   *  modal when type === 'short'; reset to 0 each time the modal opens
+   *  or the modal type switches between short and long. */
+  const [shortRestHitDice, setShortRestHitDice] = useState(0);
+  useEffect(() => { setShortRestHitDice(0); }, [restConfirm]);
   // Open the spend-hit-die confirm dialog. The actual roll + HP /
   // remaining mutation happens in handleSpendHitDie; this just gates
   // the side effect behind a confirm so a stray tap doesn't burn a
@@ -1448,7 +1454,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     });
   }
 
-  function handleShortRest() {
+  /**
+   * Short rest. Restores short-rest class resources + ability uses.
+   * Optionally spends `spendHitDice` hit dice as part of the rest —
+   * rolls one dN+CON per die spent (5e min 1 HP per die), sums to a
+   * heal total, decrements hit dice remaining. The roll is surfaced
+   * as a single combined RollToast so the player sees the dice +
+   * heal at a glance.
+   */
+  function handleShortRest(spendHitDice: number = 0) {
     if (!resources || !canEditAny) return;
     const next: Dnd5eResources = { ...resources };
     if (resources.classResources && resources.classResources.length > 0) {
@@ -1464,6 +1478,33 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       next.abilities = resources.abilities.map((a) =>
         a.uses && a.uses.recharge === 'short' ? { ...a, uses: { ...a.uses, current: a.uses.max } } : a,
       );
+    }
+    // Hit-die spend portion. Capped at remaining hit dice + requires
+    // stats/scores for the heal math.
+    if (spendHitDice > 0 && stats && scores) {
+      const remaining = resources.hitDiceRemaining ?? stats.level;
+      const toSpend = Math.max(0, Math.min(spendHitDice, remaining));
+      if (toSpend > 0) {
+        const die = stats.hitDie || 8;
+        const conMod = abilityMod(scores.constitution);
+        const rolls: number[] = [];
+        let heal = 0;
+        for (let i = 0; i < toSpend; i++) {
+          const r = Math.floor(Math.random() * die) + 1;
+          rolls.push(r);
+          // 5e rule: each die spent grants at least 1 HP, even if CON
+          // mod would push the per-die total below 1.
+          heal += Math.max(1, r + conMod);
+        }
+        next.hitDiceRemaining = remaining - toSpend;
+        next.hpCurrent = Math.min(stats.hpMax, (resources.hpCurrent ?? 0) + heal);
+        handleRoll({
+          label: `Short rest · spent ${toSpend} hit ${toSpend === 1 ? 'die' : 'dice'} (d${die}${conMod >= 0 ? '+' : ''}${conMod} CON)`,
+          rolls,
+          bonus: toSpend * conMod,
+          total: heal,
+        });
+      }
     }
     persistResources(next);
   }
@@ -3622,11 +3663,60 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </>
               ) : (
                 <>
-                  Restores class resources that recharge on a short rest. Doesn't
-                  touch HP, spell slots, or hit dice — those stay where they are.
+                  Restores class resources that recharge on a short rest. Spend
+                  hit dice below to heal during the rest.
                 </>
               )}
             </Text>
+
+            {/* Hit-die spend picker — short rest only. Stepper between
+                0 and hit dice remaining. Each die spent rolls 1dN+CON
+                (min 1) on commit and adds to HP, capped at hpMax. */}
+            {restConfirm === 'short' && stats && resources && scores ? (() => {
+              const remaining = resources.hitDiceRemaining ?? stats.level;
+              const die = stats.hitDie || 8;
+              const conMod = abilityMod(scores.constitution);
+              const canIncrease = shortRestHitDice < remaining;
+              const canDecrease = shortRestHitDice > 0;
+              const avgPerDie = Math.max(1, Math.round((die + 1) / 2 + conMod));
+              const avgHeal = shortRestHitDice * avgPerDie;
+              return (
+                <View style={s.hitDiceSpendBox}>
+                  <View style={s.hitDiceSpendHeader}>
+                    <Text style={s.hitDiceSpendLabel}>SPEND HIT DICE</Text>
+                    <Text style={s.hitDiceSpendRemaining}>{remaining}/{stats.level} d{die}</Text>
+                  </View>
+                  <View style={s.hitDiceSpendRow}>
+                    <TouchableOpacity
+                      style={[s.hitDiceStepBtn, !canDecrease && s.hitDiceStepBtnDisabled]}
+                      onPress={() => canDecrease && setShortRestHitDice((v) => v - 1)}
+                      disabled={!canDecrease}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons name="minus" size={16} color={canDecrease ? colors.onSurface : colors.outline} />
+                    </TouchableOpacity>
+                    <View style={s.hitDiceSpendValue}>
+                      <Text style={s.hitDiceSpendValueNum}>{shortRestHitDice}</Text>
+                      <Text style={s.hitDiceSpendValueLabel}>to spend</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[s.hitDiceStepBtn, !canIncrease && s.hitDiceStepBtnDisabled]}
+                      onPress={() => canIncrease && setShortRestHitDice((v) => v + 1)}
+                      disabled={!canIncrease}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons name="plus" size={16} color={canIncrease ? colors.onSurface : colors.outline} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={s.hitDiceSpendPreview}>
+                    {shortRestHitDice === 0
+                      ? 'No healing — class resources only'
+                      : `Rolls ${shortRestHitDice}d${die}${conMod >= 0 ? '+' : ''}${shortRestHitDice * conMod} on commit (≈ ${avgHeal} HP)`}
+                  </Text>
+                </View>
+              );
+            })() : null}
+
             <View style={s.restConfirmActions}>
               <TouchableOpacity
                 style={[s.restConfirmBtn, s.restConfirmCancel]}
@@ -3639,8 +3729,9 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 style={[s.restConfirmBtn, s.restConfirmCommit]}
                 onPress={() => {
                   if (restConfirm === 'long') handleLongRest();
-                  else if (restConfirm === 'short') handleShortRest();
+                  else if (restConfirm === 'short') handleShortRest(shortRestHitDice);
                   setRestConfirm(null);
+                  setShortRestHitDice(0);
                 }}
                 activeOpacity={0.85}
               >
@@ -5033,6 +5124,49 @@ const s = StyleSheet.create({
   restChooserBtnSub: {
     fontSize: 10, fontFamily: fonts.label, color: colors.outline,
     letterSpacing: 0.3, textAlign: 'center',
+  },
+
+  // Hit-die spend stepper inside the Short Rest confirm modal.
+  // Stepper lets the player commit any 0..remaining hit dice in one
+  // shot; commit rolls them and adds the heal to HP before applying
+  // the rest itself.
+  hitDiceSpendBox: {
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: colors.surfaceContainerLow,
+    marginBottom: spacing.md,
+    gap: 8,
+  },
+  hitDiceSpendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hitDiceSpendLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.primary, textTransform: 'uppercase',
+  },
+  hitDiceSpendRemaining: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant, letterSpacing: 0.4,
+  },
+  hitDiceSpendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
+  hitDiceStepBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  hitDiceStepBtnDisabled: { opacity: 0.4 },
+  hitDiceSpendValue: { alignItems: 'center', minWidth: 80 },
+  hitDiceSpendValueNum: {
+    fontSize: 22, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurface,
+  },
+  hitDiceSpendValueLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.outline, textTransform: 'uppercase',
+  },
+  hitDiceSpendPreview: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    textAlign: 'center', fontStyle: 'italic',
   },
 
   // Short / Long rest confirm dialog. Inherits modalBackdrop above.
