@@ -11,8 +11,6 @@
 // condition / concentration changes without a manual refetch.
 
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import MaskedView from '@react-native-masked-view/masked-view';
 import { useSplitPaneStore } from '@vaultstone/store';
 import { getEquippedAC } from '@vaultstone/systems';
 import { colors, spacing, fonts, Icon } from '@vaultstone/ui';
@@ -173,26 +171,11 @@ export function PartyMemberCard({
       activeOpacity={canOpen ? 0.85 : 1}
       disabled={!canOpen}
     >
-      {/* Shield-wrapped AC badge, top-right of the card. The shield
-          glyph is masked with a metallic steel gradient (top highlight
-          → graphite shadow) — reads as polished armor and stays
-          visually distinct from the HP gradient. */}
+      {/* AC shield top-right. Solid light-steel fill reads as polished
+          armor; MaskedView would let us layer a true metallic gradient
+          but it doesn't render on RN Web (mask falls through as black). */}
       <View style={s.acBadge}>
-        <MaskedView
-          style={s.acShieldMask}
-          maskElement={
-            <View style={s.acShieldMaskInner}>
-              <Icon name="shield" size={36} color="#000" />
-            </View>
-          }
-        >
-          <LinearGradient
-            colors={['#e2e6ec', '#9da5b1', '#5e646e']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={s.acShieldGradient}
-          />
-        </MaskedView>
+        <Icon name="shield" size={36} color="#b8bdc7" />
         <Text style={s.acBadgeNum}>{ac}</Text>
       </View>
 
@@ -372,21 +355,6 @@ const s = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  /** MaskedView footprint matches the icon's intrinsic 36×36 box so
-   *  the gradient fill lines up with the glyph silhouette. */
-  acShieldMask: {
-    width: 36,
-    height: 36,
-  },
-  acShieldMaskInner: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  acShieldGradient: {
-    flex: 1,
   },
   acBadgeNum: {
     position: 'absolute',

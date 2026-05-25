@@ -7,7 +7,6 @@ import {
 } from 'react-native';
 import { ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import MaskedView from '@react-native-masked-view/masked-view';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -2532,21 +2531,9 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                         activeOpacity={0.7}
                       >
                         <View style={s.deskAcShieldWrap}>
-                          <MaskedView
-                            style={s.deskAcShieldMask}
-                            maskElement={
-                              <View style={s.deskAcShieldMaskInner}>
-                                <MaterialCommunityIcons name="shield" size={44} color="#000" />
-                              </View>
-                            }
-                          >
-                            <LinearGradient
-                              colors={['#e2e6ec', '#9da5b1', '#5e646e']}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 0, y: 1 }}
-                              style={s.deskAcShieldGradient}
-                            />
-                          </MaskedView>
+                          {/* Solid metallic silver shield — MaskedView
+                              doesn't render on RN Web. */}
+                          <MaterialCommunityIcons name="shield" size={44} color="#b8bdc7" />
                           <Text style={s.deskAcShieldNum}>{ac}</Text>
                         </View>
                         <View style={statCellStyle.text}>
@@ -2834,24 +2821,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           <View style={[s.heroCard, isDead && s.heroCardUnconscious]}>
             {/* AC shield, top-right */}
             <View style={s.heroAcBadge}>
-              <MaskedView
-                style={s.heroAcShieldMask}
-                maskElement={
-                  <View style={s.heroAcShieldMaskInner}>
-                    <MaterialCommunityIcons name="shield" size={36} color="#000" />
-                  </View>
-                }
-              >
-                {/* Metallic steel gradient — cool top highlight fading
-                    to graphite at the bottom, slight cool tint to sit
-                    inside the Noir palette without going cyan. */}
-                <LinearGradient
-                  colors={['#e2e6ec', '#9da5b1', '#5e646e']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={s.heroAcShieldGradient}
-                />
-              </MaskedView>
+              {/* Solid metallic silver shield silhouette. MaskedView
+                  doesn't render on RN Web (mask falls through as black),
+                  so a solid light-steel fill is the cross-platform
+                  approximation — still reads as polished armor. */}
+              <MaterialCommunityIcons name="shield" size={36} color="#b8bdc7" />
               <Text style={s.heroAcNum}>{ac}</Text>
             </View>
 
@@ -4063,12 +4037,6 @@ const s = StyleSheet.create({
     width: 44, height: 48,
     alignItems: 'center', justifyContent: 'center',
   },
-  deskAcShieldMask: { width: 44, height: 44 },
-  deskAcShieldMaskInner: {
-    flex: 1, backgroundColor: 'transparent',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  deskAcShieldGradient: { flex: 1 },
   deskAcShieldNum: {
     position: 'absolute', top: 14, left: 0, right: 0,
     textAlign: 'center',
@@ -4200,14 +4168,11 @@ const s = StyleSheet.create({
     fontSize: 11, fontFamily: fonts.body, color: colors.outline, letterSpacing: 0.2,
   },
 
-  // AC shield — same gradient masked icon as the party card.
+  // AC shield top-right — solid light-steel icon + engraved number.
   heroAcBadge: {
     position: 'absolute', top: 8, right: 8,
     width: 40, height: 44, alignItems: 'center', justifyContent: 'center',
   },
-  heroAcShieldMask: { width: 36, height: 36 },
-  heroAcShieldMaskInner: { flex: 1, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
-  heroAcShieldGradient: { flex: 1 },
   heroAcNum: {
     position: 'absolute', top: 12, left: 0, right: 0,
     textAlign: 'center',
