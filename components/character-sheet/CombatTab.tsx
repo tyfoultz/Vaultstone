@@ -387,7 +387,9 @@ export function CombatTab({
     <>
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
-      {/* Saving throws */}
+      {/* Saving throws — 4 cells per row × 2 rows = 6 saves + INIT +
+          SPD. INIT and SPD are appended as read-only extras so the
+          hero card's supp strip can be dedicated to Conditions. */}
       <SectionLabel>SAVING THROWS</SectionLabel>
       <SavingThrowsStrip
         scores={scores}
@@ -396,6 +398,10 @@ export function CombatTab({
         manualMode={manualMode}
         onToggleSaveProficiency={onToggleSaveProficiency}
         onRoll={onRoll}
+        extras={[
+          { label: 'INIT', value: fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity)) },
+          { label: 'SPD', value: String(stats.speed) },
+        ]}
       />
 
       {/* Attacks */}
@@ -447,40 +453,11 @@ export function CombatTab({
         </>
       )}
 
-      {/* Conditions */}
-      <SectionLabel style={{ marginTop: 14 }}>CONDITIONS</SectionLabel>
-      <ConditionsSection
-        activeConditions={activeConditions}
-        exhaustionLevel={exhaustionLevel}
-        canEditAny={canEditAny}
-        onToggle={onToggleCondition}
-        onSetExhaustion={onSetExhaustion}
-        bundledConditions={
-          conditionCatalog && conditionCatalog.length > 0
-            ? conditionCatalog.filter((c) => c.name.toLowerCase() !== 'exhaustion')
-            : bundledConditionsFor(stats.srdVersion)
-        }
-      />
-
-      {/* Passives */}
-      <SectionLabel style={{ marginTop: 14 }}>PASSIVES</SectionLabel>
-      <View style={s.passivesRow}>
-        <PassiveCard label="Perception" value={passivePerception} />
-        <PassiveCard
-          label="Hit Dice"
-          value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`}
-          suffix={`d${stats.hitDie}`}
-          editable={canEditAny && (resources.hitDiceRemaining ?? stats.level) > 0 && !!onSpendHitDie}
-          onPress={canEditAny && onSpendHitDie ? onSpendHitDie : undefined}
-        />
-        <PassiveCard
-          label="Speed"
-          value={stats.speed}
-          suffix=" ft"
-          editable={manualMode}
-          onPress={manualMode && onEditField ? () => onEditField('speed', stats.speed) : undefined}
-        />
-      </View>
+      {/* Conditions + Passives sections were here. Both moved into the
+          mobile hero card: conditions are now the dedicated supp strip
+          below the hero, and passive senses + PROF + HD fit in the
+          hero's 5-cell stat row. Hit-die spending lives in the Short
+          Rest flow (hero card's corner Rest button). */}
 
       {/* Active abilities — merged in from the old standalone
           Abilities tab. */}
@@ -877,6 +854,7 @@ function PinnedCard({
  */
 function SavingThrowsStrip({
   scores, stats, prof, manualMode, onToggleSaveProficiency, onRoll, isDesktop,
+  extras,
 }: {
   scores: Dnd5eAbilityScores;
   stats: Dnd5eStats;
@@ -885,6 +863,11 @@ function SavingThrowsStrip({
   onToggleSaveProficiency?: (ability: keyof Dnd5eAbilityScores) => void;
   onRoll: (r: RollResult) => void;
   isDesktop?: boolean;
+  /** Mobile-only — extra read-only cells appended after the 6 saves so
+   *  INIT and SPD fit in the same 4×2 grid (frees up the hero-card
+   *  supp strip for Conditions on mobile). On desktop these stats live
+   *  in the left sidebar separately. */
+  extras?: Array<{ label: string; value: string }>;
 }) {
   return (
     <View style={isDesktop ? s.savesStripDesktop : s.savesGrid}>
@@ -915,6 +898,12 @@ function SavingThrowsStrip({
           </TouchableOpacity>
         );
       })}
+      {!isDesktop && extras?.map((extra) => (
+        <View key={extra.label} style={s.saveRow}>
+          <Text style={s.saveAbility}>{extra.label}</Text>
+          <Text style={s.saveBonus}>{extra.value}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -1331,8 +1320,10 @@ const s = StyleSheet.create({
   /** Desktop strip: single horizontal row of 6 equal-width cells. */
   savesStripDesktop: { flexDirection: 'row', gap: 6 },
   saveRow: {
-    width: '30.5%', flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingVertical: 9,
+    // 4 cells per row on mobile — 6 saves + INIT + SPD = 8 cells in
+    // a 4×2 grid. 23% width + 6px gaps leaves a comfortable margin.
+    width: '23%', flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 6, paddingVertical: 7,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,

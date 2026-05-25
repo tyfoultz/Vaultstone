@@ -98,7 +98,7 @@ function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 function SenseCell({ icon, label, value }: {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   label: string;
-  value: number;
+  value: number | string;
 }) {
   return (
     <View style={s.heroStatCell}>
@@ -2975,56 +2975,52 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </View>
               </TouchableOpacity>
 
-              {/* Passive senses row with icons. Eye → Perception,
-                  Magnify → Investigation, Brain → Insight. */}
+              {/* Compact 5-cell stat row — passive senses + proficiency
+                  + hit dice. Tighter than the original 3-cell PER/INV/
+                  INS row so PROF and HD can share the line; freed up
+                  the supp strip below for Conditions. */}
               <View style={s.heroStatsRow}>
                 <SenseCell icon="eye-outline" label="PER" value={passivePerception} />
                 <SenseCell icon="magnify" label="INV" value={passiveInvestigation} />
                 <SenseCell icon="brain" label="INS" value={passiveInsight} />
+                <SenseCell icon="star-four-points-outline" label="PROF" value={fmtMod(prof)} />
+                <SenseCell icon="dice-d8-outline" label="HD" value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`} />
               </View>
 
-              {/* Chip row — concentration + active conditions + exhaustion.
-                  INSP moved to the top-right corner button. */}
-              {(resources.concentrationSpell || activeConditions.length > 0 || (resources.exhaustionLevel ?? 0) > 0) ? (
+              {/* Chip row — concentration only. Conditions + exhaustion
+                  moved down to the supp strip's ConditionsSection;
+                  INSP is the top-right corner button. */}
+              {resources.concentrationSpell ? (
                 <View style={s.heroChipsRow}>
-                  {resources.concentrationSpell ? (
-                    <View style={[s.heroChip, s.heroChipConc]}>
-                      <Text style={[s.heroChipText, s.heroChipTextConc]}>✦ {resources.concentrationSpell.toUpperCase()}</Text>
-                    </View>
-                  ) : null}
-                  {activeConditions.map((c) => (
-                    <View key={c} style={[s.heroChip, s.heroChipCond]}>
-                      <Text style={[s.heroChipText, s.heroChipTextCond]}>{c.toUpperCase()}</Text>
-                    </View>
-                  ))}
-                  {(resources.exhaustionLevel ?? 0) > 0 ? (
-                    <View style={[s.heroChip, s.heroChipCond]}>
-                      <Text style={[s.heroChipText, s.heroChipTextCond]}>EXHAUSTION {resources.exhaustionLevel}</Text>
-                    </View>
-                  ) : null}
+                  <View style={[s.heroChip, s.heroChipConc]}>
+                    <Text style={[s.heroChipText, s.heroChipTextConc]}>✦ {resources.concentrationSpell.toUpperCase()}</Text>
+                  </View>
                 </View>
               ) : null}
             </View>
           </View>
 
-          {/* Supplementary strip — sidebar-overflow stats. Rest
-              buttons moved up to the hero card's corner-button cluster. */}
+          {/* Conditions strip — INIT/SPD/PROF/HD moved into the hero
+              card stat row + the Combat saves grid; the bottom strip
+              now owns active conditions + exhaustion + the "Add
+              condition" picker. Reuses the same ConditionsSection
+              component the desktop sidebar uses, so the picker UX is
+              shared. */}
           <View style={s.heroSuppRow}>
-            <View style={s.suppStat}>
-              <Text style={s.suppStatLabel}>INIT</Text>
-              <Text style={s.suppStatValue}>{fmtMod(initiative)}</Text>
-            </View>
-            <View style={s.suppStat}>
-              <Text style={s.suppStatLabel}>SPD</Text>
-              <Text style={s.suppStatValue}>{stats.speed}</Text>
-            </View>
-            <View style={s.suppStat}>
-              <Text style={s.suppStatLabel}>PROF</Text>
-              <Text style={[s.suppStatValue, { color: colors.primary }]}>{fmtMod(prof)}</Text>
-            </View>
-            <View style={s.suppStat}>
-              <Text style={s.suppStatLabel}>HD</Text>
-              <Text style={s.suppStatValue}>{resources.hitDiceRemaining ?? stats.level}/{stats.level}</Text>
+            <Text style={s.suppCondLabel}>CONDITIONS</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <ConditionsSection
+                activeConditions={activeConditions}
+                exhaustionLevel={resources.exhaustionLevel ?? 0}
+                canEditAny={canEditAny}
+                onToggle={handleToggleCondition}
+                onSetExhaustion={handleSetExhaustion}
+                bundledConditions={
+                  conditionResults && conditionResults.length > 0
+                    ? conditionResults.filter((c) => c.name.toLowerCase() !== 'exhaustion')
+                    : []
+                }
+              />
             </View>
           </View>
 
@@ -4370,22 +4366,23 @@ const s = StyleSheet.create({
   heroHpFill: { height: '100%', borderRadius: 999 },
   heroHpTempFill: { height: '100%', backgroundColor: colors.secondary },
 
-  // Passive senses row — Eye / Magnify / Brain icons + label + value.
-  heroStatsRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  // 5-cell stat row — passive senses + PROF + HD. Tighter than the
+  // original 3-cell row so all five fit on a phone-width hero body.
+  heroStatsRow: { flexDirection: 'row', gap: 3, marginTop: 4 },
   heroStatCell: {
     flex: 1, alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 3, paddingHorizontal: 2,
     borderRadius: 6,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1, borderColor: colors.outlineVariant,
   },
-  heroStatCellTop: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  heroStatCellTop: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   heroStatCellLabel: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '600',
-    letterSpacing: 1.2, color: colors.outline, textTransform: 'uppercase',
+    fontSize: 7, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.8, color: colors.outline, textTransform: 'uppercase',
   },
   heroStatCellValue: {
-    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
+    fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface, marginTop: 1,
   },
 
@@ -4408,35 +4405,20 @@ const s = StyleSheet.create({
   heroChipCond: { borderColor: 'rgba(239,159,39,0.3)', backgroundColor: 'rgba(239,159,39,0.1)' },
   heroChipTextCond: { color: colors.hpWarning },
 
-  // Supplementary strip under the hero card — INIT/SPD/PROF/HD inline +
-  // Short/Long rest buttons. Reads as one continuous row.
+  // Supplementary strip under the hero card — now dedicated to
+  // Conditions. Label + the shared ConditionsSection component flex
+  // alongside; INIT / SPD / PROF / HD moved into the hero card stat
+  // row + the Combat tab's saving-throws grid.
   heroSuppRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     paddingHorizontal: 10, paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainerLowest,
   },
-  suppStat: {
-    flex: 1, alignItems: 'center', gap: 1,
-  },
-  suppStatLabel: {
+  suppCondLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1, color: colors.outline, textTransform: 'uppercase',
-  },
-  suppStatValue: {
-    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
-    color: colors.onSurface,
-  },
-  suppRestBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 8, paddingVertical: 5,
-    borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    backgroundColor: colors.surfaceContainer,
-  },
-  suppRestText: {
-    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 0.5, color: colors.onSurfaceVariant,
+    letterSpacing: 1.2, color: colors.outline, textTransform: 'uppercase',
+    paddingTop: 6,
   },
 
   // ── Tab bar ──────────────────────────────────────────────────────────────────
