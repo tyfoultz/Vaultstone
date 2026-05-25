@@ -387,22 +387,34 @@ export function CombatTab({
     <>
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
-      {/* Saving throws — 4 cells per row × 2 rows = 6 saves + INIT +
-          SPD. INIT and SPD are appended as read-only extras so the
-          hero card's supp strip can be dedicated to Conditions. */}
+      {/* Saving throws — 2-column layout. INIT and SPD get their own
+          cards on the left (visually emphasized, away from the d20
+          rolls); the 6 saves sit on the right in a 3×2 grid. */}
       <SectionLabel>SAVING THROWS</SectionLabel>
-      <SavingThrowsStrip
-        scores={scores}
-        stats={stats}
-        prof={prof}
-        manualMode={manualMode}
-        onToggleSaveProficiency={onToggleSaveProficiency}
-        onRoll={onRoll}
-        extras={[
-          { label: 'INIT', value: fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity)) },
-          { label: 'SPD', value: String(stats.speed) },
-        ]}
-      />
+      <View style={s.savesLayout}>
+        <View style={s.savesLeftCol}>
+          <View style={s.savesLeftCard}>
+            <Text style={s.savesLeftLabel}>INIT</Text>
+            <Text style={s.savesLeftValue}>
+              {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
+            </Text>
+          </View>
+          <View style={s.savesLeftCard}>
+            <Text style={s.savesLeftLabel}>SPD</Text>
+            <Text style={s.savesLeftValue}>{stats.speed}</Text>
+          </View>
+        </View>
+        <View style={s.savesRightCol}>
+          <SavingThrowsStrip
+            scores={scores}
+            stats={stats}
+            prof={prof}
+            manualMode={manualMode}
+            onToggleSaveProficiency={onToggleSaveProficiency}
+            onRoll={onRoll}
+          />
+        </View>
+      </View>
 
       {/* Attacks */}
       <SectionLabel
@@ -1320,14 +1332,36 @@ const s = StyleSheet.create({
   /** Desktop strip: single horizontal row of 6 equal-width cells. */
   savesStripDesktop: { flexDirection: 'row', gap: 6 },
   saveRow: {
-    // 4 cells per row on mobile — 6 saves + INIT + SPD = 8 cells in
-    // a 4×2 grid. 23% width + 6px gaps leaves a comfortable margin.
-    width: '23%', flexDirection: 'row', alignItems: 'center', gap: 4,
+    // 3 cells per row in the right column of the 2-column saves
+    // layout. INIT + SPD live in their own left-column cards now.
+    width: '32%', flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 6, paddingVertical: 7,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
   },
+  /** 2-column saves layout: INIT/SPD cards on the left, 6 saves on
+   *  the right in a 3×2 grid. Mirrors the desktop sidebar's emphasis
+   *  on movement stats as separate, glanceable info. */
+  savesLayout: { flexDirection: 'row', gap: 8 },
+  savesLeftCol: { width: 84, gap: 6 },
+  savesLeftCard: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 8,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    minHeight: 44,
+  },
+  savesLeftLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.outline, textTransform: 'uppercase' as const,
+  },
+  savesLeftValue: {
+    fontSize: 18, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurface, marginTop: 2,
+  },
+  savesRightCol: { flex: 1, minWidth: 0 },
   /** Desktop cell: same anatomy as the mobile saveRow but flex-1 for
    *  even distribution across 6 columns instead of fixed-percent width. */
   saveCellDesktop: {
