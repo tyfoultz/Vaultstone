@@ -448,16 +448,14 @@ function AbilityCard({ ability, isOwner, onUse, onEdit, canMoveUp, canMoveDown, 
               color={colors.outline}
             />
           </View>
-          {rechargeLabel ? (
-            <View style={s.cardMeta}>
-              <Text style={s.cardMetaText}>Recharge: {rechargeLabel}</Text>
-            </View>
-          ) : null}
         </View>
       </TouchableOpacity>
 
       {open ? (
         <View style={s.cardBody}>
+          {rechargeLabel ? (
+            <Text style={s.cardDetailMeta}>Recharge: {rechargeLabel}</Text>
+          ) : null}
           {ability.description ? (
             <Text style={s.cardDesc}>{ability.description}</Text>
           ) : null}
@@ -753,6 +751,15 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
   },
   cardDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 15, marginTop: 8 },
+  /** Meta line shown inside the expanded body — currently just the
+   *  recharge cadence ("Recharge: LR" / "Short Rest" / "Dawn"). Lives
+   *  here instead of under the row so the collapsed table doesn't grow
+   *  a second line for tracked-use abilities. */
+  cardDetailMeta: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.outline, letterSpacing: 0.4,
+    marginTop: 8, textTransform: 'uppercase' as const,
+  },
 
   usesRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 12 },
   pipsRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
