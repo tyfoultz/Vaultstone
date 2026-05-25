@@ -4170,15 +4170,20 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(226,75,74,0.06)',
   },
   /** 3:4 portrait that fills the card's full vertical space. */
+  /** Explicit 96×128 (3:4) instead of `aspectRatio + alignSelf:stretch`
+   *  — that combo collapses the portrait to ~0 width on RN Web when
+   *  the parent's height is content-driven (no portrait visible at all
+   *  in playtest). Fixed dimensions are predictable; card height becomes
+   *  max(portrait, body) which still reads well across content states. */
   heroPortrait: {
-    aspectRatio: 3 / 4, alignSelf: 'stretch',
+    width: 96, height: 128,
     borderRadius: 6,
     borderWidth: 1, borderColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center', justifyContent: 'center',
     overflow: 'hidden', flexShrink: 0,
   },
-  heroPortraitImg: { width: '100%', height: '100%' },
+  heroPortraitImg: { width: 96, height: 128 },
   heroBody: { flex: 1, minWidth: 0, gap: 6 },
   heroName: {
     fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
