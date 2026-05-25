@@ -539,42 +539,49 @@ function ContentFeatureCard({ name, description, accent, level, subtitle, indent
       <View style={[s.featureCard, indented && s.featureCardIndent, s.featureCardHidden]}>
         <View style={s.featureHeader}>
           <View style={[s.accentBar, { backgroundColor: accent, opacity: 0.4 }]} />
-          <Text style={[s.featureName, s.featureNameHidden]} numberOfLines={1}>{name}</Text>
-          {onToggleHidden ? (
-            <TouchableOpacity onPress={onToggleHidden} hitSlop={8} activeOpacity={0.7}>
-              <Text style={[s.hiddenUnhideText, { color: accent }]}>Unhide</Text>
-            </TouchableOpacity>
-          ) : null}
+          <View style={s.featureHeaderBody}>
+            <View style={s.featureTitleRow}>
+              <Text style={[s.featureName, s.featureNameHidden]} numberOfLines={1}>{name}</Text>
+              {onToggleHidden ? (
+                <TouchableOpacity onPress={onToggleHidden} hitSlop={8} activeOpacity={0.7}>
+                  <Text style={[s.hiddenUnhideText, { color: accent }]}>Unhide</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
         </View>
       </View>
     );
   }
+  const metaText = selectedOption
+    ? selectedOption
+    : subtitle ?? (level ? `Level ${level}` : null);
   return (
     <View style={[s.featureCard, indented && s.featureCardIndent]}>
       <TouchableOpacity style={s.featureHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
         <View style={[s.accentBar, { backgroundColor: accent }]} />
-        <View style={s.featureHeaderText}>
-          <Text style={s.featureName}>{name}</Text>
-          {selectedOption ? (
-            <Text style={s.featureUses}>{selectedOption}</Text>
-          ) : (subtitle || level) ? (
-            <Text style={s.featureUses}>{subtitle ?? (level ? `Level ${level}` : '')}</Text>
-          ) : null}
+        <View style={s.featureHeaderBody}>
+          <View style={s.featureTitleRow}>
+            <Text style={s.featureName} numberOfLines={1}>{name}</Text>
+            {metaText ? (
+              <Text style={s.featureUses} numberOfLines={1}>{metaText}</Text>
+            ) : null}
+            {onToggleHidden ? (
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation?.(); onToggleHidden(); }}
+                hitSlop={8}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="eye-off-outline" size={13} color={colors.outline} />
+              </TouchableOpacity>
+            ) : null}
+            <MaterialCommunityIcons
+              name={open ? 'chevron-up' : 'chevron-down'}
+              size={12}
+              color={colors.outline}
+            />
+          </View>
         </View>
-        {onToggleHidden ? (
-          <TouchableOpacity
-            onPress={(e) => { e.stopPropagation?.(); onToggleHidden(); }}
-            hitSlop={8}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons name="eye-off-outline" size={14} color={colors.outline} />
-          </TouchableOpacity>
-        ) : null}
-        <MaterialCommunityIcons
-          name={open ? 'chevron-down' : 'chevron-right'}
-          size={16}
-          color={colors.outline}
-        />
       </TouchableOpacity>
       {open ? (
         <View style={s.featureBody}>
@@ -659,12 +666,16 @@ function FeatureCard({ feature, accent, canEdit, onEdit, onUse, hidden, onToggle
       <View style={[s.featureCard, s.featureCardHidden]}>
         <View style={s.featureHeader}>
           <View style={[s.accentBar, { backgroundColor: accent, opacity: 0.4 }]} />
-          <Text style={[s.featureName, s.featureNameHidden]} numberOfLines={1}>{feature.name}</Text>
-          {onToggleHidden ? (
-            <TouchableOpacity onPress={onToggleHidden} hitSlop={8} activeOpacity={0.7}>
-              <Text style={[s.hiddenUnhideText, { color: accent }]}>Unhide</Text>
-            </TouchableOpacity>
-          ) : null}
+          <View style={s.featureHeaderBody}>
+            <View style={s.featureTitleRow}>
+              <Text style={[s.featureName, s.featureNameHidden]} numberOfLines={1}>{feature.name}</Text>
+              {onToggleHidden ? (
+                <TouchableOpacity onPress={onToggleHidden} hitSlop={8} activeOpacity={0.7}>
+                  <Text style={[s.hiddenUnhideText, { color: accent }]}>Unhide</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
         </View>
       </View>
     );
@@ -673,32 +684,35 @@ function FeatureCard({ feature, accent, canEdit, onEdit, onUse, hidden, onToggle
     <View style={s.featureCard}>
       <TouchableOpacity style={s.featureHeader} onPress={() => setOpen(!open)} activeOpacity={0.8}>
         <View style={[s.accentBar, { backgroundColor: accent }]} />
-        <View style={s.featureHeaderText}>
-          <Text style={s.featureName}>{feature.name}</Text>
-          {feature.uses && (
-            <Text style={s.featureUses}>{feature.uses.current}/{feature.uses.max} · {feature.uses.recharge}</Text>
-          )}
+        <View style={s.featureHeaderBody}>
+          <View style={s.featureTitleRow}>
+            <Text style={s.featureName} numberOfLines={1}>{feature.name}</Text>
+            {feature.uses ? (
+              <Text style={s.featureUses}>
+                {feature.uses.current}/{feature.uses.max} · {feature.uses.recharge}
+              </Text>
+            ) : null}
+            {canEdit ? (
+              <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); onEdit(); }} hitSlop={8}>
+                <MaterialCommunityIcons name="pencil-outline" size={13} color={colors.outline} />
+              </TouchableOpacity>
+            ) : null}
+            {onToggleHidden ? (
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation?.(); onToggleHidden(); }}
+                hitSlop={8}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="eye-off-outline" size={13} color={colors.outline} />
+              </TouchableOpacity>
+            ) : null}
+            <MaterialCommunityIcons
+              name={open ? 'chevron-up' : 'chevron-down'}
+              size={12}
+              color={colors.outline}
+            />
+          </View>
         </View>
-        {canEdit && (
-          <TouchableOpacity onPress={onEdit} hitSlop={8}>
-            <MaterialCommunityIcons name="pencil-outline" size={14} color={colors.outline} />
-          </TouchableOpacity>
-        )}
-        {onToggleHidden ? (
-          <TouchableOpacity
-            onPress={(e) => { e.stopPropagation?.(); onToggleHidden(); }}
-            hitSlop={8}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons name="eye-off-outline" size={14} color={colors.outline} />
-          </TouchableOpacity>
-        ) : null}
-        <MaterialCommunityIcons
-          name="chevron-right"
-          size={16}
-          color={colors.outline}
-          style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}
-        />
       </TouchableOpacity>
       {open && (
         <View style={s.featureBody}>
@@ -984,40 +998,50 @@ const s = StyleSheet.create({
   addCustomBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 },
   addCustomText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '600', letterSpacing: 0.5 },
 
+  // Feature card chassis — mirrors the Combat/Spells equipCard pattern:
+  // transparent fill, thin outline, full-height 2px accent bar, compact
+  // body. The two card variants (ContentFeatureCard for catalog
+  // features + FeatureCard for tracked-use custom entries) both use
+  // these styles for cross-tab visual cohesion.
   featureCard: {
-    backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
-    borderRadius: radius.lg, overflow: 'hidden', marginBottom: 8,
+    borderRadius: 6, overflow: 'hidden', marginBottom: 4,
   },
   featureCardIndent: { marginLeft: 16 },
-  featureHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingRight: 12, paddingVertical: 11, gap: 10,
+  featureHeader: { flexDirection: 'row', alignItems: 'stretch' },
+  /** Full-height accent bar — width 2 matches the spell + ability cards. */
+  accentBar: { width: 2, alignSelf: 'stretch' },
+  /** Padded body wrapper inside the header row — owns the title row +
+   *  meta sub line. Padding here (instead of on featureHeader) lets the
+   *  bar stretch the full row height. */
+  featureHeaderBody: { flex: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 1 },
+  featureTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  featureName: {
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, letterSpacing: -0.1,
   },
-  accentBar: { width: 4, height: 22, borderRadius: 2 },
-  featureHeaderText: { flex: 1, minWidth: 0 },
-  featureName: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
-  featureCardHidden: {
-    opacity: 0.55,
-    backgroundColor: colors.surfaceContainer,
-  },
+  featureCardHidden: { opacity: 0.55 },
   featureNameHidden: {
-    flex: 1, fontWeight: '500',
+    fontWeight: '500',
     color: colors.onSurfaceVariant,
     textDecorationLine: 'line-through',
   },
   hiddenUnhideText: {
-    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 0.4,
   },
-  featureUses: { fontSize: 10, color: colors.outline, marginTop: 1 },
+  featureUses: { fontSize: 10, color: colors.outline },
+  /** Expanded body — inset 10px on the left so description text aligns
+   *  with the spell name above (which sits past the 2px bar + 8px body
+   *  padding). Bottom padding keeps the description from kissing the
+   *  card border. */
   featureBody: {
-    paddingHorizontal: 16, paddingBottom: 12,
+    paddingHorizontal: 10, paddingBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
   },
   featureDesc: {
-    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant,
-    lineHeight: 18, marginTop: 10,
+    fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    lineHeight: 15, marginTop: 8,
   },
   featureNotesBox: {
     marginTop: 10, paddingHorizontal: 10, paddingVertical: 8,
