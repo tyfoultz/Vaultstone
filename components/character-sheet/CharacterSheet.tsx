@@ -120,15 +120,6 @@ function SenseCell({ icon, label, value, onPress, profState }: {
       <View style={s.heroStatCellTop}>
         <MaterialCommunityIcons name={icon} size={11} color={colors.outline} />
         <Text style={s.heroStatCellLabel}>{label}</Text>
-        {profState ? (
-          <View
-            style={[
-              s.heroStatCellProfDot,
-              profState === 'proficient' && s.heroStatCellProfDotFilled,
-              profState === 'expert' && s.heroStatCellProfDotExpert,
-            ]}
-          />
-        ) : null}
       </View>
       <Text style={[s.heroStatCellValue, { color: valueColor }]}>{value}</Text>
     </Wrapper>
@@ -4668,22 +4659,6 @@ const s = StyleSheet.create({
   heroStatCellValue: {
     fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface, marginTop: 1,
-  },
-  /** Tiny proficiency dot beside a sense label — matches the skills
-   *  tab's untrained / proficient / expert vocabulary so the same
-   *  state reads the same way across surfaces. */
-  heroStatCellProfDot: {
-    width: 5, height: 5, borderRadius: 3,
-    borderWidth: 1, borderColor: colors.outline,
-    marginLeft: 1,
-  },
-  heroStatCellProfDotFilled: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  heroStatCellProfDotExpert: {
-    backgroundColor: '#e6a255',
-    borderColor: '#e6a255',
   },
 
   // Status chip row — inspiration, concentration, conditions, exhaustion.
