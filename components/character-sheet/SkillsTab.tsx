@@ -153,21 +153,21 @@ export function SkillsTab({
 
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
-      {/* Ability scores — vertical list that mirrors the skills card
-          below: name + raw score on the left, modifier on the right.
-          Sits above skills so the mods feeding into each skill row
-          are visible alongside their downstream consumers. */}
+      {/* Ability scores — 3×2 grid mirroring the Combat tab's saving
+          throws layout. Each cell reads "<score> ABI (<mod>)" e.g.
+          "19 INT (+4)". Tap to roll an ability check (or edit the
+          score in manual mode). The character's spellcasting ability
+          gets the primary tint so casters can spot it at a glance. */}
       <SectionLabel>{manualMode ? 'ABILITIES · TAP TO EDIT' : 'ABILITIES · TAP TO CHECK'}</SectionLabel>
-      <View style={s.skillsCard}>
-        {ABILITY_KEYS.map((abi, i) => {
+      <View style={s.abilityGrid}>
+        {ABILITY_KEYS.map((abi) => {
           const score = scores[abi];
           const m = abilityMod(score);
           const isSpellMod = stats.spellcastingAbility?.toLowerCase() === abi;
-          const isLast = i === ABILITY_KEYS.length - 1;
           return (
             <TouchableOpacity
               key={abi}
-              style={[s.skillRow, !isLast && s.skillRowBorder]}
+              style={[s.abilityCell, isSpellMod && s.abilityCellSpell, manualMode && s.abilityCellManual]}
               onPress={() => manualMode && onEditField
                 ? onEditField(abi, score)
                 : (() => {
@@ -176,18 +176,9 @@ export function SkillsTab({
                   })()}
               activeOpacity={0.7}
             >
-              <View style={s.skillNameWrap}>
-                <Text style={[s.skillName, s.skillNameProf, isSpellMod && { color: colors.primary }]}>
-                  {ABILITY_LONG[abi]}
-                </Text>
-                <Text style={s.skillAbi}>{score}</Text>
-              </View>
-              <Text style={[s.skillBonus, s.skillBonusProf, isSpellMod && { color: colors.primary }]}>
-                {fmtMod(m)}
-              </Text>
-              {manualMode ? (
-                <MaterialCommunityIcons name="pencil" size={10} color={colors.outline} style={{ marginLeft: 6 }} />
-              ) : null}
+              <Text style={[s.abilityScore, isSpellMod && s.abilityTextSpell]}>{score}</Text>
+              <Text style={[s.abilityAbiShort, isSpellMod && s.abilityTextSpell]}>{ABILITY_SHORT[abi]}</Text>
+              <Text style={[s.abilityMod, isSpellMod && s.abilityTextSpell]}>({fmtMod(m)})</Text>
             </TouchableOpacity>
           );
         })}
@@ -378,6 +369,42 @@ const s = StyleSheet.create({
     letterSpacing: 1.5, textTransform: 'uppercase', color: colors.outline,
   },
   sectionLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.outlineVariant },
+
+  /** Abilities grid — 3 cells per row × 2 rows, mirroring the Combat
+   *  tab's saving-throws layout. Each cell is a one-line "<score>
+   *  ABI (<mod>)" pill that taps to roll an ability check (or, in
+   *  manual mode, edit the underlying score). Spellcasting ability
+   *  gets the primary tint + fill so caster sheets surface their key
+   *  ability at a glance. */
+  abilityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  abilityCell: {
+    width: '31%', flexDirection: 'row', alignItems: 'baseline',
+    justifyContent: 'center', gap: 4,
+    paddingHorizontal: 6, paddingVertical: 9,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 8,
+  },
+  abilityCellSpell: {
+    borderColor: `${colors.primary}55`,
+    backgroundColor: `${colors.primaryContainer}22`,
+  },
+  /** Dashed primary border in manual mode — same hint the Combat-tab
+   *  saves grid uses to signal "tap edits, doesn't roll". */
+  abilityCellManual: { borderColor: colors.primary, borderStyle: 'dashed' as const },
+  abilityScore: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurface,
+  },
+  abilityAbiShort: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.onSurfaceVariant,
+  },
+  abilityMod: {
+    fontSize: 11, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.outline,
+  },
+  abilityTextSpell: { color: colors.primary },
 
   skillsCard: {
     backgroundColor: colors.surfaceContainer,
