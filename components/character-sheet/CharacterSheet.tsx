@@ -745,6 +745,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
    *  the mobile hero card — chooses Short vs Long before opening the
    *  existing restConfirm modal. */
   const [restChooserOpen, setRestChooserOpen] = useState(false);
+  /** When true, the mobile hero card + supp strip collapse into a
+   *  single thin bar (chevron + name + AC + HP). Tap the chevron to
+   *  re-expand. Doesn't persist across sessions. */
+  const [heroCollapsed, setHeroCollapsed] = useState(false);
   /** Hit dice the player wants to spend during the upcoming short rest
    *  (0..hitDiceRemaining). Picked via a stepper in the restConfirm
    *  modal when type === 'short'; reset to 0 each time the modal opens
@@ -2857,6 +2861,36 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             </TouchableOpacity>
           </View>
 
+          {/* Collapsed variant — thin bar with chevron + name + AC +
+              HP, swaps in when the player taps the collapse chevron in
+              the supp strip. Read-only numbers; tap the chevron to
+              re-expand. */}
+          {heroCollapsed ? (
+            <View style={s.heroCollapsedBar}>
+              <TouchableOpacity
+                style={s.heroCollapseBtn}
+                onPress={() => setHeroCollapsed(false)}
+                hitSlop={8}
+                activeOpacity={0.7}
+                accessibilityLabel="Expand character card"
+              >
+                <MaterialCommunityIcons name="chevron-down" size={14} color={colors.outline} />
+              </TouchableOpacity>
+              <Text style={s.heroCollapsedName} numberOfLines={1}>{stats.characterName}</Text>
+              <View style={s.heroCollapsedStats}>
+                <View style={s.heroCollapsedStat}>
+                  <MaterialCommunityIcons name="shield" size={12} color="#b8bdc7" />
+                  <Text style={s.heroCollapsedStatValue}>{ac}</Text>
+                </View>
+                <View style={s.heroCollapsedStat}>
+                  <Text style={[s.heroCollapsedStatValue, { color: hpC }]}>{resources.hpCurrent}</Text>
+                  <Text style={s.heroCollapsedStatSep}>/</Text>
+                  <Text style={s.heroCollapsedStatMax}>{stats.hpMax}</Text>
+                </View>
+              </View>
+            </View>
+          ) : (
+          <>
           {/* Hero card — mirrors the campaign PartyMemberCard chassis:
               left-edge HP-tier stripe, 3:4 portrait, body column with
               name + subtitle + HP block + passive senses + chips, AC
@@ -3003,10 +3037,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           {/* Conditions strip — INIT/SPD/PROF/HD moved into the hero
               card stat row + the Combat saves grid; the bottom strip
               now owns active conditions + exhaustion + the "Add
-              condition" picker. Reuses the same ConditionsSection
-              component the desktop sidebar uses, so the picker UX is
-              shared. */}
+              condition" picker. Leading chevron collapses the hero
+              card + this strip down to a thin name/AC/HP bar. */}
           <View style={s.heroSuppRow}>
+            <TouchableOpacity
+              style={s.heroCollapseBtn}
+              onPress={() => setHeroCollapsed(true)}
+              hitSlop={8}
+              activeOpacity={0.7}
+              accessibilityLabel="Collapse character card"
+            >
+              <MaterialCommunityIcons name="chevron-up" size={14} color={colors.outline} />
+            </TouchableOpacity>
             <Text style={s.suppCondLabel}>CONDITIONS</Text>
             <View style={{ flex: 1, minWidth: 0 }}>
               <ConditionsSection
@@ -3023,6 +3065,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               />
             </View>
           </View>
+          </>
+          )}
 
           {/* Tab content */}
           <View style={{ flex: 1 }}>{renderTab(activeTab)}</View>
@@ -4419,6 +4463,45 @@ const s = StyleSheet.create({
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.2, color: colors.outline, textTransform: 'uppercase',
     paddingTop: 6,
+  },
+  /** Small outlined circle button used to collapse / expand the mobile
+   *  hero card. Lives on the left of the supp strip (collapse arrow)
+   *  and on the left of the collapsed thin bar (expand arrow). */
+  heroCollapseBtn: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  /** Collapsed character bar — shown in place of the hero card +
+   *  supp strip. Chevron (expand) + name + AC + HP, all read-only. */
+  heroCollapsedBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8,
+    marginTop: 10, marginHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  heroCollapsedName: {
+    flex: 1, minWidth: 0,
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: -0.1,
+  },
+  heroCollapsedStats: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+  },
+  heroCollapsedStat: {
+    flexDirection: 'row', alignItems: 'baseline', gap: 4,
+  },
+  heroCollapsedStatValue: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurface,
+  },
+  heroCollapsedStatSep: { fontSize: 11, color: colors.outline },
+  heroCollapsedStatMax: {
+    fontSize: 11, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.outline,
   },
 
   // ── Tab bar ──────────────────────────────────────────────────────────────────
