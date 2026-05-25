@@ -741,6 +741,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // 'short' | 'long' | null — tracks which rest the player is about to
   // confirm. Resets to null on dismiss.
   const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null);
+  /** Tiny picker shown when the player taps the corner Rest button on
+   *  the mobile hero card — chooses Short vs Long before opening the
+   *  existing restConfirm modal. */
+  const [restChooserOpen, setRestChooserOpen] = useState(false);
   // Open the spend-hit-die confirm dialog. The actual roll + HP /
   // remaining mutation happens in handleSpendHitDie; this just gates
   // the side effect behind a confirm so a stray tap doesn't burn a
@@ -2819,14 +2823,32 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               actionable (HP → quick damage/heal modal, name → edit,
               portrait → upload, inspiration / conditions → toggle). */}
           <View style={[s.heroCard, isDead && s.heroCardUnconscious]}>
-            {/* AC shield, top-right */}
-            <View style={s.heroAcBadge}>
-              {/* Solid metallic silver shield silhouette. MaskedView
-                  doesn't render on RN Web (mask falls through as black),
-                  so a solid light-steel fill is the cross-platform
-                  approximation — still reads as polished armor. */}
-              <MaterialCommunityIcons name="shield" size={36} color="#b8bdc7" />
-              <Text style={s.heroAcNum}>{ac}</Text>
+            {/* Top-right corner buttons — Inspiration toggle + Rest
+                chooser. Rest taps open a small picker modal that flows
+                into the existing restConfirm. */}
+            <View style={s.heroCornerBtns}>
+              <TouchableOpacity
+                style={[s.heroCornerBtn, resources.inspiration && s.heroCornerBtnInspActive]}
+                onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
+                disabled={!canEditAny}
+                activeOpacity={canEditAny ? 0.7 : 1}
+                accessibilityLabel={resources.inspiration ? 'Inspired — tap to clear' : 'Mark inspired'}
+              >
+                <MaterialCommunityIcons
+                  name={resources.inspiration ? 'star' : 'star-outline'}
+                  size={16}
+                  color={resources.inspiration ? colors.gm : colors.outline}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.heroCornerBtn}
+                onPress={() => canEditAny && setRestChooserOpen(true)}
+                disabled={!canEditAny}
+                activeOpacity={canEditAny ? 0.7 : 1}
+                accessibilityLabel="Take a rest"
+              >
+                <MaterialCommunityIcons name="bed" size={16} color={colors.outline} />
+              </TouchableOpacity>
             </View>
 
             {/* 3:4 portrait fills card height */}
@@ -2841,26 +2863,37 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
             {/* Body column */}
             <View style={s.heroBody}>
-              {editingName ? (
-                <TextInput
-                  style={[s.heroNameInput, s.heroNamePad]}
-                  value={nameInput}
-                  onChangeText={setNameInput}
-                  onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                  onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                  autoFocus returnKeyType="done"
-                />
-              ) : (
-                <TouchableOpacity
-                  onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))}
-                  activeOpacity={isOwner ? 0.7 : 1}
-                >
-                  <Text style={[s.heroName, s.heroNamePad]} numberOfLines={1}>{stats.characterName}</Text>
-                </TouchableOpacity>
-              )}
-              <Text style={[s.heroSub, s.heroNamePad]} numberOfLines={1}>
-                L{stats.level} — {[speciesLabel, classLabel].filter(Boolean).join(' ')}
-              </Text>
+              {/* Title row — AC shield inline at left, name + subtitle
+                  filling the remainder. Right padding clears the corner
+                  buttons (INSP + REST) absolute-positioned above. */}
+              <View style={[s.heroTitleRow, s.heroNamePad]}>
+                <View style={s.heroAcInline}>
+                  <MaterialCommunityIcons name="shield" size={36} color="#b8bdc7" />
+                  <Text style={s.heroAcNum}>{ac}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  {editingName ? (
+                    <TextInput
+                      style={s.heroNameInput}
+                      value={nameInput}
+                      onChangeText={setNameInput}
+                      onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                      onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                      autoFocus returnKeyType="done"
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))}
+                      activeOpacity={isOwner ? 0.7 : 1}
+                    >
+                      <Text style={s.heroName} numberOfLines={1}>{stats.characterName}</Text>
+                    </TouchableOpacity>
+                  )}
+                  <Text style={s.heroSub} numberOfLines={1}>
+                    L{stats.level} — {[speciesLabel, classLabel].filter(Boolean).join(' ')}
+                  </Text>
+                </View>
+              </View>
 
               {/* HP block — tap to open the quick damage / heal modal,
                   long-press to heal. */}
@@ -2909,40 +2942,32 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 <SenseCell icon="brain" label="INS" value={passiveInsight} />
               </View>
 
-              {/* Chip row — inspiration toggle + active conditions +
-                  exhaustion + concentration. */}
-              <View style={s.heroChipsRow}>
-                <TouchableOpacity
-                  onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
-                  activeOpacity={canEditAny ? 0.7 : 1}
-                  disabled={!canEditAny}
-                  style={[s.heroChip, resources.inspiration && s.heroChipInsp]}
-                >
-                  <Text style={[s.heroChipText, resources.inspiration && s.heroChipTextInsp]}>★ INSP</Text>
-                </TouchableOpacity>
-                {resources.concentrationSpell ? (
-                  <View style={[s.heroChip, s.heroChipConc]}>
-                    <Text style={[s.heroChipText, s.heroChipTextConc]}>✦ {resources.concentrationSpell.toUpperCase()}</Text>
-                  </View>
-                ) : null}
-                {activeConditions.map((c) => (
-                  <View key={c} style={[s.heroChip, s.heroChipCond]}>
-                    <Text style={[s.heroChipText, s.heroChipTextCond]}>{c.toUpperCase()}</Text>
-                  </View>
-                ))}
-                {(resources.exhaustionLevel ?? 0) > 0 ? (
-                  <View style={[s.heroChip, s.heroChipCond]}>
-                    <Text style={[s.heroChipText, s.heroChipTextCond]}>EXHAUSTION {resources.exhaustionLevel}</Text>
-                  </View>
-                ) : null}
-              </View>
+              {/* Chip row — concentration + active conditions + exhaustion.
+                  INSP moved to the top-right corner button. */}
+              {(resources.concentrationSpell || activeConditions.length > 0 || (resources.exhaustionLevel ?? 0) > 0) ? (
+                <View style={s.heroChipsRow}>
+                  {resources.concentrationSpell ? (
+                    <View style={[s.heroChip, s.heroChipConc]}>
+                      <Text style={[s.heroChipText, s.heroChipTextConc]}>✦ {resources.concentrationSpell.toUpperCase()}</Text>
+                    </View>
+                  ) : null}
+                  {activeConditions.map((c) => (
+                    <View key={c} style={[s.heroChip, s.heroChipCond]}>
+                      <Text style={[s.heroChipText, s.heroChipTextCond]}>{c.toUpperCase()}</Text>
+                    </View>
+                  ))}
+                  {(resources.exhaustionLevel ?? 0) > 0 ? (
+                    <View style={[s.heroChip, s.heroChipCond]}>
+                      <Text style={[s.heroChipText, s.heroChipTextCond]}>EXHAUSTION {resources.exhaustionLevel}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
           </View>
 
-          {/* Supplementary strip — sidebar overflow stats + rest
-              buttons. INIT/SPD/PROF stay rail-style; Hit Die rolls into
-              the same row; Short / Long Rest sit at the right edge so
-              the action affordance is consistent across the strip. */}
+          {/* Supplementary strip — sidebar-overflow stats. Rest
+              buttons moved up to the hero card's corner-button cluster. */}
           <View style={s.heroSuppRow}>
             <View style={s.suppStat}>
               <Text style={s.suppStatLabel}>INIT</Text>
@@ -2960,24 +2985,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               <Text style={s.suppStatLabel}>HD</Text>
               <Text style={s.suppStatValue}>{resources.hitDiceRemaining ?? stats.level}/{stats.level}</Text>
             </View>
-            <TouchableOpacity
-              onPress={() => canEditAny && setRestConfirm('short')}
-              disabled={!canEditAny}
-              style={[s.suppRestBtn, !canEditAny && { opacity: 0.5 }]}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons name="weather-sunset-up" size={13} color={colors.outline} />
-              <Text style={s.suppRestText}>Short</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => canEditAny && setRestConfirm('long')}
-              disabled={!canEditAny}
-              style={[s.suppRestBtn, !canEditAny && { opacity: 0.5 }]}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons name="weather-night" size={13} color={colors.outline} />
-              <Text style={s.suppRestText}>Long</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Tab content */}
@@ -3548,6 +3555,41 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 activeOpacity={0.85}
               >
                 <Text style={s.restConfirmCommitText}>Spend &amp; Roll</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Rest chooser — opened from the mobile hero card's Rest
+          corner button. Two big options, each flows into the existing
+          restConfirm modal so the player still sees what the rest will
+          actually do before committing. */}
+      <Modal visible={restChooserOpen} transparent animationType="fade" onRequestClose={() => setRestChooserOpen(false)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setRestChooserOpen(false)}>
+          <Pressable style={s.restConfirmCard} onPress={() => {}}>
+            <View style={s.restChooserHeader}>
+              <MaterialCommunityIcons name="bed" size={20} color={colors.primary} />
+              <Text style={s.restConfirmTitle}>Take a rest</Text>
+            </View>
+            <View style={s.restChooserRow}>
+              <TouchableOpacity
+                style={s.restChooserBtn}
+                onPress={() => { setRestChooserOpen(false); setRestConfirm('short'); }}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="campfire" size={20} color={colors.primary} />
+                <Text style={s.restChooserBtnText}>Short Rest</Text>
+                <Text style={s.restChooserBtnSub}>1 hour · spend hit dice</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.restChooserBtn}
+                onPress={() => { setRestChooserOpen(false); setRestConfirm('long'); }}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="bed" size={20} color={colors.primary} />
+                <Text style={s.restChooserBtnText}>Long Rest</Text>
+                <Text style={s.restChooserBtnSub}>8 hours · full reset</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -4153,6 +4195,16 @@ const s = StyleSheet.create({
   },
   heroPortraitImg: { width: 96, height: 128 },
   heroBody: { flex: 1, minWidth: 0, gap: 6 },
+  /** First row of the body — AC shield inline at left, name/subtitle
+   *  block flexing to fill the remainder. Right padding clears the
+   *  absolute corner-buttons (INSP + REST) anchored top-right. */
+  heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  /** Inline AC shield wrapper — used inside heroTitleRow. */
+  heroAcInline: {
+    width: 36, height: 40,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
   heroName: {
     fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface, letterSpacing: -0.1,
@@ -4162,17 +4214,28 @@ const s = StyleSheet.create({
     color: colors.primary, borderBottomWidth: 1, borderBottomColor: colors.primary,
     paddingVertical: 1,
   },
-  /** Extra right padding so name + sub don't run under the absolute AC shield. */
-  heroNamePad: { paddingRight: 44 },
+  /** Right padding on the title row so name + sub don't run under the
+   *  absolute-positioned INSP / REST corner-button cluster. */
+  heroNamePad: { paddingRight: 70 },
   heroSub: {
     fontSize: 11, fontFamily: fonts.body, color: colors.outline, letterSpacing: 0.2,
   },
 
-  // AC shield top-right — solid light-steel icon + engraved number.
-  heroAcBadge: {
+  /** Corner button cluster — top-right of the card, two small icon
+   *  toggles (Inspiration + Rest). Rest opens a chooser modal that
+   *  flows into the existing restConfirm. */
+  heroCornerBtns: {
     position: 'absolute', top: 8, right: 8,
-    width: 40, height: 44, alignItems: 'center', justifyContent: 'center',
+    flexDirection: 'row', gap: 4,
+    zIndex: 1,
   },
+  heroCornerBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  heroCornerBtnInspActive: { borderColor: colors.gm, backgroundColor: `${colors.gm}22` },
   heroAcNum: {
     position: 'absolute', top: 12, left: 0, right: 0,
     textAlign: 'center',
@@ -4940,6 +5003,36 @@ const s = StyleSheet.create({
   modalTitle: {
     fontSize: 18, fontWeight: '700', color: colors.textPrimary,
     marginBottom: spacing.md,
+  },
+
+  // Rest chooser — shown when the player taps the corner Rest button
+  // on the mobile hero card. Two big options flow into the existing
+  // restConfirm modal (the chooser commits the rest TYPE; the confirm
+  // commits the rest itself).
+  restChooserHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginBottom: spacing.md,
+  },
+  restConfirmTitle: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
+  },
+  restChooserRow: { flexDirection: 'row', gap: 10 },
+  restChooserBtn: {
+    flex: 1,
+    paddingVertical: spacing.md, paddingHorizontal: spacing.sm,
+    borderRadius: 10,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+    alignItems: 'center', gap: 4,
+  },
+  restChooserBtnText: {
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
+  },
+  restChooserBtnSub: {
+    fontSize: 10, fontFamily: fonts.label, color: colors.outline,
+    letterSpacing: 0.3, textAlign: 'center',
   },
 
   // Short / Long rest confirm dialog. Inherits modalBackdrop above.
