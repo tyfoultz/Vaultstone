@@ -87,10 +87,36 @@ const ENTRY_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const STORAGE_KEY_PREFIX = 'vaultstone:homebrew-cache:v1:';
 let _diskHydrated = false;
 
+/**
+ * Pack-scope resolution cache. The character sheet fires 8 concurrent
+ * ContentResolver.search calls on cold load (one per content type the
+ * resolver hydrates eagerly — species, class, subclass, background,
+ * feat, condition, skill, item). Without this cache each one ran its
+ * own `campaign_packs` + `homebrew_packs` Supabase queries before
+ * reaching the entry cache — 16 round-trips per character open just to
+ * decide which packs are in scope. This cache dedupes the burst
+ * (concurrent callers share an in-flight promise) and keeps the
+ * resolved scope around for a short TTL so rapid navigations don't
+ * re-query either.
+ */
+type ScopeCacheEntry = {
+  key: string;
+  packs: HomebrewPackRow[];
+  fetchedAt: number;
+  /** In-flight resolution — concurrent callers await this same promise. */
+  promise?: Promise<HomebrewPackRow[]>;
+};
+let _scopeCache: ScopeCacheEntry | null = null;
+/** 60s is enough to cover the cold-load 8-call burst plus a quick
+ *  pack-management round trip; longer would risk stale pack lists after
+ *  the player toggles packs in the campaign settings. */
+const SCOPE_CACHE_TTL = 60 * 1000;
+
 export function invalidateHomebrewCache() {
   const oldKey = _entryCache?.key;
   _entryCache = null;
   _diskHydrated = false;
+  _scopeCache = null;
   if (oldKey) {
     AsyncStorage.removeItem(STORAGE_KEY_PREFIX + oldKey).catch(() => {});
   }
@@ -123,36 +149,69 @@ function persistToDisk(cache: NonNullable<typeof _entryCache>) {
   } catch {}
 }
 
+/**
+ * Resolve the in-scope packs for a content query. Dedupes concurrent
+ * callers (the 8-call cold-load burst from the character sheet shares
+ * one in-flight promise) and caches the result for SCOPE_CACHE_TTL so
+ * rapid navigations don't re-query Supabase.
+ */
+async function resolveScopedPacks(query: ContentQuery): Promise<HomebrewPackRow[]> {
+  const packPart = query.packIds ? [...query.packIds].sort().join(',') : '';
+  const key = [
+    query.campaignId ?? '',
+    packPart,
+    query.system ?? '',
+    query.srdVersion ?? '',
+  ].join('|');
+
+  if (_scopeCache && _scopeCache.key === key) {
+    if (_scopeCache.promise) return _scopeCache.promise;
+    if (Date.now() - _scopeCache.fetchedAt < SCOPE_CACHE_TTL) {
+      return _scopeCache.packs;
+    }
+  }
+
+  const promise = (async () => {
+    let allowedPackIds: Set<string> | null = null;
+    if (query.campaignId) {
+      const { data: enabled, error: enabledErr } = await supabase
+        .from('campaign_packs')
+        .select('pack_id')
+        .eq('campaign_id', query.campaignId)
+        .eq('enabled', true);
+      if (enabledErr) return [];
+      allowedPackIds = new Set((enabled ?? []).map((r) => r.pack_id));
+      if (allowedPackIds.size === 0) return [];
+    } else if (query.packIds) {
+      allowedPackIds = new Set(query.packIds);
+      if (allowedPackIds.size === 0) return [];
+    }
+    let packsQuery = supabase
+      .from('homebrew_packs')
+      .select('id, owner_user_id, system, name');
+    if (query.system) {
+      const accepted = [...compatibleSystemIds(query.system, query.srdVersion)];
+      packsQuery = packsQuery.in('system', accepted);
+    }
+    const packsRes = await packsQuery;
+    if (packsRes.error) return [];
+    const packs = (packsRes.data ?? []) as HomebrewPackRow[];
+    return allowedPackIds ? packs.filter((p) => allowedPackIds!.has(p.id)) : packs;
+  })();
+
+  _scopeCache = { key, packs: [], fetchedAt: 0, promise };
+  try {
+    const packs = await promise;
+    _scopeCache = { key, packs, fetchedAt: Date.now() };
+    return packs;
+  } catch {
+    if (_scopeCache && _scopeCache.key === key) _scopeCache = null;
+    return [];
+  }
+}
+
 export async function search(query: ContentQuery): Promise<ContentResult[]> {
-  let allowedPackIds: Set<string> | null = null;
-  if (query.campaignId) {
-    const { data: enabled, error: enabledErr } = await supabase
-      .from('campaign_packs')
-      .select('pack_id')
-      .eq('campaign_id', query.campaignId)
-      .eq('enabled', true);
-    if (enabledErr) return [];
-    allowedPackIds = new Set((enabled ?? []).map((r) => r.pack_id));
-    if (allowedPackIds.size === 0) return [];
-  } else if (query.packIds) {
-    allowedPackIds = new Set(query.packIds);
-    if (allowedPackIds.size === 0) return [];
-  }
-
-  let packsQuery = supabase
-    .from('homebrew_packs')
-    .select('id, owner_user_id, system, name');
-  if (query.system) {
-    const accepted = [...compatibleSystemIds(query.system, query.srdVersion)];
-    packsQuery = packsQuery.in('system', accepted);
-  }
-  const packsRes = await packsQuery;
-  if (packsRes.error) return [];
-
-  const packs = (packsRes.data ?? []) as HomebrewPackRow[];
-  const relevantPacks = allowedPackIds
-    ? packs.filter((p) => allowedPackIds!.has(p.id))
-    : packs;
+  const relevantPacks = await resolveScopedPacks(query);
   if (relevantPacks.length === 0) return [];
   const relevantPackIds = relevantPacks.map((p) => p.id);
 

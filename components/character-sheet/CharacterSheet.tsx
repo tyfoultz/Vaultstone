@@ -1137,20 +1137,39 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       weight: e.weight ?? fresh.weight,
     };
   }
-  const equipment: Dnd5eEquipmentItem[] = (resources?.equipment ?? []).map(hydrateEquipment);
-  const computedAC = scores ? getEquippedAC() : 10;
+  // Memoized so the array identity is stable across renders that don't
+  // actually change equipment — critical for downstream React.memo
+  // checks on CombatTab / GearTab (otherwise every keystroke / HP tap
+  // shipped a fresh equipment array and re-rendered both tabs from
+  // scratch).
+  const equipment: Dnd5eEquipmentItem[] = useMemo(
+    () => (resources?.equipment ?? []).map(hydrateEquipment),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [resources?.equipment, itemResultsByKey],
+  );
+  // computedAC depends on scores + equipment; memoize so AC doesn't
+  // recompute on every render.
+  const computedAC = useMemo(
+    () => (scores ? getEquippedAC() : 10),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scores, equipment, stats?.acOverride],
+  );
   // Class-table-derived spell limits, before any manual override.
   // Surfaced into the Manage Spells modal and into the AC-style edit
   // modal's "Computed from class: N" hint when the player taps the
   // CANTRIPS / PREPARED stat in Manual Mode.
-  const baseSpellLimits = stats ? computeSpellLimits(stats, classResultsByKey) : { cantrips: undefined, spellbook: undefined, prepared: undefined };
+  const baseSpellLimits = useMemo(
+    () => (stats ? computeSpellLimits(stats, classResultsByKey) : { cantrips: undefined, spellbook: undefined, prepared: undefined }),
+    [stats, classResultsByKey],
+  );
   // Computed spell attack / save DC, used by the edit-modal hint when
   // Manual Mode overrides are in play. Mirrors the formula in SpellsTab
   // (prof + spellMod for attack; 8 + prof + spellMod for DC). Returns
   // null when the character has no spellcasting ability resolved.
-  const spellcastingAbilityForHint = stats
-    ? getEffectiveSpellcastingAbility(stats, classResultsByKey, subclassResultsByKey)
-    : null;
+  const spellcastingAbilityForHint = useMemo(
+    () => (stats ? getEffectiveSpellcastingAbility(stats, classResultsByKey, subclassResultsByKey) : null),
+    [stats, classResultsByKey, subclassResultsByKey],
+  );
   const computedSpellMod = spellcastingAbilityForHint && scores
     ? abilityMod(scores[spellcastingAbilityForHint.toLowerCase() as keyof Dnd5eAbilityScores] ?? 10)
     : null;
@@ -1165,7 +1184,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // doesn't leave a stale higher remaining value showing.
   const SLOT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
   type SpellSlotKey = typeof SLOT_LEVELS[number];
-  const effectiveSpellSlots = (() => {
+  const effectiveSpellSlots = useMemo(() => {
     const raw = resources?.spellSlots;
     if (!raw) return null;
     if (!manualMode || !stats?.spellSlotMaxOverrides) return raw;
@@ -1182,7 +1201,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       touched = true;
     }
     return touched ? out : raw;
-  })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resources?.spellSlots, manualMode, stats?.spellSlotMaxOverrides]);
   // Manual-mode overrides only apply when Manual Mode is actually on.
   // Without this gate, a stray value typed once stays as a silent
   // override forever — exactly the playtest bug where Oswald's AC was
@@ -1228,6 +1248,37 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     }
     return features;
   }, [stats, classResultsByKey, subclassResultsByKey]);
+
+  /** Memoized spellbook — `getSpellbook(resources)` was called 5×
+   *  per render (Spells props, prepared toggle, Manage Spells modal
+   *  prep, two existingKeys/existingSpells props, picker onPick). */
+  const spellbook = useMemo(
+    () => (resources ? getSpellbook(resources) : []),
+    [resources],
+  );
+  /** Id set of the spellbook — Manage Spells modal uses this to gray
+   *  out already-added entries. Lives at the top level (hook) so the
+   *  picker's prop reference stays stable across renders. */
+  const spellbookIdSet = useMemo(
+    () => new Set(spellbook.map((s) => s.id)),
+    [spellbook],
+  );
+
+  /** Memoized explainers — `spellcastingExplainersFor` walks every
+   *  class entry; no point re-walking on every render. */
+  const spellcastingExplainers = useMemo(
+    () => (stats ? spellcastingExplainersFor(stats, classResultsByKey, subclassResultsByKey) : []),
+    [stats, classResultsByKey, subclassResultsByKey],
+  );
+
+  /** Memoized version of the resources blob passed into the spellcasting
+   *  child tabs. Splicing in `effectiveSpellSlots` produced a brand-new
+   *  object every render — the receiving tabs failed React.memo's
+   *  shallow check and re-rendered for every parent state update. */
+  const resourcesForTabs = useMemo(
+    () => (resources ? { ...resources, spellSlots: effectiveSpellSlots ?? resources.spellSlots } : null),
+    [resources, effectiveSpellSlots],
+  );
 
   function hpColor(): string {
     if (!resources || !stats) return colors.textPrimary;
@@ -2005,7 +2056,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         return (
           <CombatTab
             stats={stats}
-            resources={{ ...resources, spellSlots: effectiveSpellSlots }}
+            resources={resourcesForTabs ?? resources}
             scores={scores}
             onSpendHitDie={() => setSpendHitDieOpen(true)}
             prof={prof}
@@ -2044,13 +2095,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         return (
           <SpellsTab
             stats={stats}
-            resources={{ ...resources, spellSlots: effectiveSpellSlots }}
+            resources={resourcesForTabs ?? resources}
             scores={scores}
             prof={prof}
             isOwner={isOwner}
             manualMode={manualMode}
             onEditField={manualMode ? startEditField : undefined}
-            effectiveSpellcastingAbility={getEffectiveSpellcastingAbility(stats, classResultsByKey, subclassResultsByKey)}
+            effectiveSpellcastingAbility={spellcastingAbilityForHint}
             onSpellSlotChange={(level, delta) => {
               if (!resources.spellSlots) return;
               const slot = resources.spellSlots[level];
@@ -2062,7 +2113,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             }}
             onConcentrationClear={() => persistResources({ ...resources, concentrationSpell: null })}
             onOpenManage={() => setSpellPickerOpen(true)}
-            spellbook={getSpellbook(resources)}
+            spellbook={spellbook}
             onSetPrepStatus={(spell, status) => {
               // Cantrips are auto-prepared by being in the spellbook;
               // ignore the chip cycle for them at the parent level too.
@@ -2079,7 +2130,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               }
               persistResources({ ...resources, preparedSpells: next });
             }}
-            spellcastingExplainers={spellcastingExplainersFor(stats, classResultsByKey, subclassResultsByKey)}
+            spellcastingExplainers={spellcastingExplainers}
             onSaveSpellNotes={(spell, notes) => {
               // Player notes layer onto the spell entry. The spellbook
               // is the master record (catalog spells live here too); we
@@ -3423,8 +3474,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               .map((sc) => resolveSubclassCasting(sc)?.spellListClass)
               .filter((n): n is string => !!n),
           ]}
-          existingKeys={new Set(getSpellbook(resources).map((s) => s.id))}
-          existingSpells={getSpellbook(resources)}
+          existingKeys={spellbookIdSet}
+          existingSpells={spellbook}
           spellLimits={{
             ...baseSpellLimits,
             ...(manualMode && stats?.cantripsKnownOverride != null
