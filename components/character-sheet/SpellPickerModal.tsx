@@ -67,19 +67,22 @@ export function SpellPickerModal({
   // to spells already on the character's preparedSpells, 'unadded' hides
   // those so the player can scan only candidates.
   const [statusFilter, setStatusFilter] = useState<'all' | 'added' | 'unadded'>('all');
-  const [classFilter, setClassFilter] = useState<string | 'all'>('all');
+  // Class scope is one dropdown with three flavors of value:
+  //   'mine' (default when the character has class metadata) — narrows
+  //     the catalog to spells whose class list overlaps with the
+  //     player's. Replaces the old icon-only "show all classes" toggle.
+  //   'all' — no class filter; useful for homebrew lineage spells or
+  //     multiclass-prep browsing.
+  //   <class name> — limit to a single specific class.
+  const [classFilter, setClassFilter] = useState<string | 'mine' | 'all'>(
+    classNames.length > 0 ? 'mine' : 'all',
+  );
   const [schoolFilter, setSchoolFilter] = useState<string | 'all'>('all');
   // Single-open inline expansion. Tapping the same row again collapses;
   // tapping a different row swaps the expansion (only one open at a time
   // so the list doesn't grow unbounded as the player browses).
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  // Off by default — the picker scopes to the character's class spell
-  // lists so a Wizard doesn't have to scroll past 200 Cleric spells.
-  // When on, the hard class scope is bypassed; useful for homebrew
-  // characters whose class isn't in the catalog, multiclass-prep
-  // scenarios, or just browsing.
-  const [showAllClasses, setShowAllClasses] = useState(false);
   // One-off custom spell entry — for spells the catalog doesn't ship
   // (DM-granted, homebrew lineage spells, etc.). Same pattern as the
   // ItemPickerModal custom-item form.
@@ -90,11 +93,10 @@ export function SpellPickerModal({
     setSearch('');
     setLevelFilter('all');
     setStatusFilter('all');
-    setClassFilter('all');
+    setClassFilter(classNames.length > 0 ? 'mine' : 'all');
     setSchoolFilter('all');
     setExpandedKey(null);
     setFilterMenuOpen(false);
-    setShowAllClasses(false);
     setCustomOpen(false);
     const cacheKey = `${srdVersion}|${campaignId ?? ''}|${(packIds ?? []).join(',')}`;
     if (_spellCache && _spellCache.key === cacheKey && Date.now() - _spellCache.fetchedAt < SPELL_CACHE_TTL) {
@@ -126,16 +128,25 @@ export function SpellPickerModal({
     [classNames],
   );
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return list
-      .filter((s) => {
-        if (showAllClasses) return true;
+  // Single helper for the class-scope predicate, shared by the spell
+  // list filter and the level / school option enumerators so they all
+  // agree on which spells "count" given the current scope.
+  const inScope = useMemo(() => {
+    return (s: SpellResult): boolean => {
+      if (classFilter === 'all') return true;
+      if (classFilter === 'mine') {
         if (s.classes.length === 0) return true;
         if (classNamesLc.size === 0) return true;
         return s.classes.some((cn) => classNamesLc.has(cn.toLowerCase()));
-      })
-      .filter((s) => classFilter === 'all' || s.classes.some((cn) => cn.toLowerCase() === classFilter.toLowerCase()))
+      }
+      return s.classes.some((cn) => cn.toLowerCase() === classFilter.toLowerCase());
+    };
+  }, [classFilter, classNamesLc]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return list
+      .filter(inScope)
       .filter((s) => schoolFilter === 'all' || s.school.toLowerCase() === schoolFilter.toLowerCase())
       .filter((s) => levelFilter === 'all' || s.level === levelFilter)
       .filter((s) => {
@@ -149,41 +160,37 @@ export function SpellPickerModal({
         || (s.description ?? '').toLowerCase().includes(q),
       )
       .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
-  }, [list, search, levelFilter, statusFilter, classFilter, schoolFilter, existingKeys, classNamesLc, showAllClasses]);
+  }, [list, search, levelFilter, statusFilter, inScope, schoolFilter, existingKeys]);
 
+  // Dropdown options always come from the full catalog — the player
+  // needs to see every class to be able to pick one, even when the
+  // current scope is "My Classes".
   const availableClasses = useMemo(() => {
     const set = new Set<string>();
     for (const sp of list) {
-      for (const cn of sp.classes) {
-        if (showAllClasses || classNamesLc.size === 0 || classNamesLc.has(cn.toLowerCase())) set.add(cn);
-      }
+      for (const cn of sp.classes) set.add(cn);
     }
     return [...set].sort();
-  }, [list, classNamesLc, showAllClasses]);
+  }, [list]);
 
   const availableSchools = useMemo(() => {
     const set = new Set<string>();
     for (const sp of list) {
-      if (showAllClasses || sp.classes.length === 0 || classNamesLc.size === 0 || sp.classes.some((cn) => classNamesLc.has(cn.toLowerCase()))) {
-        if (sp.school) set.add(sp.school);
-      }
+      if (inScope(sp) && sp.school) set.add(sp.school);
     }
     return [...set].sort();
-  }, [list, classNamesLc, showAllClasses]);
+  }, [list, inScope]);
 
-  // Levels actually present in the (class-filtered) catalog drive the
+  // Levels actually present in the (scope-filtered) catalog drive the
   // dropdown options — no point listing 9th-level when the character has
   // no 9th-level spells available.
   const availableLevels = useMemo(() => {
     const set = new Set<number>();
     for (const s of list) {
-      if (showAllClasses || s.classes.length === 0 || classNamesLc.size === 0
-        || s.classes.some((cn) => classNamesLc.has(cn.toLowerCase()))) {
-        set.add(s.level);
-      }
+      if (inScope(s)) set.add(s.level);
     }
     return [...set].sort((a, b) => a - b);
-  }, [list, classNamesLc, showAllClasses]);
+  }, [list, inScope]);
 
   function commit(spell: SpellResult) {
     const prepared: Dnd5ePreparedSpell = {
@@ -300,10 +307,11 @@ export function SpellPickerModal({
                   />
                 </View>
               </View>
-              {/* Status filter — single chip that cycles All → Unadded
-                  → Added → All on each tap. Labels + colors swap with
-                  the state so the affordance is self-documenting. */}
-              <View style={s.statusToggleRow}>
+              {/* Unified filter row — status chip + level / class /
+                  school dropdowns sit on a single wrapped row. The
+                  status chip cycles All → Unadded → Added on tap with
+                  its label + color swapping to match state. */}
+              <View style={s.controlsRow}>
                 <TouchableOpacity
                   style={[
                     s.statusToggleChip,
@@ -330,13 +338,6 @@ export function SpellPickerModal({
                     {statusFilter === 'all' ? 'ALL SPELLS' : statusFilter === 'unadded' ? 'UNADDED' : 'ADDED'}
                   </Text>
                 </TouchableOpacity>
-              </View>
-
-              {/* Filter dropdowns — tightened into one consistent row.
-                  Class shows only on multiclass; the My/All classes
-                  scope toggle is an icon-only affordance at the end so
-                  it doesn't compete with the actual filter selects. */}
-              <View style={s.controlsRow}>
                 <LevelFilterDropdown
                   value={levelFilter}
                   availableLevels={availableLevels}
@@ -344,34 +345,19 @@ export function SpellPickerModal({
                   onOpenNativeMenu={() => setFilterMenuOpen(true)}
                   label={filterLabel}
                 />
-                {availableClasses.length > 1 && (
-                  <StringFilterDropdown
+                {classNames.length > 0 ? (
+                  <ClassScopeDropdown
                     value={classFilter}
                     options={availableClasses}
                     onChange={setClassFilter}
-                    allLabel="All Classes"
                   />
-                )}
+                ) : null}
                 <StringFilterDropdown
                   value={schoolFilter}
                   options={availableSchools}
                   onChange={setSchoolFilter}
                   allLabel="All Schools"
                 />
-                {classNames.length > 0 && (
-                  <TouchableOpacity
-                    onPress={() => setShowAllClasses((v) => !v)}
-                    activeOpacity={0.7}
-                    style={[s.scopeToggleBtn, showAllClasses && s.scopeToggleBtnActive]}
-                    accessibilityLabel={showAllClasses ? 'Showing all classes — tap to limit to your classes' : 'Limited to your classes — tap to show every class'}
-                  >
-                    <MaterialCommunityIcons
-                      name={showAllClasses ? 'earth' : 'school-outline'}
-                      size={14}
-                      color={showAllClasses ? colors.onPrimary : colors.outline}
-                    />
-                  </TouchableOpacity>
-                )}
               </View>
 
               {preparedSummary ? (
@@ -612,6 +598,54 @@ function LevelFilterDropdown({
   );
 }
 
+/**
+ * Class-scope dropdown — three flavors of value: 'mine' (default,
+ * limits to the player's classes), <class name> (single class), and
+ * 'all' (no class filter). Replaces the old icon-only scope toggle +
+ * conditional class filter pair so the row no longer wraps when the
+ * scope changes.
+ */
+function ClassScopeDropdown({
+  value, options, onChange,
+}: {
+  value: string | 'mine' | 'all';
+  options: string[];
+  onChange: (next: string | 'mine' | 'all') => void;
+}) {
+  const label = value === 'mine' ? 'My Classes' : value === 'all' ? 'All Classes' : value;
+  if (Platform.OS === 'web') {
+    return (
+      <View style={s.filterBtn}>
+        <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
+        <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
+        {(() => {
+          const Select = 'select' as any;
+          const Option = 'option' as any;
+          return (
+            <Select
+              style={s.htmlSelect}
+              value={value}
+              onChange={(e: { target: { value: string } }) => onChange(e.target.value as string | 'mine' | 'all')}
+            >
+              <Option value="mine">My Classes</Option>
+              {options.map((opt) => (
+                <Option key={opt} value={opt}>{opt}</Option>
+              ))}
+              <Option value="all">All Classes</Option>
+            </Select>
+          );
+        })()}
+      </View>
+    );
+  }
+  return (
+    <View style={s.filterBtn}>
+      <Text style={s.filterBtnLabel} numberOfLines={1}>{label}</Text>
+      <MaterialCommunityIcons name="chevron-down" size={16} color={colors.onSurfaceVariant} />
+    </View>
+  );
+}
+
 function StringFilterDropdown({
   value, options, onChange, allLabel,
 }: {
@@ -842,11 +876,9 @@ const s = StyleSheet.create({
   searchRow: {
     marginBottom: spacing.sm,
   },
-  /** Status filter — single chip that cycles All → Unadded → Added →
-   *  All on each tap. Sits in its own row right under the search box
-   *  so the most-used filter ("hide what I've already added") is one
-   *  tap and always visible. */
-  statusToggleRow: { marginBottom: spacing.sm },
+  /** Status filter chip — cycles All → Unadded → Added → All on each
+   *  tap. Sits inline in the main controlsRow next to the level /
+   *  class / school dropdowns. */
   statusToggleChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 7,
@@ -865,18 +897,6 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     marginBottom: spacing.sm, flexWrap: 'wrap',
   },
-  /** Compact icon-only scope toggle that lives at the end of the
-   *  controls row — flips the picker between "spells my classes know"
-   *  and "every spell in the catalog". Icon-only because the label was
-   *  duplicating the filter dropdowns visually. */
-  scopeToggleBtn: {
-    width: 32, height: 32, borderRadius: radius.lg,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    backgroundColor: colors.surfaceContainer,
-  },
-  scopeToggleBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-
   /** Custom-spell entry in the modal header — small primary-tinted
    *  chip next to the close button. Moved up from the filter row so
    *  the filter row carries filters only. */
