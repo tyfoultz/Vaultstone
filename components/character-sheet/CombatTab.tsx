@@ -1352,9 +1352,10 @@ const s = StyleSheet.create({
   /** Desktop strip: single horizontal row of 6 equal-width cells. */
   savesStripDesktop: { flexDirection: 'row', gap: 6 },
   saveRow: {
-    // 3 cells per row × 2 rows = 6 saves. INIT and SPD live in their
-    // own compact icon cards above the SAVING THROWS header.
-    width: '32%', flexDirection: 'row', alignItems: 'center', gap: 4,
+    // 3 cells per row × 2 rows = 6 saves. 31% width + small gaps
+    // leaves a hair of margin so cells don't wrap to 2-per-row when
+    // the savesCol gets squeezed by the right column.
+    width: '31%', flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 6, paddingVertical: 7,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
@@ -1362,25 +1363,26 @@ const s = StyleSheet.create({
   },
   /** 2-column saves + movement layout. Left column holds the SAVING
    *  THROWS header + 3×2 grid; right column has INIT (top) and SPD
-   *  (bottom) stacked. flex weights → ~55/45 width split (movement
-   *  side gets more room so the value + label fit comfortably; saves
-   *  cells still fit at 32% of the slimmer left column). Gap 4px so
-   *  the two columns sit close together. */
-  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 4 },
-  savesCol: { flex: 55, minWidth: 0 },
-  moveCol: { flex: 45, minWidth: 0, gap: 4 },
-  /** Movement stat card — icon left, value + label right. flex: 1 so
-   *  two cards stacked in `moveCol` split the column height evenly. */
+   *  (bottom) stacked. ~65/35 split — saves block gets enough width
+   *  to land 3 cells per row without wrapping to 2; movement column
+   *  trims to fit. Visible 8px gap between the two columns. */
+  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  savesCol: { flex: 65, minWidth: 0 },
+  moveCol: { flex: 35, minWidth: 0, gap: 6 },
+  /** Movement stat card — icon left, value + label right. Tighter
+   *  padding + smaller value font than the original since the column
+   *  is narrower. flex: 1 so two cards stacked in moveCol split the
+   *  column height evenly. */
   moveStatCard: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 10, paddingVertical: 6,
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 8, paddingVertical: 5,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
   },
   moveStatText: { flex: 1, minWidth: 0 },
   moveStatValue: {
-    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface,
   },
   moveStatLabel: {
