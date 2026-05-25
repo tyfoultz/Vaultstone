@@ -222,6 +222,102 @@ export function AbilitiesTab({
         </View>
       )}
 
+      {/* Section order: Proficiencies (above) → Feats → Subclass →
+          Class → Species → Background. Player-curated lists (feats +
+          subclass picks) lead so the most actionable / referenced
+          sections sit closest to the top. Background trails since
+          it's a one-time bookkeeping reference. */}
+
+      {/* ── Feats ── */}
+      <SectionRow
+        label="FEATS"
+        accent={ACCENT_FEAT}
+        style={{ marginTop: 16 }}
+        onAdd={isOwner ? () => onAddFeature('feats') : undefined}
+        collapsed={collapsed.feats}
+        onToggle={() => toggle('feats')}
+      />
+      {!collapsed.feats && (feats.length === 0 ? (
+        <EmptyHint text="No feats added yet." />
+      ) : (
+        feats.map((f) => {
+          const featResult = featResultsByKey.get(f.id);
+          const skillGrant = featResult?.grants?.skills;
+          const picks = resources.featPicks?.[f.id]?.skills ?? [];
+          const showGrantPicker = !!skillGrant && isOwner;
+          // Skills the character already has from other sources — used
+          // to disable duplicate-prof chips in the picker. We strip
+          // *this feat's own picks* first so deselecting one doesn't
+          // immediately re-disable it.
+          const otherProfs = new Set(
+            (stats.skillProficiencies ?? [])
+              .map((sk) => sk.toLowerCase())
+              .filter((sk) => !picks.map((p) => p.toLowerCase()).includes(sk)),
+          );
+          const k = customKey('feats', f.id);
+          return (
+            <View key={f.id}>
+              <FeatureCard
+                feature={f}
+                accent={ACCENT_FEAT}
+                canEdit={isOwner}
+                onEdit={() => onEditFeature('feats', f)}
+                onUse={(delta) => onToggleFeatureUse('feats', f.id, delta)}
+                hidden={hiddenSet.has(k)}
+                onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+              />
+              {showGrantPicker ? (
+                <FeatGrantPicker
+                  featKey={f.id}
+                  grant={skillGrant!}
+                  picked={picks}
+                  existingProfs={otherProfs}
+                  onChange={(next) => onSaveFeatPicks(f.id, { ...resources.featPicks?.[f.id], skills: next })}
+                />
+              ) : null}
+            </View>
+          );
+        })
+      ))}
+
+      {/* ── Subclass features (live from ContentResolver) ── */}
+      {subclassGroups.length > 0 && (
+        <>
+          <SectionRow
+            label="SUBCLASS FEATURES"
+            accent={ACCENT_SUBCLASS}
+            style={{ marginTop: 16 }}
+            collapsed={collapsed.subclassFeatures}
+            onToggle={() => toggle('subclassFeatures')}
+          />
+          {!collapsed.subclassFeatures && subclassGroups.map(({ entry, sub, features }) => (
+            <View key={`sub-${entry.subclassKey}`}>
+              {subclassGroups.length > 1 && (
+                <Text style={s.groupSubhead}>{sub.name}</Text>
+              )}
+              {features.length === 0 ? (
+                <EmptyHint text={`No ${sub.name} features at this level yet.`} />
+              ) : (
+                features.map((f, i) => {
+                  const k = liveKey('subclass', entry.subclassKey ?? '', f.name);
+                  return (
+                    <ContentFeatureCard
+                      key={`sub-${entry.subclassKey}-${i}-${f.name}`}
+                      name={f.name}
+                      description={f.description}
+                      level={f.level}
+                      accent={ACCENT_SUBCLASS}
+                      hidden={hiddenSet.has(k)}
+                      onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+                    />
+                  );
+                })
+              )}
+            </View>
+          ))}
+        </>
+      )}
+
       {/* ── Class features (live from ContentResolver) ── */}
       <SectionRow
         label="CLASS FEATURES"
@@ -294,43 +390,69 @@ export function AbilitiesTab({
       )}
       </>)}
 
-      {/* ── Subclass features (live from ContentResolver) ── */}
-      {subclassGroups.length > 0 && (
+      {/* ── Species traits (live from ContentResolver) ── */}
+      <SectionRow
+        label="SPECIES TRAITS"
+        accent={ACCENT_SPECIES}
+        style={{ marginTop: 16 }}
+        collapsed={collapsed.speciesTraits}
+        onToggle={() => toggle('speciesTraits')}
+      />
+      {!collapsed.speciesTraits && (<>
+      {speciesResult && (speciesResult.traits ?? []).length > 0 ? (
+        speciesResult.traits.map((t, i) => {
+          const k = liveKey('species', '', t.name);
+          return (
+            <ContentFeatureCard
+              key={`species-${i}-${t.name}`}
+              name={t.name}
+              description={t.description}
+              accent={ACCENT_SPECIES}
+              level={t.level}
+              options={t.options}
+              selectedOption={stats.traitChoices?.[t.name]}
+              onPickOption={isOwner && onTraitChoice ? (opt) => onTraitChoice(t.name, opt) : undefined}
+              hidden={hiddenSet.has(k)}
+              onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+            />
+          );
+        })
+      ) : !speciesResult ? (
+        <EmptyHint text="Resolving species traits…" />
+      ) : (
+        <EmptyHint text="No species traits in this entry." />
+      )}
+
+      {/* Custom species traits the player added. */}
+      {customSpeciesTraits.length > 0 && (
         <>
-          <SectionRow
-            label="SUBCLASS FEATURES"
-            accent={ACCENT_SUBCLASS}
-            style={{ marginTop: 16 }}
-            collapsed={collapsed.subclassFeatures}
-            onToggle={() => toggle('subclassFeatures')}
-          />
-          {!collapsed.subclassFeatures && subclassGroups.map(({ entry, sub, features }) => (
-            <View key={`sub-${entry.subclassKey}`}>
-              {subclassGroups.length > 1 && (
-                <Text style={s.groupSubhead}>{sub.name}</Text>
-              )}
-              {features.length === 0 ? (
-                <EmptyHint text={`No ${sub.name} features at this level yet.`} />
-              ) : (
-                features.map((f, i) => {
-                  const k = liveKey('subclass', entry.subclassKey ?? '', f.name);
-                  return (
-                    <ContentFeatureCard
-                      key={`sub-${entry.subclassKey}-${i}-${f.name}`}
-                      name={f.name}
-                      description={f.description}
-                      level={f.level}
-                      accent={ACCENT_SUBCLASS}
-                      hidden={hiddenSet.has(k)}
-                      onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
-                    />
-                  );
-                })
-              )}
-            </View>
-          ))}
+          <SectionSubRow label="CUSTOM" accent={ACCENT_SPECIES} onAdd={isOwner ? () => onAddFeature('speciesTraits') : undefined} />
+          {customSpeciesTraits.map((f) => {
+            const k = customKey('speciesTraits', f.id);
+            return (
+              <FeatureCard
+                key={f.id}
+                feature={f}
+                accent={ACCENT_SPECIES}
+                canEdit={isOwner}
+                onEdit={() => onEditFeature('speciesTraits', f)}
+                onUse={(delta) => onToggleFeatureUse('speciesTraits', f.id, delta)}
+                hidden={hiddenSet.has(k)}
+                onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
+              />
+            );
+          })}
         </>
       )}
+      {customSpeciesTraits.length === 0 && isOwner && (
+        <View style={s.addCustomRow}>
+          <TouchableOpacity onPress={() => onAddFeature('speciesTraits')} activeOpacity={0.7} style={s.addCustomBtn}>
+            <MaterialCommunityIcons name="plus" size={12} color={ACCENT_SPECIES} />
+            <Text style={[s.addCustomText, { color: ACCENT_SPECIES }]}>Add custom trait</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      </>)}
 
       {/* ── Background ── */}
       {(backgroundResult || stats.originFeat) && (
@@ -418,125 +540,6 @@ export function AbilitiesTab({
           />
         );
       })() : null}
-
-      {/* ── Species traits (live from ContentResolver) ── */}
-      <SectionRow
-        label="SPECIES TRAITS"
-        accent={ACCENT_SPECIES}
-        style={{ marginTop: 16 }}
-        collapsed={collapsed.speciesTraits}
-        onToggle={() => toggle('speciesTraits')}
-      />
-      {!collapsed.speciesTraits && (<>
-      {speciesResult && (speciesResult.traits ?? []).length > 0 ? (
-        speciesResult.traits.map((t, i) => {
-          const k = liveKey('species', '', t.name);
-          return (
-            <ContentFeatureCard
-              key={`species-${i}-${t.name}`}
-              name={t.name}
-              description={t.description}
-              accent={ACCENT_SPECIES}
-              level={t.level}
-              options={t.options}
-              selectedOption={stats.traitChoices?.[t.name]}
-              onPickOption={isOwner && onTraitChoice ? (opt) => onTraitChoice(t.name, opt) : undefined}
-              hidden={hiddenSet.has(k)}
-              onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
-            />
-          );
-        })
-      ) : !speciesResult ? (
-        <EmptyHint text="Resolving species traits…" />
-      ) : (
-        <EmptyHint text="No species traits in this entry." />
-      )}
-
-      {/* Custom species traits the player added. */}
-      {customSpeciesTraits.length > 0 && (
-        <>
-          <SectionSubRow label="CUSTOM" accent={ACCENT_SPECIES} onAdd={isOwner ? () => onAddFeature('speciesTraits') : undefined} />
-          {customSpeciesTraits.map((f) => {
-            const k = customKey('speciesTraits', f.id);
-            return (
-              <FeatureCard
-                key={f.id}
-                feature={f}
-                accent={ACCENT_SPECIES}
-                canEdit={isOwner}
-                onEdit={() => onEditFeature('speciesTraits', f)}
-                onUse={(delta) => onToggleFeatureUse('speciesTraits', f.id, delta)}
-                hidden={hiddenSet.has(k)}
-                onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
-              />
-            );
-          })}
-        </>
-      )}
-      {customSpeciesTraits.length === 0 && isOwner && (
-        <View style={s.addCustomRow}>
-          <TouchableOpacity onPress={() => onAddFeature('speciesTraits')} activeOpacity={0.7} style={s.addCustomBtn}>
-            <MaterialCommunityIcons name="plus" size={12} color={ACCENT_SPECIES} />
-            <Text style={[s.addCustomText, { color: ACCENT_SPECIES }]}>Add custom trait</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      </>)}
-
-      {/* ── Feats ── */}
-      <SectionRow
-        label="FEATS"
-        accent={ACCENT_FEAT}
-        style={{ marginTop: 16 }}
-        onAdd={isOwner ? () => onAddFeature('feats') : undefined}
-        collapsed={collapsed.feats}
-        onToggle={() => toggle('feats')}
-      />
-      {!collapsed.feats && (feats.length === 0 ? (
-        <EmptyHint text="No feats added yet." />
-      ) : (
-        feats.map((f) => {
-          const featResult = featResultsByKey.get(f.id);
-          const skillGrant = featResult?.grants?.skills;
-          const picks = resources.featPicks?.[f.id]?.skills ?? [];
-          const showGrantPicker = !!skillGrant && isOwner;
-          // Skills the character already has from other sources — used
-          // to disable duplicate-prof chips in the picker. We strip
-          // *this feat's own picks* first so deselecting one doesn't
-          // immediately re-disable it.
-          const otherProfs = new Set(
-            (stats.skillProficiencies ?? [])
-              .map((sk) => sk.toLowerCase())
-              .filter((sk) => !picks.map((p) => p.toLowerCase()).includes(sk)),
-          );
-          const k = customKey('feats', f.id);
-          return (
-            <View key={f.id}>
-              <FeatureCard
-                feature={f}
-                accent={ACCENT_FEAT}
-                canEdit={isOwner}
-                onEdit={() => onEditFeature('feats', f)}
-                onUse={(delta) => onToggleFeatureUse('feats', f.id, delta)}
-                hidden={hiddenSet.has(k)}
-                onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
-              />
-              {showGrantPicker ? (
-                <FeatGrantPicker
-                  featKey={f.id}
-                  grant={skillGrant!}
-                  picked={picks}
-                  existingProfs={otherProfs}
-                  onChange={(next) => onSaveFeatPicks(f.id, { ...resources.featPicks?.[f.id], skills: next })}
-                />
-              ) : null}
-            </View>
-          );
-        })
-      ))}
-
-      {/* Proficiencies section was here; it now lives at the top of
-          the tab — see the top of this render. */}
 
       <View style={{ height: 16 }} />
     </ScrollView>
