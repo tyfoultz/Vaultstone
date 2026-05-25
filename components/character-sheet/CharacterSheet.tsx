@@ -2798,8 +2798,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               actionable (HP → quick damage/heal modal, name → edit,
               portrait → upload, inspiration / conditions → toggle). */}
           <View style={[s.heroCard, isDead && s.heroCardUnconscious]}>
-            <View style={[s.heroStripe, { backgroundColor: hpC }]} />
-
             {/* AC shield, top-right */}
             <View style={s.heroAcBadge}>
               <MaskedView
@@ -4097,7 +4095,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'stretch',
     gap: spacing.sm + 4,
     paddingTop: spacing.sm + 4, paddingBottom: spacing.sm + 4,
-    paddingLeft: spacing.sm + 8, paddingRight: spacing.sm + 4,
+    paddingLeft: spacing.sm + 4, paddingRight: spacing.sm + 4,
     marginHorizontal: 10, marginTop: 10,
     borderRadius: 12,
     borderWidth: 1, borderColor: colors.outlineVariant,
@@ -4108,8 +4106,6 @@ const s = StyleSheet.create({
     borderColor: 'rgba(226,75,74,0.4)',
     backgroundColor: 'rgba(226,75,74,0.06)',
   },
-  /** Left-edge accent stripe — color-codes HP tier (matches party card). */
-  heroStripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
   /** 3:4 portrait that fills the card's full vertical space. */
   heroPortrait: {
     aspectRatio: 3 / 4, alignSelf: 'stretch',

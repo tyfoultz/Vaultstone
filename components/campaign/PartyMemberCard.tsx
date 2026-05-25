@@ -114,7 +114,6 @@ export function PartyMemberCard({
   const hpTemp = resources.hpTemp ?? 0;
   const tier = hpTier(hpCurrent, hpMax);
   const barColor = hpBarColor(hpCurrent, hpMax);
-  const stripeColor = barColor;
   const hpBarPct = hpMax > 0 ? Math.max(0, Math.min(1, hpCurrent / hpMax)) : 0;
 
   const ac = computeAc(stats, resources);
@@ -174,9 +173,6 @@ export function PartyMemberCard({
       activeOpacity={canOpen ? 0.85 : 1}
       disabled={!canOpen}
     >
-      {/* Left-edge accent stripe — color-codes HP tier */}
-      <View style={[s.stripe, { backgroundColor: stripeColor }]} />
-
       {/* Shield-wrapped AC badge, top-right of the card. The shield
           glyph is masked with a static brand gradient (primary →
           primary-container) — keeps the AC visually distinct from the
@@ -315,7 +311,7 @@ const s = StyleSheet.create({
     gap: spacing.sm + 4,
     paddingTop: spacing.sm + 4,
     paddingBottom: spacing.sm + 4,
-    paddingLeft: spacing.sm + 8, // extra to clear the left stripe
+    paddingLeft: spacing.sm + 4,
     paddingRight: spacing.sm + 4,
     borderRadius: 12,
     borderWidth: 1,
@@ -327,12 +323,6 @@ const s = StyleSheet.create({
   cardUnconscious: {
     borderColor: 'rgba(226,75,74,0.4)',
     backgroundColor: 'rgba(226,75,74,0.06)',
-  },
-  /** Left-edge accent stripe — color-codes HP tier at a glance. */
-  stripe: {
-    position: 'absolute',
-    left: 0, top: 0, bottom: 0,
-    width: 3,
   },
 
   portrait: {
