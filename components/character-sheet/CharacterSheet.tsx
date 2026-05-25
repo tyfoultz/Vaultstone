@@ -2808,10 +2808,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   </View>
                 }
               >
+                {/* Metallic steel gradient — cool top highlight fading
+                    to graphite at the bottom, slight cool tint to sit
+                    inside the Noir palette without going cyan. */}
                 <LinearGradient
-                  colors={[colors.primary, colors.primaryContainer]}
+                  colors={['#e2e6ec', '#9da5b1', '#5e646e']}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                  end={{ x: 0, y: 1 }}
                   style={s.heroAcShieldGradient}
                 />
               </MaskedView>
@@ -4143,8 +4146,11 @@ const s = StyleSheet.create({
   heroAcNum: {
     position: 'absolute', top: 12, left: 0, right: 0,
     textAlign: 'center',
-    fontFamily: fonts.headline, fontSize: 13, fontWeight: '700',
-    color: colors.onSurface,
+    fontFamily: fonts.headline, fontSize: 13, fontWeight: '800',
+    // Dark engraved-style text against the metallic shield fill —
+    // onPrimary is the Noir palette's "deep ink" purple, ties the
+    // shield to the rest of the primary-accented sheet.
+    color: colors.onPrimary,
   },
 
   // HP block — tap to open quick damage/heal modal; long-press to heal.

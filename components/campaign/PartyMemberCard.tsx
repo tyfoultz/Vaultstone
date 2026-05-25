@@ -174,9 +174,9 @@ export function PartyMemberCard({
       disabled={!canOpen}
     >
       {/* Shield-wrapped AC badge, top-right of the card. The shield
-          glyph is masked with a static brand gradient (primary →
-          primary-container) — keeps the AC visually distinct from the
-          HP gradient so it reads as a defense stat at a glance. */}
+          glyph is masked with a metallic steel gradient (top highlight
+          → graphite shadow) — reads as polished armor and stays
+          visually distinct from the HP gradient. */}
       <View style={s.acBadge}>
         <MaskedView
           style={s.acShieldMask}
@@ -187,9 +187,9 @@ export function PartyMemberCard({
           }
         >
           <LinearGradient
-            colors={[colors.primary, colors.primaryContainer]}
+            colors={['#e2e6ec', '#9da5b1', '#5e646e']}
             start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+            end={{ x: 0, y: 1 }}
             style={s.acShieldGradient}
           />
         </MaskedView>
@@ -395,8 +395,11 @@ const s = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.headline,
     fontSize: 13,
-    fontWeight: '700',
-    color: colors.onSurface,
+    fontWeight: '800',
+    // Dark engraved-style text against the metallic shield —
+    // onPrimary is the Noir palette's deep ink purple, ties the
+    // shield to the rest of the primary-accented sheet.
+    color: colors.onPrimary,
   },
 
   /** One-line ancestry/class/background subtitle. */
