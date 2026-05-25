@@ -293,8 +293,8 @@ export function SpellsTab({
                 onPress={onOpenManage}
                 activeOpacity={0.7}
               >
-                <MaterialCommunityIcons name="bookshelf" size={22} color={colors.primary} />
-                <Text style={s.statActionLabel}>MANAGE SPELLS</Text>
+                <MaterialCommunityIcons name="bookshelf" size={18} color={colors.primary} />
+                <Text style={s.statActionLabel}>MANAGE</Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -306,8 +306,8 @@ export function SpellsTab({
                 onPress={() => setExplainerOpen(true)}
                 activeOpacity={0.7}
               >
-                <MaterialCommunityIcons name="book-open-variant" size={22} color={colors.primary} />
-                <Text style={s.statActionLabel}>SPELLCASTING</Text>
+                <MaterialCommunityIcons name="book-open-variant" size={18} color={colors.primary} />
+                <Text style={s.statActionLabel}>RULES</Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -875,20 +875,20 @@ const s = StyleSheet.create({
   // Spellcasting stats header
   statsRow: {
     flexDirection: 'row',
-    paddingVertical: 10, paddingHorizontal: 14,
+    paddingVertical: 6, paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
-  statBlock: { flex: 1, alignItems: 'center', gap: 2 },
-  statValue: { fontSize: 20, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  statBlock: { flex: 1, alignItems: 'center', gap: 1 },
+  statValue: { fontSize: 18, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
   statValueAtLimit: { color: colors.primary },
-  statLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.5, color: colors.outline },
+  statLabel: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, color: colors.outline },
   /** Action button that sits in the stats strip in place of a stat
    *  block. Same flex sizing so the row stays evenly distributed;
    *  icon + label replace the numeric value + label pairing. */
-  statActionBlock: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 2 },
+  statActionBlock: { flex: 1, alignItems: 'center', gap: 1, paddingVertical: 0 },
   statActionLabel: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.5, color: colors.primary, textAlign: 'center' as const,
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.primary, textAlign: 'center' as const,
   },
 
   // "How spellcasting works" modal — replaces the standalone explainer
