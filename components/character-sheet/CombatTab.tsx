@@ -387,13 +387,30 @@ export function CombatTab({
     <>
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
-      {/* Saves block + movement stats laid out as 2 columns sharing
-          one row's vertical space. Left column owns the SAVING THROWS
-          header + 3×2 grid; right column has INIT (top) and SPD
-          (bottom) stacked. The section divider line on the left
-          naturally stops at the column edge instead of running the
-          full width — visually pairs the heading with its own grid. */}
+      {/* Movement stats + saves block laid out as 2 columns sharing
+          one row's vertical space. Left column has INIT (top) and SPD
+          (bottom) stacked; right column owns the SAVING THROWS header
+          + 3×2 grid. Each section divider line stops at its column
+          edge instead of running the full width — visually pairs each
+          heading with its own content. */}
       <View style={s.savesAndMoveRow}>
+        <View style={s.moveCol}>
+          <SectionLabel>MOVEMENT</SectionLabel>
+          <View style={s.moveCardsStack}>
+            <View style={s.moveStatCard}>
+              <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.hpWarning} />
+              <Text style={s.moveStatLabel}>INIT</Text>
+              <Text style={s.moveStatValue}>
+                {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
+              </Text>
+            </View>
+            <View style={s.moveStatCard}>
+              <MaterialCommunityIcons name="run-fast" size={12} color={colors.hpWarning} />
+              <Text style={s.moveStatLabel}>SPD</Text>
+              <Text style={s.moveStatValue}>{stats.speed} ft</Text>
+            </View>
+          </View>
+        </View>
         <View style={s.savesCol}>
           <SectionLabel>SAVING THROWS</SectionLabel>
           <SavingThrowsStrip
@@ -404,23 +421,6 @@ export function CombatTab({
             onToggleSaveProficiency={onToggleSaveProficiency}
             onRoll={onRoll}
           />
-        </View>
-        <View style={s.moveCol}>
-          <SectionLabel>MOVEMENT</SectionLabel>
-          <View style={s.moveCardsStack}>
-            <View style={s.moveStatCard}>
-              <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.outline} />
-              <Text style={s.moveStatLabel}>INIT</Text>
-              <Text style={s.moveStatValue}>
-                {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
-              </Text>
-            </View>
-            <View style={s.moveStatCard}>
-              <MaterialCommunityIcons name="run-fast" size={12} color={colors.outline} />
-              <Text style={s.moveStatLabel}>SPD</Text>
-              <Text style={s.moveStatValue}>{stats.speed} ft</Text>
-            </View>
-          </View>
         </View>
       </View>
 
