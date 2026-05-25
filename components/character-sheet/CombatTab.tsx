@@ -406,6 +406,7 @@ export function CombatTab({
           />
         </View>
         <View style={s.moveCol}>
+          <SectionLabel>MOVEMENT</SectionLabel>
           <View style={s.moveStatCard}>
             <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.outline} />
             <View style={s.moveStatText}>
