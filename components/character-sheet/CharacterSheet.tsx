@@ -788,7 +788,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // Tap-for-breakdown state for the hero / sidebar calculated values.
   // Holds which surface is open; null when no modal is showing. Init
   // is rollable; AC / passive senses are info-only.
-  const [openBreakdown, setOpenBreakdown] = useState<'initiative' | 'ac' | 'passive-perception' | 'passive-investigation' | null>(null);
+  const [openBreakdown, setOpenBreakdown] = useState<'initiative' | 'ac' | 'passive-perception' | null>(null);
   // Cross-tab trigger for the Abilities add flow. Combat's section + buttons
   // (Abilities header + Actions header) set this, AbilitiesCardTab consumes
   // it via a useEffect to open either the Import / Add-custom chooser
@@ -1266,8 +1266,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const computedInitiative = scores ? abilityMod(scores.dexterity) : 0;
   const initiative = manualMode && stats?.initiativeOverride != null ? stats.initiativeOverride : computedInitiative;
   const passivePerception = 10 + skillMod('perception');
-  const passiveInvestigation = 10 + skillMod('investigation');
-  const passiveInsight = 10 + skillMod('insight');
 
   const liveActionFeatures: Dnd5eFeature[] = useMemo(() => {
     if (!stats) return [];
@@ -3088,16 +3086,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   }
                   onPress={() => setOpenBreakdown('passive-perception')}
                 />
-                <SenseCell
-                  icon="magnify" label="INV" value={passiveInvestigation}
-                  profState={
-                    (stats.skillExpertise ?? []).includes('investigation') ? 'expert'
-                    : stats.skillProficiencies.includes('investigation') ? 'proficient'
-                    : 'none'
-                  }
-                  onPress={() => setOpenBreakdown('passive-investigation')}
-                />
-                <SenseCell icon="brain" label="INS" value={passiveInsight} />
                 <SenseCell icon="star-four-points-outline" label="PROF" value={fmtMod(prof)} />
                 <SenseCell icon="dice-d8-outline" label="HD" value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`} />
               </View>
@@ -4089,19 +4077,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           );
         }
 
-        if (openBreakdown === 'passive-perception' || openBreakdown === 'passive-investigation') {
-          const skill = openBreakdown === 'passive-perception' ? 'perception' : 'investigation';
-          const abi = SKILL_ABILITY[skill];
+        if (openBreakdown === 'passive-perception') {
+          const abi = SKILL_ABILITY.perception;
           const m = abilityMod(scores[abi]);
-          const isProf = stats.skillProficiencies.includes(skill);
-          const isExpert = (stats.skillExpertise ?? []).includes(skill);
+          const isProf = stats.skillProficiencies.includes('perception');
+          const isExpert = (stats.skillExpertise ?? []).includes('perception');
           const profValue = isExpert ? prof * 2 : isProf ? prof : 0;
           const profLabel = isExpert ? 'Proficiency (expertise ×2)' : 'Proficiency';
           const total = 10 + m + profValue;
           return (
             <StatBreakdownModal
               visible
-              title={openBreakdown === 'passive-perception' ? 'Passive Perception' : 'Passive Investigation'}
+              title="Passive Perception"
               subtitle="10 + skill mod"
               total={String(total)}
               lines={[
