@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius, useBreakpoint } from '@vaultstone/ui';
+import { StatBreakdownModal, type StatBreakdownLine } from './StatBreakdownModal';
 import type { Dnd5eStats, Dnd5eAbilityScores, SkillResult } from '@vaultstone/types';
 import type { RollResult } from './RollToast';
 
@@ -58,6 +59,11 @@ export function SkillsTab({
   const [editMode, setEditMode] = useState(false);
   const [toolEditMode, setToolEditMode] = useState(false);
   const [newToolName, setNewToolName] = useState('');
+  // Tap-for-breakdown state — one slot per kind. Holds the name/key of
+  // the row whose modal is open; null when no modal is showing.
+  const [openAbility, setOpenAbility] = useState<keyof Dnd5eAbilityScores | null>(null);
+  const [openSkill, setOpenSkill] = useState<string | null>(null);
+  const [openTool, setOpenTool] = useState<string | null>(null);
 
   const expertise = stats.skillExpertise ?? [];
   const toolExpertise = stats.toolExpertise ?? [];
@@ -164,7 +170,7 @@ export function SkillsTab({
           "19 INT (+4)". Tap to roll an ability check (or edit the
           score in manual mode). The character's spellcasting ability
           gets the primary tint so casters can spot it at a glance. */}
-      <SectionLabel>{manualMode ? 'ABILITIES · TAP TO EDIT' : 'ABILITIES · TAP TO CHECK'}</SectionLabel>
+      <SectionLabel>{manualMode ? 'ABILITIES · TAP TO EDIT' : 'ABILITIES · TAP TO SEE BREAKDOWN'}</SectionLabel>
       <View style={s.abilityGrid}>
         {ABILITY_KEYS.map((abi) => {
           const score = scores[abi];
@@ -176,10 +182,7 @@ export function SkillsTab({
               style={[s.abilityCell, isSpellMod && s.abilityCellSpell, manualMode && s.abilityCellManual]}
               onPress={() => manualMode && onEditField
                 ? onEditField(abi, score)
-                : (() => {
-                    const r = Math.floor(Math.random() * 20) + 1;
-                    onRoll({ label: `${ABILITY_SHORT[abi]} check`, rolls: [r], bonus: m, total: r + m, crit: r === 20, fumble: r === 1 });
-                  })()}
+                : setOpenAbility(abi)}
               activeOpacity={0.7}
             >
               <Text style={[s.abilityScore, isSpellMod && s.abilityTextSpell]}>{score}</Text>
@@ -191,7 +194,7 @@ export function SkillsTab({
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
-        <SectionLabel>{editMode ? 'EDIT PROFICIENCIES · TAP TO CYCLE' : `SKILLS · TAP TO ROLL${skillCatalog ? ' · LONG-PRESS FOR DETAILS' : ''}`}</SectionLabel>
+        <SectionLabel>{editMode ? 'EDIT PROFICIENCIES · TAP TO CYCLE' : 'SKILLS · TAP TO SEE BREAKDOWN'}</SectionLabel>
         {isOwner && onUpdateProficiencies ? (
           <TouchableOpacity onPress={() => setEditMode(!editMode)} style={s.editBtn}>
             <Text style={s.editBtnText}>{editMode ? 'Done' : 'Edit'}</Text>
@@ -217,8 +220,8 @@ export function SkillsTab({
               <TouchableOpacity
                 key={name}
                 style={[s.skillRow, isMobile && s.skillRowCompact, !isLast && s.skillRowBorder]}
-                onPress={editMode ? () => toggleProficiency(name) : () => rollSkill(name)}
-                onLongPress={editMode ? () => removeProficiency(name) : skillCatalog ? () => openDetail(name) : undefined}
+                onPress={editMode ? () => toggleProficiency(name) : () => setOpenSkill(name)}
+                onLongPress={editMode ? () => removeProficiency(name) : undefined}
                 delayLongPress={250}
                 activeOpacity={0.7}
               >
@@ -265,6 +268,91 @@ export function SkillsTab({
         </Pressable>
       </Modal>
 
+      {(() => {
+        // Ability check breakdown — just ability mod, no proficiency.
+        if (!openAbility) return null;
+        const score = scores[openAbility];
+        const m = abilityMod(score);
+        return (
+          <StatBreakdownModal
+            visible
+            title={`${ABILITY_SHORT[openAbility]} Check`}
+            subtitle={`${ABILITY_LONG[openAbility]} · d20 + mod`}
+            total={fmtMod(m)}
+            lines={[
+              { label: 'Score', value: String(score) },
+              { label: `Ability mod (${ABILITY_SHORT[openAbility]})`, value: fmtMod(m) },
+            ]}
+            rollLabel="Roll check"
+            onRoll={() => {
+              const r = Math.floor(Math.random() * 20) + 1;
+              onRoll({ label: `${ABILITY_SHORT[openAbility]} check`, rolls: [r], bonus: m, total: r + m, crit: r === 20, fumble: r === 1 });
+            }}
+            onClose={() => setOpenAbility(null)}
+          />
+        );
+      })()}
+
+      {(() => {
+        // Skill check breakdown — ability mod + proficiency
+        // (or 2× for expertise). Catalog description in body when known.
+        if (!openSkill) return null;
+        const abi = SKILL_ABILITY[openSkill];
+        const m = abilityMod(scores[abi]);
+        const isProf = stats.skillProficiencies.includes(openSkill);
+        const isExpert = expertise.includes(openSkill);
+        const profValue = isExpert ? prof * 2 : isProf ? prof : 0;
+        const profLabel = isExpert ? 'Proficiency (expertise ×2)' : 'Proficiency';
+        const total = m + profValue;
+        const slug = openSkill.replace(/\s+/g, '-');
+        const catalog = skillCatalog?.find((c) => c.key === slug || c.name.toLowerCase() === openSkill.toLowerCase());
+        return (
+          <StatBreakdownModal
+            visible
+            title={openSkill.charAt(0).toUpperCase() + openSkill.slice(1)}
+            subtitle={`${ABILITY_SHORT[abi]} skill · d20 + total`}
+            total={fmtMod(total)}
+            lines={[
+              { label: `Ability mod (${ABILITY_SHORT[abi]})`, value: fmtMod(m) },
+              { label: profLabel, value: fmtMod(profValue) },
+            ]}
+            description={catalog?.description}
+            rollLabel="Roll check"
+            onRoll={() => {
+              const r = Math.floor(Math.random() * 20) + 1;
+              onRoll({ label: openSkill, rolls: [r], bonus: total, total: r + total, crit: r === 20, fumble: r === 1 });
+            }}
+            onClose={() => setOpenSkill(null)}
+          />
+        );
+      })()}
+
+      {(() => {
+        // Tool check breakdown — proficiency only (no ability mod since
+        // the DM picks which ability applies per check).
+        if (!openTool) return null;
+        const isExpert = toolExpertise.includes(openTool);
+        const bonus = prof * (isExpert ? 2 : 1);
+        return (
+          <StatBreakdownModal
+            visible
+            title={openTool.charAt(0).toUpperCase() + openTool.slice(1)}
+            subtitle="Tool proficiency · d20 + total"
+            total={fmtMod(bonus)}
+            lines={[
+              { label: isExpert ? 'Proficiency (expertise ×2)' : 'Proficiency', value: fmtMod(bonus) },
+            ]}
+            description="The DM picks which ability applies per check — add that ability's mod when you roll."
+            rollLabel="Roll check"
+            onRoll={() => {
+              const r = Math.floor(Math.random() * 20) + 1;
+              onRoll({ label: openTool, rolls: [r], bonus, total: r + bonus, crit: r === 20, fumble: r === 1 });
+            }}
+            onClose={() => setOpenTool(null)}
+          />
+        );
+      })()}
+
       <View style={s.legend}>
         <View style={s.legendItem}>
           <View style={[s.profDot, s.profDotExpert]} />
@@ -294,7 +382,7 @@ export function SkillsTab({
             <SectionLabel>
               {toolEditMode
                 ? 'TOOLS · TAP TO TOGGLE EXPERTISE · LONG-PRESS TO REMOVE'
-                : 'TOOLS · TAP TO ROLL'}
+                : 'TOOLS · TAP TO SEE BREAKDOWN'}
             </SectionLabel>
             {isOwner && onUpdateToolProficiencies ? (
               <TouchableOpacity onPress={() => setToolEditMode(!toolEditMode)} style={s.editBtn}>
@@ -316,10 +404,7 @@ export function SkillsTab({
                 <TouchableOpacity
                   key={name}
                   style={[s.skillRow, !isLast && s.skillRowBorder]}
-                  onPress={toolEditMode ? () => toggleToolExpertise(name) : () => {
-                    const r = Math.floor(Math.random() * 20) + 1;
-                    onRoll({ label: name, rolls: [r], bonus, total: r + bonus, crit: r === 20, fumble: r === 1 });
-                  }}
+                  onPress={toolEditMode ? () => toggleToolExpertise(name) : () => setOpenTool(name)}
                   onLongPress={toolEditMode ? () => removeToolProficiency(name) : undefined}
                   activeOpacity={0.7}
                 >

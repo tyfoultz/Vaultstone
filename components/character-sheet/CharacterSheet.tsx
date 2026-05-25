@@ -33,6 +33,7 @@ import { LoreTab } from './LoreTab';
 import { FeatPickerModal } from './FeatPickerModal';
 import { SpellPickerModal } from './SpellPickerModal';
 import { ItemPickerModal, itemResultToEquipment } from './ItemPickerModal';
+import { StatBreakdownModal, type StatBreakdownLine } from './StatBreakdownModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
@@ -95,19 +96,23 @@ function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
  * label + value, sitting in a small bordered tile so the row mirrors
  * the desktop sidebar's Senses panel at a glance.
  */
-function SenseCell({ icon, label, value }: {
+function SenseCell({ icon, label, value, onPress }: {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   label: string;
   value: number | string;
+  /** When provided, the cell becomes tappable — used for the breakdown
+   *  modal on passive senses. Cells without it stay static (PROF, HD). */
+  onPress?: () => void;
 }) {
+  const Wrapper = onPress ? TouchableOpacity : View;
   return (
-    <View style={s.heroStatCell}>
+    <Wrapper style={s.heroStatCell} onPress={onPress} activeOpacity={0.7}>
       <View style={s.heroStatCellTop}>
         <MaterialCommunityIcons name={icon} size={11} color={colors.outline} />
         <Text style={s.heroStatCellLabel}>{label}</Text>
       </View>
       <Text style={s.heroStatCellValue}>{value}</Text>
-    </View>
+    </Wrapper>
   );
 }
 function profBonus(level: number) { return Math.floor((level - 1) / 4) + 2; }
@@ -770,6 +775,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // Lifted from GearTab so the Combat tab (and any future surface)
   // can open the same EquipmentDetailModal without duplicating it.
   const [detailEquipment, setDetailEquipment] = useState<Dnd5eEquipmentItem | null>(null);
+  // Tap-for-breakdown state for the hero / sidebar calculated values.
+  // Holds which surface is open; null when no modal is showing. Init
+  // is rollable; AC / passive senses are info-only.
+  const [openBreakdown, setOpenBreakdown] = useState<'initiative' | 'ac' | 'passive-perception' | 'passive-investigation' | null>(null);
   // Cross-tab trigger for the Abilities add flow. Combat's section + buttons
   // (Abilities header + Actions header) set this, AbilitiesCardTab consumes
   // it via a useEffect to open either the Import / Add-custom chooser
@@ -2573,11 +2582,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     defense stat reads the same on every surface. */}
                 <View style={s.deskStatRow}>
                   {(() => {
-                    const Wrapper = manualMode ? TouchableOpacity : View;
+                    const Wrapper = TouchableOpacity;
                     return (
                       <Wrapper
                         style={[statCellStyle.cell, statCellStyle.cellCentered, manualMode && statCellStyle.cellEditable, s.deskAcCell]}
-                        onPress={manualMode ? () => startEditField('ac', ac) : undefined}
+                        onPress={manualMode ? () => startEditField('ac', ac) : () => setOpenBreakdown('ac')}
                         activeOpacity={0.7}
                       >
                         <View style={s.deskAcShieldWrap}>
@@ -2599,7 +2608,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   <StatCell icon="run-fast" value={`${stats.speed} ft`} label="Speed" color={colors.onSurface}
                     editable={manualMode} onPress={manualMode ? () => startEditField('speed', stats.speed) : undefined} />
                   <StatCell icon="lightning-bolt" value={fmtMod(initiative)} label="Initiative" color={colors.onSurface}
-                    editable={manualMode} onPress={manualMode ? () => startEditField('initiative', initiative) : undefined} />
+                    editable={manualMode}
+                    onPress={manualMode ? () => startEditField('initiative', initiative) : () => setOpenBreakdown('initiative')} />
                 </View>
                 {/* Row 3: Prof | Hit Die */}
                 <View style={s.deskStatRow}>
@@ -2879,10 +2889,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               </TouchableOpacity>
               <Text style={s.heroCollapsedName} numberOfLines={1}>{stats.characterName}</Text>
               <View style={s.heroCollapsedStats}>
-                <View style={s.heroCollapsedStat}>
+                <TouchableOpacity
+                  style={s.heroCollapsedStat}
+                  onPress={() => setOpenBreakdown('ac')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show AC breakdown"
+                >
                   <MaterialCommunityIcons name="shield" size={12} color="#b8bdc7" />
                   <Text style={s.heroCollapsedStatValue}>{ac}</Text>
-                </View>
+                </TouchableOpacity>
                 <View style={s.heroCollapsedStat}>
                   <Text style={[s.heroCollapsedStatValue, { color: hpC }]}>{resources.hpCurrent}</Text>
                   <Text style={s.heroCollapsedStatSep}>/</Text>
@@ -2943,10 +2958,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   filling the remainder. Right padding clears the corner
                   buttons (INSP + REST) absolute-positioned above. */}
               <View style={[s.heroTitleRow, s.heroNamePad]}>
-                <View style={s.heroAcInline}>
+                <TouchableOpacity
+                  style={s.heroAcInline}
+                  onPress={() => setOpenBreakdown('ac')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show AC breakdown"
+                >
                   <MaterialCommunityIcons name="shield" size={36} color="#b8bdc7" />
                   <Text style={s.heroAcNum}>{ac}</Text>
-                </View>
+                </TouchableOpacity>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   {editingName ? (
                     <TextInput
@@ -3049,8 +3069,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   INS row so PROF and HD can share the line; freed up
                   the supp strip below for Conditions. */}
               <View style={s.heroStatsRow}>
-                <SenseCell icon="eye-outline" label="PER" value={passivePerception} />
-                <SenseCell icon="magnify" label="INV" value={passiveInvestigation} />
+                <SenseCell icon="eye-outline" label="PER" value={passivePerception} onPress={() => setOpenBreakdown('passive-perception')} />
+                <SenseCell icon="magnify" label="INV" value={passiveInvestigation} onPress={() => setOpenBreakdown('passive-investigation')} />
                 <SenseCell icon="brain" label="INS" value={passiveInsight} />
                 <SenseCell icon="star-four-points-outline" label="PROF" value={fmtMod(prof)} />
                 <SenseCell icon="dice-d8-outline" label="HD" value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`} />
@@ -3951,6 +3971,125 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           onConfirm={handlePortraitCropConfirm}
         />
       ) : null}
+
+      {/* Calculated-value breakdown modal — opened by tapping AC,
+          Initiative, or a passive sense. Initiative is rollable; AC
+          and passive senses are info-only. */}
+      {(() => {
+        if (!openBreakdown || !stats || !scores) return null;
+        const close = () => setOpenBreakdown(null);
+
+        if (openBreakdown === 'initiative') {
+          const dex = abilityMod(scores.dexterity);
+          const override = manualMode && stats.initiativeOverride != null;
+          const lines: StatBreakdownLine[] = override
+            ? [{ label: 'Manual override', value: fmtMod(stats.initiativeOverride!) }]
+            : [{ label: 'DEX mod', value: fmtMod(dex) }];
+          return (
+            <StatBreakdownModal
+              visible
+              title="Initiative"
+              subtitle="Combat turn order · d20 + DEX"
+              total={fmtMod(initiative)}
+              lines={lines}
+              rollLabel="Roll initiative"
+              onRoll={() => {
+                const r = Math.floor(Math.random() * 20) + 1;
+                handleRoll({
+                  label: 'Initiative',
+                  rolls: [r], bonus: initiative,
+                  total: r + initiative, crit: r === 20, fumble: r === 1,
+                });
+              }}
+              onClose={close}
+            />
+          );
+        }
+
+        if (openBreakdown === 'ac') {
+          // Mirror getEquippedAC's logic so the breakdown matches the
+          // displayed AC line-for-line. Manual override short-circuits
+          // the gear math entirely.
+          if (manualMode && stats.acOverride != null) {
+            return (
+              <StatBreakdownModal
+                visible
+                title="Armor Class"
+                subtitle="Manual override"
+                total={String(ac)}
+                lines={[{ label: 'Manual override', value: String(stats.acOverride) }]}
+                onClose={close}
+              />
+            );
+          }
+          const dexMod = abilityMod(scores.dexterity);
+          const armorItem = equipment.find((e) => e.slot === 'armor' && !/^shield$/i.test(e.name.trim()) && e.equipped);
+          const shieldItem = equipment.find((e) => (e.slot === 'shield' || (e.slot === 'armor' && /^shield$/i.test(e.name.trim()))) && e.equipped);
+          const lines: StatBreakdownLine[] = [];
+          if (armorItem) {
+            lines.push({ label: `${armorItem.name} (base)`, value: String(armorItem.acBase ?? 10) });
+            const cap = armorItem.dexCap;
+            const dexApplied = cap !== undefined && cap !== null ? Math.min(dexMod, cap) : dexMod;
+            const dexLabel = cap === 0 ? 'DEX mod (no DEX)' : cap != null ? `DEX mod (cap ${cap})` : 'DEX mod';
+            lines.push({ label: dexLabel, value: fmtMod(dexApplied) });
+            if ((armorItem.requiresAttunement ? armorItem.attuned : true) && armorItem.miscACBonus) {
+              lines.push({ label: `${armorItem.name} (magic)`, value: fmtMod(armorItem.miscACBonus) });
+            }
+          } else {
+            lines.push({ label: 'Unarmored base', value: '10' });
+            lines.push({ label: 'DEX mod', value: fmtMod(dexMod) });
+          }
+          if (shieldItem) {
+            lines.push({ label: `${shieldItem.name}`, value: fmtMod(shieldItem.acBonus ?? 2) });
+            if ((shieldItem.requiresAttunement ? shieldItem.attuned : true) && shieldItem.miscACBonus) {
+              lines.push({ label: `${shieldItem.name} (magic)`, value: fmtMod(shieldItem.miscACBonus) });
+            }
+          }
+          for (const e of equipment) {
+            if (e === armorItem || e === shieldItem) continue;
+            if (!e.equipped || !e.miscACBonus) continue;
+            if (e.requiresAttunement && !e.attuned) continue;
+            lines.push({ label: e.name, value: fmtMod(e.miscACBonus) });
+          }
+          return (
+            <StatBreakdownModal
+              visible
+              title="Armor Class"
+              subtitle="Defense vs. attack rolls"
+              total={String(ac)}
+              lines={lines}
+              onClose={close}
+            />
+          );
+        }
+
+        if (openBreakdown === 'passive-perception' || openBreakdown === 'passive-investigation') {
+          const skill = openBreakdown === 'passive-perception' ? 'perception' : 'investigation';
+          const abi = SKILL_ABILITY[skill];
+          const m = abilityMod(scores[abi]);
+          const isProf = stats.skillProficiencies.includes(skill);
+          const isExpert = (stats.skillExpertise ?? []).includes(skill);
+          const profValue = isExpert ? prof * 2 : isProf ? prof : 0;
+          const profLabel = isExpert ? 'Proficiency (expertise ×2)' : 'Proficiency';
+          const total = 10 + m + profValue;
+          return (
+            <StatBreakdownModal
+              visible
+              title={openBreakdown === 'passive-perception' ? 'Passive Perception' : 'Passive Investigation'}
+              subtitle="10 + skill mod"
+              total={String(total)}
+              lines={[
+                { label: 'Passive base', value: '10' },
+                { label: `${ABILITY_SHORT[abi]} mod`, value: fmtMod(m) },
+                { label: profLabel, value: fmtMod(profValue) },
+              ]}
+              onClose={close}
+            />
+          );
+        }
+
+        return null;
+      })()}
 
       {/* Add XP modal */}
       <Modal visible={xpAddMode} transparent animationType="fade">

@@ -10,6 +10,7 @@ import type {
 } from '@vaultstone/types';
 import type { RollResult } from './RollToast';
 import { AbilitiesCardTab } from './AbilitiesCardTab';
+import { StatBreakdownModal, type StatBreakdownLine } from './StatBreakdownModal';
 
 const ABILITY_KEYS: (keyof Dnd5eAbilityScores)[] = [
   'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma',
@@ -202,6 +203,15 @@ export function CombatTab({
   // even when only one option exists (keeps the affordance consistent).
   const [addAttacksOpen, setAddAttacksOpen] = useState(false);
   const [addActionsOpen, setAddActionsOpen] = useState(false);
+  // Mobile INIT card breakdown state. Desktop INIT lives on the
+  // sidebar StatCell and is handled at the CharacterSheet level.
+  const [initBreakdownOpen, setInitBreakdownOpen] = useState(false);
+  // Per-weapon roll breakdown state — opens on tapping a Hit or
+  // Damage button so the player sees the formula before committing.
+  const [weaponBreakdown, setWeaponBreakdown] = useState<
+    | { kind: 'hit' | 'damage'; weapon: Dnd5eEquipmentItem }
+    | null
+  >(null);
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
   // Player-pinned equipment surfaces in its own quick-access section.
   // Independent of the equipped/attuned filter so consumables (potions,
@@ -291,7 +301,7 @@ export function CombatTab({
                     key={w.id}
                     item={w}
                     atkBonus={getAttackBonus(w)}
-                    onRoll={onRoll}
+                    onOpenBreakdown={(kind, item) => setWeaponBreakdown({ kind, weapon: item })}
                     onOpenDetail={onOpenEquipmentDetail}
                   />
                 ))}
@@ -310,7 +320,7 @@ export function CombatTab({
                   <PinnedCard
                     key={item.id}
                     item={item}
-                    onRoll={onRoll}
+                    onOpenBreakdown={(kind, w) => setWeaponBreakdown({ kind, weapon: w })}
                     onOpenDetail={onOpenEquipmentDetail}
                   />
                 ))}
@@ -407,13 +417,18 @@ export function CombatTab({
         <View style={s.moveCol}>
           <SectionLabel>MOVEMENT</SectionLabel>
           <View style={s.moveCardsStack}>
-            <View style={s.moveStatCard}>
+            <TouchableOpacity
+              style={s.moveStatCard}
+              onPress={() => setInitBreakdownOpen(true)}
+              activeOpacity={0.7}
+              accessibilityLabel="Show initiative breakdown"
+            >
               <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.hpWarning} />
               <Text style={s.moveStatLabel}>INIT</Text>
               <Text style={s.moveStatValue}>
                 {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
               </Text>
-            </View>
+            </TouchableOpacity>
             <View style={s.moveStatCard}>
               <MaterialCommunityIcons name="run-fast" size={12} color={colors.hpWarning} />
               <Text style={s.moveStatLabel}>SPD</Text>
@@ -458,7 +473,7 @@ export function CombatTab({
                 key={w.id}
                 item={w}
                 atkBonus={getAttackBonus(w)}
-                onRoll={onRoll}
+                onOpenBreakdown={(kind, item) => setWeaponBreakdown({ kind, weapon: item })}
                 onOpenDetail={onOpenEquipmentDetail}
               />
             ))}
@@ -476,7 +491,7 @@ export function CombatTab({
               <PinnedCard
                 key={item.id}
                 item={item}
-                onRoll={onRoll}
+                onOpenBreakdown={(kind, w) => setWeaponBreakdown({ kind, weapon: w })}
                 onOpenDetail={onOpenEquipmentDetail}
               />
             ))}
@@ -571,6 +586,92 @@ export function CombatTab({
             onClose={() => setAddActionsOpen(false)}
           />
         ) : null}
+        {(() => {
+          // Initiative breakdown — DEX mod (or manual override).
+          if (!initBreakdownOpen) return null;
+          const dex = abilityMod(scores.dexterity);
+          const override = manualMode && stats.initiativeOverride != null;
+          const total = override ? stats.initiativeOverride! : dex;
+          const lines: StatBreakdownLine[] = override
+            ? [{ label: 'Manual override', value: fmtMod(stats.initiativeOverride!) }]
+            : [{ label: 'DEX mod', value: fmtMod(dex) }];
+          return (
+            <StatBreakdownModal
+              visible
+              title="Initiative"
+              subtitle="Combat turn order · d20 + DEX"
+              total={fmtMod(total)}
+              lines={lines}
+              rollLabel="Roll initiative"
+              onRoll={() => {
+                const r = Math.floor(Math.random() * 20) + 1;
+                onRoll({
+                  label: 'Initiative',
+                  rolls: [r], bonus: total,
+                  total: r + total, crit: r === 20, fumble: r === 1,
+                });
+              }}
+              onClose={() => setInitBreakdownOpen(false)}
+            />
+          );
+        })()}
+        {(() => {
+          // Weapon hit / damage breakdown. Mirrors getAttackBonus's
+          // logic so the per-source lines match the computed bonus
+          // shown on the button.
+          if (!weaponBreakdown) return null;
+          const { kind, weapon } = weaponBreakdown;
+          const close = () => setWeaponBreakdown(null);
+
+          if (kind === 'hit') {
+            const lines: StatBreakdownLine[] = [];
+            let total: number;
+            if (weapon.attackBonus !== undefined) {
+              total = weapon.attackBonus;
+              lines.push({ label: 'Manual attack bonus', value: fmtMod(total) });
+            } else {
+              let ability: 'strength' | 'dexterity' = 'strength';
+              if (weapon.attackAbility === 'dexterity') ability = 'dexterity';
+              else if (weapon.attackAbility === 'finesse') {
+                ability = abilityMod(scores.dexterity) > abilityMod(scores.strength) ? 'dexterity' : 'strength';
+              }
+              const m = abilityMod(scores[ability]);
+              total = m + prof;
+              lines.push({ label: `${ability === 'dexterity' ? 'DEX' : 'STR'} mod${weapon.attackAbility === 'finesse' ? ' (finesse)' : ''}`, value: fmtMod(m) });
+              lines.push({ label: 'Proficiency', value: fmtMod(prof) });
+            }
+            return (
+              <StatBreakdownModal
+                visible
+                title={`${weapon.name} — Attack`}
+                subtitle="d20 + total vs. AC"
+                total={fmtMod(total)}
+                lines={lines}
+                rollLabel="Roll attack"
+                onRoll={() => rollD20(`${weapon.name} attack`, total, onRoll)}
+                onClose={close}
+              />
+            );
+          }
+
+          // Damage — the formula itself is the "total"; the Roll
+          // button rolls the dice + bonus and reports via onRoll.
+          return (
+            <StatBreakdownModal
+              visible
+              title={`${weapon.name} — Damage`}
+              subtitle="Roll on hit"
+              total={weapon.damage ?? '—'}
+              lines={[
+                { label: 'Damage formula', value: weapon.damage ?? '—' },
+              ]}
+              description="Dice are rolled and added to the static bonus encoded in the formula (e.g. 1d8+3)."
+              rollLabel="Roll damage"
+              onRoll={() => weapon.damage && rollDamage(`${weapon.name} damage`, weapon.damage, onRoll)}
+              onClose={close}
+            />
+          );
+        })()}
       </>
     );
   }
@@ -790,11 +891,14 @@ function getWeaponIcon(item: Dnd5eEquipmentItem): React.ComponentProps<typeof Ma
  * handler is wired (same affordance the Gear tab uses).
  */
 function WeaponCard({
-  item, atkBonus, onRoll, onOpenDetail,
+  item, atkBonus, onOpenBreakdown, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
   atkBonus: number;
-  onRoll: (r: RollResult) => void;
+  /** Open the breakdown modal for either the hit or damage tap. The
+   *  parent owns roll dispatch + modal state so the breakdown math
+   *  has access to scores/prof/etc. */
+  onOpenBreakdown: (kind: 'hit' | 'damage', item: Dnd5eEquipmentItem) => void;
   onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
 }) {
   const iconName = getWeaponIcon(item);
@@ -813,7 +917,7 @@ function WeaponCard({
           <View style={s.weaponHitCol}>
             <TouchableOpacity
               style={s.atkBtnHit}
-              onPress={(e) => { e.stopPropagation?.(); rollD20(`${item.name} attack`, atkBonus, onRoll); }}
+              onPress={(e) => { e.stopPropagation?.(); onOpenBreakdown('hit', item); }}
               activeOpacity={0.7}
             >
               <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
@@ -823,7 +927,7 @@ function WeaponCard({
             {item.damage ? (
               <TouchableOpacity
                 style={s.atkBtnDmg}
-                onPress={(e) => { e.stopPropagation?.(); rollDamage(`${item.name} damage`, item.damage!, onRoll); }}
+                onPress={(e) => { e.stopPropagation?.(); onOpenBreakdown('damage', item); }}
                 activeOpacity={0.7}
               >
                 <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
@@ -845,10 +949,13 @@ function WeaponCard({
  * line covering damage / notes / slot+equipped/attuned status.
  */
 function PinnedCard({
-  item, onRoll, onOpenDetail,
+  item, onOpenBreakdown, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
-  onRoll: (r: RollResult) => void;
+  /** Open the damage breakdown when the pinned weapon's damage chip
+   *  is tapped. Parent owns the modal so the math is shared with
+   *  the Attacks section. */
+  onOpenBreakdown: (kind: 'hit' | 'damage', item: Dnd5eEquipmentItem) => void;
   onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
 }) {
   const subText = item.notes
@@ -871,7 +978,7 @@ function PinnedCard({
           {item.damage && item.slot === 'weapon' ? (
             <TouchableOpacity
               style={s.atkBtnDmg}
-              onPress={(e) => { e.stopPropagation?.(); rollDamage(`${item.name} damage`, item.damage!, onRoll); }}
+              onPress={(e) => { e.stopPropagation?.(); onOpenBreakdown('damage', item); }}
               activeOpacity={0.7}
             >
               <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
@@ -913,6 +1020,20 @@ function SavingThrowsStrip({
    *  in the left sidebar separately. */
   extras?: Array<{ label: string; value: string }>;
 }) {
+  // Outside of Manual Mode, tapping a save opens the breakdown modal
+  // (Roll is one tap deeper). In Manual Mode, tap still toggles
+  // proficiency directly — that's the editing affordance.
+  const [openSave, setOpenSave] = useState<keyof Dnd5eAbilityScores | null>(null);
+  const openLines: StatBreakdownLine[] = openSave
+    ? [
+        { label: `Ability mod (${ABILITY_SHORT[openSave]})`, value: fmtMod(abilityMod(scores[openSave])) },
+        { label: 'Proficiency', value: stats.savingThrowProficiencies.includes(openSave) ? fmtMod(prof) : fmtMod(0) },
+        ...((extraBonus ?? 0) !== 0 ? [{ label: 'Magic items', value: fmtMod(extraBonus ?? 0) } as StatBreakdownLine] : []),
+      ]
+    : [];
+  const openBonus = openSave
+    ? abilityMod(scores[openSave]) + (stats.savingThrowProficiencies.includes(openSave) ? prof : 0) + (extraBonus ?? 0)
+    : 0;
   return (
     <View style={isDesktop ? s.savesStripDesktop : s.savesGrid}>
       {ABILITY_KEYS.map((abi) => {
@@ -922,7 +1043,7 @@ function SavingThrowsStrip({
           if (manualMode && onToggleSaveProficiency) {
             onToggleSaveProficiency(abi);
           } else {
-            rollD20(`${ABILITY_SHORT[abi]} save`, bonus, onRoll);
+            setOpenSave(abi);
           }
         };
         return (
@@ -942,6 +1063,16 @@ function SavingThrowsStrip({
           </TouchableOpacity>
         );
       })}
+      <StatBreakdownModal
+        visible={openSave !== null}
+        title={openSave ? `${ABILITY_SHORT[openSave]} Save` : ''}
+        subtitle="Saving throw · d20 + total"
+        total={fmtMod(openBonus)}
+        lines={openLines}
+        rollLabel="Roll save"
+        onRoll={openSave ? () => rollD20(`${ABILITY_SHORT[openSave]} save`, openBonus, onRoll) : undefined}
+        onClose={() => setOpenSave(null)}
+      />
       {!isDesktop && extras?.map((extra) => (
         <View key={extra.label} style={s.saveRow}>
           <Text style={s.saveAbility}>{extra.label}</Text>

@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, radius, spacing, MarkdownText } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5ePreparedSpell } from '@vaultstone/types';
+import { StatBreakdownModal, type StatBreakdownLine } from './StatBreakdownModal';
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 
@@ -247,6 +248,10 @@ export function SpellsTab({
   const preparedLimit = manualMode && stats.preparedSpellsOverride != null
     ? stats.preparedSpellsOverride
     : computedPreparedLimit;
+  // Breakdown modal state for spell attack + save DC. Both are
+  // info-only (no Roll button) — spell rolls happen at the spell
+  // level, not the header. Manual Mode still routes to the editor.
+  const [spellBreakdown, setSpellBreakdown] = useState<'attack' | 'dc' | null>(null);
 
   return (
     <>
@@ -257,11 +262,10 @@ export function SpellsTab({
         <View style={s.statsRow}>
           <TouchableOpacity
             style={s.statBlock}
-            disabled={!manualMode || !onEditField}
             onPress={manualMode && onEditField
               ? () => onEditField('spellAttack', spellAttack ?? 0)
-              : undefined}
-            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+              : () => setSpellBreakdown('attack')}
+            activeOpacity={0.7}
           >
             <Text style={s.statValue}>{spellAttack !== null ? fmtMod(spellAttack) : '—'}</Text>
             <Text style={s.statLabel}>SPELL ATTACK</Text>
@@ -269,11 +273,10 @@ export function SpellsTab({
           <View style={s.statDivider} />
           <TouchableOpacity
             style={s.statBlock}
-            disabled={!manualMode || !onEditField}
             onPress={manualMode && onEditField
               ? () => onEditField('spellSaveDc', spellDC ?? 0)
-              : undefined}
-            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+              : () => setSpellBreakdown('dc')}
+            activeOpacity={0.7}
           >
             <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
             <Text style={s.statLabel}>SAVE DC</Text>
@@ -548,6 +551,53 @@ export function SpellsTab({
         </Pressable>
       </Modal>
     ) : null}
+
+    {(() => {
+      // Spell attack / save DC breakdown — both reuse the same
+      // ability mod + prof spine; DC adds the +8 passive base.
+      if (!spellBreakdown || spellMod === null || !spellAbility) return null;
+      const close = () => setSpellBreakdown(null);
+      const abilityShort = spellAbility.slice(0, 3).toUpperCase();
+      if (spellBreakdown === 'attack') {
+        const override = manualMode && stats.spellAttackOverride != null;
+        const total = override ? stats.spellAttackOverride! : prof + spellMod;
+        const lines: StatBreakdownLine[] = override
+          ? [{ label: 'Manual override', value: fmtMod(total) }]
+          : [
+              { label: `${abilityShort} mod`, value: fmtMod(spellMod) },
+              { label: 'Proficiency', value: fmtMod(prof) },
+            ];
+        return (
+          <StatBreakdownModal
+            visible
+            title="Spell Attack"
+            subtitle={`${spellAbility} caster · d20 + total vs. AC`}
+            total={fmtMod(total)}
+            lines={lines}
+            onClose={close}
+          />
+        );
+      }
+      const override = manualMode && stats.spellSaveDcOverride != null;
+      const total = override ? stats.spellSaveDcOverride! : 8 + prof + spellMod;
+      const lines: StatBreakdownLine[] = override
+        ? [{ label: 'Manual override', value: String(total) }]
+        : [
+            { label: 'Save base', value: '8' },
+            { label: `${abilityShort} mod`, value: fmtMod(spellMod) },
+            { label: 'Proficiency', value: fmtMod(prof) },
+          ];
+      return (
+        <StatBreakdownModal
+          visible
+          title="Spell Save DC"
+          subtitle={`${spellAbility} caster · target rolls vs. this`}
+          total={String(total)}
+          lines={lines}
+          onClose={close}
+        />
+      );
+    })()}
     </>
   );
 }
