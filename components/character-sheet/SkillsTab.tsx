@@ -61,10 +61,11 @@ export function SkillsTab({
 
   const expertise = stats.skillExpertise ?? [];
   const toolExpertise = stats.toolExpertise ?? [];
-  // 2-column skills grid on mobile: 18 rows × 1 column wastes vertical
-  // real estate above the fold, so fold the list in half and render
-  // two flex:1 columns inside the same card chassis. Desktop still
-  // gets the single-column list since it has plenty of horizontal room.
+  // Skills grid is always 2 columns — 18 rows × 1 column wastes
+  // vertical real estate above the fold on every viewport. isMobile
+  // only controls the per-row density (compact padding + slightly
+  // smaller fonts on phone widths so the row content fits cleanly at
+  // half width); wider viewports use the standard density.
   const { isMobile } = useBreakpoint();
 
   function skillBonus(name: string) {
@@ -198,9 +199,11 @@ export function SkillsTab({
         ) : null}
       </View>
       <View style={s.skillsCard}>
-        {isMobile ? (() => {
-          // Split skills into two roughly-equal halves so the columns
-          // line up bottom-to-bottom. With 18 skills that's 9/9.
+        {(() => {
+          // Always render two columns. On mobile, tighten padding +
+          // fonts so a row fits at half-width on phone-class viewports;
+          // on wider viewports each column gets plenty of room, so use
+          // the standard density.
           const half = Math.ceil(ALL_SKILLS.length / 2);
           const left = ALL_SKILLS.slice(0, half);
           const right = ALL_SKILLS.slice(half);
@@ -213,7 +216,7 @@ export function SkillsTab({
             return (
               <TouchableOpacity
                 key={name}
-                style={[s.skillRow, s.skillRowCompact, !isLast && s.skillRowBorder]}
+                style={[s.skillRow, isMobile && s.skillRowCompact, !isLast && s.skillRowBorder]}
                 onPress={editMode ? () => toggleProficiency(name) : () => rollSkill(name)}
                 onLongPress={editMode ? () => removeProficiency(name) : skillCatalog ? () => openDetail(name) : undefined}
                 delayLongPress={250}
@@ -221,14 +224,14 @@ export function SkillsTab({
               >
                 <View style={[s.profDot, isProf && s.profDotFilled, isExpert && s.profDotExpert]} />
                 <View style={s.skillNameWrap}>
-                  <Text style={[s.skillName, s.skillNameCompact, isProf && s.skillNameProf]} numberOfLines={1}>
+                  <Text style={[s.skillName, isMobile && s.skillNameCompact, isProf && s.skillNameProf]} numberOfLines={1}>
                     {name.charAt(0).toUpperCase() + name.slice(1)}
                   </Text>
                   <Text style={s.skillAbi}>
-                    {ABILITY_SHORT[abi]}{isExpert ? ' · EX' : ''}
+                    {ABILITY_SHORT[abi]}{isExpert ? (isMobile ? ' · EX' : ' · EXP') : ''}
                   </Text>
                 </View>
-                <Text style={[s.skillBonus, s.skillBonusCompact, isProf && s.skillBonusProf]}>{fmtMod(bonus)}</Text>
+                <Text style={[s.skillBonus, isMobile && s.skillBonusCompact, isProf && s.skillBonusProf]}>{fmtMod(bonus)}</Text>
               </TouchableOpacity>
             );
           };
@@ -238,34 +241,7 @@ export function SkillsTab({
               <View style={[s.skillsCol, s.skillsColRight]}>{right.map((n, i) => renderRow(n, i, right))}</View>
             </View>
           );
-        })() : ALL_SKILLS.map((name, i) => {
-          const isProf = stats.skillProficiencies.includes(name);
-          const isExpert = expertise.includes(name);
-          const bonus = skillBonus(name);
-          const abi = SKILL_ABILITY[name];
-          const isLast = i === ALL_SKILLS.length - 1;
-          return (
-            <TouchableOpacity
-              key={name}
-              style={[s.skillRow, !isLast && s.skillRowBorder]}
-              onPress={editMode ? () => toggleProficiency(name) : () => rollSkill(name)}
-              onLongPress={editMode ? () => removeProficiency(name) : skillCatalog ? () => openDetail(name) : undefined}
-              delayLongPress={250}
-              activeOpacity={0.7}
-            >
-              <View style={[s.profDot, isProf && s.profDotFilled, isExpert && s.profDotExpert]} />
-              <View style={s.skillNameWrap}>
-                <Text style={[s.skillName, isProf && s.skillNameProf]}>
-                  {name.charAt(0).toUpperCase() + name.slice(1)}
-                </Text>
-                <Text style={s.skillAbi}>
-                  {ABILITY_SHORT[abi]}{isExpert ? ' · EXP' : ''}
-                </Text>
-              </View>
-              <Text style={[s.skillBonus, isProf && s.skillBonusProf]}>{fmtMod(bonus)}</Text>
-            </TouchableOpacity>
-          );
-        })}
+        })()}
       </View>
 
       <Modal visible={!!detailFor} transparent animationType="fade" onRequestClose={() => setDetailFor(null)}>
