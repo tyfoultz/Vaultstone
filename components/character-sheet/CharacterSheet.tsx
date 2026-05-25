@@ -3922,6 +3922,19 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           onUpdateQuantity={isOwner
             ? (q: number) => handleUpdateItemQuantity(detailEquipment.id, q)
             : undefined}
+          onToggleEquipped={isOwner
+            ? () => handleToggleEquipped(detailEquipment.id)
+            : undefined}
+          onRemove={isOwner
+            ? () => {
+                // Hand off to the existing remove confirm flow — close
+                // the detail modal first so the confirm sits on top of
+                // the gear list, not stacked on top of the detail card.
+                const id = detailEquipment.id;
+                setDetailEquipment(null);
+                setRemoveEquipId(id);
+              }
+            : undefined}
           canEdit={isOwner}
         />
       ) : null}

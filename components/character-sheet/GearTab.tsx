@@ -221,9 +221,7 @@ export function GearTab({
                 item={item}
                 canEdit={isOwner}
                 compact={isMobile}
-                onToggle={() => onToggleEquipped?.(item.id)}
                 onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
-                onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
                 onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
                 onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
                 onOpenDetail={() => onOpenEquipmentDetail?.(item)}
@@ -281,9 +279,7 @@ export function GearTab({
               item={item}
               canEdit={isOwner}
               compact={isMobile}
-              onToggle={() => onToggleEquipped?.(item.id)}
               onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
-              onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
               onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
               onOpenDetail={() => onOpenEquipmentDetail?.(item)}
@@ -461,16 +457,14 @@ function getItemIcon(item: Dnd5eEquipmentItem): React.ComponentProps<typeof Mate
 
 function InventoryRow({
   item, canEdit, compact,
-  onToggle, onTogglePinnedToCombat, onRemove, onUpdateValue, onUpdateQuantity, onOpenDetail,
+  onTogglePinnedToCombat, onUpdateValue, onUpdateQuantity, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
   canEdit: boolean;
   /** Mobile-density variant — drops the TYPE and VALUE columns so the
    *  name cell has enough width for its pills to wrap cleanly. */
   compact?: boolean;
-  onToggle: () => void;
   onTogglePinnedToCombat?: () => void;
-  onRemove?: () => void;
   onUpdateValue?: (v: string) => void;
   onUpdateQuantity?: (q: number) => void;
   onOpenDetail: () => void;
@@ -524,20 +518,6 @@ function InventoryRow({
               size={15}
               color={item.pinnedToCombat ? colors.primary : colors.outline}
             />
-          </TouchableOpacity>
-        )}
-        {canEdit && (
-          <TouchableOpacity onPress={onToggle} hitSlop={6} activeOpacity={0.7}>
-            <MaterialCommunityIcons
-              name={item.equipped ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
-              size={16}
-              color={item.equipped ? colors.primary : colors.outline}
-            />
-          </TouchableOpacity>
-        )}
-        {onRemove && (
-          <TouchableOpacity onPress={onRemove} hitSlop={6} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
           </TouchableOpacity>
         )}
       </View>
@@ -664,6 +644,8 @@ export function EquipmentDetailModal({
   onClose,
   onUpdateValue,
   onUpdateQuantity,
+  onToggleEquipped,
+  onRemove,
   canEdit,
 }: {
   item: Dnd5eEquipmentItem;
@@ -674,6 +656,11 @@ export function EquipmentDetailModal({
   /** When provided, Quantity renders as an inline editable field
    *  alongside Value. */
   onUpdateQuantity?: (q: number) => void;
+  /** Toggle equipped state. Owner-only — gated by canEdit upstream. */
+  onToggleEquipped?: () => void;
+  /** Trigger the delete flow. The parent owns the confirm dialog and
+   *  is expected to close this modal as part of opening that one. */
+  onRemove?: () => void;
   canEdit: boolean;
 }) {
   const armorType = armorTypeLabel(item);
@@ -696,7 +683,8 @@ export function EquipmentDetailModal({
     rows.push({ label: 'Attunement', value: item.attuned ? 'Attuned' : 'Required, not attuned' });
   }
   if (typeof item.weight === 'number') rows.push({ label: 'Weight', value: `${item.weight} lb` });
-  if (item.equipped) rows.push({ label: 'Status', value: 'Equipped' });
+  // Equipped status is now conveyed by the Equip/Unequip action button
+  // at the bottom of the modal, so the meta row is redundant.
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -756,6 +744,36 @@ export function EquipmentDetailModal({
               </View>
             ) : null}
           </ScrollView>
+          {canEdit && (onToggleEquipped || onRemove) ? (
+            <View style={s.detailActions}>
+              {onToggleEquipped ? (
+                <TouchableOpacity
+                  onPress={onToggleEquipped}
+                  style={[s.detailActionBtn, item.equipped ? s.detailActionBtnActive : s.detailActionBtnPrimary]}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name={item.equipped ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                    size={14}
+                    color={item.equipped ? colors.primary : colors.onPrimary}
+                  />
+                  <Text style={item.equipped ? s.detailActionBtnActiveText : s.detailActionBtnPrimaryText}>
+                    {item.equipped ? 'Unequip' : 'Equip'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              {onRemove ? (
+                <TouchableOpacity
+                  onPress={onRemove}
+                  style={[s.detailActionBtn, s.detailActionBtnDestructive]}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={14} color={colors.hpDanger} />
+                  <Text style={s.detailActionBtnDestructiveText}>Delete</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
         </Pressable>
       </Pressable>
     </Modal>
@@ -1136,7 +1154,9 @@ const s = StyleSheet.create({
     paddingVertical: 0, minWidth: 80,
   },
   tableCellControls: {
-    width: 110,
+    // Just the pin toggle now — equip/delete moved into the detail
+    // modal — so the cluster only needs room for a single icon.
+    width: 28,
     flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center',
     gap: 8,
   },
@@ -1239,4 +1259,47 @@ const s = StyleSheet.create({
   detailEditableCell: { minWidth: 100, flex: 1 },
   detailBullet: { fontSize: 12, color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 2 },
   detailNotes: { fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 19, marginTop: 4 },
+  /** Footer action bar — sits below the scrolling content so the
+   *  Equip/Unequip + Delete buttons stay anchored to the bottom of
+   *  the modal card and don't scroll off with long descriptions. */
+  detailActions: {
+    flexDirection: 'row', gap: 8, marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  detailActionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: radius.lg, borderWidth: 1,
+  },
+  /** Filled primary — call-to-action style for "Equip" (the unequipped
+   *  → equipped transition is the more common case in a session). */
+  detailActionBtnPrimary: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primaryContainer,
+  },
+  detailActionBtnPrimaryText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onPrimary, letterSpacing: 0.3,
+  },
+  /** Outlined primary — softer "Unequip" state so the active item
+   *  reads as already-engaged rather than the next action. */
+  detailActionBtnActive: {
+    backgroundColor: `${colors.primary}14`,
+    borderColor: `${colors.primary}55`,
+  },
+  detailActionBtnActiveText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.3,
+  },
+  /** Destructive outline for Delete — danger-tinted so accidental
+   *  taps are visually obvious before the confirm dialog appears. */
+  detailActionBtnDestructive: {
+    backgroundColor: `${colors.hpDanger}14`,
+    borderColor: `${colors.hpDanger}66`,
+  },
+  detailActionBtnDestructiveText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.hpDanger, letterSpacing: 0.3,
+  },
 });
