@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, spacing, radius } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius, useBreakpoint } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eAbilityScores, SkillResult } from '@vaultstone/types';
 import type { RollResult } from './RollToast';
 
@@ -61,6 +61,11 @@ export function SkillsTab({
 
   const expertise = stats.skillExpertise ?? [];
   const toolExpertise = stats.toolExpertise ?? [];
+  // 2-column skills grid on mobile: 18 rows × 1 column wastes vertical
+  // real estate above the fold, so fold the list in half and render
+  // two flex:1 columns inside the same card chassis. Desktop still
+  // gets the single-column list since it has plenty of horizontal room.
+  const { isMobile } = useBreakpoint();
 
   function skillBonus(name: string) {
     const abi = SKILL_ABILITY[name];
@@ -193,7 +198,47 @@ export function SkillsTab({
         ) : null}
       </View>
       <View style={s.skillsCard}>
-        {ALL_SKILLS.map((name, i) => {
+        {isMobile ? (() => {
+          // Split skills into two roughly-equal halves so the columns
+          // line up bottom-to-bottom. With 18 skills that's 9/9.
+          const half = Math.ceil(ALL_SKILLS.length / 2);
+          const left = ALL_SKILLS.slice(0, half);
+          const right = ALL_SKILLS.slice(half);
+          const renderRow = (name: string, i: number, col: string[]) => {
+            const isProf = stats.skillProficiencies.includes(name);
+            const isExpert = expertise.includes(name);
+            const bonus = skillBonus(name);
+            const abi = SKILL_ABILITY[name];
+            const isLast = i === col.length - 1;
+            return (
+              <TouchableOpacity
+                key={name}
+                style={[s.skillRow, s.skillRowCompact, !isLast && s.skillRowBorder]}
+                onPress={editMode ? () => toggleProficiency(name) : () => rollSkill(name)}
+                onLongPress={editMode ? () => removeProficiency(name) : skillCatalog ? () => openDetail(name) : undefined}
+                delayLongPress={250}
+                activeOpacity={0.7}
+              >
+                <View style={[s.profDot, isProf && s.profDotFilled, isExpert && s.profDotExpert]} />
+                <View style={s.skillNameWrap}>
+                  <Text style={[s.skillName, s.skillNameCompact, isProf && s.skillNameProf]} numberOfLines={1}>
+                    {name.charAt(0).toUpperCase() + name.slice(1)}
+                  </Text>
+                  <Text style={s.skillAbi}>
+                    {ABILITY_SHORT[abi]}{isExpert ? ' · EX' : ''}
+                  </Text>
+                </View>
+                <Text style={[s.skillBonus, s.skillBonusCompact, isProf && s.skillBonusProf]}>{fmtMod(bonus)}</Text>
+              </TouchableOpacity>
+            );
+          };
+          return (
+            <View style={s.skillsTwoCol}>
+              <View style={s.skillsCol}>{left.map((n, i) => renderRow(n, i, left))}</View>
+              <View style={[s.skillsCol, s.skillsColRight]}>{right.map((n, i) => renderRow(n, i, right))}</View>
+            </View>
+          );
+        })() : ALL_SKILLS.map((name, i) => {
           const isProf = stats.skillProficiencies.includes(name);
           const isExpert = expertise.includes(name);
           const bonus = skillBonus(name);
@@ -416,6 +461,19 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 9,
   },
   skillRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
+  /** Mobile 2-col grid wrapper: two flex:1 columns separated by a
+   *  hairline. Each column owns its own row stack with bottom borders
+   *  on every row except the last — same chassis as the desktop list,
+   *  just folded in half so 18 rows fit in 9 stacked pairs. */
+  skillsTwoCol: { flexDirection: 'row' },
+  skillsCol: { flex: 1, minWidth: 0 },
+  skillsColRight: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.outlineVariant },
+  /** Tighten padding + text sizing inside the 2-col layout so the row
+   *  content (dot + name + ability tag + bonus) fits in ~half the
+   *  parent width without truncation on common phone sizes. */
+  skillRowCompact: { paddingHorizontal: 8, paddingVertical: 7, gap: 6 },
+  skillNameCompact: { fontSize: 12 },
+  skillBonusCompact: { fontSize: 13, minWidth: 26 },
   profDot: {
     width: 10, height: 10, borderRadius: 5,
     borderWidth: 1.5, borderColor: colors.outline, flexShrink: 0,
