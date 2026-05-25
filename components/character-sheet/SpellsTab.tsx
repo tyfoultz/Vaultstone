@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, radius, spacing, MarkdownText } from '@vaultstone/ui';
+import { colors, fonts, radius, spacing, MarkdownText, useBreakpoint } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5ePreparedSpell } from '@vaultstone/types';
 import { StatBreakdownModal, type StatBreakdownLine } from './StatBreakdownModal';
 
@@ -252,6 +252,10 @@ export function SpellsTab({
   // info-only (no Roll button) — spell rolls happen at the spell
   // level, not the header. Manual Mode still routes to the editor.
   const [spellBreakdown, setSpellBreakdown] = useState<'attack' | 'dc' | null>(null);
+  // Mobile gets the compact spell table — Range + Time columns drop
+  // out so the Name column has room to breathe (otherwise the name
+  // truncates to a single letter on phone widths).
+  const { isMobile } = useBreakpoint();
 
   return (
     <>
@@ -391,7 +395,7 @@ export function SpellsTab({
             )}
           </View>
           <LevelGradient />
-          <SpellTableHeader />
+          <SpellTableHeader compact={isMobile} />
           {cantrips.map((spell) => (
             <SpellRow
               key={spell.id}
@@ -399,6 +403,7 @@ export function SpellsTab({
               prepared={true}
               alwaysPrepared={false}
               canToggle={false}
+              compact={isMobile}
               onSaveNotes={isOwner && onSaveSpellNotes ? (notes) => onSaveSpellNotes(spell, notes) : undefined}
             />
           ))}
@@ -440,7 +445,7 @@ export function SpellsTab({
             )}
           </View>
           <LevelGradient />
-          {spells.length > 0 ? <SpellTableHeader /> : null}
+          {spells.length > 0 ? <SpellTableHeader compact={isMobile} /> : null}
           {spells.map((spell) => {
             const prep = isPrepared(spell);
             const always = isAlwaysPrepared(spell);
@@ -453,6 +458,7 @@ export function SpellsTab({
                 prepared={prep}
                 alwaysPrepared={always}
                 canToggle={isOwner && !!onSetPrepStatus}
+                compact={isMobile}
                 onSetPrepStatus={onSetPrepStatus ? (status) => onSetPrepStatus(spell, status) : undefined}
                 togglesBlocked={!prep && atLimit}
                 onSaveNotes={isOwner && onSaveSpellNotes ? (notes) => onSaveSpellNotes(spell, notes) : undefined}
@@ -618,7 +624,7 @@ function ordinal(n: number): string {
  * below. 10px left padding accounts for the 2px school accent bar plus
  * 8px body padding on each card.
  */
-function SpellTableHeader() {
+function SpellTableHeader({ compact }: { compact?: boolean }) {
   return (
     <View style={s.spellHeaderRow}>
       {/* Empty cell that mirrors the row's icon slot so NAME header
@@ -627,8 +633,8 @@ function SpellTableHeader() {
       <View style={s.spellIconCol} />
       <Text style={[s.spellHeaderCell, { flex: 1 }]}>NAME</Text>
       <View style={s.spellSchoolCol}><Text style={s.spellHeaderCell}>SCHOOL</Text></View>
-      <View style={s.spellRangeCol}><Text style={s.spellHeaderCell}>RANGE</Text></View>
-      <View style={s.spellTimeCol}><Text style={s.spellHeaderCell}>TIME</Text></View>
+      {!compact && <View style={s.spellRangeCol}><Text style={s.spellHeaderCell}>RANGE</Text></View>}
+      {!compact && <View style={s.spellTimeCol}><Text style={s.spellHeaderCell}>TIME</Text></View>}
       <View style={s.spellPrepCol}><Text style={s.spellHeaderCell}>PREP</Text></View>
     </View>
   );
@@ -652,7 +658,7 @@ function LevelGradient() {
 }
 
 function SpellRow({
-  spell, slot, prepared, alwaysPrepared, canToggle, onSetPrepStatus, togglesBlocked, onSaveNotes,
+  spell, slot, prepared, alwaysPrepared, canToggle, onSetPrepStatus, togglesBlocked, onSaveNotes, compact,
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
@@ -662,6 +668,10 @@ function SpellRow({
   onSetPrepStatus?: (status: 'unprepared' | 'prepared' | 'always') => void;
   togglesBlocked?: boolean;
   onSaveNotes?: (notes: string) => void;
+  /** Mobile-density variant — drops the Range + Time columns so the
+   *  Name column has room to render the full spell name. The dropped
+   *  data is still available via the expandable row body below. */
+  compact?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   // Local draft so the user can edit notes without persisting every
@@ -743,12 +753,16 @@ function SpellRow({
                 />
               ) : null}
             </View>
-            <View style={s.spellRangeCol}>
-              <Text style={s.spellColText} numberOfLines={1}>{spell.range ?? '—'}</Text>
-            </View>
-            <View style={s.spellTimeCol}>
-              <Text style={s.spellColText} numberOfLines={1}>{spell.castingTime ?? '—'}</Text>
-            </View>
+            {!compact && (
+              <View style={s.spellRangeCol}>
+                <Text style={s.spellColText} numberOfLines={1}>{spell.range ?? '—'}</Text>
+              </View>
+            )}
+            {!compact && (
+              <View style={s.spellTimeCol}>
+                <Text style={s.spellColText} numberOfLines={1}>{spell.castingTime ?? '—'}</Text>
+              </View>
+            )}
             <View style={s.spellPrepCol}>
               <TouchableOpacity
                 onPress={handlePrepColPress}
