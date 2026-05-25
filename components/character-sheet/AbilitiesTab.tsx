@@ -231,7 +231,7 @@ export function AbilitiesTab({
       {/* ── Feats ── */}
       <SectionRow
         label="FEATS"
-        accent={ACCENT_FEAT}
+        accent={ACCENT_CLASS}
         style={{ marginTop: 16 }}
         onAdd={isOwner ? () => onAddFeature('feats') : undefined}
         collapsed={collapsed.feats}
@@ -285,7 +285,7 @@ export function AbilitiesTab({
         <>
           <SectionRow
             label="SUBCLASS FEATURES"
-            accent={ACCENT_SUBCLASS}
+            accent={ACCENT_CLASS}
             style={{ marginTop: 16 }}
             collapsed={collapsed.subclassFeatures}
             onToggle={() => toggle('subclassFeatures')}
@@ -393,7 +393,7 @@ export function AbilitiesTab({
       {/* ── Species traits (live from ContentResolver) ── */}
       <SectionRow
         label="SPECIES TRAITS"
-        accent={ACCENT_SPECIES}
+        accent={ACCENT_CLASS}
         style={{ marginTop: 16 }}
         collapsed={collapsed.speciesTraits}
         onToggle={() => toggle('speciesTraits')}
@@ -458,7 +458,7 @@ export function AbilitiesTab({
       {(backgroundResult || stats.originFeat) && (
         <SectionRow
           label="BACKGROUND"
-          accent={ACCENT_BG}
+          accent={ACCENT_CLASS}
           style={{ marginTop: 16 }}
           collapsed={collapsed.background}
           onToggle={() => toggle('background')}
