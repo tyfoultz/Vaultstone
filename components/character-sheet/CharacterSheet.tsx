@@ -2649,10 +2649,21 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             </LinearGradient>
           )}
           {rightRailCollapsed && (
-            <TouchableOpacity style={s.skillsRailCollapsed} onPress={() => setRightRailCollapsed(false)} activeOpacity={0.7}>
-              <MaterialCommunityIcons name="chevron-left" size={16} color={colors.outline} />
-              <Text style={s.skillsRailCollapsedLabel}>Log</Text>
-            </TouchableOpacity>
+            <LinearGradient
+              colors={[`${colors.gm}26`, colors.surfaceContainerLowest, colors.surfaceContainerLowest]}
+              start={{ x: 1, y: 0 }}
+              end={{ x: 0.6, y: 1 }}
+              style={s.skillsRailCollapsed}
+            >
+              <TouchableOpacity
+                style={s.skillsRailCollapsedInner}
+                onPress={() => setRightRailCollapsed(false)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="chevron-left" size={16} color={colors.outline} />
+                <Text style={s.skillsRailCollapsedLabel}>Log</Text>
+              </TouchableOpacity>
+            </LinearGradient>
           )}
 
         </View>
@@ -4927,11 +4938,16 @@ const s = StyleSheet.create({
     fontSize: 10, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic',
     padding: 10,
   },
+  /** Collapsed-state rail container — gm-orange gradient mirrors the
+   *  expanded rail so the team accent reads even when the log is
+   *  tucked away. Width + border live here on the gradient wrapper;
+   *  the inner TouchableOpacity handles tap + alignment. */
   skillsRailCollapsed: {
     width: 28, flexShrink: 0,
-    backgroundColor: colors.surfaceContainerLowest,
     borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.outlineVariant,
-    alignItems: 'center', paddingTop: 12, gap: 8,
+  },
+  skillsRailCollapsedInner: {
+    flex: 1, alignItems: 'center', paddingTop: 12, gap: 8,
   },
   skillsRailCollapsedLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
