@@ -134,11 +134,103 @@ export function AbilitiesTab({
     [allCustomSpeciesTraits, resolvedSpeciesTraitNames],
   );
 
+  // Per-section collapse state. Sections start collapsed so the tab
+  // opens as a clean list of headers; players expand the ones they
+  // care about for the current task. Order in this object reflects
+  // the new top-to-bottom render order: Proficiencies leads.
+  const [collapsed, setCollapsed] = useState<{
+    proficiencies: boolean;
+    classFeatures: boolean;
+    subclassFeatures: boolean;
+    background: boolean;
+    speciesTraits: boolean;
+    feats: boolean;
+  }>({
+    proficiencies: true,
+    classFeatures: true,
+    subclassFeatures: true,
+    background: true,
+    speciesTraits: true,
+    feats: true,
+  });
+  const toggle = (key: keyof typeof collapsed) =>
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+
   return (
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
 
+      {/* ── Proficiencies (moved to top; was at the bottom) ─────────── */}
+      <SectionRow
+        label="PROFICIENCIES"
+        accent={ACCENT_CLASS}
+        collapsed={collapsed.proficiencies}
+        onToggle={() => toggle('proficiencies')}
+      />
+      {!collapsed.proficiencies && (
+        <View style={s.profCard}>
+          <ProfLineWithSources
+            label="Armor"
+            items={mergeProfsWithSources({
+              stored: stats.armorProficiencies,
+              classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.armorProficiencies })),
+            })}
+          />
+          <ProfLineWithSources
+            label="Weapons"
+            items={mergeProfsWithSources({
+              stored: stats.weaponProficiencies,
+              classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.weaponProficiencies })),
+            })}
+          />
+          <ProfLineWithSources
+            label="Tools"
+            items={mergeProfsWithSources({
+              stored: stats.toolProficiencies,
+              classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.toolProficiencies ?? [] })),
+              background: backgroundResult?.toolProficiency
+                ? { source: backgroundResult.name, items: [backgroundResult.toolProficiency] }
+                : null,
+            })}
+          />
+          <ProfLineWithSources
+            label="Saving Throws"
+            items={mergeProfsWithSources({
+              stored: stats.savingThrowProficiencies.map((s) => capitalize(s)),
+              classGroups: classGroups
+                .filter((g) => g.entry.primary)
+                .map((g) => ({ source: g.cls.name, items: g.cls.savingThrows.map((s) => capitalize(s)) })),
+            })}
+          />
+          <ProfLineWithSources
+            label="Skills"
+            items={mergeProfsWithSources({
+              stored: stats.skillProficiencies.map((s) => titleCase(s)),
+              background: backgroundResult
+                ? { source: backgroundResult.name, items: backgroundResult.skillProficiencies.map((s) => titleCase(s)) }
+                : null,
+            })}
+          />
+          <ProfLineWithSources
+            label="Languages"
+            items={mergeProfsWithSources({
+              stored: stats.languages,
+              background: backgroundResult && backgroundResult.languages > 0
+                ? { source: backgroundResult.name, items: [`+${backgroundResult.languages} of player choice`] }
+                : null,
+            })}
+          />
+        </View>
+      )}
+
       {/* ── Class features (live from ContentResolver) ── */}
-      <SectionRow label="CLASS FEATURES" accent={ACCENT_CLASS} />
+      <SectionRow
+        label="CLASS FEATURES"
+        accent={ACCENT_CLASS}
+        style={{ marginTop: 16 }}
+        collapsed={collapsed.classFeatures}
+        onToggle={() => toggle('classFeatures')}
+      />
+      {!collapsed.classFeatures && (<>
       {classGroups.length === 0 && customClassFeatures.length === 0 && (
         <EmptyHint text="No class features yet — pick a class to unlock features at each level." />
       )}
@@ -200,12 +292,19 @@ export function AbilitiesTab({
           </TouchableOpacity>
         </View>
       )}
+      </>)}
 
       {/* ── Subclass features (live from ContentResolver) ── */}
       {subclassGroups.length > 0 && (
         <>
-          <SectionRow label="SUBCLASS FEATURES" accent={ACCENT_SUBCLASS} style={{ marginTop: 16 }} />
-          {subclassGroups.map(({ entry, sub, features }) => (
+          <SectionRow
+            label="SUBCLASS FEATURES"
+            accent={ACCENT_SUBCLASS}
+            style={{ marginTop: 16 }}
+            collapsed={collapsed.subclassFeatures}
+            onToggle={() => toggle('subclassFeatures')}
+          />
+          {!collapsed.subclassFeatures && subclassGroups.map(({ entry, sub, features }) => (
             <View key={`sub-${entry.subclassKey}`}>
               {subclassGroups.length > 1 && (
                 <Text style={s.groupSubhead}>{sub.name}</Text>
@@ -235,9 +334,15 @@ export function AbilitiesTab({
 
       {/* ── Background ── */}
       {(backgroundResult || stats.originFeat) && (
-        <SectionRow label="BACKGROUND" accent={ACCENT_BG} style={{ marginTop: 16 }} />
+        <SectionRow
+          label="BACKGROUND"
+          accent={ACCENT_BG}
+          style={{ marginTop: 16 }}
+          collapsed={collapsed.background}
+          onToggle={() => toggle('background')}
+        />
       )}
-      {backgroundResult && (
+      {!collapsed.background && backgroundResult && (
         <View style={s.bgCard}>
           <Text style={s.bgName}>{backgroundResult.name}</Text>
           {backgroundResult.skillProficiencies.length > 0 && (
@@ -282,8 +387,10 @@ export function AbilitiesTab({
       )}
 
       {/* Origin feat: prefer the resolved FeatResult (full description +
-          structured benefits) over the bare name we used to show. */}
-      {originFeatResult ? (() => {
+          structured benefits) over the bare name we used to show. Hidden
+          when the Background section is collapsed since it visually sits
+          inside that section. */}
+      {!collapsed.background && originFeatResult ? (() => {
         const k = liveKey('origin-feat', '', originFeatResult.name);
         return (
           <ContentFeatureCard
@@ -298,7 +405,7 @@ export function AbilitiesTab({
             onToggleHidden={isOwner && onToggleHidden ? () => onToggleHidden(k) : undefined}
           />
         );
-      })() : stats.originFeat ? (() => {
+      })() : !collapsed.background && stats.originFeat ? (() => {
         const k = liveKey('origin-feat', '', stats.originFeat);
         return (
           <ContentFeatureCard
@@ -313,7 +420,14 @@ export function AbilitiesTab({
       })() : null}
 
       {/* ── Species traits (live from ContentResolver) ── */}
-      <SectionRow label="SPECIES TRAITS" accent={ACCENT_SPECIES} style={{ marginTop: 16 }} />
+      <SectionRow
+        label="SPECIES TRAITS"
+        accent={ACCENT_SPECIES}
+        style={{ marginTop: 16 }}
+        collapsed={collapsed.speciesTraits}
+        onToggle={() => toggle('speciesTraits')}
+      />
+      {!collapsed.speciesTraits && (<>
       {speciesResult && (speciesResult.traits ?? []).length > 0 ? (
         speciesResult.traits.map((t, i) => {
           const k = liveKey('species', '', t.name);
@@ -367,6 +481,7 @@ export function AbilitiesTab({
           </TouchableOpacity>
         </View>
       )}
+      </>)}
 
       {/* ── Feats ── */}
       <SectionRow
@@ -374,8 +489,10 @@ export function AbilitiesTab({
         accent={ACCENT_FEAT}
         style={{ marginTop: 16 }}
         onAdd={isOwner ? () => onAddFeature('feats') : undefined}
+        collapsed={collapsed.feats}
+        onToggle={() => toggle('feats')}
       />
-      {feats.length === 0 ? (
+      {!collapsed.feats && (feats.length === 0 ? (
         <EmptyHint text="No feats added yet." />
       ) : (
         feats.map((f) => {
@@ -416,83 +533,58 @@ export function AbilitiesTab({
             </View>
           );
         })
-      )}
+      ))}
 
-      {/* ── Proficiencies (live from class + background, with attribution) ── */}
-      <SectionRow label="PROFICIENCIES" style={{ marginTop: 16 }} />
-      <View style={s.profCard}>
-        <ProfLineWithSources
-          label="Armor"
-          items={mergeProfsWithSources({
-            stored: stats.armorProficiencies,
-            classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.armorProficiencies })),
-          })}
-        />
-        <ProfLineWithSources
-          label="Weapons"
-          items={mergeProfsWithSources({
-            stored: stats.weaponProficiencies,
-            classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.weaponProficiencies })),
-          })}
-        />
-        <ProfLineWithSources
-          label="Tools"
-          items={mergeProfsWithSources({
-            stored: stats.toolProficiencies,
-            classGroups: classGroups.map((g) => ({ source: g.cls.name, items: g.cls.toolProficiencies ?? [] })),
-            background: backgroundResult?.toolProficiency
-              ? { source: backgroundResult.name, items: [backgroundResult.toolProficiency] }
-              : null,
-          })}
-        />
-        <ProfLineWithSources
-          label="Saving Throws"
-          items={mergeProfsWithSources({
-            stored: stats.savingThrowProficiencies.map((s) => capitalize(s)),
-            classGroups: classGroups
-              .filter((g) => g.entry.primary)
-              .map((g) => ({ source: g.cls.name, items: g.cls.savingThrows.map((s) => capitalize(s)) })),
-          })}
-        />
-        <ProfLineWithSources
-          label="Skills"
-          items={mergeProfsWithSources({
-            stored: stats.skillProficiencies.map((s) => titleCase(s)),
-            background: backgroundResult
-              ? { source: backgroundResult.name, items: backgroundResult.skillProficiencies.map((s) => titleCase(s)) }
-              : null,
-          })}
-        />
-        <ProfLineWithSources
-          label="Languages"
-          items={mergeProfsWithSources({
-            stored: stats.languages,
-            background: backgroundResult && backgroundResult.languages > 0
-              ? { source: backgroundResult.name, items: [`+${backgroundResult.languages} of player choice`] }
-              : null,
-          })}
-        />
-      </View>
+      {/* Proficiencies section was here; it now lives at the top of
+          the tab — see the top of this render. */}
 
       <View style={{ height: 16 }} />
     </ScrollView>
   );
 }
 
-function SectionRow({ label, accent, style, onAdd }: {
-  label: string; accent?: string; style?: any; onAdd?: () => void;
+function SectionRow({ label, accent, style, onAdd, collapsed, onToggle }: {
+  label: string;
+  accent?: string;
+  style?: any;
+  onAdd?: () => void;
+  /** When defined, the row renders a chevron and becomes tappable —
+   *  consumer wires `onToggle` to flip its collapse state. Add-button
+   *  taps inside the row stopPropagation so + doesn't bubble into
+   *  toggle. */
+  collapsed?: boolean;
+  onToggle?: () => void;
 }) {
-  return (
-    <View style={[s.sectionRow, style]}>
+  const body = (
+    <>
+      {onToggle ? (
+        <MaterialCommunityIcons
+          name={collapsed ? 'chevron-right' : 'chevron-down'}
+          size={14}
+          color={accent ?? colors.outline}
+        />
+      ) : null}
       <Text style={[s.sectionLabel, accent && { color: accent }]}>{label}</Text>
       <View style={[s.sectionLine, accent && { backgroundColor: `${accent}44` }]} />
       {onAdd && (
-        <TouchableOpacity onPress={onAdd} style={s.addBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={(e) => { e.stopPropagation?.(); onAdd(); }}
+          style={s.addBtn}
+          activeOpacity={0.7}
+        >
           <MaterialCommunityIcons name="plus" size={14} color={accent ?? colors.outline} />
         </TouchableOpacity>
       )}
-    </View>
+    </>
   );
+  if (onToggle) {
+    return (
+      <TouchableOpacity style={[s.sectionRow, style]} onPress={onToggle} activeOpacity={0.7}>
+        {body}
+      </TouchableOpacity>
+    );
+  }
+  return <View style={[s.sectionRow, style]}>{body}</View>;
 }
 
 // Lighter heading rule for the "Custom" subsection inside a section group.
