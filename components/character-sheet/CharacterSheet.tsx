@@ -809,6 +809,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const [hpQuickInput, setHpQuickInput] = useState('');
   const [scratchpad, setScratchpad] = useState('');
   const [isDmOfLinkedCampaign, setIsDmOfLinkedCampaign] = useState(false);
+  // The DM check is async (Supabase query). The access guard below
+  // must wait for it to resolve before deciding to redirect — without
+  // this gate, a DM opening a player's sheet gets bounced back during
+  // the brief window where isDmOfLinkedCampaign is still its `false`
+  // initial value.
+  const [dmCheckResolved, setDmCheckResolved] = useState(false);
   const [linkedCampaignName, setLinkedCampaignName] = useState<string | null>(null);
   const [portraitUploading, setPortraitUploading] = useState(false);
   const [editLayout, setEditLayout] = useState(false);
@@ -880,6 +886,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   useEffect(() => {
     if (!id || !authUser?.id || !character) return;
     let cancelled = false;
+    setDmCheckResolved(false);
     (async () => {
       // Check two paths: (1) the character's campaign_id directly,
       // (2) the campaign_members linkage via character_id. Path 1
@@ -894,6 +901,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         if (!cancelled && camp?.name) setLinkedCampaignName(camp.name);
         if (!cancelled && camp?.dm_user_id === authUser.id) {
           setIsDmOfLinkedCampaign(true);
+          setDmCheckResolved(true);
           return;
         }
       }
@@ -906,6 +914,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         (row) => (row as { campaigns?: { dm_user_id?: string } }).campaigns?.dm_user_id === authUser.id,
       );
       setIsDmOfLinkedCampaign(isDm);
+      setDmCheckResolved(true);
     })();
     return () => { cancelled = true; };
   }, [id, authUser?.id, character?.campaign_id]);
@@ -1362,13 +1371,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // owner and the DM of the linked campaign. If a viewer navigates
   // here without those rights (deep link, refresh from a stale tab),
   // bounce them back to their characters list.
+  //
+  // Gated on `dmCheckResolved` so the guard doesn't fire before the
+  // async DM check finishes. Owners are exempt from waiting because
+  // ownership is decided synchronously from the character row itself.
   const canViewSheet = isOwner || isDmOfLinkedCampaign;
   useEffect(() => {
     if (!character || !authUser) return;
     if (canViewSheet) return;
+    if (!isOwner && !dmCheckResolved) return;
     if (onClose) onClose();
     else router.replace('/(drawer)/characters');
-  }, [character, authUser, canViewSheet, onClose]);
+  }, [character, authUser, canViewSheet, isOwner, dmCheckResolved, onClose]);
 
   // Keys inside resources that the RPC's whitelist accepts. Anything not in
   // this set is owner-only — the DM sheet silently skips writes for them.
