@@ -487,7 +487,7 @@ function InventoryRow({
   const typeLabel = SLOT_LABEL[item.slot] ?? item.slot;
   const iconName = getItemIcon(item);
   const hasPills = armorType || item.slot === 'armor' || item.slot === 'shield'
-    || (item.slot === 'weapon' && item.damage) || item.miscACBonus || item.attuned;
+    || (item.slot === 'weapon' && item.damage) || item.miscACBonus || item.miscSaveBonus || item.attuned;
   return (
     <View style={s.invCard}>
       <View style={[s.invCardBar, { backgroundColor: item.attuned ? colors.hpWarning : colors.primary }]} />
@@ -503,6 +503,7 @@ function InventoryRow({
             {item.slot === 'shield' && <Pill label="Shield" />}
             {item.slot === 'weapon' && item.damage && <Pill label={item.damage} />}
             {item.miscACBonus ? <Pill label={`+${item.miscACBonus} AC`} variant="primary" /> : null}
+            {item.miscSaveBonus ? <Pill label={`+${item.miscSaveBonus} saves`} variant="primary" /> : null}
             {item.attuned && <Pill label="Attuned" variant="primary" />}
           </View>
         ) : null}
@@ -693,6 +694,7 @@ export function EquipmentDetailModal({
   }
   if (item.acBonus != null) rows.push({ label: 'Shield bonus', value: `+${item.acBonus}` });
   if (item.miscACBonus != null) rows.push({ label: 'Magic AC bonus', value: `+${item.miscACBonus}` });
+  if (item.miscSaveBonus != null) rows.push({ label: 'Magic save bonus', value: `+${item.miscSaveBonus} to all saves` });
   if (item.requiresAttunement) {
     rows.push({ label: 'Attunement', value: item.attuned ? 'Attuned' : 'Required, not attuned' });
   }

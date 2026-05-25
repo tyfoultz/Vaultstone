@@ -504,6 +504,7 @@ export function itemResultToEquipment(item: ItemResult): Dnd5eEquipmentItem {
     dexCap,
     acBonus,
     miscACBonus: parseMagicACBonus(item),
+    miscSaveBonus: parseMagicSaveBonus(item),
     properties: flavorProps.length > 0 ? flavorProps : undefined,
     notes: item.description?.slice(0, 240),
     weight: item.weight,
@@ -566,6 +567,34 @@ function parseMagicACBonus(item: ItemResult): number | undefined {
   // form for magic armor/shields/weapons ("Plate Armor +1").
   const nameMatch = item.name.match(/\+\s*(\d+)\s*$/);
   if (nameMatch) return parseInt(nameMatch[1], 10);
+  return undefined;
+}
+
+/**
+ * Look for a numeric all-saves bonus in a magic item's description.
+ * Covers Cloak of Protection / Ring of Protection ("+1 bonus to AC
+ * and saving throws"), Stone of Good Luck ("+1 bonus to ability
+ * checks and saving throws"), and similar protection-style effects.
+ * Returns undefined when nothing matches — most magic items leave
+ * the field unset.
+ *
+ * Deliberately scoped to ALL saving throws — single-ability boosts
+ * like Headband of Intellect (sets INT) or Belt of Giant Strength
+ * (sets STR) need their own model since they replace a score rather
+ * than adding a flat save bonus.
+ */
+function parseMagicSaveBonus(item: ItemResult): number | undefined {
+  if (item.category !== 'magic-item') return undefined;
+  const haystack = `${item.description ?? ''} ${(item.properties ?? []).join(' ')}`;
+  const patterns: RegExp[] = [
+    /\+\s*(\d+)\s+bonus to (?:[^.]*?\s+and\s+)?(?:all\s+)?saving throws/i,
+    /\+\s*(\d+)\s+to (?:[^.]*?\s+and\s+)?(?:all\s+)?saving throws/i,
+    /bonus to (?:all\s+)?saving throws(?:[^.]*?)of\s+\+?\s*(\d+)/i,
+  ];
+  for (const re of patterns) {
+    const m = haystack.match(re);
+    if (m) return parseInt(m[1], 10);
+  }
   return undefined;
 }
 

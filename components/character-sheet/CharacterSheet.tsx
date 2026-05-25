@@ -1167,6 +1167,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       dexCap: e.dexCap ?? fresh.dexCap,
       acBonus: e.acBonus ?? fresh.acBonus,
       miscACBonus: e.miscACBonus ?? fresh.miscACBonus,
+      miscSaveBonus: e.miscSaveBonus ?? fresh.miscSaveBonus,
       properties: e.properties ?? fresh.properties,
       requiresAttunement: e.requiresAttunement ?? fresh.requiresAttunement,
       weight: e.weight ?? fresh.weight,

@@ -208,6 +208,15 @@ export function CombatTab({
   // scrolls), thrown weapons, and ad-hoc utility items can sit here
   // without being "worn".
   const pinnedItems = equipment.filter((e) => e.pinnedToCombat);
+  // Sum of "+N to all saving throws" effects from currently-active
+  // magic items (Cloak of Protection, Ring of Protection, etc.).
+  // Mirrors the AC aggregator's gating: the item must be equipped,
+  // and if it requires attunement, must also be attuned.
+  const extraSaveBonus = equipment.reduce((sum, e) => {
+    if (!e.equipped) return sum;
+    if (e.requiresAttunement && !e.attuned) return sum;
+    return sum + (e.miscSaveBonus ?? 0);
+  }, 0);
 
   const isSpellcaster = !!stats.spellcastingAbility;
   const spellSlots = resources.spellSlots ?? (isSpellcaster ? DEFAULT_SLOTS : null);
@@ -254,6 +263,7 @@ export function CombatTab({
             scores={scores}
             stats={stats}
             prof={prof}
+            extraBonus={extraSaveBonus}
             manualMode={manualMode}
             onToggleSaveProficiency={onToggleSaveProficiency}
             onRoll={onRoll}
@@ -417,6 +427,7 @@ export function CombatTab({
             scores={scores}
             stats={stats}
             prof={prof}
+            extraBonus={extraSaveBonus}
             manualMode={manualMode}
             onToggleSaveProficiency={onToggleSaveProficiency}
             onRoll={onRoll}
@@ -883,12 +894,15 @@ function PinnedCard({
  * proficiency for that ability (replaces the old left-sidebar editor).
  */
 function SavingThrowsStrip({
-  scores, stats, prof, manualMode, onToggleSaveProficiency, onRoll, isDesktop,
+  scores, stats, prof, extraBonus, manualMode, onToggleSaveProficiency, onRoll, isDesktop,
   extras,
 }: {
   scores: Dnd5eAbilityScores;
   stats: Dnd5eStats;
   prof: number;
+  /** Aggregate "+N to all saving throws" bonus from active magic
+   *  items. Added on top of ability mod + proficiency. */
+  extraBonus?: number;
   manualMode?: boolean;
   onToggleSaveProficiency?: (ability: keyof Dnd5eAbilityScores) => void;
   onRoll: (r: RollResult) => void;
@@ -903,7 +917,7 @@ function SavingThrowsStrip({
     <View style={isDesktop ? s.savesStripDesktop : s.savesGrid}>
       {ABILITY_KEYS.map((abi) => {
         const isProf = stats.savingThrowProficiencies.includes(abi);
-        const bonus = abilityMod(scores[abi]) + (isProf ? prof : 0);
+        const bonus = abilityMod(scores[abi]) + (isProf ? prof : 0) + (extraBonus ?? 0);
         const handlePress = () => {
           if (manualMode && onToggleSaveProficiency) {
             onToggleSaveProficiency(abi);
