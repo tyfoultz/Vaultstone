@@ -2874,7 +2874,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 activeOpacity={0.7}
                 accessibilityLabel="Expand character card"
               >
-                <MaterialCommunityIcons name="chevron-down" size={14} color={colors.outline} />
+                <MaterialCommunityIcons name="chevron-down" size={14} color={colors.gm} />
               </TouchableOpacity>
               <Text style={s.heroCollapsedName} numberOfLines={1}>{stats.characterName}</Text>
               <View style={s.heroCollapsedStats}>
@@ -3039,12 +3039,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               now owns active conditions + exhaustion + the "Add
               condition" picker. Leading chevron collapses the hero
               card + this strip down to a thin name/AC/HP bar. */}
-          <LinearGradient
-            colors={[`${colors.gm}33`, `${colors.gm}10`, colors.surfaceContainerLowest]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={s.heroSuppRow}
-          >
+          <View style={s.heroSuppRow}>
             <TouchableOpacity
               style={s.heroCollapseBtn}
               onPress={() => setHeroCollapsed(true)}
@@ -3052,7 +3047,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               activeOpacity={0.7}
               accessibilityLabel="Collapse character card"
             >
-              <MaterialCommunityIcons name="chevron-up" size={14} color={colors.outline} />
+              <MaterialCommunityIcons name="chevron-up" size={14} color={colors.gm} />
             </TouchableOpacity>
             <Text style={s.suppCondLabel}>CONDITIONS</Text>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -3069,7 +3064,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 }
               />
             </View>
-          </LinearGradient>
+          </View>
           </>
           )}
 
@@ -4455,13 +4450,12 @@ const s = StyleSheet.create({
   heroChipTextCond: { color: colors.hpWarning },
 
   // Supplementary strip under the hero card — now dedicated to
-  // Conditions. Background is painted by the gm-orange LinearGradient
-  // wrapper so the strip echoes the right activity-rail's accent
-  // (orange on the right; gm-orange seam on the bottom of the hero).
+  // Conditions.
   heroSuppRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     paddingHorizontal: 10, paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLowest,
   },
   suppCondLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
@@ -4470,12 +4464,14 @@ const s = StyleSheet.create({
   },
   /** Small outlined circle button used to collapse / expand the mobile
    *  hero card. Lives on the left of the supp strip (collapse arrow)
-   *  and on the left of the collapsed thin bar (expand arrow). */
+   *  and on the left of the collapsed thin bar (expand arrow). Gets
+   *  the gm-orange tint so it acts as the "alt accent" highlight on
+   *  an otherwise neutral strip. */
   heroCollapseBtn: {
     width: 22, height: 22, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: `${colors.gm}66`,
+    backgroundColor: `${colors.gm}18`,
   },
   /** Collapsed character bar — shown in place of the hero card +
    *  supp strip. Chevron (expand) + name + AC + HP, all read-only. */
