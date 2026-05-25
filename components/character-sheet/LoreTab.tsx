@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type {
@@ -369,13 +369,20 @@ function JournalPane({ entries, isOwner, onUpdate }: {
   isOwner: boolean;
   onUpdate?: (entries: Dnd5eJournalEntry[]) => void;
 }) {
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  // Measure the actual pane width — not window width — so the layout
+  // adapts when Lore is rendered inside a narrow split-tab pane
+  // (~450-580px). Window-based detection picked the two-column layout
+  // for any window >= 768px, leaving the editor with ~300px to write in.
+  // Below this threshold (sidebar 280 + editor 480) we switch to the
+  // mobile dropdown-picker pattern so the editor gets the full width.
+  const [paneWidth, setPaneWidth] = useState<number | null>(null);
+  const isDesktop = paneWidth === null ? true : paneWidth >= 760;
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(
     entries.length > 0 ? entries[0].id : null,
   );
-  // Mobile-only: dropdown picker open/closed.
+  // Used by the narrow-pane (dropdown) layout — controls the picker
+  // popover's open/closed state.
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const filtered = entries.filter((e) =>
@@ -436,7 +443,7 @@ function JournalPane({ entries, isOwner, onUpdate }: {
 
   if (isDesktop) {
     return (
-      <View style={s.journalRoot}>
+      <View style={s.journalRoot} onLayout={(e) => setPaneWidth(e.nativeEvent.layout.width)}>
         {/* Left: search + entry list */}
         <View style={s.journalSidebar}>
           <View style={s.journalHeader}>
@@ -521,7 +528,7 @@ function JournalPane({ entries, isOwner, onUpdate }: {
     : entries.length === 0 ? 'No entries yet' : 'Select an entry';
 
   return (
-    <View style={s.journalRootMobile}>
+    <View style={s.journalRootMobile} onLayout={(e) => setPaneWidth(e.nativeEvent.layout.width)}>
       {/* Picker header — current entry on the left, + on the right.
           Tapping the picker opens an inline dropdown of all entries. */}
       <View style={s.journalMobileHeaderRow}>

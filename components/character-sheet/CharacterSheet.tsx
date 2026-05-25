@@ -89,6 +89,27 @@ function getCachedContent(charId: string): ContentCache | null {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
+
+/**
+ * Passive-sense cell rendered in the mobile hero card. Icon + uppercase
+ * label + value, sitting in a small bordered tile so the row mirrors
+ * the desktop sidebar's Senses panel at a glance.
+ */
+function SenseCell({ icon, label, value }: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <View style={s.heroStatCell}>
+      <View style={s.heroStatCellTop}>
+        <MaterialCommunityIcons name={icon} size={11} color={colors.outline} />
+        <Text style={s.heroStatCellLabel}>{label}</Text>
+      </View>
+      <Text style={s.heroStatCellValue}>{value}</Text>
+    </View>
+  );
+}
 function profBonus(level: number) { return Math.floor((level - 1) / 4) + 2; }
 function fmtMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -720,6 +741,20 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // 'short' | 'long' | null — tracks which rest the player is about to
   // confirm. Resets to null on dismiss.
   const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null);
+  /** Tiny picker shown when the player taps the corner Rest button on
+   *  the mobile hero card — chooses Short vs Long before opening the
+   *  existing restConfirm modal. */
+  const [restChooserOpen, setRestChooserOpen] = useState(false);
+  /** When true, the mobile hero card + supp strip collapse into a
+   *  single thin bar (chevron + name + AC + HP). Tap the chevron to
+   *  re-expand. Doesn't persist across sessions. */
+  const [heroCollapsed, setHeroCollapsed] = useState(false);
+  /** Hit dice the player wants to spend during the upcoming short rest
+   *  (0..hitDiceRemaining). Picked via a stepper in the restConfirm
+   *  modal when type === 'short'; reset to 0 each time the modal opens
+   *  or the modal type switches between short and long. */
+  const [shortRestHitDice, setShortRestHitDice] = useState(0);
+  useEffect(() => { setShortRestHitDice(0); }, [restConfirm]);
   // Open the spend-hit-die confirm dialog. The actual roll + HP /
   // remaining mutation happens in handleSpendHitDie; this just gates
   // the side effect behind a confirm so a stray tap doesn't burn a
@@ -1211,6 +1246,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const computedInitiative = scores ? abilityMod(scores.dexterity) : 0;
   const initiative = manualMode && stats?.initiativeOverride != null ? stats.initiativeOverride : computedInitiative;
   const passivePerception = 10 + skillMod('perception');
+  const passiveInvestigation = 10 + skillMod('investigation');
+  const passiveInsight = 10 + skillMod('insight');
 
   const liveActionFeatures: Dnd5eFeature[] = useMemo(() => {
     if (!stats) return [];
@@ -1421,7 +1458,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     });
   }
 
-  function handleShortRest() {
+  /**
+   * Short rest. Restores short-rest class resources + ability uses.
+   * Optionally spends `spendHitDice` hit dice as part of the rest —
+   * rolls one dN+CON per die spent (5e min 1 HP per die), sums to a
+   * heal total, decrements hit dice remaining. The roll is surfaced
+   * as a single combined RollToast so the player sees the dice +
+   * heal at a glance.
+   */
+  function handleShortRest(spendHitDice: number = 0) {
     if (!resources || !canEditAny) return;
     const next: Dnd5eResources = { ...resources };
     if (resources.classResources && resources.classResources.length > 0) {
@@ -1437,6 +1482,33 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       next.abilities = resources.abilities.map((a) =>
         a.uses && a.uses.recharge === 'short' ? { ...a, uses: { ...a.uses, current: a.uses.max } } : a,
       );
+    }
+    // Hit-die spend portion. Capped at remaining hit dice + requires
+    // stats/scores for the heal math.
+    if (spendHitDice > 0 && stats && scores) {
+      const remaining = resources.hitDiceRemaining ?? stats.level;
+      const toSpend = Math.max(0, Math.min(spendHitDice, remaining));
+      if (toSpend > 0) {
+        const die = stats.hitDie || 8;
+        const conMod = abilityMod(scores.constitution);
+        const rolls: number[] = [];
+        let heal = 0;
+        for (let i = 0; i < toSpend; i++) {
+          const r = Math.floor(Math.random() * die) + 1;
+          rolls.push(r);
+          // 5e rule: each die spent grants at least 1 HP, even if CON
+          // mod would push the per-die total below 1.
+          heal += Math.max(1, r + conMod);
+        }
+        next.hitDiceRemaining = remaining - toSpend;
+        next.hpCurrent = Math.min(stats.hpMax, (resources.hpCurrent ?? 0) + heal);
+        handleRoll({
+          label: `Short rest · spent ${toSpend} hit ${toSpend === 1 ? 'die' : 'dice'} (d${die}${conMod >= 0 ? '+' : ''}${conMod} CON)`,
+          rolls,
+          bonus: toSpend * conMod,
+          total: heal,
+        });
+      }
     }
     persistResources(next);
   }
@@ -2295,8 +2367,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const portraitContent = portraitUploading
     ? <ActivityIndicator color={colors.primary} size="small" />
     : (character as any).avatar_url
-      ? <Image source={{ uri: (character as any).avatar_url }} style={isDesktop ? s.deskPortraitImg : s.chromePortraitImg} />
-      : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 32 : 24} color={colors.outline} />;
+      ? <Image source={{ uri: (character as any).avatar_url }} style={isDesktop ? s.deskPortraitImg : s.heroPortraitImg} />
+      : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 32 : 28} color={colors.outline} />;
 
   return (
     <View style={s.root}>
@@ -2494,10 +2566,32 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
               {/* Stat grid — AC full row, then 2+2 */}
               <View style={s.deskStatGrid}>
-                {/* Row 1: AC solo */}
+                {/* Row 1: AC solo — masked metallic shield holds the
+                    value, label sits to the right. Mirrors the
+                    party-card / mobile-hero AC shield treatment so the
+                    defense stat reads the same on every surface. */}
                 <View style={s.deskStatRow}>
-                  <StatCell icon="shield-outline" value={String(ac)} label="Armor Class" color={colors.secondary} centered
-                    editable={manualMode} onPress={manualMode ? () => startEditField('ac', ac) : undefined} />
+                  {(() => {
+                    const Wrapper = manualMode ? TouchableOpacity : View;
+                    return (
+                      <Wrapper
+                        style={[statCellStyle.cell, statCellStyle.cellCentered, manualMode && statCellStyle.cellEditable, s.deskAcCell]}
+                        onPress={manualMode ? () => startEditField('ac', ac) : undefined}
+                        activeOpacity={0.7}
+                      >
+                        <View style={s.deskAcShieldWrap}>
+                          {/* Solid metallic silver shield — MaskedView
+                              doesn't render on RN Web. */}
+                          <MaterialCommunityIcons name="shield" size={44} color="#b8bdc7" />
+                          <Text style={s.deskAcShieldNum}>{ac}</Text>
+                        </View>
+                        <View style={statCellStyle.text}>
+                          <Text style={s.deskAcLabel}>Armor Class</Text>
+                        </View>
+                        {manualMode && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
+                      </Wrapper>
+                    );
+                  })()}
                 </View>
                 {/* Row 2: Speed | Initiative */}
                 <View style={s.deskStatRow}>
@@ -2725,37 +2819,31 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
            MOBILE LAYOUT — stacked HUD
            ════════════════════════════════════════════════════════════════ */
         <>
-          {/* Top Chrome */}
-          <View style={s.topChrome}>
-            <TouchableOpacity onPress={() => handleClose()} style={s.backBtn} hitSlop={8}>
+          {/* Utility bar — Home + Campaign on the left; Lv↑ / Log /
+              Settings on the right. The chunky Home button goes all the
+              way back to the home screen (drawer entry point); Campaign
+              jumps into the linked campaign hub. */}
+          <View style={s.utilityBar}>
+            <TouchableOpacity
+              onPress={() => router.replace('/(drawer)/home')}
+              style={s.homeBtn}
+              hitSlop={6}
+              activeOpacity={0.7}
+            >
               <MaterialCommunityIcons name="chevron-left" size={22} color={colors.onSurfaceVariant} />
+              <Text style={s.homeBtnLabel}>Home</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity style={s.chromePortrait} onPress={handlePickPortrait} disabled={portraitUploading} activeOpacity={0.85}>
-              {portraitContent}
-            </TouchableOpacity>
-
-            <View style={s.chromeIdentity}>
-              {editingName ? (
-                <TextInput
-                  style={s.chromeNameInput}
-                  value={nameInput}
-                  onChangeText={setNameInput}
-                  onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                  onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                  autoFocus returnKeyType="done"
-                />
-              ) : (
-                <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
-                  <Text style={s.chromeName} numberOfLines={1}>{stats.characterName}</Text>
-                </TouchableOpacity>
-              )}
-              <Text style={s.chromeSub} numberOfLines={1}>
-                {[speciesLabel, classLabel].filter(Boolean).join(' ')} ·{' '}
-                <>Lv {stats.level}</>
-              </Text>
-            </View>
-
+            {character?.campaign_id && linkedCampaignName ? (
+              <TouchableOpacity
+                style={s.campaignChip}
+                onPress={() => router.push(`/campaign/${character.campaign_id}`)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="castle" size={13} color={colors.primary} />
+                <Text style={s.campaignChipLabel} numberOfLines={1}>{linkedCampaignName}</Text>
+              </TouchableOpacity>
+            ) : null}
+            <View style={{ flex: 1 }} />
             {isOwner && stats.level < 20 ? (
               <TouchableOpacity
                 onPress={() => router.push(`/character/${id}/level-up`)}
@@ -2765,69 +2853,254 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={20} color={colors.primary} />
               </TouchableOpacity>
             ) : null}
-
-            <TouchableOpacity
-              style={[s.inspirationBtn, resources.inspiration && s.inspirationBtnActive]}
-              onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
-              activeOpacity={0.7} hitSlop={6}
-            >
-              <MaterialCommunityIcons
-                name={resources.inspiration ? 'star' : 'star-outline'}
-                size={18}
-                color={resources.inspiration ? colors.gm : colors.outline}
-              />
-            </TouchableOpacity>
-
             <TouchableOpacity onPress={() => setLogModal(true)} hitSlop={8} style={s.settingsIconBtn}>
               <MaterialCommunityIcons name="notebook-outline" size={20} color={colors.outline} />
             </TouchableOpacity>
-
             <TouchableOpacity onPress={() => setSettingsModal(true)} hitSlop={8} style={s.settingsIconBtn}>
               <MaterialCommunityIcons name="cog-outline" size={20} color={colors.outline} />
             </TouchableOpacity>
           </View>
 
-          {/* Stat Rail */}
-          <View style={s.statRail}>
-            <View style={s.railStat}>
-              <Text style={[s.railValue, { color: colors.secondary }]}>{ac}</Text>
-              <Text style={s.railLabel}>AC</Text>
+          {/* Collapsed variant — thin bar with chevron + name + AC +
+              HP, swaps in when the player taps the collapse chevron in
+              the supp strip. Read-only numbers; tap the chevron to
+              re-expand. */}
+          {heroCollapsed ? (
+            <View style={s.heroCollapsedBar}>
+              <TouchableOpacity
+                style={s.heroCollapseBtn}
+                onPress={() => setHeroCollapsed(false)}
+                hitSlop={8}
+                activeOpacity={0.7}
+                accessibilityLabel="Expand character card"
+              >
+                <MaterialCommunityIcons name="chevron-down" size={14} color={colors.gm} />
+              </TouchableOpacity>
+              <Text style={s.heroCollapsedName} numberOfLines={1}>{stats.characterName}</Text>
+              <View style={s.heroCollapsedStats}>
+                <View style={s.heroCollapsedStat}>
+                  <MaterialCommunityIcons name="shield" size={12} color="#b8bdc7" />
+                  <Text style={s.heroCollapsedStatValue}>{ac}</Text>
+                </View>
+                <View style={s.heroCollapsedStat}>
+                  <Text style={[s.heroCollapsedStatValue, { color: hpC }]}>{resources.hpCurrent}</Text>
+                  <Text style={s.heroCollapsedStatSep}>/</Text>
+                  <Text style={s.heroCollapsedStatMax}>{stats.hpMax}</Text>
+                </View>
+              </View>
             </View>
+          ) : (
+          <>
+          {/* Hero card — mirrors the campaign PartyMemberCard chassis:
+              left-edge HP-tier stripe, 3:4 portrait, body column with
+              name + subtitle + HP block + passive senses + chips, AC
+              shield top-right. Adapted for self-view so taps are
+              actionable (HP → quick damage/heal modal, name → edit,
+              portrait → upload, inspiration / conditions → toggle). */}
+          <View style={[s.heroCard, isDead && s.heroCardUnconscious]}>
+            {/* Top-right corner buttons — Inspiration toggle + Rest
+                chooser. Rest taps open a small picker modal that flows
+                into the existing restConfirm. */}
+            <View style={s.heroCornerBtns}>
+              <TouchableOpacity
+                style={[s.heroCornerBtn, resources.inspiration && s.heroCornerBtnInspActive]}
+                onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
+                disabled={!canEditAny}
+                activeOpacity={canEditAny ? 0.7 : 1}
+                accessibilityLabel={resources.inspiration ? 'Inspired — tap to clear' : 'Mark inspired'}
+              >
+                <MaterialCommunityIcons
+                  name={resources.inspiration ? 'star' : 'star-outline'}
+                  size={16}
+                  color={resources.inspiration ? colors.gm : colors.outline}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.heroCornerBtn}
+                onPress={() => canEditAny && setRestChooserOpen(true)}
+                disabled={!canEditAny}
+                activeOpacity={canEditAny ? 0.7 : 1}
+                accessibilityLabel="Take a rest"
+              >
+                <MaterialCommunityIcons name="bed" size={16} color={colors.outline} />
+              </TouchableOpacity>
+            </View>
+
+            {/* 3:4 portrait fills card height */}
             <TouchableOpacity
-              style={s.railHp}
-              onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
-              onLongPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
-              activeOpacity={0.8}
+              style={s.heroPortrait}
+              onPress={handlePickPortrait}
+              disabled={portraitUploading || !isOwner}
+              activeOpacity={isOwner ? 0.85 : 1}
             >
-              <View style={s.hpNumRow}>
-                <Text style={[s.railHpCurrent, { color: hpC }]}>{resources.hpCurrent}</Text>
-                <Text style={s.railHpSep}>/</Text>
-                <Text style={s.railHpMax}>{stats.hpMax}</Text>
-                {resources.hpTemp > 0 && <Text style={s.railHpTemp}>+{resources.hpTemp}</Text>}
-              </View>
-              <View style={s.hpTrack}>
-                <View style={[s.hpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
-                {resources.hpTemp > 0 && (
-                  <View style={[s.hpTempFill, {
-                    width: `${Math.min((1 - hpRatio) * 100, (resources.hpTemp / stats.hpMax) * 100)}%` as any,
-                  }]} />
-                )}
-              </View>
-              <Text style={s.railLabel}>HP{showDeathSaves ? ' · SAVE' : isDead ? ' · DEAD' : isStabilized ? ' · STABLE' : ''}</Text>
+              {portraitContent}
             </TouchableOpacity>
-            <View style={s.railStat}>
-              <Text style={s.railValue}>{fmtMod(initiative)}</Text>
-              <Text style={s.railLabel}>INIT</Text>
-            </View>
-            <View style={s.railStat}>
-              <Text style={s.railValue}>{stats.speed}</Text>
-              <Text style={s.railLabel}>SPD</Text>
-            </View>
-            <View style={s.railStat}>
-              <Text style={[s.railValue, { color: colors.primary }]}>{fmtMod(prof)}</Text>
-              <Text style={s.railLabel}>PROF</Text>
+
+            {/* Body column */}
+            <View style={s.heroBody}>
+              {/* Title row — AC shield inline at left, name + subtitle
+                  filling the remainder. Right padding clears the corner
+                  buttons (INSP + REST) absolute-positioned above. */}
+              <View style={[s.heroTitleRow, s.heroNamePad]}>
+                <View style={s.heroAcInline}>
+                  <MaterialCommunityIcons name="shield" size={36} color="#b8bdc7" />
+                  <Text style={s.heroAcNum}>{ac}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  {editingName ? (
+                    <TextInput
+                      style={s.heroNameInput}
+                      value={nameInput}
+                      onChangeText={setNameInput}
+                      onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                      onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                      autoFocus returnKeyType="done"
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))}
+                      activeOpacity={isOwner ? 0.7 : 1}
+                    >
+                      <Text style={s.heroName} numberOfLines={1}>{stats.characterName}</Text>
+                    </TouchableOpacity>
+                  )}
+                  <Text style={s.heroSub} numberOfLines={1}>
+                    L{stats.level} — {[speciesLabel, classLabel].filter(Boolean).join(' ')}
+                  </Text>
+                </View>
+              </View>
+
+              {/* HP block — same layout as the desktop sidebar:
+                  [damage btn] [HP nums tappable] [heal btn], then the
+                  full-width HP bar. Tap the number to open the HP
+                  modal (or the manual-mode field editor); damage/heal
+                  buttons open the quick-input pad in that mode. */}
+              <View style={s.heroHpBlock}>
+                <View style={s.heroHpCenterRow}>
+                  <TouchableOpacity
+                    style={s.heroHpActionBtn}
+                    onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('damage'))}
+                    disabled={!canEditAny}
+                    activeOpacity={0.7}
+                    hitSlop={6}
+                    accessibilityLabel="Apply damage"
+                  >
+                    <MaterialCommunityIcons name="sword" size={16} color={colors.hpDanger} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.heroHpNumsCenter}
+                    onPress={() => canEditAny && (manualMode ? startEditField('hpCurrent', resources.hpCurrent) : setHpModalVisible(true))}
+                    onLongPress={() => canEditAny && setHpModalVisible(true)}
+                    activeOpacity={canEditAny ? 0.7 : 1}
+                    disabled={!canEditAny}
+                  >
+                    <Text style={[s.heroHpNum, { color: hpC }]}>{resources.hpCurrent}</Text>
+                    <Text style={s.heroHpSep}>/</Text>
+                    {manualMode ? (
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); startEditField('hpMax', stats.hpMax); }} activeOpacity={0.7}>
+                        <Text style={[s.heroHpMax, { textDecorationLine: 'underline', textDecorationStyle: 'dashed' }]}>{stats.hpMax}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={s.heroHpMax}>{stats.hpMax}</Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.heroHpActionBtn}
+                    onPress={() => canEditAny && (setHpQuickInput(''), setHpQuickMode('heal'))}
+                    disabled={!canEditAny}
+                    activeOpacity={0.7}
+                    hitSlop={6}
+                    accessibilityLabel="Apply healing"
+                  >
+                    <MaterialCommunityIcons name="heart-plus" size={16} color={colors.hpHealthy} />
+                  </TouchableOpacity>
+                </View>
+                {(resources.hpTemp > 0 || showDeathSaves || isDead || isStabilized) ? (
+                  <View style={s.heroHpMetaRow}>
+                    {resources.hpTemp > 0 ? (
+                      <View style={s.heroTempPill}>
+                        <Text style={s.heroTempPillText}>+{resources.hpTemp} TEMP</Text>
+                      </View>
+                    ) : <View />}
+                    {(showDeathSaves || isDead || isStabilized) ? (
+                      <Text style={[
+                        s.heroHpState,
+                        isDead && { color: colors.hpDanger },
+                        isStabilized && { color: colors.hpHealthy },
+                      ]}>
+                        {isDead ? 'DEAD' : isStabilized ? 'STABLE' : 'DEATH SAVES'}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+                <View style={s.heroHpTrack}>
+                  <View style={[s.heroHpFill, { width: `${hpRatio * 100}%` as any, backgroundColor: hpC }]} />
+                  {resources.hpTemp > 0 && (
+                    <View style={[s.heroHpTempFill, {
+                      width: `${Math.min((1 - hpRatio) * 100, (resources.hpTemp / stats.hpMax) * 100)}%` as any,
+                    }]} />
+                  )}
+                </View>
+              </View>
+
+              {/* Compact 5-cell stat row — passive senses + proficiency
+                  + hit dice. Tighter than the original 3-cell PER/INV/
+                  INS row so PROF and HD can share the line; freed up
+                  the supp strip below for Conditions. */}
+              <View style={s.heroStatsRow}>
+                <SenseCell icon="eye-outline" label="PER" value={passivePerception} />
+                <SenseCell icon="magnify" label="INV" value={passiveInvestigation} />
+                <SenseCell icon="brain" label="INS" value={passiveInsight} />
+                <SenseCell icon="star-four-points-outline" label="PROF" value={fmtMod(prof)} />
+                <SenseCell icon="dice-d8-outline" label="HD" value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`} />
+              </View>
+
+              {/* Chip row — concentration only. Conditions + exhaustion
+                  moved down to the supp strip's ConditionsSection;
+                  INSP is the top-right corner button. */}
+              {resources.concentrationSpell ? (
+                <View style={s.heroChipsRow}>
+                  <View style={[s.heroChip, s.heroChipConc]}>
+                    <Text style={[s.heroChipText, s.heroChipTextConc]}>✦ {resources.concentrationSpell.toUpperCase()}</Text>
+                  </View>
+                </View>
+              ) : null}
             </View>
           </View>
+
+          {/* Conditions strip — INIT/SPD/PROF/HD moved into the hero
+              card stat row + the Combat saves grid; the bottom strip
+              now owns active conditions + exhaustion + the "Add
+              condition" picker. Leading chevron collapses the hero
+              card + this strip down to a thin name/AC/HP bar. */}
+          <View style={s.heroSuppRow}>
+            <TouchableOpacity
+              style={s.heroCollapseBtn}
+              onPress={() => setHeroCollapsed(true)}
+              hitSlop={8}
+              activeOpacity={0.7}
+              accessibilityLabel="Collapse character card"
+            >
+              <MaterialCommunityIcons name="chevron-up" size={14} color={colors.gm} />
+            </TouchableOpacity>
+            <Text style={s.suppCondLabel}>CONDITIONS</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <ConditionsSection
+                activeConditions={activeConditions}
+                exhaustionLevel={resources.exhaustionLevel ?? 0}
+                canEditAny={canEditAny}
+                onToggle={handleToggleCondition}
+                onSetExhaustion={handleSetExhaustion}
+                bundledConditions={
+                  conditionResults && conditionResults.length > 0
+                    ? conditionResults.filter((c) => c.name.toLowerCase() !== 'exhaustion')
+                    : []
+                }
+              />
+            </View>
+          </View>
+          </>
+          )}
 
           {/* Tab content */}
           <View style={{ flex: 1 }}>{renderTab(activeTab)}</View>
@@ -3403,6 +3676,41 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         </Pressable>
       </Modal>
 
+      {/* Rest chooser — opened from the mobile hero card's Rest
+          corner button. Two big options, each flows into the existing
+          restConfirm modal so the player still sees what the rest will
+          actually do before committing. */}
+      <Modal visible={restChooserOpen} transparent animationType="fade" onRequestClose={() => setRestChooserOpen(false)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setRestChooserOpen(false)}>
+          <Pressable style={s.restConfirmCard} onPress={() => {}}>
+            <View style={s.restChooserHeader}>
+              <MaterialCommunityIcons name="bed" size={20} color={colors.primary} />
+              <Text style={s.restConfirmTitle}>Take a rest</Text>
+            </View>
+            <View style={s.restChooserRow}>
+              <TouchableOpacity
+                style={s.restChooserBtn}
+                onPress={() => { setRestChooserOpen(false); setRestConfirm('short'); }}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="campfire" size={20} color={colors.primary} />
+                <Text style={s.restChooserBtnText}>Short Rest</Text>
+                <Text style={s.restChooserBtnSub}>1 hour · spend hit dice</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.restChooserBtn}
+                onPress={() => { setRestChooserOpen(false); setRestConfirm('long'); }}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="bed" size={20} color={colors.primary} />
+                <Text style={s.restChooserBtnText}>Long Rest</Text>
+                <Text style={s.restChooserBtnSub}>8 hours · full reset</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Rest confirmation modal — gates short/long rest commits since
           the underlying writes touch a lot of state (HP, slots, hit
           dice, exhaustion) that's painful to undo. The body lists what
@@ -3429,11 +3737,60 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </>
               ) : (
                 <>
-                  Restores class resources that recharge on a short rest. Doesn't
-                  touch HP, spell slots, or hit dice — those stay where they are.
+                  Restores class resources that recharge on a short rest. Spend
+                  hit dice below to heal during the rest.
                 </>
               )}
             </Text>
+
+            {/* Hit-die spend picker — short rest only. Stepper between
+                0 and hit dice remaining. Each die spent rolls 1dN+CON
+                (min 1) on commit and adds to HP, capped at hpMax. */}
+            {restConfirm === 'short' && stats && resources && scores ? (() => {
+              const remaining = resources.hitDiceRemaining ?? stats.level;
+              const die = stats.hitDie || 8;
+              const conMod = abilityMod(scores.constitution);
+              const canIncrease = shortRestHitDice < remaining;
+              const canDecrease = shortRestHitDice > 0;
+              const avgPerDie = Math.max(1, Math.round((die + 1) / 2 + conMod));
+              const avgHeal = shortRestHitDice * avgPerDie;
+              return (
+                <View style={s.hitDiceSpendBox}>
+                  <View style={s.hitDiceSpendHeader}>
+                    <Text style={s.hitDiceSpendLabel}>SPEND HIT DICE</Text>
+                    <Text style={s.hitDiceSpendRemaining}>{remaining}/{stats.level} d{die}</Text>
+                  </View>
+                  <View style={s.hitDiceSpendRow}>
+                    <TouchableOpacity
+                      style={[s.hitDiceStepBtn, !canDecrease && s.hitDiceStepBtnDisabled]}
+                      onPress={() => canDecrease && setShortRestHitDice((v) => v - 1)}
+                      disabled={!canDecrease}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons name="minus" size={16} color={canDecrease ? colors.onSurface : colors.outline} />
+                    </TouchableOpacity>
+                    <View style={s.hitDiceSpendValue}>
+                      <Text style={s.hitDiceSpendValueNum}>{shortRestHitDice}</Text>
+                      <Text style={s.hitDiceSpendValueLabel}>to spend</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[s.hitDiceStepBtn, !canIncrease && s.hitDiceStepBtnDisabled]}
+                      onPress={() => canIncrease && setShortRestHitDice((v) => v + 1)}
+                      disabled={!canIncrease}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons name="plus" size={16} color={canIncrease ? colors.onSurface : colors.outline} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={s.hitDiceSpendPreview}>
+                    {shortRestHitDice === 0
+                      ? 'No healing — class resources only'
+                      : `Rolls ${shortRestHitDice}d${die}${conMod >= 0 ? '+' : ''}${shortRestHitDice * conMod} on commit (≈ ${avgHeal} HP)`}
+                  </Text>
+                </View>
+              );
+            })() : null}
+
             <View style={s.restConfirmActions}>
               <TouchableOpacity
                 style={[s.restConfirmBtn, s.restConfirmCancel]}
@@ -3446,8 +3803,9 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 style={[s.restConfirmBtn, s.restConfirmCommit]}
                 onPress={() => {
                   if (restConfirm === 'long') handleLongRest();
-                  else if (restConfirm === 'short') handleShortRest();
+                  else if (restConfirm === 'short') handleShortRest(shortRestHitDice);
                   setRestConfirm(null);
+                  setShortRestHitDice(0);
                 }}
                 activeOpacity={0.85}
               >
@@ -3878,11 +4236,63 @@ const s = StyleSheet.create({
   },
 
   // ── HUD layout ──────────────────────────────────────────────────────────────
-  topChrome: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 12, paddingVertical: 10,
+  // Desktop AC shield cell — masked metallic shield containing the AC
+  // value, label sits to the right. Matches the party-card / mobile-
+  // hero shield treatment.
+  deskAcCell: { gap: 10 },
+  deskAcShieldWrap: {
+    width: 44, height: 48,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  deskAcShieldNum: {
+    position: 'absolute', top: 14, left: 0, right: 0,
+    textAlign: 'center',
+    fontFamily: fonts.headline, fontSize: 16, fontWeight: '800',
+    color: colors.onPrimary,
+  },
+  deskAcLabel: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
+    letterSpacing: 0.8, color: colors.onSurfaceVariant,
+    textTransform: 'uppercase',
+  },
+
+  // Mobile utility bar — Home + Campaign on the left; Lv↑ / Log /
+  // Settings on the right. Sits above the hero card.
+  utilityBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 10, paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainerLowest,
+  },
+  /** Chunky Home button — icon + label, sized up from the original
+   *  back chevron so it feels like a primary surface action and reads
+   *  as "go all the way home" rather than "go back one step". */
+  homeBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  homeBtnLabel: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant, letterSpacing: 0.3,
+    marginRight: 2,
+  },
+  /** Campaign chip next to Home — castle icon + campaign name, taps
+   *  to the linked campaign hub. Only rendered when the character is
+   *  on a campaign. */
+  campaignChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: `${colors.primary}55`,
+    backgroundColor: `${colors.primary}14`,
+    maxWidth: 160,
+  },
+  campaignChipLabel: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.3,
   },
   backBtn: { padding: 4 },
   // 3:4 card frame. Width fixed; height = width × 4/3. Square corners
@@ -3917,40 +4327,234 @@ const s = StyleSheet.create({
   inspirationBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
   settingsIconBtn: { padding: 4 },
 
-  statRail: {
+  // Mobile hero card — chassis lifted from the campaign PartyMemberCard
+  // and adapted for self-view (all taps actionable for the owner).
+  heroCard: {
     flexDirection: 'row', alignItems: 'stretch',
+    gap: spacing.sm + 4,
+    paddingTop: spacing.sm + 4, paddingBottom: spacing.sm + 4,
+    paddingLeft: spacing.sm + 4, paddingRight: spacing.sm + 4,
+    marginHorizontal: 10, marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+    position: 'relative', overflow: 'hidden',
+  },
+  heroCardUnconscious: {
+    borderColor: 'rgba(226,75,74,0.4)',
+    backgroundColor: 'rgba(226,75,74,0.06)',
+  },
+  /** 3:4 portrait that fills the card's full vertical space. */
+  /** Explicit 96×128 (3:4) instead of `aspectRatio + alignSelf:stretch`
+   *  — that combo collapses the portrait to ~0 width on RN Web when
+   *  the parent's height is content-driven (no portrait visible at all
+   *  in playtest). Fixed dimensions are predictable; card height becomes
+   *  max(portrait, body) which still reads well across content states. */
+  heroPortrait: {
+    width: 96, height: 128,
+    borderRadius: 6,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+    alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', flexShrink: 0,
+  },
+  heroPortraitImg: { width: 96, height: 128 },
+  heroBody: { flex: 1, minWidth: 0, gap: 6 },
+  /** First row of the body — AC shield inline at left, name/subtitle
+   *  block flexing to fill the remainder. Right padding clears the
+   *  absolute corner-buttons (INSP + REST) anchored top-right. */
+  heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  /** Inline AC shield wrapper — used inside heroTitleRow. */
+  heroAcInline: {
+    width: 36, height: 40,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  heroName: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: -0.1,
+  },
+  heroNameInput: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.primary, borderBottomWidth: 1, borderBottomColor: colors.primary,
+    paddingVertical: 1,
+  },
+  /** Right padding on the title row so name + sub don't run under the
+   *  absolute-positioned INSP / REST corner-button cluster. */
+  heroNamePad: { paddingRight: 70 },
+  heroSub: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.outline, letterSpacing: 0.2,
+  },
+
+  /** Corner button cluster — top-right of the card, two small icon
+   *  toggles (Inspiration + Rest). Rest opens a chooser modal that
+   *  flows into the existing restConfirm. */
+  heroCornerBtns: {
+    position: 'absolute', top: 8, right: 8,
+    flexDirection: 'row', gap: 4,
+    zIndex: 1,
+  },
+  heroCornerBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  heroCornerBtnInspActive: { borderColor: colors.gm, backgroundColor: `${colors.gm}22` },
+  heroAcNum: {
+    position: 'absolute', top: 12, left: 0, right: 0,
+    textAlign: 'center',
+    fontFamily: fonts.headline, fontSize: 13, fontWeight: '800',
+    // Dark engraved-style text against the metallic shield fill —
+    // onPrimary is the Noir palette's "deep ink" purple, ties the
+    // shield to the rest of the primary-accented sheet.
+    color: colors.onPrimary,
+  },
+
+  // HP block — same layout as the desktop sidebar: damage btn + HP
+  // nums + heal btn over the HP bar. Numbers are tappable for the
+  // HP modal; damage/heal open the quick-input pad.
+  heroHpBlock: { marginTop: 2, gap: 4 },
+  heroHpCenterRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  heroHpActionBtn: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  heroHpNumsCenter: {
+    flexDirection: 'row', alignItems: 'baseline',
+    gap: 2, paddingHorizontal: 8, paddingVertical: 2,
+  },
+  heroHpNum: {
+    fontSize: 22, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurface, lineHeight: 24,
+  },
+  heroHpSep: { fontSize: 13, color: colors.outline, marginHorizontal: 2 },
+  heroHpMax: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '600', color: colors.outline },
+  heroHpMetaRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  heroHpState: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.8, color: colors.outline,
+  },
+  heroTempPill: {
+    paddingHorizontal: 6, paddingVertical: 1,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: 'rgba(173,198,255,0.3)',
+    backgroundColor: 'rgba(173,198,255,0.12)',
+  },
+  heroTempPillText: {
+    fontFamily: fonts.headline, fontSize: 10, fontWeight: '700',
+    color: colors.secondary, letterSpacing: 0.4,
+  },
+  heroHpTrack: {
+    height: 6, borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden', marginTop: 6,
+    flexDirection: 'row',
+  },
+  heroHpFill: { height: '100%', borderRadius: 999 },
+  heroHpTempFill: { height: '100%', backgroundColor: colors.secondary },
+
+  // 5-cell stat row — passive senses + PROF + HD. Tighter than the
+  // original 3-cell row so all five fit on a phone-width hero body.
+  heroStatsRow: { flexDirection: 'row', gap: 3, marginTop: 4 },
+  heroStatCell: {
+    flex: 1, alignItems: 'center',
+    paddingVertical: 3, paddingHorizontal: 2,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  heroStatCellTop: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  heroStatCellLabel: {
+    fontSize: 7, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.8, color: colors.outline, textTransform: 'uppercase',
+  },
+  heroStatCellValue: {
+    fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, marginTop: 1,
+  },
+
+  // Status chip row — inspiration, concentration, conditions, exhaustion.
+  heroChipsRow: { flexDirection: 'row', gap: 4, flexWrap: 'wrap', marginTop: 4, minHeight: 18 },
+  heroChip: {
+    paddingHorizontal: 7, paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  heroChipText: {
+    fontFamily: fonts.label, fontSize: 9, fontWeight: '700',
+    letterSpacing: 0.6, color: colors.onSurfaceVariant,
+  },
+  heroChipInsp: { borderColor: 'rgba(230,162,85,0.35)', backgroundColor: 'rgba(230,162,85,0.12)' },
+  heroChipTextInsp: { color: colors.gm },
+  heroChipConc: { borderColor: 'rgba(211,187,255,0.3)', backgroundColor: 'rgba(211,187,255,0.1)' },
+  heroChipTextConc: { color: colors.primary },
+  heroChipCond: { borderColor: 'rgba(239,159,39,0.3)', backgroundColor: 'rgba(239,159,39,0.1)' },
+  heroChipTextCond: { color: colors.hpWarning },
+
+  // Supplementary strip under the hero card — now dedicated to
+  // Conditions.
+  heroSuppRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    paddingHorizontal: 10, paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  suppCondLabel: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.outline, textTransform: 'uppercase',
+    paddingTop: 6,
+  },
+  /** Small outlined circle button used to collapse / expand the mobile
+   *  hero card. Lives on the left of the supp strip (collapse arrow)
+   *  and on the left of the collapsed thin bar (expand arrow). Gets
+   *  the gm-orange tint so it acts as the "alt accent" highlight on
+   *  an otherwise neutral strip. */
+  heroCollapseBtn: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: `${colors.gm}66`,
+    backgroundColor: `${colors.gm}18`,
+  },
+  /** Collapsed character bar — shown in place of the hero card +
+   *  supp strip. Chevron (expand) + name + AC + HP, all read-only. */
+  heroCollapsedBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8,
+    marginTop: 10, marginHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1, borderColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainer,
   },
-  railStat: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 10, gap: 2,
-    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.outlineVariant,
+  heroCollapsedName: {
+    flex: 1, minWidth: 0,
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: -0.1,
   },
-  railValue: {
-    fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
+  heroCollapsedStats: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
   },
-  railLabel: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
+  heroCollapsedStat: {
+    flexDirection: 'row', alignItems: 'baseline', gap: 4,
   },
-  railHp: {
-    flex: 2.2, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 8, paddingHorizontal: 8,
-    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.outlineVariant,
-    gap: 3,
+  heroCollapsedStatValue: {
+    fontSize: 14, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurface,
   },
-  hpNumRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
-  railHpCurrent: { fontSize: 20, fontFamily: fonts.headline, fontWeight: '800', lineHeight: 22 },
-  railHpSep: { fontSize: 12, color: colors.outline, marginHorizontal: 1 },
-  railHpMax: { fontSize: 12, fontFamily: fonts.headline, fontWeight: '600', color: colors.outline },
-  railHpTemp: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: '#3B82F6', marginLeft: 2 },
-  hpTrack: {
-    width: '90%', height: 4, borderRadius: 2,
-    backgroundColor: colors.outlineVariant, flexDirection: 'row', overflow: 'hidden',
+  heroCollapsedStatSep: { fontSize: 11, color: colors.outline },
+  heroCollapsedStatMax: {
+    fontSize: 11, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.outline,
   },
-  hpFill: { height: '100%', borderRadius: 2 },
-  hpTempFill: { height: '100%', backgroundColor: '#3B82F6' },
 
   // ── Tab bar ──────────────────────────────────────────────────────────────────
   tabBar: {
@@ -4179,92 +4783,9 @@ const s = StyleSheet.create({
     fontSize: 13, color: colors.textSecondary,
   },
 
-  // Hero
-  heroCard: {
-    ...CARD,
-    marginBottom: spacing.md,
-  },
-  heroTopRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  heroLeft: { position: 'relative' },
-  heroRightGrid: {
-    marginLeft: 'auto',
-    flexDirection: 'row', gap: 8,
-  },
-  heroRightBox: {
-    backgroundColor: colors.background, borderRadius: 8,
-    paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center',
-  },
-  heroRightValue: {
-    fontSize: 18, fontWeight: '700', color: colors.textPrimary,
-  },
-  heroRightLabel: {
-    fontSize: 9, fontWeight: '600', color: colors.textSecondary,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1,
-  },
-  heroXpRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-  },
-  heroXpAdd: {
-    width: 16, height: 16, borderRadius: 8,
-    borderWidth: 1, borderColor: colors.brand,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  heroNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  heroNameInput: {
-    fontSize: 22,
-    fontFamily: fonts.display,
-    color: colors.textPrimary,
-    borderBottomColor: colors.brand,
-    borderBottomWidth: 1,
-    paddingVertical: 2,
-    marginBottom: 2,
-  },
-  manualBadge: {
-    backgroundColor: colors.hpWarning + '22',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  manualBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.hpWarning,
-  },
-  heroAvatar: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: colors.background,
-    alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  heroAvatarImage: {
-    width: 64, height: 64, borderRadius: 32,
-  },
-  heroAvatarEditIcon: {
-    position: 'absolute', bottom: 2, right: 2,
-  },
-  heroBody: { flex: 1 },
-  heroName: {
-    fontSize: 22, fontFamily: fonts.display, color: colors.textPrimary,
-    marginBottom: 2,
-  },
-  heroSubtitle: {
-    fontSize: 15, color: colors.textSecondary, marginBottom: spacing.sm,
-  },
-  heroMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-  levelBadge: {
-    backgroundColor: colors.brand + '22', borderRadius: 6,
-    paddingHorizontal: 8, paddingVertical: 2,
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-  },
-  levelText: { fontSize: 12, fontWeight: '700', color: colors.brand },
-  heroDetail: { fontSize: 12, color: colors.textSecondary },
+  // (Legacy "Hero" card styles from an earlier sheet design were
+  // removed here — none of them were referenced. The mobile hero card
+  // above owns the `hero*` namespace now.)
 
   // Grid
   grid: {
@@ -4690,6 +5211,79 @@ const s = StyleSheet.create({
   modalTitle: {
     fontSize: 18, fontWeight: '700', color: colors.textPrimary,
     marginBottom: spacing.md,
+  },
+
+  // Rest chooser — shown when the player taps the corner Rest button
+  // on the mobile hero card. Two big options flow into the existing
+  // restConfirm modal (the chooser commits the rest TYPE; the confirm
+  // commits the rest itself).
+  restChooserHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginBottom: spacing.md,
+  },
+  restConfirmTitle: {
+    fontSize: 15, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
+  },
+  restChooserRow: { flexDirection: 'row', gap: 10 },
+  restChooserBtn: {
+    flex: 1,
+    paddingVertical: spacing.md, paddingHorizontal: spacing.sm,
+    borderRadius: 10,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+    alignItems: 'center', gap: 4,
+  },
+  restChooserBtnText: {
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
+  },
+  restChooserBtnSub: {
+    fontSize: 10, fontFamily: fonts.label, color: colors.outline,
+    letterSpacing: 0.3, textAlign: 'center',
+  },
+
+  // Hit-die spend stepper inside the Short Rest confirm modal.
+  // Stepper lets the player commit any 0..remaining hit dice in one
+  // shot; commit rolls them and adds the heal to HP before applying
+  // the rest itself.
+  hitDiceSpendBox: {
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: colors.surfaceContainerLow,
+    marginBottom: spacing.md,
+    gap: 8,
+  },
+  hitDiceSpendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hitDiceSpendLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.primary, textTransform: 'uppercase',
+  },
+  hitDiceSpendRemaining: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant, letterSpacing: 0.4,
+  },
+  hitDiceSpendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
+  hitDiceStepBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  hitDiceStepBtnDisabled: { opacity: 0.4 },
+  hitDiceSpendValue: { alignItems: 'center', minWidth: 80 },
+  hitDiceSpendValueNum: {
+    fontSize: 22, fontFamily: fonts.headline, fontWeight: '800',
+    color: colors.onSurface,
+  },
+  hitDiceSpendValueLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.outline, textTransform: 'uppercase',
+  },
+  hitDiceSpendPreview: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    textAlign: 'center', fontStyle: 'italic',
   },
 
   // Short / Long rest confirm dialog. Inherits modalBackdrop above.

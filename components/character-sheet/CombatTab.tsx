@@ -387,16 +387,40 @@ export function CombatTab({
     <>
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
-      {/* Saving throws */}
-      <SectionLabel>SAVING THROWS</SectionLabel>
-      <SavingThrowsStrip
-        scores={scores}
-        stats={stats}
-        prof={prof}
-        manualMode={manualMode}
-        onToggleSaveProficiency={onToggleSaveProficiency}
-        onRoll={onRoll}
-      />
+      {/* Saves block + movement stats laid out as 2 columns sharing
+          one row's vertical space. Left column owns the SAVING THROWS
+          header + 3×2 grid; right column has INIT (top) and SPD
+          (bottom) stacked. The section divider line on the left
+          naturally stops at the column edge instead of running the
+          full width — visually pairs the heading with its own grid. */}
+      <View style={s.savesAndMoveRow}>
+        <View style={s.savesCol}>
+          <SectionLabel>SAVING THROWS</SectionLabel>
+          <SavingThrowsStrip
+            scores={scores}
+            stats={stats}
+            prof={prof}
+            manualMode={manualMode}
+            onToggleSaveProficiency={onToggleSaveProficiency}
+            onRoll={onRoll}
+          />
+        </View>
+        <View style={s.moveCol}>
+          <SectionLabel>MOVEMENT</SectionLabel>
+          <View style={s.moveStatCard}>
+            <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.outline} />
+            <Text style={s.moveStatLabel}>INIT</Text>
+            <Text style={s.moveStatValue}>
+              {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
+            </Text>
+          </View>
+          <View style={s.moveStatCard}>
+            <MaterialCommunityIcons name="run-fast" size={12} color={colors.outline} />
+            <Text style={s.moveStatLabel}>SPD</Text>
+            <Text style={s.moveStatValue}>{stats.speed} ft</Text>
+          </View>
+        </View>
+      </View>
 
       {/* Attacks */}
       <SectionLabel
@@ -447,55 +471,36 @@ export function CombatTab({
         </>
       )}
 
-      {/* Conditions */}
-      <SectionLabel style={{ marginTop: 14 }}>CONDITIONS</SectionLabel>
-      <ConditionsSection
-        activeConditions={activeConditions}
-        exhaustionLevel={exhaustionLevel}
-        canEditAny={canEditAny}
-        onToggle={onToggleCondition}
-        onSetExhaustion={onSetExhaustion}
-        bundledConditions={
-          conditionCatalog && conditionCatalog.length > 0
-            ? conditionCatalog.filter((c) => c.name.toLowerCase() !== 'exhaustion')
-            : bundledConditionsFor(stats.srdVersion)
-        }
-      />
-
-      {/* Passives */}
-      <SectionLabel style={{ marginTop: 14 }}>PASSIVES</SectionLabel>
-      <View style={s.passivesRow}>
-        <PassiveCard label="Perception" value={passivePerception} />
-        <PassiveCard
-          label="Hit Dice"
-          value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`}
-          suffix={`d${stats.hitDie}`}
-          editable={canEditAny && (resources.hitDiceRemaining ?? stats.level) > 0 && !!onSpendHitDie}
-          onPress={canEditAny && onSpendHitDie ? onSpendHitDie : undefined}
-        />
-        <PassiveCard
-          label="Speed"
-          value={stats.speed}
-          suffix=" ft"
-          editable={manualMode}
-          onPress={manualMode && onEditField ? () => onEditField('speed', stats.speed) : undefined}
-        />
-      </View>
+      {/* Conditions + Passives sections were here. Both moved into the
+          mobile hero card: conditions are now the dedicated supp strip
+          below the hero, and passive senses + PROF + HD fit in the
+          hero's 5-cell stat row. Hit-die spending lives in the Short
+          Rest flow (hero card's corner Rest button). */}
 
       {/* Active abilities — merged in from the old standalone
-          Abilities tab. */}
-      <View style={{ marginTop: 14 }}>
-        <AbilitiesCardTab
-          embedded
-          resources={resources}
-          isOwner={canEditAny}
-          classResultsByKey={classResultsByKey}
-          subclassResultsByKey={subclassResultsByKey}
-          speciesResult={speciesResult}
-          characterLevel={stats.level}
-          onUpdateAbilities={onUpdateAbilities}
-        />
-      </View>
+          Abilities tab. Mirrors the desktop layout: SectionLabel with
+          a + button on the right slot, and the AbilitiesCardTab is
+          rendered headerless so the embedded component doesn't
+          duplicate the header or stamp Rest buttons (Rest lives in
+          the hero card's corner-button cluster now). */}
+      <SectionLabel
+        style={{ marginTop: 14 }}
+        accent
+        right={onTriggerAbilityAdd ? <SectionAddButton label="Add ability" onPress={() => onTriggerAbilityAdd({ kind: 'menu' })} /> : undefined}
+      >ABILITIES</SectionLabel>
+      <AbilitiesCardTab
+        embedded
+        headerless
+        resources={resources}
+        isOwner={canEditAny}
+        classResultsByKey={classResultsByKey}
+        subclassResultsByKey={subclassResultsByKey}
+        speciesResult={speciesResult}
+        characterLevel={stats.level}
+        onUpdateAbilities={onUpdateAbilities}
+        addRequest={abilityAddRequest}
+        onAddRequestConsumed={onAbilityAddConsumed}
+      />
 
       {/* Actions — desktop renders these inside a CardBlock; mobile
           used to drop them entirely (so a player on a phone had no
@@ -877,6 +882,7 @@ function PinnedCard({
  */
 function SavingThrowsStrip({
   scores, stats, prof, manualMode, onToggleSaveProficiency, onRoll, isDesktop,
+  extras,
 }: {
   scores: Dnd5eAbilityScores;
   stats: Dnd5eStats;
@@ -885,6 +891,11 @@ function SavingThrowsStrip({
   onToggleSaveProficiency?: (ability: keyof Dnd5eAbilityScores) => void;
   onRoll: (r: RollResult) => void;
   isDesktop?: boolean;
+  /** Mobile-only — extra read-only cells appended after the 6 saves so
+   *  INIT and SPD fit in the same 4×2 grid (frees up the hero-card
+   *  supp strip for Conditions on mobile). On desktop these stats live
+   *  in the left sidebar separately. */
+  extras?: Array<{ label: string; value: string }>;
 }) {
   return (
     <View style={isDesktop ? s.savesStripDesktop : s.savesGrid}>
@@ -915,6 +926,12 @@ function SavingThrowsStrip({
           </TouchableOpacity>
         );
       })}
+      {!isDesktop && extras?.map((extra) => (
+        <View key={extra.label} style={s.saveRow}>
+          <Text style={s.saveAbility}>{extra.label}</Text>
+          <Text style={s.saveBonus}>{extra.value}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -1331,11 +1348,43 @@ const s = StyleSheet.create({
   /** Desktop strip: single horizontal row of 6 equal-width cells. */
   savesStripDesktop: { flexDirection: 'row', gap: 6 },
   saveRow: {
-    width: '30.5%', flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingVertical: 9,
+    // 3 cells per row × 2 rows = 6 saves. 31% width + small gaps
+    // leaves a hair of margin so cells don't wrap to 2-per-row when
+    // the savesCol gets squeezed by the right column.
+    width: '31%', flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 6, paddingVertical: 7,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
+  },
+  /** 2-column saves + movement layout. Left column holds the SAVING
+   *  THROWS header + 3×2 grid; right column has INIT (top) and SPD
+   *  (bottom) stacked. ~65/35 split — saves block gets enough width
+   *  to land 3 cells per row without wrapping to 2; movement column
+   *  trims to fit. Visible 8px gap between the two columns. */
+  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  savesCol: { flex: 65, minWidth: 0 },
+  moveCol: { flex: 35, minWidth: 0, gap: 10 },
+  /** Movement stat card — single line: icon · label (flex 1) · value
+   *  right-aligned. flex: 1 makes the two cards split the available
+   *  column height evenly; combined with alignItems:stretch on the
+   *  outer row, the bottom of the second card aligns to the bottom
+   *  of the saves grid next door. */
+  moveStatCard: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+  },
+  moveStatLabel: {
+    flex: 1,
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.onSurfaceVariant, textTransform: 'uppercase' as const,
+  },
+  moveStatValue: {
+    fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
   },
   /** Desktop cell: same anatomy as the mobile saveRow but flex-1 for
    *  even distribution across 6 columns instead of fixed-percent width. */

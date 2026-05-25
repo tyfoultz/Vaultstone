@@ -11,8 +11,6 @@
 // condition / concentration changes without a manual refetch.
 
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import MaskedView from '@react-native-masked-view/masked-view';
 import { useSplitPaneStore } from '@vaultstone/store';
 import { getEquippedAC } from '@vaultstone/systems';
 import { colors, spacing, fonts, Icon } from '@vaultstone/ui';
@@ -114,7 +112,6 @@ export function PartyMemberCard({
   const hpTemp = resources.hpTemp ?? 0;
   const tier = hpTier(hpCurrent, hpMax);
   const barColor = hpBarColor(hpCurrent, hpMax);
-  const stripeColor = barColor;
   const hpBarPct = hpMax > 0 ? Math.max(0, Math.min(1, hpCurrent / hpMax)) : 0;
 
   const ac = computeAc(stats, resources);
@@ -174,29 +171,11 @@ export function PartyMemberCard({
       activeOpacity={canOpen ? 0.85 : 1}
       disabled={!canOpen}
     >
-      {/* Left-edge accent stripe — color-codes HP tier */}
-      <View style={[s.stripe, { backgroundColor: stripeColor }]} />
-
-      {/* Shield-wrapped AC badge, top-right of the card. The shield
-          glyph is masked with a static brand gradient (primary →
-          primary-container) — keeps the AC visually distinct from the
-          HP gradient so it reads as a defense stat at a glance. */}
+      {/* AC shield top-right. Solid light-steel fill reads as polished
+          armor; MaskedView would let us layer a true metallic gradient
+          but it doesn't render on RN Web (mask falls through as black). */}
       <View style={s.acBadge}>
-        <MaskedView
-          style={s.acShieldMask}
-          maskElement={
-            <View style={s.acShieldMaskInner}>
-              <Icon name="shield" size={36} color="#000" />
-            </View>
-          }
-        >
-          <LinearGradient
-            colors={[colors.primary, colors.primaryContainer]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={s.acShieldGradient}
-          />
-        </MaskedView>
+        <Icon name="shield" size={36} color="#b8bdc7" />
         <Text style={s.acBadgeNum}>{ac}</Text>
       </View>
 
@@ -315,7 +294,7 @@ const s = StyleSheet.create({
     gap: spacing.sm + 4,
     paddingTop: spacing.sm + 4,
     paddingBottom: spacing.sm + 4,
-    paddingLeft: spacing.sm + 8, // extra to clear the left stripe
+    paddingLeft: spacing.sm + 4,
     paddingRight: spacing.sm + 4,
     borderRadius: 12,
     borderWidth: 1,
@@ -328,16 +307,15 @@ const s = StyleSheet.create({
     borderColor: 'rgba(226,75,74,0.4)',
     backgroundColor: 'rgba(226,75,74,0.06)',
   },
-  /** Left-edge accent stripe — color-codes HP tier at a glance. */
-  stripe: {
-    position: 'absolute',
-    left: 0, top: 0, bottom: 0,
-    width: 3,
-  },
 
+  /** Explicit 100×134 (3:4) instead of `aspectRatio + alignSelf:stretch`
+   *  — that combo collapses the portrait to zero width on RN Web when
+   *  the parent card's height is content-driven (no portrait visible
+   *  at all in the campaign party list). Fixed dimensions are
+   *  predictable; card height becomes max(portrait, body) which still
+   *  reads well across content states. */
   portrait: {
-    aspectRatio: 3 / 4, // width derived from card height — 3:4 locked
-    alignSelf: 'stretch', // fill the card's full vertical space
+    width: 100, height: 134,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
@@ -347,7 +325,7 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     flexShrink: 0,
   },
-  portraitImage: { width: '100%', height: '100%' },
+  portraitImage: { width: 100, height: 134 },
   portraitInitials: {
     fontFamily: fonts.headline,
     fontSize: 24,
@@ -383,21 +361,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /** MaskedView footprint matches the icon's intrinsic 36×36 box so
-   *  the gradient fill lines up with the glyph silhouette. */
-  acShieldMask: {
-    width: 36,
-    height: 36,
-  },
-  acShieldMaskInner: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  acShieldGradient: {
-    flex: 1,
-  },
   acBadgeNum: {
     position: 'absolute',
     top: 12,
@@ -405,8 +368,11 @@ const s = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.headline,
     fontSize: 13,
-    fontWeight: '700',
-    color: colors.onSurface,
+    fontWeight: '800',
+    // Dark engraved-style text against the metallic shield —
+    // onPrimary is the Noir palette's deep ink purple, ties the
+    // shield to the rest of the primary-accented sheet.
+    color: colors.onPrimary,
   },
 
   /** One-line ancestry/class/background subtitle. */
