@@ -96,22 +96,41 @@ function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
  * label + value, sitting in a small bordered tile so the row mirrors
  * the desktop sidebar's Senses panel at a glance.
  */
-function SenseCell({ icon, label, value, onPress }: {
+function SenseCell({ icon, label, value, onPress, profState }: {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   label: string;
   value: number | string;
   /** When provided, the cell becomes tappable — used for the breakdown
    *  modal on passive senses. Cells without it stay static (PROF, HD). */
   onPress?: () => void;
+  /** Proficiency status for the underlying skill — drives the small
+   *  dot alongside the label and the value tint. Mirrors the skills
+   *  tab's untrained/proficient/expertise visual vocabulary so the
+   *  player can read the state at a glance without opening the modal. */
+  profState?: 'none' | 'proficient' | 'expert';
 }) {
   const Wrapper = onPress ? TouchableOpacity : View;
+  const valueColor = profState === 'expert'
+    ? '#e6a255'
+    : profState === 'proficient'
+      ? colors.primary
+      : colors.onSurface;
   return (
     <Wrapper style={s.heroStatCell} onPress={onPress} activeOpacity={0.7}>
       <View style={s.heroStatCellTop}>
         <MaterialCommunityIcons name={icon} size={11} color={colors.outline} />
         <Text style={s.heroStatCellLabel}>{label}</Text>
+        {profState ? (
+          <View
+            style={[
+              s.heroStatCellProfDot,
+              profState === 'proficient' && s.heroStatCellProfDotFilled,
+              profState === 'expert' && s.heroStatCellProfDotExpert,
+            ]}
+          />
+        ) : null}
       </View>
-      <Text style={s.heroStatCellValue}>{value}</Text>
+      <Text style={[s.heroStatCellValue, { color: valueColor }]}>{value}</Text>
     </Wrapper>
   );
 }
@@ -3069,8 +3088,24 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   INS row so PROF and HD can share the line; freed up
                   the supp strip below for Conditions. */}
               <View style={s.heroStatsRow}>
-                <SenseCell icon="eye-outline" label="PER" value={passivePerception} onPress={() => setOpenBreakdown('passive-perception')} />
-                <SenseCell icon="magnify" label="INV" value={passiveInvestigation} onPress={() => setOpenBreakdown('passive-investigation')} />
+                <SenseCell
+                  icon="eye-outline" label="PER" value={passivePerception}
+                  profState={
+                    (stats.skillExpertise ?? []).includes('perception') ? 'expert'
+                    : stats.skillProficiencies.includes('perception') ? 'proficient'
+                    : 'none'
+                  }
+                  onPress={() => setOpenBreakdown('passive-perception')}
+                />
+                <SenseCell
+                  icon="magnify" label="INV" value={passiveInvestigation}
+                  profState={
+                    (stats.skillExpertise ?? []).includes('investigation') ? 'expert'
+                    : stats.skillProficiencies.includes('investigation') ? 'proficient'
+                    : 'none'
+                  }
+                  onPress={() => setOpenBreakdown('passive-investigation')}
+                />
                 <SenseCell icon="brain" label="INS" value={passiveInsight} />
                 <SenseCell icon="star-four-points-outline" label="PROF" value={fmtMod(prof)} />
                 <SenseCell icon="dice-d8-outline" label="HD" value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`} />
@@ -4633,6 +4668,22 @@ const s = StyleSheet.create({
   heroStatCellValue: {
     fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface, marginTop: 1,
+  },
+  /** Tiny proficiency dot beside a sense label — matches the skills
+   *  tab's untrained / proficient / expert vocabulary so the same
+   *  state reads the same way across surfaces. */
+  heroStatCellProfDot: {
+    width: 5, height: 5, borderRadius: 3,
+    borderWidth: 1, borderColor: colors.outline,
+    marginLeft: 1,
+  },
+  heroStatCellProfDotFilled: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  heroStatCellProfDotExpert: {
+    backgroundColor: '#e6a255',
+    borderColor: '#e6a255',
   },
 
   // Status chip row — inspiration, concentration, conditions, exhaustion.
