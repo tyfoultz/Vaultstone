@@ -407,17 +407,19 @@ export function CombatTab({
         </View>
         <View style={s.moveCol}>
           <SectionLabel>MOVEMENT</SectionLabel>
-          <View style={s.moveStatCard}>
-            <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.outline} />
-            <Text style={s.moveStatLabel}>INIT</Text>
-            <Text style={s.moveStatValue}>
-              {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
-            </Text>
-          </View>
-          <View style={s.moveStatCard}>
-            <MaterialCommunityIcons name="run-fast" size={12} color={colors.outline} />
-            <Text style={s.moveStatLabel}>SPD</Text>
-            <Text style={s.moveStatValue}>{stats.speed} ft</Text>
+          <View style={s.moveCardsStack}>
+            <View style={s.moveStatCard}>
+              <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.outline} />
+              <Text style={s.moveStatLabel}>INIT</Text>
+              <Text style={s.moveStatValue}>
+                {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
+              </Text>
+            </View>
+            <View style={s.moveStatCard}>
+              <MaterialCommunityIcons name="run-fast" size={12} color={colors.outline} />
+              <Text style={s.moveStatLabel}>SPD</Text>
+              <Text style={s.moveStatValue}>{stats.speed} ft</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -1362,14 +1364,22 @@ const s = StyleSheet.create({
    *  (bottom) stacked. ~65/35 split — saves block gets enough width
    *  to land 3 cells per row without wrapping to 2; movement column
    *  trims to fit. Visible 8px gap between the two columns. */
-  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
-  savesCol: { flex: 65, minWidth: 0 },
-  moveCol: { flex: 35, minWidth: 0, gap: 10 },
+  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  savesCol: { flex: 72, minWidth: 0 },
+  moveCol: { flex: 28, minWidth: 0 },
+  /** Wraps the two movement cards so the inter-card gap doesn't also
+   *  push the first card down from the section label — flex:1 lets the
+   *  stack absorb the remaining column height (matched to the saves
+   *  grid via alignItems:stretch on the outer row), and the cards split
+   *  it evenly. Without the wrapper, a gap on moveCol would apply
+   *  between SectionLabel→card1 too, offsetting the right column 10px
+   *  below the saves grid's top edge. */
+  moveCardsStack: { flex: 1, gap: 6 },
   /** Movement stat card — single line: icon · label (flex 1) · value
-   *  right-aligned. flex: 1 makes the two cards split the available
-   *  column height evenly; combined with alignItems:stretch on the
-   *  outer row, the bottom of the second card aligns to the bottom
-   *  of the saves grid next door. */
+   *  right-aligned. flex: 1 makes the two cards split the wrapper
+   *  height evenly; combined with alignItems:stretch on the outer row,
+   *  the bottom of the second card aligns to the bottom of the saves
+   *  grid next door. */
   moveStatCard: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 8, paddingVertical: 4,
