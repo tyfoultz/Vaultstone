@@ -3039,7 +3039,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               now owns active conditions + exhaustion + the "Add
               condition" picker. Leading chevron collapses the hero
               card + this strip down to a thin name/AC/HP bar. */}
-          <View style={s.heroSuppRow}>
+          <LinearGradient
+            colors={[`${colors.gm}33`, `${colors.gm}10`, colors.surfaceContainerLowest]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={s.heroSuppRow}
+          >
             <TouchableOpacity
               style={s.heroCollapseBtn}
               onPress={() => setHeroCollapsed(true)}
@@ -3064,7 +3069,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 }
               />
             </View>
-          </View>
+          </LinearGradient>
           </>
           )}
 
@@ -4450,14 +4455,13 @@ const s = StyleSheet.create({
   heroChipTextCond: { color: colors.hpWarning },
 
   // Supplementary strip under the hero card — now dedicated to
-  // Conditions. Label + the shared ConditionsSection component flex
-  // alongside; INIT / SPD / PROF / HD moved into the hero card stat
-  // row + the Combat tab's saving-throws grid.
+  // Conditions. Background is painted by the gm-orange LinearGradient
+  // wrapper so the strip echoes the right activity-rail's accent
+  // (orange on the right; gm-orange seam on the bottom of the hero).
   heroSuppRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     paddingHorizontal: 10, paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
-    backgroundColor: colors.surfaceContainerLowest,
   },
   suppCondLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
