@@ -477,19 +477,29 @@ export function CombatTab({
           Rest flow (hero card's corner Rest button). */}
 
       {/* Active abilities — merged in from the old standalone
-          Abilities tab. */}
-      <View style={{ marginTop: 14 }}>
-        <AbilitiesCardTab
-          embedded
-          resources={resources}
-          isOwner={canEditAny}
-          classResultsByKey={classResultsByKey}
-          subclassResultsByKey={subclassResultsByKey}
-          speciesResult={speciesResult}
-          characterLevel={stats.level}
-          onUpdateAbilities={onUpdateAbilities}
-        />
-      </View>
+          Abilities tab. Mirrors the desktop layout: SectionLabel with
+          a + button on the right slot, and the AbilitiesCardTab is
+          rendered headerless so the embedded component doesn't
+          duplicate the header or stamp Rest buttons (Rest lives in
+          the hero card's corner-button cluster now). */}
+      <SectionLabel
+        style={{ marginTop: 14 }}
+        accent
+        right={onTriggerAbilityAdd ? <SectionAddButton label="Add ability" onPress={() => onTriggerAbilityAdd({ kind: 'menu' })} /> : undefined}
+      >ABILITIES</SectionLabel>
+      <AbilitiesCardTab
+        embedded
+        headerless
+        resources={resources}
+        isOwner={canEditAny}
+        classResultsByKey={classResultsByKey}
+        subclassResultsByKey={subclassResultsByKey}
+        speciesResult={speciesResult}
+        characterLevel={stats.level}
+        onUpdateAbilities={onUpdateAbilities}
+        addRequest={abilityAddRequest}
+        onAddRequestConsumed={onAbilityAddConsumed}
+      />
 
       {/* Actions — desktop renders these inside a CardBlock; mobile
           used to drop them entirely (so a player on a phone had no
