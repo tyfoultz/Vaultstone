@@ -408,20 +408,16 @@ export function CombatTab({
         <View style={s.moveCol}>
           <SectionLabel>MOVEMENT</SectionLabel>
           <View style={s.moveStatCard}>
-            <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.outline} />
-            <View style={s.moveStatText}>
-              <Text style={s.moveStatValue}>
-                {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
-              </Text>
-              <Text style={s.moveStatLabel}>INIT</Text>
-            </View>
+            <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.outline} />
+            <Text style={s.moveStatLabel}>INIT</Text>
+            <Text style={s.moveStatValue}>
+              {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
+            </Text>
           </View>
           <View style={s.moveStatCard}>
-            <MaterialCommunityIcons name="run-fast" size={14} color={colors.outline} />
-            <View style={s.moveStatText}>
-              <Text style={s.moveStatValue}>{stats.speed} ft</Text>
-              <Text style={s.moveStatLabel}>SPD</Text>
-            </View>
+            <MaterialCommunityIcons name="run-fast" size={12} color={colors.outline} />
+            <Text style={s.moveStatLabel}>SPD</Text>
+            <Text style={s.moveStatValue}>{stats.speed} ft</Text>
           </View>
         </View>
       </View>
@@ -1369,26 +1365,25 @@ const s = StyleSheet.create({
   savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
   savesCol: { flex: 65, minWidth: 0 },
   moveCol: { flex: 35, minWidth: 0, gap: 6 },
-  /** Movement stat card — icon left, value + label right. Tighter
-   *  padding + smaller value font than the original since the column
-   *  is narrower. flex: 1 so two cards stacked in moveCol split the
-   *  column height evenly. */
+  /** Movement stat card — single line: icon · label (flex 1) · value
+   *  right-aligned. Padding matches a save cell's so two stacked
+   *  movement cards land at the same total height as the 2-row saves
+   *  grid next to them. */
   moveStatCard: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 8, paddingVertical: 5,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 8, paddingVertical: 7,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
   },
-  moveStatText: { flex: 1, minWidth: 0 },
-  moveStatValue: {
-    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
-    color: colors.onSurface,
-  },
   moveStatLabel: {
-    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1, color: colors.outline, textTransform: 'uppercase' as const,
-    marginTop: 1,
+    flex: 1,
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.onSurfaceVariant, textTransform: 'uppercase' as const,
+  },
+  moveStatValue: {
+    fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
   },
   /** Desktop cell: same anatomy as the mobile saveRow but flex-1 for
    *  even distribution across 6 columns instead of fixed-percent width. */
