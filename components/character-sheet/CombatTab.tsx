@@ -387,39 +387,43 @@ export function CombatTab({
     <>
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
-      {/* Movement stats — Speed + Initiative as compact cards with
-          icons (mirrors the desktop sidebar StatCell). Sits in its own
-          row above the saving throws header so it doesn't read as
-          part of the saves section. */}
-      <View style={s.moveStatsRow}>
-        <View style={s.moveStatCard}>
-          <MaterialCommunityIcons name="run-fast" size={14} color={colors.outline} />
-          <View style={s.moveStatText}>
-            <Text style={s.moveStatValue}>{stats.speed} ft</Text>
-            <Text style={s.moveStatLabel}>SPEED</Text>
-          </View>
+      {/* Saves block + movement stats laid out as 2 columns sharing
+          one row's vertical space. Left column owns the SAVING THROWS
+          header + 3×2 grid; right column has INIT (top) and SPD
+          (bottom) stacked. The section divider line on the left
+          naturally stops at the column edge instead of running the
+          full width — visually pairs the heading with its own grid. */}
+      <View style={s.savesAndMoveRow}>
+        <View style={s.savesCol}>
+          <SectionLabel>SAVING THROWS</SectionLabel>
+          <SavingThrowsStrip
+            scores={scores}
+            stats={stats}
+            prof={prof}
+            manualMode={manualMode}
+            onToggleSaveProficiency={onToggleSaveProficiency}
+            onRoll={onRoll}
+          />
         </View>
-        <View style={s.moveStatCard}>
-          <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.outline} />
-          <View style={s.moveStatText}>
-            <Text style={s.moveStatValue}>
-              {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
-            </Text>
-            <Text style={s.moveStatLabel}>INITIATIVE</Text>
+        <View style={s.moveCol}>
+          <View style={s.moveStatCard}>
+            <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.outline} />
+            <View style={s.moveStatText}>
+              <Text style={s.moveStatValue}>
+                {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
+              </Text>
+              <Text style={s.moveStatLabel}>INITIATIVE</Text>
+            </View>
+          </View>
+          <View style={s.moveStatCard}>
+            <MaterialCommunityIcons name="run-fast" size={14} color={colors.outline} />
+            <View style={s.moveStatText}>
+              <Text style={s.moveStatValue}>{stats.speed} ft</Text>
+              <Text style={s.moveStatLabel}>SPEED</Text>
+            </View>
           </View>
         </View>
       </View>
-
-      {/* Saving throws — 6 cells in a 3×2 grid. */}
-      <SectionLabel style={{ marginTop: 12 }}>SAVING THROWS</SectionLabel>
-      <SavingThrowsStrip
-        scores={scores}
-        stats={stats}
-        prof={prof}
-        manualMode={manualMode}
-        onToggleSaveProficiency={onToggleSaveProficiency}
-        onRoll={onRoll}
-      />
 
       {/* Attacks */}
       <SectionLabel
@@ -1355,11 +1359,16 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
   },
-  /** Movement stats row — Speed + Initiative cards with leading
-   *  icons. Mirrors the desktop sidebar's StatCell anatomy (icon left,
-   *  value+label right) so the two surfaces feel consistent. Sits in
-   *  its own row above the SAVING THROWS header rather than under it. */
-  moveStatsRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  /** 2-column saves + movement layout. Left column holds the SAVING
+   *  THROWS header + 3×2 grid; right column has INIT (top) and SPD
+   *  (bottom) stacked. flex weights → ~62/38 width split; alignItems
+   *  stretch makes the right column match the left column's natural
+   *  content height so the two stacks land at the same total height. */
+  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  savesCol: { flex: 62, minWidth: 0 },
+  moveCol: { flex: 38, minWidth: 0, gap: 6 },
+  /** Movement stat card — icon left, value + label right. flex: 1 so
+   *  two cards stacked in `moveCol` split the column height evenly. */
   moveStatCard: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 10, paddingVertical: 6,
