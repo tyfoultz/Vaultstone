@@ -1364,9 +1364,9 @@ const s = StyleSheet.create({
    *  (bottom) stacked. ~65/35 split — saves block gets enough width
    *  to land 3 cells per row without wrapping to 2; movement column
    *  trims to fit. Visible 8px gap between the two columns. */
-  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 16 },
-  savesCol: { flex: 76, minWidth: 0 },
-  moveCol: { flex: 24, minWidth: 0 },
+  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  savesCol: { flex: 72, minWidth: 0 },
+  moveCol: { flex: 28, minWidth: 0 },
   /** Wraps the two movement cards so the inter-card gap doesn't also
    *  push the first card down from the section label — flex:1 lets the
    *  stack absorb the remaining column height (matched to the saves
@@ -1381,8 +1381,8 @@ const s = StyleSheet.create({
    *  the bottom of the second card aligns to the bottom of the saves
    *  grid next door. */
   moveStatCard: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 6, paddingVertical: 3,
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
