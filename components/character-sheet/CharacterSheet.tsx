@@ -5082,12 +5082,16 @@ const s = StyleSheet.create({
     fontFamily: fonts.headline, fontSize: 14, fontWeight: '800',
     color: colors.onPrimary, letterSpacing: -0.3,
   },
-  /** Right column of the identity row — AC shield stacked over the
-   *  INSP + REST round action buttons. Vertical layout fits the
-   *  sidebar's narrow column without forcing the strip below to wrap. */
+  /** Right column of the identity row — AC shield + INSP / REST
+   *  round action buttons. Stretches to the row's full height with
+   *  justifyContent: space-between so the shield anchors the top
+   *  edge (aligned with the character name) and the action btns
+   *  anchor the bottom (aligned with the PER / PROF / HD strip).
+   *  Removes the awkward gap of dead space between them. */
   deskHeroRightCol: {
-    flexDirection: 'column', alignItems: 'center', gap: 6,
-    paddingTop: 2,
+    flexDirection: 'column', alignItems: 'center',
+    alignSelf: 'stretch',
+    justifyContent: 'space-between',
   },
   /** Round outlined action btn — used for INSP and REST on the right
    *  column. Matches the mobile heroCornerBtn shape (28x28 outlined
