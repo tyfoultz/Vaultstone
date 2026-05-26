@@ -37,7 +37,7 @@ export async function uploadPublicImage(opts: {
     .from(opts.bucket)
     .getPublicUrl(finalPath);
 
-  const cacheKey = `${blob.size}`;
+  const cacheKey = `${Date.now()}`;
   return { publicUrl: `${publicUrl}?v=${cacheKey}`, blob };
 }
 
