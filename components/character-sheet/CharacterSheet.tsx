@@ -2531,21 +2531,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
 
-                  {/* Stat strip — AC / PER / PROF / HD. Same vocabulary
-                      as the mobile hero card's SenseCell row plus the
-                      AC shield. Each tap opens the breakdown modal
-                      (or the hit-die spend flow for HD). */}
+                  {/* Stat strip — PER / PROF / HD plus the INSP and
+                      REST action buttons. AC moves out to the inline
+                      shield to the right of the name (mirroring the
+                      mobile hero card's shield treatment). */}
                   <View style={s.deskHeroStatsRow}>
-                    <TouchableOpacity
-                      style={s.deskHeroStat}
-                      onPress={() => setOpenBreakdown('ac')}
-                      activeOpacity={0.7}
-                      accessibilityLabel="Show AC breakdown"
-                    >
-                      <MaterialCommunityIcons name="shield" size={11} color="#b8bdc7" />
-                      <Text style={s.deskHeroStatLabel}>AC</Text>
-                      <Text style={s.deskHeroStatValue}>{ac}</Text>
-                    </TouchableOpacity>
                     <TouchableOpacity
                       style={s.deskHeroStat}
                       onPress={() => setOpenBreakdown('passive-perception')}
@@ -2586,37 +2576,46 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                         </Wrapper>
                       );
                     })()}
+                    <TouchableOpacity
+                      style={[s.deskHeroStat, resources.inspiration && s.deskHeroStatInspActive]}
+                      onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
+                      disabled={!canEditAny}
+                      activeOpacity={canEditAny ? 0.7 : 1}
+                      accessibilityLabel={resources.inspiration ? 'Inspired — tap to clear' : 'Mark inspired'}
+                    >
+                      <MaterialCommunityIcons
+                        name={resources.inspiration ? 'star' : 'star-outline'}
+                        size={14}
+                        color={resources.inspiration ? colors.gm : colors.outline}
+                      />
+                      <Text style={[s.deskHeroStatLabel, resources.inspiration && { color: colors.gm }]}>INSP</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.deskHeroStat}
+                      onPress={() => canEditAny && setRestChooserOpen(true)}
+                      disabled={!canEditAny}
+                      activeOpacity={canEditAny ? 0.7 : 1}
+                      accessibilityLabel="Take a rest"
+                    >
+                      <MaterialCommunityIcons name="bed" size={14} color={colors.outline} />
+                      <Text style={s.deskHeroStatLabel}>REST</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
-                {/* Corner action cluster — Inspiration + Rest. Same
-                    affordances as the mobile hero card's absolute
-                    INSP / REST corner btns, anchored top-right of
-                    the identity row. */}
-                <View style={s.deskHeroCornerBtns}>
-                  <TouchableOpacity
-                    style={[s.deskHeroCornerBtn, resources.inspiration && s.deskHeroCornerBtnInspActive]}
-                    onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
-                    disabled={!canEditAny}
-                    activeOpacity={canEditAny ? 0.7 : 1}
-                    accessibilityLabel={resources.inspiration ? 'Inspired — tap to clear' : 'Mark inspired'}
-                  >
-                    <MaterialCommunityIcons
-                      name={resources.inspiration ? 'star' : 'star-outline'}
-                      size={14}
-                      color={resources.inspiration ? colors.gm : colors.outline}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.deskHeroCornerBtn}
-                    onPress={() => canEditAny && setRestChooserOpen(true)}
-                    disabled={!canEditAny}
-                    activeOpacity={canEditAny ? 0.7 : 1}
-                    accessibilityLabel="Take a rest"
-                  >
-                    <MaterialCommunityIcons name="bed" size={14} color={colors.outline} />
-                  </TouchableOpacity>
-                </View>
+                {/* AC shield — same metallic shield as the mobile hero
+                    card, anchored to the right of the name block.
+                    Replaces the previous INSP / REST corner cluster
+                    (those moved into the stat strip below the name). */}
+                <TouchableOpacity
+                  style={s.deskHeroAcInline}
+                  onPress={() => setOpenBreakdown('ac')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show AC breakdown"
+                >
+                  <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
+                  <Text style={s.deskHeroAcNum}>{ac}</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -5065,19 +5064,28 @@ const s = StyleSheet.create({
     fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface, marginTop: 1,
   },
-  /** Vertical INSP + REST action cluster anchored to the right edge
-   *  of the identity row (same affordances as the mobile hero card's
-   *  absolute corner buttons). */
-  deskHeroCornerBtns: {
-    flexDirection: 'column', gap: 6,
-    paddingTop: 2,
-  },
-  deskHeroCornerBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    borderWidth: 1, borderColor: colors.outlineVariant,
+  /** AC shield anchored to the right of the name block — same
+   *  metallic silver shield treatment as the mobile hero card and the
+   *  campaign PartyMemberCard so the defense stat reads identically
+   *  across surfaces. The number is positioned absolutely inside the
+   *  shield glyph. */
+  deskHeroAcInline: {
+    width: 42, height: 46,
     alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
   },
-  deskHeroCornerBtnInspActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
+  deskHeroAcNum: {
+    position: 'absolute', top: 13, left: 0, right: 0,
+    textAlign: 'center',
+    fontFamily: fonts.headline, fontSize: 14, fontWeight: '800',
+    color: colors.onPrimary, letterSpacing: -0.3,
+  },
+  /** Active state for the INSP cell — primary-tinted border + bg so
+   *  the toggle reads as engaged. Mirrors the heroCornerBtnInspActive
+   *  treatment used on mobile. */
+  deskHeroStatInspActive: {
+    borderColor: colors.gm, backgroundColor: `${colors.gm}22`,
+  },
 
   // Stats block
   deskStats: {
