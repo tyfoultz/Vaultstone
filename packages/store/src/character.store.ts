@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Database } from '@vaultstone/types';
 
 type Character = Database['public']['Tables']['characters']['Row'];
@@ -8,33 +10,42 @@ export type CharacterListItem = Pick<Character,
   'avatar_url' | 'avatar_card_url' | 'created_at'
 >;
 
+const SWR_TTL = 5 * 60 * 1000; // 5 minutes
+
 interface CharacterState {
   characters: CharacterListItem[];
   activeCharacter: Character | null;
+  fetchedAt: number;
   setCharacters: (characters: CharacterListItem[]) => void;
   setActiveCharacter: (character: Character | null) => void;
   updateCharacterLocally: (id: string, updates: Partial<Character>) => void;
+  isStale: () => boolean;
 }
 
-export const useCharacterStore = create<CharacterState>((set) => ({
-  characters: [],
-  activeCharacter: null,
-  setCharacters: (characters) => set({ characters }),
-  setActiveCharacter: (activeCharacter) => set({ activeCharacter }),
-  // Apply a local-only update to both the list and (when matching) the
-  // activeCharacter pointer. Without keeping `activeCharacter` in
-  // lockstep, any flow that reads it later — most notably the level-up
-  // wizard, which seeds its working copy from `activeCharacter` — sees
-  // a stale snapshot from initial load, and writing the level-up
-  // result back to the DB overwrites everything the player did on the
-  // sheet in the meantime (added features, edited descriptions, etc.).
-  updateCharacterLocally: (id, updates) =>
-    set((state) => ({
-      characters: state.characters.map((c) =>
-        c.id === id ? { ...c, ...updates } : c
-      ),
-      activeCharacter: state.activeCharacter?.id === id
-        ? { ...state.activeCharacter, ...updates }
-        : state.activeCharacter,
-    })),
-}));
+export const useCharacterStore = create<CharacterState>()(persist(
+  (set, get) => ({
+    characters: [],
+    activeCharacter: null,
+    fetchedAt: 0,
+    setCharacters: (characters) => set({ characters, fetchedAt: Date.now() }),
+    setActiveCharacter: (activeCharacter) => set({ activeCharacter }),
+    updateCharacterLocally: (id, updates) =>
+      set((state) => ({
+        characters: state.characters.map((c) =>
+          c.id === id ? { ...c, ...updates } : c
+        ),
+        activeCharacter: state.activeCharacter?.id === id
+          ? { ...state.activeCharacter, ...updates }
+          : state.activeCharacter,
+      })),
+    isStale: () => Date.now() - get().fetchedAt > SWR_TTL,
+  }),
+  {
+    name: 'vaultstone-characters',
+    storage: createJSONStorage(() => AsyncStorage),
+    partialize: (state) => ({
+      characters: state.characters,
+      fetchedAt: state.fetchedAt,
+    }),
+  },
+));

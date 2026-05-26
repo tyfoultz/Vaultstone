@@ -1,5 +1,6 @@
 import type { Database, Json } from '@vaultstone/types';
 import { supabase } from './client';
+import { uploadAndSave } from './upload-image';
 
 /**
  * One row from the `worlds` table. Re-exported as a public type so
@@ -70,72 +71,24 @@ export async function unarchiveWorld(worldId: string) {
   return updateWorld(worldId, { is_archived: false });
 }
 
-const ALLOWED_COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
 export async function uploadWorldCover(worldId: string, fileUri: string, mimeType: string) {
-  if (!ALLOWED_COVER_TYPES.includes(mimeType)) {
-    return { url: null, error: { message: 'Only JPEG, PNG, and WebP images are allowed.' } };
-  }
-
-  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-  const path = `world-covers/${worldId}.${ext}`;
-
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
-
-  const { error: uploadError } = await supabase.storage
-    .from('campaign-assets')
-    .upload(path, blob, { contentType: mimeType, upsert: true });
-
-  if (uploadError) return { url: null, error: uploadError };
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('campaign-assets')
-    .getPublicUrl(path);
-
-  const versionedUrl = `${publicUrl}?v=${Date.now()}`;
-
-  const { error: updateError } = await supabase
-    .from('worlds')
-    .update({ cover_image_url: versionedUrl })
-    .eq('id', worldId);
-
-  if (updateError) return { url: null, error: updateError };
-
-  return { url: versionedUrl, error: null };
+  return uploadAndSave({
+    bucket: 'campaign-assets',
+    path: `world-covers/${worldId}.jpg`,
+    fileUri, mimeType,
+    maxDimension: 1920,
+    table: 'worlds', rowId: worldId, column: 'cover_image_url',
+  });
 }
 
 export async function uploadWorldThumbnail(worldId: string, fileUri: string, mimeType: string) {
-  if (!ALLOWED_COVER_TYPES.includes(mimeType)) {
-    return { url: null, error: { message: 'Only JPEG, PNG, and WebP images are allowed.' } };
-  }
-
-  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-  const path = `world-thumbnails/${worldId}.${ext}`;
-
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
-
-  const { error: uploadError } = await supabase.storage
-    .from('campaign-assets')
-    .upload(path, blob, { contentType: mimeType, upsert: true });
-
-  if (uploadError) return { url: null, error: uploadError };
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('campaign-assets')
-    .getPublicUrl(path);
-
-  const versionedUrl = `${publicUrl}?v=${Date.now()}`;
-
-  const { error: updateError } = await supabase
-    .from('worlds')
-    .update({ thumbnail_url: versionedUrl })
-    .eq('id', worldId);
-
-  if (updateError) return { url: null, error: updateError };
-
-  return { url: versionedUrl, error: null };
+  return uploadAndSave({
+    bucket: 'campaign-assets',
+    path: `world-thumbnails/${worldId}.jpg`,
+    fileUri, mimeType,
+    maxDimension: 800,
+    table: 'worlds', rowId: worldId, column: 'thumbnail_url',
+  });
 }
 
 export async function softDeleteWorld(worldId: string) {

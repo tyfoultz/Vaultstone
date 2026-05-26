@@ -81,6 +81,7 @@ export default function PartyScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [recentlyUpdated, setRecentlyUpdated] = useState<Record<string, number>>({});
   const flashTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const lastFetchedRef = useRef(0);
   const [sessionParticipantIds, setSessionParticipantIds] = useState<string[] | null>(null);
 
   const isDm = !!user && !!dmUserId && user.id === dmUserId;
@@ -116,11 +117,16 @@ export default function PartyScreen() {
     } else {
       setSessionParticipantIds(null);
     }
+    lastFetchedRef.current = Date.now();
     setLoading(false);
     setRefreshing(false);
   }, [id]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    const STALE_MS = 30_000;
+    if (members.length > 0 && Date.now() - lastFetchedRef.current < STALE_MS) return;
+    load();
+  }, [load, members.length]));
 
   // Realtime: merge inbound character UPDATE payloads; mark for flash if
   // the change originated from another viewer (the patch touched a key we

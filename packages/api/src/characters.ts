@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { uploadAndSave } from './upload-image';
 import type { Database, SessionEventPayload } from '@vaultstone/types';
 
 type CharacterInsert = Database['public']['Tables']['characters']['Insert'];
@@ -183,70 +184,22 @@ export async function updateCharacterState(
   });
 }
 
-const ALLOWED_PORTRAIT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
 export async function uploadCharacterPortrait(characterId: string, fileUri: string, mimeType: string) {
-  if (!ALLOWED_PORTRAIT_TYPES.includes(mimeType)) {
-    return { url: null, error: { message: 'Only JPEG, PNG, and WebP images are allowed.' } };
-  }
-
-  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-  const path = `character-portraits/${characterId}.${ext}`;
-
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
-
-  const { error: uploadError } = await supabase.storage
-    .from('campaign-assets')
-    .upload(path, blob, { contentType: mimeType, upsert: true });
-
-  if (uploadError) return { url: null, error: uploadError };
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('campaign-assets')
-    .getPublicUrl(path);
-
-  const versionedUrl = `${publicUrl}?v=${Date.now()}`;
-
-  const { error: updateError } = await supabase
-    .from('characters')
-    .update({ avatar_url: versionedUrl })
-    .eq('id', characterId);
-
-  if (updateError) return { url: null, error: updateError };
-
-  return { url: versionedUrl, error: null };
+  return uploadAndSave({
+    bucket: 'campaign-assets',
+    path: `character-portraits/${characterId}.jpg`,
+    fileUri, mimeType,
+    maxDimension: 1024,
+    table: 'characters', rowId: characterId, column: 'avatar_url',
+  });
 }
 
 export async function uploadCharacterCardImage(characterId: string, fileUri: string, mimeType: string) {
-  if (!ALLOWED_PORTRAIT_TYPES.includes(mimeType)) {
-    return { url: null, error: { message: 'Only JPEG, PNG, and WebP images are allowed.' } };
-  }
-
-  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-  const path = `character-portraits/${characterId}-card.${ext}`;
-
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
-
-  const { error: uploadError } = await supabase.storage
-    .from('campaign-assets')
-    .upload(path, blob, { contentType: mimeType, upsert: true });
-
-  if (uploadError) return { url: null, error: uploadError };
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('campaign-assets')
-    .getPublicUrl(path);
-
-  const versionedUrl = `${publicUrl}?v=${Date.now()}`;
-
-  const { error: updateError } = await supabase
-    .from('characters')
-    .update({ avatar_card_url: versionedUrl })
-    .eq('id', characterId);
-
-  if (updateError) return { url: null, error: updateError };
-
-  return { url: versionedUrl, error: null };
+  return uploadAndSave({
+    bucket: 'campaign-assets',
+    path: `character-portraits/${characterId}-card.jpg`,
+    fileUri, mimeType,
+    maxDimension: 1920,
+    table: 'characters', rowId: characterId, column: 'avatar_card_url',
+  });
 }
