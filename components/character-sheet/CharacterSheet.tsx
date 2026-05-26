@@ -2454,13 +2454,53 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             showsVerticalScrollIndicator={false}
           >
 
-            {/* Back + portrait + name */}
-            <View style={s.deskHeader}>
-              <TouchableOpacity onPress={() => handleClose()} style={s.deskBackBtn} hitSlop={8}>
+            {/* Utility bar — mirrors the mobile layout. Home + Campaign
+                chip on the left; Level Up + Settings icons on the
+                right. Activity Log isn't in the bar on desktop because
+                it already has its own collapsible right rail. */}
+            <View style={s.deskUtilityBar}>
+              <TouchableOpacity
+                onPress={() => router.replace('/(drawer)/home')}
+                style={s.homeBtn}
+                hitSlop={6}
+                activeOpacity={0.7}
+              >
                 <MaterialCommunityIcons name="chevron-left" size={20} color={colors.onSurfaceVariant} />
-                <Text style={s.deskBackLabel}>Characters</Text>
+                <Text style={s.homeBtnLabel}>Home</Text>
               </TouchableOpacity>
+              {character?.campaign_id && linkedCampaignName ? (
+                <TouchableOpacity
+                  style={s.campaignChip}
+                  onPress={() => {
+                    // Same embedded-vs-standalone branching as the
+                    // mobile chip + the bottom Campaign card.
+                    if (onClose) onClose();
+                    else router.push(`/campaign/${character.campaign_id}`);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="castle" size={13} color={colors.primary} />
+                  <Text style={s.campaignChipLabel} numberOfLines={1}>{linkedCampaignName}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <View style={{ flex: 1 }} />
+              {isOwner && stats.level < 20 ? (
+                <TouchableOpacity
+                  onPress={() => router.push(`/character/${id}/level-up`)}
+                  hitSlop={8}
+                  style={s.settingsIconBtn}
+                  accessibilityLabel="Level up"
+                >
+                  <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={20} color={colors.primary} />
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity onPress={() => setSettingsModal(true)} hitSlop={8} style={s.settingsIconBtn} accessibilityLabel="Settings">
+                <MaterialCommunityIcons name="cog-outline" size={20} color={colors.outline} />
+              </TouchableOpacity>
+            </View>
 
+            {/* Portrait + name */}
+            <View style={s.deskHeader}>
               <View style={s.deskIdentityRow}>
                 <TouchableOpacity style={s.deskPortrait} onPress={handlePickPortrait} disabled={portraitUploading} activeOpacity={0.85}>
                   {portraitContent}
@@ -2485,22 +2525,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     {[speciesLabel, classLabel].filter(Boolean).join(' ')}
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
-                </View>
-
-                <View style={s.deskHeaderIcons}>
-                  {isOwner && stats.level < 20 ? (
-                    <TouchableOpacity
-                      style={s.deskIconBtn}
-                      onPress={() => router.push(`/character/${id}/level-up`)}
-                      hitSlop={6}
-                      activeOpacity={0.7}
-                    >
-                      <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={16} color={colors.primary} />
-                    </TouchableOpacity>
-                  ) : null}
-                  <TouchableOpacity style={s.deskIconBtn} onPress={() => setSettingsModal(true)} hitSlop={6}>
-                    <MaterialCommunityIcons name="cog-outline" size={16} color={colors.outline} />
-                  </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -4495,6 +4519,15 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainerLowest,
+  },
+  /** Desktop utility bar — same components as the mobile one (Home,
+   *  Campaign, Lv↑, Settings) but sized to live inside the left
+   *  sidebar's narrower column. Sits above the portrait so the chrome
+   *  surface reads consistently across breakpoints. Activity Log is
+   *  omitted — desktop has the dedicated right rail for that. */
+  deskUtilityBar: {
+    flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6,
+    marginBottom: spacing.sm,
   },
   /** Chunky Home button — icon + label, sized up from the original
    *  back chevron so it feels like a primary surface action and reads
