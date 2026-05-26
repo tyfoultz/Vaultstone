@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { uploadAndSave } from './upload-image';
 
 export function generateJoinCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -187,52 +188,18 @@ export async function updateCampaign(
   return supabase.from('campaigns').update(patch).eq('id', campaignId);
 }
 
-const ALLOWED_COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
-/**
- * Upload a campaign cover image. Reused across the All Campaigns
- * card cover and the window-pane fallback when no scene is pinned.
- * Stored in the shared `campaign-assets` bucket under
- * `campaign-covers/{campaignId}.{ext}` so it can be overwritten on
- * re-upload without leaving orphan files. The public URL is
- * cache-busted with a `?v=timestamp` so a re-upload appears
- * immediately in the UI.
- */
 export async function uploadCampaignCover(
   campaignId: string,
   fileUri: string,
   mimeType: string,
 ) {
-  if (!ALLOWED_COVER_TYPES.includes(mimeType)) {
-    return { url: null, error: { message: 'Only JPEG, PNG, and WebP images are allowed.' } };
-  }
-
-  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-  const path = `campaign-covers/${campaignId}.${ext}`;
-
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
-
-  const { error: uploadError } = await supabase.storage
-    .from('campaign-assets')
-    .upload(path, blob, { contentType: mimeType, upsert: true });
-
-  if (uploadError) return { url: null, error: uploadError };
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('campaign-assets')
-    .getPublicUrl(path);
-
-  const versionedUrl = `${publicUrl}?v=${Date.now()}`;
-
-  const { error: updateError } = await supabase
-    .from('campaigns')
-    .update({ cover_image_url: versionedUrl })
-    .eq('id', campaignId);
-
-  if (updateError) return { url: null, error: updateError };
-
-  return { url: versionedUrl, error: null };
+  return uploadAndSave({
+    bucket: 'campaign-assets',
+    path: `campaign-covers/${campaignId}.jpg`,
+    fileUri, mimeType,
+    maxDimension: 1920,
+    table: 'campaigns', rowId: campaignId, column: 'cover_image_url',
+  });
 }
 
 export async function deleteCampaign(campaignId: string) {

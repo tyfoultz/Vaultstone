@@ -6,7 +6,10 @@ import { colors } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 import type { Dnd5eStats } from '@vaultstone/types';
 
-type Character = Database['public']['Tables']['characters']['Row'];
+type Character = Pick<Database['public']['Tables']['characters']['Row'],
+  'id' | 'user_id' | 'name' | 'campaign_id' | 'system' | 'base_stats' |
+  'avatar_url' | 'avatar_card_url' | 'created_at'
+>;
 
 interface Props {
   visible: boolean;

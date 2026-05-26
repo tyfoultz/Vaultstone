@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, Pressable, StyleSheet,
   ActivityIndicator, FlatList, Alert, Platform,
@@ -52,6 +52,7 @@ export default function EncountersScreen() {
 
   const [encounters, setEncounters] = useState<EncounterRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const lastFetchedRef = useRef(0);
   const [loadingEncounter, setLoadingEncounter] = useState<string | null>(null);
   const [hasActiveSession, setHasActiveSession] = useState(false);
 
@@ -74,10 +75,15 @@ export default function EncountersScreen() {
     ]);
     if (encRes.data) setEncounters(encRes.data as EncounterRow[]);
     setHasActiveSession(!!sessRes.data);
+    lastFetchedRef.current = Date.now();
     setLoading(false);
   }
 
-  useFocusEffect(useCallback(() => { refresh(); }, [id]));
+  useFocusEffect(useCallback(() => {
+    const STALE_MS = 30_000;
+    if (encounters.length > 0 && Date.now() - lastFetchedRef.current < STALE_MS) return;
+    refresh();
+  }, [id, encounters.length]));
 
   /* ── actions ────────────────────────────────────────── */
 

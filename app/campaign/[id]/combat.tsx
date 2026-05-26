@@ -205,9 +205,16 @@ export default function CombatScreen() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'initiative_order', filter: `session_id=eq.${session.id}` },
-        async () => {
-          const { data } = await getInitiativeOrder(session.id);
-          setEntries((data ?? []) as Combatant[]);
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const oldId = (payload.old as { id?: string })?.id;
+            if (oldId) setEntries((prev) => prev.filter((e) => e.id !== oldId));
+          } else if (payload.eventType === 'INSERT') {
+            setEntries((prev) => [...prev, payload.new as Combatant]);
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as Combatant;
+            setEntries((prev) => prev.map((e) => e.id === updated.id ? updated : e));
+          }
         },
       )
       .on(

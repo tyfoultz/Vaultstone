@@ -11,7 +11,10 @@ import { colors, spacing, fonts } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
-type Character = Database['public']['Tables']['characters']['Row'];
+type Character = Pick<Database['public']['Tables']['characters']['Row'],
+  'id' | 'user_id' | 'name' | 'campaign_id' | 'system' | 'base_stats' |
+  'avatar_url' | 'avatar_card_url' | 'created_at'
+>;
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -32,23 +35,36 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!user) return;
 
+    const campaignStale = useCampaignStore.getState().isStale();
+    const characterStale = useCharacterStore.getState().isStale();
+    const hasCachedData = campaigns.length > 0 || characters.length > 0;
+
+    if (hasCachedData && !campaignStale && !characterStale) {
+      setLoading(false);
+      return;
+    }
+
     let done = 0;
-    const check = () => { done++; if (done >= 2) setLoading(false); };
+    const total = (campaignStale ? 1 : 0) + (characterStale ? 1 : 0);
+    if (total === 0) { setLoading(false); return; }
+    const check = () => { done++; if (done >= total) setLoading(false); };
 
-    // Campaigns — single batched count query instead of N individual member fetches
-    getCampaigns().then(async ({ data }) => {
-      const active = (data ?? []).filter((c) => !c.is_archived);
-      setCampaigns(active);
-      const { data: counts } = await getMemberCountsForCampaigns(active.map((c) => c.id));
-      setMemberCounts(counts ?? {});
-      check();
-    });
+    if (campaignStale) {
+      getCampaigns().then(async ({ data }) => {
+        const active = (data ?? []).filter((c) => !c.is_archived);
+        setCampaigns(active);
+        const { data: counts } = await getMemberCountsForCampaigns(active.map((c) => c.id));
+        setMemberCounts(counts ?? {});
+        check();
+      });
+    }
 
-    // Characters
-    getMyCharacters().then(({ data }) => {
-      setCharacters(data ?? []);
-      check();
-    });
+    if (characterStale) {
+      getMyCharacters().then(({ data }) => {
+        setCharacters(data ?? []);
+        check();
+      });
+    }
   }, [user]);
 
   function getCharStats(character: Character) {

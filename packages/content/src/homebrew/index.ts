@@ -215,20 +215,37 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   if (relevantPacks.length === 0) return [];
   const relevantPackIds = relevantPacks.map((p) => p.id);
 
-  const cacheKey = [...relevantPackIds].sort().join(',');
+  const baseCacheKey = [...relevantPackIds].sort().join(',');
   let authored: HomebrewContentRow[] | null;
   let imported: ImportedContentRow[] | null;
 
   if (
     _entryCache
-    && _entryCache.key === cacheKey
+    && _entryCache.key === baseCacheKey
     && Date.now() - _entryCache.fetchedAt < ENTRY_CACHE_TTL
   ) {
     authored = _entryCache.authored;
     imported = _entryCache.imported;
-  } else if (await hydrateFromDisk(cacheKey)) {
+  } else if (await hydrateFromDisk(baseCacheKey)) {
     authored = _entryCache!.authored;
     imported = _entryCache!.imported;
+  } else if (query.type) {
+    const [a, i] = await Promise.all([
+      fetchAllPaginated<HomebrewContentRow>(
+        'homebrew_content',
+        'id, user_id, pack_id, content_type, name, data',
+        relevantPackIds,
+        query.type,
+      ),
+      fetchAllPaginated<ImportedContentRow>(
+        'imported_content',
+        'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
+        relevantPackIds,
+        query.type,
+      ),
+    ]);
+    authored = a;
+    imported = i;
   } else {
     const [a, i] = await Promise.all([
       fetchAllPaginated<HomebrewContentRow>(
@@ -245,7 +262,7 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
     authored = a;
     imported = i;
     if (authored !== null && imported !== null) {
-      const entry = { key: cacheKey, packs: relevantPacks, authored, imported, fetchedAt: Date.now() };
+      const entry = { key: baseCacheKey, packs: relevantPacks, authored, imported, fetchedAt: Date.now() };
       _entryCache = entry;
       persistToDisk(entry);
     }
@@ -323,15 +340,17 @@ async function fetchAllPaginated<T>(
   table: 'homebrew_content' | 'imported_content',
   select: string,
   packIds: string[],
+  contentType?: string,
 ): Promise<T[] | null> {
   const PAGE = 1000;
   const out: T[] = [];
   for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await supabase
+    let q = supabase
       .from(table)
       .select(select)
-      .in('pack_id', packIds)
-      .range(offset, offset + PAGE - 1);
+      .in('pack_id', packIds);
+    if (contentType) q = q.eq('content_type', contentType);
+    const { data, error } = await q.range(offset, offset + PAGE - 1);
     if (error) return null;
     const rows = (data ?? []) as T[];
     out.push(...rows);
