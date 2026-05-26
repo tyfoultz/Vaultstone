@@ -828,10 +828,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const [cardItems, setCardItems] = useState<CardItem[]>(DEFAULT_CARD_ORDER.map((id) => ({ id })));
   const [activeTab, setActiveTab] = useState<TabId>('combat');
   const [tabLayout, setTabLayout] = useState<TabLayoutState>(DEFAULT_TAB_LAYOUT);
-  // Activity log rail defaults collapsed on tablet (768-1023) so the
-  // content pane has room to render at its preferred density; user
-  // can still pop it open via the collapsed-rail tap target.
-  const [rightRailCollapsed, setRightRailCollapsed] = useState(() => width >= 768 && width < 1024);
+  // Activity log lives inline in the left sidebar now (see the
+  // "Activity Log" section), so the right rail / collapse state is
+  // gone. The log modal (logModal) is still used as a "full view"
+  // expansion from elsewhere on the sheet.
   const [rollResult, setRollResult] = useState<RollResult | null>(null);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [logModal, setLogModal] = useState(false);
@@ -2631,6 +2631,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   <Text style={s.deskHeroAcNum}>{ac}</Text>
                 </TouchableOpacity>
               </View>
+            </View>
 
             {/* ── Stats block ─────────────────────────────────────── */}
             <View style={s.deskStats}>
@@ -2757,68 +2758,38 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   identity row + stats stack + action row above). */}
             </View>
 
-            {/* ── Senses (passive skills) ───────────────────────────── */}
-            <View style={s.deskSection}>
-              <Text style={s.deskSectionLabel}>Senses</Text>
-              {(['perception', 'investigation', 'insight'] as const).map((skill) => {
-                const abi: keyof Dnd5eAbilityScores = skill === 'investigation' ? 'intelligence' : 'wisdom';
-                const isProficient = stats.skillProficiencies?.includes(skill) ?? false;
-                const passive = 10 + abilityMod(scores[abi]) + (isProficient ? prof : 0);
-                return (
-                  <TouchableOpacity
-                    key={skill}
-                    style={s.deskAbilityRow}
-                    activeOpacity={manualMode ? 0.7 : 1}
-                    onPress={manualMode ? () => {
-                      const profs = [...(stats.skillProficiencies ?? [])];
-                      if (isProficient) {
-                        persistStats({ ...stats, skillProficiencies: profs.filter((s) => s !== skill) });
-                      } else {
-                        profs.push(skill);
-                        persistStats({ ...stats, skillProficiencies: profs });
-                      }
-                    } : undefined}
-                  >
-                    <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
-                    <Text style={s.deskAbilName}>Passive {capitalize(skill)}</Text>
-                    <Text style={[s.deskAbilSaveVal, isProficient && { color: colors.primary }]}>{passive}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
             {/* Saving throws were here; they now live at the top of the
                 Combat tab (see CombatTab → SavingThrowsStrip) so the
                 most-rolled stat on a turn is in the player's primary
                 eyeline instead of tucked into the left rail. */}
 
-            {/* ── Campaign link ─────────────────────────────────────── */}
-            <TouchableOpacity
-              style={s.deskCampSection}
-              activeOpacity={character?.campaign_id ? 0.7 : 1}
-              onPress={() => {
-                if (!character?.campaign_id) return;
-                // When the sheet was opened from the campaign (split-
-                // pane / embedded), close the pane to return to the
-                // campaign tab rather than pushing a new route — that
-                // push double-mounts the campaign and tears the
-                // embedded sheet down mid-flight, which used to crash
-                // the realtime subscription and white-screen us.
-                if (onClose) onClose();
-                else router.push(`/campaign/${character.campaign_id}`);
-              }}
-            >
-              <View style={s.deskCampCard}>
-                <MaterialCommunityIcons name="castle" size={16} color={colors.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.deskCampCardLbl}>Campaign</Text>
-                  <Text style={s.deskCampCardName} numberOfLines={1}>
-                    {linkedCampaignName ?? 'Not linked'}
-                  </Text>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} style={{ opacity: 0.6 }} />
+            {/* ── Activity Log ──────────────────────────────────────
+                Moved in from the right rail so the desktop chassis is
+                just left-sidebar + content. Each row shows the same
+                roll / HP / condition entry as the old log rail. */}
+            <View style={s.deskSection}>
+              <View style={s.deskLogHead}>
+                <Text style={s.deskSectionLabel}>Activity Log</Text>
+                <Text style={s.deskLogCount}>{activityLog.length} event{activityLog.length === 1 ? '' : 's'}</Text>
               </View>
-            </TouchableOpacity>
+              {activityLog.length === 0 ? (
+                <Text style={s.deskLogEmpty}>No activity yet.</Text>
+              ) : (
+                activityLog.map((entry) => {
+                  const d = describeEntry(entry);
+                  return (
+                    <View key={entry.id} style={s.logRailRow}>
+                      <MaterialCommunityIcons name={d.icon as any} size={12} color={d.accent} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={s.logRailLabel} numberOfLines={1}>{d.label}</Text>
+                        {!!d.detail && <Text style={s.logRailDice} numberOfLines={1}>{d.detail}</Text>}
+                      </View>
+                      {!!d.total && <Text style={[s.logRailTotal, { color: d.accent }]}>{d.total}</Text>}
+                    </View>
+                  );
+                })
+              )}
+            </View>
 
           </ScrollView>
           </LinearGradient>
@@ -2860,61 +2831,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             </View>
           </View>
 
-          {/* ── Activity log rail (right side, collapsible) ─────────── */}
-          {!rightRailCollapsed && (
-            <LinearGradient
-              colors={[`${colors.gm}26`, colors.surfaceContainerLowest, colors.surfaceContainerLowest]}
-              start={{ x: 1, y: 0 }}
-              end={{ x: 0.6, y: 1 }}
-              style={s.skillsRail}
-            >
-              <View style={s.skillsRailHead}>
-                <View>
-                  <Text style={s.skillsRailTitle}>Activity Log</Text>
-                  <Text style={s.skillsRailSub}>{activityLog.length} event{activityLog.length === 1 ? '' : 's'}</Text>
-                </View>
-                <TouchableOpacity onPress={() => setRightRailCollapsed(true)} hitSlop={8}>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.outline} />
-                </TouchableOpacity>
-              </View>
-              {activityLog.length === 0 ? (
-                <Text style={s.logRailEmpty}>No activity yet.</Text>
-              ) : (
-                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                  {activityLog.map((entry) => {
-                    const d = describeEntry(entry);
-                    return (
-                      <View key={entry.id} style={s.logRailRow}>
-                        <MaterialCommunityIcons name={d.icon as any} size={12} color={d.accent} />
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={s.logRailLabel} numberOfLines={1}>{d.label}</Text>
-                          {!!d.detail && <Text style={s.logRailDice} numberOfLines={1}>{d.detail}</Text>}
-                        </View>
-                        {!!d.total && <Text style={[s.logRailTotal, { color: d.accent }]}>{d.total}</Text>}
-                      </View>
-                    );
-                  })}
-                </ScrollView>
-              )}
-            </LinearGradient>
-          )}
-          {rightRailCollapsed && (
-            <LinearGradient
-              colors={[`${colors.gm}26`, colors.surfaceContainerLowest, colors.surfaceContainerLowest]}
-              start={{ x: 1, y: 0 }}
-              end={{ x: 0.6, y: 1 }}
-              style={s.skillsRailCollapsed}
-            >
-              <TouchableOpacity
-                style={s.skillsRailCollapsedInner}
-                onPress={() => setRightRailCollapsed(false)}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons name="chevron-left" size={16} color={colors.outline} />
-                <Text style={s.skillsRailCollapsedLabel}>Log</Text>
-              </TouchableOpacity>
-            </LinearGradient>
-          )}
+          {/* Right rail removed — Activity Log now lives in the left
+              sidebar (see "Activity Log" section above). */}
 
         </View>
         </SharedDndProvider>
@@ -5793,6 +5711,21 @@ const s = StyleSheet.create({
   deskSectionLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline, marginBottom: 4,
+  },
+  /** Activity Log header row — section label + event count subhead
+   *  side-by-side. Mirrors the old right-rail header treatment now
+   *  that the log lives inline in the left sidebar. */
+  deskLogHead: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  deskLogCount: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.outline, letterSpacing: 0.4,
+  },
+  deskLogEmpty: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.outline,
+    fontStyle: 'italic' as const, paddingVertical: 6,
   },
   deskAbilityRow: {
     flexDirection: 'row', alignItems: 'center', gap: 0,
