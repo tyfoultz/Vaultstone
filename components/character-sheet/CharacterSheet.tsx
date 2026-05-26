@@ -2461,16 +2461,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             <View style={s.deskUtilityBar}>
               <TouchableOpacity
                 onPress={() => router.replace('/(drawer)/home')}
-                style={s.homeBtn}
+                style={s.deskHomeBtn}
                 hitSlop={6}
                 activeOpacity={0.7}
+                accessibilityLabel="Home"
               >
-                <MaterialCommunityIcons name="chevron-left" size={20} color={colors.onSurfaceVariant} />
-                <Text style={s.homeBtnLabel}>Home</Text>
+                <MaterialCommunityIcons name="home-outline" size={16} color={colors.onSurfaceVariant} />
               </TouchableOpacity>
               {character?.campaign_id && linkedCampaignName ? (
                 <TouchableOpacity
-                  style={s.campaignChip}
+                  style={s.deskCampaignChip}
                   onPress={() => {
                     // Same embedded-vs-standalone branching as the
                     // mobile chip + the bottom Campaign card.
@@ -2479,7 +2479,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   }}
                   activeOpacity={0.7}
                 >
-                  <MaterialCommunityIcons name="castle" size={13} color={colors.primary} />
+                  <MaterialCommunityIcons name="castle" size={12} color={colors.primary} />
                   <Text style={s.campaignChipLabel} numberOfLines={1}>{linkedCampaignName}</Text>
                 </TouchableOpacity>
               ) : null}
@@ -2491,11 +2491,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   style={s.settingsIconBtn}
                   accessibilityLabel="Level up"
                 >
-                  <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={20} color={colors.primary} />
+                  <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={18} color={colors.primary} />
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity onPress={() => setSettingsModal(true)} hitSlop={8} style={s.settingsIconBtn} accessibilityLabel="Settings">
-                <MaterialCommunityIcons name="cog-outline" size={20} color={colors.outline} />
+                <MaterialCommunityIcons name="cog-outline" size={18} color={colors.outline} />
               </TouchableOpacity>
             </View>
 
@@ -4524,10 +4524,35 @@ const s = StyleSheet.create({
    *  Campaign, Lv↑, Settings) but sized to live inside the left
    *  sidebar's narrower column. Sits above the portrait so the chrome
    *  surface reads consistently across breakpoints. Activity Log is
-   *  omitted — desktop has the dedicated right rail for that. */
+   *  omitted — desktop has the dedicated right rail for that.
+   *
+   *  No flexWrap — the chip shrinks (and its label truncates) instead
+   *  of pushing the Lv↑ / Settings icons onto a second line. */
   deskUtilityBar: {
-    flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     marginBottom: spacing.sm,
+  },
+  /** Compact icon-only Home button — sidebar columns are too narrow
+   *  for the mobile chunky "← Home" label without forcing the row
+   *  to wrap. The home glyph carries the same meaning at half the
+   *  width. */
+  deskHomeBtn: {
+    width: 30, height: 30,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  /** Campaign chip — shrinks (min-width 0) so the linked-campaign
+   *  name truncates cleanly when the sidebar is narrow rather than
+   *  pushing the icon cluster to the next line. */
+  deskCampaignChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: `${colors.primary}55`,
+    backgroundColor: `${colors.primary}14`,
+    flexShrink: 1, minWidth: 0,
   },
   /** Chunky Home button — icon + label, sized up from the original
    *  back chevron so it feels like a primary surface action and reads
