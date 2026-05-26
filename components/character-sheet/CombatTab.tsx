@@ -268,17 +268,47 @@ export function CombatTab({
       <>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.deskScrollContent} showsVerticalScrollIndicator={false}>
 
-          <SectionLabel accent>SAVING THROWS</SectionLabel>
-          <SavingThrowsStrip
-            scores={scores}
-            stats={stats}
-            prof={prof}
-            extraBonus={extraSaveBonus}
-            manualMode={manualMode}
-            onToggleSaveProficiency={onToggleSaveProficiency}
-            onRoll={onRoll}
-            isDesktop
-          />
+          {/* Movement + Saving Throws row — mirrors the mobile layout
+              (INIT/SPD stacked on the left, 3×2 saves grid on the
+              right) so the section reads identically across breakpoints.
+              The wider desktop pane just gives both columns more
+              breathing room; the proportions stay the same. */}
+          <View style={s.savesAndMoveRow}>
+            <View style={s.moveColDesktop}>
+              <SectionLabel>MOVEMENT</SectionLabel>
+              <View style={s.moveCardsStack}>
+                <TouchableOpacity
+                  style={s.moveStatCard}
+                  onPress={() => setInitBreakdownOpen(true)}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show initiative breakdown"
+                >
+                  <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.hpWarning} />
+                  <Text style={s.moveStatLabel}>INIT</Text>
+                  <Text style={s.moveStatValue}>
+                    {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
+                  </Text>
+                </TouchableOpacity>
+                <View style={s.moveStatCard}>
+                  <MaterialCommunityIcons name="run-fast" size={12} color={colors.hpWarning} />
+                  <Text style={s.moveStatLabel}>SPD</Text>
+                  <Text style={s.moveStatValue}>{stats.speed} ft</Text>
+                </View>
+              </View>
+            </View>
+            <View style={s.savesColDesktop}>
+              <SectionLabel accent>SAVING THROWS</SectionLabel>
+              <SavingThrowsStrip
+                scores={scores}
+                stats={stats}
+                prof={prof}
+                extraBonus={extraSaveBonus}
+                manualMode={manualMode}
+                onToggleSaveProficiency={onToggleSaveProficiency}
+                onRoll={onRoll}
+              />
+            </View>
+          </View>
 
           {/* Attacks */}
           <SectionLabel
@@ -1512,6 +1542,12 @@ const s = StyleSheet.create({
   savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
   savesCol: { flex: 72, minWidth: 0 },
   moveCol: { flex: 28, minWidth: 0 },
+  /** Desktop variants — Movement gets a fixed width that fits two
+   *  compact INIT/SPD cards comfortably; Saves takes the rest. Fixed
+   *  width (instead of flex) so the Movement column doesn't balloon
+   *  when the tab pane is wide. */
+  moveColDesktop: { width: 160 },
+  savesColDesktop: { flex: 1, minWidth: 0 },
   /** Wraps the two movement cards so the inter-card gap doesn't also
    *  push the first card down from the section label — flex:1 lets the
    *  stack absorb the remaining column height (matched to the saves
