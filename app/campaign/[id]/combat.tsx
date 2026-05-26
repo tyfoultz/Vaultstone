@@ -632,7 +632,7 @@ export default function CombatScreen() {
             </View>
           </View>
           <View style={st.headerRight}>
-            {combatStarted && (
+            {combatStarted && !showPlayerView && (
               <View style={st.roundInfo}>
                 <Text style={st.roundLabel}>ROUND</Text>
                 <View style={st.roundBadge}>
@@ -645,7 +645,7 @@ export default function CombatScreen() {
                 )}
               </View>
             )}
-            {combatStarted && isDM && (
+            {combatStarted && isDM && !showPlayerView && (
               <>
                 <TouchableOpacity
                   style={[st.prevTurnBtn, (advancing || entries.length === 0) && { opacity: 0.5 }]}
@@ -670,7 +670,7 @@ export default function CombatScreen() {
         </View>
 
         {/* ===== CONTROLS BAR ===== */}
-        {isDM && (
+        {isDM && !showPlayerView && (
           <View style={st.controls}>
             <View style={st.controlsLeft}>
               <TouchableOpacity
@@ -771,7 +771,7 @@ export default function CombatScreen() {
         )}
 
         {/* ===== PARTY PICKER ===== */}
-        {isDM && addingParty && (
+        {isDM && !showPlayerView && addingParty && (
           <View style={st.pickerPanel}>
             {partyLoading ? (
               <ActivityIndicator color={colors.primary} />
