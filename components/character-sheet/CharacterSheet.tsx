@@ -2531,93 +2531,90 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
 
-                  {/* Stat strip — PER / PROF / HD. AC moves out to the
-                      inline shield on the right; INSP / REST live as
-                      round action buttons below the shield. */}
-                  <View style={s.deskHeroStatsRow}>
-                    <TouchableOpacity
-                      style={s.deskHeroStat}
-                      onPress={() => setOpenBreakdown('passive-perception')}
-                      activeOpacity={0.7}
-                      accessibilityLabel="Show passive perception breakdown"
-                    >
-                      <MaterialCommunityIcons name="eye-outline" size={11} color={colors.outline} />
-                      <Text style={s.deskHeroStatLabel}>PER</Text>
-                      <Text
-                        style={[
-                          s.deskHeroStatValue,
-                          (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
-                          !(stats.skillExpertise ?? []).includes('perception')
-                            && stats.skillProficiencies.includes('perception')
-                            && { color: colors.primary },
-                        ]}
-                      >{passivePerception}</Text>
-                    </TouchableOpacity>
-                    <View style={s.deskHeroStat}>
-                      <MaterialCommunityIcons name="star-four-points-outline" size={11} color={colors.outline} />
-                      <Text style={s.deskHeroStatLabel}>PROF</Text>
-                      <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
-                    </View>
-                    {(() => {
-                      const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
-                      const canSpend = canEditAny && hdRemaining > 0;
-                      const Wrapper = canSpend ? TouchableOpacity : View;
-                      return (
-                        <Wrapper
-                          style={s.deskHeroStat}
-                          onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
-                          activeOpacity={canSpend ? 0.7 : 1}
-                          accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
-                        >
-                          <MaterialCommunityIcons name="dice-d8-outline" size={11} color={colors.outline} />
-                          <Text style={s.deskHeroStatLabel}>HD</Text>
-                          <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
-                        </Wrapper>
-                      );
-                    })()}
-                  </View>
                 </View>
 
-                {/* Right column — AC shield on top, INSP + REST round
-                    action buttons below. Mirrors the mobile hero card
-                    chassis: AC carries the same metallic silver shield
-                    treatment as the campaign PartyMemberCard, and the
-                    two action btns are round outlined circles. */}
-                <View style={s.deskHeroRightCol}>
-                  <TouchableOpacity
-                    style={s.deskHeroAcInline}
-                    onPress={() => setOpenBreakdown('ac')}
-                    activeOpacity={0.7}
-                    accessibilityLabel="Show AC breakdown"
-                  >
-                    <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
-                    <Text style={s.deskHeroAcNum}>{ac}</Text>
-                  </TouchableOpacity>
-                  <View style={s.deskHeroCornerBtns}>
-                    <TouchableOpacity
-                      style={[s.deskHeroCornerBtn, resources.inspiration && s.deskHeroCornerBtnInspActive]}
-                      onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
-                      disabled={!canEditAny}
-                      activeOpacity={canEditAny ? 0.7 : 1}
-                      accessibilityLabel={resources.inspiration ? 'Inspired — tap to clear' : 'Mark inspired'}
-                    >
-                      <MaterialCommunityIcons
-                        name={resources.inspiration ? 'star' : 'star-outline'}
-                        size={14}
-                        color={resources.inspiration ? colors.gm : colors.outline}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.deskHeroCornerBtn}
-                      onPress={() => canEditAny && setRestChooserOpen(true)}
-                      disabled={!canEditAny}
-                      activeOpacity={canEditAny ? 0.7 : 1}
-                      accessibilityLabel="Take a rest"
-                    >
-                      <MaterialCommunityIcons name="bed" size={14} color={colors.outline} />
-                    </TouchableOpacity>
-                  </View>
+                {/* AC shield — anchored to the right of the name
+                    block. Same metallic silver shield as the mobile
+                    hero card. */}
+                <TouchableOpacity
+                  style={s.deskHeroAcInline}
+                  onPress={() => setOpenBreakdown('ac')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show AC breakdown"
+                >
+                  <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
+                  <Text style={s.deskHeroAcNum}>{ac}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Stats + actions row — full-width band below the
+                  identity row so the PER / PROF / HD cells get
+                  breathing room instead of being crammed into the
+                  name-block column. INSP + REST sit at the right end
+                  as small round buttons. */}
+              <View style={s.deskHeroStatsRow}>
+                <TouchableOpacity
+                  style={s.deskHeroStat}
+                  onPress={() => setOpenBreakdown('passive-perception')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show passive perception breakdown"
+                >
+                  <MaterialCommunityIcons name="eye-outline" size={11} color={colors.outline} />
+                  <Text style={s.deskHeroStatLabel}>PER</Text>
+                  <Text
+                    style={[
+                      s.deskHeroStatValue,
+                      (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
+                      !(stats.skillExpertise ?? []).includes('perception')
+                        && stats.skillProficiencies.includes('perception')
+                        && { color: colors.primary },
+                    ]}
+                  >{passivePerception}</Text>
+                </TouchableOpacity>
+                <View style={s.deskHeroStat}>
+                  <MaterialCommunityIcons name="star-four-points-outline" size={11} color={colors.outline} />
+                  <Text style={s.deskHeroStatLabel}>PROF</Text>
+                  <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
                 </View>
+                {(() => {
+                  const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
+                  const canSpend = canEditAny && hdRemaining > 0;
+                  const Wrapper = canSpend ? TouchableOpacity : View;
+                  return (
+                    <Wrapper
+                      style={s.deskHeroStat}
+                      onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
+                      activeOpacity={canSpend ? 0.7 : 1}
+                      accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
+                    >
+                      <MaterialCommunityIcons name="dice-d8-outline" size={11} color={colors.outline} />
+                      <Text style={s.deskHeroStatLabel}>HD</Text>
+                      <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
+                    </Wrapper>
+                  );
+                })()}
+                <TouchableOpacity
+                  style={[s.deskHeroCornerBtn, resources.inspiration && s.deskHeroCornerBtnInspActive]}
+                  onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
+                  disabled={!canEditAny}
+                  activeOpacity={canEditAny ? 0.7 : 1}
+                  accessibilityLabel={resources.inspiration ? 'Inspired — tap to clear' : 'Mark inspired'}
+                >
+                  <MaterialCommunityIcons
+                    name={resources.inspiration ? 'star' : 'star-outline'}
+                    size={14}
+                    color={resources.inspiration ? colors.gm : colors.outline}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.deskHeroCornerBtn}
+                  onPress={() => canEditAny && setRestChooserOpen(true)}
+                  disabled={!canEditAny}
+                  activeOpacity={canEditAny ? 0.7 : 1}
+                  accessibilityLabel="Take a rest"
+                >
+                  <MaterialCommunityIcons name="bed" size={14} color={colors.outline} />
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -5044,15 +5041,17 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   deskIconBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
-  /** Hero stats strip inside the identity row — AC / PER / PROF / HD.
-   *  Mirrors the mobile hero card's SenseCell row + AC shield in one
-   *  4-cell layout that fits under the name/level block. */
+  /** Hero stats + action row — full-width band sitting below the
+   *  identity row so PER / PROF / HD cells get breathing room and
+   *  the INSP / REST round btns at the right end of the row have a
+   *  consistent baseline with them. Lives outside the name block
+   *  column so the cells aren't squeezed by the portrait + shield. */
   deskHeroStatsRow: {
-    flexDirection: 'row', gap: 3, marginTop: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10,
   },
   deskHeroStat: {
     flex: 1, alignItems: 'center',
-    paddingVertical: 3, paddingHorizontal: 2,
+    paddingVertical: 4, paddingHorizontal: 2,
     borderRadius: 6,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1, borderColor: colors.outlineVariant,
@@ -5082,26 +5081,10 @@ const s = StyleSheet.create({
     fontFamily: fonts.headline, fontSize: 14, fontWeight: '800',
     color: colors.onPrimary, letterSpacing: -0.3,
   },
-  /** Right column of the identity row — AC shield + INSP / REST
-   *  round action buttons. Stretches to the row's full height with
-   *  justifyContent: space-between so the shield anchors the top
-   *  edge (aligned with the character name) and the action btns
-   *  anchor the bottom (aligned with the PER / PROF / HD strip).
-   *  Removes the awkward gap of dead space between them. */
-  deskHeroRightCol: {
-    flexDirection: 'column', alignItems: 'center',
-    alignSelf: 'stretch',
-    justifyContent: 'space-between',
-  },
-  /** Round outlined action btn — used for INSP and REST on the right
-   *  column. Matches the mobile heroCornerBtn shape (28x28 outlined
-   *  circle) so the toggles read the same on every surface.
-   *  Stacked vertically so the right column stays as narrow as the
-   *  AC shield, leaving the PER / PROF / HD strip more horizontal
-   *  room. */
-  deskHeroCornerBtns: {
-    flexDirection: 'column', gap: 4,
-  },
+  /** Round outlined action btn — INSP + REST. Lives at the right
+   *  end of the stats row so it shares a baseline with the cells.
+   *  Same chassis as the mobile heroCornerBtn (28×28 outlined
+   *  circle) so the toggles read the same across surfaces. */
   deskHeroCornerBtn: {
     width: 28, height: 28, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center',
