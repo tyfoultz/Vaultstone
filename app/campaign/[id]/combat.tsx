@@ -7,8 +7,8 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   supabase, getActiveSession,
-  getInitiativeOrder, addCombatant, removeCombatant, advanceTurn,
-  updateCombatant, updateCharacterHp, updateCharacterConditions,
+  getInitiativeOrder, addCombatant, removeCombatant, clearAllCombatants,
+  advanceTurn, updateCombatant, updateCharacterHp, updateCharacterConditions,
   rollCombatantInitiative, setCombatantInitOverride, startCombat,
   resetInitiative, endCombat, sortByInitiative,
 } from '@vaultstone/api';
@@ -21,7 +21,7 @@ import { SpellPinProvider } from '../../../components/creatures/SpellTooltip';
 import { PinnedSpellsOverlay, usePinnedSpells } from '../../../components/combat/PinnedSpellsOverlay';
 import { CombatHpModal } from '../../../components/combat/CombatHpModal';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
-import { colors, spacing, HpBar, hpColor, useBreakpoint } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius, HpBar, hpColor, useBreakpoint } from '@vaultstone/ui';
 import type {
   Database, Dnd5eStats, Dnd5eResources, Dnd5eEquipmentItem,
   CreatureResult,
@@ -62,7 +62,7 @@ function computeAc(stats: Dnd5eStats, resources: Dnd5eResources): number {
 function formatMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 
 export default function CombatScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, playerView } = useLocalSearchParams<{ id: string; playerView?: string }>();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const { campaigns } = useCampaignStore();
@@ -91,6 +91,7 @@ export default function CombatScreen() {
   const [startingCombat, setStartingCombat] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [endingCombat, setEndingCombat] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
 
   // Multi-panel stat blocks: set of combatant IDs with open panels
   const [openStatBlocks, setOpenStatBlocks] = useState<string[]>([]);
@@ -106,6 +107,10 @@ export default function CombatScreen() {
   const [initEditFor, setInitEditFor] = useState<string | null>(null);
   const [initEditValue, setInitEditValue] = useState('');
 
+  // Name click-to-edit state (DM rename)
+  const [nameEditFor, setNameEditFor] = useState<string | null>(null);
+  const [nameEditValue, setNameEditValue] = useState('');
+
   // Session log floating window
   const [logOpen, setLogOpen] = useState(false);
   const [logDragOffset, setLogDragOffset] = useState({ x: 0, y: 0 });
@@ -118,11 +123,16 @@ export default function CombatScreen() {
   const isWideLayout = bp.isDesktop || bp.isWide;
 
   const isDM = campaign?.dm_user_id === user?.id;
+  const showPlayerView = !isDM || playerView === 'true';
   const combatStarted = !!session?.combat_started_at;
   const displayEntries = useMemo(
     () => combatStarted ? sortByInitiative(entries) : entries,
     [entries, combatStarted],
   );
+  const visibleEntries = useMemo(() => {
+    if (!showPlayerView) return displayEntries;
+    return displayEntries.filter((e) => e.character_id !== null || e.revealed);
+  }, [displayEntries, showPlayerView]);
   const allRolled = entries.length > 0 &&
     entries.every((e) => e.init_roll !== null || e.init_override !== null);
   const anyRolled = entries.some((e) => e.init_roll !== null || e.init_override !== null);
@@ -340,6 +350,17 @@ export default function CombatScreen() {
     await refetchEntries(session.id);
   }
 
+  // --- Name editing (DM rename) ---
+
+  async function handleNameSubmit(combatantId: string, originalName: string) {
+    const trimmed = nameEditValue.trim();
+    setNameEditFor(null);
+    setNameEditValue('');
+    if (!trimmed || trimmed === originalName) return;
+    await updateCombatant(combatantId, { display_name: trimmed });
+    if (session) await refetchEntries(session.id);
+  }
+
   // --- Party picker ---
 
   async function openPartyPicker() {
@@ -454,7 +475,7 @@ export default function CombatScreen() {
     const { data: raw } = await getInitiativeOrder(session.id);
     const sorted = sortByInitiative((raw ?? []) as Combatant[]);
     if (sorted.length > 0) {
-      await updateCombatant(sorted[0].id, { is_active_turn: true });
+      await updateCombatant(sorted[0].id, { is_active_turn: true, revealed: true });
     }
     await refetchEntries(session.id);
     setStartingCombat(false);
@@ -506,6 +527,27 @@ export default function CombatScreen() {
     setEndingCombat(false);
   }
 
+  async function handleClearAll() {
+    if (!session || clearingAll || entries.length === 0) return;
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Remove all combatants? This cannot be undone.')
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Clear All Combatants?',
+            'This will remove every combatant from the tracker. This cannot be undone.',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Clear All', style: 'destructive', onPress: () => resolve(true) },
+            ],
+          );
+        });
+    if (!confirmed) return;
+    setClearingAll(true);
+    await clearAllCombatants(session.id);
+    await refetchEntries(session.id);
+    setClearingAll(false);
+  }
+
   async function handleNextTurn() {
     if (!session || advancing || entries.length === 0) return;
     setAdvancing(true);
@@ -527,7 +569,7 @@ export default function CombatScreen() {
     if (currentIdx !== -1) {
       await updateCombatant(sorted[currentIdx].id, { is_active_turn: false });
     }
-    await updateCombatant(sorted[prevIdx].id, { is_active_turn: true });
+    await updateCombatant(sorted[prevIdx].id, { is_active_turn: true, revealed: true });
 
     if (wrapped && session.round > 1) {
       await supabase
@@ -547,7 +589,7 @@ export default function CombatScreen() {
   if (loading) {
     return (
       <View style={st.center}>
-        <ActivityIndicator color={colors.brand} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -572,7 +614,7 @@ export default function CombatScreen() {
               onPress={() => router.replace(`/campaign/${id}` as never)}
               style={st.headerBack}
             >
-              <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
+              <MaterialCommunityIcons name="arrow-left" size={22} color={colors.onSurface} />
             </TouchableOpacity>
             <View>
               <Text style={st.title} numberOfLines={1}>Combat Encounter</Text>
@@ -590,7 +632,7 @@ export default function CombatScreen() {
             </View>
           </View>
           <View style={st.headerRight}>
-            {combatStarted && (
+            {combatStarted && !showPlayerView && (
               <View style={st.roundInfo}>
                 <Text style={st.roundLabel}>ROUND</Text>
                 <View style={st.roundBadge}>
@@ -603,14 +645,14 @@ export default function CombatScreen() {
                 )}
               </View>
             )}
-            {combatStarted && isDM && (
+            {combatStarted && isDM && !showPlayerView && (
               <>
                 <TouchableOpacity
                   style={[st.prevTurnBtn, (advancing || entries.length === 0) && { opacity: 0.5 }]}
                   onPress={handlePrevTurn}
                   disabled={advancing || entries.length === 0}
                 >
-                  <MaterialCommunityIcons name="skip-previous" size={16} color={colors.textPrimary} />
+                  <MaterialCommunityIcons name="skip-previous" size={16} color={colors.onSurface} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[st.nextTurnBtn, (advancing || entries.length === 0) && { opacity: 0.5 }]}
@@ -628,18 +670,18 @@ export default function CombatScreen() {
         </View>
 
         {/* ===== CONTROLS BAR ===== */}
-        {isDM && (
+        {isDM && !showPlayerView && (
           <View style={st.controls}>
             <View style={st.controlsLeft}>
               <TouchableOpacity
                 style={[st.controlBtn, logOpen && st.controlBtnActive]}
                 onPress={() => { setLogOpen((v) => !v); setLogDragOffset({ x: 0, y: 0 }); }}
               >
-                <MaterialCommunityIcons name="timeline-text-outline" size={14} color={logOpen ? colors.brand : colors.textPrimary} />
-                <Text style={[st.controlBtnText, logOpen && { color: colors.brand }]}>Log</Text>
+                <MaterialCommunityIcons name="timeline-text-outline" size={14} color={logOpen ? colors.primary : colors.textPrimary} />
+                <Text style={[st.controlBtnText, logOpen && { color: colors.primary }]}>Log</Text>
               </TouchableOpacity>
               <TouchableOpacity style={st.controlBtn} onPress={() => setPickerVisible(true)}>
-                <MaterialCommunityIcons name="plus" size={14} color={colors.textPrimary} />
+                <MaterialCommunityIcons name="plus" size={14} color={colors.onSurface} />
                 <Text style={st.controlBtnText}>Add Combatant</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -648,17 +690,29 @@ export default function CombatScreen() {
               >
                 <MaterialCommunityIcons
                   name={addingParty ? 'close' : 'account-multiple-plus'}
-                  size={14} color={colors.textPrimary}
+                  size={14} color={colors.onSurface}
                 />
                 <Text style={st.controlBtnText}>{addingParty ? 'Cancel' : 'Add Party'}</Text>
               </TouchableOpacity>
+              {entries.length > 0 && (
+                <TouchableOpacity
+                  style={[st.controlBtn, clearingAll && { opacity: 0.5 }]}
+                  onPress={handleClearAll}
+                  disabled={clearingAll}
+                >
+                  <MaterialCommunityIcons name="delete-sweep-outline" size={14} color={colors.hpDanger} />
+                  <Text style={[st.controlBtnText, { color: colors.hpDanger }]}>
+                    {clearingAll ? 'Clearing...' : 'Clear All'}
+                  </Text>
+                </TouchableOpacity>
+              )}
               {!combatStarted && !allRolled && entries.length > 0 && (
                 <TouchableOpacity
                   style={[st.controlBtn, rollingAll && { opacity: 0.5 }]}
                   onPress={handleRollAll}
                   disabled={rollingAll}
                 >
-                  <MaterialCommunityIcons name="dice-d20" size={14} color={colors.brand} />
+                  <MaterialCommunityIcons name="dice-d20" size={14} color={colors.primary} />
                   <Text style={st.controlBtnText}>{rollingAll ? 'Rolling...' : 'Roll All'}</Text>
                 </TouchableOpacity>
               )}
@@ -700,15 +754,27 @@ export default function CombatScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
+              {Platform.OS === 'web' && (
+                <TouchableOpacity
+                  style={st.controlBtn}
+                  onPress={() => {
+                    const url = `/campaign/${id}/combat?playerView=true`;
+                    window.open(url, 'vaultstone-player-view', 'width=600,height=800');
+                  }}
+                >
+                  <MaterialCommunityIcons name="monitor" size={14} color={colors.onSurface} />
+                  <Text style={st.controlBtnText}>Player View</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}
 
         {/* ===== PARTY PICKER ===== */}
-        {isDM && addingParty && (
+        {isDM && !showPlayerView && addingParty && (
           <View style={st.pickerPanel}>
             {partyLoading ? (
-              <ActivityIndicator color={colors.brand} />
+              <ActivityIndicator color={colors.primary} />
             ) : partyPicks.length === 0 ? (
               <Text style={st.pickerEmpty}>No party members available to add.</Text>
             ) : (
@@ -723,7 +789,7 @@ export default function CombatScreen() {
                   >
                     <MaterialCommunityIcons
                       name={partyPicks.every((p) => p.selected) ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                      size={18} color={colors.textPrimary}
+                      size={18} color={colors.onSurface}
                     />
                     <Text style={st.pickerSelectAllText}>Select all</Text>
                   </TouchableOpacity>
@@ -741,7 +807,7 @@ export default function CombatScreen() {
                     >
                       <MaterialCommunityIcons
                         name={p.selected ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                        size={20} color={p.selected ? colors.brand : colors.textSecondary}
+                        size={20} color={p.selected ? colors.primary : colors.textSecondary}
                       />
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
@@ -806,7 +872,7 @@ export default function CombatScreen() {
                 },
               } : {})}
             >
-              <MaterialCommunityIcons name="timeline-text-outline" size={16} color={colors.brand} />
+              <MaterialCommunityIcons name="timeline-text-outline" size={16} color={colors.primary} />
               <Text style={st.logTitleText}>Session Log</Text>
               {combatStarted && (
                 <View style={st.logTitleLive}>
@@ -819,7 +885,7 @@ export default function CombatScreen() {
                 onPress={() => setLogOpen(false)}
                 {...(Platform.OS === 'web' ? { onMouseDown: (e: any) => e.stopPropagation() } : {})}
               >
-                <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                <MaterialCommunityIcons name="close" size={16} color={colors.outline} />
               </Pressable>
             </View>
             <View style={st.logBody}>
@@ -831,23 +897,46 @@ export default function CombatScreen() {
         {/* ===== MAIN CONTENT ===== */}
         <View style={st.mainContent}>
           {/* Initiative List */}
-          <View style={isWideLayout ? st.initListNarrow : st.initListFull}>
+          <View style={isWideLayout && !showPlayerView ? st.initListNarrow : st.initListFull}>
             <View style={st.initListHeader}>
-              <Text style={st.initListTitle}>Initiative</Text>
+              <Text style={st.initListTitle}>{showPlayerView ? 'Combat Order' : 'Initiative'}</Text>
               <Text style={st.initListCount}>
-                {entries.length} · {combatStarted ? `Round ${session.round}` : anyRolled ? 'Rolling' : 'Setup'}
+                {showPlayerView
+                  ? (combatStarted ? `Round ${session.round}` : 'Waiting...')
+                  : `${entries.length} · ${combatStarted ? `Round ${session.round}` : anyRolled ? 'Rolling' : 'Setup'}`}
               </Text>
             </View>
 
-            {entries.length === 0 ? (
+            {(showPlayerView ? visibleEntries : entries).length === 0 ? (
               <View style={st.placeholder}>
-                <MaterialCommunityIcons name="sword-cross" size={40} color={colors.textSecondary} />
-                <Text style={st.placeholderTitle}>No combatants yet</Text>
+                <MaterialCommunityIcons name="sword-cross" size={40} color={colors.outline} />
+                <Text style={st.placeholderTitle}>
+                  {showPlayerView ? 'Combat hasn’t started yet' : 'No combatants yet'}
+                </Text>
                 <Text style={st.placeholderBody}>
-                  {isDM ? 'Add combatants to begin.' : 'Waiting for the DM.'}
+                  {showPlayerView
+                    ? 'The initiative order will appear here once the DM begins.'
+                    : isDM ? 'Add combatants to begin.' : 'Waiting for the DM.'}
                 </Text>
               </View>
+            ) : showPlayerView ? (
+              /* ---- PLAYER VIEW ---- */
+              <FlatList
+                data={visibleEntries}
+                keyExtractor={(e) => e.id}
+                renderItem={({ item }) => (
+                  <View style={[st.rowPlayer, item.is_active_turn && st.rowPlayerActive]}>
+                    <Text style={st.rowPlayerName} numberOfLines={1}>
+                      {item.display_name}
+                    </Text>
+                    {item.is_active_turn && (
+                      <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} style={{ marginLeft: 'auto' }} />
+                    )}
+                  </View>
+                )}
+              />
             ) : (
+              /* ---- DM VIEW ---- */
               <FlatList
                 data={displayEntries}
                 keyExtractor={(e) => e.id}
@@ -865,6 +954,7 @@ export default function CombatScreen() {
                   const canRoll = isDM || (isPc && myCharacterIds.has(item.character_id!));
                   const hasStatBlock = !!item.creature_key;
                   const isEditing = initEditFor === item.id;
+                  const isEditingName = nameEditFor === item.id;
 
                   return (
                     <View style={[st.row, item.is_active_turn && st.rowActive]}>
@@ -907,16 +997,40 @@ export default function CombatScreen() {
                         }}
                       >
                         <View style={st.nameRow}>
-                          <Text style={st.rowName} numberOfLines={1}>
-                            {item.display_name}
-                          </Text>
+                          {isEditingName ? (
+                            <TextInput
+                              style={st.nameEditInput}
+                              value={nameEditValue}
+                              onChangeText={setNameEditValue}
+                              autoFocus
+                              selectTextOnFocus
+                              onSubmitEditing={() => handleNameSubmit(item.id, item.display_name)}
+                              onBlur={() => handleNameSubmit(item.id, item.display_name)}
+                            />
+                          ) : (
+                            <Pressable
+                              onPress={isDM ? (e) => {
+                                e.stopPropagation?.();
+                                setNameEditFor(item.id);
+                                setNameEditValue(item.display_name);
+                              } : undefined}
+                              style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 4 }}
+                            >
+                              <Text style={st.rowName} numberOfLines={1}>
+                                {item.display_name}
+                              </Text>
+                              {isDM && (
+                                <MaterialCommunityIcons name="pencil" size={10} color={colors.outline} />
+                              )}
+                            </Pressable>
+                          )}
                           <View style={[st.typeBadge, isPc ? st.typeBadgePc : st.typeBadgeNpc]}>
                             <Text style={[st.typeBadgeText, isPc ? st.typeBadgeTextPc : st.typeBadgeTextNpc]}>
                               {isPc ? 'PC' : 'NPC'}
                             </Text>
                           </View>
                           {hasStatBlock && (
-                            <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.brand} style={{ marginLeft: 2 }} />
+                            <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.primary} style={{ marginLeft: 2 }} />
                           )}
                         </View>
                         <View style={st.rowMetaRow}>
@@ -946,17 +1060,17 @@ export default function CombatScreen() {
                       <View style={st.rowActions}>
                         {!rolled && canRoll && (
                           <TouchableOpacity style={st.rollBtn} onPress={() => handleRollOne(item)}>
-                            <MaterialCommunityIcons name="dice-d20" size={16} color={colors.brand} />
+                            <MaterialCommunityIcons name="dice-d20" size={16} color={colors.primary} />
                           </TouchableOpacity>
                         )}
                         {isDM && (
                           <TouchableOpacity style={st.rowAction} onPress={() => setEditingConditionsFor(item)}>
-                            <MaterialCommunityIcons name="heart-pulse" size={16} color={colors.textSecondary} />
+                            <MaterialCommunityIcons name="heart-pulse" size={16} color={colors.outline} />
                           </TouchableOpacity>
                         )}
                         {isDM && (
                           <TouchableOpacity style={st.rowAction} onPress={() => handleRemove(item.id)}>
-                            <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                            <MaterialCommunityIcons name="close" size={16} color={colors.outline} />
                           </TouchableOpacity>
                         )}
                       </View>
@@ -967,8 +1081,8 @@ export default function CombatScreen() {
             )}
           </View>
 
-          {/* Stat Block / Spell area (desktop) */}
-          {isWideLayout && (
+          {/* Stat Block / Spell area (desktop, DM only) */}
+          {isWideLayout && !showPlayerView && (
             statBlockPanels.length > 0 ? (
               <ScrollView
                 horizontal
@@ -979,7 +1093,7 @@ export default function CombatScreen() {
                 {statBlockPanels.map(({ combatant, creature }) => (
                   <View key={combatant.id} style={st.statPanel}>
                     <View style={st.statPanelHeader}>
-                      <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.textSecondary} />
+                      <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.outline} />
                       <Text style={st.statPanelTitle} numberOfLines={1}>
                         {combatant.display_name}
                       </Text>
@@ -987,14 +1101,14 @@ export default function CombatScreen() {
                         style={st.statPanelAction}
                         onPress={() => closeStatBlock(combatant.id)}
                       >
-                        <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+                        <MaterialCommunityIcons name="close" size={16} color={colors.outline} />
                       </TouchableOpacity>
                     </View>
                     <ScrollView style={st.statPanelBody}>
                       {creature ? (
                         <CreatureStatBlock creature={creature} />
                       ) : (
-                        <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
+                        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
                       )}
                     </ScrollView>
                   </View>
@@ -1003,7 +1117,7 @@ export default function CombatScreen() {
             ) : (
               <View style={st.statPanelArea}>
                 <View style={st.statPanelEmpty}>
-                  <MaterialCommunityIcons name="book-open-variant" size={36} color={colors.textSecondary} />
+                  <MaterialCommunityIcons name="book-open-variant" size={36} color={colors.outline} />
                   <Text style={st.statPanelEmptyText}>
                     Click a creature's stat block icon to view it here
                   </Text>
@@ -1039,14 +1153,14 @@ export default function CombatScreen() {
                       {combatant?.display_name ?? 'Stat Block'}
                     </Text>
                     <TouchableOpacity onPress={() => closeStatBlock(cId)}>
-                      <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+                      <MaterialCommunityIcons name="close" size={22} color={colors.outline} />
                     </TouchableOpacity>
                   </View>
                   <ScrollView contentContainerStyle={st.modalBody}>
                     {creature ? (
                       <CreatureStatBlock creature={creature} />
                     ) : (
-                      <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
+                      <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
                     )}
                   </ScrollView>
                 </View>
@@ -1069,7 +1183,7 @@ export default function CombatScreen() {
                   {editingConditionsFor?.display_name}
                 </Text>
                 <TouchableOpacity onPress={() => setEditingConditionsFor(null)}>
-                  <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+                  <MaterialCommunityIcons name="close" size={22} color={colors.outline} />
                 </TouchableOpacity>
               </View>
               <ScrollView contentContainerStyle={st.modalBody}>
@@ -1120,7 +1234,7 @@ export default function CombatScreen() {
                 <View style={st.modalHeader}>
                   <Text style={st.modalTitle}>{pcPreview.name}</Text>
                   <TouchableOpacity onPress={() => setPcPreview(null)}>
-                    <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+                    <MaterialCommunityIcons name="close" size={22} color={colors.outline} />
                   </TouchableOpacity>
                 </View>
                 <ScrollView contentContainerStyle={st.modalBody}>
@@ -1189,9 +1303,9 @@ export default function CombatScreen() {
 }
 
 const st = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceCanvas },
   center: {
-    flex: 1, backgroundColor: colors.background,
+    flex: 1, backgroundColor: colors.surfaceCanvas,
     alignItems: 'center', justifyContent: 'center',
   },
 
@@ -1199,180 +1313,180 @@ const st = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
-    backgroundColor: colors.surface,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
+    backgroundColor: colors.surfaceContainerHigh,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerBack: { padding: 4 },
-  title: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
+  title: { fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 2 },
-  subtitle: { fontSize: 12, color: colors.textSecondary },
+  subtitle: { fontSize: 11, fontFamily: fonts.label, color: colors.onSurfaceVariant },
   liveBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.hpDanger + '22', borderRadius: 4,
+    backgroundColor: `${colors.hpDanger}22`, borderRadius: radius.lg,
     paddingHorizontal: 6, paddingVertical: 2,
   },
   liveDot: {
     width: 6, height: 6, borderRadius: 3, backgroundColor: colors.hpDanger,
   },
-  liveText: { fontSize: 10, fontWeight: '700', color: colors.hpDanger },
+  liveText: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.hpDanger },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   roundInfo: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  roundLabel: { fontSize: 10, fontWeight: '600', color: colors.textSecondary, letterSpacing: 1 },
+  roundLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline, letterSpacing: 1.2 },
   roundBadge: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
   },
-  roundNumber: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  turnName: { fontSize: 12, color: colors.textSecondary, maxWidth: 120 },
+  roundNumber: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: '#fff' },
+  turnName: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, maxWidth: 120 },
   prevTurnBtn: {
     alignItems: 'center', justifyContent: 'center',
-    borderColor: colors.border, borderWidth: 1, borderRadius: 8,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: 6,
     paddingHorizontal: 8, paddingVertical: 8,
   },
   nextTurnBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.brand, borderRadius: 8,
+    backgroundColor: colors.primary, borderRadius: 6,
     paddingHorizontal: spacing.md, paddingVertical: 8,
   },
-  nextTurnBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  nextTurnBtnText: { color: '#fff', fontSize: 12, fontFamily: fonts.label, fontWeight: '700' },
 
   // Controls
   controls: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
     flexWrap: 'wrap', gap: spacing.xs,
   },
   controlsLeft: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
   controlsRight: { flexDirection: 'row', gap: spacing.xs },
   controlBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 6,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 5,
   },
-  controlBtnText: { color: colors.textPrimary, fontSize: 12, fontWeight: '600' },
+  controlBtnText: { color: colors.onSurface, fontSize: 11, fontFamily: fonts.label, fontWeight: '600' },
   controlBtnPrimary: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.brand, borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: colors.primary, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 5,
   },
-  controlBtnPrimaryText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  controlBtnPrimaryText: { color: '#fff', fontSize: 11, fontFamily: fonts.label, fontWeight: '700' },
 
   // Party picker
   pickerPanel: {
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
-    backgroundColor: colors.surface, gap: 8,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
+    backgroundColor: colors.surfaceContainerHigh, gap: 8,
   },
-  pickerEmpty: { color: colors.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: spacing.sm },
+  pickerEmpty: { color: colors.outline, fontSize: 12, fontFamily: fonts.body, textAlign: 'center', paddingVertical: spacing.sm },
   pickerHeaderRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 4,
   },
   pickerSelectAll: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  pickerSelectAllText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  pickerCount: { color: colors.textSecondary, fontSize: 12 },
+  pickerSelectAllText: { color: colors.onSurface, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600' },
+  pickerCount: { color: colors.outline, fontSize: 11, fontFamily: fonts.label },
   pickerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
   pickerCheckbox: { padding: 2 },
-  pickerName: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
-  pickerMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  pickerName: { color: colors.onSurface, fontSize: 13, fontFamily: fonts.headline, fontWeight: '600' },
+  pickerMeta: { color: colors.outline, fontSize: 11, fontFamily: fonts.label, marginTop: 2 },
   pickerAddBtn: {
-    backgroundColor: colors.brand, borderRadius: 8,
+    backgroundColor: colors.primary, borderRadius: 6,
     paddingVertical: 10, alignItems: 'center', marginTop: 4,
   },
-  pickerAddBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  pickerAddBtnText: { color: '#fff', fontFamily: fonts.label, fontWeight: '700', fontSize: 12 },
 
   // Session log floating window
-  controlBtnActive: { borderColor: colors.brand, backgroundColor: colors.brand + '18' },
+  controlBtnActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}18` },
   logFloating: {
     position: 'absolute', top: 8, left: 8,
     width: 380, maxHeight: 340, zIndex: 150,
-    backgroundColor: colors.surface,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 8,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: radius.xl,
     ...(Platform.OS === 'web' ? { boxShadow: '0 8px 32px rgba(0,0,0,0.5)' } as never : {}),
   },
   logTitleBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 2,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
-    backgroundColor: colors.surface, borderTopLeftRadius: 8, borderTopRightRadius: 8,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
+    backgroundColor: colors.surfaceContainerHigh, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
   },
-  logTitleText: { fontSize: 12, fontWeight: '700', color: colors.textPrimary },
+  logTitleText: { fontSize: 12, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
   logTitleLive: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   logBody: { flex: 1, maxHeight: 300 },
 
   // Main content
   mainContent: { flex: 1, flexDirection: 'row', position: 'relative' },
-  initListNarrow: { width: 280, borderRightColor: colors.border, borderRightWidth: 1 },
+  initListNarrow: { width: 280, borderRightColor: colors.outlineVariant, borderRightWidth: 1 },
   initListFull: { flex: 1 },
   initListHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
   },
-  initListTitle: { fontSize: 12, fontWeight: '700', color: colors.textPrimary },
-  initListCount: { fontSize: 11, color: colors.textSecondary },
+  initListTitle: { fontSize: 11, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  initListCount: { fontSize: 10, fontFamily: fonts.label, color: colors.outline },
 
   // Combatant row
   row: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingHorizontal: spacing.sm, paddingVertical: spacing.sm,
-    borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowActive: {
-    backgroundColor: colors.brand + '11',
-    borderLeftColor: colors.brand, borderLeftWidth: 3,
+    backgroundColor: `${colors.primary}11`,
+    borderLeftColor: colors.primary, borderLeftWidth: 3,
     paddingLeft: spacing.sm - 3,
   },
   initBadge: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: colors.background,
-    borderColor: colors.border, borderWidth: 1,
+    backgroundColor: colors.surfaceCanvas,
+    borderColor: colors.outlineVariant, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   initBadgeRolled: {
-    backgroundColor: colors.brand + '22', borderColor: colors.brand,
+    backgroundColor: `${colors.primary}22`, borderColor: colors.primary,
   },
-  initBadgeText: { color: colors.textPrimary, fontSize: 13, fontWeight: '700' },
+  initBadgeText: { color: colors.onSurface, fontSize: 13, fontFamily: fonts.headline, fontWeight: '700' },
   initEditWrap: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: colors.brand + '22', borderColor: colors.brand, borderWidth: 1,
+    backgroundColor: `${colors.primary}22`, borderColor: colors.primary, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
     overflow: 'hidden',
   },
   initEditInput: {
     width: 32, height: 32, textAlign: 'center',
-    color: colors.textPrimary, fontSize: 13, fontWeight: '700',
+    color: colors.onSurface, fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
     padding: 0,
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  rowName: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  rowName: { color: colors.onSurface, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600' },
   typeBadge: {
     paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3,
   },
-  typeBadgePc: { backgroundColor: colors.hpHealthy + '33' },
-  typeBadgeNpc: { backgroundColor: colors.hpDanger + '33' },
-  typeBadgeText: { fontSize: 9, fontWeight: '700' },
+  typeBadgePc: { backgroundColor: `${colors.hpHealthy}33` },
+  typeBadgeNpc: { backgroundColor: `${colors.hpDanger}33` },
+  typeBadgeText: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700' },
   typeBadgeTextPc: { color: colors.hpHealthy },
   typeBadgeTextNpc: { color: colors.hpDanger },
   rowMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 1 },
-  rowMeta: { color: colors.textSecondary, fontSize: 11 },
-  rowTempHp: { fontSize: 11, color: colors.hpWarning },
+  rowMeta: { color: colors.onSurfaceVariant, fontSize: 10, fontFamily: fonts.label },
+  rowTempHp: { fontSize: 10, fontFamily: fonts.label, color: colors.hpWarning },
   condChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginTop: 3 },
   condChip: {
     borderColor: colors.hpDanger, borderWidth: 1, borderRadius: 3,
     paddingHorizontal: 4, paddingVertical: 0,
-    backgroundColor: colors.hpDanger + '22',
+    backgroundColor: `${colors.hpDanger}18`,
   },
-  condChipText: { color: colors.hpDanger, fontSize: 9, fontWeight: '700' },
-  condMore: { color: colors.textSecondary, fontSize: 9, fontWeight: '600' },
+  condChipText: { color: colors.hpDanger, fontSize: 8, fontFamily: fonts.label, fontWeight: '700' },
+  condMore: { color: colors.outline, fontSize: 9, fontFamily: fonts.label, fontWeight: '600' },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   rowAction: { padding: 4 },
   rollBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    borderColor: colors.brand, borderWidth: 1,
+    width: 26, height: 26, borderRadius: 13,
+    borderColor: `${colors.primary}66`, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: `${colors.primary}14`,
   },
 
   // Stat panels
@@ -1381,19 +1495,19 @@ const st = StyleSheet.create({
     flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
     opacity: 0.5,
   },
-  statPanelEmptyText: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', maxWidth: 200 },
+  statPanelEmptyText: { fontSize: 12, fontFamily: fonts.body, color: colors.outline, textAlign: 'center', maxWidth: 200 },
   statPanelRow: { flexDirection: 'row', gap: 0, paddingRight: 380 },
   statPanel: {
-    width: 380, borderLeftColor: colors.border, borderLeftWidth: 1,
-    backgroundColor: colors.surface,
+    width: 380, borderLeftColor: colors.outlineVariant, borderLeftWidth: 1,
+    backgroundColor: colors.surfaceContainerHigh,
   },
   statPanelHeader: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 2,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
-    backgroundColor: colors.surface,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
+    backgroundColor: colors.surfaceContainerHigh,
   },
-  statPanelTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: '700', flex: 1 },
+  statPanelTitle: { color: colors.onSurface, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600', flex: 1 },
   statPanelAction: { padding: 4 },
   statPanelBody: { padding: spacing.sm, flex: 1 },
 
@@ -1402,34 +1516,34 @@ const st = StyleSheet.create({
     flex: 1, alignItems: 'center', justifyContent: 'center',
     gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl,
   },
-  placeholderTitle: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  placeholderBody: { fontSize: 12, color: colors.textSecondary, textAlign: 'center' },
+  placeholderTitle: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  placeholderBody: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, textAlign: 'center' },
 
   // Modals
   modalBackdrop: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: spacing.md,
   },
   modalCard: {
     width: '100%', maxWidth: 480, maxHeight: '80%',
-    backgroundColor: colors.surface,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 12,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: 12,
   },
   modalHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
   },
-  modalTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700', flex: 1 },
+  modalTitle: { color: colors.onSurface, fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', flex: 1 },
   modalBody: { padding: spacing.md },
-  condGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  condGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   condChipBig: {
-    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 6, backgroundColor: colors.background,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: radius.lg,
+    paddingHorizontal: 10, paddingVertical: 5, backgroundColor: colors.surfaceCanvas,
   },
-  condChipBigActive: { borderColor: colors.hpDanger, backgroundColor: colors.hpDanger + '22' },
-  condChipBigText: { color: colors.textSecondary, fontSize: 12, fontWeight: '500' },
+  condChipBigActive: { borderColor: colors.hpDanger, backgroundColor: `${colors.hpDanger}18` },
+  condChipBigText: { color: colors.onSurfaceVariant, fontSize: 11, fontFamily: fonts.body, fontWeight: '500' },
   condChipBigTextActive: { color: colors.hpDanger, fontWeight: '700' },
 
   // PC preview
@@ -1438,15 +1552,39 @@ const st = StyleSheet.create({
   },
   pcPreviewStat: {
     alignItems: 'center', minWidth: 50, gap: 2,
-    backgroundColor: colors.background, borderRadius: 6,
+    borderRadius: 6,
     paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
-    borderColor: colors.border, borderWidth: 1,
+    borderColor: colors.outlineVariant, borderWidth: 1,
   },
-  pcPreviewLabel: { fontSize: 9, fontWeight: '700', color: colors.textSecondary, letterSpacing: 1 },
-  pcPreviewValue: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  pcPreviewMod: { fontSize: 11, color: colors.brand },
+  pcPreviewLabel: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700', color: colors.outline, letterSpacing: 1.2 },
+  pcPreviewValue: { fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  pcPreviewMod: { fontSize: 11, fontFamily: fonts.body, color: colors.primary },
   pcPreviewSectionTitle: {
-    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
-    letterSpacing: 1, marginBottom: 4, marginTop: spacing.xs,
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline,
+    letterSpacing: 1.2, marginBottom: 4, marginTop: spacing.xs,
+  },
+
+  // Player view
+  rowPlayer: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2,
+    borderBottomColor: colors.outlineVariant,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowPlayerActive: {
+    backgroundColor: `${colors.primary}11`,
+    borderLeftColor: colors.primary, borderLeftWidth: 3,
+    paddingLeft: spacing.md - 3,
+  },
+  rowPlayerName: {
+    color: colors.onSurface, fontSize: 14,
+    fontFamily: fonts.headline, fontWeight: '600',
+  },
+
+  // Name inline edit (DM rename)
+  nameEditInput: {
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, padding: 0,
+    borderBottomWidth: 1, borderBottomColor: colors.primary,
   },
 });

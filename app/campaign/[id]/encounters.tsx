@@ -6,11 +6,11 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  supabase, getActiveSession, getEncounters, createEncounter,
-  deleteEncounter, addCombatant,
+  supabase, getActiveSession, getInitiativeOrder, getEncounters,
+  createEncounter, deleteEncounter, addCombatant, clearAllCombatants,
 } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
-import { colors, spacing, useBreakpoint } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius, useBreakpoint } from '@vaultstone/ui';
 import type { Database, EncounterCombatant } from '@vaultstone/types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
@@ -117,11 +117,36 @@ export default function EncountersScreen() {
       setLoadingEncounter(null);
       return;
     }
+
+    const { data: existing } = await getInitiativeOrder(session.id);
+    if (existing && existing.length > 0) {
+      const confirmed = Platform.OS === 'web'
+        ? window.confirm(
+            `There are ${existing.length} combatant(s) in the tracker. Replace them with this encounter?`,
+          )
+        : await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              'Replace Combatants?',
+              `There are ${existing.length} combatant(s) already in the tracker. Loading this encounter will replace them.`,
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Replace', style: 'destructive', onPress: () => resolve(true) },
+              ],
+            );
+          });
+      if (!confirmed) {
+        setLoadingEncounter(null);
+        return;
+      }
+      await clearAllCombatants(session.id);
+    }
+
     const combatants = getCombatants(enc);
     const inserts: Promise<any>[] = [];
     for (const c of combatants) {
       for (let i = 0; i < c.count; i++) {
-        const name = c.count > 1 ? `${c.name} ${i + 1}` : c.name;
+        const name = c.individualNames?.[i]
+          || (c.count > 1 ? `${c.name} ${i + 1}` : c.name);
         inserts.push(
           addCombatant({
             sessionId: session.id,
@@ -195,7 +220,7 @@ export default function EncountersScreen() {
               router.push(`/campaign/${id}/encounter/${enc.id}` as never);
             }}
           >
-            <MaterialCommunityIcons name="pencil-outline" size={14} color={colors.brand} />
+            <MaterialCommunityIcons name="pencil-outline" size={14} color={colors.primary} />
             <Text style={st.editBtnText}>Edit</Text>
           </TouchableOpacity>
 
@@ -234,7 +259,7 @@ export default function EncountersScreen() {
   if (loading) {
     return (
       <View style={st.center}>
-        <ActivityIndicator color={colors.brand} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -249,7 +274,7 @@ export default function EncountersScreen() {
             onPress={() => router.replace(`/campaign/${id}` as never)}
             style={st.headerBack}
           >
-            <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
+            <MaterialCommunityIcons name="arrow-left" size={22} color={colors.onSurface} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={st.title}>Encounters</Text>
@@ -260,7 +285,7 @@ export default function EncountersScreen() {
         </View>
 
         <View style={st.placeholder}>
-          <MaterialCommunityIcons name="sword-cross" size={48} color={colors.textSecondary} />
+          <MaterialCommunityIcons name="sword-cross" size={48} color={colors.outline} />
           <Text style={st.placeholderTitle}>No encounters yet</Text>
           <Text style={st.placeholderBody}>
             Create encounters to plan combat ahead of time.
@@ -285,7 +310,7 @@ export default function EncountersScreen() {
           onPress={() => router.replace(`/campaign/${id}` as never)}
           style={st.headerBack}
         >
-          <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
+          <MaterialCommunityIcons name="arrow-left" size={22} color={colors.onSurface} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={st.title}>Encounters</Text>
@@ -298,7 +323,7 @@ export default function EncountersScreen() {
             style={st.combatTrackerBtn}
             onPress={() => router.push(`/campaign/${id}/combat` as never)}
           >
-            <MaterialCommunityIcons name="sword-cross" size={14} color={colors.brand} />
+            <MaterialCommunityIcons name="sword-cross" size={14} color={colors.primary} />
             <Text style={st.combatTrackerBtnText}>Combat Tracker</Text>
           </TouchableOpacity>
         )}
@@ -326,10 +351,10 @@ export default function EncountersScreen() {
 /* ── styles ───────────────────────────────────────────── */
 
 const st = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceCanvas },
   center: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceCanvas,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -341,31 +366,32 @@ const st = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.outlineVariant,
     borderBottomWidth: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceContainerHigh,
   },
   headerBack: { padding: 4 },
-  title: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
-  subtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  title: { fontSize: 18, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
+  subtitle: { fontSize: 12, fontFamily: fonts.label, color: colors.onSurfaceVariant, marginTop: 2 },
 
   /* create button */
   createBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.brand,
-    borderRadius: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 6,
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
   },
-  createBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  createBtnText: { color: '#fff', fontSize: 12, fontFamily: fonts.label, fontWeight: '700' },
   combatTrackerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderColor: colors.brand, borderWidth: 1, borderRadius: 8,
+    borderColor: `${colors.primary}66`, borderWidth: 1, borderRadius: 6,
+    backgroundColor: `${colors.primary}14`,
     paddingHorizontal: spacing.md, paddingVertical: 8,
   },
-  combatTrackerBtnText: { color: colors.brand, fontSize: 13, fontWeight: '700' },
+  combatTrackerBtnText: { color: colors.primary, fontSize: 12, fontFamily: fonts.label, fontWeight: '700' },
 
   /* empty state */
   placeholder: {
@@ -375,27 +401,27 @@ const st = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
   },
-  placeholderTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
+  placeholderTitle: { fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
   placeholderBody: {
-    fontSize: 13,
-    color: colors.textSecondary,
+    fontSize: 12,
+    fontFamily: fonts.body,
+    color: colors.outline,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 18,
   },
 
   /* encounter card */
   card: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    borderColor: colors.outlineVariant,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 6,
     padding: spacing.md,
-    gap: 8,
+    gap: 6,
   },
   cardHover: {
-    borderColor: colors.brand + '66',
-    backgroundColor: colors.surface + 'dd',
+    borderColor: `${colors.primary}66`,
+    backgroundColor: `${colors.primary}08`,
   },
   cardTopRow: {
     flexDirection: 'row',
@@ -405,23 +431,27 @@ const st = StyleSheet.create({
   },
   cardTitle: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontSize: 13,
+    fontFamily: fonts.headline,
+    fontWeight: '600',
+    color: colors.onSurface,
   },
   cardTimestamp: {
-    fontSize: 11,
-    color: colors.textSecondary,
+    fontSize: 10,
+    fontFamily: fonts.label,
+    color: colors.outline,
   },
   cardSummary: {
-    fontSize: 13,
-    color: colors.textSecondary,
+    fontSize: 11,
+    fontFamily: fonts.body,
+    color: colors.onSurfaceVariant,
   },
   cardPreview: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 11,
+    fontFamily: fonts.body,
+    color: colors.outline,
     fontStyle: 'italic',
-    lineHeight: 18,
+    lineHeight: 16,
   },
 
   /* action buttons */
@@ -435,27 +465,29 @@ const st = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    borderColor: colors.brand,
+    borderColor: `${colors.primary}66`,
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: radius.lg,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
+    backgroundColor: `${colors.primary}14`,
   },
   editBtnText: {
-    color: colors.brand,
-    fontSize: 12,
-    fontWeight: '600',
+    color: colors.primary,
+    fontSize: 10,
+    fontFamily: fonts.label,
+    fontWeight: '700',
   },
   loadBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.brand,
-    borderRadius: 6,
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
   },
-  loadBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  loadBtnText: { color: '#fff', fontSize: 10, fontFamily: fonts.label, fontWeight: '700' },
   btnDisabled: { opacity: 0.4 },
   deleteBtn: { padding: 6, marginLeft: 'auto' },
 });

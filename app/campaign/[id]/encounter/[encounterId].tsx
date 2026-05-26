@@ -11,9 +11,9 @@ if (Platform.OS === 'web') {
   createPortal = require('react-dom').createPortal;
 }
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { supabase, getActiveSession, updateEncounter, addCombatant } from '@vaultstone/api';
+import { supabase, getActiveSession, getInitiativeOrder, updateEncounter, addCombatant, clearAllCombatants } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
-import { colors, spacing, useBreakpoint } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius, useBreakpoint } from '@vaultstone/ui';
 import { getCreatureCatalog, loadCreatureByKey } from '../../../../components/creatures/creatureCache';
 import { BehaviorSection } from '../../../../components/creatures/CreatureStatBlock';
 import { SpellPinProvider } from '../../../../components/creatures/SpellTooltip';
@@ -110,7 +110,7 @@ function encounterMultiplier(monsterCount: number, partySize: number): number {
 
 type DifficultyTier = 'trivial' | 'easy' | 'medium' | 'hard' | 'deadly';
 const DIFFICULTY_COLORS: Record<DifficultyTier, string> = {
-  trivial: colors.textSecondary,
+  trivial: colors.onSurfaceVariant,
   easy: colors.hpHealthy,
   medium: colors.hpWarning,
   hard: '#F97316',
@@ -401,6 +401,9 @@ export default function EncounterBuilderScreen() {
   const [partyOverride, setPartyOverride] = useState(false);
   const [overrideSize, setOverrideSize] = useState('');
   const [overrideLevel, setOverrideLevel] = useState('');
+
+  // Roster rename — which roster index has its individual names expanded
+  const [renameIdx, setRenameIdx] = useState<number | null>(null);
 
   // Pinned spells
   const { pinned, pinSpell, unpinSpell, toggleMinimize } = usePinnedSpells();
@@ -725,10 +728,34 @@ export default function EncounterBuilderScreen() {
       return;
     }
 
+    const { data: existing } = await getInitiativeOrder(session.id);
+    if (existing && existing.length > 0) {
+      const confirmed = Platform.OS === 'web'
+        ? window.confirm(
+            `There are ${existing.length} combatant(s) in the tracker. Replace them with this encounter?`,
+          )
+        : await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              'Replace Combatants?',
+              `There are ${existing.length} combatant(s) already in the tracker. Loading this encounter will replace them.`,
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Replace', style: 'destructive', onPress: () => resolve(true) },
+              ],
+            );
+          });
+      if (!confirmed) {
+        setLoadingCombat(false);
+        return;
+      }
+      await clearAllCombatants(session.id);
+    }
+
     const inserts: Promise<any>[] = [];
     for (const c of combatants) {
       for (let i = 0; i < c.count; i++) {
-        const name = c.count > 1 ? `${c.name} ${i + 1}` : c.name;
+        const name = c.individualNames?.[i]
+          || (c.count > 1 ? `${c.name} ${i + 1}` : c.name);
         inserts.push(addCombatant({
           sessionId: session.id,
           name,
@@ -773,7 +800,7 @@ export default function EncounterBuilderScreen() {
   if (loading) {
     return (
       <View style={st.center}>
-        <ActivityIndicator color={colors.brand} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -807,23 +834,49 @@ export default function EncounterBuilderScreen() {
           onPress={() => addCreatureToRoster(creature)}
           hitSlop={8}
         >
-          <MaterialCommunityIcons name="plus" size={18} color={colors.brand} />
+          <MaterialCommunityIcons name="plus" size={18} color={colors.primary} />
         </TouchableOpacity>
       </Pressable>
     );
   }
 
+  function handleIndividualNameChange(rosterIdx: number, copyIdx: number, value: string) {
+    setCombatants((prev) => {
+      const next = [...prev];
+      const entry = { ...next[rosterIdx] };
+      const names = [...(entry.individualNames ?? [])];
+      while (names.length < entry.count) names.push('');
+      names[copyIdx] = value;
+      entry.individualNames = names;
+      next[rosterIdx] = entry;
+      scheduleSave(next);
+      return next;
+    });
+  }
+
   function renderRosterItem(c: EncounterCombatant, idx: number) {
     const catalogEntry = c.creature_key ? catalog.find((cc) => cc.key === c.creature_key) : null;
     const crText = catalogEntry ? crLabel(catalogEntry.challengeRating) : '?';
+    const isRenaming = renameIdx === idx;
     return (
       <View key={`${c.creature_key ?? c.name}-${idx}`} style={st.rosterCard}>
         <View style={st.rosterCardTop}>
           <Pressable style={{ flex: 1 }} onPress={() => { if (c.creature_key) previewInSlot(c.creature_key); }}>
             <Text style={st.rosterName} numberOfLines={1}>{c.name}</Text>
           </Pressable>
+          <TouchableOpacity
+            style={st.renameBtn}
+            onPress={() => setRenameIdx(isRenaming ? null : idx)}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons
+              name={isRenaming ? 'chevron-up' : 'pencil'}
+              size={12}
+              color={isRenaming ? colors.primary : colors.outline}
+            />
+          </TouchableOpacity>
           <TouchableOpacity style={st.removeBtn} onPress={() => removeCombatant(idx)} hitSlop={6}>
-            <MaterialCommunityIcons name="close" size={14} color={colors.textSecondary} />
+            <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
           </TouchableOpacity>
         </View>
         <Text style={st.rosterMeta}>
@@ -831,13 +884,29 @@ export default function EncounterBuilderScreen() {
         </Text>
         <View style={st.rosterControls}>
           <TouchableOpacity style={st.countBtn} onPress={() => adjustCount(idx, -1)}>
-            <MaterialCommunityIcons name="minus" size={14} color={colors.textPrimary} />
+            <MaterialCommunityIcons name="minus" size={14} color={colors.onSurface} />
           </TouchableOpacity>
           <Text style={st.countText}>{c.count}</Text>
           <TouchableOpacity style={st.countBtn} onPress={() => adjustCount(idx, 1)}>
-            <MaterialCommunityIcons name="plus" size={14} color={colors.textPrimary} />
+            <MaterialCommunityIcons name="plus" size={14} color={colors.onSurface} />
           </TouchableOpacity>
         </View>
+        {isRenaming && c.count > 0 && (
+          <View style={st.individualNamesWrap}>
+            {Array.from({ length: c.count }, (_, i) => (
+              <View key={i} style={st.individualNameRow}>
+                <Text style={st.individualNameLabel}>{i + 1}</Text>
+                <TextInput
+                  style={st.individualNameInput}
+                  value={c.individualNames?.[i] ?? ''}
+                  onChangeText={(v) => handleIndividualNameChange(idx, i, v)}
+                  placeholder={c.count > 1 ? `${c.name} ${i + 1}` : c.name}
+                  placeholderTextColor={colors.onSurfaceVariant}
+                />
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     );
   }
@@ -917,7 +986,7 @@ export default function EncounterBuilderScreen() {
             <MaterialCommunityIcons
               name={partyOverride ? 'checkbox-marked' : 'checkbox-blank-outline'}
               size={14}
-              color={partyOverride ? colors.brand : colors.textSecondary}
+              color={partyOverride ? colors.primary : colors.outline}
             />
             <Text style={st.partyToggleText}>Override party</Text>
           </Pressable>
@@ -929,7 +998,7 @@ export default function EncounterBuilderScreen() {
                 onChangeText={setOverrideSize}
                 keyboardType="number-pad"
                 placeholder="#"
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={colors.onSurfaceVariant}
                 maxLength={2}
               />
               <Text style={st.partyInputLabel}>PCs ×</Text>
@@ -939,7 +1008,7 @@ export default function EncounterBuilderScreen() {
                 onChangeText={setOverrideLevel}
                 keyboardType="number-pad"
                 placeholder="Lvl"
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={colors.onSurfaceVariant}
                 maxLength={2}
               />
               <Text style={st.partyInputLabel}>Lvl</Text>
@@ -991,8 +1060,8 @@ export default function EncounterBuilderScreen() {
             width: crDropPosRef.current.width,
             maxHeight: 250,
             overflowY: 'auto',
-            backgroundColor: '#2a2c2e',
-            border: `1px solid ${colors.border}`,
+            backgroundColor: colors.surfaceContainerHigh,
+            border: `1px solid ${colors.outlineVariant}`,
             borderRadius: 6,
             zIndex: 100000,
             boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
@@ -1003,7 +1072,7 @@ export default function EncounterBuilderScreen() {
             style={{
               padding: '6px 10px',
               cursor: 'pointer',
-              backgroundColor: value === null ? (colors.brand + '22') : 'transparent',
+              backgroundColor: value === null ? (colors.primary + '22') : 'transparent',
             }}
             onClick={() => { onSelect(null); setOpen(false); }}
           >
@@ -1015,7 +1084,7 @@ export default function EncounterBuilderScreen() {
               style={{
                 padding: '6px 10px',
                 cursor: 'pointer',
-                backgroundColor: value === opt ? (colors.brand + '22') : 'transparent',
+                backgroundColor: value === opt ? (colors.primary + '22') : 'transparent',
               }}
               onClick={() => { onSelect(opt); setOpen(false); }}
             >
@@ -1033,7 +1102,7 @@ export default function EncounterBuilderScreen() {
       >
           <Text style={st.crPickerLabel}>{label}</Text>
           <Text style={st.crPickerBtnText}>{value ?? 'Any'}</Text>
-          <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.textSecondary} />
+          <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.outline} />
         </Pressable>
     );
 
@@ -1095,8 +1164,11 @@ export default function EncounterBuilderScreen() {
           {creature ? (
             <>
               <Text style={st.statBlockTitle} numberOfLines={1}>{creature.name}</Text>
-              <TouchableOpacity onPress={() => clearSlot(slotIdx)} hitSlop={8} style={{ marginLeft: 'auto' }}>
-                <MaterialCommunityIcons name="close" size={18} color={colors.textSecondary} />
+              <TouchableOpacity onPress={() => addCreatureToRoster(creature)} hitSlop={8} style={{ marginLeft: 'auto' }}>
+                <MaterialCommunityIcons name="plus-circle-outline" size={18} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => clearSlot(slotIdx)} hitSlop={8} style={{ marginLeft: 4 }}>
+                <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
               </TouchableOpacity>
             </>
           ) : (
@@ -1113,7 +1185,7 @@ export default function EncounterBuilderScreen() {
           />
         ) : (
           <View style={st.statBlockEmpty}>
-            <MaterialCommunityIcons name="shield-sword-outline" size={36} color={colors.textSecondary} />
+            <MaterialCommunityIcons name="shield-sword-outline" size={36} color={colors.outline} />
             <Text style={st.statBlockEmptyText}>Click a creature to view stat block</Text>
           </View>
         )}
@@ -1144,7 +1216,7 @@ export default function EncounterBuilderScreen() {
             onPress={() => router.replace(`/campaign/${id}/encounters` as never)}
             style={st.headerBack}
           >
-            <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
+            <MaterialCommunityIcons name="arrow-left" size={22} color={colors.onSurface} />
           </TouchableOpacity>
           <View style={{ flex: 1, marginRight: spacing.sm }}>
             <TextInput
@@ -1154,7 +1226,7 @@ export default function EncounterBuilderScreen() {
               onBlur={handleNameBlur}
               selectTextOnFocus
               placeholder="Encounter Name"
-              placeholderTextColor={colors.textSecondary}
+              placeholderTextColor={colors.onSurfaceVariant}
             />
             <Text style={st.headerSubtitle} numberOfLines={1}>{campaign?.name ?? ''}</Text>
           </View>
@@ -1180,17 +1252,17 @@ export default function EncounterBuilderScreen() {
           {/* Search row */}
           <View style={st.searchFilterRow}>
             <View style={st.searchRow}>
-              <MaterialCommunityIcons name="magnify" size={16} color={colors.textSecondary} />
+              <MaterialCommunityIcons name="magnify" size={16} color={colors.outline} />
               <TextInput
                 style={st.searchInput}
                 value={searchText}
                 onChangeText={setSearchText}
                 placeholder={`Search ${catalog.length} creatures by name...`}
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={colors.onSurfaceVariant}
               />
               {searchText !== '' && (
                 <TouchableOpacity onPress={() => setSearchText('')} hitSlop={8}>
-                  <MaterialCommunityIcons name="close-circle" size={16} color={colors.textSecondary} />
+                  <MaterialCommunityIcons name="close-circle" size={16} color={colors.outline} />
                 </TouchableOpacity>
               )}
             </View>
@@ -1221,8 +1293,8 @@ export default function EncounterBuilderScreen() {
               style={[st.filterToggle, filtersExpanded && st.filterToggleActive]}
               onPress={() => setFiltersExpanded((p) => !p)}
             >
-              <MaterialCommunityIcons name="filter-variant" size={14} color={filtersExpanded ? colors.brand : colors.textSecondary} />
-              <Text style={[st.filterToggleText, filtersExpanded && { color: colors.brand }]}>Filters</Text>
+              <MaterialCommunityIcons name="filter-variant" size={14} color={filtersExpanded ? colors.primary : colors.outline} />
+              <Text style={[st.filterToggleText, filtersExpanded && { color: colors.primary }]}>Filters</Text>
             </Pressable>
 
             {hasFilters && (
@@ -1237,14 +1309,14 @@ export default function EncounterBuilderScreen() {
                 onPress={() => setShowTwoSlots(false)}
                 hitSlop={4}
               >
-                <MaterialCommunityIcons name="view-agenda-outline" size={14} color={!showTwoSlots ? colors.brand : colors.textSecondary} />
+                <MaterialCommunityIcons name="view-agenda-outline" size={14} color={!showTwoSlots ? colors.primary : colors.outline} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[st.viewToggleBtn, showTwoSlots && st.viewToggleBtnActive]}
                 onPress={() => setShowTwoSlots(true)}
                 hitSlop={4}
               >
-                <MaterialCommunityIcons name="view-column-outline" size={14} color={showTwoSlots ? colors.brand : colors.textSecondary} />
+                <MaterialCommunityIcons name="view-column-outline" size={14} color={showTwoSlots ? colors.primary : colors.outline} />
               </TouchableOpacity>
             </View>
           </View>
@@ -1293,7 +1365,7 @@ export default function EncounterBuilderScreen() {
               </View>
               {catalogLoading ? (
                 <View style={st.center}>
-                  <ActivityIndicator color={colors.brand} />
+                  <ActivityIndicator color={colors.primary} />
                 </View>
               ) : (
                 <FlatList
@@ -1322,7 +1394,7 @@ export default function EncounterBuilderScreen() {
               <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.xs, gap: spacing.xs }}>
                 {combatants.length === 0 ? (
                   <View style={st.rosterEmpty}>
-                    <MaterialCommunityIcons name="shield-sword-outline" size={32} color={colors.textSecondary} />
+                    <MaterialCommunityIcons name="shield-sword-outline" size={32} color={colors.outline} />
                     <Text style={st.rosterEmptyText}>Add creatures from the catalog</Text>
                   </View>
                 ) : (
@@ -1350,7 +1422,7 @@ export default function EncounterBuilderScreen() {
               </View>
               {catalogLoading ? (
                 <View style={st.center}>
-                  <ActivityIndicator color={colors.brand} />
+                  <ActivityIndicator color={colors.primary} />
                 </View>
               ) : (
                 <FlatList
@@ -1380,7 +1452,7 @@ export default function EncounterBuilderScreen() {
               {renderDifficultyBar()}
               {combatants.length === 0 ? (
                 <View style={st.rosterEmpty}>
-                  <MaterialCommunityIcons name="shield-sword-outline" size={32} color={colors.textSecondary} />
+                  <MaterialCommunityIcons name="shield-sword-outline" size={32} color={colors.outline} />
                   <Text style={st.rosterEmptyText}>Add creatures from the catalog</Text>
                 </View>
               ) : (
@@ -1401,8 +1473,13 @@ export default function EncounterBuilderScreen() {
             <View style={st.modalContainer}>
               <View style={st.modalHeader}>
                 <Text style={st.statBlockTitle} numberOfLines={1}>{mobileCreature?.name ?? ''}</Text>
-                <TouchableOpacity onPress={() => clearSlot(0)} hitSlop={8}>
-                  <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+                {mobileCreature && (
+                  <TouchableOpacity onPress={() => addCreatureToRoster(mobileCreature)} hitSlop={8}>
+                    <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => clearSlot(0)} hitSlop={8} style={{ marginLeft: 4 }}>
+                  <MaterialCommunityIcons name="close" size={20} color={colors.outline} />
                 </TouchableOpacity>
               </View>
               {mobileCreature && (
@@ -1438,18 +1515,18 @@ const sb = StyleSheet.create({
     flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: spacing.sm,
   },
   typeTag: {
-    backgroundColor: colors.border + '44', borderRadius: 4,
+    backgroundColor: `${colors.outlineVariant}44`, borderRadius: radius.lg,
     paddingHorizontal: 6, paddingVertical: 2,
   },
   typeTagText: {
-    fontSize: 9, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.5,
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700', color: colors.outline, letterSpacing: 1,
   },
   crTag: {
-    backgroundColor: colors.brand + '22', borderRadius: 4,
+    backgroundColor: `${colors.primary}22`, borderRadius: radius.lg,
     paddingHorizontal: 6, paddingVertical: 2,
   },
   crTagText: {
-    fontSize: 9, fontWeight: '700', color: colors.brand, letterSpacing: 0.5,
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700', color: colors.primary, letterSpacing: 0.5,
   },
 
   topStatRow: {
@@ -1457,29 +1534,29 @@ const sb = StyleSheet.create({
   },
   editBox: {
     flex: 1, alignItems: 'center',
-    backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1,
-    borderRadius: 8, paddingVertical: 6, paddingHorizontal: 4,
+    borderColor: colors.outlineVariant, borderWidth: 1,
+    borderRadius: 6, paddingVertical: 6, paddingHorizontal: 4,
   },
   editBoxLabel: {
-    fontSize: 9, fontWeight: '700', color: colors.textSecondary,
-    letterSpacing: 1, marginBottom: 2,
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700', color: colors.outline,
+    letterSpacing: 1.2, marginBottom: 2,
   },
   editBoxInput: {
-    fontSize: 16, fontWeight: '700', color: colors.textPrimary,
+    fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
     textAlign: 'center', padding: 0, minWidth: 40,
   },
 
   abilityTable: {
-    borderWidth: 1, borderColor: colors.border + '88', borderRadius: 8,
-    overflow: 'hidden', backgroundColor: colors.surface, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: colors.outlineVariant, borderRadius: 6,
+    overflow: 'hidden', marginBottom: spacing.sm,
   },
   abilityRow: {
     flexDirection: 'row',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border + '66',
+    borderBottomColor: colors.outlineVariant,
   },
   abilityRowLast: { borderBottomWidth: 0 },
-  abilityHeadRow: { backgroundColor: colors.background },
+  abilityHeadRow: { backgroundColor: colors.surfaceContainerLow },
   abilityCell: {
     paddingHorizontal: 6, paddingVertical: 5, textAlign: 'center',
     fontSize: 11,
@@ -1487,31 +1564,31 @@ const sb = StyleSheet.create({
   abilityNameCol: { width: 48 },
   abilityNumCol: { flex: 1, textAlign: 'center', justifyContent: 'center' },
   abilityHeadText: {
-    fontSize: 9, fontWeight: '700', color: colors.textSecondary,
-    letterSpacing: 1, textAlign: 'center',
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700', color: colors.outline,
+    letterSpacing: 1.2, textAlign: 'center',
   },
   abilityNameText: {
-    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline,
     letterSpacing: 1,
   },
-  abilityValueText: { fontSize: 12, color: colors.textPrimary, textAlign: 'center' },
-  abilitySaveText: { fontSize: 12, color: colors.brand, textAlign: 'center' },
-  abilityDashText: { fontSize: 12, color: colors.textSecondary, textAlign: 'center' },
+  abilityValueText: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurface, textAlign: 'center' },
+  abilitySaveText: { fontSize: 12, fontFamily: fonts.body, color: colors.primary, textAlign: 'center' },
+  abilityDashText: { fontSize: 12, fontFamily: fonts.body, color: colors.outline, textAlign: 'center' },
   abilityInput: {
-    fontSize: 12, fontWeight: '600', color: colors.textPrimary,
+    fontSize: 12, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface,
     textAlign: 'center', padding: 0, minWidth: 28,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.outlineVariant,
   },
 
   statLine: {
     flexDirection: 'row', paddingVertical: 3, gap: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border + '44',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
   statLineLabel: {
-    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
-    letterSpacing: 1, width: 70, textTransform: 'uppercase',
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline,
+    letterSpacing: 1.2, width: 70, textTransform: 'uppercase',
   },
-  statLineValue: { fontSize: 12, color: colors.textPrimary, flex: 1 },
+  statLineValue: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurface, flex: 1 },
 });
 
 // ---------------------------------------------------------------------------
@@ -1519,9 +1596,9 @@ const sb = StyleSheet.create({
 // ---------------------------------------------------------------------------
 
 const st = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceCanvas },
   center: {
-    flex: 1, backgroundColor: colors.background,
+    flex: 1, backgroundColor: colors.surfaceCanvas,
     alignItems: 'center', justifyContent: 'center',
   },
 
@@ -1529,32 +1606,32 @@ const st = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
-    backgroundColor: colors.surface,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
+    backgroundColor: colors.surfaceContainerHigh,
   },
   headerBack: { padding: 4 },
   headerNameInput: {
-    fontSize: 18, fontWeight: '700', color: colors.textPrimary,
+    fontSize: 16, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface,
     paddingVertical: 2, paddingHorizontal: 0,
     borderBottomColor: 'transparent', borderBottomWidth: 1,
   },
-  headerSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  headerSubtitle: { fontSize: 11, fontFamily: fonts.label, color: colors.onSurfaceVariant, marginTop: 2 },
   saveBtn: {
-    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: 6,
     paddingHorizontal: 12, paddingVertical: 6,
   },
-  saveBtnText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  saveBtnText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '600', color: colors.outline },
   loadCombatBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.brand, borderRadius: 8,
+    backgroundColor: colors.primary, borderRadius: 6,
     paddingHorizontal: spacing.md, paddingVertical: 8,
   },
-  loadCombatBtnText: { color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  loadCombatBtnText: { color: '#fff', fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1 },
 
   // ---- Filter bar ----
   filterBar: {
-    borderBottomColor: colors.border, borderBottomWidth: 1,
-    backgroundColor: colors.surface,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
+    backgroundColor: colors.surfaceContainerHigh,
     paddingHorizontal: spacing.md, paddingVertical: spacing.xs, gap: 6,
   },
   searchFilterRow: {
@@ -1562,79 +1639,79 @@ const st = StyleSheet.create({
   },
   searchRow: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: 6,
     paddingHorizontal: 8, paddingVertical: Platform.OS === 'web' ? 5 : 7,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceContainer,
   },
-  searchInput: { flex: 1, fontSize: 13, color: colors.textPrimary, padding: 0 },
+  searchInput: { flex: 1, fontSize: 13, fontFamily: fonts.body, color: colors.onSurface, padding: 0 },
 
   controlsRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap',
     zIndex: 10,
   },
   controlLabel: {
-    fontSize: 11, fontWeight: '700', color: colors.textSecondary, letterSpacing: 1,
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline, letterSpacing: 1.2,
   },
-  crDash: { fontSize: 14, color: colors.textSecondary },
+  crDash: { fontSize: 14, color: colors.outline },
   crPickerWrap: {},
   crModalBackdrop: {
     position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0,
   },
   crPickerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: 6,
     paddingHorizontal: 8, paddingVertical: 5,
-    backgroundColor: '#333537', minWidth: 70,
+    backgroundColor: colors.surfaceContainerHighest, minWidth: 70,
   },
-  crPickerLabel: { fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginRight: 2 },
-  crPickerBtnText: { fontSize: 12, color: colors.textPrimary, flex: 1 },
+  crPickerLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '600', color: colors.outline, marginRight: 2 },
+  crPickerBtnText: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurface, flex: 1 },
   crDropdown: {
-    backgroundColor: '#2a2c2e', borderColor: colors.border, borderWidth: 1,
+    backgroundColor: colors.surfaceContainerHigh, borderColor: colors.outlineVariant, borderWidth: 1,
     borderRadius: 6, overflow: 'hidden' as const,
     ...(Platform.OS === 'web' ? { boxShadow: '0 4px 20px rgba(0,0,0,0.8)' } as never : { elevation: 10 }),
   },
-  crDropdownItem: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#2a2c2e' },
-  crDropdownItemActive: { backgroundColor: colors.brand + '22' },
-  crDropdownText: { fontSize: 12, color: colors.textPrimary },
-  crDropdownTextActive: { color: colors.brand, fontWeight: '600' },
+  crDropdownItem: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: colors.surfaceContainerHigh },
+  crDropdownItemActive: { backgroundColor: `${colors.primary}22` },
+  crDropdownText: { fontSize: 12, fontFamily: fonts.body, color: colors.onSurface },
+  crDropdownTextActive: { color: colors.primary, fontWeight: '600' },
 
   filterToggle: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 6,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: 6,
     paddingHorizontal: 8, paddingVertical: 5,
   },
-  filterToggleActive: { borderColor: colors.brand + '44' },
-  filterToggleText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  filterToggleActive: { borderColor: `${colors.primary}44` },
+  filterToggleText: { fontSize: 11, fontFamily: fonts.label, fontWeight: '600', color: colors.outline },
   clearFiltersBtn: {
     paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 4, backgroundColor: colors.border + '44',
+    borderRadius: radius.lg, backgroundColor: `${colors.outlineVariant}44`,
   },
-  clearFiltersBtnText: { fontSize: 11, fontWeight: '600', color: colors.textSecondary },
+  clearFiltersBtnText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '600', color: colors.outline },
 
   viewToggleBtn: {
-    padding: 5, borderRadius: 4,
+    padding: 5, borderRadius: radius.lg,
   },
   viewToggleBtnActive: {
-    backgroundColor: colors.brand + '22',
+    backgroundColor: `${colors.primary}22`,
   },
 
   filterChipsContainer: {
     paddingTop: 4, gap: 4,
   },
   filterSectionLabel: {
-    fontSize: 10, fontWeight: '700', color: colors.textSecondary,
-    letterSpacing: 1,
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline,
+    letterSpacing: 1.2,
   },
   chipWrap: {
     flexDirection: 'row', flexWrap: 'wrap', maxWidth: 600,
   },
   chip: {
-    borderColor: colors.border, borderWidth: 1, borderRadius: 14,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: radius.lg,
     paddingHorizontal: 8, paddingVertical: 3, marginRight: 4, marginVertical: 2,
   },
-  chipActive: { borderColor: colors.brand, backgroundColor: colors.brand + '22' },
-  chipText: { fontSize: 11, color: colors.textSecondary },
-  chipTextActive: { color: colors.brand, fontWeight: '600' },
+  chipActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
+  chipText: { fontSize: 10, fontFamily: fonts.label, color: colors.outline },
+  chipTextActive: { color: colors.primary, fontWeight: '600' },
 
   // ---- Main 4-column layout ----
   mainContentWide: {
@@ -1643,94 +1720,115 @@ const st = StyleSheet.create({
 
   // Column 1: Catalog
   catalogCol: {
-    flex: 1, borderRightColor: colors.border, borderRightWidth: 1,
+    flex: 1, borderRightColor: colors.outlineVariant, borderRightWidth: 1,
   },
   colHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.sm, paddingVertical: 4,
-    borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  panelTitle: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+  panelTitle: { fontSize: 12, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
   countBadge: {
-    backgroundColor: colors.border + '44', borderRadius: 10,
+    backgroundColor: `${colors.outlineVariant}44`, borderRadius: 10,
     paddingHorizontal: 8, paddingVertical: 1,
   },
-  countBadgeText: { fontSize: 10, fontWeight: '600', color: colors.textSecondary },
+  countBadgeText: { fontSize: 9, fontFamily: fonts.label, fontWeight: '600', color: colors.outline },
 
   catalogRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: spacing.sm, paddingVertical: 2,
-    borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   catalogNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  catalogName: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+  catalogName: { fontSize: 12, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface },
   crTag: {
-    backgroundColor: colors.brand + '22', borderRadius: 3,
+    backgroundColor: `${colors.primary}22`, borderRadius: 3,
     paddingHorizontal: 4, paddingVertical: 1,
   },
-  crTagText: { fontSize: 9, fontWeight: '700', color: colors.brand },
+  crTagText: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
   typeBadge: {
-    backgroundColor: colors.border + '55', borderRadius: 3,
+    backgroundColor: `${colors.outlineVariant}55`, borderRadius: 3,
     paddingHorizontal: 4, paddingVertical: 1,
   },
-  typeBadgeText: { fontSize: 8, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.5 },
-  catalogMeta: { fontSize: 10, color: colors.textSecondary, marginTop: 1 },
+  typeBadgeText: { fontSize: 7, fontFamily: fonts.label, fontWeight: '700', color: colors.outline, letterSpacing: 0.5 },
+  catalogMeta: { fontSize: 10, fontFamily: fonts.label, color: colors.outline, marginTop: 1 },
   addBtn: {
-    width: 26, height: 26, borderRadius: 13,
-    borderColor: colors.brand, borderWidth: 1,
+    width: 24, height: 24, borderRadius: 12,
+    borderColor: `${colors.primary}66`, borderWidth: 1,
+    backgroundColor: `${colors.primary}14`,
     alignItems: 'center', justifyContent: 'center',
   },
 
   // Column 2: Roster
   rosterCol: {
-    flex: 1, borderRightColor: colors.border, borderRightWidth: 1,
+    flex: 1, borderRightColor: colors.outlineVariant, borderRightWidth: 1,
   },
-  rosterCountText: { fontWeight: '400', color: colors.textSecondary },
-  clearBtnText: { fontSize: 11, fontWeight: '600', color: colors.hpDanger },
+  rosterCountText: { fontWeight: '400', color: colors.outline },
+  clearBtnText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.hpDanger },
 
   rosterCard: {
-    backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1,
+    borderColor: colors.outlineVariant, borderWidth: 1,
     borderRadius: 6, padding: spacing.xs,
   },
   rosterCardTop: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-  rosterName: { fontSize: 12, fontWeight: '700', color: colors.textPrimary },
+  rosterName: { fontSize: 12, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface },
+  renameBtn: { padding: 2 },
   removeBtn: { padding: 2, marginLeft: 'auto' },
-  rosterMeta: { fontSize: 10, color: colors.textSecondary, marginBottom: 4 },
+  rosterMeta: { fontSize: 10, fontFamily: fonts.label, color: colors.outline, marginBottom: 4 },
   rosterControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   countBtn: {
     width: 22, height: 22, borderRadius: 11,
-    borderColor: colors.border, borderWidth: 1,
+    borderColor: colors.outlineVariant, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceCanvas,
   },
-  countText: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, minWidth: 18, textAlign: 'center' },
+  countText: { fontSize: 13, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface, minWidth: 18, textAlign: 'center' },
   rosterEmpty: {
     alignItems: 'center', justifyContent: 'center',
     paddingVertical: spacing.xl,
   },
-  rosterEmptyText: { fontSize: 12, color: colors.textSecondary, marginTop: spacing.sm, fontStyle: 'italic' },
+  rosterEmptyText: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, marginTop: spacing.sm, fontStyle: 'italic' },
+
+  // Individual name editing
+  individualNamesWrap: {
+    marginTop: spacing.xs, gap: 3,
+    borderTopColor: colors.outlineVariant, borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.xs,
+  },
+  individualNameRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+  },
+  individualNameLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.outline, width: 14, textAlign: 'center',
+  },
+  individualNameInput: {
+    flex: 1, fontSize: 11, fontFamily: fonts.body, color: colors.onSurface,
+    borderBottomWidth: 1, borderBottomColor: colors.outlineVariant,
+    paddingVertical: 2, paddingHorizontal: 0,
+  },
 
   // Difficulty
   difficultyContainer: {
     paddingHorizontal: spacing.sm, paddingVertical: 4,
-    borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
-    backgroundColor: colors.background,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: StyleSheet.hairlineWidth,
+    backgroundColor: colors.surfaceContainerLow,
   },
   difficultyTiers: {
     flexDirection: 'row', gap: 4, marginBottom: 2,
   },
   difficultyTierChip: {
-    borderColor: colors.border, borderWidth: 1, borderRadius: 4,
+    borderColor: colors.outlineVariant, borderWidth: 1, borderRadius: radius.lg,
     paddingHorizontal: 6, paddingVertical: 2,
   },
   difficultyTierText: {
-    fontSize: 10, fontWeight: '600', color: colors.textSecondary,
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline,
   },
   difficultyXpText: {
-    fontSize: 10, color: colors.textSecondary, marginTop: 1,
+    fontSize: 10, fontFamily: fonts.label, color: colors.outline, marginTop: 1,
   },
   difficultyHint: {
-    fontSize: 10, color: colors.textSecondary, fontStyle: 'italic',
+    fontSize: 10, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic',
   },
   partyRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -1739,49 +1837,49 @@ const st = StyleSheet.create({
   partyToggle: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
   },
-  partyToggleText: { fontSize: 10, color: colors.textSecondary },
+  partyToggleText: { fontSize: 10, fontFamily: fonts.label, color: colors.outline },
   partyInputs: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
   },
   partyInput: {
     width: 32, textAlign: 'center' as const,
-    backgroundColor: colors.background, borderColor: colors.border,
-    borderWidth: 1, borderRadius: 4,
+    backgroundColor: colors.surfaceCanvas, borderColor: colors.outlineVariant,
+    borderWidth: 1, borderRadius: radius.lg,
     paddingVertical: 2, paddingHorizontal: 4,
-    fontSize: 11, fontWeight: '700' as const, color: colors.textPrimary,
+    fontSize: 11, fontFamily: fonts.body, fontWeight: '700' as const, color: colors.onSurface,
   },
-  partyInputLabel: { fontSize: 10, color: colors.textSecondary },
-  partyAutoText: { fontSize: 10, color: colors.textSecondary, fontStyle: 'italic' as const },
+  partyInputLabel: { fontSize: 10, fontFamily: fonts.label, color: colors.outline },
+  partyAutoText: { fontSize: 10, fontFamily: fonts.label, color: colors.outline, fontStyle: 'italic' as const },
 
   // Stat block columns (3 & 4)
   statBlockCol: {
     flex: 1,
   },
   statBlockColBorder: {
-    borderRightColor: colors.border, borderRightWidth: 1,
+    borderRightColor: colors.outlineVariant, borderRightWidth: 1,
   },
   statBlockHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: spacing.sm, paddingVertical: 4,
-    borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth,
-    backgroundColor: colors.surface,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: StyleSheet.hairlineWidth,
+    backgroundColor: colors.surfaceContainerHigh,
   },
   slotBadge: {
     width: 20, height: 20, borderRadius: 10,
-    backgroundColor: colors.brand + '33', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: `${colors.primary}33`, alignItems: 'center', justifyContent: 'center',
   },
-  slotBadgeText: { fontSize: 10, fontWeight: '700', color: colors.brand },
-  statBlockTitle: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, flex: 1 },
-  statBlockEmptyLabel: { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic' },
+  slotBadgeText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.primary },
+  statBlockTitle: { fontSize: 12, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface, flex: 1 },
+  statBlockEmptyLabel: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic' },
   statBlockEmpty: {
     flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
     paddingVertical: spacing.xl,
   },
-  statBlockEmptyText: { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic', textAlign: 'center' },
+  statBlockEmptyText: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, fontStyle: 'italic', textAlign: 'center' },
 
   // Mobile layout
   mobileCatalog: {
-    borderBottomColor: colors.border, borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
   },
   mobileRoster: {
     paddingHorizontal: spacing.xs, gap: spacing.xs, paddingVertical: spacing.xs,
@@ -1789,13 +1887,13 @@ const st = StyleSheet.create({
 
   // Modal (mobile stat block)
   modalContainer: {
-    flex: 1, backgroundColor: colors.background,
+    flex: 1, backgroundColor: colors.surfaceCanvas,
     paddingTop: Platform.OS === 'ios' ? 50 : spacing.md,
   },
   modalHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomColor: colors.border, borderBottomWidth: 1,
-    backgroundColor: colors.surface,
+    borderBottomColor: colors.outlineVariant, borderBottomWidth: 1,
+    backgroundColor: colors.surfaceContainerHigh,
   },
 });

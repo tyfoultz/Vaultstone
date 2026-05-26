@@ -287,6 +287,7 @@ export interface Database {
           hp_temp: number;
           ac: number;
           is_active_turn: boolean;
+          revealed: boolean;
           sort_order: number;
         };
         Insert: {
@@ -303,6 +304,7 @@ export interface Database {
           hp_temp?: number;
           ac: number;
           is_active_turn?: boolean;
+          revealed?: boolean;
           sort_order: number;
         };
         Update: {
@@ -317,6 +319,7 @@ export interface Database {
           hp_temp?: number;
           ac?: number;
           is_active_turn?: boolean;
+          revealed?: boolean;
           sort_order?: number;
         };
         Relationships: [];
@@ -1176,4 +1179,5 @@ export type EncounterCombatant = {
   hp_max: number;
   ac: number;
   overrides?: Record<string, number | string>;
+  individualNames?: string[];
 };
