@@ -62,7 +62,7 @@ function computeAc(stats: Dnd5eStats, resources: Dnd5eResources): number {
 function formatMod(n: number) { return n >= 0 ? `+${n}` : `${n}`; }
 
 export default function CombatScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, playerView } = useLocalSearchParams<{ id: string; playerView?: string }>();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const { campaigns } = useCampaignStore();
@@ -107,6 +107,10 @@ export default function CombatScreen() {
   const [initEditFor, setInitEditFor] = useState<string | null>(null);
   const [initEditValue, setInitEditValue] = useState('');
 
+  // Name click-to-edit state (DM rename)
+  const [nameEditFor, setNameEditFor] = useState<string | null>(null);
+  const [nameEditValue, setNameEditValue] = useState('');
+
   // Session log floating window
   const [logOpen, setLogOpen] = useState(false);
   const [logDragOffset, setLogDragOffset] = useState({ x: 0, y: 0 });
@@ -119,11 +123,16 @@ export default function CombatScreen() {
   const isWideLayout = bp.isDesktop || bp.isWide;
 
   const isDM = campaign?.dm_user_id === user?.id;
+  const showPlayerView = !isDM || playerView === 'true';
   const combatStarted = !!session?.combat_started_at;
   const displayEntries = useMemo(
     () => combatStarted ? sortByInitiative(entries) : entries,
     [entries, combatStarted],
   );
+  const visibleEntries = useMemo(() => {
+    if (!showPlayerView) return displayEntries;
+    return displayEntries.filter((e) => e.character_id !== null || e.revealed);
+  }, [displayEntries, showPlayerView]);
   const allRolled = entries.length > 0 &&
     entries.every((e) => e.init_roll !== null || e.init_override !== null);
   const anyRolled = entries.some((e) => e.init_roll !== null || e.init_override !== null);
@@ -341,6 +350,17 @@ export default function CombatScreen() {
     await refetchEntries(session.id);
   }
 
+  // --- Name editing (DM rename) ---
+
+  async function handleNameSubmit(combatantId: string, originalName: string) {
+    const trimmed = nameEditValue.trim();
+    setNameEditFor(null);
+    setNameEditValue('');
+    if (!trimmed || trimmed === originalName) return;
+    await updateCombatant(combatantId, { display_name: trimmed });
+    if (session) await refetchEntries(session.id);
+  }
+
   // --- Party picker ---
 
   async function openPartyPicker() {
@@ -455,7 +475,7 @@ export default function CombatScreen() {
     const { data: raw } = await getInitiativeOrder(session.id);
     const sorted = sortByInitiative((raw ?? []) as Combatant[]);
     if (sorted.length > 0) {
-      await updateCombatant(sorted[0].id, { is_active_turn: true });
+      await updateCombatant(sorted[0].id, { is_active_turn: true, revealed: true });
     }
     await refetchEntries(session.id);
     setStartingCombat(false);
@@ -549,7 +569,7 @@ export default function CombatScreen() {
     if (currentIdx !== -1) {
       await updateCombatant(sorted[currentIdx].id, { is_active_turn: false });
     }
-    await updateCombatant(sorted[prevIdx].id, { is_active_turn: true });
+    await updateCombatant(sorted[prevIdx].id, { is_active_turn: true, revealed: true });
 
     if (wrapped && session.round > 1) {
       await supabase
@@ -734,6 +754,18 @@ export default function CombatScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
+              {Platform.OS === 'web' && (
+                <TouchableOpacity
+                  style={st.controlBtn}
+                  onPress={() => {
+                    const url = `/campaign/${id}/combat?playerView=true`;
+                    window.open(url, 'vaultstone-player-view', 'width=600,height=800');
+                  }}
+                >
+                  <MaterialCommunityIcons name="monitor" size={14} color={colors.onSurface} />
+                  <Text style={st.controlBtnText}>Player View</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}
@@ -865,23 +897,46 @@ export default function CombatScreen() {
         {/* ===== MAIN CONTENT ===== */}
         <View style={st.mainContent}>
           {/* Initiative List */}
-          <View style={isWideLayout ? st.initListNarrow : st.initListFull}>
+          <View style={isWideLayout && !showPlayerView ? st.initListNarrow : st.initListFull}>
             <View style={st.initListHeader}>
-              <Text style={st.initListTitle}>Initiative</Text>
+              <Text style={st.initListTitle}>{showPlayerView ? 'Combat Order' : 'Initiative'}</Text>
               <Text style={st.initListCount}>
-                {entries.length} · {combatStarted ? `Round ${session.round}` : anyRolled ? 'Rolling' : 'Setup'}
+                {showPlayerView
+                  ? (combatStarted ? `Round ${session.round}` : 'Waiting...')
+                  : `${entries.length} · ${combatStarted ? `Round ${session.round}` : anyRolled ? 'Rolling' : 'Setup'}`}
               </Text>
             </View>
 
-            {entries.length === 0 ? (
+            {(showPlayerView ? visibleEntries : entries).length === 0 ? (
               <View style={st.placeholder}>
                 <MaterialCommunityIcons name="sword-cross" size={40} color={colors.outline} />
-                <Text style={st.placeholderTitle}>No combatants yet</Text>
+                <Text style={st.placeholderTitle}>
+                  {showPlayerView ? 'Combat hasn’t started yet' : 'No combatants yet'}
+                </Text>
                 <Text style={st.placeholderBody}>
-                  {isDM ? 'Add combatants to begin.' : 'Waiting for the DM.'}
+                  {showPlayerView
+                    ? 'The initiative order will appear here once the DM begins.'
+                    : isDM ? 'Add combatants to begin.' : 'Waiting for the DM.'}
                 </Text>
               </View>
+            ) : showPlayerView ? (
+              /* ---- PLAYER VIEW ---- */
+              <FlatList
+                data={visibleEntries}
+                keyExtractor={(e) => e.id}
+                renderItem={({ item }) => (
+                  <View style={[st.rowPlayer, item.is_active_turn && st.rowPlayerActive]}>
+                    <Text style={st.rowPlayerName} numberOfLines={1}>
+                      {item.display_name}
+                    </Text>
+                    {item.is_active_turn && (
+                      <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} style={{ marginLeft: 'auto' }} />
+                    )}
+                  </View>
+                )}
+              />
             ) : (
+              /* ---- DM VIEW ---- */
               <FlatList
                 data={displayEntries}
                 keyExtractor={(e) => e.id}
@@ -899,6 +954,7 @@ export default function CombatScreen() {
                   const canRoll = isDM || (isPc && myCharacterIds.has(item.character_id!));
                   const hasStatBlock = !!item.creature_key;
                   const isEditing = initEditFor === item.id;
+                  const isEditingName = nameEditFor === item.id;
 
                   return (
                     <View style={[st.row, item.is_active_turn && st.rowActive]}>
@@ -941,9 +997,33 @@ export default function CombatScreen() {
                         }}
                       >
                         <View style={st.nameRow}>
-                          <Text style={st.rowName} numberOfLines={1}>
-                            {item.display_name}
-                          </Text>
+                          {isEditingName ? (
+                            <TextInput
+                              style={st.nameEditInput}
+                              value={nameEditValue}
+                              onChangeText={setNameEditValue}
+                              autoFocus
+                              selectTextOnFocus
+                              onSubmitEditing={() => handleNameSubmit(item.id, item.display_name)}
+                              onBlur={() => handleNameSubmit(item.id, item.display_name)}
+                            />
+                          ) : (
+                            <Pressable
+                              onPress={isDM ? (e) => {
+                                e.stopPropagation?.();
+                                setNameEditFor(item.id);
+                                setNameEditValue(item.display_name);
+                              } : undefined}
+                              style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 4 }}
+                            >
+                              <Text style={st.rowName} numberOfLines={1}>
+                                {item.display_name}
+                              </Text>
+                              {isDM && (
+                                <MaterialCommunityIcons name="pencil" size={10} color={colors.outline} />
+                              )}
+                            </Pressable>
+                          )}
                           <View style={[st.typeBadge, isPc ? st.typeBadgePc : st.typeBadgeNpc]}>
                             <Text style={[st.typeBadgeText, isPc ? st.typeBadgeTextPc : st.typeBadgeTextNpc]}>
                               {isPc ? 'PC' : 'NPC'}
@@ -1001,8 +1081,8 @@ export default function CombatScreen() {
             )}
           </View>
 
-          {/* Stat Block / Spell area (desktop) */}
-          {isWideLayout && (
+          {/* Stat Block / Spell area (desktop, DM only) */}
+          {isWideLayout && !showPlayerView && (
             statBlockPanels.length > 0 ? (
               <ScrollView
                 horizontal
@@ -1482,5 +1562,29 @@ const st = StyleSheet.create({
   pcPreviewSectionTitle: {
     fontSize: 9, fontFamily: fonts.label, fontWeight: '700', color: colors.outline,
     letterSpacing: 1.2, marginBottom: 4, marginTop: spacing.xs,
+  },
+
+  // Player view
+  rowPlayer: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2,
+    borderBottomColor: colors.outlineVariant,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowPlayerActive: {
+    backgroundColor: `${colors.primary}11`,
+    borderLeftColor: colors.primary, borderLeftWidth: 3,
+    paddingLeft: spacing.md - 3,
+  },
+  rowPlayerName: {
+    color: colors.onSurface, fontSize: 14,
+    fontFamily: fonts.headline, fontWeight: '600',
+  },
+
+  // Name inline edit (DM rename)
+  nameEditInput: {
+    flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
+    color: colors.onSurface, padding: 0,
+    borderBottomWidth: 1, borderBottomColor: colors.primary,
   },
 });

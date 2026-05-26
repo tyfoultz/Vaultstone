@@ -145,7 +145,8 @@ export default function EncountersScreen() {
     const inserts: Promise<any>[] = [];
     for (const c of combatants) {
       for (let i = 0; i < c.count; i++) {
-        const name = c.count > 1 ? `${c.name} ${i + 1}` : c.name;
+        const name = c.individualNames?.[i]
+          || (c.count > 1 ? `${c.name} ${i + 1}` : c.name);
         inserts.push(
           addCombatant({
             sessionId: session.id,

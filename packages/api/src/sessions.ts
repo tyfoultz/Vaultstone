@@ -356,7 +356,7 @@ export async function endCombat(sessionId: string, ctx?: SessionEventContext) {
 export async function resetInitiative(sessionId: string) {
   await supabase
     .from('initiative_order')
-    .update({ init_roll: null, init_override: null, is_active_turn: false })
+    .update({ init_roll: null, init_override: null, is_active_turn: false, revealed: false })
     .eq('session_id', sessionId);
   return supabase
     .from('sessions')
@@ -428,7 +428,7 @@ export async function advanceTurn(sessionId: string, ctx?: SessionEventContext) 
   }
   await supabase
     .from('initiative_order')
-    .update({ is_active_turn: true })
+    .update({ is_active_turn: true, revealed: true })
     .eq('id', entries[nextIdx].id);
 
   let nextRound: number | null = null;

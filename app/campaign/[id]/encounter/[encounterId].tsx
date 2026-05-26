@@ -402,6 +402,9 @@ export default function EncounterBuilderScreen() {
   const [overrideSize, setOverrideSize] = useState('');
   const [overrideLevel, setOverrideLevel] = useState('');
 
+  // Roster rename — which roster index has its individual names expanded
+  const [renameIdx, setRenameIdx] = useState<number | null>(null);
+
   // Pinned spells
   const { pinned, pinSpell, unpinSpell, toggleMinimize } = usePinnedSpells();
 
@@ -751,7 +754,8 @@ export default function EncounterBuilderScreen() {
     const inserts: Promise<any>[] = [];
     for (const c of combatants) {
       for (let i = 0; i < c.count; i++) {
-        const name = c.count > 1 ? `${c.name} ${i + 1}` : c.name;
+        const name = c.individualNames?.[i]
+          || (c.count > 1 ? `${c.name} ${i + 1}` : c.name);
         inserts.push(addCombatant({
           sessionId: session.id,
           name,
@@ -836,15 +840,41 @@ export default function EncounterBuilderScreen() {
     );
   }
 
+  function handleIndividualNameChange(rosterIdx: number, copyIdx: number, value: string) {
+    setCombatants((prev) => {
+      const next = [...prev];
+      const entry = { ...next[rosterIdx] };
+      const names = [...(entry.individualNames ?? [])];
+      while (names.length < entry.count) names.push('');
+      names[copyIdx] = value;
+      entry.individualNames = names;
+      next[rosterIdx] = entry;
+      scheduleSave(next);
+      return next;
+    });
+  }
+
   function renderRosterItem(c: EncounterCombatant, idx: number) {
     const catalogEntry = c.creature_key ? catalog.find((cc) => cc.key === c.creature_key) : null;
     const crText = catalogEntry ? crLabel(catalogEntry.challengeRating) : '?';
+    const isRenaming = renameIdx === idx;
     return (
       <View key={`${c.creature_key ?? c.name}-${idx}`} style={st.rosterCard}>
         <View style={st.rosterCardTop}>
           <Pressable style={{ flex: 1 }} onPress={() => { if (c.creature_key) previewInSlot(c.creature_key); }}>
             <Text style={st.rosterName} numberOfLines={1}>{c.name}</Text>
           </Pressable>
+          <TouchableOpacity
+            style={st.renameBtn}
+            onPress={() => setRenameIdx(isRenaming ? null : idx)}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons
+              name={isRenaming ? 'chevron-up' : 'pencil'}
+              size={12}
+              color={isRenaming ? colors.primary : colors.outline}
+            />
+          </TouchableOpacity>
           <TouchableOpacity style={st.removeBtn} onPress={() => removeCombatant(idx)} hitSlop={6}>
             <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
           </TouchableOpacity>
@@ -861,6 +891,22 @@ export default function EncounterBuilderScreen() {
             <MaterialCommunityIcons name="plus" size={14} color={colors.onSurface} />
           </TouchableOpacity>
         </View>
+        {isRenaming && c.count > 0 && (
+          <View style={st.individualNamesWrap}>
+            {Array.from({ length: c.count }, (_, i) => (
+              <View key={i} style={st.individualNameRow}>
+                <Text style={st.individualNameLabel}>{i + 1}</Text>
+                <TextInput
+                  style={st.individualNameInput}
+                  value={c.individualNames?.[i] ?? ''}
+                  onChangeText={(v) => handleIndividualNameChange(idx, i, v)}
+                  placeholder={c.count > 1 ? `${c.name} ${i + 1}` : c.name}
+                  placeholderTextColor={colors.onSurfaceVariant}
+                />
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     );
   }
@@ -1726,6 +1772,7 @@ const st = StyleSheet.create({
   },
   rosterCardTop: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
   rosterName: { fontSize: 12, fontFamily: fonts.headline, fontWeight: '600', color: colors.onSurface },
+  renameBtn: { padding: 2 },
   removeBtn: { padding: 2, marginLeft: 'auto' },
   rosterMeta: { fontSize: 10, fontFamily: fonts.label, color: colors.outline, marginBottom: 4 },
   rosterControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -1741,6 +1788,25 @@ const st = StyleSheet.create({
     paddingVertical: spacing.xl,
   },
   rosterEmptyText: { fontSize: 11, fontFamily: fonts.body, color: colors.outline, marginTop: spacing.sm, fontStyle: 'italic' },
+
+  // Individual name editing
+  individualNamesWrap: {
+    marginTop: spacing.xs, gap: 3,
+    borderTopColor: colors.outlineVariant, borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.xs,
+  },
+  individualNameRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+  },
+  individualNameLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.outline, width: 14, textAlign: 'center',
+  },
+  individualNameInput: {
+    flex: 1, fontSize: 11, fontFamily: fonts.body, color: colors.onSurface,
+    borderBottomWidth: 1, borderBottomColor: colors.outlineVariant,
+    paddingVertical: 2, paddingHorizontal: 0,
+  },
 
   // Difficulty
   difficultyContainer: {
