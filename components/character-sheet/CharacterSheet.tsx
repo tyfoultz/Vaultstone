@@ -2530,54 +2530,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     {[speciesLabel, classLabel].filter(Boolean).join(' ')}
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
-
-                  {/* Thin horizontal-row stat cards stacked vertically
-                      under the level text. Each cell renders as
-                      icon · LABEL · value on a single line — uses the
-                      name-block width better than the old square cells
-                      below. */}
-                  <View style={s.deskHeroStatStack}>
-                    <TouchableOpacity
-                      style={s.deskHeroStatRow}
-                      onPress={() => setOpenBreakdown('passive-perception')}
-                      activeOpacity={0.7}
-                      accessibilityLabel="Show passive perception breakdown"
-                    >
-                      <MaterialCommunityIcons name="eye-outline" size={12} color={colors.outline} />
-                      <Text style={s.deskHeroStatRowLabel}>PER</Text>
-                      <Text
-                        style={[
-                          s.deskHeroStatRowValue,
-                          (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
-                          !(stats.skillExpertise ?? []).includes('perception')
-                            && stats.skillProficiencies.includes('perception')
-                            && { color: colors.primary },
-                        ]}
-                      >{passivePerception}</Text>
-                    </TouchableOpacity>
-                    <View style={s.deskHeroStatRow}>
-                      <MaterialCommunityIcons name="star-four-points-outline" size={12} color={colors.outline} />
-                      <Text style={s.deskHeroStatRowLabel}>PROF</Text>
-                      <Text style={s.deskHeroStatRowValue}>{fmtMod(prof)}</Text>
-                    </View>
-                    {(() => {
-                      const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
-                      const canSpend = canEditAny && hdRemaining > 0;
-                      const Wrapper = canSpend ? TouchableOpacity : View;
-                      return (
-                        <Wrapper
-                          style={s.deskHeroStatRow}
-                          onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
-                          activeOpacity={canSpend ? 0.7 : 1}
-                          accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
-                        >
-                          <MaterialCommunityIcons name="dice-d8-outline" size={12} color={colors.outline} />
-                          <Text style={s.deskHeroStatRowLabel}>HD</Text>
-                          <Text style={s.deskHeroStatRowValue}>{hdRemaining}/{stats.level}</Text>
-                        </Wrapper>
-                      );
-                    })()}
-                  </View>
                 </View>
 
                 {/* AC shield — anchored to the right of the name
@@ -2594,8 +2546,55 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </TouchableOpacity>
               </View>
 
+              {/* Stats row — PER / PROF / HD as 3 cells across the
+                  full sidebar width. Lives outside the name block so
+                  it isn't squeezed by the portrait + AC shield on
+                  either side of the identity row above. */}
+              <View style={s.deskHeroStatsRow}>
+                <TouchableOpacity
+                  style={s.deskHeroStat}
+                  onPress={() => setOpenBreakdown('passive-perception')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show passive perception breakdown"
+                >
+                  <MaterialCommunityIcons name="eye-outline" size={12} color={colors.outline} />
+                  <Text style={s.deskHeroStatLabel}>PER</Text>
+                  <Text
+                    style={[
+                      s.deskHeroStatValue,
+                      (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
+                      !(stats.skillExpertise ?? []).includes('perception')
+                        && stats.skillProficiencies.includes('perception')
+                        && { color: colors.primary },
+                    ]}
+                  >{passivePerception}</Text>
+                </TouchableOpacity>
+                <View style={s.deskHeroStat}>
+                  <MaterialCommunityIcons name="star-four-points-outline" size={12} color={colors.outline} />
+                  <Text style={s.deskHeroStatLabel}>PROF</Text>
+                  <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
+                </View>
+                {(() => {
+                  const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
+                  const canSpend = canEditAny && hdRemaining > 0;
+                  const Wrapper = canSpend ? TouchableOpacity : View;
+                  return (
+                    <Wrapper
+                      style={s.deskHeroStat}
+                      onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
+                      activeOpacity={canSpend ? 0.7 : 1}
+                      accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
+                    >
+                      <MaterialCommunityIcons name="dice-d8-outline" size={12} color={colors.outline} />
+                      <Text style={s.deskHeroStatLabel}>HD</Text>
+                      <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
+                    </Wrapper>
+                  );
+                })()}
+              </View>
+
               {/* Action button row — thin labelled buttons span the
-                  full sidebar below the identity row. Inspiration,
+                  full sidebar below the stats row. Inspiration,
                   Short Rest, Long Rest in one consistent treatment. */}
               {canEditAny && (
                 <View style={s.deskHeroActionRow}>
@@ -4955,25 +4954,25 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   deskIconBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
-  /** Thin horizontal-row stat cards stacked vertically below the
-   *  level text inside the name block. Each row is icon · LABEL ·
-   *  value on one line. Compact enough that 3 rows fit comfortably
-   *  in the name-block column even at narrow sidebar widths. */
-  deskHeroStatStack: {
-    gap: 3, marginTop: 6,
+  /** Hero stats row — PER / PROF / HD as 3 cells across the full
+   *  sidebar width below the identity row. Each cell renders as
+   *  icon · LABEL · value on a single line (horizontal density). */
+  deskHeroStatsRow: {
+    flexDirection: 'row', gap: 5, marginTop: 10,
   },
-  deskHeroStatRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 8, paddingVertical: 4,
+  deskHeroStat: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 6, paddingVertical: 6,
     borderRadius: 6,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1, borderColor: colors.outlineVariant,
   },
-  deskHeroStatRowLabel: {
-    flex: 1, fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+  deskHeroStatLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 0.8, color: colors.outline, textTransform: 'uppercase' as const,
   },
-  deskHeroStatRowValue: {
+  deskHeroStatValue: {
     fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface,
   },
