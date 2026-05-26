@@ -45,3 +45,5 @@ export {
 } from './split-pane.store';
 export type { SplitTarget, Side } from './split-pane.store';
 export { usePackContentStore, selectPackCache } from './pack-content.store';
+export { useSpellsTabStore, SPELL_COLUMN_LABEL } from './spells-tab.store';
+export type { SpellColumnKey } from './spells-tab.store';

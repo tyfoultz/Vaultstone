@@ -10,6 +10,7 @@ import type {
 } from '@vaultstone/types';
 import type { RollResult } from './RollToast';
 import { AbilitiesCardTab } from './AbilitiesCardTab';
+import { StatBreakdownModal, type StatBreakdownLine } from './StatBreakdownModal';
 
 const ABILITY_KEYS: (keyof Dnd5eAbilityScores)[] = [
   'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma',
@@ -202,12 +203,30 @@ export function CombatTab({
   // even when only one option exists (keeps the affordance consistent).
   const [addAttacksOpen, setAddAttacksOpen] = useState(false);
   const [addActionsOpen, setAddActionsOpen] = useState(false);
+  // Mobile INIT card breakdown state. Desktop INIT lives on the
+  // sidebar StatCell and is handled at the CharacterSheet level.
+  const [initBreakdownOpen, setInitBreakdownOpen] = useState(false);
+  // Per-weapon roll breakdown state — opens on tapping a Hit or
+  // Damage button so the player sees the formula before committing.
+  const [weaponBreakdown, setWeaponBreakdown] = useState<
+    | { kind: 'hit' | 'damage'; weapon: Dnd5eEquipmentItem }
+    | null
+  >(null);
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
   // Player-pinned equipment surfaces in its own quick-access section.
   // Independent of the equipped/attuned filter so consumables (potions,
   // scrolls), thrown weapons, and ad-hoc utility items can sit here
   // without being "worn".
   const pinnedItems = equipment.filter((e) => e.pinnedToCombat);
+  // Sum of "+N to all saving throws" effects from currently-active
+  // magic items (Cloak of Protection, Ring of Protection, etc.).
+  // Mirrors the AC aggregator's gating: the item must be equipped,
+  // and if it requires attunement, must also be attuned.
+  const extraSaveBonus = equipment.reduce((sum, e) => {
+    if (!e.equipped) return sum;
+    if (e.requiresAttunement && !e.attuned) return sum;
+    return sum + (e.miscSaveBonus ?? 0);
+  }, 0);
 
   const isSpellcaster = !!stats.spellcastingAbility;
   const spellSlots = resources.spellSlots ?? (isSpellcaster ? DEFAULT_SLOTS : null);
@@ -249,16 +268,47 @@ export function CombatTab({
       <>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.deskScrollContent} showsVerticalScrollIndicator={false}>
 
-          <SectionLabel accent>SAVING THROWS</SectionLabel>
-          <SavingThrowsStrip
-            scores={scores}
-            stats={stats}
-            prof={prof}
-            manualMode={manualMode}
-            onToggleSaveProficiency={onToggleSaveProficiency}
-            onRoll={onRoll}
-            isDesktop
-          />
+          {/* Movement + Saving Throws row — mirrors the mobile layout
+              (INIT/SPD stacked on the left, 3×2 saves grid on the
+              right) so the section reads identically across breakpoints.
+              The wider desktop pane just gives both columns more
+              breathing room; the proportions stay the same. */}
+          <View style={s.savesAndMoveRow}>
+            <View style={s.moveColDesktop}>
+              <SectionLabel>MOVEMENT</SectionLabel>
+              <View style={s.moveCardsStack}>
+                <TouchableOpacity
+                  style={s.moveStatCard}
+                  onPress={() => setInitBreakdownOpen(true)}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show initiative breakdown"
+                >
+                  <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.hpWarning} />
+                  <Text style={s.moveStatLabel}>INIT</Text>
+                  <Text style={s.moveStatValue}>
+                    {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
+                  </Text>
+                </TouchableOpacity>
+                <View style={s.moveStatCard}>
+                  <MaterialCommunityIcons name="run-fast" size={12} color={colors.hpWarning} />
+                  <Text style={s.moveStatLabel}>SPD</Text>
+                  <Text style={s.moveStatValue}>{stats.speed} ft</Text>
+                </View>
+              </View>
+            </View>
+            <View style={s.savesColDesktop}>
+              <SectionLabel accent>SAVING THROWS</SectionLabel>
+              <SavingThrowsStrip
+                scores={scores}
+                stats={stats}
+                prof={prof}
+                extraBonus={extraSaveBonus}
+                manualMode={manualMode}
+                onToggleSaveProficiency={onToggleSaveProficiency}
+                onRoll={onRoll}
+              />
+            </View>
+          </View>
 
           {/* Attacks */}
           <SectionLabel
@@ -281,7 +331,7 @@ export function CombatTab({
                     key={w.id}
                     item={w}
                     atkBonus={getAttackBonus(w)}
-                    onRoll={onRoll}
+                    onOpenBreakdown={(kind, item) => setWeaponBreakdown({ kind, weapon: item })}
                     onOpenDetail={onOpenEquipmentDetail}
                   />
                 ))}
@@ -300,7 +350,7 @@ export function CombatTab({
                   <PinnedCard
                     key={item.id}
                     item={item}
-                    onRoll={onRoll}
+                    onOpenBreakdown={(kind, w) => setWeaponBreakdown({ kind, weapon: w })}
                     onOpenDetail={onOpenEquipmentDetail}
                   />
                 ))}
@@ -387,38 +437,46 @@ export function CombatTab({
     <>
     <ScrollView contentContainerStyle={s.mobileContainer} showsVerticalScrollIndicator={false}>
 
-      {/* Saves block + movement stats laid out as 2 columns sharing
-          one row's vertical space. Left column owns the SAVING THROWS
-          header + 3×2 grid; right column has INIT (top) and SPD
-          (bottom) stacked. The section divider line on the left
-          naturally stops at the column edge instead of running the
-          full width — visually pairs the heading with its own grid. */}
+      {/* Movement stats + saves block laid out as 2 columns sharing
+          one row's vertical space. Left column has INIT (top) and SPD
+          (bottom) stacked; right column owns the SAVING THROWS header
+          + 3×2 grid. Each section divider line stops at its column
+          edge instead of running the full width — visually pairs each
+          heading with its own content. */}
       <View style={s.savesAndMoveRow}>
+        <View style={s.moveCol}>
+          <SectionLabel>MOVEMENT</SectionLabel>
+          <View style={s.moveCardsStack}>
+            <TouchableOpacity
+              style={s.moveStatCard}
+              onPress={() => setInitBreakdownOpen(true)}
+              activeOpacity={0.7}
+              accessibilityLabel="Show initiative breakdown"
+            >
+              <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.hpWarning} />
+              <Text style={s.moveStatLabel}>INIT</Text>
+              <Text style={s.moveStatValue}>
+                {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
+              </Text>
+            </TouchableOpacity>
+            <View style={s.moveStatCard}>
+              <MaterialCommunityIcons name="run-fast" size={12} color={colors.hpWarning} />
+              <Text style={s.moveStatLabel}>SPD</Text>
+              <Text style={s.moveStatValue}>{stats.speed} ft</Text>
+            </View>
+          </View>
+        </View>
         <View style={s.savesCol}>
           <SectionLabel>SAVING THROWS</SectionLabel>
           <SavingThrowsStrip
             scores={scores}
             stats={stats}
             prof={prof}
+            extraBonus={extraSaveBonus}
             manualMode={manualMode}
             onToggleSaveProficiency={onToggleSaveProficiency}
             onRoll={onRoll}
           />
-        </View>
-        <View style={s.moveCol}>
-          <SectionLabel>MOVEMENT</SectionLabel>
-          <View style={s.moveStatCard}>
-            <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.outline} />
-            <Text style={s.moveStatLabel}>INIT</Text>
-            <Text style={s.moveStatValue}>
-              {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
-            </Text>
-          </View>
-          <View style={s.moveStatCard}>
-            <MaterialCommunityIcons name="run-fast" size={12} color={colors.outline} />
-            <Text style={s.moveStatLabel}>SPD</Text>
-            <Text style={s.moveStatValue}>{stats.speed} ft</Text>
-          </View>
         </View>
       </View>
 
@@ -445,7 +503,7 @@ export function CombatTab({
                 key={w.id}
                 item={w}
                 atkBonus={getAttackBonus(w)}
-                onRoll={onRoll}
+                onOpenBreakdown={(kind, item) => setWeaponBreakdown({ kind, weapon: item })}
                 onOpenDetail={onOpenEquipmentDetail}
               />
             ))}
@@ -463,7 +521,7 @@ export function CombatTab({
               <PinnedCard
                 key={item.id}
                 item={item}
-                onRoll={onRoll}
+                onOpenBreakdown={(kind, w) => setWeaponBreakdown({ kind, weapon: w })}
                 onOpenDetail={onOpenEquipmentDetail}
               />
             ))}
@@ -558,6 +616,92 @@ export function CombatTab({
             onClose={() => setAddActionsOpen(false)}
           />
         ) : null}
+        {(() => {
+          // Initiative breakdown — DEX mod (or manual override).
+          if (!initBreakdownOpen) return null;
+          const dex = abilityMod(scores.dexterity);
+          const override = manualMode && stats.initiativeOverride != null;
+          const total = override ? stats.initiativeOverride! : dex;
+          const lines: StatBreakdownLine[] = override
+            ? [{ label: 'Manual override', value: fmtMod(stats.initiativeOverride!) }]
+            : [{ label: 'DEX mod', value: fmtMod(dex) }];
+          return (
+            <StatBreakdownModal
+              visible
+              title="Initiative"
+              subtitle="Combat turn order · d20 + DEX"
+              total={fmtMod(total)}
+              lines={lines}
+              rollLabel="Roll initiative"
+              onRoll={() => {
+                const r = Math.floor(Math.random() * 20) + 1;
+                onRoll({
+                  label: 'Initiative',
+                  rolls: [r], bonus: total,
+                  total: r + total, crit: r === 20, fumble: r === 1,
+                });
+              }}
+              onClose={() => setInitBreakdownOpen(false)}
+            />
+          );
+        })()}
+        {(() => {
+          // Weapon hit / damage breakdown. Mirrors getAttackBonus's
+          // logic so the per-source lines match the computed bonus
+          // shown on the button.
+          if (!weaponBreakdown) return null;
+          const { kind, weapon } = weaponBreakdown;
+          const close = () => setWeaponBreakdown(null);
+
+          if (kind === 'hit') {
+            const lines: StatBreakdownLine[] = [];
+            let total: number;
+            if (weapon.attackBonus !== undefined) {
+              total = weapon.attackBonus;
+              lines.push({ label: 'Manual attack bonus', value: fmtMod(total) });
+            } else {
+              let ability: 'strength' | 'dexterity' = 'strength';
+              if (weapon.attackAbility === 'dexterity') ability = 'dexterity';
+              else if (weapon.attackAbility === 'finesse') {
+                ability = abilityMod(scores.dexterity) > abilityMod(scores.strength) ? 'dexterity' : 'strength';
+              }
+              const m = abilityMod(scores[ability]);
+              total = m + prof;
+              lines.push({ label: `${ability === 'dexterity' ? 'DEX' : 'STR'} mod${weapon.attackAbility === 'finesse' ? ' (finesse)' : ''}`, value: fmtMod(m) });
+              lines.push({ label: 'Proficiency', value: fmtMod(prof) });
+            }
+            return (
+              <StatBreakdownModal
+                visible
+                title={`${weapon.name} — Attack`}
+                subtitle="d20 + total vs. AC"
+                total={fmtMod(total)}
+                lines={lines}
+                rollLabel="Roll attack"
+                onRoll={() => rollD20(`${weapon.name} attack`, total, onRoll)}
+                onClose={close}
+              />
+            );
+          }
+
+          // Damage — the formula itself is the "total"; the Roll
+          // button rolls the dice + bonus and reports via onRoll.
+          return (
+            <StatBreakdownModal
+              visible
+              title={`${weapon.name} — Damage`}
+              subtitle="Roll on hit"
+              total={weapon.damage ?? '—'}
+              lines={[
+                { label: 'Damage formula', value: weapon.damage ?? '—' },
+              ]}
+              description="Dice are rolled and added to the static bonus encoded in the formula (e.g. 1d8+3)."
+              rollLabel="Roll damage"
+              onRoll={() => weapon.damage && rollDamage(`${weapon.name} damage`, weapon.damage, onRoll)}
+              onClose={close}
+            />
+          );
+        })()}
       </>
     );
   }
@@ -777,11 +921,14 @@ function getWeaponIcon(item: Dnd5eEquipmentItem): React.ComponentProps<typeof Ma
  * handler is wired (same affordance the Gear tab uses).
  */
 function WeaponCard({
-  item, atkBonus, onRoll, onOpenDetail,
+  item, atkBonus, onOpenBreakdown, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
   atkBonus: number;
-  onRoll: (r: RollResult) => void;
+  /** Open the breakdown modal for either the hit or damage tap. The
+   *  parent owns roll dispatch + modal state so the breakdown math
+   *  has access to scores/prof/etc. */
+  onOpenBreakdown: (kind: 'hit' | 'damage', item: Dnd5eEquipmentItem) => void;
   onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
 }) {
   const iconName = getWeaponIcon(item);
@@ -800,7 +947,7 @@ function WeaponCard({
           <View style={s.weaponHitCol}>
             <TouchableOpacity
               style={s.atkBtnHit}
-              onPress={(e) => { e.stopPropagation?.(); rollD20(`${item.name} attack`, atkBonus, onRoll); }}
+              onPress={(e) => { e.stopPropagation?.(); onOpenBreakdown('hit', item); }}
               activeOpacity={0.7}
             >
               <Text style={s.atkBtnHitText}>{fmtMod(atkBonus)} Hit</Text>
@@ -810,7 +957,7 @@ function WeaponCard({
             {item.damage ? (
               <TouchableOpacity
                 style={s.atkBtnDmg}
-                onPress={(e) => { e.stopPropagation?.(); rollDamage(`${item.name} damage`, item.damage!, onRoll); }}
+                onPress={(e) => { e.stopPropagation?.(); onOpenBreakdown('damage', item); }}
                 activeOpacity={0.7}
               >
                 <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
@@ -832,10 +979,13 @@ function WeaponCard({
  * line covering damage / notes / slot+equipped/attuned status.
  */
 function PinnedCard({
-  item, onRoll, onOpenDetail,
+  item, onOpenBreakdown, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
-  onRoll: (r: RollResult) => void;
+  /** Open the damage breakdown when the pinned weapon's damage chip
+   *  is tapped. Parent owns the modal so the math is shared with
+   *  the Attacks section. */
+  onOpenBreakdown: (kind: 'hit' | 'damage', item: Dnd5eEquipmentItem) => void;
   onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
 }) {
   const subText = item.notes
@@ -858,7 +1008,7 @@ function PinnedCard({
           {item.damage && item.slot === 'weapon' ? (
             <TouchableOpacity
               style={s.atkBtnDmg}
-              onPress={(e) => { e.stopPropagation?.(); rollDamage(`${item.name} damage`, item.damage!, onRoll); }}
+              onPress={(e) => { e.stopPropagation?.(); onOpenBreakdown('damage', item); }}
               activeOpacity={0.7}
             >
               <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
@@ -881,12 +1031,15 @@ function PinnedCard({
  * proficiency for that ability (replaces the old left-sidebar editor).
  */
 function SavingThrowsStrip({
-  scores, stats, prof, manualMode, onToggleSaveProficiency, onRoll, isDesktop,
+  scores, stats, prof, extraBonus, manualMode, onToggleSaveProficiency, onRoll, isDesktop,
   extras,
 }: {
   scores: Dnd5eAbilityScores;
   stats: Dnd5eStats;
   prof: number;
+  /** Aggregate "+N to all saving throws" bonus from active magic
+   *  items. Added on top of ability mod + proficiency. */
+  extraBonus?: number;
   manualMode?: boolean;
   onToggleSaveProficiency?: (ability: keyof Dnd5eAbilityScores) => void;
   onRoll: (r: RollResult) => void;
@@ -897,16 +1050,30 @@ function SavingThrowsStrip({
    *  in the left sidebar separately. */
   extras?: Array<{ label: string; value: string }>;
 }) {
+  // Outside of Manual Mode, tapping a save opens the breakdown modal
+  // (Roll is one tap deeper). In Manual Mode, tap still toggles
+  // proficiency directly — that's the editing affordance.
+  const [openSave, setOpenSave] = useState<keyof Dnd5eAbilityScores | null>(null);
+  const openLines: StatBreakdownLine[] = openSave
+    ? [
+        { label: `Ability mod (${ABILITY_SHORT[openSave]})`, value: fmtMod(abilityMod(scores[openSave])) },
+        { label: 'Proficiency', value: stats.savingThrowProficiencies.includes(openSave) ? fmtMod(prof) : fmtMod(0) },
+        ...((extraBonus ?? 0) !== 0 ? [{ label: 'Magic items', value: fmtMod(extraBonus ?? 0) } as StatBreakdownLine] : []),
+      ]
+    : [];
+  const openBonus = openSave
+    ? abilityMod(scores[openSave]) + (stats.savingThrowProficiencies.includes(openSave) ? prof : 0) + (extraBonus ?? 0)
+    : 0;
   return (
     <View style={isDesktop ? s.savesStripDesktop : s.savesGrid}>
       {ABILITY_KEYS.map((abi) => {
         const isProf = stats.savingThrowProficiencies.includes(abi);
-        const bonus = abilityMod(scores[abi]) + (isProf ? prof : 0);
+        const bonus = abilityMod(scores[abi]) + (isProf ? prof : 0) + (extraBonus ?? 0);
         const handlePress = () => {
           if (manualMode && onToggleSaveProficiency) {
             onToggleSaveProficiency(abi);
           } else {
-            rollD20(`${ABILITY_SHORT[abi]} save`, bonus, onRoll);
+            setOpenSave(abi);
           }
         };
         return (
@@ -926,6 +1093,16 @@ function SavingThrowsStrip({
           </TouchableOpacity>
         );
       })}
+      <StatBreakdownModal
+        visible={openSave !== null}
+        title={openSave ? `${ABILITY_SHORT[openSave]} Save` : ''}
+        subtitle="Saving throw · d20 + total"
+        total={fmtMod(openBonus)}
+        lines={openLines}
+        rollLabel="Roll save"
+        onRoll={openSave ? () => rollD20(`${ABILITY_SHORT[openSave]} save`, openBonus, onRoll) : undefined}
+        onClose={() => setOpenSave(null)}
+      />
       {!isDesktop && extras?.map((extra) => (
         <View key={extra.label} style={s.saveRow}>
           <Text style={s.saveAbility}>{extra.label}</Text>
@@ -1352,7 +1529,7 @@ const s = StyleSheet.create({
     // leaves a hair of margin so cells don't wrap to 2-per-row when
     // the savesCol gets squeezed by the right column.
     width: '31%', flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 6, paddingVertical: 7,
+    paddingHorizontal: 5, paddingVertical: 5,
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
@@ -1362,14 +1539,28 @@ const s = StyleSheet.create({
    *  (bottom) stacked. ~65/35 split — saves block gets enough width
    *  to land 3 cells per row without wrapping to 2; movement column
    *  trims to fit. Visible 8px gap between the two columns. */
-  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
-  savesCol: { flex: 65, minWidth: 0 },
-  moveCol: { flex: 35, minWidth: 0, gap: 10 },
+  savesAndMoveRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  savesCol: { flex: 72, minWidth: 0 },
+  moveCol: { flex: 28, minWidth: 0 },
+  /** Desktop variants — Movement gets a fixed width that fits two
+   *  compact INIT/SPD cards comfortably; Saves takes the rest. Fixed
+   *  width (instead of flex) so the Movement column doesn't balloon
+   *  when the tab pane is wide. */
+  moveColDesktop: { width: 160 },
+  savesColDesktop: { flex: 1, minWidth: 0 },
+  /** Wraps the two movement cards so the inter-card gap doesn't also
+   *  push the first card down from the section label — flex:1 lets the
+   *  stack absorb the remaining column height (matched to the saves
+   *  grid via alignItems:stretch on the outer row), and the cards split
+   *  it evenly. Without the wrapper, a gap on moveCol would apply
+   *  between SectionLabel→card1 too, offsetting the right column 10px
+   *  below the saves grid's top edge. */
+  moveCardsStack: { flex: 1, gap: 6 },
   /** Movement stat card — single line: icon · label (flex 1) · value
-   *  right-aligned. flex: 1 makes the two cards split the available
-   *  column height evenly; combined with alignItems:stretch on the
-   *  outer row, the bottom of the second card aligns to the bottom
-   *  of the saves grid next door. */
+   *  right-aligned. flex: 1 makes the two cards split the wrapper
+   *  height evenly; combined with alignItems:stretch on the outer row,
+   *  the bottom of the second card aligns to the bottom of the saves
+   *  grid next door. */
   moveStatCard: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 8, paddingVertical: 4,

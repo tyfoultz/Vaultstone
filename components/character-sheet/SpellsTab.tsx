@@ -4,8 +4,10 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, radius, spacing, MarkdownText } from '@vaultstone/ui';
+import { colors, fonts, radius, spacing, MarkdownText, useBreakpoint } from '@vaultstone/ui';
+import { useSpellsTabStore, SPELL_COLUMN_LABEL, type SpellColumnKey } from '@vaultstone/store';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5ePreparedSpell } from '@vaultstone/types';
+import { StatBreakdownModal, type StatBreakdownLine } from './StatBreakdownModal';
 
 function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
 
@@ -79,6 +81,11 @@ interface Props {
   scores: Dnd5eAbilityScores;
   prof: number;
   isOwner: boolean;
+  /** Mobile / tablet density — drops RANGE + TIME columns from the
+   *  spell table and reveals the column-picker dropdown on SCHOOL.
+   *  Driven by the parent's isDesktop threshold; falls back to local
+   *  useBreakpoint when omitted. */
+  compact?: boolean;
   /** Manual mode reveals limit-edit affordances + applies any
    *  cantripsKnown/preparedSpells overrides on the stats record. */
   manualMode?: boolean;
@@ -136,7 +143,7 @@ interface Props {
 }
 
 export function SpellsTab({
-  stats, resources, scores, prof, isOwner, manualMode, onEditField,
+  stats, resources, scores, prof, isOwner, compact, manualMode, onEditField,
   effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
   onOpenManage, spellbook, onSetPrepStatus, onSaveSpellNotes, spellcastingExplainers,
 }: Props) {
@@ -247,6 +254,21 @@ export function SpellsTab({
   const preparedLimit = manualMode && stats.preparedSpellsOverride != null
     ? stats.preparedSpellsOverride
     : computedPreparedLimit;
+  // Breakdown modal state for spell attack + save DC. Both are
+  // info-only (no Roll button) — spell rolls happen at the spell
+  // level, not the header. Manual Mode still routes to the editor.
+  const [spellBreakdown, setSpellBreakdown] = useState<'attack' | 'dc' | null>(null);
+  // Mobile gets the compact spell table — Range + Time columns drop
+  // out so the Name column has room to breathe (otherwise the name
+  // truncates to a single letter on phone widths). The user picks
+  // which single attribute renders in the second column via the
+  // header dropdown; the choice persists per device. Parent can
+  // force compact via the `compact` prop (tablet portrait case).
+  const bp = useBreakpoint();
+  const isMobile = compact ?? bp.isMobile;
+  const column2 = useSpellsTabStore((st) => st.column2);
+  const setColumn2 = useSpellsTabStore((st) => st.setColumn2);
+  const [column2PickerOpen, setColumn2PickerOpen] = useState(false);
 
   return (
     <>
@@ -257,11 +279,10 @@ export function SpellsTab({
         <View style={s.statsRow}>
           <TouchableOpacity
             style={s.statBlock}
-            disabled={!manualMode || !onEditField}
             onPress={manualMode && onEditField
               ? () => onEditField('spellAttack', spellAttack ?? 0)
-              : undefined}
-            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+              : () => setSpellBreakdown('attack')}
+            activeOpacity={0.7}
           >
             <Text style={s.statValue}>{spellAttack !== null ? fmtMod(spellAttack) : '—'}</Text>
             <Text style={s.statLabel}>SPELL ATTACK</Text>
@@ -269,11 +290,10 @@ export function SpellsTab({
           <View style={s.statDivider} />
           <TouchableOpacity
             style={s.statBlock}
-            disabled={!manualMode || !onEditField}
             onPress={manualMode && onEditField
               ? () => onEditField('spellSaveDc', spellDC ?? 0)
-              : undefined}
-            activeOpacity={manualMode && onEditField ? 0.7 : 1}
+              : () => setSpellBreakdown('dc')}
+            activeOpacity={0.7}
           >
             <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
             <Text style={s.statLabel}>SAVE DC</Text>
@@ -290,8 +310,8 @@ export function SpellsTab({
                 onPress={onOpenManage}
                 activeOpacity={0.7}
               >
-                <MaterialCommunityIcons name="bookshelf" size={22} color={colors.primary} />
-                <Text style={s.statActionLabel}>MANAGE SPELLS</Text>
+                <MaterialCommunityIcons name="bookshelf" size={18} color={colors.primary} />
+                <Text style={s.statActionLabel}>MANAGE</Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -303,8 +323,8 @@ export function SpellsTab({
                 onPress={() => setExplainerOpen(true)}
                 activeOpacity={0.7}
               >
-                <MaterialCommunityIcons name="book-open-variant" size={22} color={colors.primary} />
-                <Text style={s.statActionLabel}>SPELLCASTING</Text>
+                <MaterialCommunityIcons name="book-open-variant" size={18} color={colors.primary} />
+                <Text style={s.statActionLabel}>RULES</Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -388,7 +408,11 @@ export function SpellsTab({
             )}
           </View>
           <LevelGradient />
-          <SpellTableHeader />
+          <SpellTableHeader
+            compact={isMobile}
+            column2={column2}
+            onPressColumn2={() => setColumn2PickerOpen(true)}
+          />
           {cantrips.map((spell) => (
             <SpellRow
               key={spell.id}
@@ -396,6 +420,8 @@ export function SpellsTab({
               prepared={true}
               alwaysPrepared={false}
               canToggle={false}
+              compact={isMobile}
+              column2={column2}
               onSaveNotes={isOwner && onSaveSpellNotes ? (notes) => onSaveSpellNotes(spell, notes) : undefined}
             />
           ))}
@@ -437,7 +463,13 @@ export function SpellsTab({
             )}
           </View>
           <LevelGradient />
-          {spells.length > 0 ? <SpellTableHeader /> : null}
+          {spells.length > 0 ? (
+            <SpellTableHeader
+              compact={isMobile}
+              column2={column2}
+              onPressColumn2={() => setColumn2PickerOpen(true)}
+            />
+          ) : null}
           {spells.map((spell) => {
             const prep = isPrepared(spell);
             const always = isAlwaysPrepared(spell);
@@ -450,6 +482,8 @@ export function SpellsTab({
                 prepared={prep}
                 alwaysPrepared={always}
                 canToggle={isOwner && !!onSetPrepStatus}
+                compact={isMobile}
+                column2={column2}
                 onSetPrepStatus={onSetPrepStatus ? (status) => onSetPrepStatus(spell, status) : undefined}
                 togglesBlocked={!prep && atLimit}
                 onSaveNotes={isOwner && onSaveSpellNotes ? (notes) => onSaveSpellNotes(spell, notes) : undefined}
@@ -548,6 +582,87 @@ export function SpellsTab({
         </Pressable>
       </Modal>
     ) : null}
+
+    {(() => {
+      // Spell attack / save DC breakdown — both reuse the same
+      // ability mod + prof spine; DC adds the +8 passive base.
+      if (!spellBreakdown || spellMod === null || !spellAbility) return null;
+      const close = () => setSpellBreakdown(null);
+      const abilityShort = spellAbility.slice(0, 3).toUpperCase();
+      if (spellBreakdown === 'attack') {
+        const override = manualMode && stats.spellAttackOverride != null;
+        const total = override ? stats.spellAttackOverride! : prof + spellMod;
+        const lines: StatBreakdownLine[] = override
+          ? [{ label: 'Manual override', value: fmtMod(total) }]
+          : [
+              { label: `${abilityShort} mod`, value: fmtMod(spellMod) },
+              { label: 'Proficiency', value: fmtMod(prof) },
+            ];
+        return (
+          <StatBreakdownModal
+            visible
+            title="Spell Attack"
+            subtitle={`${spellAbility} caster · d20 + total vs. AC`}
+            total={fmtMod(total)}
+            lines={lines}
+            onClose={close}
+          />
+        );
+      }
+      const override = manualMode && stats.spellSaveDcOverride != null;
+      const total = override ? stats.spellSaveDcOverride! : 8 + prof + spellMod;
+      const lines: StatBreakdownLine[] = override
+        ? [{ label: 'Manual override', value: String(total) }]
+        : [
+            { label: 'Save base', value: '8' },
+            { label: `${abilityShort} mod`, value: fmtMod(spellMod) },
+            { label: 'Proficiency', value: fmtMod(prof) },
+          ];
+      return (
+        <StatBreakdownModal
+          visible
+          title="Spell Save DC"
+          subtitle={`${spellAbility} caster · target rolls vs. this`}
+          total={String(total)}
+          lines={lines}
+          onClose={close}
+        />
+      );
+    })()}
+
+    {/* Mobile column-picker — replaces the second column's content
+        across every spell level header + row. Selection persists per
+        device via the useSpellsTabStore. */}
+    <Modal
+      visible={column2PickerOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setColumn2PickerOpen(false)}
+    >
+      <Pressable style={s.column2Backdrop} onPress={() => setColumn2PickerOpen(false)}>
+        <Pressable style={s.column2Card} onPress={() => {}}>
+          <Text style={s.column2Title}>Show in 2nd column</Text>
+          <View style={{ gap: 4 }}>
+            {(['school', 'range', 'time', 'components', 'duration'] as SpellColumnKey[]).map((key) => {
+              const active = column2 === key;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[s.column2Row, active && s.column2RowActive]}
+                  onPress={() => { setColumn2(key); setColumn2PickerOpen(false); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.column2RowText, active && s.column2RowTextActive]}>{SPELL_COLUMN_LABEL[key]}</Text>
+                  {active ? (
+                    <MaterialCommunityIcons name="check" size={14} color={colors.primary} />
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
     </>
   );
 }
@@ -568,7 +683,16 @@ function ordinal(n: number): string {
  * below. 10px left padding accounts for the 2px school accent bar plus
  * 8px body padding on each card.
  */
-function SpellTableHeader() {
+function SpellTableHeader({
+  compact, column2, onPressColumn2,
+}: {
+  compact?: boolean;
+  /** Mobile: which attribute the second column displays. Ignored on
+   *  desktop (which always shows School + Range + Time). */
+  column2?: SpellColumnKey;
+  /** Mobile: tap handler for the column-picker dropdown chip. */
+  onPressColumn2?: () => void;
+}) {
   return (
     <View style={s.spellHeaderRow}>
       {/* Empty cell that mirrors the row's icon slot so NAME header
@@ -576,9 +700,23 @@ function SpellTableHeader() {
        *  leading glyphs the row has. */}
       <View style={s.spellIconCol} />
       <Text style={[s.spellHeaderCell, { flex: 1 }]}>NAME</Text>
-      <View style={s.spellSchoolCol}><Text style={s.spellHeaderCell}>SCHOOL</Text></View>
-      <View style={s.spellRangeCol}><Text style={s.spellHeaderCell}>RANGE</Text></View>
-      <View style={s.spellTimeCol}><Text style={s.spellHeaderCell}>TIME</Text></View>
+      {compact && column2 && onPressColumn2 ? (
+        <TouchableOpacity
+          style={[s.spellSchoolCol, s.spellHeaderPickerRow]}
+          onPress={onPressColumn2}
+          activeOpacity={0.7}
+          accessibilityLabel={`Switch column 2 (currently ${SPELL_COLUMN_LABEL[column2]})`}
+        >
+          <Text style={[s.spellHeaderCell, s.spellHeaderPickerText]} numberOfLines={1}>
+            {SPELL_COLUMN_LABEL[column2].toUpperCase()}
+          </Text>
+          <MaterialCommunityIcons name="chevron-down" size={11} color={colors.primary} />
+        </TouchableOpacity>
+      ) : (
+        <View style={s.spellSchoolCol}><Text style={s.spellHeaderCell}>SCHOOL</Text></View>
+      )}
+      {!compact && <View style={s.spellRangeCol}><Text style={s.spellHeaderCell}>RANGE</Text></View>}
+      {!compact && <View style={s.spellTimeCol}><Text style={s.spellHeaderCell}>TIME</Text></View>}
       <View style={s.spellPrepCol}><Text style={s.spellHeaderCell}>PREP</Text></View>
     </View>
   );
@@ -602,7 +740,7 @@ function LevelGradient() {
 }
 
 function SpellRow({
-  spell, slot, prepared, alwaysPrepared, canToggle, onSetPrepStatus, togglesBlocked, onSaveNotes,
+  spell, slot, prepared, alwaysPrepared, canToggle, onSetPrepStatus, togglesBlocked, onSaveNotes, compact, column2,
 }: {
   spell: Dnd5ePreparedSpell;
   slot?: { max: number; remaining: number } | null;
@@ -612,6 +750,13 @@ function SpellRow({
   onSetPrepStatus?: (status: 'unprepared' | 'prepared' | 'always') => void;
   togglesBlocked?: boolean;
   onSaveNotes?: (notes: string) => void;
+  /** Mobile-density variant — drops the Range + Time columns so the
+   *  Name column has room to render the full spell name. The dropped
+   *  data is still available via the expandable row body below. */
+  compact?: boolean;
+  /** Mobile: which attribute the second column displays — defaults
+   *  to school on desktop / when omitted. */
+  column2?: SpellColumnKey;
 }) {
   const [expanded, setExpanded] = useState(false);
   // Local draft so the user can edit notes without persisting every
@@ -656,6 +801,22 @@ function SpellRow({
           ? 'Capped'
           : 'Prep';
 
+  // Compact mode + non-school choice: render the chosen field value
+  // in the second column instead of the school text. The school text
+  // (and its accent color) stays the default — most players scan
+  // spells by school first.
+  const effectiveCol2: SpellColumnKey = column2 ?? 'school';
+  const isCompactSchool = compact && effectiveCol2 === 'school';
+  const col2Value = effectiveCol2 === 'range'
+    ? (spell.range ?? '—')
+    : effectiveCol2 === 'time'
+      ? (spell.castingTime ?? '—')
+      : effectiveCol2 === 'components'
+        ? (spell.components ?? '—')
+        : effectiveCol2 === 'duration'
+          ? (spell.duration ?? '—')
+          : null; // 'school' branch — handled below
+
   return (
     <View style={[s.spellCard, !prepared && s.spellCardDimmed]}>
       <TouchableOpacity
@@ -675,30 +836,54 @@ function SpellRow({
             <View style={s.spellIconCol}>
               <MaterialCommunityIcons name={iconName} size={13} color={accentColor} />
             </View>
-            <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
-            <View style={s.spellSchoolCol}>
-              <Text
-                style={[s.spellSchoolText, { color: prepared ? accentColor : `${accentColor}99` }]}
-                numberOfLines={1}
-              >
-                {spell.school ? capitalize(spell.school.toLowerCase()) : '—'}
-              </Text>
-              {spell.concentration ? (
+            <View style={s.spellNameWrap}>
+              <Text style={s.spellName} numberOfLines={1}>{spell.name}</Text>
+              {/* On compact, the concentration atom moves out of the
+               *  school column (which can now be any field) and rides
+               *  beside the name so it's always visible. */}
+              {compact && spell.concentration ? (
                 <MaterialCommunityIcons
                   name="atom-variant"
                   size={11}
                   color={colors.primary}
-                  style={{ marginLeft: 3 }}
+                  style={{ marginLeft: 4 }}
                   accessibilityLabel="Requires concentration"
                 />
               ) : null}
             </View>
-            <View style={s.spellRangeCol}>
-              <Text style={s.spellColText} numberOfLines={1}>{spell.range ?? '—'}</Text>
+            <View style={s.spellSchoolCol}>
+              {isCompactSchool || !compact ? (
+                <>
+                  <Text
+                    style={[s.spellSchoolText, { color: prepared ? accentColor : `${accentColor}99` }]}
+                    numberOfLines={1}
+                  >
+                    {spell.school ? capitalize(spell.school.toLowerCase()) : '—'}
+                  </Text>
+                  {!compact && spell.concentration ? (
+                    <MaterialCommunityIcons
+                      name="atom-variant"
+                      size={11}
+                      color={colors.primary}
+                      style={{ marginLeft: 3 }}
+                      accessibilityLabel="Requires concentration"
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <Text style={s.spellColText} numberOfLines={1}>{col2Value}</Text>
+              )}
             </View>
-            <View style={s.spellTimeCol}>
-              <Text style={s.spellColText} numberOfLines={1}>{spell.castingTime ?? '—'}</Text>
-            </View>
+            {!compact && (
+              <View style={s.spellRangeCol}>
+                <Text style={s.spellColText} numberOfLines={1}>{spell.range ?? '—'}</Text>
+              </View>
+            )}
+            {!compact && (
+              <View style={s.spellTimeCol}>
+                <Text style={s.spellColText} numberOfLines={1}>{spell.castingTime ?? '—'}</Text>
+              </View>
+            )}
             <View style={s.spellPrepCol}>
               <TouchableOpacity
                 onPress={handlePrepColPress}
@@ -825,20 +1010,20 @@ const s = StyleSheet.create({
   // Spellcasting stats header
   statsRow: {
     flexDirection: 'row',
-    paddingVertical: 18, paddingHorizontal: 20,
+    paddingVertical: 6, paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
-  statBlock: { flex: 1, alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 22, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
+  statBlock: { flex: 1, alignItems: 'center', gap: 1 },
+  statValue: { fontSize: 18, fontFamily: fonts.headline, fontWeight: '800', color: colors.onSurface },
   statValueAtLimit: { color: colors.primary },
-  statLabel: { fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.5, color: colors.outline },
+  statLabel: { fontSize: 8, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1.2, color: colors.outline },
   /** Action button that sits in the stats strip in place of a stat
    *  block. Same flex sizing so the row stays evenly distributed;
    *  icon + label replace the numeric value + label pairing. */
-  statActionBlock: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 2 },
+  statActionBlock: { flex: 1, alignItems: 'center', gap: 1, paddingVertical: 0 },
   statActionLabel: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 1.5, color: colors.primary, textAlign: 'center' as const,
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.2, color: colors.primary, textAlign: 'center' as const,
   },
 
   // "How spellcasting works" modal — replaces the standalone explainer
@@ -914,7 +1099,7 @@ const s = StyleSheet.create({
   },
 
   // Search row
-  searchRow: { flexDirection: 'row', gap: 8, padding: 12 },
+  searchRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
   searchBox: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.surfaceContainer,
@@ -958,10 +1143,10 @@ const s = StyleSheet.create({
   concEndText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.outline },
 
   // ── Level section + slot pips ───────────────────────────────────────────
-  levelSection: { paddingHorizontal: 12, marginTop: 18 },
+  levelSection: { paddingHorizontal: 12, marginTop: 10 },
   levelHead: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    marginBottom: 10, paddingHorizontal: 4,
+    marginBottom: 6, paddingHorizontal: 4,
   },
   levelTitle: {
     fontFamily: fonts.headline, fontWeight: '600',
@@ -1117,6 +1302,46 @@ const s = StyleSheet.create({
     flex: 1, fontSize: 12, fontFamily: fonts.headline, fontWeight: '600',
     color: colors.onSurface, letterSpacing: -0.1,
   },
+  /** Row-level wrapper for the spell name + inline concentration atom
+   *  (compact only). flex:1 so the wrap claims the same space the
+   *  name alone had; min-width:0 lets the name text truncate cleanly. */
+  spellNameWrap: {
+    flex: 1, minWidth: 0,
+    flexDirection: 'row', alignItems: 'center',
+  },
+  /** Mobile column-picker chip in the spell table header — turns the
+   *  static SCHOOL label into a tappable dropdown the user can flip
+   *  between school / range / time / components / duration. */
+  spellHeaderPickerRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 2,
+  },
+  spellHeaderPickerText: { color: colors.primary },
+  /** Column-picker modal — small centered card with a radio-style
+   *  list of the five attribute options. Selection persists via the
+   *  useSpellsTabStore. */
+  column2Backdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center', padding: 20,
+  },
+  column2Card: {
+    width: '100%', maxWidth: 280,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, padding: 14, gap: 10,
+  },
+  column2Title: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase' as const, color: colors.outline,
+  },
+  column2Row: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 10, paddingVertical: 9,
+    borderRadius: radius.lg,
+  },
+  column2RowActive: { backgroundColor: `${colors.primary}14` },
+  column2RowText: { fontSize: 13, fontFamily: fonts.body, color: colors.onSurfaceVariant },
+  column2RowTextActive: { color: colors.primary, fontWeight: '700' },
   schoolChip: {
     paddingHorizontal: 8, paddingVertical: 3,
     backgroundColor: colors.surfaceContainerHigh,

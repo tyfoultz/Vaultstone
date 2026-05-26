@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, spacing, radius } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius, useBreakpoint } from '@vaultstone/ui';
 import type { Dnd5eStats, Dnd5eResources, Dnd5eEquipmentItem } from '@vaultstone/types';
 
 const COIN_LABELS: Array<{ key: keyof NonNullable<Dnd5eResources['coins']>; label: string; color: string }> = [
@@ -25,6 +25,11 @@ interface Props {
   stats: Dnd5eStats;
   resources: Dnd5eResources;
   isOwner: boolean;
+  /** When true, the tab renders in its compact (mobile / tablet)
+   *  density — drops the TYPE + VALUE columns from the inventory
+   *  table. Driven by the parent's `isDesktop` threshold; falls back
+   *  to a local useBreakpoint() check when omitted. */
+  compact?: boolean;
   strengthScore: number;
   onUpdateCoins?: (coins: NonNullable<Dnd5eResources['coins']>) => void;
   onToggleEquipped?: (id: string) => void;
@@ -60,7 +65,7 @@ const SLOT_LABEL: Record<string, string> = {
 };
 
 export function GearTab({
-  stats, resources, isOwner, strengthScore,
+  stats, resources, isOwner, compact, strengthScore,
   onUpdateCoins, onToggleEquipped, onToggleAttuned, onTogglePinnedToCombat, onUpdateNotes, onUpdateTreasure,
   onOpenItemPicker, onRemoveItem, onUpdateItemValue, onUpdateItemQuantity,
   onOpenEquipmentDetail,
@@ -68,6 +73,32 @@ export function GearTab({
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  // Attunement slot interaction: tapping an empty slot opens a picker
+  // of attunable-but-not-yet-attuned items; tapping an occupied slot
+  // prompts to unattune from that item. Centralizes the attune toggle
+  // on the slots strip so the inventory rows stay focused on edit/use.
+  const [attunePicker, setAttunePicker] = useState<
+    | { kind: 'pick' }
+    | { kind: 'confirm-unattune'; item: Dnd5eEquipmentItem }
+    | null
+  >(null);
+  // Coin edit modal — tapping a coin tile opens a focused numeric
+  // editor instead of an always-mounted inline input. The inline
+  // input rendered a blue selection rim on web and made it easy to
+  // accidentally overwrite a stored amount with a stray keystroke.
+  const [editCoin, setEditCoin] = useState<{ key: keyof NonNullable<Dnd5eResources['coins']>; label: string } | null>(null);
+  // On narrow viewports the TYPE + VALUE columns squeeze the name cell
+  // small enough that long pills ("Versatile (1d8)", "1d8 piercing")
+  // overflow into adjacent columns. Drop those two cols on mobile —
+  // the slot icon already conveys type, and value is empty for the
+  // vast majority of inventory rows.
+  //
+  // The parent (CharacterSheet) drives this via the `compact` prop
+  // when it has its own breakpoint context (the tablet portrait case
+  // wants compact even though useBreakpoint says isMobile=false).
+  // Falls back to a local useBreakpoint when the prop is omitted.
+  const bp = useBreakpoint();
+  const isMobile = compact ?? bp.isMobile;
   const equipment = resources.equipment ?? [];
   const coins = resources.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
 
@@ -150,18 +181,34 @@ export function GearTab({
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={s.colContent} showsVerticalScrollIndicator={false}>
 
-      {/* Attunement Slots */}
+      {/* Attunement Slots — tap a filled slot to unattune, an empty
+          slot to pick from attunable inventory. Owner-only. */}
       <SectionLabel accent>ATTUNEMENT SLOTS</SectionLabel>
       <View style={s.attunementSlots}>
         {Array.from({ length: attunementMax }).map((_, i) => {
           const item = attuned[i];
+          const handlePress = !isOwner || !onToggleAttuned
+            ? undefined
+            : () => {
+                if (item) setAttunePicker({ kind: 'confirm-unattune', item });
+                else setAttunePicker({ kind: 'pick' });
+              };
           return (
-            <View key={i} style={[s.attuneSlot, item ? s.attuneSlotActive : s.attuneSlotEmpty]}>
+            <Pressable
+              key={i}
+              onPress={handlePress}
+              disabled={!handlePress}
+              style={({ pressed }) => [
+                s.attuneSlot,
+                item ? s.attuneSlotActive : s.attuneSlotEmpty,
+                pressed && handlePress ? s.attuneSlotPressed : null,
+              ]}
+            >
               <Text style={s.attuneLbl}>Slot {i + 1}</Text>
               {item
                 ? <Text style={s.attuneName} numberOfLines={1}>{item.name}</Text>
-                : <Text style={s.attuneEmpty}>— empty —</Text>}
-            </View>
+                : <Text style={s.attuneEmpty}>{handlePress ? '+ add' : '— empty —'}</Text>}
+            </Pressable>
           );
         })}
       </View>
@@ -178,9 +225,9 @@ export function GearTab({
           <View style={s.tableHeader}>
             <View style={s.invIconCol} />
             <View style={[s.tableHeaderCell, s.tableCellName]}><Text style={s.tableHeaderText}>NAME</Text></View>
-            <View style={[s.tableHeaderCell, s.tableCellType]}><Text style={s.tableHeaderText}>TYPE</Text></View>
+            {!isMobile && <View style={[s.tableHeaderCell, s.tableCellType]}><Text style={s.tableHeaderText}>TYPE</Text></View>}
             <View style={[s.tableHeaderCell, s.tableCellQty]}><Text style={s.tableHeaderText}>QTY</Text></View>
-            <View style={[s.tableHeaderCell, s.tableCellValue]}><Text style={s.tableHeaderText}>VALUE</Text></View>
+            {!isMobile && <View style={[s.tableHeaderCell, s.tableCellValue]}><Text style={s.tableHeaderText}>VALUE</Text></View>}
             <View style={s.tableCellControls} />
           </View>
           <View style={s.invCardList}>
@@ -189,10 +236,8 @@ export function GearTab({
                 key={item.id}
                 item={item}
                 canEdit={isOwner}
-                onToggle={() => onToggleEquipped?.(item.id)}
-                onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
+                compact={isMobile}
                 onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
-                onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
                 onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
                 onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
                 onOpenDetail={() => onOpenEquipmentDetail?.(item)}
@@ -232,9 +277,9 @@ export function GearTab({
       <View style={s.tableHeader}>
         <View style={s.invIconCol} />
         <SortHeader label="NAME" active={sortKey === 'name'} dir={sortDir} onPress={() => toggleSort('name')} style={s.tableCellName} />
-        <SortHeader label="TYPE" active={sortKey === 'type'} dir={sortDir} onPress={() => toggleSort('type')} style={s.tableCellType} />
+        {!isMobile && <SortHeader label="TYPE" active={sortKey === 'type'} dir={sortDir} onPress={() => toggleSort('type')} style={s.tableCellType} />}
         <SortHeader label="QTY" active={sortKey === 'qty'} dir={sortDir} onPress={() => toggleSort('qty')} style={s.tableCellQty} />
-        <SortHeader label="VALUE" active={sortKey === 'value'} dir={sortDir} onPress={() => toggleSort('value')} style={s.tableCellValue} />
+        {!isMobile && <SortHeader label="VALUE" active={sortKey === 'value'} dir={sortDir} onPress={() => toggleSort('value')} style={s.tableCellValue} />}
         <View style={s.tableCellControls} />
       </View>
 
@@ -249,10 +294,8 @@ export function GearTab({
               key={item.id}
               item={item}
               canEdit={isOwner}
-              onToggle={() => onToggleEquipped?.(item.id)}
-              onToggleAttuned={isOwner && onToggleAttuned ? () => onToggleAttuned(item.id) : undefined}
+              compact={isMobile}
               onTogglePinnedToCombat={isOwner && onTogglePinnedToCombat ? () => onTogglePinnedToCombat(item.id) : undefined}
-              onRemove={isOwner && onRemoveItem ? () => onRemoveItem(item.id) : undefined}
               onUpdateValue={isOwner && onUpdateItemValue ? (v: string) => onUpdateItemValue(item.id, v) : undefined}
               onUpdateQuantity={isOwner && onUpdateItemQuantity ? (q: number) => onUpdateItemQuantity(item.id, q) : undefined}
               onOpenDetail={() => onOpenEquipmentDetail?.(item)}
@@ -271,7 +314,7 @@ export function GearTab({
             value={coins[key]}
             color={color}
             editable={isOwner}
-            onChange={(v) => onUpdateCoins?.({ ...coins, [key]: v })}
+            onPress={isOwner ? () => setEditCoin({ key, label }) : undefined}
           />
         ))}
       </View>
@@ -311,6 +354,33 @@ export function GearTab({
       {/* EquipmentDetailModal is now rendered at the CharacterSheet
           level so the Combat tab (and any future surface) can trigger
           the same modal via `onOpenEquipmentDetail`. */}
+
+      <AttunementPickerModal
+        visible={attunePicker?.kind === 'pick'}
+        candidates={equipment.filter((i) => i.requiresAttunement && !i.attuned)}
+        onPick={(id) => {
+          onToggleAttuned?.(id);
+          setAttunePicker(null);
+        }}
+        onClose={() => setAttunePicker(null)}
+      />
+      <UnattuneConfirmModal
+        item={attunePicker?.kind === 'confirm-unattune' ? attunePicker.item : null}
+        onConfirm={(id) => {
+          onToggleAttuned?.(id);
+          setAttunePicker(null);
+        }}
+        onClose={() => setAttunePicker(null)}
+      />
+      <CoinEditModal
+        open={!!editCoin}
+        label={editCoin?.label ?? ''}
+        currentValue={editCoin ? coins[editCoin.key] : 0}
+        onSave={(v) => {
+          if (editCoin) onUpdateCoins?.({ ...coins, [editCoin.key]: v });
+        }}
+        onClose={() => setEditCoin(null)}
+      />
 
     </ScrollView>
   );
@@ -411,15 +481,15 @@ function getItemIcon(item: Dnd5eEquipmentItem): React.ComponentProps<typeof Mate
 }
 
 function InventoryRow({
-  item, canEdit,
-  onToggle, onToggleAttuned, onTogglePinnedToCombat, onRemove, onUpdateValue, onUpdateQuantity, onOpenDetail,
+  item, canEdit, compact,
+  onTogglePinnedToCombat, onUpdateValue, onUpdateQuantity, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
   canEdit: boolean;
-  onToggle: () => void;
-  onToggleAttuned?: () => void;
+  /** Mobile-density variant — drops the TYPE and VALUE columns so the
+   *  name cell has enough width for its pills to wrap cleanly. */
+  compact?: boolean;
   onTogglePinnedToCombat?: () => void;
-  onRemove?: () => void;
   onUpdateValue?: (v: string) => void;
   onUpdateQuantity?: (q: number) => void;
   onOpenDetail: () => void;
@@ -428,10 +498,10 @@ function InventoryRow({
   const typeLabel = SLOT_LABEL[item.slot] ?? item.slot;
   const iconName = getItemIcon(item);
   const hasPills = armorType || item.slot === 'armor' || item.slot === 'shield'
-    || (item.slot === 'weapon' && item.damage) || item.miscACBonus || item.attuned;
+    || (item.slot === 'weapon' && item.damage) || item.miscACBonus || item.miscSaveBonus || item.attuned;
   return (
     <View style={s.invCard}>
-      <View style={[s.invCardBar, { backgroundColor: colors.primary }]} />
+      <View style={[s.invCardBar, { backgroundColor: item.attuned ? colors.hpWarning : colors.primary }]} />
       <View style={s.invIconCol}>
         <MaterialCommunityIcons name={iconName} size={13} color={colors.primary} />
       </View>
@@ -444,12 +514,13 @@ function InventoryRow({
             {item.slot === 'shield' && <Pill label="Shield" />}
             {item.slot === 'weapon' && item.damage && <Pill label={item.damage} />}
             {item.miscACBonus ? <Pill label={`+${item.miscACBonus} AC`} variant="primary" /> : null}
+            {item.miscSaveBonus ? <Pill label={`+${item.miscSaveBonus} saves`} variant="primary" /> : null}
             {item.attuned && <Pill label="Attuned" variant="primary" />}
           </View>
         ) : null}
       </Pressable>
 
-      <Text style={[s.tableCellType, s.tableCellTypeText]}>{typeLabel}</Text>
+      {!compact && <Text style={[s.tableCellType, s.tableCellTypeText]}>{typeLabel}</Text>}
 
       <View style={s.tableCellQty}>
         <InlineQuantityCell
@@ -459,9 +530,11 @@ function InventoryRow({
         />
       </View>
 
-      <View style={s.tableCellValue}>
-        <InlineValueCell value={item.value ?? ''} editable={canEdit && !!onUpdateValue} onCommit={(v) => onUpdateValue?.(v)} />
-      </View>
+      {!compact && (
+        <View style={s.tableCellValue}>
+          <InlineValueCell value={item.value ?? ''} editable={canEdit && !!onUpdateValue} onCommit={(v) => onUpdateValue?.(v)} />
+        </View>
+      )}
 
       <View style={s.tableCellControls}>
         {canEdit && onTogglePinnedToCombat && (
@@ -471,29 +544,6 @@ function InventoryRow({
               size={15}
               color={item.pinnedToCombat ? colors.primary : colors.outline}
             />
-          </TouchableOpacity>
-        )}
-        {canEdit && item.requiresAttunement && onToggleAttuned && (
-          <TouchableOpacity onPress={onToggleAttuned} hitSlop={6} activeOpacity={0.7}>
-            <MaterialCommunityIcons
-              name={item.attuned ? 'star' : 'star-outline'}
-              size={16}
-              color={item.attuned ? colors.primary : colors.outline}
-            />
-          </TouchableOpacity>
-        )}
-        {canEdit && (
-          <TouchableOpacity onPress={onToggle} hitSlop={6} activeOpacity={0.7}>
-            <MaterialCommunityIcons
-              name={item.equipped ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
-              size={16}
-              color={item.equipped ? colors.primary : colors.outline}
-            />
-          </TouchableOpacity>
-        )}
-        {onRemove && (
-          <TouchableOpacity onPress={onRemove} hitSlop={6} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="close" size={14} color={colors.outline} />
           </TouchableOpacity>
         )}
       </View>
@@ -620,6 +670,8 @@ export function EquipmentDetailModal({
   onClose,
   onUpdateValue,
   onUpdateQuantity,
+  onToggleEquipped,
+  onRemove,
   canEdit,
 }: {
   item: Dnd5eEquipmentItem;
@@ -630,6 +682,11 @@ export function EquipmentDetailModal({
   /** When provided, Quantity renders as an inline editable field
    *  alongside Value. */
   onUpdateQuantity?: (q: number) => void;
+  /** Toggle equipped state. Owner-only — gated by canEdit upstream. */
+  onToggleEquipped?: () => void;
+  /** Trigger the delete flow. The parent owns the confirm dialog and
+   *  is expected to close this modal as part of opening that one. */
+  onRemove?: () => void;
   canEdit: boolean;
 }) {
   const armorType = armorTypeLabel(item);
@@ -648,11 +705,13 @@ export function EquipmentDetailModal({
   }
   if (item.acBonus != null) rows.push({ label: 'Shield bonus', value: `+${item.acBonus}` });
   if (item.miscACBonus != null) rows.push({ label: 'Magic AC bonus', value: `+${item.miscACBonus}` });
+  if (item.miscSaveBonus != null) rows.push({ label: 'Magic save bonus', value: `+${item.miscSaveBonus} to all saves` });
   if (item.requiresAttunement) {
     rows.push({ label: 'Attunement', value: item.attuned ? 'Attuned' : 'Required, not attuned' });
   }
   if (typeof item.weight === 'number') rows.push({ label: 'Weight', value: `${item.weight} lb` });
-  if (item.equipped) rows.push({ label: 'Status', value: 'Equipped' });
+  // Equipped status is now conveyed by the Equip/Unequip action button
+  // at the bottom of the modal, so the meta row is redundant.
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -712,6 +771,120 @@ export function EquipmentDetailModal({
               </View>
             ) : null}
           </ScrollView>
+          {canEdit && (onToggleEquipped || onRemove) ? (
+            <View style={s.detailActions}>
+              {onToggleEquipped ? (
+                <TouchableOpacity
+                  onPress={onToggleEquipped}
+                  style={[s.detailActionBtn, item.equipped ? s.detailActionBtnActive : s.detailActionBtnPrimary]}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name={item.equipped ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                    size={14}
+                    color={item.equipped ? colors.primary : colors.onPrimary}
+                  />
+                  <Text style={item.equipped ? s.detailActionBtnActiveText : s.detailActionBtnPrimaryText}>
+                    {item.equipped ? 'Unequip' : 'Equip'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              {onRemove ? (
+                <TouchableOpacity
+                  onPress={onRemove}
+                  style={[s.detailActionBtn, s.detailActionBtnDestructive]}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={14} color={colors.hpDanger} />
+                  <Text style={s.detailActionBtnDestructiveText}>Delete</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/**
+ * Modal listing inventory items that require attunement but aren't yet
+ * attuned. Tapping an item attunes it and closes. Renders an empty
+ * state when no attunable items exist (so the player knows the slot
+ * is reachable but the inventory has nothing to fill it).
+ */
+function AttunementPickerModal({ visible, candidates, onPick, onClose }: {
+  visible: boolean;
+  candidates: Dnd5eEquipmentItem[];
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.attuneModalBackdrop} onPress={onClose}>
+        <Pressable style={s.attuneModalCard} onPress={() => {}}>
+          <View style={s.attuneModalHeader}>
+            <Text style={s.attuneModalTitle}>Attune to…</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={10} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+            </TouchableOpacity>
+          </View>
+          {candidates.length === 0 ? (
+            <Text style={s.attuneModalEmpty}>
+              No attunable items in your inventory yet. Items in the catalog flagged "Requires Attunement" will show up here.
+            </Text>
+          ) : (
+            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              {candidates.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={s.attuneCandidateRow}
+                  onPress={() => onPick(item.id)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name={getItemIcon(item)} size={14} color={colors.primary} />
+                  <Text style={s.attuneCandidateName} numberOfLines={1}>{item.name}</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={16} color={colors.outline} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/**
+ * Small confirm dialog for unattuning. Triggered by tapping an occupied
+ * attunement slot — keeps the destructive step explicit since attune /
+ * unattune happens during a long rest in fiction.
+ */
+function UnattuneConfirmModal({ item, onConfirm, onClose }: {
+  item: Dnd5eEquipmentItem | null;
+  onConfirm: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={!!item} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.attuneModalBackdrop} onPress={onClose}>
+        <Pressable style={s.attuneModalCard} onPress={() => {}}>
+          <Text style={s.attuneModalTitle}>Unattune?</Text>
+          <Text style={s.attuneConfirmBody}>
+            Release attunement from <Text style={s.attuneConfirmName}>{item?.name}</Text>?
+          </Text>
+          <View style={s.attuneConfirmActions}>
+            <TouchableOpacity onPress={onClose} style={[s.attuneConfirmBtn, s.attuneConfirmCancel]} activeOpacity={0.7}>
+              <Text style={s.attuneConfirmCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => item && onConfirm(item.id)}
+              style={[s.attuneConfirmBtn, s.attuneConfirmDestructive]}
+              activeOpacity={0.7}
+            >
+              <Text style={s.attuneConfirmDestructiveText}>Unattune</Text>
+            </TouchableOpacity>
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
@@ -736,47 +909,89 @@ function Pill({ label, variant }: { label: string; variant?: 'primary' | 'gm' })
   );
 }
 
-function CoinCell({ label, value, color, editable, onChange }: {
+/**
+ * Coin tile — displays the stored amount and (when editable) opens
+ * a focused CoinEditModal on tap. The previous always-mounted inline
+ * TextInput caused a blue web selection rim and made it easy to
+ * accidentally overwrite a value with a stray keystroke, so the edit
+ * flow is now an explicit modal.
+ */
+function CoinCell({ label, value, color, editable, onPress }: {
   label: string; value: number; color: string; editable: boolean;
-  onChange: (v: number) => void;
+  onPress?: () => void;
 }) {
-  // Always-rendered TextInput. The previous tap-to-edit pattern wrapped
-  // the cell in TouchableOpacity and only mounted the TextInput on
-  // `editing=true` — on mobile, the press-then-autoFocus handshake
-  // routinely failed (the keyboard never opened), making it impossible
-  // to edit gold. Keeping the input always mounted lets the user tap
-  // directly into it.
-  const [text, setText] = useState(String(value));
-  useEffect(() => { setText(String(value)); }, [value]);
+  return (
+    <Pressable
+      onPress={editable ? onPress : undefined}
+      disabled={!editable || !onPress}
+      style={({ pressed }) => [
+        s.coinCell,
+        pressed && editable ? s.coinCellPressed : null,
+      ]}
+    >
+      <View style={[s.coinDot, { backgroundColor: color }]} />
+      <Text style={s.coinValue}>{value}</Text>
+      <Text style={s.coinLabel}>{label}</Text>
+    </Pressable>
+  );
+}
 
-  function commit() {
+/**
+ * Modal numeric editor for a single coin denomination. Pre-fills with
+ * the current amount, selects on focus, commits on Save / clears on
+ * Cancel. Empty / invalid input is rejected silently (Save no-ops).
+ */
+function CoinEditModal({ open, label, currentValue, onSave, onClose }: {
+  open: boolean;
+  label: string;
+  currentValue: number;
+  onSave: (v: number) => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState(String(currentValue));
+  // Reset the buffer each time the modal opens for a different denom
+  // so the previous edit doesn't leak in.
+  useEffect(() => { if (open) setText(String(currentValue)); }, [open, currentValue]);
+
+  function handleSave() {
     const parsed = parseInt(text, 10);
     if (!isNaN(parsed) && parsed >= 0) {
-      if (parsed !== value) onChange(parsed);
-    } else {
-      setText(String(value));
+      if (parsed !== currentValue) onSave(parsed);
+      onClose();
     }
   }
 
   return (
-    <View style={s.coinCell}>
-      <View style={[s.coinDot, { backgroundColor: color }]} />
-      {editable ? (
-        <TextInput
-          style={s.coinInput}
-          value={text}
-          onChangeText={setText}
-          onBlur={commit}
-          onSubmitEditing={commit}
-          keyboardType="number-pad"
-          selectTextOnFocus
-          returnKeyType="done"
-        />
-      ) : (
-        <Text style={s.coinValue}>{value}</Text>
-      )}
-      <Text style={s.coinLabel}>{label}</Text>
-    </View>
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.attuneModalBackdrop} onPress={onClose}>
+        <Pressable style={s.attuneModalCard} onPress={() => {}}>
+          <View style={s.attuneModalHeader}>
+            <Text style={s.attuneModalTitle}>Edit {label}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={10} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
+            </TouchableOpacity>
+          </View>
+          <TextInput
+            style={s.coinEditInput}
+            value={text}
+            onChangeText={setText}
+            onSubmitEditing={handleSave}
+            keyboardType="number-pad"
+            selectTextOnFocus
+            autoFocus
+            returnKeyType="done"
+          />
+          <View style={s.attuneConfirmActions}>
+            <TouchableOpacity onPress={onClose} style={[s.attuneConfirmBtn, s.attuneConfirmCancel]} activeOpacity={0.7}>
+              <Text style={s.attuneConfirmCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSave} style={[s.attuneConfirmBtn, s.coinEditSave]} activeOpacity={0.7}>
+              <Text style={s.coinEditSaveText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -863,16 +1078,64 @@ const s = StyleSheet.create({
     flex: 1, borderRadius: 6, padding: 9,
   },
   attuneSlotActive: {
-    backgroundColor: `${colors.primary}18`,
-    borderWidth: 1, borderColor: `${colors.primary}55`,
+    backgroundColor: `${colors.hpWarning}18`,
+    borderWidth: 1, borderColor: `${colors.hpWarning}66`,
   },
   attuneSlotEmpty: {
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1, borderColor: colors.outlineVariant,
   },
+  /** Pressed-state feedback for the interactive slot. */
+  attuneSlotPressed: { opacity: 0.7 },
   attuneLbl: { fontSize: 7, color: colors.outline, letterSpacing: 0.8, textTransform: 'uppercase' },
-  attuneName: { fontSize: 9, fontWeight: '700', color: colors.primary, marginTop: 2 },
+  attuneName: { fontSize: 9, fontWeight: '700', color: colors.hpWarning, marginTop: 2 },
   attuneEmpty: { fontSize: 9, color: colors.outline, marginTop: 2 },
+
+  // Attunement picker / unattune confirm modal
+  attuneModalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center', padding: 20,
+  },
+  attuneModalCard: {
+    width: '100%', maxWidth: 360,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, padding: 14, gap: 10,
+  },
+  attuneModalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  attuneModalTitle: {
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, letterSpacing: 0.3,
+  },
+  attuneModalEmpty: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    lineHeight: 18, fontStyle: 'italic',
+  },
+  attuneCandidateRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 10, paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
+  },
+  attuneCandidateName: {
+    flex: 1, fontSize: 12, fontFamily: fonts.body, fontWeight: '600',
+    color: colors.onSurface,
+  },
+  attuneConfirmBody: {
+    fontSize: 12, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    lineHeight: 18,
+  },
+  attuneConfirmName: { color: colors.onSurface, fontWeight: '700' },
+  attuneConfirmActions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end', marginTop: 4 },
+  attuneConfirmBtn: {
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: radius.lg, borderWidth: 1,
+  },
+  attuneConfirmCancel: { borderColor: colors.outlineVariant, backgroundColor: 'transparent' },
+  attuneConfirmCancelText: { fontSize: 12, fontFamily: fonts.label, fontWeight: '700', color: colors.onSurfaceVariant },
+  attuneConfirmDestructive: { borderColor: `${colors.hpWarning}88`, backgroundColor: `${colors.hpWarning}22` },
+  attuneConfirmDestructiveText: { fontSize: 12, fontFamily: fonts.label, fontWeight: '700', color: colors.hpWarning },
 
   // Card block
   card: {
@@ -927,7 +1190,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 10,
   },
   tableRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
-  tableCellName: { flex: 1, gap: 3 },
+  tableCellName: { flex: 1, minWidth: 0, gap: 3 },
   tableCellNameText: { fontSize: 11, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface },
   tableCellNamePills: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   tableCellType: { width: 72 },
@@ -960,7 +1223,9 @@ const s = StyleSheet.create({
     paddingVertical: 0, minWidth: 80,
   },
   tableCellControls: {
-    width: 110,
+    // Just the pin toggle now — equip/delete moved into the detail
+    // modal — so the cluster only needs room for a single icon.
+    width: 28,
     flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center',
     gap: 8,
   },
@@ -988,15 +1253,30 @@ const s = StyleSheet.create({
     borderRadius: radius.lg, paddingVertical: 8, paddingHorizontal: 2,
     gap: 3,
   },
+  coinCellPressed: { opacity: 0.7 },
   coinDot: { width: 7, height: 7, borderRadius: 4 },
   coinValue: { fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.onSurface },
-  coinInput: {
-    fontSize: 14, fontFamily: fonts.headline, fontWeight: '700', color: colors.primary,
-    textAlign: 'center', minWidth: 30,
-  },
   coinLabel: {
     fontSize: 7, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1, textTransform: 'uppercase', color: colors.outline,
+  },
+  /** Modal numeric editor for a coin denomination. Mirrors the
+   *  attunement confirm chassis (shares backdrop / card / actions). */
+  coinEditInput: {
+    fontSize: 22, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface, textAlign: 'center',
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    paddingVertical: 10, paddingHorizontal: 14,
+  },
+  coinEditSave: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primaryContainer,
+  },
+  coinEditSaveText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onPrimary, letterSpacing: 0.3,
   },
 
   // Carry capacity
@@ -1063,4 +1343,47 @@ const s = StyleSheet.create({
   detailEditableCell: { minWidth: 100, flex: 1 },
   detailBullet: { fontSize: 12, color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 2 },
   detailNotes: { fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 19, marginTop: 4 },
+  /** Footer action bar — sits below the scrolling content so the
+   *  Equip/Unequip + Delete buttons stay anchored to the bottom of
+   *  the modal card and don't scroll off with long descriptions. */
+  detailActions: {
+    flexDirection: 'row', gap: 8, marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  detailActionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: radius.lg, borderWidth: 1,
+  },
+  /** Filled primary — call-to-action style for "Equip" (the unequipped
+   *  → equipped transition is the more common case in a session). */
+  detailActionBtnPrimary: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primaryContainer,
+  },
+  detailActionBtnPrimaryText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onPrimary, letterSpacing: 0.3,
+  },
+  /** Outlined primary — softer "Unequip" state so the active item
+   *  reads as already-engaged rather than the next action. */
+  detailActionBtnActive: {
+    backgroundColor: `${colors.primary}14`,
+    borderColor: `${colors.primary}55`,
+  },
+  detailActionBtnActiveText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.3,
+  },
+  /** Destructive outline for Delete — danger-tinted so accidental
+   *  taps are visually obvious before the confirm dialog appears. */
+  detailActionBtnDestructive: {
+    backgroundColor: `${colors.hpDanger}14`,
+    borderColor: `${colors.hpDanger}66`,
+  },
+  detailActionBtnDestructiveText: {
+    fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.hpDanger, letterSpacing: 0.3,
+  },
 });

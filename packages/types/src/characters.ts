@@ -259,6 +259,14 @@ export interface Dnd5eEquipmentItem {
    * requires attunement, is attuned.
    */
   miscACBonus?: number;
+  /**
+   * Generic bonus to all saving throws from a magical effect (Cloak of
+   * Protection +1/+2/+3, Ring of Protection +1, Stone of Good Luck +1,
+   * etc.). Summed across active items in the save calculation. Applied
+   * when the item is equipped AND, if it requires attunement, is
+   * attuned — same gating as miscACBonus.
+   */
+  miscSaveBonus?: number;
   /** Freeform notes */
   notes?: string;
   /** Player-supplied freeform value, e.g. "15 gp", "priceless". Surfaced

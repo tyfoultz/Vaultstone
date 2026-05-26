@@ -33,6 +33,7 @@ import { LoreTab } from './LoreTab';
 import { FeatPickerModal } from './FeatPickerModal';
 import { SpellPickerModal } from './SpellPickerModal';
 import { ItemPickerModal, itemResultToEquipment } from './ItemPickerModal';
+import { StatBreakdownModal, type StatBreakdownLine } from './StatBreakdownModal';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
@@ -95,19 +96,33 @@ function abilityMod(score: number) { return Math.floor((score - 10) / 2); }
  * label + value, sitting in a small bordered tile so the row mirrors
  * the desktop sidebar's Senses panel at a glance.
  */
-function SenseCell({ icon, label, value }: {
+function SenseCell({ icon, label, value, onPress, profState }: {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   label: string;
   value: number | string;
+  /** When provided, the cell becomes tappable — used for the breakdown
+   *  modal on passive senses. Cells without it stay static (PROF, HD). */
+  onPress?: () => void;
+  /** Proficiency status for the underlying skill — drives the small
+   *  dot alongside the label and the value tint. Mirrors the skills
+   *  tab's untrained/proficient/expertise visual vocabulary so the
+   *  player can read the state at a glance without opening the modal. */
+  profState?: 'none' | 'proficient' | 'expert';
 }) {
+  const Wrapper = onPress ? TouchableOpacity : View;
+  const valueColor = profState === 'expert'
+    ? '#e6a255'
+    : profState === 'proficient'
+      ? colors.primary
+      : colors.onSurface;
   return (
-    <View style={s.heroStatCell}>
+    <Wrapper style={s.heroStatCell} onPress={onPress} activeOpacity={0.7}>
       <View style={s.heroStatCellTop}>
         <MaterialCommunityIcons name={icon} size={11} color={colors.outline} />
         <Text style={s.heroStatCellLabel}>{label}</Text>
       </View>
-      <Text style={s.heroStatCellValue}>{value}</Text>
-    </View>
+      <Text style={[s.heroStatCellValue, { color: valueColor }]}>{value}</Text>
+    </Wrapper>
   );
 }
 function profBonus(level: number) { return Math.floor((level - 1) / 4) + 2; }
@@ -713,7 +728,14 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const authUser = useAuthStore((state) => state.user);
 
   const { width } = useWindowDimensions();
+  // 768+ gets the desktop chassis (left rail + content + activity
+  // log). At 1024+ the content can comfortably split into two tab
+  // panes side-by-side; below that (tablet portrait, iPad) we force
+  // a single content pane so all six tabs sit together — the split
+  // chassis exists but the right pane is suppressed. Below 768
+  // (phones) drops to the stacked mobile layout entirely.
   const isDesktop = width >= 768;
+  const isTablet = width >= 768 && width < 1024;
 
   const [character, setCharacter] = useState<Character | null>(null);
   const [loading, setLoading] = useState(true);
@@ -770,6 +792,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // Lifted from GearTab so the Combat tab (and any future surface)
   // can open the same EquipmentDetailModal without duplicating it.
   const [detailEquipment, setDetailEquipment] = useState<Dnd5eEquipmentItem | null>(null);
+  // Tap-for-breakdown state for the hero / sidebar calculated values.
+  // Holds which surface is open; null when no modal is showing. Init
+  // is rollable; AC / passive senses are info-only.
+  const [openBreakdown, setOpenBreakdown] = useState<'initiative' | 'ac' | 'passive-perception' | null>(null);
   // Cross-tab trigger for the Abilities add flow. Combat's section + buttons
   // (Abilities header + Actions header) set this, AbilitiesCardTab consumes
   // it via a useEffect to open either the Import / Add-custom chooser
@@ -790,13 +816,22 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const [hpQuickInput, setHpQuickInput] = useState('');
   const [scratchpad, setScratchpad] = useState('');
   const [isDmOfLinkedCampaign, setIsDmOfLinkedCampaign] = useState(false);
+  // The DM check is async (Supabase query). The access guard below
+  // must wait for it to resolve before deciding to redirect — without
+  // this gate, a DM opening a player's sheet gets bounced back during
+  // the brief window where isDmOfLinkedCampaign is still its `false`
+  // initial value.
+  const [dmCheckResolved, setDmCheckResolved] = useState(false);
   const [linkedCampaignName, setLinkedCampaignName] = useState<string | null>(null);
   const [portraitUploading, setPortraitUploading] = useState(false);
   const [editLayout, setEditLayout] = useState(false);
   const [cardItems, setCardItems] = useState<CardItem[]>(DEFAULT_CARD_ORDER.map((id) => ({ id })));
   const [activeTab, setActiveTab] = useState<TabId>('combat');
   const [tabLayout, setTabLayout] = useState<TabLayoutState>(DEFAULT_TAB_LAYOUT);
-  const [rightRailCollapsed, setRightRailCollapsed] = useState(false);
+  // Activity log lives inline in the left sidebar now (see the
+  // "Activity Log" section), so the right rail / collapse state is
+  // gone. The log modal (logModal) is still used as a "full view"
+  // expansion from elsewhere on the sheet.
   const [rollResult, setRollResult] = useState<RollResult | null>(null);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [logModal, setLogModal] = useState(false);
@@ -861,6 +896,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   useEffect(() => {
     if (!id || !authUser?.id || !character) return;
     let cancelled = false;
+    setDmCheckResolved(false);
     (async () => {
       // Check two paths: (1) the character's campaign_id directly,
       // (2) the campaign_members linkage via character_id. Path 1
@@ -875,6 +911,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         if (!cancelled && camp?.name) setLinkedCampaignName(camp.name);
         if (!cancelled && camp?.dm_user_id === authUser.id) {
           setIsDmOfLinkedCampaign(true);
+          setDmCheckResolved(true);
           return;
         }
       }
@@ -887,6 +924,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         (row) => (row as { campaigns?: { dm_user_id?: string } }).campaigns?.dm_user_id === authUser.id,
       );
       setIsDmOfLinkedCampaign(isDm);
+      setDmCheckResolved(true);
     })();
     return () => { cancelled = true; };
   }, [id, authUser?.id, character?.campaign_id]);
@@ -1069,10 +1107,17 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     // so re-mounting the sheet (e.g. after the level-up wizard's
     // router.replace) hands back the already-subscribed channel —
     // and adding `.on('postgres_changes', ...)` to a subscribed
-    // channel throws. A unique name per mount sidesteps the cache
-    // entirely, mirroring the world-layout's pattern.
-    const channelName = `character:${id}:${Date.now()}`;
-    const channel = supabase
+    // channel throws. A unique name per mount sidesteps the cache.
+    //
+    // Date.now() alone can collide when the effect's cleanup + re-run
+    // happen in the same millisecond (React StrictMode double-invoke,
+    // split-pane remount races) — append a random suffix so the name
+    // can never alias, and wrap the whole setup in try/catch so a
+    // surprise collision doesn't white-screen the sheet.
+    const channelName = `character:${id}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
       .channel(channelName)
       .on(
         'postgres_changes',
@@ -1103,7 +1148,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         },
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    } catch (err) {
+      // Last-ditch guard: if Supabase still rejects the channel
+      // (cache collision, network race), skip realtime instead of
+      // tearing the whole sheet down to a white screen. The sheet
+      // still loads its initial data fine — the user just won't see
+      // other-viewer mutations live until next refresh.
+      console.warn('[CharacterSheet] realtime subscription failed:', err);
+      channel = null;
+    }
+    return () => { if (channel) supabase.removeChannel(channel); };
   }, [id]);
 
   const stats = character?.base_stats as Dnd5eStats | null;
@@ -1167,6 +1221,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       dexCap: e.dexCap ?? fresh.dexCap,
       acBonus: e.acBonus ?? fresh.acBonus,
       miscACBonus: e.miscACBonus ?? fresh.miscACBonus,
+      miscSaveBonus: e.miscSaveBonus ?? fresh.miscSaveBonus,
       properties: e.properties ?? fresh.properties,
       requiresAttunement: e.requiresAttunement ?? fresh.requiresAttunement,
       weight: e.weight ?? fresh.weight,
@@ -1246,8 +1301,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const computedInitiative = scores ? abilityMod(scores.dexterity) : 0;
   const initiative = manualMode && stats?.initiativeOverride != null ? stats.initiativeOverride : computedInitiative;
   const passivePerception = 10 + skillMod('perception');
-  const passiveInvestigation = 10 + skillMod('investigation');
-  const passiveInsight = 10 + skillMod('insight');
 
   const liveActionFeatures: Dnd5eFeature[] = useMemo(() => {
     if (!stats) return [];
@@ -1344,13 +1397,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // owner and the DM of the linked campaign. If a viewer navigates
   // here without those rights (deep link, refresh from a stale tab),
   // bounce them back to their characters list.
+  //
+  // Gated on `dmCheckResolved` so the guard doesn't fire before the
+  // async DM check finishes. Owners are exempt from waiting because
+  // ownership is decided synchronously from the character row itself.
   const canViewSheet = isOwner || isDmOfLinkedCampaign;
   useEffect(() => {
     if (!character || !authUser) return;
     if (canViewSheet) return;
+    if (!isOwner && !dmCheckResolved) return;
     if (onClose) onClose();
     else router.replace('/(drawer)/characters');
-  }, [character, authUser, canViewSheet, onClose]);
+  }, [character, authUser, canViewSheet, isOwner, dmCheckResolved, onClose]);
 
   // Keys inside resources that the RPC's whitelist accepts. Anything not in
   // this set is owner-only — the DM sheet silently skips writes for them.
@@ -2171,6 +2229,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             scores={scores}
             prof={prof}
             isOwner={isOwner}
+            compact={!isDesktop}
             manualMode={manualMode}
             onEditField={manualMode ? startEditField : undefined}
             effectiveSpellcastingAbility={spellcastingAbilityForHint}
@@ -2231,6 +2290,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onRoll={handleRoll}
             skillCatalog={skillResults}
             isOwner={isOwner}
+            compact={!isDesktop}
             manualMode={manualMode}
             onEditField={manualMode ? startEditField : undefined}
             onUpdateProficiencies={(profs, exp) => {
@@ -2326,6 +2386,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             stats={stats}
             resources={{ ...resources, equipment }}
             isOwner={isOwner}
+            compact={!isDesktop}
             strengthScore={scores.strength}
             onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
             onToggleEquipped={handleToggleEquipped}
@@ -2367,7 +2428,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const portraitContent = portraitUploading
     ? <ActivityIndicator color={colors.primary} size="small" />
     : (character as any).avatar_url
-      ? <Image source={{ uri: (character as any).avatar_url }} style={isDesktop ? s.deskPortraitImg : s.heroPortraitImg} />
+      ? <Image source={{ uri: (character as any).avatar_url }} resizeMode="cover" style={isDesktop ? s.deskPortraitImg : s.heroPortraitImg} />
       : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 32 : 28} color={colors.outline} />;
 
   return (
@@ -2393,13 +2454,58 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             showsVerticalScrollIndicator={false}
           >
 
-            {/* Back + portrait + name */}
-            <View style={s.deskHeader}>
-              <TouchableOpacity onPress={() => handleClose()} style={s.deskBackBtn} hitSlop={8}>
-                <MaterialCommunityIcons name="chevron-left" size={20} color={colors.onSurfaceVariant} />
-                <Text style={s.deskBackLabel}>Characters</Text>
+            {/* Utility bar — mirrors the mobile layout. Home + Campaign
+                chip on the left; Level Up + Settings icons on the
+                right. Activity Log isn't in the bar on desktop because
+                it already has its own collapsible right rail. */}
+            <View style={s.deskUtilityBar}>
+              <TouchableOpacity
+                onPress={() => router.replace('/(drawer)/home')}
+                style={s.deskHomeBtn}
+                hitSlop={6}
+                activeOpacity={0.7}
+                accessibilityLabel="Home"
+              >
+                <MaterialCommunityIcons name="home-outline" size={16} color={colors.onSurfaceVariant} />
               </TouchableOpacity>
+              {character?.campaign_id && linkedCampaignName ? (
+                <TouchableOpacity
+                  style={s.deskCampaignChip}
+                  onPress={() => {
+                    // Same embedded-vs-standalone branching as the
+                    // mobile chip + the bottom Campaign card.
+                    if (onClose) onClose();
+                    else router.push(`/campaign/${character.campaign_id}`);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="castle" size={12} color={colors.primary} />
+                  <Text style={s.campaignChipLabel} numberOfLines={1}>{linkedCampaignName}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <View style={{ flex: 1 }} />
+              {isOwner && stats.level < 20 ? (
+                <TouchableOpacity
+                  onPress={() => router.push(`/character/${id}/level-up`)}
+                  hitSlop={8}
+                  style={s.settingsIconBtn}
+                  accessibilityLabel="Level up"
+                >
+                  <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity onPress={() => setSettingsModal(true)} hitSlop={8} style={s.settingsIconBtn} accessibilityLabel="Settings">
+                <MaterialCommunityIcons name="cog-outline" size={18} color={colors.outline} />
+              </TouchableOpacity>
+            </View>
 
+            {/* Portrait + name + hero stats strip. Mirrors the mobile
+                hero card chassis: portrait left, identity block right,
+                INSP / REST action icons in the top-right corner, and
+                an AC / PER / PROF / HD strip below the name so the
+                key stats sit in one glance instead of being spread
+                across several sections downstream. */}
+            <View style={s.deskHeader}>
               <View style={s.deskIdentityRow}>
                 <TouchableOpacity style={s.deskPortrait} onPress={handlePickPortrait} disabled={portraitUploading} activeOpacity={0.85}>
                   {portraitContent}
@@ -2426,22 +2532,105 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
                 </View>
 
-                <View style={s.deskHeaderIcons}>
-                  {isOwner && stats.level < 20 ? (
-                    <TouchableOpacity
-                      style={s.deskIconBtn}
-                      onPress={() => router.push(`/character/${id}/level-up`)}
-                      hitSlop={6}
-                      activeOpacity={0.7}
+                {/* AC shield — anchored to the right of the name
+                    block. Same metallic silver shield as the mobile
+                    hero card. */}
+                <TouchableOpacity
+                  style={s.deskHeroAcInline}
+                  onPress={() => setOpenBreakdown('ac')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show AC breakdown"
+                >
+                  <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
+                  <Text style={s.deskHeroAcNum}>{ac}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Stats row — PER / PROF / HD as 3 cells across the
+                  full sidebar width below the identity row. Lifted
+                  out of the name block because the name-block column
+                  is too narrow once the portrait and AC shield take
+                  their share — the cells crammed and labels overlapped
+                  their values. */}
+              <View style={s.deskHeroStatsRow}>
+                <TouchableOpacity
+                  style={s.deskHeroStat}
+                  onPress={() => setOpenBreakdown('passive-perception')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show passive perception breakdown"
+                >
+                  <MaterialCommunityIcons name="eye-outline" size={12} color={colors.outline} />
+                  <Text style={s.deskHeroStatLabel}>PER</Text>
+                  <Text
+                    style={[
+                      s.deskHeroStatValue,
+                      (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
+                      !(stats.skillExpertise ?? []).includes('perception')
+                        && stats.skillProficiencies.includes('perception')
+                        && { color: colors.primary },
+                    ]}
+                  >{passivePerception}</Text>
+                </TouchableOpacity>
+                <View style={s.deskHeroStat}>
+                  <MaterialCommunityIcons name="star-four-points-outline" size={12} color={colors.outline} />
+                  <Text style={s.deskHeroStatLabel}>PROF</Text>
+                  <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
+                </View>
+                {(() => {
+                  const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
+                  const canSpend = canEditAny && hdRemaining > 0;
+                  const Wrapper = canSpend ? TouchableOpacity : View;
+                  return (
+                    <Wrapper
+                      style={s.deskHeroStat}
+                      onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
+                      activeOpacity={canSpend ? 0.7 : 1}
+                      accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
                     >
-                      <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={16} color={colors.primary} />
-                    </TouchableOpacity>
-                  ) : null}
-                  <TouchableOpacity style={s.deskIconBtn} onPress={() => setSettingsModal(true)} hitSlop={6}>
-                    <MaterialCommunityIcons name="cog-outline" size={16} color={colors.outline} />
+                      <MaterialCommunityIcons name="dice-d8-outline" size={12} color={colors.outline} />
+                      <Text style={s.deskHeroStatLabel}>HD</Text>
+                      <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
+                    </Wrapper>
+                  );
+                })()}
+              </View>
+
+              {/* Action row — Inspiration / Short Rest / Long Rest as
+                  thin labelled buttons across the full sidebar. */}
+              {canEditAny && (
+                <View style={s.deskHeroActionRow}>
+                  <TouchableOpacity
+                    style={[s.deskHeroActionBtn, resources.inspiration && s.deskHeroActionBtnInspActive]}
+                    onPress={() => persistResources({ ...resources, inspiration: !resources.inspiration })}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons
+                      name={resources.inspiration ? 'star' : 'star-outline'}
+                      size={13}
+                      color={resources.inspiration ? colors.gm : colors.primary}
+                    />
+                    <Text style={[s.deskHeroActionBtnText, resources.inspiration && { color: colors.gm }]}>
+                      {resources.inspiration ? 'Inspired' : 'Inspiration'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.deskHeroActionBtn}
+                    onPress={() => setRestConfirm('short')}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="campfire" size={13} color={colors.primary} />
+                    <Text style={s.deskHeroActionBtnText}>Short Rest</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.deskHeroActionBtn}
+                    onPress={() => setRestConfirm('long')}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="bed" size={13} color={colors.primary} />
+                    <Text style={s.deskHeroActionBtnText}>Long Rest</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              )}
             </View>
 
             {/* ── Stats block ─────────────────────────────────────── */}
@@ -2564,139 +2753,9 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 />
               </View>
 
-              {/* Stat grid — AC full row, then 2+2 */}
-              <View style={s.deskStatGrid}>
-                {/* Row 1: AC solo — masked metallic shield holds the
-                    value, label sits to the right. Mirrors the
-                    party-card / mobile-hero AC shield treatment so the
-                    defense stat reads the same on every surface. */}
-                <View style={s.deskStatRow}>
-                  {(() => {
-                    const Wrapper = manualMode ? TouchableOpacity : View;
-                    return (
-                      <Wrapper
-                        style={[statCellStyle.cell, statCellStyle.cellCentered, manualMode && statCellStyle.cellEditable, s.deskAcCell]}
-                        onPress={manualMode ? () => startEditField('ac', ac) : undefined}
-                        activeOpacity={0.7}
-                      >
-                        <View style={s.deskAcShieldWrap}>
-                          {/* Solid metallic silver shield — MaskedView
-                              doesn't render on RN Web. */}
-                          <MaterialCommunityIcons name="shield" size={44} color="#b8bdc7" />
-                          <Text style={s.deskAcShieldNum}>{ac}</Text>
-                        </View>
-                        <View style={statCellStyle.text}>
-                          <Text style={s.deskAcLabel}>Armor Class</Text>
-                        </View>
-                        {manualMode && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
-                      </Wrapper>
-                    );
-                  })()}
-                </View>
-                {/* Row 2: Speed | Initiative */}
-                <View style={s.deskStatRow}>
-                  <StatCell icon="run-fast" value={`${stats.speed} ft`} label="Speed" color={colors.onSurface}
-                    editable={manualMode} onPress={manualMode ? () => startEditField('speed', stats.speed) : undefined} />
-                  <StatCell icon="lightning-bolt" value={fmtMod(initiative)} label="Initiative" color={colors.onSurface}
-                    editable={manualMode} onPress={manualMode ? () => startEditField('initiative', initiative) : undefined} />
-                </View>
-                {/* Row 3: Prof | Hit Die */}
-                <View style={s.deskStatRow}>
-                  <StatCell icon="star-four-points" value={fmtMod(prof)} label="Prof" color={colors.onSurface} />
-                  {/* Hit die cell shows remaining/max and, in canEdit
-                      mode with dice left, doubles as the spend button —
-                      rolls 1dN+CON, heals HP, decrements remaining. */}
-                  <StatCell
-                    icon="dice-d8-outline"
-                    value={`${resources?.hitDiceRemaining ?? stats.level}/${stats.level}`}
-                    label={`Hit Die · d${stats.hitDie}`}
-                    color={colors.onSurface}
-                    onPress={canEditAny && (resources?.hitDiceRemaining ?? stats.level) > 0
-                      ? () => setSpendHitDieOpen(true)
-                      : undefined}
-                  />
-                </View>
-              </View>
-            </View>
-
-            {/* ── Rest ─────────────────────────────────────────────── */}
-            {canEditAny && (
-              <View style={s.deskSection}>
-                <Text style={s.deskSectionLabel}>Rest</Text>
-                <View style={s.deskRestRow}>
-                  <TouchableOpacity
-                    style={s.deskRestBtn}
-                    onPress={() => setRestConfirm('short')}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons name="campfire" size={14} color={colors.primary} />
-                    <Text style={s.deskRestBtnText}>Short Rest</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.deskRestBtn}
-                    onPress={() => setRestConfirm('long')}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons name="bed" size={14} color={colors.primary} />
-                    <Text style={s.deskRestBtnText}>Long Rest</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {/* ── Inspiration ──────────────────────────────────────────
-                Moved out of the desktop header into its own section
-                directly under Rest, where it sits with the other
-                player-controlled toggles. Inactive shows an outlined
-                star + "Inspiration"; active flips to a filled gold
-                star + "Inspired". */}
-            {canEditAny && (
-              <View style={s.deskSection}>
-                <TouchableOpacity
-                  style={[s.deskRestBtn, resources.inspiration && s.deskRestBtnActive]}
-                  onPress={() => persistResources({ ...resources, inspiration: !resources.inspiration })}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name={resources.inspiration ? 'star' : 'star-outline'}
-                    size={14}
-                    color={resources.inspiration ? colors.gm : colors.outline}
-                  />
-                  <Text style={[s.deskRestBtnText, resources.inspiration && { color: colors.gm }]}>
-                    {resources.inspiration ? 'Inspired' : 'Inspiration'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* ── Senses (passive skills) ───────────────────────────── */}
-            <View style={s.deskSection}>
-              <Text style={s.deskSectionLabel}>Senses</Text>
-              {(['perception', 'investigation', 'insight'] as const).map((skill) => {
-                const abi: keyof Dnd5eAbilityScores = skill === 'investigation' ? 'intelligence' : 'wisdom';
-                const isProficient = stats.skillProficiencies?.includes(skill) ?? false;
-                const passive = 10 + abilityMod(scores[abi]) + (isProficient ? prof : 0);
-                return (
-                  <TouchableOpacity
-                    key={skill}
-                    style={s.deskAbilityRow}
-                    activeOpacity={manualMode ? 0.7 : 1}
-                    onPress={manualMode ? () => {
-                      const profs = [...(stats.skillProficiencies ?? [])];
-                      if (isProficient) {
-                        persistStats({ ...stats, skillProficiencies: profs.filter((s) => s !== skill) });
-                      } else {
-                        profs.push(skill);
-                        persistStats({ ...stats, skillProficiencies: profs });
-                      }
-                    } : undefined}
-                  >
-                    <View style={[s.deskAbilDot, isProficient && s.deskAbilDotProf]} />
-                    <Text style={s.deskAbilName}>Passive {capitalize(skill)}</Text>
-                    <Text style={[s.deskAbilSaveVal, isProficient && { color: colors.primary }]}>{passive}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {/* AC card / Speed-Init / Prof-HitDie / Rest / Inspiration
+                  sections all moved up into the hero card (see the
+                  identity row + stats stack + action row above). */}
             </View>
 
             {/* Saving throws were here; they now live at the top of the
@@ -2704,23 +2763,33 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 most-rolled stat on a turn is in the player's primary
                 eyeline instead of tucked into the left rail. */}
 
-            {/* ── Campaign link ─────────────────────────────────────── */}
-            <TouchableOpacity
-              style={s.deskCampSection}
-              activeOpacity={character?.campaign_id ? 0.7 : 1}
-              onPress={() => character?.campaign_id && router.push(`/campaign/${character.campaign_id}`)}
-            >
-              <View style={s.deskCampCard}>
-                <MaterialCommunityIcons name="castle" size={16} color={colors.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.deskCampCardLbl}>Campaign</Text>
-                  <Text style={s.deskCampCardName} numberOfLines={1}>
-                    {linkedCampaignName ?? 'Not linked'}
-                  </Text>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} style={{ opacity: 0.6 }} />
+            {/* ── Activity Log ──────────────────────────────────────
+                Moved in from the right rail so the desktop chassis is
+                just left-sidebar + content. Each row shows the same
+                roll / HP / condition entry as the old log rail. */}
+            <View style={s.deskSection}>
+              <View style={s.deskLogHead}>
+                <Text style={s.deskSectionLabel}>Activity Log</Text>
+                <Text style={s.deskLogCount}>{activityLog.length} event{activityLog.length === 1 ? '' : 's'}</Text>
               </View>
-            </TouchableOpacity>
+              {activityLog.length === 0 ? (
+                <Text style={s.deskLogEmpty}>No activity yet.</Text>
+              ) : (
+                activityLog.map((entry) => {
+                  const d = describeEntry(entry);
+                  return (
+                    <View key={entry.id} style={s.logRailRow}>
+                      <MaterialCommunityIcons name={d.icon as any} size={12} color={d.accent} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={s.logRailLabel} numberOfLines={1}>{d.label}</Text>
+                        {!!d.detail && <Text style={s.logRailDice} numberOfLines={1}>{d.detail}</Text>}
+                      </View>
+                      {!!d.total && <Text style={[s.logRailTotal, { color: d.accent }]}>{d.total}</Text>}
+                    </View>
+                  );
+                })
+              )}
+            </View>
 
           </ScrollView>
           </LinearGradient>
@@ -2728,16 +2797,23 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           {/* ── Center content pane ─────────────────────────────────── */}
           <View style={s.deskContent}>
             <View style={s.deskPanes}>
-              {/* Left pane */}
+              {/* Left pane. On tablet (768-1023) we suppress the split
+               *  entirely — the chassis can't comfortably show two
+               *  tab panes side-by-side at that width — and merge
+               *  every tab into a single pane so all six are reachable
+               *  from one row of pills. Drag-to-split is reserved for
+               *  the >= 1024 layout where there's actually room. */}
               <TabPane
-                tabs={tabLayout.left}
+                tabs={isTablet
+                  ? ([...tabLayout.left, ...tabLayout.right] as TabId[])
+                  : tabLayout.left}
                 activeId={tabLayout.activeLeft}
                 side="left"
                 onActivate={(id) => setSideActive('left', id)}
-                onMoveToSide={(id, toSide) => moveTab(id, toSide)}
+                onMoveToSide={isTablet ? () => {} : (id, toSide) => moveTab(id, toSide)}
                 renderTab={renderTab}
               />
-              {tabLayout.right.length > 0 ? (
+              {!isTablet && (tabLayout.right.length > 0 ? (
                 <>
                   <View style={s.deskPaneDivider} />
                   <TabPane
@@ -2751,65 +2827,12 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </>
               ) : (
                 <SplitDropZone onMove={(id) => moveTab(id, 'right')} />
-              )}
+              ))}
             </View>
           </View>
 
-          {/* ── Activity log rail (right side, collapsible) ─────────── */}
-          {!rightRailCollapsed && (
-            <LinearGradient
-              colors={[`${colors.gm}26`, colors.surfaceContainerLowest, colors.surfaceContainerLowest]}
-              start={{ x: 1, y: 0 }}
-              end={{ x: 0.6, y: 1 }}
-              style={s.skillsRail}
-            >
-              <View style={s.skillsRailHead}>
-                <View>
-                  <Text style={s.skillsRailTitle}>Activity Log</Text>
-                  <Text style={s.skillsRailSub}>{activityLog.length} event{activityLog.length === 1 ? '' : 's'}</Text>
-                </View>
-                <TouchableOpacity onPress={() => setRightRailCollapsed(true)} hitSlop={8}>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.outline} />
-                </TouchableOpacity>
-              </View>
-              {activityLog.length === 0 ? (
-                <Text style={s.logRailEmpty}>No activity yet.</Text>
-              ) : (
-                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                  {activityLog.map((entry) => {
-                    const d = describeEntry(entry);
-                    return (
-                      <View key={entry.id} style={s.logRailRow}>
-                        <MaterialCommunityIcons name={d.icon as any} size={12} color={d.accent} />
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={s.logRailLabel} numberOfLines={1}>{d.label}</Text>
-                          {!!d.detail && <Text style={s.logRailDice} numberOfLines={1}>{d.detail}</Text>}
-                        </View>
-                        {!!d.total && <Text style={[s.logRailTotal, { color: d.accent }]}>{d.total}</Text>}
-                      </View>
-                    );
-                  })}
-                </ScrollView>
-              )}
-            </LinearGradient>
-          )}
-          {rightRailCollapsed && (
-            <LinearGradient
-              colors={[`${colors.gm}26`, colors.surfaceContainerLowest, colors.surfaceContainerLowest]}
-              start={{ x: 1, y: 0 }}
-              end={{ x: 0.6, y: 1 }}
-              style={s.skillsRailCollapsed}
-            >
-              <TouchableOpacity
-                style={s.skillsRailCollapsedInner}
-                onPress={() => setRightRailCollapsed(false)}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons name="chevron-left" size={16} color={colors.outline} />
-                <Text style={s.skillsRailCollapsedLabel}>Log</Text>
-              </TouchableOpacity>
-            </LinearGradient>
-          )}
+          {/* Right rail removed — Activity Log now lives in the left
+              sidebar (see "Activity Log" section above). */}
 
         </View>
         </SharedDndProvider>
@@ -2836,7 +2859,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             {character?.campaign_id && linkedCampaignName ? (
               <TouchableOpacity
                 style={s.campaignChip}
-                onPress={() => router.push(`/campaign/${character.campaign_id}`)}
+                onPress={() => {
+                  // Same embedded-vs-standalone branching as the
+                  // desktop Campaign card — onClose pops the split
+                  // pane back to the campaign that opened us.
+                  if (onClose) onClose();
+                  else router.push(`/campaign/${character.campaign_id}`);
+                }}
                 activeOpacity={0.7}
               >
                 <MaterialCommunityIcons name="castle" size={13} color={colors.primary} />
@@ -2878,10 +2907,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               </TouchableOpacity>
               <Text style={s.heroCollapsedName} numberOfLines={1}>{stats.characterName}</Text>
               <View style={s.heroCollapsedStats}>
-                <View style={s.heroCollapsedStat}>
+                <TouchableOpacity
+                  style={s.heroCollapsedStat}
+                  onPress={() => setOpenBreakdown('ac')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show AC breakdown"
+                >
                   <MaterialCommunityIcons name="shield" size={12} color="#b8bdc7" />
                   <Text style={s.heroCollapsedStatValue}>{ac}</Text>
-                </View>
+                </TouchableOpacity>
                 <View style={s.heroCollapsedStat}>
                   <Text style={[s.heroCollapsedStatValue, { color: hpC }]}>{resources.hpCurrent}</Text>
                   <Text style={s.heroCollapsedStatSep}>/</Text>
@@ -2942,10 +2976,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   filling the remainder. Right padding clears the corner
                   buttons (INSP + REST) absolute-positioned above. */}
               <View style={[s.heroTitleRow, s.heroNamePad]}>
-                <View style={s.heroAcInline}>
+                <TouchableOpacity
+                  style={s.heroAcInline}
+                  onPress={() => setOpenBreakdown('ac')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show AC breakdown"
+                >
                   <MaterialCommunityIcons name="shield" size={36} color="#b8bdc7" />
                   <Text style={s.heroAcNum}>{ac}</Text>
-                </View>
+                </TouchableOpacity>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   {editingName ? (
                     <TextInput
@@ -3048,9 +3087,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   INS row so PROF and HD can share the line; freed up
                   the supp strip below for Conditions. */}
               <View style={s.heroStatsRow}>
-                <SenseCell icon="eye-outline" label="PER" value={passivePerception} />
-                <SenseCell icon="magnify" label="INV" value={passiveInvestigation} />
-                <SenseCell icon="brain" label="INS" value={passiveInsight} />
+                <SenseCell
+                  icon="eye-outline" label="PER" value={passivePerception}
+                  profState={
+                    (stats.skillExpertise ?? []).includes('perception') ? 'expert'
+                    : stats.skillProficiencies.includes('perception') ? 'proficient'
+                    : 'none'
+                  }
+                  onPress={() => setOpenBreakdown('passive-perception')}
+                />
                 <SenseCell icon="star-four-points-outline" label="PROF" value={fmtMod(prof)} />
                 <SenseCell icon="dice-d8-outline" label="HD" value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`} />
               </View>
@@ -3922,6 +3967,19 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           onUpdateQuantity={isOwner
             ? (q: number) => handleUpdateItemQuantity(detailEquipment.id, q)
             : undefined}
+          onToggleEquipped={isOwner
+            ? () => handleToggleEquipped(detailEquipment.id)
+            : undefined}
+          onRemove={isOwner
+            ? () => {
+                // Hand off to the existing remove confirm flow — close
+                // the detail modal first so the confirm sits on top of
+                // the gear list, not stacked on top of the detail card.
+                const id = detailEquipment.id;
+                setDetailEquipment(null);
+                setRemoveEquipId(id);
+              }
+            : undefined}
           canEdit={isOwner}
         />
       ) : null}
@@ -3937,6 +3995,124 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           onConfirm={handlePortraitCropConfirm}
         />
       ) : null}
+
+      {/* Calculated-value breakdown modal — opened by tapping AC,
+          Initiative, or a passive sense. Initiative is rollable; AC
+          and passive senses are info-only. */}
+      {(() => {
+        if (!openBreakdown || !stats || !scores) return null;
+        const close = () => setOpenBreakdown(null);
+
+        if (openBreakdown === 'initiative') {
+          const dex = abilityMod(scores.dexterity);
+          const override = manualMode && stats.initiativeOverride != null;
+          const lines: StatBreakdownLine[] = override
+            ? [{ label: 'Manual override', value: fmtMod(stats.initiativeOverride!) }]
+            : [{ label: 'DEX mod', value: fmtMod(dex) }];
+          return (
+            <StatBreakdownModal
+              visible
+              title="Initiative"
+              subtitle="Combat turn order · d20 + DEX"
+              total={fmtMod(initiative)}
+              lines={lines}
+              rollLabel="Roll initiative"
+              onRoll={() => {
+                const r = Math.floor(Math.random() * 20) + 1;
+                handleRoll({
+                  label: 'Initiative',
+                  rolls: [r], bonus: initiative,
+                  total: r + initiative, crit: r === 20, fumble: r === 1,
+                });
+              }}
+              onClose={close}
+            />
+          );
+        }
+
+        if (openBreakdown === 'ac') {
+          // Mirror getEquippedAC's logic so the breakdown matches the
+          // displayed AC line-for-line. Manual override short-circuits
+          // the gear math entirely.
+          if (manualMode && stats.acOverride != null) {
+            return (
+              <StatBreakdownModal
+                visible
+                title="Armor Class"
+                subtitle="Manual override"
+                total={String(ac)}
+                lines={[{ label: 'Manual override', value: String(stats.acOverride) }]}
+                onClose={close}
+              />
+            );
+          }
+          const dexMod = abilityMod(scores.dexterity);
+          const armorItem = equipment.find((e) => e.slot === 'armor' && !/^shield$/i.test(e.name.trim()) && e.equipped);
+          const shieldItem = equipment.find((e) => (e.slot === 'shield' || (e.slot === 'armor' && /^shield$/i.test(e.name.trim()))) && e.equipped);
+          const lines: StatBreakdownLine[] = [];
+          if (armorItem) {
+            lines.push({ label: `${armorItem.name} (base)`, value: String(armorItem.acBase ?? 10) });
+            const cap = armorItem.dexCap;
+            const dexApplied = cap !== undefined && cap !== null ? Math.min(dexMod, cap) : dexMod;
+            const dexLabel = cap === 0 ? 'DEX mod (no DEX)' : cap != null ? `DEX mod (cap ${cap})` : 'DEX mod';
+            lines.push({ label: dexLabel, value: fmtMod(dexApplied) });
+            if ((armorItem.requiresAttunement ? armorItem.attuned : true) && armorItem.miscACBonus) {
+              lines.push({ label: `${armorItem.name} (magic)`, value: fmtMod(armorItem.miscACBonus) });
+            }
+          } else {
+            lines.push({ label: 'Unarmored base', value: '10' });
+            lines.push({ label: 'DEX mod', value: fmtMod(dexMod) });
+          }
+          if (shieldItem) {
+            lines.push({ label: `${shieldItem.name}`, value: fmtMod(shieldItem.acBonus ?? 2) });
+            if ((shieldItem.requiresAttunement ? shieldItem.attuned : true) && shieldItem.miscACBonus) {
+              lines.push({ label: `${shieldItem.name} (magic)`, value: fmtMod(shieldItem.miscACBonus) });
+            }
+          }
+          for (const e of equipment) {
+            if (e === armorItem || e === shieldItem) continue;
+            if (!e.equipped || !e.miscACBonus) continue;
+            if (e.requiresAttunement && !e.attuned) continue;
+            lines.push({ label: e.name, value: fmtMod(e.miscACBonus) });
+          }
+          return (
+            <StatBreakdownModal
+              visible
+              title="Armor Class"
+              subtitle="Defense vs. attack rolls"
+              total={String(ac)}
+              lines={lines}
+              onClose={close}
+            />
+          );
+        }
+
+        if (openBreakdown === 'passive-perception') {
+          const abi = SKILL_ABILITY.perception;
+          const m = abilityMod(scores[abi]);
+          const isProf = stats.skillProficiencies.includes('perception');
+          const isExpert = (stats.skillExpertise ?? []).includes('perception');
+          const profValue = isExpert ? prof * 2 : isProf ? prof : 0;
+          const profLabel = isExpert ? 'Proficiency (expertise ×2)' : 'Proficiency';
+          const total = 10 + m + profValue;
+          return (
+            <StatBreakdownModal
+              visible
+              title="Passive Perception"
+              subtitle="10 + skill mod"
+              total={String(total)}
+              lines={[
+                { label: 'Passive base', value: '10' },
+                { label: `${ABILITY_SHORT[abi]} mod`, value: fmtMod(m) },
+                { label: profLabel, value: fmtMod(profValue) },
+              ]}
+              onClose={close}
+            />
+          );
+        }
+
+        return null;
+      })()}
 
       {/* Add XP modal */}
       <Modal visible={xpAddMode} transparent animationType="fade">
@@ -4264,6 +4440,40 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainerLowest,
   },
+  /** Desktop utility bar — same components as the mobile one (Home,
+   *  Campaign, Lv↑, Settings) but sized to live inside the left
+   *  sidebar's narrower column. Sits above the portrait so the chrome
+   *  surface reads consistently across breakpoints. Activity Log is
+   *  omitted — desktop has the dedicated right rail for that.
+   *
+   *  No flexWrap — the chip shrinks (and its label truncates) instead
+   *  of pushing the Lv↑ / Settings icons onto a second line. */
+  deskUtilityBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginBottom: spacing.sm,
+  },
+  /** Compact icon-only Home button — sidebar columns are too narrow
+   *  for the mobile chunky "← Home" label without forcing the row
+   *  to wrap. The home glyph carries the same meaning at half the
+   *  width. */
+  deskHomeBtn: {
+    width: 30, height: 30,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  /** Campaign chip — shrinks (min-width 0) so the linked-campaign
+   *  name truncates cleanly when the sidebar is narrow rather than
+   *  pushing the icon cluster to the next line. */
+  deskCampaignChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: `${colors.primary}55`,
+    backgroundColor: `${colors.primary}14`,
+    flexShrink: 1, minWidth: 0,
+  },
   /** Chunky Home button — icon + label, sized up from the original
    *  back chevron so it feels like a primary surface action and reads
    *  as "go all the way home" rather than "go back one step". */
@@ -4344,21 +4554,24 @@ const s = StyleSheet.create({
     borderColor: 'rgba(226,75,74,0.4)',
     backgroundColor: 'rgba(226,75,74,0.06)',
   },
-  /** 3:4 portrait that fills the card's full vertical space. */
-  /** Explicit 96×128 (3:4) instead of `aspectRatio + alignSelf:stretch`
-   *  — that combo collapses the portrait to ~0 width on RN Web when
-   *  the parent's height is content-driven (no portrait visible at all
-   *  in playtest). Fixed dimensions are predictable; card height becomes
-   *  max(portrait, body) which still reads well across content states. */
+  /** Fixed-width portrait that stretches to match the body column's
+   *  height so the bottom edges line up with the senses row. Width
+   *  stays 96 (avoids the aspectRatio+stretch trap on RN Web that
+   *  collapsed the portrait to 0 width when the parent's height was
+   *  content-driven); minHeight 128 keeps the 3:4 minimum so short-
+   *  content cards still get a reasonably tall avatar. */
   heroPortrait: {
-    width: 96, height: 128,
+    width: 96, minHeight: 128, alignSelf: 'stretch',
     borderRadius: 6,
     borderWidth: 1, borderColor: colors.outlineVariant,
     backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center', justifyContent: 'center',
     overflow: 'hidden', flexShrink: 0,
   },
-  heroPortraitImg: { width: 96, height: 128 },
+  /** Inner image fills the (potentially taller) portrait container.
+   *  Image's own aspect ratio is preserved by resizeMode='cover';
+   *  excess is cropped top/bottom rather than stretched. */
+  heroPortraitImg: { width: '100%', height: '100%' },
   heroBody: { flex: 1, minWidth: 0, gap: 6 },
   /** First row of the body — AC shield inline at left, name/subtitle
    *  block flexing to fill the remainder. Right padding clears the
@@ -4659,6 +4872,66 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   deskIconBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
+  /** Hero stats row — PER / PROF / HD as 3 cells across the full
+   *  sidebar width below the identity row. Each cell renders as
+   *  icon · LABEL · value on a single line. Lives outside the name
+   *  block so the cells aren't squeezed by the portrait + AC shield. */
+  deskHeroStatsRow: {
+    flexDirection: 'row', gap: 6, marginTop: 10,
+  },
+  deskHeroStat: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 6, paddingVertical: 7,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  deskHeroStatLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.8, color: colors.outline, textTransform: 'uppercase' as const,
+  },
+  deskHeroStatValue: {
+    fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.onSurface,
+  },
+  /** Full-width action row — Inspiration / Short Rest / Long Rest
+   *  as thin evenly-distributed labelled buttons. Replaces the
+   *  previous standalone Rest + Inspiration sections downstream. */
+  deskHeroActionRow: {
+    flexDirection: 'row', gap: 6, marginTop: 8,
+  },
+  deskHeroActionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 8, paddingVertical: 7,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: `${colors.primary}66`,
+    backgroundColor: `${colors.primary}14`,
+  },
+  deskHeroActionBtnInspActive: {
+    borderColor: `${colors.gm}66`, backgroundColor: `${colors.gm}22`,
+  },
+  deskHeroActionBtnText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.3,
+  },
+  /** AC shield anchored to the right of the name block — same
+   *  metallic silver shield treatment as the mobile hero card and the
+   *  campaign PartyMemberCard so the defense stat reads identically
+   *  across surfaces. The number is positioned absolutely inside the
+   *  shield glyph. */
+  deskHeroAcInline: {
+    width: 42, height: 46,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  deskHeroAcNum: {
+    position: 'absolute', top: 13, left: 0, right: 0,
+    textAlign: 'center',
+    fontFamily: fonts.headline, fontSize: 14, fontWeight: '800',
+    color: colors.onPrimary, letterSpacing: -0.3,
+  },
 
   // Stats block
   deskStats: {
@@ -5437,6 +5710,21 @@ const s = StyleSheet.create({
   deskSectionLabel: {
     fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.2, textTransform: 'uppercase', color: colors.outline, marginBottom: 4,
+  },
+  /** Activity Log header row — section label + event count subhead
+   *  side-by-side. Mirrors the old right-rail header treatment now
+   *  that the log lives inline in the left sidebar. */
+  deskLogHead: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  deskLogCount: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.outline, letterSpacing: 0.4,
+  },
+  deskLogEmpty: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.outline,
+    fontStyle: 'italic' as const, paddingVertical: 6,
   },
   deskAbilityRow: {
     flexDirection: 'row', alignItems: 'center', gap: 0,
