@@ -728,13 +728,14 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const authUser = useAuthStore((state) => state.user);
 
   const { width } = useWindowDimensions();
-  // Multi-column desktop layout needs enough width for the left rail,
-  // two pane columns, and the activity log — at 768 (tablet portrait
-  // / iPad) those columns collapse into each other and the spell
-  // table truncates spell names to a single letter. 1024 puts the
-  // breakpoint at iPad landscape / small laptops; anything narrower
-  // gets the single-column mobile layout.
-  const isDesktop = width >= 1024;
+  // 768+ gets the desktop chassis (left rail + content + activity
+  // log). At 1024+ the content can comfortably split into two tab
+  // panes side-by-side; below that (tablet portrait, iPad) we force
+  // a single content pane so all six tabs sit together — the split
+  // chassis exists but the right pane is suppressed. Below 768
+  // (phones) drops to the stacked mobile layout entirely.
+  const isDesktop = width >= 768;
+  const isTablet = width >= 768 && width < 1024;
 
   const [character, setCharacter] = useState<Character | null>(null);
   const [loading, setLoading] = useState(true);
@@ -827,7 +828,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const [cardItems, setCardItems] = useState<CardItem[]>(DEFAULT_CARD_ORDER.map((id) => ({ id })));
   const [activeTab, setActiveTab] = useState<TabId>('combat');
   const [tabLayout, setTabLayout] = useState<TabLayoutState>(DEFAULT_TAB_LAYOUT);
-  const [rightRailCollapsed, setRightRailCollapsed] = useState(false);
+  // Activity log rail defaults collapsed on tablet (768-1023) so the
+  // content pane has room to render at its preferred density; user
+  // can still pop it open via the collapsed-rail tap target.
+  const [rightRailCollapsed, setRightRailCollapsed] = useState(() => width >= 768 && width < 1024);
   const [rollResult, setRollResult] = useState<RollResult | null>(null);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [logModal, setLogModal] = useState(false);
@@ -2796,16 +2800,23 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           {/* ── Center content pane ─────────────────────────────────── */}
           <View style={s.deskContent}>
             <View style={s.deskPanes}>
-              {/* Left pane */}
+              {/* Left pane. On tablet (768-1023) we suppress the split
+               *  entirely — the chassis can't comfortably show two
+               *  tab panes side-by-side at that width — and merge
+               *  every tab into a single pane so all six are reachable
+               *  from one row of pills. Drag-to-split is reserved for
+               *  the >= 1024 layout where there's actually room. */}
               <TabPane
-                tabs={tabLayout.left}
+                tabs={isTablet
+                  ? ([...tabLayout.left, ...tabLayout.right] as TabId[])
+                  : tabLayout.left}
                 activeId={tabLayout.activeLeft}
                 side="left"
                 onActivate={(id) => setSideActive('left', id)}
-                onMoveToSide={(id, toSide) => moveTab(id, toSide)}
+                onMoveToSide={isTablet ? () => {} : (id, toSide) => moveTab(id, toSide)}
                 renderTab={renderTab}
               />
-              {tabLayout.right.length > 0 ? (
+              {!isTablet && (tabLayout.right.length > 0 ? (
                 <>
                   <View style={s.deskPaneDivider} />
                   <TabPane
@@ -2819,7 +2830,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </>
               ) : (
                 <SplitDropZone onMove={(id) => moveTab(id, 'right')} />
-              )}
+              ))}
             </View>
           </View>
 
