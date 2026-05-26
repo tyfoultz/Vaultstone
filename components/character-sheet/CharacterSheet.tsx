@@ -2531,6 +2531,53 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
 
+                  {/* Thin horizontal-row stat cards stacked vertically
+                      under the level text. Each cell renders as
+                      icon · LABEL · value on a single line — uses the
+                      name-block width better than the old square cells
+                      below. */}
+                  <View style={s.deskHeroStatStack}>
+                    <TouchableOpacity
+                      style={s.deskHeroStatRow}
+                      onPress={() => setOpenBreakdown('passive-perception')}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Show passive perception breakdown"
+                    >
+                      <MaterialCommunityIcons name="eye-outline" size={12} color={colors.outline} />
+                      <Text style={s.deskHeroStatRowLabel}>PER</Text>
+                      <Text
+                        style={[
+                          s.deskHeroStatRowValue,
+                          (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
+                          !(stats.skillExpertise ?? []).includes('perception')
+                            && stats.skillProficiencies.includes('perception')
+                            && { color: colors.primary },
+                        ]}
+                      >{passivePerception}</Text>
+                    </TouchableOpacity>
+                    <View style={s.deskHeroStatRow}>
+                      <MaterialCommunityIcons name="star-four-points-outline" size={12} color={colors.outline} />
+                      <Text style={s.deskHeroStatRowLabel}>PROF</Text>
+                      <Text style={s.deskHeroStatRowValue}>{fmtMod(prof)}</Text>
+                    </View>
+                    {(() => {
+                      const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
+                      const canSpend = canEditAny && hdRemaining > 0;
+                      const Wrapper = canSpend ? TouchableOpacity : View;
+                      return (
+                        <Wrapper
+                          style={s.deskHeroStatRow}
+                          onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
+                          activeOpacity={canSpend ? 0.7 : 1}
+                          accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
+                        >
+                          <MaterialCommunityIcons name="dice-d8-outline" size={12} color={colors.outline} />
+                          <Text style={s.deskHeroStatRowLabel}>HD</Text>
+                          <Text style={s.deskHeroStatRowValue}>{hdRemaining}/{stats.level}</Text>
+                        </Wrapper>
+                      );
+                    })()}
+                  </View>
                 </View>
 
                 {/* AC shield — anchored to the right of the name
@@ -2547,75 +2594,43 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </TouchableOpacity>
               </View>
 
-              {/* Stats + actions row — full-width band below the
-                  identity row so the PER / PROF / HD cells get
-                  breathing room instead of being crammed into the
-                  name-block column. INSP + REST sit at the right end
-                  as small round buttons. */}
-              <View style={s.deskHeroStatsRow}>
-                <TouchableOpacity
-                  style={s.deskHeroStat}
-                  onPress={() => setOpenBreakdown('passive-perception')}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Show passive perception breakdown"
-                >
-                  <MaterialCommunityIcons name="eye-outline" size={11} color={colors.outline} />
-                  <Text style={s.deskHeroStatLabel}>PER</Text>
-                  <Text
-                    style={[
-                      s.deskHeroStatValue,
-                      (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
-                      !(stats.skillExpertise ?? []).includes('perception')
-                        && stats.skillProficiencies.includes('perception')
-                        && { color: colors.primary },
-                    ]}
-                  >{passivePerception}</Text>
-                </TouchableOpacity>
-                <View style={s.deskHeroStat}>
-                  <MaterialCommunityIcons name="star-four-points-outline" size={11} color={colors.outline} />
-                  <Text style={s.deskHeroStatLabel}>PROF</Text>
-                  <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
+              {/* Action button row — thin labelled buttons span the
+                  full sidebar below the identity row. Inspiration,
+                  Short Rest, Long Rest in one consistent treatment. */}
+              {canEditAny && (
+                <View style={s.deskHeroActionRow}>
+                  <TouchableOpacity
+                    style={[s.deskHeroActionBtn, resources.inspiration && s.deskHeroActionBtnInspActive]}
+                    onPress={() => persistResources({ ...resources, inspiration: !resources.inspiration })}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons
+                      name={resources.inspiration ? 'star' : 'star-outline'}
+                      size={13}
+                      color={resources.inspiration ? colors.gm : colors.primary}
+                    />
+                    <Text style={[s.deskHeroActionBtnText, resources.inspiration && { color: colors.gm }]}>
+                      {resources.inspiration ? 'Inspired' : 'Inspiration'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.deskHeroActionBtn}
+                    onPress={() => setRestConfirm('short')}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="campfire" size={13} color={colors.primary} />
+                    <Text style={s.deskHeroActionBtnText}>Short Rest</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.deskHeroActionBtn}
+                    onPress={() => setRestConfirm('long')}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="bed" size={13} color={colors.primary} />
+                    <Text style={s.deskHeroActionBtnText}>Long Rest</Text>
+                  </TouchableOpacity>
                 </View>
-                {(() => {
-                  const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
-                  const canSpend = canEditAny && hdRemaining > 0;
-                  const Wrapper = canSpend ? TouchableOpacity : View;
-                  return (
-                    <Wrapper
-                      style={s.deskHeroStat}
-                      onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
-                      activeOpacity={canSpend ? 0.7 : 1}
-                      accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
-                    >
-                      <MaterialCommunityIcons name="dice-d8-outline" size={11} color={colors.outline} />
-                      <Text style={s.deskHeroStatLabel}>HD</Text>
-                      <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
-                    </Wrapper>
-                  );
-                })()}
-                <TouchableOpacity
-                  style={[s.deskHeroCornerBtn, resources.inspiration && s.deskHeroCornerBtnInspActive]}
-                  onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
-                  disabled={!canEditAny}
-                  activeOpacity={canEditAny ? 0.7 : 1}
-                  accessibilityLabel={resources.inspiration ? 'Inspired — tap to clear' : 'Mark inspired'}
-                >
-                  <MaterialCommunityIcons
-                    name={resources.inspiration ? 'star' : 'star-outline'}
-                    size={14}
-                    color={resources.inspiration ? colors.gm : colors.outline}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.deskHeroCornerBtn}
-                  onPress={() => canEditAny && setRestChooserOpen(true)}
-                  disabled={!canEditAny}
-                  activeOpacity={canEditAny ? 0.7 : 1}
-                  accessibilityLabel="Take a rest"
-                >
-                  <MaterialCommunityIcons name="bed" size={14} color={colors.outline} />
-                </TouchableOpacity>
-              </View>
+              )}
             </View>
 
             {/* ── Stats block ─────────────────────────────────────── */}
@@ -2738,111 +2753,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 />
               </View>
 
-              {/* Stat grid — AC full row, then 2+2 */}
-              <View style={s.deskStatGrid}>
-                {/* Row 1: AC solo — masked metallic shield holds the
-                    value, label sits to the right. Mirrors the
-                    party-card / mobile-hero AC shield treatment so the
-                    defense stat reads the same on every surface. */}
-                <View style={s.deskStatRow}>
-                  {(() => {
-                    const Wrapper = TouchableOpacity;
-                    return (
-                      <Wrapper
-                        style={[statCellStyle.cell, statCellStyle.cellCentered, manualMode && statCellStyle.cellEditable, s.deskAcCell]}
-                        onPress={manualMode ? () => startEditField('ac', ac) : () => setOpenBreakdown('ac')}
-                        activeOpacity={0.7}
-                      >
-                        <View style={s.deskAcShieldWrap}>
-                          {/* Solid metallic silver shield — MaskedView
-                              doesn't render on RN Web. */}
-                          <MaterialCommunityIcons name="shield" size={44} color="#b8bdc7" />
-                          <Text style={s.deskAcShieldNum}>{ac}</Text>
-                        </View>
-                        <View style={statCellStyle.text}>
-                          <Text style={s.deskAcLabel}>Armor Class</Text>
-                        </View>
-                        {manualMode && <MaterialCommunityIcons name="pencil" size={8} color={colors.outline} style={{ position: 'absolute', top: 4, right: 4 }} />}
-                      </Wrapper>
-                    );
-                  })()}
-                </View>
-                {/* Row 2: Speed | Initiative */}
-                <View style={s.deskStatRow}>
-                  <StatCell icon="run-fast" value={`${stats.speed} ft`} label="Speed" color={colors.onSurface}
-                    editable={manualMode} onPress={manualMode ? () => startEditField('speed', stats.speed) : undefined} />
-                  <StatCell icon="lightning-bolt" value={fmtMod(initiative)} label="Initiative" color={colors.onSurface}
-                    editable={manualMode}
-                    onPress={manualMode ? () => startEditField('initiative', initiative) : () => setOpenBreakdown('initiative')} />
-                </View>
-                {/* Row 3: Prof | Hit Die */}
-                <View style={s.deskStatRow}>
-                  <StatCell icon="star-four-points" value={fmtMod(prof)} label="Prof" color={colors.onSurface} />
-                  {/* Hit die cell shows remaining/max and, in canEdit
-                      mode with dice left, doubles as the spend button —
-                      rolls 1dN+CON, heals HP, decrements remaining. */}
-                  <StatCell
-                    icon="dice-d8-outline"
-                    value={`${resources?.hitDiceRemaining ?? stats.level}/${stats.level}`}
-                    label={`Hit Die · d${stats.hitDie}`}
-                    color={colors.onSurface}
-                    onPress={canEditAny && (resources?.hitDiceRemaining ?? stats.level) > 0
-                      ? () => setSpendHitDieOpen(true)
-                      : undefined}
-                  />
-                </View>
-              </View>
+              {/* AC card / Speed-Init / Prof-HitDie / Rest / Inspiration
+                  sections all moved up into the hero card (see the
+                  identity row + stats stack + action row above). */}
             </View>
-
-            {/* ── Rest ─────────────────────────────────────────────── */}
-            {canEditAny && (
-              <View style={s.deskSection}>
-                <Text style={s.deskSectionLabel}>Rest</Text>
-                <View style={s.deskRestRow}>
-                  <TouchableOpacity
-                    style={s.deskRestBtn}
-                    onPress={() => setRestConfirm('short')}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons name="campfire" size={14} color={colors.primary} />
-                    <Text style={s.deskRestBtnText}>Short Rest</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.deskRestBtn}
-                    onPress={() => setRestConfirm('long')}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons name="bed" size={14} color={colors.primary} />
-                    <Text style={s.deskRestBtnText}>Long Rest</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {/* ── Inspiration ──────────────────────────────────────────
-                Moved out of the desktop header into its own section
-                directly under Rest, where it sits with the other
-                player-controlled toggles. Inactive shows an outlined
-                star + "Inspiration"; active flips to a filled gold
-                star + "Inspired". */}
-            {canEditAny && (
-              <View style={s.deskSection}>
-                <TouchableOpacity
-                  style={[s.deskRestBtn, resources.inspiration && s.deskRestBtnActive]}
-                  onPress={() => persistResources({ ...resources, inspiration: !resources.inspiration })}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name={resources.inspiration ? 'star' : 'star-outline'}
-                    size={14}
-                    color={resources.inspiration ? colors.gm : colors.outline}
-                  />
-                  <Text style={[s.deskRestBtnText, resources.inspiration && { color: colors.gm }]}>
-                    {resources.inspiration ? 'Inspired' : 'Inspiration'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
 
             {/* ── Senses (passive skills) ───────────────────────────── */}
             <View style={s.deskSection}>
@@ -5041,29 +4955,48 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   deskIconBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
-  /** Hero stats + action row — full-width band sitting below the
-   *  identity row so PER / PROF / HD cells get breathing room and
-   *  the INSP / REST round btns at the right end of the row have a
-   *  consistent baseline with them. Lives outside the name block
-   *  column so the cells aren't squeezed by the portrait + shield. */
-  deskHeroStatsRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10,
+  /** Thin horizontal-row stat cards stacked vertically below the
+   *  level text inside the name block. Each row is icon · LABEL ·
+   *  value on one line. Compact enough that 3 rows fit comfortably
+   *  in the name-block column even at narrow sidebar widths. */
+  deskHeroStatStack: {
+    gap: 3, marginTop: 6,
   },
-  deskHeroStat: {
-    flex: 1, alignItems: 'center',
-    paddingVertical: 4, paddingHorizontal: 2,
+  deskHeroStatRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
     borderRadius: 6,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1, borderColor: colors.outlineVariant,
   },
-  deskHeroStatLabel: {
-    fontSize: 7, fontFamily: fonts.label, fontWeight: '700',
+  deskHeroStatRowLabel: {
+    flex: 1, fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 0.8, color: colors.outline, textTransform: 'uppercase' as const,
-    marginTop: 1,
   },
-  deskHeroStatValue: {
+  deskHeroStatRowValue: {
     fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
-    color: colors.onSurface, marginTop: 1,
+    color: colors.onSurface,
+  },
+  /** Full-width action row below the identity — Inspiration / Short
+   *  Rest / Long Rest as evenly-distributed thin labelled buttons.
+   *  Replaces the previous standalone Rest + Inspiration sections. */
+  deskHeroActionRow: {
+    flexDirection: 'row', gap: 6, marginTop: 12,
+  },
+  deskHeroActionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 8, paddingVertical: 7,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: `${colors.primary}66`,
+    backgroundColor: `${colors.primary}14`,
+  },
+  deskHeroActionBtnInspActive: {
+    borderColor: `${colors.gm}66`, backgroundColor: `${colors.gm}22`,
+  },
+  deskHeroActionBtnText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.primary, letterSpacing: 0.3,
   },
   /** AC shield anchored to the right of the name block — same
    *  metallic silver shield treatment as the mobile hero card and the
@@ -5080,19 +5013,6 @@ const s = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.headline, fontSize: 14, fontWeight: '800',
     color: colors.onPrimary, letterSpacing: -0.3,
-  },
-  /** Round outlined action btn — INSP + REST. Lives at the right
-   *  end of the stats row so it shares a baseline with the cells.
-   *  Same chassis as the mobile heroCornerBtn (28×28 outlined
-   *  circle) so the toggles read the same across surfaces. */
-  deskHeroCornerBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.outlineVariant,
-    backgroundColor: colors.surfaceContainerLow,
-  },
-  deskHeroCornerBtnInspActive: {
-    borderColor: colors.gm, backgroundColor: `${colors.gm}22`,
   },
 
   // Stats block
