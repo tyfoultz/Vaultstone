@@ -2531,10 +2531,9 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
 
-                  {/* Stat strip — PER / PROF / HD plus the INSP and
-                      REST action buttons. AC moves out to the inline
-                      shield to the right of the name (mirroring the
-                      mobile hero card's shield treatment). */}
+                  {/* Stat strip — PER / PROF / HD. AC moves out to the
+                      inline shield on the right; INSP / REST live as
+                      round action buttons below the shield. */}
                   <View style={s.deskHeroStatsRow}>
                     <TouchableOpacity
                       style={s.deskHeroStat}
@@ -2576,8 +2575,27 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                         </Wrapper>
                       );
                     })()}
+                  </View>
+                </View>
+
+                {/* Right column — AC shield on top, INSP + REST round
+                    action buttons below. Mirrors the mobile hero card
+                    chassis: AC carries the same metallic silver shield
+                    treatment as the campaign PartyMemberCard, and the
+                    two action btns are round outlined circles. */}
+                <View style={s.deskHeroRightCol}>
+                  <TouchableOpacity
+                    style={s.deskHeroAcInline}
+                    onPress={() => setOpenBreakdown('ac')}
+                    activeOpacity={0.7}
+                    accessibilityLabel="Show AC breakdown"
+                  >
+                    <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
+                    <Text style={s.deskHeroAcNum}>{ac}</Text>
+                  </TouchableOpacity>
+                  <View style={s.deskHeroCornerBtns}>
                     <TouchableOpacity
-                      style={[s.deskHeroStat, resources.inspiration && s.deskHeroStatInspActive]}
+                      style={[s.deskHeroCornerBtn, resources.inspiration && s.deskHeroCornerBtnInspActive]}
                       onPress={() => canEditAny && persistResources({ ...resources, inspiration: !resources.inspiration })}
                       disabled={!canEditAny}
                       activeOpacity={canEditAny ? 0.7 : 1}
@@ -2588,34 +2606,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                         size={14}
                         color={resources.inspiration ? colors.gm : colors.outline}
                       />
-                      <Text style={[s.deskHeroStatLabel, resources.inspiration && { color: colors.gm }]}>INSP</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={s.deskHeroStat}
+                      style={s.deskHeroCornerBtn}
                       onPress={() => canEditAny && setRestChooserOpen(true)}
                       disabled={!canEditAny}
                       activeOpacity={canEditAny ? 0.7 : 1}
                       accessibilityLabel="Take a rest"
                     >
                       <MaterialCommunityIcons name="bed" size={14} color={colors.outline} />
-                      <Text style={s.deskHeroStatLabel}>REST</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
-
-                {/* AC shield — same metallic shield as the mobile hero
-                    card, anchored to the right of the name block.
-                    Replaces the previous INSP / REST corner cluster
-                    (those moved into the stat strip below the name). */}
-                <TouchableOpacity
-                  style={s.deskHeroAcInline}
-                  onPress={() => setOpenBreakdown('ac')}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Show AC breakdown"
-                >
-                  <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
-                  <Text style={s.deskHeroAcNum}>{ac}</Text>
-                </TouchableOpacity>
               </View>
             </View>
 
@@ -5080,10 +5082,26 @@ const s = StyleSheet.create({
     fontFamily: fonts.headline, fontSize: 14, fontWeight: '800',
     color: colors.onPrimary, letterSpacing: -0.3,
   },
-  /** Active state for the INSP cell — primary-tinted border + bg so
-   *  the toggle reads as engaged. Mirrors the heroCornerBtnInspActive
-   *  treatment used on mobile. */
-  deskHeroStatInspActive: {
+  /** Right column of the identity row — AC shield stacked over the
+   *  INSP + REST round action buttons. Vertical layout fits the
+   *  sidebar's narrow column without forcing the strip below to wrap. */
+  deskHeroRightCol: {
+    flexDirection: 'column', alignItems: 'center', gap: 6,
+    paddingTop: 2,
+  },
+  /** Round outlined action btn — used for INSP and REST on the right
+   *  column. Matches the mobile heroCornerBtn shape (28x28 outlined
+   *  circle) so the toggles read the same on every surface. */
+  deskHeroCornerBtns: {
+    flexDirection: 'row', gap: 4,
+  },
+  deskHeroCornerBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  deskHeroCornerBtnInspActive: {
     borderColor: colors.gm, backgroundColor: `${colors.gm}22`,
   },
 
