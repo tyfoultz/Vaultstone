@@ -14,7 +14,10 @@ import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
-type Character = Database['public']['Tables']['characters']['Row'];
+type Character = Pick<Database['public']['Tables']['characters']['Row'],
+  'id' | 'user_id' | 'name' | 'campaign_id' | 'system' | 'base_stats' |
+  'avatar_url' | 'avatar_card_url' | 'created_at'
+>;
 
 // The unified list mixes a "+ New" tile, drafts, and completed characters.
 // A discriminator field on each entry keeps the renderer's switch tight.

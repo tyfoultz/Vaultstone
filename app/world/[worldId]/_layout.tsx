@@ -135,7 +135,11 @@ export default function WorldLayout() {
         event: '*',
         schema: 'public',
         table: 'world_page_permissions',
-      }, () => {
+      }, (payload) => {
+        const pageId = (payload.new as { page_id?: string })?.page_id
+          ?? (payload.old as { page_id?: string })?.page_id;
+        const worldPages = usePagesStore.getState().byWorldId[worldId];
+        if (pageId && worldPages && !worldPages.some((p) => p.id === pageId)) return;
         getPagesForWorld(worldId).then(({ data }) => {
           if (data) setPages(worldId, data as unknown as WorldPage[]);
         });

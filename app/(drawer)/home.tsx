@@ -11,7 +11,10 @@ import { colors, spacing, fonts } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
-type Character = Database['public']['Tables']['characters']['Row'];
+type Character = Pick<Database['public']['Tables']['characters']['Row'],
+  'id' | 'user_id' | 'name' | 'campaign_id' | 'system' | 'base_stats' |
+  'avatar_url' | 'avatar_card_url' | 'created_at'
+>;
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);

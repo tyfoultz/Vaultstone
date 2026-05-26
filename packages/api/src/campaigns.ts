@@ -63,7 +63,7 @@ export async function regenerateJoinCode(campaignId: string) {
 export async function getCampaignMembers(campaignId: string) {
   return supabase
     .from('campaign_members')
-    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, system, base_stats, resources, conditions, avatar_url, avatar_card_url)')
+    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, system, avatar_url, avatar_card_url)')
     .eq('campaign_id', campaignId)
     .order('joined_at', { ascending: true });
 }

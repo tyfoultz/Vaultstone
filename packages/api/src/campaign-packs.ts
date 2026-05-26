@@ -130,7 +130,7 @@ export async function listEligiblePacksForCampaign(input: {
   const [allMine, attached] = await Promise.all([
     supabase
       .from('homebrew_packs')
-      .select('*')
+      .select('id, owner_user_id, system, name, description, created_at, updated_at')
       .eq('owner_user_id', input.ownerUserId)
       .eq('system', input.system),
     supabase

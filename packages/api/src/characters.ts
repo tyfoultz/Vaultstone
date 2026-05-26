@@ -29,7 +29,7 @@ async function emitCharEvent(
 export async function getCharacters(campaignId: string) {
   return supabase
     .from('characters')
-    .select('*')
+    .select('id, user_id, name, campaign_id, system, base_stats, avatar_url, avatar_card_url')
     .eq('campaign_id', campaignId);
 }
 
@@ -43,13 +43,13 @@ export async function getMyCharacters() {
   if (!user) {
     return supabase
       .from('characters')
-      .select('*')
+      .select('id, user_id, name, campaign_id, system, base_stats, avatar_url, avatar_card_url, created_at')
       .eq('user_id', '00000000-0000-0000-0000-000000000000')
       .order('created_at', { ascending: false });
   }
   return supabase
     .from('characters')
-    .select('*')
+    .select('id, user_id, name, campaign_id, system, base_stats, avatar_url, avatar_card_url, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 }

@@ -3,10 +3,15 @@ import type { Database } from '@vaultstone/types';
 
 type Character = Database['public']['Tables']['characters']['Row'];
 
+export type CharacterListItem = Pick<Character,
+  'id' | 'user_id' | 'name' | 'campaign_id' | 'system' | 'base_stats' |
+  'avatar_url' | 'avatar_card_url' | 'created_at'
+>;
+
 interface CharacterState {
-  characters: Character[];
+  characters: CharacterListItem[];
   activeCharacter: Character | null;
-  setCharacters: (characters: Character[]) => void;
+  setCharacters: (characters: CharacterListItem[]) => void;
   setActiveCharacter: (character: Character | null) => void;
   updateCharacterLocally: (id: string, updates: Partial<Character>) => void;
 }

@@ -131,7 +131,7 @@ export default function PartyScreen() {
       .channel(`party:${id}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'characters' },
+        { event: 'UPDATE', schema: 'public', table: 'characters', filter: `campaign_id=eq.${id}` },
         (payload) => {
           const next = payload.new as {
             id: string;
