@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  getCharacterById, updateCharacter, updateCharacterState, uploadCharacterPortrait, uploadCharacterCardImage, supabase,
+  getCharacterById, updateCharacter, uploadCharacterPortrait, uploadCharacterCardImage, supabase,
   getCampaignCharacterRules, resolveRuleValues, deleteCharacter,
 } from '@vaultstone/api';
 import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, getEffectiveSpellcastingAbility, getEquippedAC as getEquippedACShared } from '@vaultstone/systems';
@@ -890,9 +890,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   }, [id]);
 
   // Is the viewer the DM of any campaign this character is linked to?
-  // Drives edit-permission on the sheet — the DM gets write access to the
-  // RPC-whitelisted session-state fields (HP, conditions, slots, etc.)
-  // while non-owner / non-DM viewers stay read-only.
+  // Drives edit-permission — DMs get full edit access to party member
+  // sheets (same as owner), while non-owner / non-DM viewers stay read-only.
   useEffect(() => {
     if (!id || !authUser?.id || !character) return;
     let cancelled = false;
@@ -1384,9 +1383,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // ── Persist ─────────────────────────────────────────────────────────────
 
   // Ownership + authorization for this sheet:
-  // - Owner: full edit access (direct table update).
-  // - DM of a linked campaign: may edit session-state fields (the RPC
-  //   whitelist) but not durable sheet fields (name, stats, equipment).
+  // - Owner or DM of a linked campaign: full edit access (direct table update).
   // - Anyone else (cross-view guest): read-only.
   const isOwner = !!character && !!authUser && character.user_id === authUser.id;
   const canEditAny = isOwner || isDmOfLinkedCampaign;
@@ -1410,13 +1407,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     else router.replace('/(drawer)/characters');
   }, [character, authUser, canViewSheet, isOwner, dmCheckResolved, onClose]);
 
-  // Keys inside resources that the RPC's whitelist accepts. Anything not in
-  // this set is owner-only — the DM sheet silently skips writes for them.
-  const RPC_RESOURCE_KEYS: (keyof Dnd5eResources)[] = [
-    'hpCurrent', 'hpTemp', 'exhaustionLevel', 'spellSlots',
-    'classResources', 'deathSaves', 'inspiration', 'concentrationSpell',
-  ];
-
   async function persistResources(updated: Dnd5eResources) {
     if (!character || !canEditAny) return;
     const prev = (character.resources ?? {}) as unknown as Dnd5eResources;
@@ -1429,25 +1419,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     const res = updated as unknown as import('@vaultstone/types').Json;
     setCharacter({ ...character, resources: res });
     updateCharacterLocally(character.id, { resources: res });
-
-    if (isOwner) {
-      await updateCharacter(character.id, { resources: res });
-      return;
-    }
-
-    // DM path: send only whitelisted resource-key diffs via the RPC. Any
-    // non-whitelisted changes (equipment, coins, features, notes, …) are
-    // silently dropped — the sheet controls for those are disabled anyway.
-    const current = (character.resources ?? {}) as unknown as Dnd5eResources;
-    const patch: Record<string, unknown> = {};
-    for (const key of RPC_RESOURCE_KEYS) {
-      if (JSON.stringify(updated[key]) !== JSON.stringify(current[key])) {
-        patch[key] = updated[key];
-      }
-    }
-    if (Object.keys(patch).length > 0) {
-      await updateCharacterState(character.id, patch);
-    }
+    await updateCharacter(character.id, { resources: res });
   }
 
   // Self-heal spell slots — characters bootstrapped before the slot
@@ -1682,15 +1654,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     if (!character || !canEditAny) return;
     setCharacter({ ...character, conditions: newConditions });
     updateCharacterLocally(character.id, { conditions: newConditions });
-    if (isOwner) {
-      await updateCharacter(character.id, { conditions: newConditions });
-    } else {
-      await updateCharacterState(character.id, { conditions: newConditions });
-    }
+    await updateCharacter(character.id, { conditions: newConditions });
   }
 
   async function persistStats(updated: Dnd5eStats) {
-    if (!character || !isOwner) return;
+    if (!character || !canEditAny) return;
     const bs = updated as unknown as import('@vaultstone/types').Json;
     setCharacter({ ...character, base_stats: bs });
     updateCharacterLocally(character.id, { base_stats: bs });
@@ -1699,7 +1667,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
   function persistTabLayout(next: TabLayoutState) {
     setTabLayout(next);
-    if (stats && isOwner) {
+    if (stats && canEditAny) {
       const currentSettings = stats.settings ?? { manualMode: false };
       persistStats({ ...stats, settings: { ...currentSettings, tabLayout: next } });
     }
@@ -1733,7 +1701,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   }
 
   async function persistName(newName: string) {
-    if (!character || !isOwner) return;
+    if (!character || !canEditAny) return;
     setCharacter({ ...character, name: newName });
     updateCharacterLocally(character.id, { name: newName });
     await updateCharacter(character.id, { name: newName });
@@ -2228,7 +2196,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             resources={resourcesForTabs ?? resources}
             scores={scores}
             prof={prof}
-            isOwner={isOwner}
+            isOwner={canEditAny}
             compact={!isDesktop}
             manualMode={manualMode}
             onEditField={manualMode ? startEditField : undefined}
@@ -2289,7 +2257,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             prof={prof}
             onRoll={handleRoll}
             skillCatalog={skillResults}
-            isOwner={isOwner}
+            isOwner={canEditAny}
             compact={!isDesktop}
             manualMode={manualMode}
             onEditField={manualMode ? startEditField : undefined}
@@ -2308,7 +2276,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           <AbilitiesTab
             stats={stats}
             resources={resources}
-            isOwner={isOwner}
+            isOwner={canEditAny}
             classResultsByKey={classResultsByKey}
             subclassResultsByKey={subclassResultsByKey}
             speciesResult={speciesResult}
@@ -2385,7 +2353,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           <GearTab
             stats={stats}
             resources={{ ...resources, equipment }}
-            isOwner={isOwner}
+            isOwner={canEditAny}
             compact={!isDesktop}
             strengthScore={scores.strength}
             onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
@@ -2406,7 +2374,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           <LoreTab
             stats={stats}
             resources={resources}
-            isOwner={isOwner}
+            isOwner={canEditAny}
             speciesLabel={speciesResult?.name ?? null}
             classLabel={stats.classKey ? classResultsByKey[stats.classKey]?.name ?? null : null}
             backgroundLabel={backgroundResult?.name ?? null}
@@ -2484,7 +2452,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </TouchableOpacity>
               ) : null}
               <View style={{ flex: 1 }} />
-              {isOwner && stats.level < 20 ? (
+              {canEditAny && stats.level < 20 ? (
                 <TouchableOpacity
                   onPress={() => router.push(`/character/${id}/level-up`)}
                   hitSlop={8}
@@ -2522,7 +2490,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                       autoFocus returnKeyType="done"
                     />
                   ) : (
-                    <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
+                    <TouchableOpacity onPress={() => canEditAny && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={canEditAny ? 0.7 : 1}>
                       <Text style={s.deskName} numberOfLines={2}>{stats.characterName}</Text>
                     </TouchableOpacity>
                   )}
@@ -2873,7 +2841,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               </TouchableOpacity>
             ) : null}
             <View style={{ flex: 1 }} />
-            {isOwner && stats.level < 20 ? (
+            {canEditAny && stats.level < 20 ? (
               <TouchableOpacity
                 onPress={() => router.push(`/character/${id}/level-up`)}
                 hitSlop={8}
@@ -2964,8 +2932,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             <TouchableOpacity
               style={s.heroPortrait}
               onPress={handlePickPortrait}
-              disabled={portraitUploading || !isOwner}
-              activeOpacity={isOwner ? 0.85 : 1}
+              disabled={portraitUploading || !canEditAny}
+              activeOpacity={canEditAny ? 0.85 : 1}
             >
               {portraitContent}
             </TouchableOpacity>
@@ -2997,8 +2965,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     />
                   ) : (
                     <TouchableOpacity
-                      onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))}
-                      activeOpacity={isOwner ? 0.7 : 1}
+                      onPress={() => canEditAny && (setNameInput(stats.characterName), setEditingName(true))}
+                      activeOpacity={canEditAny ? 0.7 : 1}
                     >
                       <Text style={s.heroName} numberOfLines={1}>{stats.characterName}</Text>
                     </TouchableOpacity>
@@ -3265,8 +3233,9 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               />
             </View>
 
-            {/* Destructive zone. Two-step: first tap arms the row, the
-                second commits. Backdrop tap / close button disarms. */}
+            {/* Destructive zone — owner-only. Two-step: first tap arms
+                the row, the second commits. Backdrop tap / close button disarms. */}
+            {isOwner ? (
             <View style={s.dangerZone}>
               {!deleteArmed ? (
                 <TouchableOpacity
@@ -3303,6 +3272,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </View>
               )}
             </View>
+            ) : null}
           </Pressable>
         </Pressable>
       </Modal>
@@ -3961,16 +3931,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         <EquipmentDetailModal
           item={detailEquipment}
           onClose={() => setDetailEquipment(null)}
-          onUpdateValue={isOwner
+          onUpdateValue={canEditAny
             ? (v: string) => handleUpdateItemValue(detailEquipment.id, v)
             : undefined}
-          onUpdateQuantity={isOwner
+          onUpdateQuantity={canEditAny
             ? (q: number) => handleUpdateItemQuantity(detailEquipment.id, q)
             : undefined}
-          onToggleEquipped={isOwner
+          onToggleEquipped={canEditAny
             ? () => handleToggleEquipped(detailEquipment.id)
             : undefined}
-          onRemove={isOwner
+          onRemove={canEditAny
             ? () => {
                 // Hand off to the existing remove confirm flow — close
                 // the detail modal first so the confirm sits on top of
@@ -3980,7 +3950,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 setRemoveEquipId(id);
               }
             : undefined}
-          canEdit={isOwner}
+          canEdit={canEditAny}
         />
       ) : null}
 
