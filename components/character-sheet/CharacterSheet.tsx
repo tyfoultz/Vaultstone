@@ -2530,6 +2530,92 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     {[speciesLabel, classLabel].filter(Boolean).join(' ')}
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
+
+                  {/* Stats row tucked under the level text. PER /
+                      PROF / HD as 3 cells across the name block —
+                      uses the empty vertical space next to the
+                      portrait instead of stacking below it. */}
+                  <View style={s.deskHeroStatsRow}>
+                    <TouchableOpacity
+                      style={s.deskHeroStat}
+                      onPress={() => setOpenBreakdown('passive-perception')}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Show passive perception breakdown"
+                    >
+                      <MaterialCommunityIcons name="eye-outline" size={11} color={colors.outline} />
+                      <Text style={s.deskHeroStatLabel}>PER</Text>
+                      <Text
+                        style={[
+                          s.deskHeroStatValue,
+                          (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
+                          !(stats.skillExpertise ?? []).includes('perception')
+                            && stats.skillProficiencies.includes('perception')
+                            && { color: colors.primary },
+                        ]}
+                      >{passivePerception}</Text>
+                    </TouchableOpacity>
+                    <View style={s.deskHeroStat}>
+                      <MaterialCommunityIcons name="star-four-points-outline" size={11} color={colors.outline} />
+                      <Text style={s.deskHeroStatLabel}>PROF</Text>
+                      <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
+                    </View>
+                    {(() => {
+                      const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
+                      const canSpend = canEditAny && hdRemaining > 0;
+                      const Wrapper = canSpend ? TouchableOpacity : View;
+                      return (
+                        <Wrapper
+                          style={s.deskHeroStat}
+                          onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
+                          activeOpacity={canSpend ? 0.7 : 1}
+                          accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
+                        >
+                          <MaterialCommunityIcons name="dice-d8-outline" size={11} color={colors.outline} />
+                          <Text style={s.deskHeroStatLabel}>HD</Text>
+                          <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
+                        </Wrapper>
+                      );
+                    })()}
+                  </View>
+
+                  {/* Action buttons row — Insp / Short / Long.
+                      Labels shortened from "Inspiration / Short Rest
+                      / Long Rest" to single tokens so the row fits
+                      under the stats inside the name block. */}
+                  {canEditAny && (
+                    <View style={s.deskHeroActionRow}>
+                      <TouchableOpacity
+                        style={[s.deskHeroActionBtn, resources.inspiration && s.deskHeroActionBtnInspActive]}
+                        onPress={() => persistResources({ ...resources, inspiration: !resources.inspiration })}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialCommunityIcons
+                          name={resources.inspiration ? 'star' : 'star-outline'}
+                          size={12}
+                          color={resources.inspiration ? colors.gm : colors.primary}
+                        />
+                        <Text style={[s.deskHeroActionBtnText, resources.inspiration && { color: colors.gm }]}>
+                          {resources.inspiration ? 'Insp' : 'Insp'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={s.deskHeroActionBtn}
+                        onPress={() => setRestConfirm('short')}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialCommunityIcons name="campfire" size={12} color={colors.primary} />
+                        <Text style={s.deskHeroActionBtnText}>Short</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={s.deskHeroActionBtn}
+                        onPress={() => setRestConfirm('long')}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialCommunityIcons name="bed" size={12} color={colors.primary} />
+                        <Text style={s.deskHeroActionBtnText}>Long</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
 
                 {/* AC shield — anchored to the right of the name
@@ -2545,92 +2631,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   <Text style={s.deskHeroAcNum}>{ac}</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Stats row — PER / PROF / HD as 3 cells across the
-                  full sidebar width. Lives outside the name block so
-                  it isn't squeezed by the portrait + AC shield on
-                  either side of the identity row above. */}
-              <View style={s.deskHeroStatsRow}>
-                <TouchableOpacity
-                  style={s.deskHeroStat}
-                  onPress={() => setOpenBreakdown('passive-perception')}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Show passive perception breakdown"
-                >
-                  <MaterialCommunityIcons name="eye-outline" size={12} color={colors.outline} />
-                  <Text style={s.deskHeroStatLabel}>PER</Text>
-                  <Text
-                    style={[
-                      s.deskHeroStatValue,
-                      (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
-                      !(stats.skillExpertise ?? []).includes('perception')
-                        && stats.skillProficiencies.includes('perception')
-                        && { color: colors.primary },
-                    ]}
-                  >{passivePerception}</Text>
-                </TouchableOpacity>
-                <View style={s.deskHeroStat}>
-                  <MaterialCommunityIcons name="star-four-points-outline" size={12} color={colors.outline} />
-                  <Text style={s.deskHeroStatLabel}>PROF</Text>
-                  <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
-                </View>
-                {(() => {
-                  const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
-                  const canSpend = canEditAny && hdRemaining > 0;
-                  const Wrapper = canSpend ? TouchableOpacity : View;
-                  return (
-                    <Wrapper
-                      style={s.deskHeroStat}
-                      onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
-                      activeOpacity={canSpend ? 0.7 : 1}
-                      accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
-                    >
-                      <MaterialCommunityIcons name="dice-d8-outline" size={12} color={colors.outline} />
-                      <Text style={s.deskHeroStatLabel}>HD</Text>
-                      <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
-                    </Wrapper>
-                  );
-                })()}
-              </View>
-
-              {/* Action button row — thin labelled buttons span the
-                  full sidebar below the stats row. Inspiration,
-                  Short Rest, Long Rest in one consistent treatment. */}
-              {canEditAny && (
-                <View style={s.deskHeroActionRow}>
-                  <TouchableOpacity
-                    style={[s.deskHeroActionBtn, resources.inspiration && s.deskHeroActionBtnInspActive]}
-                    onPress={() => persistResources({ ...resources, inspiration: !resources.inspiration })}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons
-                      name={resources.inspiration ? 'star' : 'star-outline'}
-                      size={13}
-                      color={resources.inspiration ? colors.gm : colors.primary}
-                    />
-                    <Text style={[s.deskHeroActionBtnText, resources.inspiration && { color: colors.gm }]}>
-                      {resources.inspiration ? 'Inspired' : 'Inspiration'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.deskHeroActionBtn}
-                    onPress={() => setRestConfirm('short')}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons name="campfire" size={13} color={colors.primary} />
-                    <Text style={s.deskHeroActionBtnText}>Short Rest</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.deskHeroActionBtn}
-                    onPress={() => setRestConfirm('long')}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons name="bed" size={13} color={colors.primary} />
-                    <Text style={s.deskHeroActionBtnText}>Long Rest</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
 
             {/* ── Stats block ─────────────────────────────────────── */}
             <View style={s.deskStats}>
@@ -4954,38 +4954,40 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   deskIconBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
-  /** Hero stats row — PER / PROF / HD as 3 cells across the full
-   *  sidebar width below the identity row. Each cell renders as
-   *  icon · LABEL · value on a single line (horizontal density). */
+  /** Hero stats row — PER / PROF / HD as 3 cells tucked under the
+   *  level text inside the name block. Each cell renders as
+   *  icon · LABEL · value on a single line; compact horizontal
+   *  density so 3 cells fit in the name-block column. */
   deskHeroStatsRow: {
-    flexDirection: 'row', gap: 5, marginTop: 10,
+    flexDirection: 'row', gap: 4, marginTop: 6,
   },
   deskHeroStat: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: 6, paddingVertical: 6,
+    gap: 3,
+    paddingHorizontal: 4, paddingVertical: 4,
     borderRadius: 6,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1, borderColor: colors.outlineVariant,
   },
   deskHeroStatLabel: {
-    fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
-    letterSpacing: 0.8, color: colors.outline, textTransform: 'uppercase' as const,
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 0.6, color: colors.outline, textTransform: 'uppercase' as const,
   },
   deskHeroStatValue: {
-    fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
+    fontSize: 11, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface,
   },
-  /** Full-width action row below the identity — Inspiration / Short
-   *  Rest / Long Rest as evenly-distributed thin labelled buttons.
-   *  Replaces the previous standalone Rest + Inspiration sections. */
+  /** Action row under the stats — Insp / Short / Long as thin
+   *  evenly-distributed buttons. Labels shortened to single tokens
+   *  ("Short" instead of "Short Rest") so the row fits inside the
+   *  name-block column without wrapping. */
   deskHeroActionRow: {
-    flexDirection: 'row', gap: 6, marginTop: 12,
+    flexDirection: 'row', gap: 4, marginTop: 4,
   },
   deskHeroActionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: 8, paddingVertical: 7,
+    gap: 3,
+    paddingHorizontal: 4, paddingVertical: 5,
     borderRadius: radius.lg,
     borderWidth: 1, borderColor: `${colors.primary}66`,
     backgroundColor: `${colors.primary}14`,
@@ -4994,7 +4996,7 @@ const s = StyleSheet.create({
     borderColor: `${colors.gm}66`, backgroundColor: `${colors.gm}22`,
   },
   deskHeroActionBtnText: {
-    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
     color: colors.primary, letterSpacing: 0.3,
   },
   /** AC shield anchored to the right of the name block — same
