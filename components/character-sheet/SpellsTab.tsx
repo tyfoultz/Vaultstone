@@ -81,6 +81,11 @@ interface Props {
   scores: Dnd5eAbilityScores;
   prof: number;
   isOwner: boolean;
+  /** Mobile / tablet density — drops RANGE + TIME columns from the
+   *  spell table and reveals the column-picker dropdown on SCHOOL.
+   *  Driven by the parent's isDesktop threshold; falls back to local
+   *  useBreakpoint when omitted. */
+  compact?: boolean;
   /** Manual mode reveals limit-edit affordances + applies any
    *  cantripsKnown/preparedSpells overrides on the stats record. */
   manualMode?: boolean;
@@ -138,7 +143,7 @@ interface Props {
 }
 
 export function SpellsTab({
-  stats, resources, scores, prof, isOwner, manualMode, onEditField,
+  stats, resources, scores, prof, isOwner, compact, manualMode, onEditField,
   effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
   onOpenManage, spellbook, onSetPrepStatus, onSaveSpellNotes, spellcastingExplainers,
 }: Props) {
@@ -257,8 +262,10 @@ export function SpellsTab({
   // out so the Name column has room to breathe (otherwise the name
   // truncates to a single letter on phone widths). The user picks
   // which single attribute renders in the second column via the
-  // header dropdown; the choice persists per device.
-  const { isMobile } = useBreakpoint();
+  // header dropdown; the choice persists per device. Parent can
+  // force compact via the `compact` prop (tablet portrait case).
+  const bp = useBreakpoint();
+  const isMobile = compact ?? bp.isMobile;
   const column2 = useSpellsTabStore((st) => st.column2);
   const setColumn2 = useSpellsTabStore((st) => st.setColumn2);
   const [column2PickerOpen, setColumn2PickerOpen] = useState(false);

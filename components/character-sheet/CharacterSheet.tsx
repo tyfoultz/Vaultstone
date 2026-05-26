@@ -728,7 +728,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const authUser = useAuthStore((state) => state.user);
 
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  // Multi-column desktop layout needs enough width for the left rail,
+  // two pane columns, and the activity log — at 768 (tablet portrait
+  // / iPad) those columns collapse into each other and the spell
+  // table truncates spell names to a single letter. 1024 puts the
+  // breakpoint at iPad landscape / small laptops; anything narrower
+  // gets the single-column mobile layout.
+  const isDesktop = width >= 1024;
 
   const [character, setCharacter] = useState<Character | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2219,6 +2225,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             scores={scores}
             prof={prof}
             isOwner={isOwner}
+            compact={!isDesktop}
             manualMode={manualMode}
             onEditField={manualMode ? startEditField : undefined}
             effectiveSpellcastingAbility={spellcastingAbilityForHint}
@@ -2279,6 +2286,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onRoll={handleRoll}
             skillCatalog={skillResults}
             isOwner={isOwner}
+            compact={!isDesktop}
             manualMode={manualMode}
             onEditField={manualMode ? startEditField : undefined}
             onUpdateProficiencies={(profs, exp) => {
@@ -2374,6 +2382,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             stats={stats}
             resources={{ ...resources, equipment }}
             isOwner={isOwner}
+            compact={!isDesktop}
             strengthScore={scores.strength}
             onUpdateCoins={(coins) => persistResources({ ...resources, coins })}
             onToggleEquipped={handleToggleEquipped}

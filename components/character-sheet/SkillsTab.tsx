@@ -41,6 +41,11 @@ interface Props {
   onRoll: (result: RollResult) => void;
   skillCatalog?: SkillResult[];
   isOwner?: boolean;
+  /** Mobile / tablet density — drops to tighter row padding + smaller
+   *  fonts inside the 2-column skills grid. Driven by the parent's
+   *  isDesktop threshold; falls back to local useBreakpoint when
+   *  omitted. */
+  compact?: boolean;
   /** When true, ability score tiles tap to edit (via onEditField)
    *  instead of rolling. Mirrors the manual-mode behavior that used
    *  to live on the Combat tab. */
@@ -51,7 +56,7 @@ interface Props {
 }
 
 export function SkillsTab({
-  stats, scores, prof, onRoll, skillCatalog, isOwner,
+  stats, scores, prof, onRoll, skillCatalog, isOwner, compact,
   manualMode, onEditField,
   onUpdateProficiencies, onUpdateToolProficiencies,
 }: Props) {
@@ -71,8 +76,10 @@ export function SkillsTab({
   // vertical real estate above the fold on every viewport. isMobile
   // only controls the per-row density (compact padding + slightly
   // smaller fonts on phone widths so the row content fits cleanly at
-  // half width); wider viewports use the standard density.
-  const { isMobile } = useBreakpoint();
+  // half width); wider viewports use the standard density. Parent
+  // can force compact via the `compact` prop (tablet portrait case).
+  const bp = useBreakpoint();
+  const isMobile = compact ?? bp.isMobile;
 
   function skillBonus(name: string) {
     const abi = SKILL_ABILITY[name];

@@ -25,6 +25,11 @@ interface Props {
   stats: Dnd5eStats;
   resources: Dnd5eResources;
   isOwner: boolean;
+  /** When true, the tab renders in its compact (mobile / tablet)
+   *  density — drops the TYPE + VALUE columns from the inventory
+   *  table. Driven by the parent's `isDesktop` threshold; falls back
+   *  to a local useBreakpoint() check when omitted. */
+  compact?: boolean;
   strengthScore: number;
   onUpdateCoins?: (coins: NonNullable<Dnd5eResources['coins']>) => void;
   onToggleEquipped?: (id: string) => void;
@@ -60,7 +65,7 @@ const SLOT_LABEL: Record<string, string> = {
 };
 
 export function GearTab({
-  stats, resources, isOwner, strengthScore,
+  stats, resources, isOwner, compact, strengthScore,
   onUpdateCoins, onToggleEquipped, onToggleAttuned, onTogglePinnedToCombat, onUpdateNotes, onUpdateTreasure,
   onOpenItemPicker, onRemoveItem, onUpdateItemValue, onUpdateItemQuantity,
   onOpenEquipmentDetail,
@@ -87,7 +92,13 @@ export function GearTab({
   // overflow into adjacent columns. Drop those two cols on mobile —
   // the slot icon already conveys type, and value is empty for the
   // vast majority of inventory rows.
-  const { isMobile } = useBreakpoint();
+  //
+  // The parent (CharacterSheet) drives this via the `compact` prop
+  // when it has its own breakpoint context (the tablet portrait case
+  // wants compact even though useBreakpoint says isMobile=false).
+  // Falls back to a local useBreakpoint when the prop is omitted.
+  const bp = useBreakpoint();
+  const isMobile = compact ?? bp.isMobile;
   const equipment = resources.equipment ?? [];
   const coins = resources.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
 
