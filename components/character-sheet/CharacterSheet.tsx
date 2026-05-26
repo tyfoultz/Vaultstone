@@ -5091,9 +5091,12 @@ const s = StyleSheet.create({
   },
   /** Round outlined action btn — used for INSP and REST on the right
    *  column. Matches the mobile heroCornerBtn shape (28x28 outlined
-   *  circle) so the toggles read the same on every surface. */
+   *  circle) so the toggles read the same on every surface.
+   *  Stacked vertically so the right column stays as narrow as the
+   *  AC shield, leaving the PER / PROF / HD strip more horizontal
+   *  room. */
   deskHeroCornerBtns: {
-    flexDirection: 'row', gap: 4,
+    flexDirection: 'column', gap: 4,
   },
   deskHeroCornerBtn: {
     width: 28, height: 28, borderRadius: 14,
