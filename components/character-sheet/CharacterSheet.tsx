@@ -4447,16 +4447,23 @@ const s = StyleSheet.create({
    *
    *  No flexWrap — the chip shrinks (and its label truncates) instead
    *  of pushing the Lv↑ / Settings icons onto a second line. */
+  /** Utility bar — sized to match the tab bar in the content pane
+   *  so the sidebar's top edge and the tab row align horizontally.
+   *  Tab bar = paddingTop 6 + tabBtn (28 tall) = 34, + 1 hairline =
+   *  ~35px. Utility bar mirrors that so the portrait below starts at
+   *  the same y as the first tab content. */
   deskUtilityBar: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginBottom: spacing.sm,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
   /** Compact icon-only Home button — sidebar columns are too narrow
    *  for the mobile chunky "← Home" label without forcing the row
    *  to wrap. The home glyph carries the same meaning at half the
-   *  width. */
+   *  width. Sized to fit cleanly inside the utility bar's height
+   *  (24×24 leaves 4px vertical breathing room inside a ~32px row). */
   deskHomeBtn: {
-    width: 30, height: 30,
+    width: 24, height: 24,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.outlineVariant,
@@ -4818,7 +4825,7 @@ const s = StyleSheet.create({
     paddingBottom: 24,
   },
   deskHeader: {
-    paddingTop: 16, paddingBottom: 12,
+    paddingTop: 12, paddingBottom: 12,
     paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
