@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
-import { View, Text, Image, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View, Text, Image, FlatList, TouchableOpacity, Pressable, ActivityIndicator, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getCampaigns, getMemberCountsForCampaigns } from '@vaultstone/api';
+import { getCampaigns, getMemberCountsForCampaigns, uploadCampaignCover } from '@vaultstone/api';
 import { useAuthStore, useCampaignStore } from '@vaultstone/store';
-import { colors, spacing } from '@vaultstone/ui';
+import { colors, spacing, ImageCropModal } from '@vaultstone/ui';
 import type { Database } from '@vaultstone/types';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
@@ -19,6 +20,41 @@ export default function CampaignsScreen() {
   const { width } = useWindowDimensions();
 
   const numColumns = width > 900 ? 3 : width > 560 ? 2 : 1;
+
+  const [coverCropUri, setCoverCropUri] = useState<string | null>(null);
+  const [coverCropCampaignId, setCoverCropCampaignId] = useState<string | null>(null);
+
+  const handlePickCover = useCallback(async (campaignId: string) => {
+    const isWeb = Platform.OS === 'web';
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: !isWeb,
+      aspect: [16, 9],
+      quality: 0.5,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (isWeb) {
+      setCoverCropUri(asset.uri);
+      setCoverCropCampaignId(campaignId);
+    } else {
+      const { url } = await uploadCampaignCover(campaignId, asset.uri, asset.mimeType ?? 'image/jpeg');
+      if (url) {
+        setCampaigns(campaigns.map((c) => c.id === campaignId ? { ...c, cover_image_url: url } : c));
+      }
+    }
+  }, [campaigns, setCampaigns]);
+
+  const handleCoverCropConfirm = useCallback(async (croppedUri: string) => {
+    const cid = coverCropCampaignId;
+    setCoverCropUri(null);
+    setCoverCropCampaignId(null);
+    if (!cid) return;
+    const { url } = await uploadCampaignCover(cid, croppedUri, 'image/jpeg');
+    if (url) {
+      setCampaigns(campaigns.map((c) => c.id === cid ? { ...c, cover_image_url: url } : c));
+    }
+  }, [coverCropCampaignId, campaigns, setCampaigns]);
 
   useEffect(() => {
     if (!user) return;
@@ -46,13 +82,24 @@ export default function CampaignsScreen() {
         style={[styles.card, { flex: 1 / numColumns }]}
         onPress={() => router.push(`/campaign/${item.id}`)}
       >
-        {item.cover_image_url ? (
-          <Image source={{ uri: item.cover_image_url }} style={styles.coverImage} />
-        ) : (
-          <View style={styles.coverPlaceholder}>
-            <MaterialCommunityIcons name="map-outline" size={36} color={colors.border} />
-          </View>
-        )}
+        <View>
+          {item.cover_image_url ? (
+            <Image source={{ uri: item.cover_image_url }} style={styles.coverImage} />
+          ) : (
+            <View style={styles.coverPlaceholder}>
+              <MaterialCommunityIcons name="map-outline" size={36} color={colors.border} />
+            </View>
+          )}
+          {isDM ? (
+            <Pressable
+              onPress={(e) => { e.stopPropagation(); handlePickCover(item.id); }}
+              style={({ pressed }) => [styles.coverEditBtn, pressed && { opacity: 0.8 }]}
+              accessibilityLabel="Edit campaign cover image"
+            >
+              <MaterialCommunityIcons name="camera" size={14} color="#fff" />
+            </Pressable>
+          ) : null}
+        </View>
         <View style={styles.cardBody}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
@@ -116,6 +163,17 @@ export default function CampaignsScreen() {
         columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
         contentContainerStyle={styles.list}
       />
+
+      {coverCropUri ? (
+        <ImageCropModal
+          visible
+          imageUri={coverCropUri}
+          aspect={[16, 9]}
+          usageHint="This image appears as the campaign's card cover."
+          onConfirm={handleCoverCropConfirm}
+          onCancel={() => { setCoverCropUri(null); setCoverCropCampaignId(null); }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -189,6 +247,17 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 16 / 9,
     backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coverEditBtn: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },

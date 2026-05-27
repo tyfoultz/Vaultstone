@@ -34,7 +34,7 @@ import {
 } from '@vaultstone/api';
 import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { CharacterCreationRulesModal } from './CharacterCreationRulesModal';
-import { useAuthStore, useCampaignStore } from '@vaultstone/store';
+import { useAuthStore, useCampaignStore, useSplitPaneStore } from '@vaultstone/store';
 import {
   colors, spacing, radius,
   Card, ContentWidth, GhostButton, GradientButton, Icon, ImageCropModal,
@@ -1090,7 +1090,7 @@ function ReferencesCard({
    *  the reference rows. Used to nest the Members section. */
   children?: React.ReactNode;
 }) {
-  const router = useRouter();
+  const openSplit = useSplitPaneStore((st) => st.openSplit);
   // Collapsed by default — this card aggregates references + roster,
   // which is supporting info that doesn't need to push the at-a-glance
   // party + session controls down the page. State is per-mount; expand
@@ -1119,7 +1119,7 @@ function ReferencesCard({
                 label="World"
                 value={world?.name ?? '—'}
                 ctaIcon="open-in-new"
-                onPress={world ? () => router.push(`/world/${world.id}` as Href) : undefined}
+                onPress={world ? () => openSplit({ kind: 'world-home', worldId: world.id }) : undefined}
               />
               <ReferenceRow
                 label="Content packs"
