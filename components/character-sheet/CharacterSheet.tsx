@@ -2506,7 +2506,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 key stats sit in one glance instead of being spread
                 across several sections downstream. */}
             <View style={s.deskHeader}>
-              {/* Name + AC top row: title text fills the left, AC
+              {/* Full-width portrait. 3:4 aspect ratio anchored to
+                  the sidebar's interior width. */}
+              <TouchableOpacity
+                style={s.deskPortrait}
+                onPress={handlePickPortrait}
+                disabled={portraitUploading || !isOwner}
+                activeOpacity={isOwner ? 0.85 : 1}
+              >
+                {portraitContent}
+              </TouchableOpacity>
+
+              {/* Name + AC title row: title text fills the left, AC
                   shield anchors the right. Subtitle + level live
                   under the name on a second row of the name block. */}
               <View style={s.deskHeroTitleRow}>
@@ -2545,55 +2556,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </TouchableOpacity>
               </View>
 
-              {/* Full-width portrait below the title row. 3:4 aspect
-                  ratio anchored to the sidebar's interior width. */}
-              <TouchableOpacity
-                style={s.deskPortrait}
-                onPress={handlePickPortrait}
-                disabled={portraitUploading || !isOwner}
-                activeOpacity={isOwner ? 0.85 : 1}
-              >
-                {portraitContent}
-              </TouchableOpacity>
-
-              {/* Inspiration + Rest action buttons — full sidebar
-                  width below the identity row (under both the name
-                  block and the AC shield). Two flex:1 buttons split
-                  the row evenly so the labels get the full ~210px
-                  instead of being confined to the name-block column. */}
-              {canEditAny && (
-                <View style={s.deskHeroActionRow}>
-                  <TouchableOpacity
-                    style={[s.deskHeroActionBtn, resources.inspiration && s.deskHeroActionBtnInspActive]}
-                    onPress={() => persistResources({ ...resources, inspiration: !resources.inspiration })}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons
-                      name={resources.inspiration ? 'star' : 'star-outline'}
-                      size={13}
-                      color={resources.inspiration ? colors.gm : colors.primary}
-                    />
-                    <Text style={[s.deskHeroActionBtnText, resources.inspiration && { color: colors.gm }]}>
-                      {resources.inspiration ? 'Inspired' : 'Inspiration'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.deskHeroActionBtn}
-                    onPress={() => setRestChooserOpen(true)}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons name="bed" size={13} color={colors.primary} />
-                    <Text style={s.deskHeroActionBtnText}>Rest</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
               {/* Stats row — PER / PROF / HD as 3 cells across the
-                  full sidebar width below the identity row. Lifted
-                  out of the name block because the name-block column
-                  is too narrow once the portrait and AC shield take
-                  their share — the cells crammed and labels overlapped
-                  their values. */}
+                  full sidebar width. */}
               <View style={s.deskHeroStatsRow}>
                 <TouchableOpacity
                   style={s.deskHeroStat}
@@ -2637,9 +2601,35 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 })()}
               </View>
 
-              {/* Inspiration + Rest action buttons moved up next to
-                  the name (see deskHeroActionRow inside deskNameBlock
-                  above). */}
+              {/* Inspiration + Rest action buttons — full sidebar
+                  width row below the stats. */}
+              {canEditAny && (
+                <View style={s.deskHeroActionRow}>
+                  <TouchableOpacity
+                    style={[s.deskHeroActionBtn, resources.inspiration && s.deskHeroActionBtnInspActive]}
+                    onPress={() => persistResources({ ...resources, inspiration: !resources.inspiration })}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons
+                      name={resources.inspiration ? 'star' : 'star-outline'}
+                      size={13}
+                      color={resources.inspiration ? colors.gm : colors.primary}
+                    />
+                    <Text style={[s.deskHeroActionBtnText, resources.inspiration && { color: colors.gm }]}>
+                      {resources.inspiration ? 'Inspired' : 'Inspiration'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.deskHeroActionBtn}
+                    onPress={() => setRestChooserOpen(true)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="bed" size={13} color={colors.primary} />
+                    <Text style={s.deskHeroActionBtnText}>Rest</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
             </View>
 
             {/* ── Stats block ─────────────────────────────────────── */}
@@ -4813,8 +4803,8 @@ const s = StyleSheet.create({
    *  the gradient (primary-tinted top-left fading to surface) instead
    *  of a flat fill. */
   deskRail: {
-    width: 260,
-    flexBasis: 260,
+    width: 220,
+    flexBasis: 220,
     flexGrow: 0,
     flexShrink: 0,
     borderRightWidth: StyleSheet.hairlineWidth,
