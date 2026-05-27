@@ -4813,8 +4813,8 @@ const s = StyleSheet.create({
    *  the gradient (primary-tinted top-left fading to surface) instead
    *  of a flat fill. */
   deskRail: {
-    width: 280,
-    flexBasis: 280,
+    width: 300,
+    flexBasis: 300,
     flexGrow: 0,
     flexShrink: 0,
     borderRightWidth: StyleSheet.hairlineWidth,
@@ -4852,11 +4852,13 @@ const s = StyleSheet.create({
    *  anchor absolutely to its top-right corner without being clipped
    *  by the portrait's own overflow: hidden. */
   deskPortraitWrap: {
-    width: 112, flexShrink: 0, position: 'relative',
+    width: 128, flexShrink: 0, position: 'relative',
   },
-  /** Portrait — 3:4 ratio inside the fixed-width wrapper. */
+  /** Portrait — 3:4 ratio inside the fixed-width wrapper. Width is
+   *  tuned so the portrait's bottom edge sits flush with the bottom
+   *  of the identity column to its right. */
   deskPortrait: {
-    width: 112, aspectRatio: 3 / 4,
+    width: 128, aspectRatio: 3 / 4,
     borderRadius: 8,
     backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1, borderColor: colors.outlineVariant,
