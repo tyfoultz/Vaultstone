@@ -2506,9 +2506,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 two-column body. */}
             <View style={s.deskHeader}>
               <View style={s.deskHeroBody}>
-                {/* Portrait with AC shield anchored top-right. The
-                    badge floats outside the portrait's bounds so the
-                    art beneath isn't clipped by the shield. */}
                 <View style={s.deskPortraitWrap}>
                   <TouchableOpacity
                     style={s.deskPortrait}
@@ -2518,39 +2515,42 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   >
                     {portraitContent}
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.deskAcBadge}
-                    onPress={() => setOpenBreakdown('ac')}
-                    activeOpacity={0.7}
-                    accessibilityLabel="Show AC breakdown"
-                  >
-                    <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
-                    <Text style={s.deskAcBadgeNum}>{ac}</Text>
-                  </TouchableOpacity>
                 </View>
 
-                {/* Identity + stacked stats. Name/sub/level on top,
-                    PER/PROF/HD as horizontal label-value rows below. */}
+                {/* Identity + stacked stats. Title row has name/sub/level
+                    block flexing left with the AC shield anchored to its
+                    top-right; PER/PROF/HD label-value rows stack below. */}
                 <View style={s.deskHeroIdentity}>
-                  <View style={s.deskNameBlock}>
-                    {editingName ? (
-                      <TextInput
-                        style={s.deskNameInput}
-                        value={nameInput}
-                        onChangeText={setNameInput}
-                        onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                        onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                        autoFocus returnKeyType="done"
-                      />
-                    ) : (
-                      <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
-                        <Text style={s.deskName} numberOfLines={2}>{stats.characterName}</Text>
-                      </TouchableOpacity>
-                    )}
-                    <Text style={s.deskSub} numberOfLines={1}>
-                      {[speciesLabel, classLabel].filter(Boolean).join(' ')}
-                    </Text>
-                    <Text style={s.deskLevel}>Level {stats.level}</Text>
+                  <View style={s.deskHeroTitleRow}>
+                    <View style={s.deskNameBlock}>
+                      {editingName ? (
+                        <TextInput
+                          style={s.deskNameInput}
+                          value={nameInput}
+                          onChangeText={setNameInput}
+                          onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                          onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                          autoFocus returnKeyType="done"
+                        />
+                      ) : (
+                        <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
+                          <Text style={s.deskName} numberOfLines={2}>{stats.characterName}</Text>
+                        </TouchableOpacity>
+                      )}
+                      <Text style={s.deskSub} numberOfLines={1}>
+                        {[speciesLabel, classLabel].filter(Boolean).join(' ')}
+                      </Text>
+                      <Text style={s.deskLevel}>Level {stats.level}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={s.deskHeroAcInline}
+                      onPress={() => setOpenBreakdown('ac')}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Show AC breakdown"
+                    >
+                      <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
+                      <Text style={s.deskHeroAcNum}>{ac}</Text>
+                    </TouchableOpacity>
                   </View>
 
                   <View style={s.deskHeroStatsCol}>
@@ -4863,26 +4863,33 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   deskPortraitImg: { width: '100%', height: '100%', borderRadius: 8 },
-  /** AC shield badge — floats over the portrait's top-right corner.
-   *  Same metallic silver shield as the mobile hero card; number is
+  /** Identity column — title row (name/sub/level + AC) on top,
+   *  PER/PROF/HD stat rows stacked below. Sits to the right of the
+   *  portrait. */
+  deskHeroIdentity: {
+    flex: 1, minWidth: 0, gap: 8,
+  },
+  /** Title row — name block flexes left, AC shield anchors top-right
+   *  of the identity column. Top-aligned so the shield hugs the
+   *  first line of the name rather than floating between sub/level. */
+  deskHeroTitleRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+  },
+  deskNameBlock: { flex: 1, minWidth: 0 },
+  /** AC shield anchored top-right of the identity column. Same
+   *  metallic silver shield as the mobile hero card; number is
    *  positioned absolutely inside the glyph. */
-  deskAcBadge: {
-    position: 'absolute', top: -6, right: -6,
+  deskHeroAcInline: {
     width: 42, height: 46,
     alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
   },
-  deskAcBadgeNum: {
+  deskHeroAcNum: {
     position: 'absolute', top: 11, left: 0, right: 0,
     textAlign: 'center',
     fontFamily: fonts.headline, fontSize: 14, fontWeight: '800',
     color: colors.onPrimary, letterSpacing: -0.3,
   },
-  /** Identity column — name/sub/level on top, PER/PROF/HD stat rows
-   *  stacked below. Sits to the right of the portrait. */
-  deskHeroIdentity: {
-    flex: 1, minWidth: 0, gap: 8,
-  },
-  deskNameBlock: { minWidth: 0 },
   deskName: {
     fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface, letterSpacing: -0.2, lineHeight: 18,
