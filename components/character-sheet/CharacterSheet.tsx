@@ -2771,7 +2771,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 roll / HP / condition entry as the old log rail. */}
             <View style={s.deskSection}>
               <View style={s.deskLogHead}>
-                <Text style={s.deskSectionLabel}>Activity Log</Text>
+                <Text style={[s.deskSectionLabel, { color: colors.hpWarning }]}>Activity Log</Text>
                 <Text style={s.deskLogCount}>{activityLog.length} event{activityLog.length === 1 ? '' : 's'}</Text>
               </View>
               {activityLog.length === 0 ? (
