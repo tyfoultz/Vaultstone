@@ -2499,110 +2499,113 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               </TouchableOpacity>
             </View>
 
-            {/* Portrait + name + hero stats strip. Mirrors the mobile
-                hero card chassis: portrait left, identity block right,
-                INSP / REST action icons in the top-right corner, and
-                an AC / PER / PROF / HD strip below the name so the
-                key stats sit in one glance instead of being spread
-                across several sections downstream. */}
+            {/* Hero header — portrait left (with AC badge overlay),
+                identity column right (name / subtitle / level, then
+                PER / PROF / HD as horizontal label-value rows). The
+                Inspiration + Rest pair lives full-width below the
+                two-column body. */}
             <View style={s.deskHeader}>
-              {/* Full-width portrait. 3:4 aspect ratio anchored to
-                  the sidebar's interior width. */}
-              <TouchableOpacity
-                style={s.deskPortrait}
-                onPress={handlePickPortrait}
-                disabled={portraitUploading || !isOwner}
-                activeOpacity={isOwner ? 0.85 : 1}
-              >
-                {portraitContent}
-              </TouchableOpacity>
-
-              {/* Name + AC title row: title text fills the left, AC
-                  shield anchors the right. Subtitle + level live
-                  under the name on a second row of the name block. */}
-              <View style={s.deskHeroTitleRow}>
-                <View style={s.deskNameBlock}>
-                  {editingName ? (
-                    <TextInput
-                      style={s.deskNameInput}
-                      value={nameInput}
-                      onChangeText={setNameInput}
-                      onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                      onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                      autoFocus returnKeyType="done"
-                    />
-                  ) : (
-                    <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
-                      <Text style={s.deskName} numberOfLines={2}>{stats.characterName}</Text>
-                    </TouchableOpacity>
-                  )}
-                  <Text style={s.deskSub} numberOfLines={1}>
-                    {[speciesLabel, classLabel].filter(Boolean).join(' ')}
-                  </Text>
-                  <Text style={s.deskLevel}>Level {stats.level}</Text>
+              <View style={s.deskHeroBody}>
+                {/* Portrait with AC shield anchored top-right. The
+                    badge floats outside the portrait's bounds so the
+                    art beneath isn't clipped by the shield. */}
+                <View style={s.deskPortraitWrap}>
+                  <TouchableOpacity
+                    style={s.deskPortrait}
+                    onPress={handlePickPortrait}
+                    disabled={portraitUploading || !isOwner}
+                    activeOpacity={isOwner ? 0.85 : 1}
+                  >
+                    {portraitContent}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.deskAcBadge}
+                    onPress={() => setOpenBreakdown('ac')}
+                    activeOpacity={0.7}
+                    accessibilityLabel="Show AC breakdown"
+                  >
+                    <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
+                    <Text style={s.deskAcBadgeNum}>{ac}</Text>
+                  </TouchableOpacity>
                 </View>
 
-                {/* AC shield — anchored to the right of the title
-                    text. Same metallic silver shield as the mobile
-                    hero card. */}
-                <TouchableOpacity
-                  style={s.deskHeroAcInline}
-                  onPress={() => setOpenBreakdown('ac')}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Show AC breakdown"
-                >
-                  <MaterialCommunityIcons name="shield" size={44} color="#b8bdc7" />
-                  <Text style={s.deskHeroAcNum}>{ac}</Text>
-                </TouchableOpacity>
-              </View>
+                {/* Identity + stacked stats. Name/sub/level on top,
+                    PER/PROF/HD as horizontal label-value rows below. */}
+                <View style={s.deskHeroIdentity}>
+                  <View style={s.deskNameBlock}>
+                    {editingName ? (
+                      <TextInput
+                        style={s.deskNameInput}
+                        value={nameInput}
+                        onChangeText={setNameInput}
+                        onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                        onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                        autoFocus returnKeyType="done"
+                      />
+                    ) : (
+                      <TouchableOpacity onPress={() => isOwner && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={isOwner ? 0.7 : 1}>
+                        <Text style={s.deskName} numberOfLines={2}>{stats.characterName}</Text>
+                      </TouchableOpacity>
+                    )}
+                    <Text style={s.deskSub} numberOfLines={1}>
+                      {[speciesLabel, classLabel].filter(Boolean).join(' ')}
+                    </Text>
+                    <Text style={s.deskLevel}>Level {stats.level}</Text>
+                  </View>
 
-              {/* Stats row — PER / PROF / HD as 3 cells across the
-                  full sidebar width. */}
-              <View style={s.deskHeroStatsRow}>
-                <TouchableOpacity
-                  style={s.deskHeroStat}
-                  onPress={() => setOpenBreakdown('passive-perception')}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Show passive perception breakdown"
-                >
-                  <MaterialCommunityIcons name="eye-outline" size={12} color={colors.outline} />
-                  <Text style={s.deskHeroStatLabel}>PER</Text>
-                  <Text
-                    style={[
-                      s.deskHeroStatValue,
-                      (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
-                      !(stats.skillExpertise ?? []).includes('perception')
-                        && stats.skillProficiencies.includes('perception')
-                        && { color: colors.primary },
-                    ]}
-                  >{passivePerception}</Text>
-                </TouchableOpacity>
-                <View style={s.deskHeroStat}>
-                  <MaterialCommunityIcons name="star-four-points-outline" size={12} color={colors.outline} />
-                  <Text style={s.deskHeroStatLabel}>PROF</Text>
-                  <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
-                </View>
-                {(() => {
-                  const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
-                  const canSpend = canEditAny && hdRemaining > 0;
-                  const Wrapper = canSpend ? TouchableOpacity : View;
-                  return (
-                    <Wrapper
-                      style={s.deskHeroStat}
-                      onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
-                      activeOpacity={canSpend ? 0.7 : 1}
-                      accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
+                  <View style={s.deskHeroStatsCol}>
+                    <TouchableOpacity
+                      style={s.deskHeroStatRow}
+                      onPress={() => setOpenBreakdown('passive-perception')}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Show passive perception breakdown"
                     >
-                      <MaterialCommunityIcons name="dice-d8-outline" size={12} color={colors.outline} />
-                      <Text style={s.deskHeroStatLabel}>HD</Text>
-                      <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
-                    </Wrapper>
-                  );
-                })()}
+                      <View style={s.deskHeroStatRowLeft}>
+                        <MaterialCommunityIcons name="eye-outline" size={11} color={colors.outline} />
+                        <Text style={s.deskHeroStatLabel}>PER</Text>
+                      </View>
+                      <Text
+                        style={[
+                          s.deskHeroStatValue,
+                          (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
+                          !(stats.skillExpertise ?? []).includes('perception')
+                            && stats.skillProficiencies.includes('perception')
+                            && { color: colors.primary },
+                        ]}
+                      >{passivePerception}</Text>
+                    </TouchableOpacity>
+                    <View style={s.deskHeroStatRow}>
+                      <View style={s.deskHeroStatRowLeft}>
+                        <MaterialCommunityIcons name="star-four-points-outline" size={11} color={colors.outline} />
+                        <Text style={s.deskHeroStatLabel}>PROF</Text>
+                      </View>
+                      <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
+                    </View>
+                    {(() => {
+                      const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
+                      const canSpend = canEditAny && hdRemaining > 0;
+                      const Wrapper = canSpend ? TouchableOpacity : View;
+                      return (
+                        <Wrapper
+                          style={s.deskHeroStatRow}
+                          onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
+                          activeOpacity={canSpend ? 0.7 : 1}
+                          accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
+                        >
+                          <View style={s.deskHeroStatRowLeft}>
+                            <MaterialCommunityIcons name="dice-d8-outline" size={11} color={colors.outline} />
+                            <Text style={s.deskHeroStatLabel}>HD</Text>
+                          </View>
+                          <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
+                        </Wrapper>
+                      );
+                    })()}
+                  </View>
+                </View>
               </View>
 
               {/* Inspiration + Rest action buttons — full sidebar
-                  width row below the stats. */}
+                  width row below the hero body. */}
               {canEditAny && (
                 <View style={s.deskHeroActionRow}>
                   <TouchableOpacity
@@ -4810,8 +4813,8 @@ const s = StyleSheet.create({
    *  the gradient (primary-tinted top-left fading to surface) instead
    *  of a flat fill. */
   deskRail: {
-    width: 220,
-    flexBasis: 220,
+    width: 280,
+    flexBasis: 280,
     flexGrow: 0,
     flexShrink: 0,
     borderRightWidth: StyleSheet.hairlineWidth,
@@ -4838,27 +4841,48 @@ const s = StyleSheet.create({
     fontSize: 12, fontFamily: fonts.label, fontWeight: '600',
     color: colors.outline, letterSpacing: 0.3,
   },
-  /** Title row — name block on the left, AC shield on the right.
-   *  Sits below the full-width portrait. Top-align so the shield
-   *  hugs the name's first line instead of floating between the
-   *  sub and level text. */
-  deskHeroTitleRow: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    marginBottom: 8,
+  /** Hero body — two-column row: portrait (with AC badge overlay)
+   *  on the left, identity + stacked PER/PROF/HD stats column on
+   *  the right. Top-aligned so the portrait sets the row height and
+   *  the identity column reads from the top down. */
+  deskHeroBody: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
   },
-  /** Portrait — full sidebar width (3:4 ratio via aspectRatio). The
-   *  image inside fills it with resizeMode=cover so the source 3:4
-   *  art aligns without distortion. */
+  /** Portrait wrapper — fixed width container so the AC badge can
+   *  anchor absolutely to its top-right corner without being clipped
+   *  by the portrait's own overflow: hidden. */
+  deskPortraitWrap: {
+    width: 112, flexShrink: 0, position: 'relative',
+  },
+  /** Portrait — 3:4 ratio inside the fixed-width wrapper. */
   deskPortrait: {
-    alignSelf: 'stretch', aspectRatio: 3 / 4,
+    width: 112, aspectRatio: 3 / 4,
     borderRadius: 8,
     backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1, borderColor: colors.outlineVariant,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    marginBottom: 10,
   },
   deskPortraitImg: { width: '100%', height: '100%', borderRadius: 8 },
-  deskNameBlock: { flex: 1, minWidth: 0 },
+  /** AC shield badge — floats over the portrait's top-right corner.
+   *  Same metallic silver shield as the mobile hero card; number is
+   *  positioned absolutely inside the glyph. */
+  deskAcBadge: {
+    position: 'absolute', top: -6, right: -6,
+    width: 42, height: 46,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  deskAcBadgeNum: {
+    position: 'absolute', top: 11, left: 0, right: 0,
+    textAlign: 'center',
+    fontFamily: fonts.headline, fontSize: 14, fontWeight: '800',
+    color: colors.onPrimary, letterSpacing: -0.3,
+  },
+  /** Identity column — name/sub/level on top, PER/PROF/HD stat rows
+   *  stacked below. Sits to the right of the portrait. */
+  deskHeroIdentity: {
+    flex: 1, minWidth: 0, gap: 8,
+  },
+  deskNameBlock: { minWidth: 0 },
   deskName: {
     fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface, letterSpacing: -0.2, lineHeight: 18,
@@ -4885,19 +4909,22 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   deskIconBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
-  /** Hero stats row — PER / PROF / HD. Sits above the action row
-   *  with consistent 6px inter-row spacing so the two strips read
-   *  as a connected pair. */
-  deskHeroStatsRow: {
-    flexDirection: 'row', gap: 6, marginTop: 6,
+  /** Hero stats column — PER / PROF / HD stacked vertically inside
+   *  the identity column to the right of the portrait. Each row is a
+   *  pill with the icon + label hugging the left edge and the value
+   *  anchored right. */
+  deskHeroStatsCol: {
+    flexDirection: 'column', gap: 4,
   },
-  deskHeroStat: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: 6, paddingVertical: 7,
-    borderRadius: 6,
+  deskHeroStatRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: 5,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  deskHeroStatRowLeft: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
   },
   deskHeroStatLabel: {
     fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
@@ -4907,12 +4934,11 @@ const s = StyleSheet.create({
     fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface,
   },
-  /** Action row — Inspiration / Rest. Same chassis dimensions as
-   *  the stat cells above (radius 6, paddingVertical 7) so the two
-   *  rows feel like a single grid. The primary tint distinguishes
-   *  actions from passive stat cells. */
+  /** Action row — Inspiration / Rest. Full-width pair below the
+   *  portrait + identity hero body. Primary tint distinguishes
+   *  actions from passive stat rows. */
   deskHeroActionRow: {
-    flexDirection: 'row', gap: 6, marginTop: 6,
+    flexDirection: 'row', gap: 6, marginTop: 10,
   },
   deskHeroActionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -4928,22 +4954,6 @@ const s = StyleSheet.create({
   deskHeroActionBtnText: {
     fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
     color: colors.primary, letterSpacing: 0.3,
-  },
-  /** AC shield anchored to the right of the name block — same
-   *  metallic silver shield treatment as the mobile hero card and the
-   *  campaign PartyMemberCard so the defense stat reads identically
-   *  across surfaces. The number is positioned absolutely inside the
-   *  shield glyph. */
-  deskHeroAcInline: {
-    width: 44, height: 48,
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0, marginTop: -4,
-  },
-  deskHeroAcNum: {
-    position: 'absolute', top: 12, left: 0, right: 0,
-    textAlign: 'center',
-    fontFamily: fonts.headline, fontSize: 15, fontWeight: '800',
-    color: colors.onPrimary, letterSpacing: -0.3,
   },
 
   // Stats block
