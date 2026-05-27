@@ -2429,7 +2429,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     ? <ActivityIndicator color={colors.primary} size="small" />
     : (character as any).avatar_url
       ? <Image source={{ uri: (character as any).avatar_url }} resizeMode="cover" style={isDesktop ? s.deskPortraitImg : s.heroPortraitImg} />
-      : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 32 : 28} color={colors.outline} />;
+      : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 56 : 28} color={colors.outline} />;
 
   return (
     <View style={s.root}>
@@ -2506,11 +2506,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 key stats sit in one glance instead of being spread
                 across several sections downstream. */}
             <View style={s.deskHeader}>
-              <View style={s.deskIdentityRow}>
-                <TouchableOpacity style={s.deskPortrait} onPress={handlePickPortrait} disabled={portraitUploading} activeOpacity={0.85}>
-                  {portraitContent}
-                </TouchableOpacity>
-
+              {/* Name + AC top row: title text fills the left, AC
+                  shield anchors the right. Subtitle + level live
+                  under the name on a second row of the name block. */}
+              <View style={s.deskHeroTitleRow}>
                 <View style={s.deskNameBlock}>
                   {editingName ? (
                     <TextInput
@@ -2530,22 +2529,32 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     {[speciesLabel, classLabel].filter(Boolean).join(' ')}
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
-
-                  {/* AC shield — now sits under the level text inside
-                      the name block (instead of to the right of the
-                      name). Same metallic silver shield treatment as
-                      the mobile hero card. */}
-                  <TouchableOpacity
-                    style={s.deskHeroAcInline}
-                    onPress={() => setOpenBreakdown('ac')}
-                    activeOpacity={0.7}
-                    accessibilityLabel="Show AC breakdown"
-                  >
-                    <MaterialCommunityIcons name="shield" size={48} color="#b8bdc7" />
-                    <Text style={s.deskHeroAcNum}>{ac}</Text>
-                  </TouchableOpacity>
                 </View>
+
+                {/* AC shield — anchored to the right of the title
+                    text. Same metallic silver shield as the mobile
+                    hero card. */}
+                <TouchableOpacity
+                  style={s.deskHeroAcInline}
+                  onPress={() => setOpenBreakdown('ac')}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Show AC breakdown"
+                >
+                  <MaterialCommunityIcons name="shield" size={48} color="#b8bdc7" />
+                  <Text style={s.deskHeroAcNum}>{ac}</Text>
+                </TouchableOpacity>
               </View>
+
+              {/* Full-width portrait below the title row. 3:4 aspect
+                  ratio anchored to the sidebar's interior width. */}
+              <TouchableOpacity
+                style={s.deskPortrait}
+                onPress={handlePickPortrait}
+                disabled={portraitUploading || !isOwner}
+                activeOpacity={isOwner ? 0.85 : 1}
+              >
+                {portraitContent}
+              </TouchableOpacity>
 
               {/* Inspiration + Rest action buttons — full sidebar
                   width below the identity row (under both the name
@@ -4831,22 +4840,26 @@ const s = StyleSheet.create({
     fontSize: 12, fontFamily: fonts.label, fontWeight: '600',
     color: colors.outline, letterSpacing: 0.3,
   },
-  deskIdentityRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
+  /** Title row — name block on the left, AC shield on the right.
+   *  Sits above the full-width portrait. */
+  deskHeroTitleRow: {
+    flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 14, gap: 10,
+    marginBottom: 8,
   },
-  // 3:4 card frame on the desktop header (108 × 144 — scaled up from
-  // the previous 75 × 100 now that AC moved out of the right column).
-  // The deskIdentityRow uses `alignItems: 'flex-start'` so the taller
-  // portrait sits flush with the top of the name/level/AC block.
+  /** Portrait — full sidebar width (3:4 ratio via aspectRatio). The
+   *  image inside fills it with resizeMode=cover so the source 3:4
+   *  art aligns without distortion. */
   deskPortrait: {
-    width: 108, height: 144, borderRadius: 6, flexShrink: 0,
+    alignSelf: 'stretch', aspectRatio: 3 / 4,
+    marginHorizontal: 14,
+    borderRadius: 8,
     backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1, borderColor: colors.outlineVariant,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  deskPortraitImg: { width: 108, height: 144, borderRadius: 6 },
-  deskNameBlock: { flex: 1, minWidth: 0, paddingTop: 2 },
+  deskPortraitImg: { width: '100%', height: '100%', borderRadius: 8 },
+  deskNameBlock: { flex: 1, minWidth: 0 },
   deskName: {
     fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface, letterSpacing: -0.2, lineHeight: 18,
@@ -4925,7 +4938,7 @@ const s = StyleSheet.create({
   deskHeroAcInline: {
     width: 48, height: 52,
     alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0, marginTop: 8,
+    flexShrink: 0,
   },
   deskHeroAcNum: {
     position: 'absolute', top: 14, left: 0, right: 0,
