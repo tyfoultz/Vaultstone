@@ -2530,38 +2530,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     {[speciesLabel, classLabel].filter(Boolean).join(' ')}
                   </Text>
                   <Text style={s.deskLevel}>Level {stats.level}</Text>
-
-                  {/* Inspiration + Rest action buttons tucked under the
-                      level text. Two buttons fit the name-block column
-                      comfortably (the previous 3-up Short/Long/Insp
-                      cramped). Rest is now a single button that opens
-                      the Short/Long chooser modal. */}
-                  {canEditAny && (
-                    <View style={s.deskHeroActionRow}>
-                      <TouchableOpacity
-                        style={[s.deskHeroActionBtn, resources.inspiration && s.deskHeroActionBtnInspActive]}
-                        onPress={() => persistResources({ ...resources, inspiration: !resources.inspiration })}
-                        activeOpacity={0.7}
-                      >
-                        <MaterialCommunityIcons
-                          name={resources.inspiration ? 'star' : 'star-outline'}
-                          size={13}
-                          color={resources.inspiration ? colors.gm : colors.primary}
-                        />
-                        <Text style={[s.deskHeroActionBtnText, resources.inspiration && { color: colors.gm }]}>
-                          {resources.inspiration ? 'Inspired' : 'Inspiration'}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={s.deskHeroActionBtn}
-                        onPress={() => setRestChooserOpen(true)}
-                        activeOpacity={0.7}
-                      >
-                        <MaterialCommunityIcons name="bed" size={13} color={colors.primary} />
-                        <Text style={s.deskHeroActionBtnText}>Rest</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
                 </View>
 
                 {/* AC shield — anchored to the right of the name
@@ -2577,6 +2545,38 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   <Text style={s.deskHeroAcNum}>{ac}</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Inspiration + Rest action buttons — full sidebar
+                  width below the identity row (under both the name
+                  block and the AC shield). Two flex:1 buttons split
+                  the row evenly so the labels get the full ~210px
+                  instead of being confined to the name-block column. */}
+              {canEditAny && (
+                <View style={s.deskHeroActionRow}>
+                  <TouchableOpacity
+                    style={[s.deskHeroActionBtn, resources.inspiration && s.deskHeroActionBtnInspActive]}
+                    onPress={() => persistResources({ ...resources, inspiration: !resources.inspiration })}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons
+                      name={resources.inspiration ? 'star' : 'star-outline'}
+                      size={13}
+                      color={resources.inspiration ? colors.gm : colors.primary}
+                    />
+                    <Text style={[s.deskHeroActionBtnText, resources.inspiration && { color: colors.gm }]}>
+                      {resources.inspiration ? 'Inspired' : 'Inspiration'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.deskHeroActionBtn}
+                    onPress={() => setRestChooserOpen(true)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="bed" size={13} color={colors.primary} />
+                    <Text style={s.deskHeroActionBtnText}>Rest</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {/* Stats row — PER / PROF / HD as 3 cells across the
                   full sidebar width below the identity row. Lifted
