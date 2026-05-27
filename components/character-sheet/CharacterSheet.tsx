@@ -2397,7 +2397,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     ? <ActivityIndicator color={colors.primary} size="small" />
     : (character as any).avatar_url
       ? <Image source={{ uri: (character as any).avatar_url }} resizeMode="cover" style={isDesktop ? s.deskPortraitImg : s.heroPortraitImg} />
-      : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 32 : 28} color={colors.outline} />;
+      : <MaterialCommunityIcons name="account-outline" size={isDesktop ? 56 : 28} color={colors.outline} />;
 
   return (
     <View style={s.root}>
@@ -2467,104 +2467,113 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               </TouchableOpacity>
             </View>
 
-            {/* Portrait + name + hero stats strip. Mirrors the mobile
-                hero card chassis: portrait left, identity block right,
-                INSP / REST action icons in the top-right corner, and
-                an AC / PER / PROF / HD strip below the name so the
-                key stats sit in one glance instead of being spread
-                across several sections downstream. */}
+            {/* Hero header — portrait left (with AC badge overlay),
+                identity column right (name / subtitle / level, then
+                PER / PROF / HD as horizontal label-value rows). The
+                Inspiration + Rest pair lives full-width below the
+                two-column body. */}
             <View style={s.deskHeader}>
-              <View style={s.deskIdentityRow}>
-                <TouchableOpacity style={s.deskPortrait} onPress={handlePickPortrait} disabled={portraitUploading} activeOpacity={0.85}>
-                  {portraitContent}
-                </TouchableOpacity>
-
-                <View style={s.deskNameBlock}>
-                  {editingName ? (
-                    <TextInput
-                      style={s.deskNameInput}
-                      value={nameInput}
-                      onChangeText={setNameInput}
-                      onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                      onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
-                      autoFocus returnKeyType="done"
-                    />
-                  ) : (
-                    <TouchableOpacity onPress={() => canEditAny && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={canEditAny ? 0.7 : 1}>
-                      <Text style={s.deskName} numberOfLines={2}>{stats.characterName}</Text>
-                    </TouchableOpacity>
-                  )}
-                  <Text style={s.deskSub} numberOfLines={1}>
-                    {[speciesLabel, classLabel].filter(Boolean).join(' ')}
-                  </Text>
-                  <Text style={s.deskLevel}>Level {stats.level}</Text>
+              <View style={s.deskHeroBody}>
+                <View style={s.deskPortraitWrap}>
+                  <TouchableOpacity
+                    style={s.deskPortrait}
+                    onPress={handlePickPortrait}
+                    disabled={portraitUploading}
+                    activeOpacity={0.85}
+                  >
+                    {portraitContent}
+                  </TouchableOpacity>
                 </View>
 
-                {/* AC shield — anchored to the right of the name
-                    block. Same metallic silver shield as the mobile
-                    hero card. */}
-                <TouchableOpacity
-                  style={s.deskHeroAcInline}
-                  onPress={() => setOpenBreakdown('ac')}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Show AC breakdown"
-                >
-                  <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
-                  <Text style={s.deskHeroAcNum}>{ac}</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Stats row — PER / PROF / HD as 3 cells across the
-                  full sidebar width below the identity row. Lifted
-                  out of the name block because the name-block column
-                  is too narrow once the portrait and AC shield take
-                  their share — the cells crammed and labels overlapped
-                  their values. */}
-              <View style={s.deskHeroStatsRow}>
-                <TouchableOpacity
-                  style={s.deskHeroStat}
-                  onPress={() => setOpenBreakdown('passive-perception')}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Show passive perception breakdown"
-                >
-                  <MaterialCommunityIcons name="eye-outline" size={12} color={colors.outline} />
-                  <Text style={s.deskHeroStatLabel}>PER</Text>
-                  <Text
-                    style={[
-                      s.deskHeroStatValue,
-                      (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
-                      !(stats.skillExpertise ?? []).includes('perception')
-                        && stats.skillProficiencies.includes('perception')
-                        && { color: colors.primary },
-                    ]}
-                  >{passivePerception}</Text>
-                </TouchableOpacity>
-                <View style={s.deskHeroStat}>
-                  <MaterialCommunityIcons name="star-four-points-outline" size={12} color={colors.outline} />
-                  <Text style={s.deskHeroStatLabel}>PROF</Text>
-                  <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
-                </View>
-                {(() => {
-                  const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
-                  const canSpend = canEditAny && hdRemaining > 0;
-                  const Wrapper = canSpend ? TouchableOpacity : View;
-                  return (
-                    <Wrapper
-                      style={s.deskHeroStat}
-                      onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
-                      activeOpacity={canSpend ? 0.7 : 1}
-                      accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
+                {/* Identity + stacked stats. Title row has name/sub/level
+                    block flexing left with the AC shield anchored to its
+                    top-right; PER/PROF/HD label-value rows stack below. */}
+                <View style={s.deskHeroIdentity}>
+                  <View style={s.deskHeroTitleRow}>
+                    <View style={s.deskNameBlock}>
+                      {editingName ? (
+                        <TextInput
+                          style={s.deskNameInput}
+                          value={nameInput}
+                          onChangeText={setNameInput}
+                          onBlur={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                          onSubmitEditing={() => { if (nameInput.trim()) persistName(nameInput.trim()); setEditingName(false); }}
+                          autoFocus returnKeyType="done"
+                        />
+                      ) : (
+                        <TouchableOpacity onPress={() => canEditAny && (setNameInput(stats.characterName), setEditingName(true))} activeOpacity={canEditAny ? 0.7 : 1}>
+                          <Text style={s.deskName} numberOfLines={2}>{stats.characterName}</Text>
+                        </TouchableOpacity>
+                      )}
+                      <Text style={s.deskSub} numberOfLines={1}>
+                        {[speciesLabel, classLabel].filter(Boolean).join(' ')}
+                      </Text>
+                      <Text style={s.deskLevel}>Level {stats.level}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={s.deskHeroAcInline}
+                      onPress={() => setOpenBreakdown('ac')}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Show AC breakdown"
                     >
-                      <MaterialCommunityIcons name="dice-d8-outline" size={12} color={colors.outline} />
-                      <Text style={s.deskHeroStatLabel}>HD</Text>
-                      <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
-                    </Wrapper>
-                  );
-                })()}
+                      <MaterialCommunityIcons name="shield" size={42} color="#b8bdc7" />
+                      <Text style={s.deskHeroAcNum}>{ac}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={s.deskHeroStatsCol}>
+                    <TouchableOpacity
+                      style={s.deskHeroStatRow}
+                      onPress={() => setOpenBreakdown('passive-perception')}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Show passive perception breakdown"
+                    >
+                      <View style={s.deskHeroStatRowLeft}>
+                        <MaterialCommunityIcons name="eye-outline" size={11} color={colors.outline} />
+                        <Text style={s.deskHeroStatLabel}>PER</Text>
+                      </View>
+                      <Text
+                        style={[
+                          s.deskHeroStatValue,
+                          (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
+                          !(stats.skillExpertise ?? []).includes('perception')
+                            && stats.skillProficiencies.includes('perception')
+                            && { color: colors.primary },
+                        ]}
+                      >{passivePerception}</Text>
+                    </TouchableOpacity>
+                    <View style={s.deskHeroStatRow}>
+                      <View style={s.deskHeroStatRowLeft}>
+                        <MaterialCommunityIcons name="star-four-points-outline" size={11} color={colors.outline} />
+                        <Text style={s.deskHeroStatLabel}>PROF</Text>
+                      </View>
+                      <Text style={s.deskHeroStatValue}>{fmtMod(prof)}</Text>
+                    </View>
+                    {(() => {
+                      const hdRemaining = resources?.hitDiceRemaining ?? stats.level;
+                      const canSpend = canEditAny && hdRemaining > 0;
+                      const Wrapper = canSpend ? TouchableOpacity : View;
+                      return (
+                        <Wrapper
+                          style={s.deskHeroStatRow}
+                          onPress={canSpend ? () => setSpendHitDieOpen(true) : undefined}
+                          activeOpacity={canSpend ? 0.7 : 1}
+                          accessibilityLabel={canSpend ? 'Spend a hit die' : `Hit dice: ${hdRemaining} of ${stats.level} remaining`}
+                        >
+                          <View style={s.deskHeroStatRowLeft}>
+                            <MaterialCommunityIcons name="dice-d8-outline" size={11} color={colors.outline} />
+                            <Text style={s.deskHeroStatLabel}>HD</Text>
+                          </View>
+                          <Text style={s.deskHeroStatValue}>{hdRemaining}/{stats.level}</Text>
+                        </Wrapper>
+                      );
+                    })()}
+                  </View>
+                </View>
               </View>
 
-              {/* Action row — Inspiration / Short Rest / Long Rest as
-                  thin labelled buttons across the full sidebar. */}
+              {/* Inspiration + Rest action buttons — full sidebar
+                  width row below the hero body. */}
               {canEditAny && (
                 <View style={s.deskHeroActionRow}>
                   <TouchableOpacity
@@ -2583,22 +2592,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={s.deskHeroActionBtn}
-                    onPress={() => setRestConfirm('short')}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons name="campfire" size={13} color={colors.primary} />
-                    <Text style={s.deskHeroActionBtnText}>Short Rest</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.deskHeroActionBtn}
-                    onPress={() => setRestConfirm('long')}
+                    onPress={() => setRestChooserOpen(true)}
                     activeOpacity={0.7}
                   >
                     <MaterialCommunityIcons name="bed" size={13} color={colors.primary} />
-                    <Text style={s.deskHeroActionBtnText}>Long Rest</Text>
+                    <Text style={s.deskHeroActionBtnText}>Rest</Text>
                   </TouchableOpacity>
                 </View>
               )}
+
             </View>
 
             {/* ── Stats block ─────────────────────────────────────── */}
@@ -2737,7 +2739,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 roll / HP / condition entry as the old log rail. */}
             <View style={s.deskSection}>
               <View style={s.deskLogHead}>
-                <Text style={s.deskSectionLabel}>Activity Log</Text>
+                <Text style={[s.deskSectionLabel, { color: colors.hpWarning }]}>Activity Log</Text>
                 <Text style={s.deskLogCount}>{activityLog.length} event{activityLog.length === 1 ? '' : 's'}</Text>
               </View>
               {activityLog.length === 0 ? (
@@ -4418,16 +4420,23 @@ const s = StyleSheet.create({
    *
    *  No flexWrap — the chip shrinks (and its label truncates) instead
    *  of pushing the Lv↑ / Settings icons onto a second line. */
+  /** Utility bar — sized to match the tab bar in the content pane
+   *  so the sidebar's top edge and the tab row align horizontally.
+   *  Tab bar = paddingTop 6 + tabBtn (28 tall) = 34, + 1 hairline =
+   *  ~35px. Utility bar mirrors that so the portrait below starts at
+   *  the same y as the first tab content. */
   deskUtilityBar: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginBottom: spacing.sm,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
   /** Compact icon-only Home button — sidebar columns are too narrow
    *  for the mobile chunky "← Home" label without forcing the row
    *  to wrap. The home glyph carries the same meaning at half the
-   *  width. */
+   *  width. Sized to fit cleanly inside the utility bar's height
+   *  (24×24 leaves 4px vertical breathing room inside a ~32px row). */
   deskHomeBtn: {
-    width: 30, height: 30,
+    width: 24, height: 24,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.outlineVariant,
@@ -4774,8 +4783,8 @@ const s = StyleSheet.create({
    *  the gradient (primary-tinted top-left fading to surface) instead
    *  of a flat fill. */
   deskRail: {
-    width: 260,
-    flexBasis: 260,
+    width: 300,
+    flexBasis: 300,
     flexGrow: 0,
     flexShrink: 0,
     borderRightWidth: StyleSheet.hairlineWidth,
@@ -4789,7 +4798,8 @@ const s = StyleSheet.create({
     paddingBottom: 24,
   },
   deskHeader: {
-    paddingTop: 16, paddingBottom: 12,
+    paddingTop: 12, paddingBottom: 12,
+    paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
   },
@@ -4801,21 +4811,57 @@ const s = StyleSheet.create({
     fontSize: 12, fontFamily: fonts.label, fontWeight: '600',
     color: colors.outline, letterSpacing: 0.3,
   },
-  deskIdentityRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    paddingHorizontal: 14, gap: 10,
+  /** Hero body — two-column row: portrait (with AC badge overlay)
+   *  on the left, identity + stacked PER/PROF/HD stats column on
+   *  the right. Top-aligned so the portrait sets the row height and
+   *  the identity column reads from the top down. */
+  deskHeroBody: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
   },
-  // 3:4 card frame on the desktop header (75 × 100). The
-  // deskIdentityRow uses `alignItems: 'flex-start'` so the taller
-  // portrait sits flush with the top of the name/level block.
+  /** Portrait wrapper — fixed width container so the AC badge can
+   *  anchor absolutely to its top-right corner without being clipped
+   *  by the portrait's own overflow: hidden. */
+  deskPortraitWrap: {
+    width: 128, flexShrink: 0, position: 'relative',
+  },
+  /** Portrait — 3:4 ratio inside the fixed-width wrapper. Width is
+   *  tuned so the portrait's bottom edge sits flush with the bottom
+   *  of the identity column to its right. */
   deskPortrait: {
-    width: 75, height: 100, borderRadius: 6, flexShrink: 0,
+    width: 128, aspectRatio: 3 / 4,
+    borderRadius: 8,
     backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1, borderColor: colors.outlineVariant,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  deskPortraitImg: { width: 75, height: 100, borderRadius: 6 },
-  deskNameBlock: { flex: 1, minWidth: 0, paddingTop: 2 },
+  deskPortraitImg: { width: '100%', height: '100%', borderRadius: 8 },
+  /** Identity column — title row (name/sub/level + AC) on top,
+   *  PER/PROF/HD stat rows stacked below. Sits to the right of the
+   *  portrait. */
+  deskHeroIdentity: {
+    flex: 1, minWidth: 0, gap: 8,
+  },
+  /** Title row — name block flexes left, AC shield anchors top-right
+   *  of the identity column. Top-aligned so the shield hugs the
+   *  first line of the name rather than floating between sub/level. */
+  deskHeroTitleRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+  },
+  deskNameBlock: { flex: 1, minWidth: 0 },
+  /** AC shield anchored top-right of the identity column. Same
+   *  metallic silver shield as the mobile hero card; number is
+   *  positioned absolutely inside the glyph. */
+  deskHeroAcInline: {
+    width: 42, height: 46,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  deskHeroAcNum: {
+    position: 'absolute', top: 11, left: 0, right: 0,
+    textAlign: 'center',
+    fontFamily: fonts.headline, fontSize: 14, fontWeight: '800',
+    color: colors.onPrimary, letterSpacing: -0.3,
+  },
   deskName: {
     fontSize: 14, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface, letterSpacing: -0.2, lineHeight: 18,
@@ -4842,20 +4888,22 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   deskIconBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
-  /** Hero stats row — PER / PROF / HD as 3 cells across the full
-   *  sidebar width below the identity row. Each cell renders as
-   *  icon · LABEL · value on a single line. Lives outside the name
-   *  block so the cells aren't squeezed by the portrait + AC shield. */
-  deskHeroStatsRow: {
-    flexDirection: 'row', gap: 6, marginTop: 10,
+  /** Hero stats column — PER / PROF / HD stacked vertically inside
+   *  the identity column to the right of the portrait. Each row is a
+   *  pill with the icon + label hugging the left edge and the value
+   *  anchored right. */
+  deskHeroStatsCol: {
+    flexDirection: 'column', gap: 4,
   },
-  deskHeroStat: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: 6, paddingVertical: 7,
-    borderRadius: 6,
+  deskHeroStatRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: 5,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  deskHeroStatRowLeft: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
   },
   deskHeroStatLabel: {
     fontSize: 9, fontFamily: fonts.label, fontWeight: '700',
@@ -4865,17 +4913,17 @@ const s = StyleSheet.create({
     fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface,
   },
-  /** Full-width action row — Inspiration / Short Rest / Long Rest
-   *  as thin evenly-distributed labelled buttons. Replaces the
-   *  previous standalone Rest + Inspiration sections downstream. */
+  /** Action row — Inspiration / Rest. Full-width pair below the
+   *  portrait + identity hero body. Primary tint distinguishes
+   *  actions from passive stat rows. */
   deskHeroActionRow: {
-    flexDirection: 'row', gap: 6, marginTop: 8,
+    flexDirection: 'row', gap: 6, marginTop: 10,
   },
   deskHeroActionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 5,
     paddingHorizontal: 8, paddingVertical: 7,
-    borderRadius: radius.lg,
+    borderRadius: 6,
     borderWidth: 1, borderColor: `${colors.primary}66`,
     backgroundColor: `${colors.primary}14`,
   },
@@ -4885,22 +4933,6 @@ const s = StyleSheet.create({
   deskHeroActionBtnText: {
     fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
     color: colors.primary, letterSpacing: 0.3,
-  },
-  /** AC shield anchored to the right of the name block — same
-   *  metallic silver shield treatment as the mobile hero card and the
-   *  campaign PartyMemberCard so the defense stat reads identically
-   *  across surfaces. The number is positioned absolutely inside the
-   *  shield glyph. */
-  deskHeroAcInline: {
-    width: 42, height: 46,
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-  },
-  deskHeroAcNum: {
-    position: 'absolute', top: 13, left: 0, right: 0,
-    textAlign: 'center',
-    fontFamily: fonts.headline, fontSize: 14, fontWeight: '800',
-    color: colors.onPrimary, letterSpacing: -0.3,
   },
 
   // Stats block
@@ -5674,7 +5706,7 @@ const s = StyleSheet.create({
 
   // ── Left rail: ability scores + saves (Option C combined rows) ──────────
   deskSection: {
-    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10,
+    paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
   deskSectionLabel: {
