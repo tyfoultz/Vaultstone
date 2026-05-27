@@ -2551,7 +2551,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   activeOpacity={0.7}
                   accessibilityLabel="Show AC breakdown"
                 >
-                  <MaterialCommunityIcons name="shield" size={48} color="#b8bdc7" />
+                  <MaterialCommunityIcons name="shield" size={44} color="#b8bdc7" />
                   <Text style={s.deskHeroAcNum}>{ac}</Text>
                 </TouchableOpacity>
               </View>
@@ -4819,6 +4819,7 @@ const s = StyleSheet.create({
   },
   deskHeader: {
     paddingTop: 16, paddingBottom: 12,
+    paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
   },
@@ -4831,10 +4832,11 @@ const s = StyleSheet.create({
     color: colors.outline, letterSpacing: 0.3,
   },
   /** Title row — name block on the left, AC shield on the right.
-   *  Sits above the full-width portrait. */
+   *  Sits below the full-width portrait. Top-align so the shield
+   *  hugs the name's first line instead of floating between the
+   *  sub and level text. */
   deskHeroTitleRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, gap: 10,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     marginBottom: 8,
   },
   /** Portrait — full sidebar width (3:4 ratio via aspectRatio). The
@@ -4842,11 +4844,11 @@ const s = StyleSheet.create({
    *  art aligns without distortion. */
   deskPortrait: {
     alignSelf: 'stretch', aspectRatio: 3 / 4,
-    marginHorizontal: 14,
     borderRadius: 8,
     backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1, borderColor: colors.outlineVariant,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    marginBottom: 10,
   },
   deskPortraitImg: { width: '100%', height: '100%', borderRadius: 8 },
   deskNameBlock: { flex: 1, minWidth: 0 },
@@ -4876,12 +4878,11 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   deskIconBtnActive: { borderColor: colors.gm, backgroundColor: colors.gmContainer },
-  /** Hero stats row — PER / PROF / HD as 3 cells across the full
-   *  sidebar width below the identity row. Each cell renders as
-   *  icon · LABEL · value on a single line. Lives outside the name
-   *  block so the cells aren't squeezed by the portrait + AC shield. */
+  /** Hero stats row — PER / PROF / HD. Sits above the action row
+   *  with consistent 6px inter-row spacing so the two strips read
+   *  as a connected pair. */
   deskHeroStatsRow: {
-    flexDirection: 'row', gap: 6, marginTop: 10,
+    flexDirection: 'row', gap: 6, marginTop: 6,
   },
   deskHeroStat: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -4899,17 +4900,18 @@ const s = StyleSheet.create({
     fontSize: 12, fontFamily: fonts.headline, fontWeight: '700',
     color: colors.onSurface,
   },
-  /** Full-width action row — Inspiration / Short Rest / Long Rest
-   *  as thin evenly-distributed labelled buttons. Replaces the
-   *  previous standalone Rest + Inspiration sections downstream. */
+  /** Action row — Inspiration / Rest. Same chassis dimensions as
+   *  the stat cells above (radius 6, paddingVertical 7) so the two
+   *  rows feel like a single grid. The primary tint distinguishes
+   *  actions from passive stat cells. */
   deskHeroActionRow: {
-    flexDirection: 'row', gap: 6, marginTop: 8,
+    flexDirection: 'row', gap: 6, marginTop: 6,
   },
   deskHeroActionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 5,
     paddingHorizontal: 8, paddingVertical: 7,
-    borderRadius: radius.lg,
+    borderRadius: 6,
     borderWidth: 1, borderColor: `${colors.primary}66`,
     backgroundColor: `${colors.primary}14`,
   },
@@ -4926,14 +4928,14 @@ const s = StyleSheet.create({
    *  across surfaces. The number is positioned absolutely inside the
    *  shield glyph. */
   deskHeroAcInline: {
-    width: 48, height: 52,
+    width: 44, height: 48,
     alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
+    flexShrink: 0, marginTop: -4,
   },
   deskHeroAcNum: {
-    position: 'absolute', top: 14, left: 0, right: 0,
+    position: 'absolute', top: 12, left: 0, right: 0,
     textAlign: 'center',
-    fontFamily: fonts.headline, fontSize: 16, fontWeight: '800',
+    fontFamily: fonts.headline, fontSize: 15, fontWeight: '800',
     color: colors.onPrimary, letterSpacing: -0.3,
   },
 
@@ -5708,7 +5710,7 @@ const s = StyleSheet.create({
 
   // ── Left rail: ability scores + saves (Option C combined rows) ──────────
   deskSection: {
-    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10,
+    paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant,
   },
   deskSectionLabel: {
