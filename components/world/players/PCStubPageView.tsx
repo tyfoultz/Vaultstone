@@ -68,7 +68,7 @@ type CanvasBlock = { id: string; x: number; y: number; width: number; height?: n
 type Relationship = { targetPageId: string; type: string; note?: string };
 type CampaignMember = { user_id: string; character_id: string | null; role: string; profiles: any; characters: any };
 
-const LOCK_HEARTBEAT_MS = 30_000;
+const LOCK_HEARTBEAT_MS = 60_000;
 const RELATIONSHIP_TYPES = ['ally', 'rival', 'enemy', 'friend', 'family', 'lover', 'mentor', 'student', 'employer', 'servant'];
 const RECIPROCAL_MAP: Record<string, string> = { ally: 'ally', rival: 'rival', enemy: 'enemy', friend: 'friend', family: 'family', lover: 'lover', employer: 'servant', servant: 'employer', mentor: 'student', student: 'mentor' };
 

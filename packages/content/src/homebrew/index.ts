@@ -86,6 +86,7 @@ let _entryCache: {
 const ENTRY_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const STORAGE_KEY_PREFIX = 'vaultstone:homebrew-cache:v1:';
 let _diskHydrated = false;
+let _entryFetchInflight: { key: string; promise: Promise<{ authored: HomebrewContentRow[] | null; imported: ImportedContentRow[] | null }> } | null = null;
 
 /**
  * Pack-scope resolution cache. The character sheet fires 8 concurrent
@@ -107,16 +108,18 @@ type ScopeCacheEntry = {
   promise?: Promise<HomebrewPackRow[]>;
 };
 let _scopeCache: ScopeCacheEntry | null = null;
-/** 60s is enough to cover the cold-load 8-call burst plus a quick
- *  pack-management round trip; longer would risk stale pack lists after
- *  the player toggles packs in the campaign settings. */
-const SCOPE_CACHE_TTL = 60 * 1000;
+/** 5 minutes covers repeated navigations between character sheets and
+ *  content screens. Pack management (toggling packs in campaign settings)
+ *  calls invalidateHomebrewCache() which clears this cache, so staleness
+ *  after deliberate changes is not a risk. */
+const SCOPE_CACHE_TTL = 5 * 60 * 1000;
 
 export function invalidateHomebrewCache() {
   const oldKey = _entryCache?.key;
   _entryCache = null;
   _diskHydrated = false;
   _scopeCache = null;
+  _entryFetchInflight = null;
   if (oldKey) {
     AsyncStorage.removeItem(STORAGE_KEY_PREFIX + oldKey).catch(() => {});
   }
@@ -229,38 +232,32 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   } else if (await hydrateFromDisk(baseCacheKey)) {
     authored = _entryCache!.authored;
     imported = _entryCache!.imported;
-  } else if (query.type) {
-    const [a, i] = await Promise.all([
-      fetchAllPaginated<HomebrewContentRow>(
-        'homebrew_content',
-        'id, user_id, pack_id, content_type, name, data',
-        relevantPackIds,
-        query.type,
-      ),
-      fetchAllPaginated<ImportedContentRow>(
-        'imported_content',
-        'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
-        relevantPackIds,
-        query.type,
-      ),
-    ]);
-    authored = a;
-    imported = i;
   } else {
-    const [a, i] = await Promise.all([
-      fetchAllPaginated<HomebrewContentRow>(
-        'homebrew_content',
-        'id, user_id, pack_id, content_type, name, data',
-        relevantPackIds,
-      ),
-      fetchAllPaginated<ImportedContentRow>(
-        'imported_content',
-        'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
-        relevantPackIds,
-      ),
-    ]);
-    authored = a;
-    imported = i;
+    // Always fetch all content types so the cache is usable by subsequent
+    // typed queries. Previously, typed queries (query.type set) fetched
+    // only that type and never populated the cache — causing 8+ parallel
+    // DB round-trips on every character sheet cold-load instead of one.
+    // Concurrent callers share the same in-flight promise to avoid
+    // duplicate fetches during the cold-load burst.
+    if (!_entryFetchInflight || _entryFetchInflight.key !== baseCacheKey) {
+      const promise = Promise.all([
+        fetchAllPaginated<HomebrewContentRow>(
+          'homebrew_content',
+          'id, user_id, pack_id, content_type, name, data',
+          relevantPackIds,
+        ),
+        fetchAllPaginated<ImportedContentRow>(
+          'imported_content',
+          'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
+          relevantPackIds,
+        ),
+      ]).then(([a, i]) => ({ authored: a, imported: i }));
+      _entryFetchInflight = { key: baseCacheKey, promise };
+    }
+    const result = await _entryFetchInflight.promise;
+    _entryFetchInflight = null;
+    authored = result.authored;
+    imported = result.imported;
     if (authored !== null && imported !== null) {
       const entry = { key: baseCacheKey, packs: relevantPacks, authored, imported, fetchedAt: Date.now() };
       _entryCache = entry;

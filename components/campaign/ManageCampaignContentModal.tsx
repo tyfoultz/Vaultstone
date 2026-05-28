@@ -21,6 +21,7 @@ import {
 } from '@vaultstone/api';
 import { useAuthStore } from '@vaultstone/store';
 import { BUNDLED_SYSTEMS_ORDER } from '@vaultstone/systems';
+import { invalidateHomebrewCache } from '@vaultstone/content';
 import { colors, spacing } from '@vaultstone/ui';
 
 type Props = {
@@ -160,6 +161,7 @@ export function ManageCampaignContentModal({
       if (err) {
         setError(err.message);
       } else {
+        invalidateHomebrewCache();
         setPacks((prev) => prev.map((p) =>
           p.pack.id === row.pack.id ? { ...p, attached: true, enabled: true } : p,
         ));
@@ -173,6 +175,7 @@ export function ManageCampaignContentModal({
       if (err) {
         setError(err.message);
       } else {
+        invalidateHomebrewCache();
         setPacks((prev) => prev.map((p) =>
           p.pack.id === row.pack.id ? { ...p, enabled: next } : p,
         ));
@@ -190,6 +193,7 @@ export function ManageCampaignContentModal({
     if (err) {
       setError(err.message);
     } else {
+      invalidateHomebrewCache();
       setPacks((prev) => prev.map((p) =>
         p.pack.id === row.pack.id ? { ...p, attached: false, enabled: false } : p,
       ));

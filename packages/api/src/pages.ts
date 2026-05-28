@@ -8,7 +8,7 @@ const PAGE_LIST_COLUMNS = [
   'id', 'world_id', 'section_id', 'parent_page_id', 'campaign_id',
   'title', 'page_kind', 'template_key', 'template_version',
   'visible_to_players', 'sort_order', 'structured_fields',
-  'body_text', 'body_refs', 'character_id',
+  'body_refs', 'character_id',
   'editing_user_id', 'editing_since', 'title_overridden',
   'created_at', 'updated_at', 'deleted_at',
 ].join(',');

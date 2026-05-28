@@ -127,6 +127,12 @@ export default function WorldLayout() {
     setPages,
   ]);
 
+  // Realtime: world_page_permissions only. The previous subscription also
+  // watched world_pages UPDATEs, but Supabase Realtime ships the full row
+  // (including the large `body` JSONB) on every page save — generating
+  // megabytes of egress per editing session with just 1-2 users. Metadata
+  // changes (title, visibility, sort_order) are rare enough to pick up on
+  // the next navigation or manual refresh.
   useEffect(() => {
     if (!session || !worldId) return;
     const name = `world-perms:${worldId}:${Date.now()}`;
@@ -143,21 +149,6 @@ export default function WorldLayout() {
         getPagesForWorld(worldId).then(({ data }) => {
           if (data) setPages(worldId, data as unknown as WorldPage[]);
         });
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'world_pages',
-        filter: `world_id=eq.${worldId}`,
-      }, (payload) => {
-        const row = payload.new as WorldPage;
-        const existing = usePagesStore.getState().byWorldId[worldId]?.find((p) => p.id === row.id);
-        if (existing?.body != null && row.body == null) {
-          const { body: _b, body_text: _bt, body_refs: _br, ...safe } = row;
-          usePagesStore.getState().updatePage(row.id, safe);
-        } else {
-          usePagesStore.getState().updatePage(row.id, row);
-        }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };

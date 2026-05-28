@@ -14,6 +14,14 @@ export async function getEventsForTimeline(timelinePageId: string) {
     .order('tie_breaker', { ascending: true });
 }
 
+export async function getEventSummariesForTimeline(timelinePageId: string) {
+  return supabase
+    .from('timeline_events')
+    .select('id, title')
+    .eq('timeline_page_id', timelinePageId)
+    .is('deleted_at', null);
+}
+
 export async function createTimelineEvent(input: {
   timelinePageId: string;
   worldId: string;
