@@ -105,6 +105,15 @@ let _lastCountCheckAt = 0;
 let _countCheckPromise: Promise<boolean> | null = null;
 const COUNT_CHECK_INTERVAL = 5 * 60 * 1000;
 
+// Shared in-flight full-fetch promise. The character sheet fires 8
+// concurrent search() calls on cold load; without this each one would
+// independently paginate the full table. Concurrent callers for the
+// same pack scope await one promise instead.
+let _entryFetchInflight: {
+  key: string;
+  promise: Promise<{ authored: HomebrewContentRow[] | null; imported: ImportedContentRow[] | null }>;
+} | null = null;
+
 /**
  * Pack-scope resolution cache. The character sheet fires 8 concurrent
  * ContentResolver.search calls on cold load (one per content type the
@@ -125,10 +134,11 @@ type ScopeCacheEntry = {
   promise?: Promise<HomebrewPackRow[]>;
 };
 let _scopeCache: ScopeCacheEntry | null = null;
-/** 60s is enough to cover the cold-load 8-call burst plus a quick
- *  pack-management round trip; longer would risk stale pack lists after
- *  the player toggles packs in the campaign settings. */
-const SCOPE_CACHE_TTL = 60 * 1000;
+/** 5 minutes covers repeated navigations between character sheets and
+ *  content screens. Pack management (toggling packs in campaign settings)
+ *  calls invalidateHomebrewCache() which clears this cache, so staleness
+ *  after deliberate changes is not a risk. */
+const SCOPE_CACHE_TTL = 5 * 60 * 1000;
 
 export function invalidateHomebrewCache() {
   const oldKey = _entryCache?.key;
@@ -137,6 +147,7 @@ export function invalidateHomebrewCache() {
   _scopeCache = null;
   _lastCountCheckAt = 0;
   _countCheckPromise = null;
+  _entryFetchInflight = null;
   if (oldKey) {
     // Clear both v1 (legacy) and v2 cache keys
     AsyncStorage.removeItem(STORAGE_KEY_PREFIX + oldKey).catch(() => {});
@@ -305,39 +316,31 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
     imported = _entryCache!.imported;
   }
 
-  // Cache miss — fetch from Supabase
-  if (authored === null && query.type) {
-    const [a, i] = await Promise.all([
-      fetchAllPaginated<HomebrewContentRow>(
-        'homebrew_content',
-        'id, user_id, pack_id, content_type, name, data',
-        relevantPackIds,
-        query.type,
-      ),
-      fetchAllPaginated<ImportedContentRow>(
-        'imported_content',
-        'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
-        relevantPackIds,
-        query.type,
-      ),
-    ]);
-    authored = a;
-    imported = i;
-  } else if (authored === null) {
-    const [a, i] = await Promise.all([
-      fetchAllPaginated<HomebrewContentRow>(
-        'homebrew_content',
-        'id, user_id, pack_id, content_type, name, data',
-        relevantPackIds,
-      ),
-      fetchAllPaginated<ImportedContentRow>(
-        'imported_content',
-        'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
-        relevantPackIds,
-      ),
-    ]);
-    authored = a;
-    imported = i;
+  // Cache miss — fetch the full pack scope (all content types) so the
+  // cache is usable by subsequent typed queries. Fetching only
+  // `query.type` would never populate the cache, causing 8+ parallel
+  // round-trips on every character-sheet cold-load. Concurrent callers
+  // for the same scope share one in-flight promise.
+  if (authored === null) {
+    if (!_entryFetchInflight || _entryFetchInflight.key !== baseCacheKey) {
+      const promise = Promise.all([
+        fetchAllPaginated<HomebrewContentRow>(
+          'homebrew_content',
+          'id, user_id, pack_id, content_type, name, data',
+          relevantPackIds,
+        ),
+        fetchAllPaginated<ImportedContentRow>(
+          'imported_content',
+          'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
+          relevantPackIds,
+        ),
+      ]).then(([a, i]) => ({ authored: a, imported: i }));
+      _entryFetchInflight = { key: baseCacheKey, promise };
+    }
+    const result = await _entryFetchInflight.promise;
+    _entryFetchInflight = null;
+    authored = result.authored;
+    imported = result.imported;
     if (authored !== null && imported !== null) {
       const entry = {
         key: baseCacheKey,
