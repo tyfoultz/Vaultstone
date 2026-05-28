@@ -818,6 +818,11 @@ export default function EncounterBuilderScreen() {
         <View style={{ flex: 1 }}>
           <View style={st.catalogNameRow}>
             <Text style={st.catalogName} numberOfLines={1}>{creature.name}</Text>
+            {creature.importSource?.code ? (
+              <View style={st.srdBadge}>
+                <Text style={st.srdBadgeText}>{creature.importSource.code}</Text>
+              </View>
+            ) : null}
             <View style={st.crTag}>
               <Text style={st.crTagText}>CR {crLabel(creature.challengeRating)}</Text>
             </View>
@@ -1751,6 +1756,11 @@ const st = StyleSheet.create({
     paddingHorizontal: 4, paddingVertical: 1,
   },
   typeBadgeText: { fontSize: 7, fontFamily: fonts.label, fontWeight: '700', color: colors.outline, letterSpacing: 0.5 },
+  srdBadge: {
+    backgroundColor: `${colors.secondary}22`, borderRadius: 3,
+    paddingHorizontal: 4, paddingVertical: 1,
+  },
+  srdBadgeText: { fontSize: 7, fontFamily: fonts.label, fontWeight: '700', color: colors.secondary, letterSpacing: 0.3 },
   catalogMeta: { fontSize: 10, fontFamily: fonts.label, color: colors.outline, marginTop: 1 },
   addBtn: {
     width: 24, height: 24, borderRadius: 12,

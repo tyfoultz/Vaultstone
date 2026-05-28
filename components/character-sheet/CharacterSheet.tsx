@@ -1212,10 +1212,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     const catalog = itemResultsByKey.get(e.id) ?? itemResultsByKey.get(baseKey);
     if (!catalog) return e;
     const fresh = itemResultToEquipment(catalog);
+    // Prefer fresh notes when the stored text looks truncated (old 240-char cap)
+    const notes = (fresh.notes && (!e.notes || (e.notes.length < fresh.notes.length && fresh.notes.startsWith(e.notes.slice(0, 50)))))
+      ? fresh.notes
+      : e.notes;
     return {
       ...e,
       slot: fresh.slot,
       damage: e.damage ?? fresh.damage,
+      versatileDamage: e.versatileDamage ?? fresh.versatileDamage,
+      attackAbility: e.attackAbility ?? fresh.attackAbility,
       acBase: e.acBase ?? fresh.acBase,
       dexCap: e.dexCap ?? fresh.dexCap,
       acBonus: e.acBonus ?? fresh.acBonus,
@@ -1224,6 +1230,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       properties: e.properties ?? fresh.properties,
       requiresAttunement: e.requiresAttunement ?? fresh.requiresAttunement,
       weight: e.weight ?? fresh.weight,
+      notes,
     };
   }
   // Memoized so the array identity is stable across renders that don't
