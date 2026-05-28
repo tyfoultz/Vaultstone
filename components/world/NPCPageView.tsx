@@ -59,7 +59,7 @@ import {
   PAGE_SIDEBAR_STYLES as sideStyles,
 } from './PageSidebarShared';
 
-const LOCK_HEARTBEAT_MS = 30_000;
+const LOCK_HEARTBEAT_MS = 60_000;
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 

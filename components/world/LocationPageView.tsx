@@ -58,7 +58,7 @@ import {
   PAGE_SIDEBAR_STYLES as sideStyles,
 } from './PageSidebarShared';
 
-const LOCK_HEARTBEAT_MS = 30_000;
+const LOCK_HEARTBEAT_MS = 60_000;
 const MAP_PREVIEW_H = 120;
 const MAP_ZOOM = 3;
 

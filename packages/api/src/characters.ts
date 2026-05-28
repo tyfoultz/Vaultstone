@@ -83,9 +83,7 @@ export async function updateCharacter(id: string, updates: CharacterUpdate) {
   return supabase
     .from('characters')
     .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
+    .eq('id', id);
 }
 
 export async function deleteCharacter(id: string) {

@@ -5,7 +5,7 @@ import {
   cascadeMentionLabel,
   claimPageEdit,
   forceReleasePageEdit,
-  getEventsForTimeline,
+  getEventSummariesForTimeline,
   getMyPagePermission,
   getPage,
   listMaps,
@@ -62,7 +62,7 @@ import { PAGE_KIND_LABEL } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
 import { worldHref, worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
 
-const LOCK_HEARTBEAT_MS = 30_000;
+const LOCK_HEARTBEAT_MS = 60_000;
 
 const EMPTY_PAGES: WorldPage[] = [];
 const EMPTY_MENTION_EVENTS: MentionEventItem[] = [];
@@ -200,7 +200,7 @@ export function PagePaneContent({
       return;
     }
     let cancelled = false;
-    Promise.all(timelinePages.map((tp) => getEventsForTimeline(tp.id))).then(
+    Promise.all(timelinePages.map((tp) => getEventSummariesForTimeline(tp.id))).then(
       (results) => {
         if (cancelled) return;
         const items: MentionEventItem[] = [];
