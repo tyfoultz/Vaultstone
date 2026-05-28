@@ -693,7 +693,10 @@ export function EquipmentDetailModal({
   const rows: Array<{ label: string; value: string }> = [];
   rows.push({ label: 'Slot', value: item.slot.charAt(0).toUpperCase() + item.slot.slice(1) });
   if (armorType) rows.push({ label: 'Armor type', value: armorType });
-  if (item.slot === 'weapon' && item.damage) rows.push({ label: 'Damage', value: item.damage });
+  if (item.slot === 'weapon' && item.damage) {
+    rows.push({ label: 'Damage', value: item.damage });
+    if (item.versatileDamage) rows.push({ label: 'Two-handed', value: item.versatileDamage });
+  }
   if (item.range) rows.push({ label: 'Range', value: item.range });
   if (item.acBase != null) {
     const dex = item.dexCap === 0
@@ -723,7 +726,7 @@ export function EquipmentDetailModal({
               <MaterialCommunityIcons name="close" size={20} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={{ paddingBottom: spacing.md }}>
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: spacing.md }} showsVerticalScrollIndicator>
             <View style={s.detailMetaGrid}>
               {rows.map((r) => (
                 <View key={r.label} style={s.detailMetaCell}>
@@ -1303,11 +1306,12 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   detailCard: {
-    width: '100%', maxWidth: 480, maxHeight: '80%',
+    width: '100%', maxWidth: 480, maxHeight: '85%',
     backgroundColor: colors.surfaceContainer,
     borderRadius: radius.xl,
     borderWidth: 1, borderColor: colors.outlineVariant,
     padding: spacing.md,
+    flexShrink: 1,
   },
   detailHeader: {
     flexDirection: 'row', alignItems: 'flex-start',

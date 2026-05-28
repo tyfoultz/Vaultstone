@@ -236,8 +236,10 @@ export interface Dnd5eEquipmentItem {
   name: string;
   slot: EquipmentSlot;
   equipped: boolean;
-  /** For weapons: e.g. '1d8+3 slashing' */
+  /** For weapons: e.g. '1d8 slashing' (base dice only, no ability mod) */
   damage?: string;
+  /** For weapons with the Versatile property: two-handed damage dice, e.g. '1d10' */
+  versatileDamage?: string;
   /** For weapons: attack modifier override, or auto-calculated from ability + prof */
   attackBonus?: number;
   /** For weapons: which ability to use — 'strength' | 'dexterity' | 'finesse' */
