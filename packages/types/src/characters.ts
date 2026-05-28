@@ -242,8 +242,9 @@ export interface Dnd5eEquipmentItem {
   versatileDamage?: string;
   /** For weapons: attack modifier override, or auto-calculated from ability + prof */
   attackBonus?: number;
-  /** For weapons: which ability to use — 'strength' | 'dexterity' | 'finesse' */
-  attackAbility?: 'strength' | 'dexterity' | 'finesse';
+  /** For weapons: which ability drives attack/damage — any of the 6 ability
+   *  scores, or 'finesse' (auto-picks better of STR/DEX). */
+  attackAbility?: 'strength' | 'dexterity' | 'constitution' | 'intelligence' | 'wisdom' | 'charisma' | 'finesse';
   /** For weapons: properties like 'light', 'finesse', 'two-handed', 'ranged', 'thrown' */
   properties?: string[];
   /** For weapons: range in feet, e.g. '80/320' or '5' */

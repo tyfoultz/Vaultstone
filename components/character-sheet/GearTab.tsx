@@ -665,27 +665,32 @@ function InlineValueCell({
   );
 }
 
+const ATTACK_ABILITY_OPTIONS: Array<{ value: Dnd5eEquipmentItem['attackAbility']; label: string }> = [
+  { value: 'strength', label: 'STR' },
+  { value: 'dexterity', label: 'DEX' },
+  { value: 'constitution', label: 'CON' },
+  { value: 'intelligence', label: 'INT' },
+  { value: 'wisdom', label: 'WIS' },
+  { value: 'charisma', label: 'CHA' },
+  { value: 'finesse', label: 'Finesse' },
+];
+
 export function EquipmentDetailModal({
   item,
   onClose,
   onUpdateValue,
   onUpdateQuantity,
   onToggleEquipped,
+  onUpdateAttackAbility,
   onRemove,
   canEdit,
 }: {
   item: Dnd5eEquipmentItem;
   onClose: () => void;
-  /** When provided, Value renders as an inline editable field — matches
-   *  the row-level affordance so the modal isn't a read-only dead end. */
   onUpdateValue?: (v: string) => void;
-  /** When provided, Quantity renders as an inline editable field
-   *  alongside Value. */
   onUpdateQuantity?: (q: number) => void;
-  /** Toggle equipped state. Owner-only — gated by canEdit upstream. */
   onToggleEquipped?: () => void;
-  /** Trigger the delete flow. The parent owns the confirm dialog and
-   *  is expected to close this modal as part of opening that one. */
+  onUpdateAttackAbility?: (ability: Dnd5eEquipmentItem['attackAbility']) => void;
   onRemove?: () => void;
   canEdit: boolean;
 }) {
@@ -765,6 +770,28 @@ export function EquipmentDetailModal({
                 {item.properties.map((p, i) => (
                   <Text key={i} style={s.detailBullet}>• {p}</Text>
                 ))}
+              </View>
+            ) : null}
+            {canEdit && item.slot === 'weapon' && onUpdateAttackAbility ? (
+              <View style={{ marginTop: spacing.sm }}>
+                <Text style={s.detailMetaLabel}>Attack Ability</Text>
+                <View style={s.abilityChipRow}>
+                  {ATTACK_ABILITY_OPTIONS.map((opt) => {
+                    const active = item.attackAbility === opt.value;
+                    return (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[s.abilityChip, active && s.abilityChipActive]}
+                        onPress={() => onUpdateAttackAbility(opt.value)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[s.abilityChipText, active && s.abilityChipTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             ) : null}
             {item.notes ? (
@@ -1346,6 +1373,22 @@ const s = StyleSheet.create({
   },
   detailEditableCell: { minWidth: 100, flex: 1 },
   detailBullet: { fontSize: 12, color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 2 },
+  abilityChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  abilityChip: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: radius.lg, borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    backgroundColor: 'transparent',
+  },
+  abilityChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: `${colors.primary}22`,
+  },
+  abilityChipText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant, letterSpacing: 0.3,
+  },
+  abilityChipTextActive: { color: colors.primary },
   detailNotes: { fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 19, marginTop: 4 },
   /** Footer action bar — sits below the scrolling content so the
    *  Equip/Unequip + Delete buttons stay anchored to the bottom of

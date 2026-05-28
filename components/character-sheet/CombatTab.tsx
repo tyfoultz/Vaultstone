@@ -204,10 +204,12 @@ function rollDamage(label: string, dice: string, extraBonus: number, onRoll: (r:
 function resolveWeaponAbility(
   weapon: Dnd5eEquipmentItem,
   scores: Dnd5eAbilityScores,
-): 'strength' | 'dexterity' {
-  if (weapon.attackAbility === 'dexterity') return 'dexterity';
+): keyof Dnd5eAbilityScores {
   if (weapon.attackAbility === 'finesse') {
-    return abilityMod(scores.dexterity) > abilityMod(scores.strength) ? 'dexterity' : 'strength';
+    return abilityMod(scores.dexterity) >= abilityMod(scores.strength) ? 'dexterity' : 'strength';
+  }
+  if (weapon.attackAbility && weapon.attackAbility in scores) {
+    return weapon.attackAbility as keyof Dnd5eAbilityScores;
   }
   return 'strength';
 }
@@ -693,7 +695,7 @@ export function CombatTab({
 
           const resolvedAbility = resolveWeaponAbility(weapon, scores);
           const aMod = abilityMod(scores[resolvedAbility]);
-          const abilityLabel = `${resolvedAbility === 'dexterity' ? 'DEX' : 'STR'} mod${weapon.attackAbility === 'finesse' ? ' (finesse)' : ''}`;
+          const abilityLabel = `${ABILITY_SHORT[resolvedAbility]} mod${weapon.attackAbility === 'finesse' ? ' (finesse)' : ''}`;
 
           if (kind === 'hit') {
             const lines: StatBreakdownLine[] = [];

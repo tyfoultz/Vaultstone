@@ -1888,10 +1888,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   function getAttackBonus(item: Dnd5eEquipmentItem): number {
     if (item.attackBonus !== undefined) return item.attackBonus;
     if (!scores) return 0;
-    let ability: 'strength' | 'dexterity' = 'strength';
-    if (item.attackAbility === 'dexterity') ability = 'dexterity';
-    else if (item.attackAbility === 'finesse') {
-      ability = abilityMod(scores.dexterity) > abilityMod(scores.strength) ? 'dexterity' : 'strength';
+    let ability: keyof typeof scores = 'strength';
+    if (item.attackAbility === 'finesse') {
+      ability = abilityMod(scores.dexterity) >= abilityMod(scores.strength) ? 'dexterity' : 'strength';
+    } else if (item.attackAbility && item.attackAbility in scores) {
+      ability = item.attackAbility as keyof typeof scores;
     }
     return abilityMod(scores[ability]) + prof;
   }
@@ -3949,6 +3950,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           onToggleEquipped={canEditAny
             ? () => handleToggleEquipped(detailEquipment.id)
             : undefined}
+          onUpdateAttackAbility={canEditAny
+            ? (ability) => {
+                const id = detailEquipment.id;
+                const updated = equipment.map((e) =>
+                  e.id === id ? { ...e, attackAbility: ability } : e,
+                );
+                saveEquipment(updated);
+                setDetailEquipment({ ...detailEquipment, attackAbility: ability });
+              }
+            : undefined}
           onRemove={canEditAny
             ? () => {
                 // Hand off to the existing remove confirm flow — close
@@ -4175,7 +4186,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     />
                     <Text style={s.eqLabel}>Attack Ability</Text>
                     <View style={s.eqSlotRow}>
-                      {(['strength', 'dexterity', 'finesse'] as const).map((ab) => (
+                      {(['strength', 'dexterity', 'finesse', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const).map((ab) => (
                         <TouchableOpacity
                           key={ab}
                           style={[s.eqSlotBtn, editEquip.attackAbility === ab && s.eqSlotBtnActive]}
