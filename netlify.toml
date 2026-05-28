@@ -10,6 +10,21 @@
 [context.production]
   ignore = "exit 0"
 
+# Block search-engine indexing on all deploys (previews + branch deploys).
+# Production is triggered manually via the Netlify UI, so this won't hurt SEO
+# if/when we ever need it — just add a context.production override at that point.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+# Serve robots.txt directly instead of falling through to the SPA catch-all.
+# Without this, bots requesting /robots.txt get the full index.html + JS bundle.
+[[redirects]]
+  from = "/robots.txt"
+  to = "/robots.txt"
+  status = 200
+
 [[headers]]
   for = "/_expo/static/js/*"
   [headers.values]
@@ -20,10 +35,11 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# Expo hashes asset filenames — safe to cache aggressively.
 [[headers]]
   for = "/assets/*"
   [headers.values]
-    Cache-Control = "public, max-age=2592000"
+    Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
   for = "/index.html"
