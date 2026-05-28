@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, type NativeSyntheticEvent, type TextInputContentSizeChangeEventData } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import type {
@@ -8,6 +8,26 @@ import type {
 import { BodyEditor } from '../world/BodyEditor';
 
 type SubTab = 'about' | 'journal';
+
+function ExpandableInput(props: React.ComponentProps<typeof TextInput> & { minH?: number }) {
+  const { minH = 44, style, ...rest } = props;
+  const [height, setHeight] = useState(minH);
+  const onSize = useCallback(
+    (e: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) => {
+      setHeight(Math.max(minH, e.nativeEvent.contentSize.height + 20));
+    },
+    [minH],
+  );
+  return (
+    <TextInput
+      {...rest}
+      multiline
+      style={[style, { height: Math.max(minH, height) }]}
+      onContentSizeChange={onSize}
+      textAlignVertical="top"
+    />
+  );
+}
 
 /**
  * Strip the imported-content prefix and SRD edition suffix from a
@@ -282,15 +302,14 @@ function AboutPane({
       {/* Clothing & accessories — paragraph-scale freeform. */}
       <SectionLabel style={{ marginTop: 14 }}>CLOTHING & ACCESSORIES</SectionLabel>
       <View style={s.fieldBlock}>
-        <TextInput
-          style={[s.fieldInput, s.fieldInputTall]}
+        <ExpandableInput
+          minH={90}
+          style={s.fieldInput}
           value={appearance.attire ?? ''}
           onChangeText={isOwner ? (v) => onAppearanceChange?.('attire', v) : undefined}
           editable={isOwner}
-          multiline
           placeholder={isOwner ? 'Signet rings, talismans, signature attire…' : '—'}
           placeholderTextColor={colors.outline}
-          textAlignVertical="top"
         />
       </View>
 
@@ -313,23 +332,19 @@ function AboutPane({
           <View key={f.key}>
             <SectionLabel style={{ marginTop: 14 }}>{f.label.toUpperCase()}</SectionLabel>
             <View style={s.fieldBlock}>
-              <TextInput
-                style={[s.fieldInput, f.tall && s.fieldInputTall]}
+              <ExpandableInput
+                minH={f.tall ? 90 : 44}
+                style={s.fieldInput}
                 value={displayValue}
                 onChangeText={isOwner ? (v) => {
                   onPersonalityChange?.(f.key, v);
-                  // Clear legacy faction the moment the user edits the
-                  // merged field so we don't keep re-appending it on
-                  // future loads.
                   if (isAlliesField && legacyFaction) {
                     onPersonalityChange?.('faction', '');
                   }
                 } : undefined}
                 editable={isOwner}
-                multiline
                 placeholder={isOwner ? f.placeholder : '—'}
                 placeholderTextColor={colors.outline}
-                textAlignVertical="top"
               />
             </View>
           </View>
