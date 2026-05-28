@@ -1020,6 +1020,45 @@ export interface Database {
         Args: { p_join_code: string };
         Returns: Database['public']['Tables']['campaigns']['Row'][];
       };
+      // Trimmed-resources party/member RPCs — return the same nested shape
+      // as the prior PostgREST embeddings, minus the heavy `resources`
+      // sub-blobs. See migration 20260617000000.
+      get_campaign_members_trimmed: {
+        Args: { p_campaign_id: string };
+        Returns: {
+          campaign_id: string;
+          user_id: string;
+          role: Database['public']['Tables']['campaign_members']['Row']['role'];
+          character_id: string | null;
+          joined_at: string;
+          profiles: { id: string; display_name: string | null } | null;
+          characters: Pick<
+            Database['public']['Tables']['characters']['Row'],
+            'id' | 'name' | 'system' | 'base_stats' | 'resources' | 'conditions' | 'avatar_url' | 'avatar_card_url'
+          > | null;
+        }[];
+      };
+      get_characters_for_campaign_trimmed: {
+        Args: { p_campaign_id: string };
+        Returns: Pick<
+          Database['public']['Tables']['characters']['Row'],
+          'id' | 'user_id' | 'name' | 'base_stats' | 'resources' | 'conditions' | 'avatar_url' | 'avatar_card_url'
+        >[];
+      };
+      get_campaign_party_state_trimmed: {
+        Args: { p_campaign_id: string };
+        Returns: {
+          user_id: string;
+          role: Database['public']['Tables']['campaign_members']['Row']['role'];
+          character_id: string | null;
+          joined_at: string;
+          profiles: { id: string; display_name: string | null } | null;
+          characters: Pick<
+            Database['public']['Tables']['characters']['Row'],
+            'id' | 'name' | 'base_stats' | 'resources' | 'conditions'
+          > | null;
+        }[];
+      };
       roll_combatant_initiative: {
         Args: { combatant_id: string; roll_value: number };
         Returns: undefined;

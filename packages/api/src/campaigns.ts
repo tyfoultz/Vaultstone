@@ -62,11 +62,12 @@ export async function regenerateJoinCode(campaignId: string) {
 }
 
 export async function getCampaignMembers(campaignId: string) {
-  return supabase
-    .from('campaign_members')
-    .select('campaign_id, user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, system, base_stats, resources, conditions, avatar_url, avatar_card_url)')
-    .eq('campaign_id', campaignId)
-    .order('joined_at', { ascending: true });
+  // Routes through get_campaign_members_trimmed so the embedded character's
+  // `resources` blob arrives without the heavy sub-objects no member view
+  // reads (journal, spellbook, feats, backstory prose, etc.). Same nested
+  // shape as the old PostgREST embedding — see the migration for the strip
+  // list. RLS still applies (security invoker).
+  return supabase.rpc('get_campaign_members_trimmed', { p_campaign_id: campaignId });
 }
 
 /**
@@ -79,11 +80,8 @@ export async function getCampaignMembers(campaignId: string) {
  * party rendering and only kept for backwards compat.
  */
 export async function getCharactersForCampaign(campaignId: string) {
-  return supabase
-    .from('characters')
-    .select('id, user_id, name, base_stats, resources, conditions, avatar_url, avatar_card_url')
-    .eq('campaign_id', campaignId)
-    .order('created_at', { ascending: true });
+  // Trimmed-resources RPC — see getCampaignMembers note.
+  return supabase.rpc('get_characters_for_campaign_trimmed', { p_campaign_id: campaignId });
 }
 
 // Batched count for the campaigns list — one round-trip for all campaigns
@@ -103,11 +101,8 @@ export async function getMemberCountsForCampaigns(campaignIds: string[]) {
 // Party view needs the full character payload (resources + conditions) so it
 // can render HP, AC, and condition chips without a second round-trip per row.
 export async function getCampaignPartyState(campaignId: string) {
-  return supabase
-    .from('campaign_members')
-    .select('user_id, role, character_id, joined_at, profiles(id, display_name), characters(id, name, base_stats, resources, conditions)')
-    .eq('campaign_id', campaignId)
-    .order('joined_at', { ascending: true });
+  // Trimmed-resources RPC — see getCampaignMembers note.
+  return supabase.rpc('get_campaign_party_state_trimmed', { p_campaign_id: campaignId });
 }
 
 export async function updateCampaignMember(

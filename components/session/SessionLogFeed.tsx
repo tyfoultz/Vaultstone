@@ -26,30 +26,59 @@ export function SessionLogFeed({
   const [rows, setRows] = useState<LogRowData[] | null>(null);
   const [collapsed, setCollapsed] = useState(variant === 'compact');
   const seenIds = useRef<Set<string>>(new Set());
+  // Tracks the newest event timestamp we've ingested, scoped to the
+  // session it belongs to. Lets the focus refetch ask only for events
+  // *newer* than what we already have instead of re-downloading the
+  // whole log every time. Safe because session_events is append-only
+  // (Update: never) — a since-filter can't miss a mutated row.
+  const cursorRef = useRef<{ sessionId: string; latestAt: string | null }>({ sessionId, latestAt: null });
   const bottomRef = useRef<ScrollView | null>(null);
 
-  const resetFromDb = useCallback(async () => {
-    const events = await getSessionEvents(sessionId);
-    seenIds.current = new Set(events.map((e) => e.id));
-    setRows(events.map((e) => ({
-      id: e.id,
-      eventType: e.event_type,
-      createdAt: e.created_at,
-      payload: e.payload,
-    })));
+  // Load from DB. Does a full fetch on first load / session change, then
+  // incremental (since the newest known event) on subsequent focuses.
+  const loadFromDb = useCallback(async () => {
+    const canIncrement =
+      cursorRef.current.sessionId === sessionId && cursorRef.current.latestAt !== null;
+    const events = await getSessionEvents(
+      sessionId,
+      canIncrement ? { since: cursorRef.current.latestAt! } : {},
+    );
+    if (!canIncrement) {
+      seenIds.current = new Set();
+      cursorRef.current = { sessionId, latestAt: null };
+    }
+    const additions: LogRowData[] = [];
+    for (const e of events) {
+      if (seenIds.current.has(e.id)) continue;
+      seenIds.current.add(e.id);
+      if (!cursorRef.current.latestAt || e.created_at > cursorRef.current.latestAt) {
+        cursorRef.current.latestAt = e.created_at;
+      }
+      additions.push({
+        id: e.id,
+        eventType: e.event_type,
+        createdAt: e.created_at,
+        payload: e.payload,
+      });
+    }
+    setRows((prev) =>
+      canIncrement && prev
+        ? (additions.length ? [...prev, ...additions] : prev)
+        : additions,
+    );
   }, [sessionId]);
 
-  // Refetch on focus — covers edit/publish flows on the campaign page
-  // and catches up anything missed while the screen was backgrounded.
+  // Refetch on focus — catches up anything appended while the screen was
+  // backgrounded. Incremental after the first load (see loadFromDb).
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       (async () => {
         if (cancelled) return;
-        await resetFromDb();
+        await loadFromDb();
       })();
       return () => { cancelled = true; };
-    }, [resetFromDb]),
+    }, [loadFromDb]),
   );
 
   // Live append via Realtime. Only subscribe when the session is live —
@@ -76,6 +105,9 @@ export function SessionLogFeed({
           };
           if (seenIds.current.has(next.id)) return;
           seenIds.current.add(next.id);
+          if (!cursorRef.current.latestAt || next.created_at > cursorRef.current.latestAt) {
+            cursorRef.current.latestAt = next.created_at;
+          }
           setRows((prev) => [
             ...(prev ?? []),
             {

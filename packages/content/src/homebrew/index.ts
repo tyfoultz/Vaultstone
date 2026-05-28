@@ -74,18 +74,45 @@ type ImportedContentRow = {
 // page rendering 8+ content-type tabs) share a single DB round-trip
 // instead of each independently paginating through 3000+ rows.
 // Persisted to AsyncStorage so the cache survives page refreshes and
-// app restarts — imported content rarely changes, so a 24-hour TTL is safe.
-// The cache is manually invalidated on import/delete regardless of TTL.
+// app restarts — imported content rarely changes.
+//
+// Freshness strategy: instead of a time-based TTL, we store the row
+// counts alongside the data and periodically validate them with a HEAD
+// request (zero-body — effectively free egress). The full fetch only
+// fires when an import/delete actually changes the row count, or on
+// first-ever load. Manual invalidation on import/delete still works
+// as the immediate-path reset.
 let _entryCache: {
   key: string;
   packs: HomebrewPackRow[];
   authored: HomebrewContentRow[];
   imported: ImportedContentRow[];
+  authoredCount: number;
+  importedCount: number;
   fetchedAt: number;
 } | null = null;
-const ENTRY_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-const STORAGE_KEY_PREFIX = 'vaultstone:homebrew-cache:v1:';
+// Hard safety limit — force refetch after 7 days even if counts match,
+// to catch any edge case where data changed without a count delta
+// (e.g. in-place row update, which normal import flows don't do).
+const ENTRY_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+const STORAGE_KEY_PREFIX = 'vaultstone:homebrew-cache:v2:';
 let _diskHydrated = false;
+
+// Count-check debounce: skip the HEAD requests for 5 minutes after a
+// successful check so the 8-call cold-load burst (and rapid tab
+// switches) don't each fire their own validation round-trip.
+let _lastCountCheckAt = 0;
+let _countCheckPromise: Promise<boolean> | null = null;
+const COUNT_CHECK_INTERVAL = 5 * 60 * 1000;
+
+// Shared in-flight full-fetch promise. The character sheet fires 8
+// concurrent search() calls on cold load; without this each one would
+// independently paginate the full table. Concurrent callers for the
+// same pack scope await one promise instead.
+let _entryFetchInflight: {
+  key: string;
+  promise: Promise<{ authored: HomebrewContentRow[] | null; imported: ImportedContentRow[] | null }>;
+} | null = null;
 
 /**
  * Pack-scope resolution cache. The character sheet fires 8 concurrent
@@ -107,19 +134,78 @@ type ScopeCacheEntry = {
   promise?: Promise<HomebrewPackRow[]>;
 };
 let _scopeCache: ScopeCacheEntry | null = null;
-/** 60s is enough to cover the cold-load 8-call burst plus a quick
- *  pack-management round trip; longer would risk stale pack lists after
- *  the player toggles packs in the campaign settings. */
-const SCOPE_CACHE_TTL = 60 * 1000;
+/** 5 minutes covers repeated navigations between character sheets and
+ *  content screens. Pack management (toggling packs in campaign settings)
+ *  calls invalidateHomebrewCache() which clears this cache, so staleness
+ *  after deliberate changes is not a risk. */
+const SCOPE_CACHE_TTL = 5 * 60 * 1000;
 
 export function invalidateHomebrewCache() {
   const oldKey = _entryCache?.key;
   _entryCache = null;
   _diskHydrated = false;
   _scopeCache = null;
+  _lastCountCheckAt = 0;
+  _countCheckPromise = null;
+  _entryFetchInflight = null;
   if (oldKey) {
+    // Clear both v1 (legacy) and v2 cache keys
     AsyncStorage.removeItem(STORAGE_KEY_PREFIX + oldKey).catch(() => {});
+    AsyncStorage.removeItem('vaultstone:homebrew-cache:v1:' + oldKey).catch(() => {});
   }
+}
+
+/**
+ * Validate the in-memory cache against Supabase row counts using HEAD
+ * requests (zero body → zero egress). Returns true when counts match
+ * (data hasn't changed), false when they differ or on error.
+ *
+ * Debounced: skips the network round-trip if a successful check ran
+ * within COUNT_CHECK_INTERVAL. Deduplicated: concurrent callers share
+ * a single in-flight promise.
+ */
+async function isCacheFresh(packIds: string[]): Promise<boolean> {
+  if (!_entryCache) return false;
+
+  // Hard safety TTL — force refetch regardless of counts
+  if (Date.now() - _entryCache.fetchedAt > ENTRY_CACHE_TTL) return false;
+
+  // Backward compat: old disk caches lack count fields — treat as stale
+  if (_entryCache.authoredCount == null || _entryCache.importedCount == null) return false;
+
+  // Debounce: trust the cache within the check interval
+  if (Date.now() - _lastCountCheckAt < COUNT_CHECK_INTERVAL) return true;
+
+  // Deduplicate concurrent checks (8-call burst shares one promise)
+  if (_countCheckPromise) return _countCheckPromise;
+
+  _countCheckPromise = (async () => {
+    try {
+      const [authoredRes, importedRes] = await Promise.all([
+        supabase
+          .from('homebrew_content')
+          .select('*', { count: 'exact', head: true })
+          .in('pack_id', packIds),
+        supabase
+          .from('imported_content')
+          .select('*', { count: 'exact', head: true })
+          .in('pack_id', packIds),
+      ]);
+
+      if (authoredRes.error || importedRes.error) return false;
+
+      const fresh =
+        (authoredRes.count ?? 0) === _entryCache!.authoredCount &&
+        (importedRes.count ?? 0) === _entryCache!.importedCount;
+
+      if (fresh) _lastCountCheckAt = Date.now();
+      return fresh;
+    } finally {
+      _countCheckPromise = null;
+    }
+  })();
+
+  return _countCheckPromise;
 }
 
 async function hydrateFromDisk(cacheKey: string): Promise<boolean> {
@@ -216,54 +302,57 @@ export async function search(query: ContentQuery): Promise<ContentResult[]> {
   const relevantPackIds = relevantPacks.map((p) => p.id);
 
   const baseCacheKey = [...relevantPackIds].sort().join(',');
-  let authored: HomebrewContentRow[] | null;
-  let imported: ImportedContentRow[] | null;
+  let authored: HomebrewContentRow[] | null = null;
+  let imported: ImportedContentRow[] | null = null;
 
-  if (
-    _entryCache
-    && _entryCache.key === baseCacheKey
-    && Date.now() - _entryCache.fetchedAt < ENTRY_CACHE_TTL
-  ) {
+  // Try memory cache — validate with a cheap HEAD count check
+  if (_entryCache && _entryCache.key === baseCacheKey && await isCacheFresh(relevantPackIds)) {
     authored = _entryCache.authored;
     imported = _entryCache.imported;
-  } else if (await hydrateFromDisk(baseCacheKey)) {
+  }
+  // Try disk cache — hydrate then validate counts
+  if (authored === null && await hydrateFromDisk(baseCacheKey) && await isCacheFresh(relevantPackIds)) {
     authored = _entryCache!.authored;
     imported = _entryCache!.imported;
-  } else if (query.type) {
-    const [a, i] = await Promise.all([
-      fetchAllPaginated<HomebrewContentRow>(
-        'homebrew_content',
-        'id, user_id, pack_id, content_type, name, data',
-        relevantPackIds,
-        query.type,
-      ),
-      fetchAllPaginated<ImportedContentRow>(
-        'imported_content',
-        'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
-        relevantPackIds,
-        query.type,
-      ),
-    ]);
-    authored = a;
-    imported = i;
-  } else {
-    const [a, i] = await Promise.all([
-      fetchAllPaginated<HomebrewContentRow>(
-        'homebrew_content',
-        'id, user_id, pack_id, content_type, name, data',
-        relevantPackIds,
-      ),
-      fetchAllPaginated<ImportedContentRow>(
-        'imported_content',
-        'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
-        relevantPackIds,
-      ),
-    ]);
-    authored = a;
-    imported = i;
+  }
+
+  // Cache miss — fetch the full pack scope (all content types) so the
+  // cache is usable by subsequent typed queries. Fetching only
+  // `query.type` would never populate the cache, causing 8+ parallel
+  // round-trips on every character-sheet cold-load. Concurrent callers
+  // for the same scope share one in-flight promise.
+  if (authored === null) {
+    if (!_entryFetchInflight || _entryFetchInflight.key !== baseCacheKey) {
+      const promise = Promise.all([
+        fetchAllPaginated<HomebrewContentRow>(
+          'homebrew_content',
+          'id, user_id, pack_id, content_type, name, data',
+          relevantPackIds,
+        ),
+        fetchAllPaginated<ImportedContentRow>(
+          'imported_content',
+          'id, user_id, pack_id, content_type, name, data, source_code, source_name, source_page',
+          relevantPackIds,
+        ),
+      ]).then(([a, i]) => ({ authored: a, imported: i }));
+      _entryFetchInflight = { key: baseCacheKey, promise };
+    }
+    const result = await _entryFetchInflight.promise;
+    _entryFetchInflight = null;
+    authored = result.authored;
+    imported = result.imported;
     if (authored !== null && imported !== null) {
-      const entry = { key: baseCacheKey, packs: relevantPacks, authored, imported, fetchedAt: Date.now() };
+      const entry = {
+        key: baseCacheKey,
+        packs: relevantPacks,
+        authored,
+        imported,
+        authoredCount: authored.length,
+        importedCount: imported.length,
+        fetchedAt: Date.now(),
+      };
       _entryCache = entry;
+      _lastCountCheckAt = Date.now();
       persistToDisk(entry);
     }
   }
