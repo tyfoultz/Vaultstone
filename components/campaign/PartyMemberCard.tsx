@@ -168,11 +168,6 @@ export function PartyMemberCard({
   // alongside the regular condition list when level > 0.
   const exhaustionLevel = resources.exhaustionLevel ?? 0;
 
-  const isSplitActive = (() => {
-    const st = useSplitPaneStore.getState();
-    return st.leftTabs.length + st.rightTabs.length > 0;
-  })();
-
   const cardNode = (
     <TouchableOpacity
       style={[
@@ -293,10 +288,6 @@ export function PartyMemberCard({
 
   if (Platform.OS !== 'web' || !canOpen) return cardNode;
 
-  const menuHeight = 38;
-  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1200;
-
   return (
     <>
       <View
@@ -306,41 +297,62 @@ export function PartyMemberCard({
         {cardNode}
       </View>
       {menuAnchor ? (
-        <Modal transparent visible animationType="fade" onRequestClose={() => setMenuAnchor(null)}>
-          <Pressable style={s.menuBackdrop} onPress={() => setMenuAnchor(null)}>
-            <Pressable
-              onPress={(e) => e.stopPropagation()}
-              style={[
-                s.menuWrapper,
-                {
-                  position: 'absolute',
-                  left: Math.min(menuAnchor.x, viewportW - 220),
-                  top: Math.min(menuAnchor.y, viewportH - menuHeight - 16),
-                },
-              ]}
-            >
-              <View style={s.menu}>
-                <Pressable
-                  onPress={() => {
-                    setMenuAnchor(null);
-                    openSplit({ kind: 'character', characterId: character.id });
-                  }}
-                  style={({ pressed }) => [
-                    s.menuRow,
-                    pressed && { backgroundColor: colors.surfaceContainerHigh },
-                  ]}
-                >
-                  <Icon name="vertical-split" size={16} color={colors.onSurfaceVariant} />
-                  <Text style={s.menuRowText}>
-                    {isSplitActive ? 'Open in other pane' : 'Open in split view'}
-                  </Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
+        <CharacterContextMenu
+          anchor={menuAnchor}
+          characterId={character.id}
+          onClose={() => setMenuAnchor(null)}
+          openSplit={openSplit}
+        />
       ) : null}
     </>
+  );
+}
+
+function CharacterContextMenu({ anchor, characterId, onClose, openSplit }: {
+  anchor: { x: number; y: number };
+  characterId: string;
+  onClose: () => void;
+  openSplit: (target: { kind: 'character'; characterId: string }) => void;
+}) {
+  const st = useSplitPaneStore.getState();
+  const isSplitActive = st.leftTabs.length + st.rightTabs.length > 0;
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+
+  return (
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.menuBackdrop} onPress={onClose}>
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={[
+            s.menuWrapper,
+            {
+              position: 'absolute',
+              left: Math.min(anchor.x, viewportW - 220),
+              top: Math.min(anchor.y, viewportH - 54),
+            },
+          ]}
+        >
+          <View style={s.menu}>
+            <Pressable
+              onPress={() => {
+                onClose();
+                openSplit({ kind: 'character', characterId });
+              }}
+              style={({ pressed }) => [
+                s.menuRow,
+                pressed && { backgroundColor: colors.surfaceContainerHigh },
+              ]}
+            >
+              <Icon name="vertical-split" size={16} color={colors.onSurfaceVariant} />
+              <Text style={s.menuRowText}>
+                {isSplitActive ? 'Open in other pane' : 'Open in split view'}
+              </Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
