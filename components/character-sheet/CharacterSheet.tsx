@@ -1212,10 +1212,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     const catalog = itemResultsByKey.get(e.id) ?? itemResultsByKey.get(baseKey);
     if (!catalog) return e;
     const fresh = itemResultToEquipment(catalog);
+    // Prefer fresh notes when the stored text looks truncated (old 240-char cap)
+    const notes = (fresh.notes && (!e.notes || (e.notes.length < fresh.notes.length && fresh.notes.startsWith(e.notes.slice(0, 50)))))
+      ? fresh.notes
+      : e.notes;
     return {
       ...e,
       slot: fresh.slot,
       damage: e.damage ?? fresh.damage,
+      versatileDamage: e.versatileDamage ?? fresh.versatileDamage,
+      attackAbility: e.attackAbility ?? fresh.attackAbility,
       acBase: e.acBase ?? fresh.acBase,
       dexCap: e.dexCap ?? fresh.dexCap,
       acBonus: e.acBonus ?? fresh.acBonus,
@@ -1224,6 +1230,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       properties: e.properties ?? fresh.properties,
       requiresAttunement: e.requiresAttunement ?? fresh.requiresAttunement,
       weight: e.weight ?? fresh.weight,
+      notes,
     };
   }
   // Memoized so the array identity is stable across renders that don't
@@ -1881,10 +1888,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   function getAttackBonus(item: Dnd5eEquipmentItem): number {
     if (item.attackBonus !== undefined) return item.attackBonus;
     if (!scores) return 0;
-    let ability: 'strength' | 'dexterity' = 'strength';
-    if (item.attackAbility === 'dexterity') ability = 'dexterity';
-    else if (item.attackAbility === 'finesse') {
-      ability = abilityMod(scores.dexterity) > abilityMod(scores.strength) ? 'dexterity' : 'strength';
+    let ability: keyof typeof scores = 'strength';
+    if (item.attackAbility === 'finesse') {
+      ability = abilityMod(scores.dexterity) >= abilityMod(scores.strength) ? 'dexterity' : 'strength';
+    } else if (item.attackAbility && item.attackAbility in scores) {
+      ability = item.attackAbility as keyof typeof scores;
     }
     return abilityMod(scores[ability]) + prof;
   }
@@ -3942,6 +3950,16 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           onToggleEquipped={canEditAny
             ? () => handleToggleEquipped(detailEquipment.id)
             : undefined}
+          onUpdateAttackAbility={canEditAny
+            ? (ability) => {
+                const id = detailEquipment.id;
+                const updated = equipment.map((e) =>
+                  e.id === id ? { ...e, attackAbility: ability } : e,
+                );
+                saveEquipment(updated);
+                setDetailEquipment({ ...detailEquipment, attackAbility: ability });
+              }
+            : undefined}
           onRemove={canEditAny
             ? () => {
                 // Hand off to the existing remove confirm flow — close
@@ -4168,7 +4186,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                     />
                     <Text style={s.eqLabel}>Attack Ability</Text>
                     <View style={s.eqSlotRow}>
-                      {(['strength', 'dexterity', 'finesse'] as const).map((ab) => (
+                      {(['strength', 'dexterity', 'finesse', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const).map((ab) => (
                         <TouchableOpacity
                           key={ab}
                           style={[s.eqSlotBtn, editEquip.attackAbility === ab && s.eqSlotBtnActive]}

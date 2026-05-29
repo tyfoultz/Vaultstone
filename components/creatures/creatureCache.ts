@@ -61,7 +61,7 @@ export async function loadCreatureByKey(key: string): Promise<CreatureResult | n
 
 // --- Full catalog cache for encounter builder ---
 
-const CATALOG_CACHE_KEY = 'vaultstone:creature-catalog-cache:v1';
+const CATALOG_CACHE_KEY = 'vaultstone:creature-catalog-cache:v2';
 let _catalogCache: CreatureResult[] | null = null;
 let _catalogFetchedAt = 0;
 

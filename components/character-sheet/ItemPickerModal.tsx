@@ -494,19 +494,41 @@ export function itemResultToEquipment(item: ItemResult): Dnd5eEquipmentItem {
     flavorProps.push(p);
   }
 
+  // Auto-detect attackAbility from properties
+  let attackAbility: 'strength' | 'dexterity' | 'finesse' | undefined;
+  if (slot === 'weapon') {
+    const hasFinesse = flavorProps.some((p) => /^finesse$/i.test(p));
+    const hasAmmunition = flavorProps.some((p) => /^ammunition/i.test(p));
+    if (hasFinesse) attackAbility = 'finesse';
+    else if (hasAmmunition) attackAbility = 'dexterity';
+    else attackAbility = 'strength';
+  }
+
+  // Parse Versatile property for two-handed damage dice
+  let versatileDamage: string | undefined;
+  if (slot === 'weapon') {
+    const versatileProp = flavorProps.find((p) => /^versatile\s*\(/i.test(p));
+    if (versatileProp) {
+      const vMatch = versatileProp.match(/\((\d+d\d+)\)/i);
+      if (vMatch) versatileDamage = vMatch[1];
+    }
+  }
+
   return {
     id: item.key,
     name: item.name,
     slot,
     equipped: false,
     damage,
+    versatileDamage,
+    attackAbility,
     acBase,
     dexCap,
     acBonus,
     miscACBonus: parseMagicACBonus(item),
     miscSaveBonus: parseMagicSaveBonus(item),
     properties: flavorProps.length > 0 ? flavorProps : undefined,
-    notes: item.description?.slice(0, 240),
+    notes: item.description,
     weight: item.weight,
     requiresAttunement: !!item.requiresAttunement,
     attuned: false,

@@ -89,19 +89,25 @@ const TIER_PRIORITY: Record<ContentTier, number> = {
 };
 
 /**
- * Two entries are "the same" if they share `(type, lowercased name)`. Keys
- * differ across tiers (SRD uses content slugs, homebrew prefixes with
- * `homebrew_`, imported uses its own scheme), so name-based dedupe is the
- * only thing that lets us collapse a PHB Berserker against the SRD one.
+ * Collapse duplicate entries across tiers so a homebrew "Goblin" replaces
+ * the SRD one. Within the same tier, per-edition variants (different `key`
+ * values like `remorhaz-srd-5-1` vs `remorhaz-srd-2-0`) are kept — they
+ * represent mechanically distinct stat blocks.
  */
 function deduplicate(results: ContentResult[]): ContentResult[] {
-  const winners = new Map<string, ContentResult>();
+  const byName = new Map<string, ContentResult[]>();
   for (const r of results) {
     const dedupKey = `${r.type}:${r.name.toLowerCase()}`;
-    const incumbent = winners.get(dedupKey);
-    if (!incumbent || TIER_PRIORITY[r.tier] > TIER_PRIORITY[incumbent.tier]) {
-      winners.set(dedupKey, r);
+    const group = byName.get(dedupKey);
+    if (group) group.push(r);
+    else byName.set(dedupKey, [r]);
+  }
+  const out: ContentResult[] = [];
+  for (const group of byName.values()) {
+    const maxPriority = Math.max(...group.map((r) => TIER_PRIORITY[r.tier]));
+    for (const r of group) {
+      if (TIER_PRIORITY[r.tier] === maxPriority) out.push(r);
     }
   }
-  return [...winners.values()];
+  return out;
 }

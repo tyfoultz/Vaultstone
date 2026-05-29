@@ -180,14 +180,46 @@ function rollD20(label: string, bonus: number, onRoll: (r: RollResult) => void) 
   onRoll({ label, rolls: [r], bonus, total: r + bonus, crit: r === 20, fumble: r === 1 });
 }
 
-function rollDamage(label: string, dice: string, onRoll: (r: RollResult) => void) {
-  const m = String(dice).match(/(\d+)d(\d+)(?:([+-])(\d+))?/);
-  if (!m) return;
-  const n = parseInt(m[1]); const sides = parseInt(m[2]);
-  const sign = m[3] === '-' ? -1 : 1;
-  const base = m[4] ? sign * parseInt(m[4]) : 0;
-  const rolls = Array.from({ length: n }, () => Math.floor(Math.random() * sides) + 1);
-  onRoll({ label, rolls, bonus: base, total: rolls.reduce((a, b) => a + b, 0) + base });
+function parseDamageDice(dice: string): { count: number; sides: number; flatBonus: number; type: string } | null {
+  const m = String(dice).match(/(\d+)d(\d+)((?:\s*[+-]\s*\d+)*)\s*(.*)/);
+  if (!m) return null;
+  const count = parseInt(m[1]);
+  const sides = parseInt(m[2]);
+  let flatBonus = 0;
+  if (m[3]) {
+    const bonuses = m[3].match(/[+-]\s*\d+/g);
+    if (bonuses) flatBonus = bonuses.reduce((sum, b) => sum + parseInt(b.replace(/\s/g, ''), 10), 0);
+  }
+  return { count, sides, flatBonus, type: m[4].trim() };
+}
+
+function rollDamage(label: string, dice: string, extraBonus: number, onRoll: (r: RollResult) => void) {
+  const parsed = parseDamageDice(dice);
+  if (!parsed) return;
+  const bonus = parsed.flatBonus + extraBonus;
+  const rolls = Array.from({ length: parsed.count }, () => Math.floor(Math.random() * parsed.sides) + 1);
+  onRoll({ label, rolls, bonus, total: rolls.reduce((a, b) => a + b, 0) + bonus });
+}
+
+function resolveWeaponAbility(
+  weapon: Dnd5eEquipmentItem,
+  scores: Dnd5eAbilityScores,
+): keyof Dnd5eAbilityScores {
+  if (weapon.attackAbility === 'finesse') {
+    return abilityMod(scores.dexterity) >= abilityMod(scores.strength) ? 'dexterity' : 'strength';
+  }
+  if (weapon.attackAbility && weapon.attackAbility in scores) {
+    return weapon.attackAbility as keyof Dnd5eAbilityScores;
+  }
+  return 'strength';
+}
+
+function formatDamageWithMod(baseDamage: string, abilityMod: number): string {
+  const parsed = parseDamageDice(baseDamage);
+  if (!parsed) return baseDamage;
+  const totalBonus = parsed.flatBonus + abilityMod;
+  const bonusStr = totalBonus !== 0 ? (totalBonus > 0 ? `+${totalBonus}` : `${totalBonus}`) : '';
+  return `${parsed.count}d${parsed.sides}${bonusStr}${parsed.type ? ' ' + parsed.type : ''}`;
 }
 
 export function CombatTab({
@@ -212,6 +244,10 @@ export function CombatTab({
     | { kind: 'hit' | 'damage'; weapon: Dnd5eEquipmentItem }
     | null
   >(null);
+  function getDamageMod(item: Dnd5eEquipmentItem): number {
+    if (item.slot !== 'weapon') return 0;
+    return abilityMod(scores[resolveWeaponAbility(item, scores)]);
+  }
   const weapons = equipment.filter((e) => e.slot === 'weapon' && e.equipped);
   // Player-pinned equipment surfaces in its own quick-access section.
   // Independent of the equipped/attuned filter so consumables (potions,
@@ -331,6 +367,7 @@ export function CombatTab({
                     key={w.id}
                     item={w}
                     atkBonus={getAttackBonus(w)}
+                    damageMod={getDamageMod(w)}
                     onOpenBreakdown={(kind, item) => setWeaponBreakdown({ kind, weapon: item })}
                     onOpenDetail={onOpenEquipmentDetail}
                   />
@@ -350,6 +387,7 @@ export function CombatTab({
                   <PinnedCard
                     key={item.id}
                     item={item}
+                    damageMod={getDamageMod(item)}
                     onOpenBreakdown={(kind, w) => setWeaponBreakdown({ kind, weapon: w })}
                     onOpenDetail={onOpenEquipmentDetail}
                   />
@@ -503,6 +541,7 @@ export function CombatTab({
                 key={w.id}
                 item={w}
                 atkBonus={getAttackBonus(w)}
+                damageMod={getDamageMod(w)}
                 onOpenBreakdown={(kind, item) => setWeaponBreakdown({ kind, weapon: item })}
                 onOpenDetail={onOpenEquipmentDetail}
               />
@@ -521,6 +560,7 @@ export function CombatTab({
               <PinnedCard
                 key={item.id}
                 item={item}
+                damageMod={getDamageMod(item)}
                 onOpenBreakdown={(kind, w) => setWeaponBreakdown({ kind, weapon: w })}
                 onOpenDetail={onOpenEquipmentDetail}
               />
@@ -653,6 +693,10 @@ export function CombatTab({
           const { kind, weapon } = weaponBreakdown;
           const close = () => setWeaponBreakdown(null);
 
+          const resolvedAbility = resolveWeaponAbility(weapon, scores);
+          const aMod = abilityMod(scores[resolvedAbility]);
+          const abilityLabel = `${ABILITY_SHORT[resolvedAbility]} mod${weapon.attackAbility === 'finesse' ? ' (finesse)' : ''}`;
+
           if (kind === 'hit') {
             const lines: StatBreakdownLine[] = [];
             let total: number;
@@ -660,14 +704,8 @@ export function CombatTab({
               total = weapon.attackBonus;
               lines.push({ label: 'Manual attack bonus', value: fmtMod(total) });
             } else {
-              let ability: 'strength' | 'dexterity' = 'strength';
-              if (weapon.attackAbility === 'dexterity') ability = 'dexterity';
-              else if (weapon.attackAbility === 'finesse') {
-                ability = abilityMod(scores.dexterity) > abilityMod(scores.strength) ? 'dexterity' : 'strength';
-              }
-              const m = abilityMod(scores[ability]);
-              total = m + prof;
-              lines.push({ label: `${ability === 'dexterity' ? 'DEX' : 'STR'} mod${weapon.attackAbility === 'finesse' ? ' (finesse)' : ''}`, value: fmtMod(m) });
+              total = aMod + prof;
+              lines.push({ label: abilityLabel, value: fmtMod(aMod) });
               lines.push({ label: 'Proficiency', value: fmtMod(prof) });
             }
             return (
@@ -684,20 +722,24 @@ export function CombatTab({
             );
           }
 
-          // Damage — the formula itself is the "total"; the Roll
-          // button rolls the dice + bonus and reports via onRoll.
+          const dmgFull = weapon.damage ? formatDamageWithMod(weapon.damage, aMod) : '—';
+          const lines: StatBreakdownLine[] = [
+            { label: 'Base dice', value: weapon.damage ?? '—' },
+            { label: abilityLabel, value: fmtMod(aMod) },
+          ];
+          if (weapon.versatileDamage) {
+            const vFull = formatDamageWithMod(weapon.versatileDamage, aMod);
+            lines.push({ label: 'Two-handed (versatile)', value: vFull });
+          }
           return (
             <StatBreakdownModal
               visible
               title={`${weapon.name} — Damage`}
               subtitle="Roll on hit"
-              total={weapon.damage ?? '—'}
-              lines={[
-                { label: 'Damage formula', value: weapon.damage ?? '—' },
-              ]}
-              description="Dice are rolled and added to the static bonus encoded in the formula (e.g. 1d8+3)."
+              total={dmgFull}
+              lines={lines}
               rollLabel="Roll damage"
-              onRoll={() => weapon.damage && rollDamage(`${weapon.name} damage`, weapon.damage, onRoll)}
+              onRoll={() => weapon.damage && rollDamage(`${weapon.name} damage`, weapon.damage, aMod, onRoll)}
               onClose={close}
             />
           );
@@ -921,17 +963,26 @@ function getWeaponIcon(item: Dnd5eEquipmentItem): React.ComponentProps<typeof Ma
  * handler is wired (same affordance the Gear tab uses).
  */
 function WeaponCard({
-  item, atkBonus, onOpenBreakdown, onOpenDetail,
+  item, atkBonus, damageMod, onOpenBreakdown, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
   atkBonus: number;
-  /** Open the breakdown modal for either the hit or damage tap. The
-   *  parent owns roll dispatch + modal state so the breakdown math
-   *  has access to scores/prof/etc. */
+  damageMod: number;
   onOpenBreakdown: (kind: 'hit' | 'damage', item: Dnd5eEquipmentItem) => void;
   onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
 }) {
   const iconName = getWeaponIcon(item);
+  const dmgDisplay = item.damage
+    ? (() => {
+        const full = formatDamageWithMod(item.damage, damageMod);
+        const dice = full.split(' ')[0];
+        if (item.versatileDamage) {
+          const vFull = formatDamageWithMod(item.versatileDamage, damageMod);
+          return `${dice} / ${vFull.split(' ')[0]}`;
+        }
+        return dice;
+      })()
+    : null;
   return (
     <TouchableOpacity
       style={s.equipCard}
@@ -954,13 +1005,13 @@ function WeaponCard({
             </TouchableOpacity>
           </View>
           <View style={s.weaponDmgCol}>
-            {item.damage ? (
+            {dmgDisplay ? (
               <TouchableOpacity
                 style={s.atkBtnDmg}
                 onPress={(e) => { e.stopPropagation?.(); onOpenBreakdown('damage', item); }}
                 activeOpacity={0.7}
               >
-                <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+                <Text style={s.atkBtnDmgText}>{dmgDisplay}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -979,20 +1030,21 @@ function WeaponCard({
  * line covering damage / notes / slot+equipped/attuned status.
  */
 function PinnedCard({
-  item, onOpenBreakdown, onOpenDetail,
+  item, damageMod, onOpenBreakdown, onOpenDetail,
 }: {
   item: Dnd5eEquipmentItem;
-  /** Open the damage breakdown when the pinned weapon's damage chip
-   *  is tapped. Parent owns the modal so the math is shared with
-   *  the Attacks section. */
+  damageMod: number;
   onOpenBreakdown: (kind: 'hit' | 'damage', item: Dnd5eEquipmentItem) => void;
   onOpenDetail?: (item: Dnd5eEquipmentItem) => void;
 }) {
   const subText = item.notes
     ? item.notes
     : item.damage
-      ? item.damage
+      ? formatDamageWithMod(item.damage, damageMod)
       : `${item.slot}${item.equipped ? ' · equipped' : ''}${item.attuned ? ' · attuned' : ''}`;
+  const dmgChip = item.damage && item.slot === 'weapon'
+    ? formatDamageWithMod(item.damage, damageMod).split(' ')[0]
+    : null;
   return (
     <TouchableOpacity
       style={s.equipCard}
@@ -1005,13 +1057,13 @@ function PinnedCard({
         <View style={s.equipCardTitleRow}>
           <MaterialCommunityIcons name="pin" size={13} color={colors.secondary} style={{ marginRight: 2 }} />
           <Text style={s.equipCardName} numberOfLines={1}>{item.name}</Text>
-          {item.damage && item.slot === 'weapon' ? (
+          {dmgChip ? (
             <TouchableOpacity
               style={s.atkBtnDmg}
               onPress={(e) => { e.stopPropagation?.(); onOpenBreakdown('damage', item); }}
               activeOpacity={0.7}
             >
-              <Text style={s.atkBtnDmgText}>{item.damage.split(' ')[0]}</Text>
+              <Text style={s.atkBtnDmgText}>{dmgChip}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
