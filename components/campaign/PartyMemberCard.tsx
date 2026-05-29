@@ -10,7 +10,8 @@
 // `characters` UPDATE events so this component re-renders on HP /
 // condition / concentration changes without a manual refetch.
 
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Image, StyleSheet, Platform, Modal, Pressable } from 'react-native';
 import { useSplitPaneStore } from '@vaultstone/store';
 import { getEquippedAC } from '@vaultstone/systems';
 import { colors, spacing, fonts, Icon } from '@vaultstone/ui';
@@ -94,6 +95,17 @@ export function PartyMemberCard({
   playerName: _playerName, character, campaignId, canOpen = true,
 }: Props) {
   const openSplit = useSplitPaneStore((s) => s.openSplit);
+  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+
+  const handleContextMenu = useCallback(
+    (e: { nativeEvent: { pageX: number; pageY: number }; preventDefault?: () => void }) => {
+      if (!canOpen) return;
+      if (e.preventDefault) e.preventDefault();
+      setMenuAnchor({ x: e.nativeEvent.pageX, y: e.nativeEvent.pageY });
+    },
+    [canOpen],
+  );
+
   const stats = character.base_stats as Dnd5eStats | null;
   const resources = character.resources as Dnd5eResources | null;
   const { speciesLabel, classLabel, subclassLabel } = useResolvedContentLabels(stats, { campaignId });
@@ -156,16 +168,18 @@ export function PartyMemberCard({
   // alongside the regular condition list when level > 0.
   const exhaustionLevel = resources.exhaustionLevel ?? 0;
 
-  return (
+  const isSplitActive = (() => {
+    const st = useSplitPaneStore.getState();
+    return st.leftTabs.length + st.rightTabs.length > 0;
+  })();
+
+  const cardNode = (
     <TouchableOpacity
       style={[
         s.card,
         tier === 'unconscious' ? s.cardUnconscious : null,
       ]}
       onPress={canOpen
-        // Open the sheet in a new tab on the focused side (next to
-        // the campaign tab) so the route stays full-screen. The user
-        // can drag the tab across to opt into split view.
         ? () => openSplit({ kind: 'character', characterId: character.id }, { preferSide: 'focused' })
         : undefined}
       activeOpacity={canOpen ? 0.85 : 1}
@@ -275,6 +289,58 @@ export function PartyMemberCard({
         )}
       </View>
     </TouchableOpacity>
+  );
+
+  if (Platform.OS !== 'web' || !canOpen) return cardNode;
+
+  const menuHeight = 38;
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+
+  return (
+    <>
+      <View
+        // @ts-expect-error -- RN Web supports onContextMenu on View
+        onContextMenu={handleContextMenu}
+      >
+        {cardNode}
+      </View>
+      {menuAnchor ? (
+        <Modal transparent visible animationType="fade" onRequestClose={() => setMenuAnchor(null)}>
+          <Pressable style={s.menuBackdrop} onPress={() => setMenuAnchor(null)}>
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={[
+                s.menuWrapper,
+                {
+                  position: 'absolute',
+                  left: Math.min(menuAnchor.x, viewportW - 220),
+                  top: Math.min(menuAnchor.y, viewportH - menuHeight - 16),
+                },
+              ]}
+            >
+              <View style={s.menu}>
+                <Pressable
+                  onPress={() => {
+                    setMenuAnchor(null);
+                    openSplit({ kind: 'character', characterId: character.id });
+                  }}
+                  style={({ pressed }) => [
+                    s.menuRow,
+                    pressed && { backgroundColor: colors.surfaceContainerHigh },
+                  ]}
+                >
+                  <Icon name="vertical-split" size={16} color={colors.onSurfaceVariant} />
+                  <Text style={s.menuRowText}>
+                    {isSplitActive ? 'Open in other pane' : 'Open in split view'}
+                  </Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
+    </>
   );
 }
 
@@ -527,5 +593,34 @@ const s = StyleSheet.create({
     fontSize: 12,
     color: colors.outline,
     marginTop: 4,
+  },
+
+  menuBackdrop: { flex: 1, backgroundColor: 'transparent' },
+  menuWrapper: { width: 200 },
+  menu: {
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '33',
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  menuRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  menuRowText: {
+    flex: 1,
+    fontFamily: fonts.label,
+    fontSize: 13,
+    color: colors.onSurface,
   },
 });
