@@ -31,8 +31,6 @@ import {
   getCharactersForCampaign,
   uploadCampaignCover,
   type HomebrewPackRow,
-  getCampaignWindowPane,
-  type WindowPaneSlot,
 } from '@vaultstone/api';
 import { BUNDLED_SYSTEMS_BY_ID } from '@vaultstone/systems';
 import { CharacterCreationRulesModal } from './CharacterCreationRulesModal';
@@ -45,7 +43,6 @@ import {
 import type { Database, Dnd5eStats, CharacterSettings } from '@vaultstone/types';
 import { CampaignMembersCard } from './CampaignMembersCard';
 import { CampaignWindowPane } from './CampaignWindowPane';
-import { FloatingSubjectWindow } from './FloatingSubjectWindow';
 import { LinkWorldModal } from './LinkWorldModal';
 import { ManageCampaignContentModal } from './ManageCampaignContentModal';
 import { ManageMembersModal } from './ManageMembersModal';
@@ -148,7 +145,6 @@ export function CampaignPageV2({ campaignId }: Props) {
   // Bumped to refresh derived surfaces (window pane, party list) after
   // a write that affects them (e.g. clear scene, add member).
   const [refreshTick, setRefreshTick] = useState(0);
-  const [initialSubject, setInitialSubject] = useState<WindowPaneSlot | null>(null);
 
   const isDM = !!campaign && campaign.dm_user_id === user?.id;
   const myMember = members.find((m) => m.user_id === user?.id);
@@ -357,17 +353,6 @@ export function CampaignPageV2({ campaignId }: Props) {
     return () => { cancelled = true; };
   }, [campaignId, refreshTick]);
 
-  // Fetch initial subject for the floating window
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await getCampaignWindowPane(campaignId);
-      if (cancelled) return;
-      setInitialSubject(data?.subject ?? null);
-    })();
-    return () => { cancelled = true; };
-  }, [campaignId, refreshTick]);
-
   // Active-session state — refresh on focus so navigating back from
   // /combat or /sessions reflects an end-session correctly.
   useFocusEffect(
@@ -463,7 +448,6 @@ export function CampaignPageV2({ campaignId }: Props) {
   }
 
   return (
-    <View style={{ flex: 1, position: 'relative' }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}
       contentContainerStyle={s.scrollContent}
@@ -719,12 +703,6 @@ export function CampaignPageV2({ campaignId }: Props) {
         />
       ) : null}
     </ScrollView>
-    <FloatingSubjectWindow
-      campaignId={campaign.id}
-      isDM={isDM}
-      initialSubject={initialSubject}
-    />
-    </View>
   );
 }
 
