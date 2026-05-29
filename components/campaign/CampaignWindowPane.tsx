@@ -19,6 +19,7 @@
 import { useEffect, useState } from 'react';
 import { Image, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import {
+  supabase,
   getCampaignWindowPane,
   setCampaignSceneImage,
   setCampaignSubjectImage,
@@ -58,6 +59,24 @@ export function CampaignWindowPane({ campaignId, isDM, refreshTick }: Props) {
     });
     return () => { cancelled = true; };
   }, [campaignId, refreshTick]);
+
+  // Realtime: refetch when the DM pins/clears a scene or subject so
+  // all connected clients see the update immediately.
+  useEffect(() => {
+    const suffix = Math.random().toString(36).slice(2, 10);
+    const channel = supabase
+      .channel(`campaign-pane-${campaignId}-${suffix}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'campaigns', filter: `id=eq.${campaignId}` },
+        async () => {
+          const { data } = await getCampaignWindowPane(campaignId);
+          setState(data ?? null);
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [campaignId]);
 
   async function clearScene() {
     if (busy) return;
