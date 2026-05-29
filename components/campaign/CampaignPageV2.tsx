@@ -565,8 +565,11 @@ export function CampaignPageV2({ campaignId }: Props) {
               />
             ) : null}
 
+            {linkedWorld ? (
+              <WorldCard world={linkedWorld} />
+            ) : null}
+
             <ReferencesCard
-              world={linkedWorld}
               packs={packs}
               rulesSet={rulesSet}
               onConfigureRules={() => setRulesModalOpen(true)}
@@ -1058,10 +1061,34 @@ function SessionControlCard({
   );
 }
 
+// ── World shortcut ──────────────────────────────────────────────────
+
+function WorldCard({ world }: { world: { id: string; name: string } }) {
+  const openSplit = useSplitPaneStore((st) => st.openSplit);
+  return (
+    <Card tier="container" padding="md">
+      <Pressable
+        onPress={() => openSplit({ kind: 'world-home', worldId: world.id })}
+        style={s.worldCardRow}
+        accessibilityRole="button"
+        accessibilityLabel={`Open world: ${world.name}`}
+      >
+        <Icon name="public" size={20} color={colors.primary} />
+        <View style={{ flex: 1 }}>
+          <MetaLabel size="sm">World</MetaLabel>
+          <Text variant="title-sm" family="headline" weight="bold" style={{ color: colors.onSurface }}>
+            {world.name}
+          </Text>
+        </View>
+        <Icon name="open-in-new" size={18} color={colors.onSurfaceVariant} />
+      </Pressable>
+    </Card>
+  );
+}
+
 // ── References ──────────────────────────────────────────────────────
 
 function ReferencesCard({
-  world,
   packs,
   rulesSet,
   onConfigureRules,
@@ -1072,7 +1099,6 @@ function ReferencesCard({
   onPickCover,
   children,
 }: {
-  world: { id: string; name: string } | null;
   packs: HomebrewPackRow[];
   rulesSet: boolean;
   onConfigureRules: () => void;
@@ -1090,7 +1116,6 @@ function ReferencesCard({
    *  the reference rows. Used to nest the Members section. */
   children?: React.ReactNode;
 }) {
-  const openSplit = useSplitPaneStore((st) => st.openSplit);
   // Collapsed by default — this card aggregates references + roster,
   // which is supporting info that doesn't need to push the at-a-glance
   // party + session controls down the page. State is per-mount; expand
@@ -1115,12 +1140,6 @@ function ReferencesCard({
         <>
           <View style={{ gap: spacing.sm }}>
             <View style={s.referencesGrid}>
-              <ReferenceRow
-                label="World"
-                value={world?.name ?? '—'}
-                ctaIcon="open-in-new"
-                onPress={world ? () => openSplit({ kind: 'world-home', worldId: world.id }) : undefined}
-              />
               <ReferenceRow
                 label="Content packs"
                 value={packs.length > 0
@@ -1335,6 +1354,11 @@ const s = StyleSheet.create({
     minWidth: 280,
   },
 
+  worldCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   referencesGrid: { gap: spacing.xs },
   /** Pressable header row for the collapsible About-this-Campaign card.
    *  Lays the eyebrow label and the expand chevron on the same line so
