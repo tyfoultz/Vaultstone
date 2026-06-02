@@ -158,8 +158,8 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
-  const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode);
-  const { isMobile } = useBreakpoint();
+  const { isMobile, isTablet } = useBreakpoint();
+  const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode && !isTablet);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const section = useMemo(
@@ -749,7 +749,6 @@ export function LocationPageView({ page, worldId, splitMode }: Props) {
 
           <View
             style={[{ flex: 1 }, readOnly ? styles.disabledEditor : undefined]}
-            pointerEvents={readOnly ? 'none' : 'auto'}
           >
             <LoreCanvasEditor
               initialBlocks={

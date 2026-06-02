@@ -49,6 +49,7 @@ import { ManageMembersModal } from './ManageMembersModal';
 import { PartyMemberCard } from './PartyMemberCard';
 import { StartSessionModal, type StartSessionPlayer } from '../session/StartSessionModal';
 import { EndSessionModal } from '../session/EndSessionModal';
+import { FloatingNotesOverlay } from '../session/FloatingNotesOverlay';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
@@ -141,6 +142,7 @@ export function CampaignPageV2({ campaignId }: Props) {
   const [leaving, setLeaving] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [loadingFlags, setLoadingFlags] = useState({ campaign: true, world: true, members: true, rules: true });
   // Bumped to refresh derived surfaces (window pane, party list) after
   // a write that affects them (e.g. clear scene, add member).
@@ -148,6 +150,10 @@ export function CampaignPageV2({ campaignId }: Props) {
 
   const isDM = !!campaign && campaign.dm_user_id === user?.id;
   const myMember = members.find((m) => m.user_id === user?.id);
+  const memberNames = useMemo(
+    () => new Map(members.map((m) => [m.user_id, m.profiles?.display_name ?? 'Unknown'])),
+    [members],
+  );
 
   // ── Cover upload ────────────────────────────────────────────────
   // DM-only cover image used as the all-campaigns card cover and as
@@ -448,8 +454,9 @@ export function CampaignPageV2({ campaignId }: Props) {
   }
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}>
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}
+      style={{ flex: 1 }}
       contentContainerStyle={s.scrollContent}
     >
       {/* Leave-campaign confirmation banner — players only. Removing
@@ -542,10 +549,27 @@ export function CampaignPageV2({ campaignId }: Props) {
                 DM session controls live in SessionControlCard below
                 the party so the at-a-glance party view leads. */}
             {!isDM ? (
-              <PrimaryAction
-                myMember={myMember}
-                campaignId={campaign.id}
-              />
+              <>
+                <PrimaryAction
+                  myMember={myMember}
+                  campaignId={campaign.id}
+                />
+                {activeSessionId ? (
+                  <Card tier="container" padding="md" style={{ gap: spacing.sm }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Icon name="edit-note" size={18} color={colors.hpHealthy} />
+                      <Text variant="label-sm" weight="bold" uppercase style={{ color: colors.hpHealthy, letterSpacing: 1 }}>
+                        Session in progress
+                      </Text>
+                    </View>
+                    <GhostButton
+                      label="My Notes"
+                      icon="notes"
+                      onPress={() => setNotesOpen(true)}
+                    />
+                  </Card>
+                ) : null}
+              </>
             ) : null}
 
             <PartyPanel
@@ -562,6 +586,7 @@ export function CampaignPageV2({ campaignId }: Props) {
                 activeSessionId={activeSessionId}
                 onStartSession={() => setStartModalOpen(true)}
                 onEndSession={() => setEndModalOpen(true)}
+                onNotes={() => setNotesOpen(true)}
               />
             ) : null}
 
@@ -706,6 +731,18 @@ export function CampaignPageV2({ campaignId }: Props) {
         />
       ) : null}
     </ScrollView>
+
+    {notesOpen && activeSessionId && user ? (
+      <FloatingNotesOverlay
+        sessionId={activeSessionId}
+        userId={user.id}
+        campaignId={campaign.id}
+        isDM={isDM}
+        memberNames={memberNames}
+        onClose={() => setNotesOpen(false)}
+      />
+    ) : null}
+    </View>
   );
 }
 
@@ -993,11 +1030,13 @@ function SessionControlCard({
   activeSessionId,
   onStartSession,
   onEndSession,
+  onNotes,
 }: {
   campaignId: string;
   activeSessionId: string | null;
   onStartSession: () => void;
   onEndSession: () => void;
+  onNotes: () => void;
 }) {
   const router = useRouter();
   const isLive = !!activeSessionId;
@@ -1035,7 +1074,7 @@ function SessionControlCard({
             <GhostButton
               label="Notes"
               icon="notes"
-              onPress={() => router.push(`/campaign/${campaignId}/notes` as Href)}
+              onPress={onNotes}
             />
             <GhostButton
               label="End session"

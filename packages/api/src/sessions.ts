@@ -111,6 +111,13 @@ export async function getSessionNotes(sessionId: string) {
     .eq('session_id', sessionId);
 }
 
+export async function getAllSessionNotes(sessionId: string) {
+  return supabase
+    .from('session_notes')
+    .select('user_id, body, updated_at')
+    .eq('session_id', sessionId);
+}
+
 export async function getCampaignSessionHistory(campaignId: string) {
   return supabase
     .from('sessions')

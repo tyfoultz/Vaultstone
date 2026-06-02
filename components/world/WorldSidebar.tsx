@@ -480,6 +480,11 @@ export function WorldSidebar({ world, activePageId }: Props) {
           sectionId={createPageTarget.sectionId}
           parentPageId={createPageTarget.parentPageId ?? null}
           onClose={() => setCreatePageTarget(null)}
+          onCreated={(page) => {
+            if (!embedNavigate?.({ kind: 'world-page', worldId: world.id, pageId: page.id })) {
+              router.push(worldPageHref(world.id, page.id));
+            }
+          }}
         />
       ) : null}
       {mapUploadOpen ? (

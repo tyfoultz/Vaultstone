@@ -332,7 +332,6 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
         {!isMobile && schemaExpanded ? (
           <View
             style={readOnly ? styles.disabledEditor : undefined}
-            pointerEvents={readOnly ? 'none' : 'auto'}
           >
             <CalendarSchemaEditor page={page} onSaveStateChange={setSaveState} />
           </View>
@@ -351,7 +350,6 @@ export function TimelinePageView({ page, worldId, splitMode }: Props) {
         {/* Timeline spine */}
         <View
           style={heldByOther ? styles.disabledEditor : undefined}
-          pointerEvents={heldByOther ? 'none' : 'auto'}
         >
           <TimelineSpine
             events={events}

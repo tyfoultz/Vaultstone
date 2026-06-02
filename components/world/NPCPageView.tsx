@@ -410,9 +410,9 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
-  const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode);
+  const { isMobile, isTablet } = useBreakpoint();
+  const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode && !isTablet);
   const [editingPill, setEditingPill] = useState<string | null>(null);
-  const { isMobile } = useBreakpoint();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const section = useMemo(
@@ -1117,7 +1117,6 @@ export function NPCPageView({ page, worldId, splitMode }: Props) {
 
           <View
             style={[{ flex: 1 }, readOnly ? styles.disabledEditor : undefined]}
-            pointerEvents={readOnly ? 'none' : 'auto'}
           >
             <LoreCanvasEditor
               initialBlocks={
