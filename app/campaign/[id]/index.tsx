@@ -32,7 +32,7 @@ import {
   FloatingNotesProvider,
   type FloatingNotesState,
 } from '../../../components/session/FloatingNotesContext';
-import { FloatingNotesOverlay } from '../../../components/session/FloatingNotesOverlay';
+import { FloatingNotesOverlay, type PanelPos } from '../../../components/session/FloatingNotesOverlay';
 
 export default function CampaignDetailScreen() {
   const params = useLocalSearchParams<{ id: string; tabs?: string }>();
@@ -126,15 +126,16 @@ export default function CampaignDetailScreen() {
   // Floating session notes — state lives here so the overlay persists
   // across all tab/pane switches within the campaign.
   const [notesState, setNotesState] = useState<FloatingNotesState | null>(null);
-  const [notesMinimized, setNotesMinimized] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesPos, setNotesPos] = useState<PanelPos | null>(null);
   const notesApi = useMemo(() => ({
-    open: (s: FloatingNotesState) => { setNotesState(s); setNotesMinimized(false); },
-    close: () => { setNotesState(null); setNotesMinimized(false); },
-    minimize: () => setNotesMinimized(true),
-    restore: () => setNotesMinimized(false),
-    get isOpen() { return notesState !== null && !notesMinimized; },
-    get isMinimized() { return notesState !== null && notesMinimized; },
-  }), [notesState, notesMinimized]);
+    open: (s: FloatingNotesState) => { setNotesState(s); setNotesOpen(true); },
+    close: () => { setNotesState(null); setNotesOpen(false); setNotesPos(null); },
+    minimize: () => setNotesOpen(false),
+    restore: () => setNotesOpen(true),
+    get isOpen() { return notesState !== null && notesOpen; },
+    get isMinimized() { return notesState !== null && !notesOpen; },
+  }), [notesState, notesOpen]);
 
   // Body resolution per side. Memoized so a no-op re-render of the
   // route doesn't recreate the JSX (and force key-based remounts of
@@ -186,23 +187,28 @@ export default function CampaignDetailScreen() {
             splitMode={!useMobileLayout && showSplit}
           />
           {body}
-          {notesState && !notesMinimized ? (
+          {notesState && notesOpen ? (
             <FloatingNotesOverlay
               sessionId={notesState.sessionId}
               userId={notesState.userId}
               campaignId={notesState.campaignId}
               isDM={notesState.isDM}
               memberNames={notesState.memberNames}
-              onClose={() => { setNotesState(null); setNotesMinimized(false); }}
-              onMinimize={() => setNotesMinimized(true)}
+              position={notesPos}
+              onPositionChange={setNotesPos}
+              onClose={() => { setNotesState(null); setNotesOpen(false); setNotesPos(null); }}
             />
           ) : null}
-          {notesState && notesMinimized ? (
+          {notesState ? (
             <Pressable
-              style={styles.minimizedPill}
-              onPress={() => setNotesMinimized(false)}
+              style={[styles.notesPill, notesOpen && styles.notesPillActive]}
+              onPress={() => setNotesOpen((v) => !v)}
             >
-              <MaterialCommunityIcons name="notebook-outline" size={16} color={colors.primary} />
+              <MaterialCommunityIcons
+                name="notebook-outline"
+                size={16}
+                color={notesOpen ? colors.onSurface : colors.primary}
+              />
             </Pressable>
           ) : null}
         </View>
@@ -268,19 +274,25 @@ const styles = StyleSheet.create({
       : { opacity: 0, pointerEvents: 'none' as const }
     ),
   },
-  minimizedPill: {
+  notesPill: {
     position: 'absolute',
     top: 6,
     right: spacing.sm + 4,
     width: 32,
     height: 32,
     borderRadius: radius.xl,
-    backgroundColor: colors.primaryContainer,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
     alignItems: 'center',
     justifyContent: 'center',
     ...(Platform.OS === 'web'
-      ? { zIndex: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.3)', cursor: 'pointer' } as any
+      ? { zIndex: 20, cursor: 'pointer' } as any
       : { elevation: 4 }
     ),
+  },
+  notesPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
 });

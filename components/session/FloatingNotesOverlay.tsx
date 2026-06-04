@@ -17,6 +17,8 @@ type NoteRow = {
   display_name: string;
 };
 
+export type PanelPos = { x: number; y: number };
+
 interface Props {
   sessionId: string;
   userId: string;
@@ -24,16 +26,19 @@ interface Props {
   isDM: boolean;
   readOnly?: boolean;
   memberNames?: Map<string, string>;
+  position?: PanelPos | null;
+  onPositionChange?: (pos: PanelPos) => void;
   onClose: () => void;
-  onMinimize?: () => void;
 }
 
 function formatSavedAt(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
-  const hh = d.getHours().toString().padStart(2, '0');
+  let hh = d.getHours();
+  const ampm = hh >= 12 ? 'PM' : 'AM';
+  hh = hh % 12 || 12;
   const mm = d.getMinutes().toString().padStart(2, '0');
-  return `${hh}:${mm}`;
+  return `${hh}:${mm} ${ampm}`;
 }
 
 function clamp(v: number, min: number, max: number) {
@@ -45,7 +50,8 @@ type Tab = 'mine' | 'all';
 const PANEL_W = 420;
 
 export function FloatingNotesOverlay({
-  sessionId, userId, campaignId, isDM, readOnly = false, memberNames, onClose, onMinimize,
+  sessionId, userId, campaignId, isDM, readOnly = false, memberNames,
+  position: externalPos, onPositionChange, onClose,
 }: Props) {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const isMobile = screenW < 768;
@@ -58,32 +64,28 @@ export function FloatingNotesOverlay({
   const [allNotes, setAllNotes] = useState<NoteRow[]>([]);
   const [allLoading, setAllLoading] = useState(false);
 
-  // Drag state (web only) — position is (x, y) from top-left of the viewport.
-  // Initialised to null so we can default to bottom-right on first render.
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const defaultPos = { x: screenW - PANEL_W - 24, y: screenH - 520 };
+  const pos = externalPos ?? defaultPos;
   const dragging = useRef(false);
   const dragOffset = useRef({ dx: 0, dy: 0 });
 
-  useEffect(() => {
-    if (!isMobile && pos === null) {
-      setPos({ x: screenW - PANEL_W - 24, y: screenH - 520 });
-    }
-  }, [isMobile, pos, screenW, screenH]);
+  const setPos = useCallback((next: PanelPos) => {
+    onPositionChange?.(next);
+  }, [onPositionChange]);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (isMobile) return;
     dragging.current = true;
-    const cur = pos ?? { x: screenW - PANEL_W - 24, y: screenH - 520 };
-    dragOffset.current = { dx: e.clientX - cur.x, dy: e.clientY - cur.y };
+    dragOffset.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-  }, [isMobile, pos, screenW, screenH]);
+  }, [isMobile, pos]);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging.current) return;
     const nx = clamp(e.clientX - dragOffset.current.dx, 0, screenW - PANEL_W);
     const ny = clamp(e.clientY - dragOffset.current.dy, 0, screenH - 100);
     setPos({ x: nx, y: ny });
-  }, [screenW, screenH]);
+  }, [screenW, screenH, setPos]);
 
   const onPointerUp = useCallback(() => {
     dragging.current = false;
@@ -172,11 +174,6 @@ export function FloatingNotesOverlay({
         <Text variant="label-md" weight="bold" style={{ color: colors.onSurface, flex: 1 }}>
           Session Notes
         </Text>
-        {onMinimize ? (
-          <Pressable onPress={onMinimize} style={styles.iconBtn} hitSlop={8}>
-            <MaterialCommunityIcons name="window-minimize" size={16} color={colors.onSurfaceVariant} />
-          </Pressable>
-        ) : null}
         <Pressable onPress={onClose} style={styles.iconBtn} hitSlop={8}>
           <MaterialCommunityIcons name="close" size={18} color={colors.onSurfaceVariant} />
         </Pressable>
@@ -291,10 +288,8 @@ export function FloatingNotesOverlay({
     );
   }
 
-  const position = pos ?? { x: screenW - PANEL_W - 24, y: screenH - 520 };
-
   return (
-    <View style={[styles.floatingWrap, { left: position.x, top: position.y }]}>
+    <View style={[styles.floatingWrap, { left: pos.x, top: pos.y }]}>
       {panelContent}
     </View>
   );
