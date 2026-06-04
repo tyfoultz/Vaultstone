@@ -35,7 +35,13 @@ function formatSavedAt(iso: string | null): string {
   return `${hh}:${mm}`;
 }
 
+function clamp(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v));
+}
+
 type Tab = 'mine' | 'all';
+
+const PANEL_W = 420;
 
 export function FloatingNotesOverlay({
   sessionId, userId, campaignId, isDM, readOnly = false, memberNames, onClose,
@@ -50,6 +56,37 @@ export function FloatingNotesOverlay({
   const [tab, setTab] = useState<Tab>('mine');
   const [allNotes, setAllNotes] = useState<NoteRow[]>([]);
   const [allLoading, setAllLoading] = useState(false);
+
+  // Drag state (web only) — position is (x, y) from top-left of the viewport.
+  // Initialised to null so we can default to bottom-right on first render.
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragging = useRef(false);
+  const dragOffset = useRef({ dx: 0, dy: 0 });
+
+  useEffect(() => {
+    if (!isMobile && pos === null) {
+      setPos({ x: screenW - PANEL_W - 24, y: screenH - 520 });
+    }
+  }, [isMobile, pos, screenW, screenH]);
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (isMobile) return;
+    dragging.current = true;
+    const cur = pos ?? { x: screenW - PANEL_W - 24, y: screenH - 520 };
+    dragOffset.current = { dx: e.clientX - cur.x, dy: e.clientY - cur.y };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  }, [isMobile, pos, screenW, screenH]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    const nx = clamp(e.clientX - dragOffset.current.dx, 0, screenW - PANEL_W);
+    const ny = clamp(e.clientY - dragOffset.current.dy, 0, screenH - 100);
+    setPos({ x: nx, y: ny });
+  }, [screenW, screenH]);
+
+  const onPointerUp = useCallback(() => {
+    dragging.current = false;
+  }, []);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<string | null>(null);
@@ -126,10 +163,17 @@ export function FloatingNotesOverlay({
   const panelContent = (
     <View style={[
       styles.panel,
-      isMobile ? styles.panelMobile : { width: 420, maxHeight: screenH * 0.7 },
+      isMobile ? styles.panelMobile : { width: PANEL_W, maxHeight: screenH * 0.7 },
     ]}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Header — drag handle on web */}
+      <View
+        style={[styles.header, !isMobile && styles.headerDraggable]}
+        {...(Platform.OS === 'web' && !isMobile ? {
+          onPointerDown: onPointerDown as any,
+          onPointerMove: onPointerMove as any,
+          onPointerUp: onPointerUp as any,
+        } : {})}
+      >
         <MaterialCommunityIcons name="notebook-outline" size={18} color={colors.primary} />
         <Text variant="label-md" weight="bold" style={{ color: colors.onSurface, flex: 1 }}>
           Session Notes
@@ -253,8 +297,10 @@ export function FloatingNotesOverlay({
     );
   }
 
+  const position = pos ?? { x: screenW - PANEL_W - 24, y: screenH - 520 };
+
   return (
-    <View style={styles.floatingWrap}>
+    <View style={[styles.floatingWrap, { left: position.x, top: position.y }]}>
       {panelContent}
     </View>
   );
@@ -263,8 +309,6 @@ export function FloatingNotesOverlay({
 const styles = StyleSheet.create({
   floatingWrap: {
     position: 'absolute',
-    bottom: spacing.lg,
-    right: spacing.lg,
     zIndex: 100,
     ...Platform.select({
       web: { boxShadow: '0 8px 32px rgba(0,0,0,0.5)' } as any,
@@ -280,8 +324,6 @@ const styles = StyleSheet.create({
   panelMobile: {
     flex: 1,
     borderRadius: 0,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
   },
@@ -293,6 +335,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.outlineVariant + '33',
+  },
+  headerDraggable: {
+    ...Platform.select({
+      web: { cursor: 'grab', userSelect: 'none' } as any,
+    }),
   },
   iconBtn: { padding: 4 },
   tabRow: {

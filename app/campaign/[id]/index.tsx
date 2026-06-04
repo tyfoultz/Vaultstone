@@ -11,7 +11,7 @@
 // State is mirrored to the URL as `?tabs=L:campaign:cid@0;R:char:x@0`
 // so deep links and refreshes preserve layout.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, useWindowDimensions, View, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -27,6 +27,11 @@ import { CampaignTabRow } from '../../../components/campaign/CampaignTabRow';
 import { SharedDndProvider } from '../../../components/DndProviderContext';
 import { SplitPaneContent } from '../../../components/SplitPaneContent';
 import { SplitPaneShell } from '../../../components/world/SplitPaneShell.web';
+import {
+  FloatingNotesProvider,
+  type FloatingNotesState,
+} from '../../../components/session/FloatingNotesContext';
+import { FloatingNotesOverlay } from '../../../components/session/FloatingNotesOverlay';
 
 export default function CampaignDetailScreen() {
   const params = useLocalSearchParams<{ id: string; tabs?: string }>();
@@ -117,6 +122,15 @@ export default function CampaignDetailScreen() {
     };
   }, [setSplitState]);
 
+  // Floating session notes — state lives here so the overlay persists
+  // across all tab/pane switches within the campaign.
+  const [notesState, setNotesState] = useState<FloatingNotesState | null>(null);
+  const notesApi = useMemo(() => ({
+    open: (s: FloatingNotesState) => setNotesState(s),
+    close: () => setNotesState(null),
+    get isOpen() { return notesState !== null; },
+  }), [notesState]);
+
   // Body resolution per side. Memoized so a no-op re-render of the
   // route doesn't recreate the JSX (and force key-based remounts of
   // PagePaneContent / WorldHome which would lose unsaved drafts).
@@ -157,17 +171,29 @@ export default function CampaignDetailScreen() {
   }
 
   return (
-    <SharedDndProvider>
-      <View style={styles.root}>
-        <CampaignTabRow
-          campaignId={id}
-          mobileActiveSide={useMobileLayout ? mobileActiveSide : undefined}
-          onMobileActiveSideChange={useMobileLayout ? setMobileActiveSide : undefined}
-          splitMode={!useMobileLayout && showSplit}
-        />
-        {body}
-      </View>
-    </SharedDndProvider>
+    <FloatingNotesProvider value={notesApi}>
+      <SharedDndProvider>
+        <View style={styles.root}>
+          <CampaignTabRow
+            campaignId={id}
+            mobileActiveSide={useMobileLayout ? mobileActiveSide : undefined}
+            onMobileActiveSideChange={useMobileLayout ? setMobileActiveSide : undefined}
+            splitMode={!useMobileLayout && showSplit}
+          />
+          {body}
+          {notesState ? (
+            <FloatingNotesOverlay
+              sessionId={notesState.sessionId}
+              userId={notesState.userId}
+              campaignId={notesState.campaignId}
+              isDM={notesState.isDM}
+              memberNames={notesState.memberNames}
+              onClose={() => setNotesState(null)}
+            />
+          ) : null}
+        </View>
+      </SharedDndProvider>
+    </FloatingNotesProvider>
   );
 }
 

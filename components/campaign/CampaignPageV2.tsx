@@ -49,7 +49,7 @@ import { ManageMembersModal } from './ManageMembersModal';
 import { PartyMemberCard } from './PartyMemberCard';
 import { StartSessionModal, type StartSessionPlayer } from '../session/StartSessionModal';
 import { EndSessionModal } from '../session/EndSessionModal';
-import { FloatingNotesOverlay } from '../session/FloatingNotesOverlay';
+import { useFloatingNotes } from '../session/FloatingNotesContext';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
@@ -142,7 +142,6 @@ export function CampaignPageV2({ campaignId }: Props) {
   const [leaving, setLeaving] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
   const [loadingFlags, setLoadingFlags] = useState({ campaign: true, world: true, members: true, rules: true });
   // Bumped to refresh derived surfaces (window pane, party list) after
   // a write that affects them (e.g. clear scene, add member).
@@ -154,6 +153,17 @@ export function CampaignPageV2({ campaignId }: Props) {
     () => new Map(members.map((m) => [m.user_id, m.profiles?.display_name ?? 'Unknown'])),
     [members],
   );
+  const floatingNotes = useFloatingNotes();
+  const openNotes = useCallback(() => {
+    if (!activeSessionId || !user || !campaign) return;
+    floatingNotes.open({
+      sessionId: activeSessionId,
+      userId: user.id,
+      campaignId: campaign.id,
+      isDM,
+      memberNames,
+    });
+  }, [activeSessionId, user, campaign, isDM, memberNames, floatingNotes]);
 
   // ── Cover upload ────────────────────────────────────────────────
   // DM-only cover image used as the all-campaigns card cover and as
@@ -454,9 +464,8 @@ export function CampaignPageV2({ campaignId }: Props) {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}>
     <ScrollView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: colors.surfaceCanvas }}
       contentContainerStyle={s.scrollContent}
     >
       {/* Leave-campaign confirmation banner — players only. Removing
@@ -565,7 +574,7 @@ export function CampaignPageV2({ campaignId }: Props) {
                     <GhostButton
                       label="My Notes"
                       icon="notes"
-                      onPress={() => setNotesOpen(true)}
+                      onPress={() => openNotes()}
                     />
                   </Card>
                 ) : null}
@@ -586,7 +595,7 @@ export function CampaignPageV2({ campaignId }: Props) {
                 activeSessionId={activeSessionId}
                 onStartSession={() => setStartModalOpen(true)}
                 onEndSession={() => setEndModalOpen(true)}
-                onNotes={() => setNotesOpen(true)}
+                onNotes={() => openNotes()}
               />
             ) : null}
 
@@ -731,18 +740,6 @@ export function CampaignPageV2({ campaignId }: Props) {
         />
       ) : null}
     </ScrollView>
-
-    {notesOpen && activeSessionId && user ? (
-      <FloatingNotesOverlay
-        sessionId={activeSessionId}
-        userId={user.id}
-        campaignId={campaign.id}
-        isDM={isDM}
-        memberNames={memberNames}
-        onClose={() => setNotesOpen(false)}
-      />
-    ) : null}
-    </View>
   );
 }
 
