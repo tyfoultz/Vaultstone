@@ -11,13 +11,19 @@ export type FloatingNotesState = {
 type FloatingNotesAPI = {
   open: (state: FloatingNotesState) => void;
   close: () => void;
+  minimize: () => void;
+  restore: () => void;
   isOpen: boolean;
+  isMinimized: boolean;
 };
 
 const FloatingNotesCtx = createContext<FloatingNotesAPI>({
   open: () => {},
   close: () => {},
+  minimize: () => {},
+  restore: () => {},
   isOpen: false,
+  isMinimized: false,
 });
 
 export const FloatingNotesProvider = FloatingNotesCtx.Provider;

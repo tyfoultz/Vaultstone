@@ -25,6 +25,7 @@ interface Props {
   readOnly?: boolean;
   memberNames?: Map<string, string>;
   onClose: () => void;
+  onMinimize?: () => void;
 }
 
 function formatSavedAt(iso: string | null): string {
@@ -44,7 +45,7 @@ type Tab = 'mine' | 'all';
 const PANEL_W = 420;
 
 export function FloatingNotesOverlay({
-  sessionId, userId, campaignId, isDM, readOnly = false, memberNames, onClose,
+  sessionId, userId, campaignId, isDM, readOnly = false, memberNames, onClose, onMinimize,
 }: Props) {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const isMobile = screenW < 768;
@@ -147,13 +148,6 @@ export function FloatingNotesOverlay({
     if (tab === 'all' && isDM) void loadAllNotes();
   }, [tab, isDM, loadAllNotes]);
 
-  function handlePopOut() {
-    if (Platform.OS === 'web') {
-      const url = `/campaign/${campaignId}/notes`;
-      window.open(url, 'vaultstone-notes', 'width=520,height=700');
-    }
-  }
-
   const savedLabel = saving
     ? 'Saving…'
     : savedAt
@@ -178,9 +172,9 @@ export function FloatingNotesOverlay({
         <Text variant="label-md" weight="bold" style={{ color: colors.onSurface, flex: 1 }}>
           Session Notes
         </Text>
-        {Platform.OS === 'web' ? (
-          <Pressable onPress={handlePopOut} style={styles.iconBtn} hitSlop={8}>
-            <MaterialCommunityIcons name="open-in-new" size={16} color={colors.onSurfaceVariant} />
+        {onMinimize ? (
+          <Pressable onPress={onMinimize} style={styles.iconBtn} hitSlop={8}>
+            <MaterialCommunityIcons name="window-minimize" size={16} color={colors.onSurfaceVariant} />
           </Pressable>
         ) : null}
         <Pressable onPress={onClose} style={styles.iconBtn} hitSlop={8}>

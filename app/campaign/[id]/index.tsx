@@ -12,7 +12,8 @@
 // so deep links and refreshes preserve layout.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, useWindowDimensions, View, StyleSheet } from 'react-native';
+import { Platform, Pressable, useWindowDimensions, View, StyleSheet } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   decodeSplitTabs,
@@ -21,7 +22,7 @@ import {
   type Side,
   type SplitTarget,
 } from '@vaultstone/store';
-import { colors } from '@vaultstone/ui';
+import { colors, spacing, radius } from '@vaultstone/ui';
 import { CampaignPageV2 } from '../../../components/campaign/CampaignPageV2';
 import { CampaignTabRow } from '../../../components/campaign/CampaignTabRow';
 import { SharedDndProvider } from '../../../components/DndProviderContext';
@@ -125,11 +126,15 @@ export default function CampaignDetailScreen() {
   // Floating session notes — state lives here so the overlay persists
   // across all tab/pane switches within the campaign.
   const [notesState, setNotesState] = useState<FloatingNotesState | null>(null);
+  const [notesMinimized, setNotesMinimized] = useState(false);
   const notesApi = useMemo(() => ({
-    open: (s: FloatingNotesState) => setNotesState(s),
-    close: () => setNotesState(null),
-    get isOpen() { return notesState !== null; },
-  }), [notesState]);
+    open: (s: FloatingNotesState) => { setNotesState(s); setNotesMinimized(false); },
+    close: () => { setNotesState(null); setNotesMinimized(false); },
+    minimize: () => setNotesMinimized(true),
+    restore: () => setNotesMinimized(false),
+    get isOpen() { return notesState !== null && !notesMinimized; },
+    get isMinimized() { return notesState !== null && notesMinimized; },
+  }), [notesState, notesMinimized]);
 
   // Body resolution per side. Memoized so a no-op re-render of the
   // route doesn't recreate the JSX (and force key-based remounts of
@@ -181,15 +186,24 @@ export default function CampaignDetailScreen() {
             splitMode={!useMobileLayout && showSplit}
           />
           {body}
-          {notesState ? (
+          {notesState && !notesMinimized ? (
             <FloatingNotesOverlay
               sessionId={notesState.sessionId}
               userId={notesState.userId}
               campaignId={notesState.campaignId}
               isDM={notesState.isDM}
               memberNames={notesState.memberNames}
-              onClose={() => setNotesState(null)}
+              onClose={() => { setNotesState(null); setNotesMinimized(false); }}
+              onMinimize={() => setNotesMinimized(true)}
             />
+          ) : null}
+          {notesState && notesMinimized ? (
+            <Pressable
+              style={styles.minimizedPill}
+              onPress={() => setNotesMinimized(false)}
+            >
+              <MaterialCommunityIcons name="notebook-outline" size={16} color={colors.primary} />
+            </Pressable>
           ) : null}
         </View>
       </SharedDndProvider>
@@ -252,6 +266,21 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? { display: 'none' as const }
       : { opacity: 0, pointerEvents: 'none' as const }
+    ),
+  },
+  minimizedPill: {
+    position: 'absolute',
+    top: 6,
+    right: spacing.sm + 4,
+    width: 32,
+    height: 32,
+    borderRadius: radius.xl,
+    backgroundColor: colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web'
+      ? { zIndex: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.3)', cursor: 'pointer' } as any
+      : { elevation: 4 }
     ),
   },
 });
