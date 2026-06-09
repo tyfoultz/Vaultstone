@@ -11,8 +11,9 @@
 // State is mirrored to the URL as `?tabs=L:campaign:cid@0;R:char:x@0`
 // so deep links and refreshes preserve layout.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, useWindowDimensions, View, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, useWindowDimensions, View, StyleSheet } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   decodeSplitTabs,
@@ -21,12 +22,17 @@ import {
   type Side,
   type SplitTarget,
 } from '@vaultstone/store';
-import { colors } from '@vaultstone/ui';
+import { colors, spacing, radius } from '@vaultstone/ui';
 import { CampaignPageV2 } from '../../../components/campaign/CampaignPageV2';
 import { CampaignTabRow } from '../../../components/campaign/CampaignTabRow';
 import { SharedDndProvider } from '../../../components/DndProviderContext';
 import { SplitPaneContent } from '../../../components/SplitPaneContent';
 import { SplitPaneShell } from '../../../components/world/SplitPaneShell.web';
+import {
+  FloatingNotesProvider,
+  type FloatingNotesState,
+} from '../../../components/session/FloatingNotesContext';
+import { FloatingNotesOverlay, type PanelPos } from '../../../components/session/FloatingNotesOverlay';
 
 export default function CampaignDetailScreen() {
   const params = useLocalSearchParams<{ id: string; tabs?: string }>();
@@ -117,6 +123,20 @@ export default function CampaignDetailScreen() {
     };
   }, [setSplitState]);
 
+  // Floating session notes — state lives here so the overlay persists
+  // across all tab/pane switches within the campaign.
+  const [notesState, setNotesState] = useState<FloatingNotesState | null>(null);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesPos, setNotesPos] = useState<PanelPos | null>(null);
+  const notesApi = useMemo(() => ({
+    register: (s: FloatingNotesState) => setNotesState(s),
+    open: (s: FloatingNotesState) => { setNotesState(s); setNotesOpen(true); },
+    close: () => setNotesOpen(false),
+    toggle: () => setNotesOpen((v) => !v),
+    get isOpen() { return notesState !== null && notesOpen; },
+    get isRegistered() { return notesState !== null; },
+  }), [notesState, notesOpen]);
+
   // Body resolution per side. Memoized so a no-op re-render of the
   // route doesn't recreate the JSX (and force key-based remounts of
   // PagePaneContent / WorldHome which would lose unsaved drafts).
@@ -157,17 +177,50 @@ export default function CampaignDetailScreen() {
   }
 
   return (
-    <SharedDndProvider>
-      <View style={styles.root}>
-        <CampaignTabRow
-          campaignId={id}
-          mobileActiveSide={useMobileLayout ? mobileActiveSide : undefined}
-          onMobileActiveSideChange={useMobileLayout ? setMobileActiveSide : undefined}
-          splitMode={!useMobileLayout && showSplit}
-        />
-        {body}
-      </View>
-    </SharedDndProvider>
+    <FloatingNotesProvider value={notesApi}>
+      <SharedDndProvider>
+        <View style={styles.root}>
+          <CampaignTabRow
+            campaignId={id}
+            mobileActiveSide={useMobileLayout ? mobileActiveSide : undefined}
+            onMobileActiveSideChange={useMobileLayout ? setMobileActiveSide : undefined}
+            splitMode={!useMobileLayout && showSplit}
+          />
+          {body}
+          {notesState && notesOpen && notesState.sessionId ? (
+            <FloatingNotesOverlay
+              sessionId={notesState.sessionId}
+              userId={notesState.userId}
+              campaignId={notesState.campaignId}
+              isDM={notesState.isDM}
+              memberNames={notesState.memberNames}
+              position={notesPos}
+              onPositionChange={setNotesPos}
+              onClose={() => setNotesOpen(false)}
+            />
+          ) : null}
+          {notesState ? (
+            <Pressable
+              style={[styles.notesPill, notesOpen && styles.notesPillActive]}
+              onPress={() => {
+                if (notesState.sessionId) {
+                  setNotesOpen((v) => !v);
+                } else {
+                  router.push(`/campaign/${id}/notes` as never);
+                }
+              }}
+              accessibilityLabel="Session Notes"
+            >
+              <MaterialCommunityIcons
+                name="notebook-outline"
+                size={16}
+                color={notesOpen ? colors.onSurface : colors.primary}
+              />
+            </Pressable>
+          ) : null}
+        </View>
+      </SharedDndProvider>
+    </FloatingNotesProvider>
   );
 }
 
@@ -227,5 +280,26 @@ const styles = StyleSheet.create({
       ? { display: 'none' as const }
       : { opacity: 0, pointerEvents: 'none' as const }
     ),
+  },
+  notesPill: {
+    position: 'absolute',
+    top: 6,
+    right: spacing.sm + 4,
+    width: 32,
+    height: 32,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web'
+      ? { zIndex: 20, cursor: 'pointer' } as any
+      : { elevation: 4 }
+    ),
+  },
+  notesPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
 });

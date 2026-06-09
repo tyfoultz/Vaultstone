@@ -94,7 +94,7 @@ export function PagePaneContent({
   onHome,
 }: Props) {
   const router = useRouter();
-  const { isMobile } = useBreakpoint();
+  const { isMobile, isTablet } = useBreakpoint();
   const world = useCurrentWorldStore((s) => s.world);
   const { setActiveSectionId } = useActiveSection();
   const sections = useSectionsStore((s) => selectSectionsForWorld(s, worldId));
@@ -630,7 +630,6 @@ export function PagePaneContent({
 
             <View
               style={readOnly ? styles.disabledEditor : undefined}
-              pointerEvents={readOnly ? 'none' : 'auto'}
             >
               {!isLore && !isMobile ? (
                 <StructuredFieldsForm
@@ -683,7 +682,7 @@ export function PagePaneContent({
           <WikiRightPanel
             pageId={page.id}
             worldId={worldId}
-            defaultCollapsed={splitMode}
+            defaultCollapsed={splitMode || isTablet}
           />
         ) : null}
       </View>

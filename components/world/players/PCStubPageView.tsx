@@ -702,7 +702,7 @@ export function PCStubPageView({ page, worldId, splitMode }: Props) {
           ) : null}
 
           {/* Canvas editor */}
-          <View style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]} pointerEvents={heldByOther ? 'none' : 'auto'}>
+          <View style={[{ flex: 1 }, heldByOther ? styles.disabledEditor : undefined]}>
             <LoreCanvasEditor
               initialBlocks={(page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null}
               onChange={handleCanvasChange}

@@ -388,11 +388,11 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('on_this_page');
-  const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode);
+  const { isMobile, isTablet } = useBreakpoint();
+  const [rightPanelOpen, setRightPanelOpen] = useState(!splitMode && !isTablet);
   const [editingPill, setEditingPill] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [addingRelationship, setAddingRelationship] = useState(false);
-  const { isMobile } = useBreakpoint();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const section = useMemo(() => sections.find((s) => s.id === page.section_id) ?? null, [sections, page]);
@@ -822,7 +822,7 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
       <View style={styles.mainWrap}>
         <View style={styles.editorCol}>
           {bannerLock && isWorldOwner ? <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}><EditLockBanner ownerUserId={bannerLock.ownerId} lockedSinceIso={bannerLock.since} onRetry={tryClaim} onForceUnlock={isWorldOwner ? async () => { await forceReleasePageEdit(page.id); updatePageInStore(page.id, { editing_user_id: null, editing_since: null }); void tryClaim(); } : undefined} /></View> : null}
-          <View style={[{ flex: 1 }, readOnly ? styles.disabledEditor : undefined]} pointerEvents={readOnly ? 'none' : 'auto'}>
+          <View style={[{ flex: 1 }, readOnly ? styles.disabledEditor : undefined]}>
             <LoreCanvasEditor initialBlocks={(page.body as Record<string, unknown>)?.__canvas_blocks as CanvasBlock[] | null ?? null} onChange={handleCanvasChange} editable={!readOnly} mentionablePages={mentionablePages} getSectionLabel={sectionLabelById} onMentionClick={(targetId) => void flushAndNavigate(targetId)} worldId={worldId} pageId={page.id} />
           </View>
           {saveLabel ? <View style={styles.saveIndicator}><View style={[styles.saveDot, saveState === 'error' ? { backgroundColor: colors.hpDanger } : { backgroundColor: colors.hpHealthy }]} /><Text style={styles.saveText}>{saveLabel}</Text></View> : null}

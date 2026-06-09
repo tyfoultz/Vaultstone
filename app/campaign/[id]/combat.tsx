@@ -210,7 +210,10 @@ export default function CombatScreen() {
             const oldId = (payload.old as { id?: string })?.id;
             if (oldId) setEntries((prev) => prev.filter((e) => e.id !== oldId));
           } else if (payload.eventType === 'INSERT') {
-            setEntries((prev) => [...prev, payload.new as Combatant]);
+            setEntries((prev) => {
+              const n = payload.new as Combatant;
+              return prev.some((e) => e.id === n.id) ? prev : [...prev, n];
+            });
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as Combatant;
             setEntries((prev) => prev.map((e) => e.id === updated.id ? updated : e));

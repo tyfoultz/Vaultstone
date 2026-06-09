@@ -86,6 +86,11 @@ interface SplitPaneState {
     from: { side: Side; index: number },
     to: { side: Side; index: number },
   ) => void;
+  /** Replace the active tab's target on the given side (defaults to
+   *  focused side). Used for in-place navigation within an embedded
+   *  world — sidebar/mention clicks should update the current tab,
+   *  not open a new one. */
+  replaceActiveTab: (target: SplitTarget, side?: Side) => void;
   setSplitRatio: (ratio: number) => void;
   setFocusedSide: (side: Side) => void;
 }
@@ -292,6 +297,16 @@ export const useSplitPaneStore = create<SplitPaneState>((set, get) => ({
     }
   },
 
+  replaceActiveTab: (target, side) => {
+    const s = get();
+    const eSide = side ?? s.focusedSide;
+    const tabs = eSide === 'left' ? s.leftTabs : s.rightTabs;
+    const idx = eSide === 'left' ? s.leftActiveIndex : s.rightActiveIndex;
+    if (idx == null || idx >= tabs.length) return;
+    const next = [...tabs];
+    next[idx] = target;
+    set(eSide === 'left' ? { leftTabs: next } : { rightTabs: next });
+  },
   setSplitRatio: (ratio) =>
     set({ splitRatio: Math.min(0.8, Math.max(0.2, ratio)) }),
   setFocusedSide: (side) => set({ focusedSide: side }),

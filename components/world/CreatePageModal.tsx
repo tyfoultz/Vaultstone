@@ -121,9 +121,12 @@ export function CreatePageModal({
       return;
     }
     addPage(data as WorldPage);
-    if (onCreated) onCreated(data as WorldPage);
     onClose();
-    router.push(worldPageHref(worldId, (data as WorldPage).id));
+    if (onCreated) {
+      onCreated(data as WorldPage);
+    } else {
+      router.push(worldPageHref(worldId, (data as WorldPage).id));
+    }
   }
 
   return (

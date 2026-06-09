@@ -31,31 +31,20 @@ type Props = {
  * Shared embed-nav handler used by every world arm. The campaign
  * route is the host, so the rule is: never yank the user out of it.
  *
- *   Re-pin in the embed (return true, openSplit):
- *     - world-home, world-page: direct re-pin.
- *     - world-section: drill into the section's first page. Empty
- *       sections swallow silently — no point yanking the user out
- *       to a route that has no pages to show.
- *     - world-map-index, world-map, world-relations: each has its
- *       own SplitTarget kind now, so they re-pin in place.
- *
- *   Swallow silently (return true, no-op):
- *     - campaign: we're already inside a campaign.
- *     - app-home: a stray click on the sidebar's Vaultstone logo
- *       shouldn't yank the user away; the campaign tab strip has
- *       its own home button.
+ * Uses `replaceTab` to navigate in-place within the current tab
+ * rather than opening a new tab for every link click.
  */
 function makeEmbedNav(
   worldId: string,
-  openSplit: (target: SplitTarget) => void,
+  replaceTab: (target: SplitTarget) => void,
 ): (t: WorldEmbedTarget) => boolean {
   return (t) => {
     if (t.kind === 'world-home') {
-      openSplit({ kind: 'world-home', worldId });
+      replaceTab({ kind: 'world-home', worldId });
       return true;
     }
     if (t.kind === 'world-page') {
-      openSplit({ kind: 'world-page', worldId, pageId: t.pageId });
+      replaceTab({ kind: 'world-page', worldId, pageId: t.pageId });
       return true;
     }
     if (t.kind === 'world-section') {
@@ -65,30 +54,29 @@ function makeEmbedNav(
         .sort((a, b) => a.sort_order - b.sort_order);
       const first = inSection[0];
       if (first) {
-        openSplit({ kind: 'world-page', worldId, pageId: first.id });
+        replaceTab({ kind: 'world-page', worldId, pageId: first.id });
       }
       return true;
     }
     if (t.kind === 'world-map-index') {
-      openSplit({ kind: 'world-map-index', worldId });
+      replaceTab({ kind: 'world-map-index', worldId });
       return true;
     }
     if (t.kind === 'world-map') {
-      openSplit({ kind: 'world-map', worldId, mapId: t.mapId });
+      replaceTab({ kind: 'world-map', worldId, mapId: t.mapId });
       return true;
     }
     if (t.kind === 'world-relations') {
-      openSplit({ kind: 'world-relations', worldId });
+      replaceTab({ kind: 'world-relations', worldId });
       return true;
     }
-    // campaign / app-home — already inside the campaign, no-op.
     return true;
   };
 }
 
 export function SplitPaneContent({ target }: Props) {
   const closeSplitTab = useSplitPaneStore((s) => s.closeSplitTab);
-  const openSplit = useSplitPaneStore((s) => s.openSplit);
+  const replaceActiveTab = useSplitPaneStore((s) => s.replaceActiveTab);
 
   /**
    * Close this specific target wherever it lives. Walks both sides
@@ -126,7 +114,7 @@ export function SplitPaneContent({ target }: Props) {
         <EmbeddedWorldShell
           worldId={worldId}
           activePageId={target.pageId}
-          navigate={makeEmbedNav(worldId, openSplit)}
+          navigate={makeEmbedNav(worldId, replaceActiveTab)}
         >
           <PagePaneContent
             pageId={target.pageId}
@@ -134,9 +122,9 @@ export function SplitPaneContent({ target }: Props) {
             splitMode
             onClose={closeSelf}
             onNavigate={(targetPageId) =>
-              openSplit({ kind: 'world-page', worldId, pageId: targetPageId })
+              replaceActiveTab({ kind: 'world-page', worldId, pageId: targetPageId })
             }
-            onHome={() => openSplit({ kind: 'world-home', worldId })}
+            onHome={() => replaceActiveTab({ kind: 'world-home', worldId })}
           />
         </EmbeddedWorldShell>
       );
@@ -147,18 +135,15 @@ export function SplitPaneContent({ target }: Props) {
         <EmbeddedWorldShell
           worldId={worldId}
           activePageId={null}
-          navigate={makeEmbedNav(worldId, openSplit)}
+          navigate={makeEmbedNav(worldId, replaceActiveTab)}
         >
           <WorldHome
             worldId={worldId}
             embedded
             onClose={closeSelf}
             onNavigate={(t) => {
-              // Mirrors makeEmbedNav's posture: every internal click
-              // resolves inside the embed or is swallowed silently so
-              // the user is never yanked out of the campaign route.
               if (t.kind === 'page') {
-                openSplit({ kind: 'world-page', worldId, pageId: t.pageId });
+                replaceActiveTab({ kind: 'world-page', worldId, pageId: t.pageId });
                 return true;
               }
               if (t.kind === 'section') {
@@ -168,11 +153,10 @@ export function SplitPaneContent({ target }: Props) {
                   .sort((a, b) => a.sort_order - b.sort_order);
                 const first = inSection[0];
                 if (first) {
-                  openSplit({ kind: 'world-page', worldId, pageId: first.id });
+                  replaceActiveTab({ kind: 'world-page', worldId, pageId: first.id });
                 }
                 return true;
               }
-              // campaign: already in a campaign, swallow.
               return true;
             }}
           />
@@ -185,13 +169,13 @@ export function SplitPaneContent({ target }: Props) {
         <EmbeddedWorldShell
           worldId={worldId}
           activePageId={null}
-          navigate={makeEmbedNav(worldId, openSplit)}
+          navigate={makeEmbedNav(worldId, replaceActiveTab)}
         >
           <WorldMapIndexBody
             worldId={worldId}
             embedded
             onResolveMap={(mapId) =>
-              openSplit({ kind: 'world-map', worldId, mapId })
+              replaceActiveTab({ kind: 'world-map', worldId, mapId })
             }
           />
         </EmbeddedWorldShell>
@@ -203,7 +187,7 @@ export function SplitPaneContent({ target }: Props) {
         <EmbeddedWorldShell
           worldId={worldId}
           activePageId={null}
-          navigate={makeEmbedNav(worldId, openSplit)}
+          navigate={makeEmbedNav(worldId, replaceActiveTab)}
         >
           <WorldMapBody worldId={worldId} mapId={target.mapId} embedded />
         </EmbeddedWorldShell>
@@ -215,7 +199,7 @@ export function SplitPaneContent({ target }: Props) {
         <EmbeddedWorldShell
           worldId={worldId}
           activePageId={null}
-          navigate={makeEmbedNav(worldId, openSplit)}
+          navigate={makeEmbedNav(worldId, replaceActiveTab)}
         >
           <WorldRelationsBody worldId={worldId} embedded />
         </EmbeddedWorldShell>
