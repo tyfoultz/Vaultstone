@@ -9,21 +9,25 @@ export type FloatingNotesState = {
 };
 
 type FloatingNotesAPI = {
+  /** Register session info so the pill renders. Does NOT open the panel. */
+  register: (state: FloatingNotesState) => void;
+  /** Register + open in one call. */
   open: (state: FloatingNotesState) => void;
+  /** Fully dismiss — removes pill and panel, resets position. */
   close: () => void;
-  minimize: () => void;
-  restore: () => void;
+  /** Toggle the panel open/closed (pill stays). */
+  toggle: () => void;
   isOpen: boolean;
-  isMinimized: boolean;
+  isRegistered: boolean;
 };
 
 const FloatingNotesCtx = createContext<FloatingNotesAPI>({
+  register: () => {},
   open: () => {},
   close: () => {},
-  minimize: () => {},
-  restore: () => {},
+  toggle: () => {},
   isOpen: false,
-  isMinimized: false,
+  isRegistered: false,
 });
 
 export const FloatingNotesProvider = FloatingNotesCtx.Provider;

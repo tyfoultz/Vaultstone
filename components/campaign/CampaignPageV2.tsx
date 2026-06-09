@@ -154,16 +154,16 @@ export function CampaignPageV2({ campaignId }: Props) {
     [members],
   );
   const floatingNotes = useFloatingNotes();
-  const openNotes = useCallback(() => {
+  useEffect(() => {
     if (!activeSessionId || !user || !campaign) return;
-    floatingNotes.open({
+    floatingNotes.register({
       sessionId: activeSessionId,
       userId: user.id,
       campaignId: campaign.id,
       isDM,
       memberNames,
     });
-  }, [activeSessionId, user, campaign, isDM, memberNames, floatingNotes]);
+  }, [activeSessionId, user, campaign, isDM, memberNames]);
 
   // ── Cover upload ────────────────────────────────────────────────
   // DM-only cover image used as the all-campaigns card cover and as
@@ -558,27 +558,10 @@ export function CampaignPageV2({ campaignId }: Props) {
                 DM session controls live in SessionControlCard below
                 the party so the at-a-glance party view leads. */}
             {!isDM ? (
-              <>
-                <PrimaryAction
-                  myMember={myMember}
-                  campaignId={campaign.id}
-                />
-                {activeSessionId ? (
-                  <Card tier="container" padding="md" style={{ gap: spacing.sm }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Icon name="edit-note" size={18} color={colors.hpHealthy} />
-                      <Text variant="label-sm" weight="bold" uppercase style={{ color: colors.hpHealthy, letterSpacing: 1 }}>
-                        Session in progress
-                      </Text>
-                    </View>
-                    <GhostButton
-                      label="My Notes"
-                      icon="notes"
-                      onPress={() => openNotes()}
-                    />
-                  </Card>
-                ) : null}
-              </>
+              <PrimaryAction
+                myMember={myMember}
+                campaignId={campaign.id}
+              />
             ) : null}
 
             <PartyPanel
@@ -595,7 +578,6 @@ export function CampaignPageV2({ campaignId }: Props) {
                 activeSessionId={activeSessionId}
                 onStartSession={() => setStartModalOpen(true)}
                 onEndSession={() => setEndModalOpen(true)}
-                onNotes={() => openNotes()}
               />
             ) : null}
 
@@ -1014,26 +996,19 @@ function PartyPanel({
 // ── Session control ─────────────────────────────────────────────────
 
 /**
- * DM-only card that combines the start/end session primary action with
- * the session notes & recaps link. Renders below the party panel so
- * the at-a-glance party view leads the page. Two visual states:
- *   • Idle  — "Start your next session" headline + Start session
- *             gradient button + Notes ghost button.
- *   • Live  — "Session in progress" eyebrow + Combat tracker / End
- *             session / Notes ghost buttons.
+ * DM-only card for session management. Notes access is handled by the
+ * persistent pill in the tab row; this card focuses on session lifecycle.
  */
 function SessionControlCard({
   campaignId,
   activeSessionId,
   onStartSession,
   onEndSession,
-  onNotes,
 }: {
   campaignId: string;
   activeSessionId: string | null;
   onStartSession: () => void;
   onEndSession: () => void;
-  onNotes: () => void;
 }) {
   const router = useRouter();
   const isLive = !!activeSessionId;
@@ -1046,7 +1021,7 @@ function SessionControlCard({
               Session in progress
             </Text>
             <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 2 }}>
-              Pinned imagery shows in the window pane above. Open the combat tracker, jump to notes, or wrap up below.
+              Pinned imagery shows in the window pane above. Open the combat tracker or wrap up below.
             </Text>
           </>
         ) : (
@@ -1055,7 +1030,7 @@ function SessionControlCard({
               Start your next session
             </Text>
             <Text variant="body-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 4 }}>
-              Kick off a session to enable the live window pane and combat tracker — or jump straight to your session notes.
+              Kick off a session to enable the live window pane and combat tracker.
             </Text>
           </>
         )}
@@ -1067,30 +1042,16 @@ function SessionControlCard({
           onPress={() => router.push(`/campaign/${campaignId}/encounters` as Href)}
         />
         {isLive ? (
-          <>
-            <GhostButton
-              label="Notes"
-              icon="notes"
-              onPress={onNotes}
-            />
-            <GhostButton
-              label="End session"
-              icon="stop"
-              onPress={onEndSession}
-            />
-          </>
+          <GhostButton
+            label="End session"
+            icon="stop"
+            onPress={onEndSession}
+          />
         ) : (
-          <>
-            <GhostButton
-              label="Notes"
-              icon="notes"
-              onPress={() => router.push(`/campaign/${campaignId}/notes` as Href)}
-            />
-            <GradientButton
-              label="Start session"
-              onPress={onStartSession}
-            />
-          </>
+          <GradientButton
+            label="Start session"
+            onPress={onStartSession}
+          />
         )}
       </View>
     </Card>

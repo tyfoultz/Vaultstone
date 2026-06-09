@@ -129,12 +129,12 @@ export default function CampaignDetailScreen() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesPos, setNotesPos] = useState<PanelPos | null>(null);
   const notesApi = useMemo(() => ({
+    register: (s: FloatingNotesState) => setNotesState(s),
     open: (s: FloatingNotesState) => { setNotesState(s); setNotesOpen(true); },
     close: () => { setNotesState(null); setNotesOpen(false); setNotesPos(null); },
-    minimize: () => setNotesOpen(false),
-    restore: () => setNotesOpen(true),
+    toggle: () => setNotesOpen((v) => !v),
     get isOpen() { return notesState !== null && notesOpen; },
-    get isMinimized() { return notesState !== null && !notesOpen; },
+    get isRegistered() { return notesState !== null; },
   }), [notesState, notesOpen]);
 
   // Body resolution per side. Memoized so a no-op re-render of the
@@ -203,6 +203,7 @@ export default function CampaignDetailScreen() {
             <Pressable
               style={[styles.notesPill, notesOpen && styles.notesPillActive]}
               onPress={() => setNotesOpen((v) => !v)}
+              accessibilityLabel="Session Notes"
             >
               <MaterialCommunityIcons
                 name="notebook-outline"
