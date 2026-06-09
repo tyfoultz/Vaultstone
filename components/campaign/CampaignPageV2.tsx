@@ -155,9 +155,9 @@ export function CampaignPageV2({ campaignId }: Props) {
   );
   const floatingNotes = useFloatingNotes();
   useEffect(() => {
-    if (!activeSessionId || !user || !campaign) return;
+    if (!user || !campaign) return;
     floatingNotes.register({
-      sessionId: activeSessionId,
+      sessionId: activeSessionId ?? '',
       userId: user.id,
       campaignId: campaign.id,
       isDM,

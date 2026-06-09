@@ -131,7 +131,7 @@ export default function CampaignDetailScreen() {
   const notesApi = useMemo(() => ({
     register: (s: FloatingNotesState) => setNotesState(s),
     open: (s: FloatingNotesState) => { setNotesState(s); setNotesOpen(true); },
-    close: () => { setNotesState(null); setNotesOpen(false); setNotesPos(null); },
+    close: () => setNotesOpen(false),
     toggle: () => setNotesOpen((v) => !v),
     get isOpen() { return notesState !== null && notesOpen; },
     get isRegistered() { return notesState !== null; },
@@ -187,7 +187,7 @@ export default function CampaignDetailScreen() {
             splitMode={!useMobileLayout && showSplit}
           />
           {body}
-          {notesState && notesOpen ? (
+          {notesState && notesOpen && notesState.sessionId ? (
             <FloatingNotesOverlay
               sessionId={notesState.sessionId}
               userId={notesState.userId}
@@ -196,13 +196,19 @@ export default function CampaignDetailScreen() {
               memberNames={notesState.memberNames}
               position={notesPos}
               onPositionChange={setNotesPos}
-              onClose={() => { setNotesState(null); setNotesOpen(false); setNotesPos(null); }}
+              onClose={() => setNotesOpen(false)}
             />
           ) : null}
           {notesState ? (
             <Pressable
               style={[styles.notesPill, notesOpen && styles.notesPillActive]}
-              onPress={() => setNotesOpen((v) => !v)}
+              onPress={() => {
+                if (notesState.sessionId) {
+                  setNotesOpen((v) => !v);
+                } else {
+                  router.push(`/campaign/${id}/notes` as never);
+                }
+              }}
               accessibilityLabel="Session Notes"
             >
               <MaterialCommunityIcons

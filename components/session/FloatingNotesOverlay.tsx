@@ -175,7 +175,7 @@ export function FloatingNotesOverlay({
           Session Notes
         </Text>
         <Pressable onPress={onClose} style={styles.iconBtn} hitSlop={8}>
-          <MaterialCommunityIcons name="close" size={18} color={colors.onSurfaceVariant} />
+          <MaterialCommunityIcons name="window-minimize" size={18} color={colors.onSurfaceVariant} />
         </Pressable>
       </View>
 

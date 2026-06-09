@@ -13,7 +13,7 @@ type FloatingNotesAPI = {
   register: (state: FloatingNotesState) => void;
   /** Register + open in one call. */
   open: (state: FloatingNotesState) => void;
-  /** Fully dismiss — removes pill and panel, resets position. */
+  /** Minimize — collapse the panel, pill stays. */
   close: () => void;
   /** Toggle the panel open/closed (pill stays). */
   toggle: () => void;
