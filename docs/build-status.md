@@ -270,12 +270,12 @@ Paradigm shift from warm parchment (Cinzel / Crimson Pro) to "Magical Midnight" 
 
 Chat assistant for DM prep/session-running (brainstorming, lore, rules) and gated player Q&A. Free to the developer via one shared Gemini key behind a thin Edge Function relay; client owns the agentic loop + tools (RLS-scoped). Chat history is device-local. See [architecture.md](architecture.md#ai-assistant) + [legal.md](legal.md) Part 7.
 
-- [x] **Phase 0 — Edge Function relay.** `supabase/functions/ai-chat` (JWT-verified, server-pinned model, structured errors). `config.toml` `verify_jwt`. **Manual deploy step pending Tyler:** set `GEMINI_API_KEY` secret + `supabase functions deploy ai-chat` (see the function README).
+- [x] **Phase 0 — Edge Function relay.** `supabase/functions/ai-chat` (JWT-verified, server-pinned model, structured errors). `config.toml` `verify_jwt`. Deployed 2026-06-10 (`GEMINI_API_KEY` secret set, function v1 ACTIVE).
 - [x] **Phase 1 — Minimal DM chat.** `@vaultstone/ai` package (loop, tool registry, `search_game_content`, role-aware system prompt). Device-local `ai-chat` store. Floating chat overlay reusing the notes chassis; DM pill on the campaign route. Gemini data-processing disclosure on first use.
 - [x] **Phase 2 — Full DM tool set.** `get_character`, `list_campaign_characters`, `get_world_page`, `list_world_pages`, `get_campaign` — all trimmed to token-cheap plaintext.
 - [x] **Phase 3 — Player gating.** `campaigns.ai_settings.playerAccessEnabled` (default off); DM toggle in the assistant panel; Edge Function authorizes DM-or-enabled-member under the forwarded JWT; player assistant on the owner's character sheet.
 - [x] **Phase 4 — Quota guard.** `ai_usage` table + `bump_ai_usage` RPC, per-user daily cap counted per fresh user turn (the only server-side row the assistant writes).
-- [ ] **Verify** — deploy the function + secret, then exercise DM and player golden paths on the Netlify preview; consider streaming (`streamGenerateContent`) as a follow-up.
+- [ ] **Verify** — function + secret deployed and both migrations applied (2026-06-10, via MCP `apply_migration` — note: `supabase db push` doesn't work against this project; remote migration history uses MCP-stamped versions that don't match local filenames). Remaining: exercise DM and player golden paths on the Netlify preview; consider streaming (`streamGenerateContent`) as a follow-up.
 
 ---
 
