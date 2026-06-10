@@ -21,8 +21,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const GEMINI_MODEL = 'gemini-2.0-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-// Request-shape guards (cheap abuse protection; per-user quota lands in Phase 4).
+// Request-shape guards (cheap abuse protection).
 const MAX_CONTENTS = 40;
+// Per-user daily cap on fresh user turns (not tool round-trips), protecting the
+// shared free-tier Gemini quota.
+const AI_DAILY_CAP = 100;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -112,6 +115,28 @@ Deno.serve(async (req) => {
   const aiSettings = (campaign.ai_settings ?? {}) as { playerAccessEnabled?: boolean };
   if (!isDM && aiSettings.playerAccessEnabled !== true) {
     return json({ error: 'forbidden' }, 403);
+  }
+
+  // --- Per-user daily quota --------------------------------------------------
+  // Count only fresh user turns (the last content is a user TEXT message), not
+  // tool round-trips (where the last content carries functionResponse parts) —
+  // so one question costs one unit regardless of how many tools it calls.
+  const last = contents[contents.length - 1] as
+    | { role?: string; parts?: { text?: string }[] }
+    | undefined;
+  const isFreshUserTurn =
+    !!last &&
+    last.role === 'user' &&
+    Array.isArray(last.parts) &&
+    last.parts.some((p) => p && typeof p === 'object' && 'text' in p);
+  if (isFreshUserTurn) {
+    const { data: underCap, error: usageErr } = await supabase.rpc(
+      'bump_ai_usage',
+      { p_cap: AI_DAILY_CAP },
+    );
+    if (!usageErr && underCap === false) {
+      return json({ error: 'daily_limit_reached' }, 429);
+    }
   }
 
   // --- 3. Forward one turn to Gemini -----------------------------------------

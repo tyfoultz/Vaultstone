@@ -133,6 +133,21 @@ A GM creates a campaign that players join. The session synchronizes **gameplay s
 
 ---
 
+## Part 7: AI Assistant (Third-Party LLM Processing)
+
+The optional AI assistant sends the user's question — and, on demand, the specific campaign/character/world data the user is allowed to see — to **Google's Gemini API** to generate a reply.
+
+### Posture
+- **Provider:** Google Gemini (free tier) via a developer-owned key behind a server-side relay. The key is never exposed to clients.
+- **What is sent:** the user's chat messages plus tool results drawn from data the signed-in user already has access to (enforced by RLS). A player only ever sends their own character, general rules, and player-visible world pages; DM-only content is never reachable on the player path.
+- **What is NOT sent:** user-uploaded PDF bytes or anything derived from them (the assistant has no PDF tool), and any campaign/world data the user couldn't otherwise read.
+- **Storage:** chat history is stored **only on the user's device**. Vaultstone stores no message content server-side (only an anonymous per-user daily request counter for rate-limiting).
+- **Google's use of data:** on the free tier, Google may use submitted content to improve their models. **The user must accept an in-app disclosure to this effect before first use.** Enabling billing on the Google account removes this; the app behaves identically.
+
+> **Rule:** The assistant only transmits content the user is already authorized to see, plus their own prompts. PDFs and unauthorized content are never sent. A pre-use disclosure covers Google's free-tier data handling.
+
+---
+
 ## Summary Table
 
 | Content Type | Permitted | Where it lives | Sharing |

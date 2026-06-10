@@ -27,9 +27,26 @@
 | Auth | Supabase Auth | JWT-based. Email/password + OAuth (Google, Apple). RLS enforced at DB layer. |
 | Real-time | Supabase Realtime | WebSocket pub/sub over Postgres changes. One channel per active session. |
 | File storage | Supabase Storage | Avatar images, campaign assets. **User PDFs never stored here.** |
-| Edge functions | Supabase Edge Functions (Deno) | Join code generation, session event validation, invite emails. |
+| Edge functions | Supabase Edge Functions (Deno) | Join code generation, session event validation, invite emails, and the `ai-chat` Gemini relay (see AI Assistant). |
+| AI assistant | Google Gemini Flash (free tier) | Free to the developer (one shared developer-owned key behind an Edge Function). Client owns the agentic loop + tools. See AI Assistant. |
 
 GitHub Repo: https://github.com/tyfoultz/Vaultstone.git
+
+---
+
+## AI Assistant
+
+A chat assistant (`@vaultstone/ai`) that helps DMs prep and run sessions (brainstorming, lore, rules lookups) and lets players ask about their own character + general rules + player-visible world content (DM-gated per campaign).
+
+**Provider & cost.** Google **Gemini Flash, free tier**. One developer-owned Gemini API key is stored as a Supabase secret and used by the `ai-chat` Edge Function — it never reaches the client, so users pay nothing and set nothing up. The free tier may use request content to improve Google's models; the app shows a one-line disclosure before first use (see [legal.md](legal.md) Part 5). Enabling billing on the Google account stops training and raises limits with no code change.
+
+**Thin relay + client-side tools.** The Edge Function is a stateless secret-holder: it verifies the caller's JWT, authorizes them against the campaign, and forwards one Gemini `generateContent` turn (with a server-pinned model). The **client** owns the agentic loop (`runAssistantTurn`) and the tool implementations. Tools run in the app under the user's authenticated Supabase session, so **RLS is the scoping mechanism** — a player physically cannot fetch DM-only content. The SRD bundle is client-only (`ContentResolver` dynamic-imports it), another reason tools run client-side. Context is fetched **on demand** via Gemini function calling (not pre-stuffed). Tools (read-only): `search_game_content`, `get_character`, `list_campaign_characters`, `get_world_page`, `list_world_pages`, `get_campaign`.
+
+**Chat history is device-local only** (persisted Zustand → AsyncStorage, keyed by campaign). No message tables, no server history — zero egress.
+
+**Gating.** `campaigns.ai_settings.playerAccessEnabled` (default false) gates player access; the DM toggles it from the assistant panel. The Edge Function re-checks DM-or-enabled-member server-side under the forwarded JWT. A per-user daily cap (`ai_usage` table + `bump_ai_usage` RPC, counted per fresh user turn) protects the shared free-tier quota — the only server-side row the assistant writes.
+
+**Surfaces.** A floating pill on the campaign route (DM) and on the player's own character sheet (when enabled), both reusing the floating-notes overlay chassis.
 
 ---
 
