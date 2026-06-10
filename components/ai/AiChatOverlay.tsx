@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Pressable, StyleSheet, ActivityIndicator, Platform,
-  Modal, ScrollView, useWindowDimensions,
+  Modal, ScrollView, Switch, useWindowDimensions,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { runAssistantTurn, type ChatMessage } from '@vaultstone/ai';
+import { getCampaignById, updateAiSettings } from '@vaultstone/api';
 import { useAiChatStore, selectCampaignMessages } from '@vaultstone/store';
 import {
   colors, spacing, radius, Text, Input, GhostButton, MarkdownText,
@@ -55,7 +56,25 @@ export function AiChatOverlay({
 
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [playerAccess, setPlayerAccess] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // DM-only: load + toggle whether players may use the assistant here.
+  useEffect(() => {
+    if (seed.role !== 'dm') return;
+    let cancelled = false;
+    getCampaignById(seed.campaignId).then(({ data }) => {
+      if (cancelled || !data) return;
+      const s = (data.ai_settings ?? {}) as { playerAccessEnabled?: boolean };
+      setPlayerAccess(!!s.playerAccessEnabled);
+    });
+    return () => { cancelled = true; };
+  }, [seed.role, seed.campaignId]);
+
+  const togglePlayerAccess = useCallback(async (v: boolean) => {
+    setPlayerAccess(v);
+    await updateAiSettings(seed.campaignId, { playerAccessEnabled: v });
+  }, [seed.campaignId]);
 
   const defaultPos = { x: screenW - PANEL_W - 24, y: screenH - 560 };
   const pos = externalPos ?? defaultPos;
@@ -135,6 +154,21 @@ export function AiChatOverlay({
           <MaterialCommunityIcons name="window-minimize" size={18} color={colors.onSurfaceVariant} />
         </Pressable>
       </View>
+
+      {/* DM control — let players use the assistant in this campaign */}
+      {seed.role === 'dm' ? (
+        <View style={styles.accessRow}>
+          <MaterialCommunityIcons name="account-group-outline" size={15} color={colors.onSurfaceVariant} />
+          <Text variant="label-sm" style={{ color: colors.onSurfaceVariant, flex: 1 }}>
+            Let players use the assistant
+          </Text>
+          <Switch
+            value={playerAccess}
+            onValueChange={togglePlayerAccess}
+            trackColor={{ true: colors.primary, false: colors.outlineVariant }}
+          />
+        </View>
+      ) : null}
 
       {/* Disclosure (until acknowledged) */}
       {!disclosureAccepted ? (
@@ -277,6 +311,15 @@ const styles = StyleSheet.create({
     }),
   },
   iconBtn: { padding: 4 },
+  accessRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant + '22',
+  },
   disclosure: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,

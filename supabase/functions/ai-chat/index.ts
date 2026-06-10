@@ -93,7 +93,26 @@ Deno.serve(async (req) => {
     return json({ error: 'conversation_too_long' }, 413);
   }
 
-  // Phase 3 will authorize `campaignId` here (DM vs enabled-player vs 403).
+  // --- Authorize the caller against the target campaign ----------------------
+  // The DM always has access; players only when the DM enabled it. The query
+  // runs under the caller's JWT (RLS on), so a non-member sees no row → 403.
+  const campaignId = typeof body.campaignId === 'string' ? body.campaignId : '';
+  if (!campaignId) {
+    return json({ error: 'campaign_required' }, 400);
+  }
+  const { data: campaign, error: campErr } = await supabase
+    .from('campaigns')
+    .select('dm_user_id, ai_settings')
+    .eq('id', campaignId)
+    .single();
+  if (campErr || !campaign) {
+    return json({ error: 'forbidden' }, 403);
+  }
+  const isDM = campaign.dm_user_id === user.id;
+  const aiSettings = (campaign.ai_settings ?? {}) as { playerAccessEnabled?: boolean };
+  if (!isDM && aiSettings.playerAccessEnabled !== true) {
+    return json({ error: 'forbidden' }, 403);
+  }
 
   // --- 3. Forward one turn to Gemini -----------------------------------------
   const geminiKey = Deno.env.get('GEMINI_API_KEY');

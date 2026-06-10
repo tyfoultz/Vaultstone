@@ -177,6 +177,21 @@ export async function updatePartyViewSettings(
     .eq('id', campaignId);
 }
 
+export interface AiSettings {
+  /** Whether players in this campaign may use the AI assistant. */
+  playerAccessEnabled: boolean;
+}
+
+export const DEFAULT_AI_SETTINGS: AiSettings = { playerAccessEnabled: false };
+
+/** DM-only: toggle whether players may use the AI assistant in this campaign. */
+export async function updateAiSettings(campaignId: string, settings: AiSettings) {
+  return supabase
+    .from('campaigns')
+    .update({ ai_settings: settings as never })
+    .eq('id', campaignId);
+}
+
 export async function updateCampaign(
   campaignId: string,
   patch: Partial<{
