@@ -5,6 +5,11 @@ import type {
   GeminiTool,
 } from '../types';
 import { searchContentTool } from './search-content';
+import { getCharacterTool } from './get-character';
+import { listCampaignCharactersTool } from './list-campaign-characters';
+import { listWorldPagesTool } from './list-world-pages';
+import { getWorldPageTool } from './get-world-page';
+import { getCampaignTool } from './get-campaign';
 
 /**
  * A client-side tool. `execute` runs in the app under the user's authenticated
@@ -23,7 +28,14 @@ export interface ToolDefinition {
 
 // Single source of truth for the tool set (mirrors the IMPORT_KINDS registry
 // pattern). Add new tools here.
-const ALL_TOOLS: ToolDefinition[] = [searchContentTool];
+const ALL_TOOLS: ToolDefinition[] = [
+  searchContentTool,
+  getCharacterTool,
+  listCampaignCharactersTool,
+  listWorldPagesTool,
+  getWorldPageTool,
+  getCampaignTool,
+];
 
 /** Tool declarations Gemini is allowed to call for this role. */
 export function toolsForRole(role: AiRole): GeminiTool[] {

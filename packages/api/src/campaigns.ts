@@ -61,6 +61,11 @@ export async function regenerateJoinCode(campaignId: string) {
   return { code: error ? null : newCode, error };
 }
 
+/** Single campaign row by id. RLS scopes access to DM + members. */
+export async function getCampaignById(campaignId: string) {
+  return supabase.from('campaigns').select('*').eq('id', campaignId).single();
+}
+
 export async function getCampaignMembers(campaignId: string) {
   // Routes through get_campaign_members_trimmed so the embedded character's
   // `resources` blob arrives without the heavy sub-objects no member view

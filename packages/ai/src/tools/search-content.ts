@@ -1,6 +1,7 @@
 import { ContentResolver } from '@vaultstone/content';
 import type { ContentType } from '@vaultstone/types';
 import type { ToolDefinition } from './registry';
+import { trimText } from './util';
 
 // Types the model may filter on. Kept to the ones a rules/lore question would
 // reasonably target (the full ContentType union includes many metadata-only
@@ -20,14 +21,6 @@ const SEARCHABLE_TYPES: ContentType[] = [
 ];
 
 const MAX_RESULTS = 8;
-const MAX_DESCRIPTION = 1500;
-
-function trim(text: string | undefined): string {
-  if (!text) return '';
-  return text.length > MAX_DESCRIPTION
-    ? `${text.slice(0, MAX_DESCRIPTION)}…`
-    : text;
-}
 
 export const searchContentTool: ToolDefinition = {
   roles: ['dm', 'player'],
@@ -75,7 +68,7 @@ export const searchContentTool: ToolDefinition = {
         name: r.name,
         type: r.type,
         tier: r.tier,
-        description: trim(r.description),
+        description: trimText(r.description),
       })),
     };
   },
