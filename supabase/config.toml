@@ -18,3 +18,8 @@ site_url = "http://localhost:8081"
 additional_redirect_urls = ["https://localhost:8081"]
 jwt_expiry = 3600
 enable_signup = true
+
+# ai-chat verifies the caller's JWT inside the function (so it can also read the
+# user identity for campaign authorization). Keep platform-level verification on.
+[functions.ai-chat]
+verify_jwt = true

@@ -50,6 +50,7 @@ import { PartyMemberCard } from './PartyMemberCard';
 import { StartSessionModal, type StartSessionPlayer } from '../session/StartSessionModal';
 import { EndSessionModal } from '../session/EndSessionModal';
 import { useFloatingNotes } from '../session/FloatingNotesContext';
+import { useAiChat } from '../ai/AiChatContext';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
@@ -164,6 +165,19 @@ export function CampaignPageV2({ campaignId }: Props) {
       memberNames,
     });
   }, [activeSessionId, user, campaign, isDM, memberNames]);
+
+  // AI assistant — DM-only for now (player access lands with per-campaign
+  // gating in a later phase). Registering seeds the floating pill in the route.
+  const aiChat = useAiChat();
+  useEffect(() => {
+    if (!user || !campaign || !isDM) return;
+    aiChat.register({
+      userId: user.id,
+      role: 'dm',
+      campaignId: campaign.id,
+      worldId: linkedWorld?.id,
+    });
+  }, [user, campaign, isDM, linkedWorld]);
 
   // ── Cover upload ────────────────────────────────────────────────
   // DM-only cover image used as the all-campaigns card cover and as

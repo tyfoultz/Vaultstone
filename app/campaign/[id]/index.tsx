@@ -33,6 +33,8 @@ import {
   type FloatingNotesState,
 } from '../../../components/session/FloatingNotesContext';
 import { FloatingNotesOverlay, type PanelPos } from '../../../components/session/FloatingNotesOverlay';
+import { AiChatProvider, type AiChatSeed } from '../../../components/ai/AiChatContext';
+import { AiChatOverlay } from '../../../components/ai/AiChatOverlay';
 
 export default function CampaignDetailScreen() {
   const params = useLocalSearchParams<{ id: string; tabs?: string }>();
@@ -137,6 +139,20 @@ export default function CampaignDetailScreen() {
     get isRegistered() { return notesState !== null; },
   }), [notesState, notesOpen]);
 
+  // Floating AI assistant — same lifted-state pattern as notes so the panel
+  // and its position persist across tab/pane switches within the campaign.
+  const [aiSeed, setAiSeed] = useState<AiChatSeed | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiPos, setAiPos] = useState<PanelPos | null>(null);
+  const aiApi = useMemo(() => ({
+    register: (s: AiChatSeed) => setAiSeed(s),
+    open: (s: AiChatSeed) => { setAiSeed(s); setAiOpen(true); },
+    close: () => setAiOpen(false),
+    toggle: () => setAiOpen((v) => !v),
+    get isOpen() { return aiSeed !== null && aiOpen; },
+    get isRegistered() { return aiSeed !== null; },
+  }), [aiSeed, aiOpen]);
+
   // Body resolution per side. Memoized so a no-op re-render of the
   // route doesn't recreate the JSX (and force key-based remounts of
   // PagePaneContent / WorldHome which would lose unsaved drafts).
@@ -178,6 +194,7 @@ export default function CampaignDetailScreen() {
 
   return (
     <FloatingNotesProvider value={notesApi}>
+      <AiChatProvider value={aiApi}>
       <SharedDndProvider>
         <View style={styles.root}>
           <CampaignTabRow
@@ -218,8 +235,30 @@ export default function CampaignDetailScreen() {
               />
             </Pressable>
           ) : null}
+          {aiSeed && aiOpen ? (
+            <AiChatOverlay
+              seed={aiSeed}
+              position={aiPos}
+              onPositionChange={setAiPos}
+              onClose={() => setAiOpen(false)}
+            />
+          ) : null}
+          {aiSeed ? (
+            <Pressable
+              style={[styles.aiPill, aiOpen && styles.notesPillActive]}
+              onPress={() => setAiOpen((v) => !v)}
+              accessibilityLabel="AI Assistant"
+            >
+              <MaterialCommunityIcons
+                name="robot-happy-outline"
+                size={16}
+                color={aiOpen ? colors.onSurface : colors.primary}
+              />
+            </Pressable>
+          ) : null}
         </View>
       </SharedDndProvider>
+      </AiChatProvider>
     </FloatingNotesProvider>
   );
 }
@@ -301,5 +340,22 @@ const styles = StyleSheet.create({
   notesPillActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+  },
+  aiPill: {
+    position: 'absolute',
+    top: 6 + 32 + 8, // below the notes pill
+    right: spacing.sm + 4,
+    width: 32,
+    height: 32,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web'
+      ? { zIndex: 20, cursor: 'pointer' } as any
+      : { elevation: 4 }
+    ),
   },
 });
