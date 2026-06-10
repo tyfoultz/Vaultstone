@@ -34,7 +34,7 @@ import {
 } from '../../../components/session/FloatingNotesContext';
 import { FloatingNotesOverlay, type PanelPos } from '../../../components/session/FloatingNotesOverlay';
 import { AiChatProvider, type AiChatSeed } from '../../../components/ai/AiChatContext';
-import { AiChatOverlay } from '../../../components/ai/AiChatOverlay';
+import { AiChatOverlay, type PanelSize } from '../../../components/ai/AiChatOverlay';
 
 export default function CampaignDetailScreen() {
   const params = useLocalSearchParams<{ id: string; tabs?: string }>();
@@ -144,6 +144,7 @@ export default function CampaignDetailScreen() {
   const [aiSeed, setAiSeed] = useState<AiChatSeed | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPos, setAiPos] = useState<PanelPos | null>(null);
+  const [aiSize, setAiSize] = useState<PanelSize | null>(null);
   const aiApi = useMemo(() => ({
     register: (s: AiChatSeed) => setAiSeed(s),
     open: (s: AiChatSeed) => { setAiSeed(s); setAiOpen(true); },
@@ -221,6 +222,9 @@ export default function CampaignDetailScreen() {
               seed={aiSeed}
               position={aiPos}
               onPositionChange={setAiPos}
+              size={aiSize}
+              onSizeChange={setAiSize}
+              showPlayerAccessToggle
               onClose={() => setAiOpen(false)}
             />
           ) : null}

@@ -13,11 +13,17 @@ import {
 import type { AiChatSeed } from './AiChatContext';
 
 export type PanelPos = { x: number; y: number };
+export type PanelSize = { w: number; h: number };
 
 interface Props {
   seed: AiChatSeed;
   position?: PanelPos | null;
   onPositionChange?: (pos: PanelPos) => void;
+  size?: PanelSize | null;
+  onSizeChange?: (size: PanelSize) => void;
+  /** Show the DM's "let players use the assistant" toggle. Only the campaign
+   *  surface passes this — the world/character hosts keep the panel clean. */
+  showPlayerAccessToggle?: boolean;
   onClose: () => void;
 }
 
@@ -30,6 +36,14 @@ function newId(): string {
 }
 
 const PANEL_W = 420;
+const PANEL_MIN_W = 340;
+const PANEL_MIN_H = 360;
+const PANEL_DEFAULT_H = 560;
+
+// Last-known playerAccessEnabled per campaign, so reopening the panel renders
+// the toggle in its real state instead of flashing off → on while the fresh
+// value loads.
+const playerAccessCache = new Map<string, boolean>();
 
 const DM_PROMPTS = [
   'Brainstorm a hook for tonight’s session',
@@ -43,7 +57,8 @@ const PLAYER_PROMPTS = [
 ];
 
 export function AiChatOverlay({
-  seed, position: externalPos, onPositionChange, onClose,
+  seed, position: externalPos, onPositionChange,
+  size: externalSize, onSizeChange, showPlayerAccessToggle, onClose,
 }: Props) {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const isMobile = screenW < 768;
@@ -56,28 +71,65 @@ export function AiChatOverlay({
 
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [playerAccess, setPlayerAccess] = useState(false);
+  const [playerAccess, setPlayerAccess] = useState(
+    () => playerAccessCache.get(seed.campaignId) ?? false,
+  );
   const scrollRef = useRef<ScrollView>(null);
 
-  // DM-only: load + toggle whether players may use the assistant here.
+  // DM-only (campaign surface): load + toggle player access for the campaign.
   useEffect(() => {
-    if (seed.role !== 'dm') return;
+    if (!showPlayerAccessToggle || seed.role !== 'dm') return;
     let cancelled = false;
     getCampaignById(seed.campaignId).then(({ data }) => {
       if (cancelled || !data) return;
       const s = (data.ai_settings ?? {}) as { playerAccessEnabled?: boolean };
+      playerAccessCache.set(seed.campaignId, !!s.playerAccessEnabled);
       setPlayerAccess(!!s.playerAccessEnabled);
     });
     return () => { cancelled = true; };
-  }, [seed.role, seed.campaignId]);
+  }, [showPlayerAccessToggle, seed.role, seed.campaignId]);
 
   const togglePlayerAccess = useCallback(async (v: boolean) => {
+    playerAccessCache.set(seed.campaignId, v);
     setPlayerAccess(v);
     await updateAiSettings(seed.campaignId, { playerAccessEnabled: v });
   }, [seed.campaignId]);
 
-  const defaultPos = { x: screenW - PANEL_W - 24, y: screenH - 560 };
-  const pos = externalPos ?? defaultPos;
+  // The panel floats inside its host container (which may be narrower than the
+  // window — e.g. the world content column next to the sidebar), so bounds come
+  // from measuring an inset layer, not from the window dimensions.
+  const [layer, setLayer] = useState<{ w: number; h: number } | null>(null);
+  const layerW = layer?.w ?? screenW;
+  const layerH = layer?.h ?? screenH;
+
+  // Size — host-persisted when provided (mirrors the position props), with an
+  // internal fallback so resizing still works on hosts that don't lift it.
+  const [internalSize, setInternalSize] = useState<PanelSize | null>(null);
+  const size = externalSize ?? internalSize;
+  const setSize = useCallback((next: PanelSize) => {
+    if (onSizeChange) onSizeChange(next);
+    else setInternalSize(next);
+  }, [onSizeChange]);
+
+  const panelW = clamp(
+    size?.w ?? PANEL_W,
+    PANEL_MIN_W,
+    Math.max(PANEL_MIN_W, layerW - 16),
+  );
+  const panelH = clamp(
+    size?.h ?? Math.min(PANEL_DEFAULT_H, layerH - 48),
+    PANEL_MIN_H,
+    Math.max(PANEL_MIN_H, layerH - 16),
+  );
+
+  // Clamp at render time so a stale stored position (or a container that
+  // shrank) can never strand the panel outside the visible bounds.
+  const defaultPos = { x: layerW - panelW - 24, y: layerH - panelH - 24 };
+  const rawPos = externalPos ?? defaultPos;
+  const pos = {
+    x: clamp(rawPos.x, 0, Math.max(0, layerW - panelW)),
+    y: clamp(rawPos.y, 0, Math.max(0, layerH - panelH)),
+  };
   const dragging = useRef(false);
   const dragOffset = useRef({ dx: 0, dy: 0 });
 
@@ -94,13 +146,44 @@ export function AiChatOverlay({
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging.current) return;
-    const nx = clamp(e.clientX - dragOffset.current.dx, 0, screenW - PANEL_W);
-    const ny = clamp(e.clientY - dragOffset.current.dy, 0, screenH - 100);
+    const nx = clamp(e.clientX - dragOffset.current.dx, 0, Math.max(0, layerW - panelW));
+    const ny = clamp(e.clientY - dragOffset.current.dy, 0, Math.max(0, layerH - panelH));
     setPos({ x: nx, y: ny });
-  }, [screenW, screenH, setPos]);
+  }, [layerW, layerH, panelW, panelH, setPos]);
 
   const onPointerUp = useCallback(() => {
     dragging.current = false;
+  }, []);
+
+  // Corner resize — same pointer-capture pattern as dragging.
+  const resizing = useRef(false);
+  const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
+
+  const onResizeDown = useCallback((e: React.PointerEvent) => {
+    if (isMobile) return;
+    resizing.current = true;
+    resizeStart.current = { x: e.clientX, y: e.clientY, w: panelW, h: panelH };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    e.stopPropagation();
+  }, [isMobile, panelW, panelH]);
+
+  const onResizeMove = useCallback((e: React.PointerEvent) => {
+    if (!resizing.current) return;
+    const w = clamp(
+      resizeStart.current.w + (e.clientX - resizeStart.current.x),
+      PANEL_MIN_W,
+      Math.max(PANEL_MIN_W, layerW - pos.x - 8),
+    );
+    const h = clamp(
+      resizeStart.current.h + (e.clientY - resizeStart.current.y),
+      PANEL_MIN_H,
+      Math.max(PANEL_MIN_H, layerH - pos.y - 8),
+    );
+    setSize({ w, h });
+  }, [layerW, layerH, pos.x, pos.y, setSize]);
+
+  const onResizeUp = useCallback(() => {
+    resizing.current = false;
   }, []);
 
   useEffect(() => {
@@ -130,7 +213,11 @@ export function AiChatOverlay({
   const panelContent = (
     <View style={[
       styles.panel,
-      isMobile ? styles.panelMobile : { width: PANEL_W, maxHeight: screenH * 0.72 },
+      isMobile
+        ? styles.panelMobile
+        : size
+          ? { width: panelW, height: panelH }
+          : { width: panelW, maxHeight: layerH * 0.72 },
     ]}>
       {/* Header — drag handle on web */}
       <View
@@ -155,8 +242,9 @@ export function AiChatOverlay({
         </Pressable>
       </View>
 
-      {/* DM control — let players use the assistant in this campaign */}
-      {seed.role === 'dm' ? (
+      {/* DM control — let players use the assistant in this campaign.
+          Campaign surface only; world/character hosts don't render it. */}
+      {showPlayerAccessToggle && seed.role === 'dm' ? (
         <View style={styles.accessRow}>
           <MaterialCommunityIcons name="account-group-outline" size={15} color={colors.onSurfaceVariant} />
           <Text variant="label-sm" style={{ color: colors.onSurfaceVariant, flex: 1 }}>
@@ -187,7 +275,7 @@ export function AiChatOverlay({
       {/* Message list */}
       <ScrollView
         ref={scrollRef}
-        style={styles.body}
+        style={[styles.body, !size && styles.bodyCapped]}
         contentContainerStyle={{ paddingBottom: spacing.md, gap: spacing.sm }}
       >
         {messages.length === 0 ? (
@@ -253,6 +341,24 @@ export function AiChatOverlay({
           <MaterialCommunityIcons name="send" size={18} color={colors.onPrimary} />
         </Pressable>
       </View>
+
+      {/* Corner resize handle — web desktop only */}
+      {Platform.OS === 'web' && !isMobile ? (
+        <View
+          style={styles.resizeHandle}
+          {...({
+            onPointerDown: onResizeDown as any,
+            onPointerMove: onResizeMove as any,
+            onPointerUp: onResizeUp as any,
+          } as any)}
+        >
+          <MaterialCommunityIcons
+            name="resize-bottom-right"
+            size={14}
+            color={colors.onSurfaceVariant}
+          />
+        </View>
+      ) : null}
     </View>
   );
 
@@ -268,14 +374,33 @@ export function AiChatOverlay({
     );
   }
 
+  // Full-size measuring layer: gives the panel its real container bounds for
+  // clamping while letting pointer events pass through the empty space.
   return (
-    <View style={[styles.floatingWrap, { left: pos.x, top: pos.y }]}>
-      {panelContent}
+    <View
+      style={styles.overlayLayer}
+      pointerEvents="box-none"
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setLayer({ w: width, h: height });
+      }}
+    >
+      <View style={[styles.floatingWrap, { left: pos.x, top: pos.y }]}>
+        {panelContent}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  overlayLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    ...(Platform.OS === 'web' ? ({ zIndex: 100 } as any) : {}),
+  },
   floatingWrap: {
     position: 'absolute',
     zIndex: 100,
@@ -332,6 +457,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     minHeight: 200,
+  },
+  bodyCapped: {
     maxHeight: 440,
   },
   empty: {
@@ -380,6 +507,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  resizeHandle: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    padding: 3,
+    ...(Platform.OS === 'web'
+      ? ({ cursor: 'nwse-resize', zIndex: 10 } as any)
+      : {}),
   },
   backdrop: {
     flex: 1,
