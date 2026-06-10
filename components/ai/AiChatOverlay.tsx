@@ -24,6 +24,9 @@ interface Props {
   /** Show the DM's "let players use the assistant" toggle. Only the campaign
    *  surface passes this — the world/character hosts keep the panel clean. */
   showPlayerAccessToggle?: boolean;
+  /** When false the panel is hidden but stays mounted, so an in-flight
+   *  assistant turn keeps running while minimized. Defaults to true. */
+  visible?: boolean;
   onClose: () => void;
 }
 
@@ -58,7 +61,8 @@ const PLAYER_PROMPTS = [
 
 export function AiChatOverlay({
   seed, position: externalPos, onPositionChange,
-  size: externalSize, onSizeChange, showPlayerAccessToggle, onClose,
+  size: externalSize, onSizeChange, showPlayerAccessToggle,
+  visible = true, onClose,
 }: Props) {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const isMobile = screenW < 768;
@@ -70,6 +74,7 @@ export function AiChatOverlay({
   const acceptDisclosure = useAiChatStore((s) => s.acceptDisclosure);
 
   const [input, setInput] = useState('');
+  const [composerH, setComposerH] = useState(20);
   const [sending, setSending] = useState(false);
   const [playerAccess, setPlayerAccess] = useState(
     () => playerAccessCache.get(seed.campaignId) ?? false,
@@ -327,6 +332,9 @@ export function AiChatOverlay({
             returnKeyType="send"
             editable={!sending}
             multiline
+            onContentSizeChange={(e) =>
+              setComposerH(e.nativeEvent.contentSize.height)}
+            style={{ height: clamp(composerH, 20, 120) }}
           />
         </View>
         <Pressable
@@ -364,7 +372,12 @@ export function AiChatOverlay({
 
   if (isMobile) {
     return (
-      <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Modal
+        visible={visible}
+        transparent
+        animationType="slide"
+        onRequestClose={onClose}
+      >
         <Pressable style={styles.backdrop} onPress={onClose}>
           <Pressable onPress={(e) => e.stopPropagation()} style={styles.mobileSheet}>
             {panelContent}
@@ -376,9 +389,10 @@ export function AiChatOverlay({
 
   // Full-size measuring layer: gives the panel its real container bounds for
   // clamping while letting pointer events pass through the empty space.
+  // `display: none` (not unmount) when minimized so in-flight turns continue.
   return (
     <View
-      style={styles.overlayLayer}
+      style={[styles.overlayLayer, !visible && styles.overlayHidden]}
       pointerEvents="box-none"
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
@@ -400,6 +414,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     ...(Platform.OS === 'web' ? ({ zIndex: 100 } as any) : {}),
+  },
+  overlayHidden: {
+    display: 'none',
   },
   floatingWrap: {
     position: 'absolute',

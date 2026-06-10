@@ -1,11 +1,34 @@
 import { callGemini } from './proxy';
 import { buildSystemInstruction } from './system-prompt';
 import { toolsForRole, findTool } from './tools/registry';
-import type { AiChatContext, ChatMessage, GeminiContent, GeminiPart } from './types';
+import type {
+  AiChatContext, ChatMessage, GeminiContent, GeminiPart, GeminiRequestBody,
+  GeminiResponse,
+} from './types';
 
 // Safety cap on tool round-trips per user turn. The Edge Function enforces a
 // matching bound server-side (Phase 4).
 const MAX_ITERATIONS = 6;
+
+// Gemini's free tier allows only a handful of requests per minute, and one
+// user turn can burn 2-3 of them on tool round-trips — so transient 429s
+// (relayed as retryable errors) are expected in normal use. Retry with a
+// short backoff before surfacing an error to the user.
+const RETRY_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 2500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function callGeminiWithRetry(req: GeminiRequestBody): Promise<GeminiResponse> {
+  let res = await callGemini(req);
+  for (let attempt = 1; attempt < RETRY_ATTEMPTS && res.error && res.retryable; attempt++) {
+    await sleep(RETRY_BASE_DELAY_MS * attempt); // 2.5s, then 5s
+    res = await callGemini(req);
+  }
+  return res;
+}
 
 export interface AssistantTurnResult {
   text: string;
@@ -44,7 +67,7 @@ export async function runAssistantTurn(
   }));
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
-    const res = await callGemini({
+    const res = await callGeminiWithRetry({
       systemInstruction,
       contents,
       tools,
@@ -52,7 +75,10 @@ export async function runAssistantTurn(
     });
 
     if (res.error) {
-      return { text: friendlyError(res.error), error: res.error };
+      const text = res.retryable
+        ? 'The assistant is temporarily rate-limited (the free tier allows a few requests per minute). Give it a few seconds and ask again.'
+        : friendlyError(res.error);
+      return { text, error: res.error };
     }
 
     const parts = res.candidates?.[0]?.content?.parts ?? [];

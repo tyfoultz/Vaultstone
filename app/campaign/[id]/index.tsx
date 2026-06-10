@@ -143,6 +143,10 @@ export default function CampaignDetailScreen() {
   // and its position persist across tab/pane switches within the campaign.
   const [aiSeed, setAiSeed] = useState<AiChatSeed | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  // Once opened, the overlay stays mounted (hidden when minimized) so an
+  // in-flight assistant turn isn't killed by minimizing the panel.
+  const [aiEverOpened, setAiEverOpened] = useState(false);
+  useEffect(() => { if (aiOpen) setAiEverOpened(true); }, [aiOpen]);
   const [aiPos, setAiPos] = useState<PanelPos | null>(null);
   const [aiSize, setAiSize] = useState<PanelSize | null>(null);
   const aiApi = useMemo(() => ({
@@ -217,7 +221,7 @@ export default function CampaignDetailScreen() {
               onClose={() => setNotesOpen(false)}
             />
           ) : null}
-          {aiSeed && aiOpen ? (
+          {aiSeed && aiEverOpened ? (
             <AiChatOverlay
               seed={aiSeed}
               position={aiPos}
@@ -225,6 +229,7 @@ export default function CampaignDetailScreen() {
               size={aiSize}
               onSizeChange={setAiSize}
               showPlayerAccessToggle
+              visible={aiOpen}
               onClose={() => setAiOpen(false)}
             />
           ) : null}

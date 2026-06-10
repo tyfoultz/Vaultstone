@@ -14,6 +14,9 @@ import type { AiChatSeed } from './AiChatContext';
  */
 export function AiAssistantHost({ seed }: { seed: AiChatSeed | null }) {
   const [open, setOpen] = useState(false);
+  // Once opened, keep the overlay mounted (hidden when minimized) so an
+  // in-flight assistant turn isn't killed by minimizing the panel.
+  const [everOpened, setEverOpened] = useState(false);
   const [pos, setPos] = useState<PanelPos | null>(null);
   const [size, setSize] = useState<PanelSize | null>(null);
 
@@ -21,19 +24,20 @@ export function AiAssistantHost({ seed }: { seed: AiChatSeed | null }) {
 
   return (
     <>
-      {open ? (
+      {everOpened ? (
         <AiChatOverlay
           seed={seed}
           position={pos}
           onPositionChange={setPos}
           size={size}
           onSizeChange={setSize}
+          visible={open}
           onClose={() => setOpen(false)}
         />
       ) : null}
       <Pressable
         style={[styles.pill, open && styles.pillActive]}
-        onPress={() => setOpen((v) => !v)}
+        onPress={() => { setEverOpened(true); setOpen((v) => !v); }}
         accessibilityLabel="AI Assistant"
       >
         <MaterialCommunityIcons
