@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Slot, useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -28,6 +28,8 @@ import {
 import type { Database, WorldPage, WorldSection } from '@vaultstone/types';
 import { Text, colors, spacing, useBreakpoint } from '@vaultstone/ui';
 
+import { AiAssistantHost } from '../../../components/ai/AiAssistantHost';
+import type { AiChatSeed } from '../../../components/ai/AiChatContext';
 import { ActiveSectionProvider } from '../../../components/world/ActiveSectionContext';
 import { LensSwitchBanner } from '../../../components/world/LensSwitchBanner';
 import { MobileWorldTabBar } from '../../../components/world/MobileWorldTabBar';
@@ -43,7 +45,10 @@ export default function WorldLayout() {
   }>();
   const router = useRouter();
   const session = useAuthStore((s) => s.session);
+  const user = useAuthStore((s) => s.user);
   const storeWorld = useCurrentWorldStore((s) => s.world);
+  const lensCampaignId = useCurrentWorldStore((s) => s.lensCampaignId);
+  const linkedCampaigns = useCurrentWorldStore((s) => s.linkedCampaigns);
   const setActiveWorld = useCurrentWorldStore((s) => s.setActiveWorld);
   const clearActiveWorld = useCurrentWorldStore((s) => s.clearActiveWorld);
   const setLens = useCurrentWorldStore((s) => s.setLens);
@@ -154,6 +159,32 @@ export default function WorldLayout() {
     return () => { supabase.removeChannel(channel); };
   }, [session, worldId, setPages]);
 
+  // AI assistant seed — the assistant is campaign-scoped (the Edge Function
+  // authorizes against a campaign), so pick one from the linked list: the
+  // active lens campaign when it qualifies, else the first the user DMs, else
+  // the first with player access enabled. RLS already trims linkedCampaigns to
+  // campaigns the user can see, so a plain world member gets no pill.
+  const aiSeed = useMemo<AiChatSeed | null>(() => {
+    if (!user || !worldId) return null;
+    const ordered = lensCampaignId
+      ? [...linkedCampaigns].sort((a, b) =>
+          a.id === lensCampaignId ? -1 : b.id === lensCampaignId ? 1 : 0)
+      : linkedCampaigns;
+    const dmCampaign = ordered.find((c) => c.dm_user_id === user.id);
+    const playerCampaign = ordered.find((c) => {
+      const ai = (c.ai_settings ?? {}) as { playerAccessEnabled?: boolean };
+      return ai.playerAccessEnabled === true;
+    });
+    const campaign = dmCampaign ?? playerCampaign;
+    if (!campaign) return null;
+    return {
+      userId: user.id,
+      role: dmCampaign ? 'dm' : 'player',
+      campaignId: campaign.id,
+      worldId,
+    };
+  }, [user, worldId, lensCampaignId, linkedCampaigns]);
+
   if (!session) return null;
 
   if (loading || !fontsLoaded) {
@@ -192,6 +223,7 @@ export default function WorldLayout() {
           <PlayerViewBanner />
           <LensSwitchBanner />
           <Slot />
+          <AiAssistantHost seed={aiSeed} />
         </View>
         {isMobile ? (
           <MobileWorldTabBar worldId={worldId} world={resolvedWorld} />

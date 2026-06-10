@@ -18,7 +18,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // Model is pinned server-side so a malicious client cannot select a paid model.
 // Swap this single constant to change models; keep it on a free-tier Flash model.
-const GEMINI_MODEL = 'gemini-2.0-flash';
+// gemini-2.0-flash's free tier was retired (limit 0 as of 2026-06); 3.5-flash
+// is the current free-tier Flash model. It is a thinking model — the client
+// loop must echo `thoughtSignature` parts back verbatim (it does).
+const GEMINI_MODEL = 'gemini-3.5-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Request-shape guards (cheap abuse protection).

@@ -216,25 +216,6 @@ export default function CampaignDetailScreen() {
               onClose={() => setNotesOpen(false)}
             />
           ) : null}
-          {notesState ? (
-            <Pressable
-              style={[styles.notesPill, notesOpen && styles.notesPillActive]}
-              onPress={() => {
-                if (notesState.sessionId) {
-                  setNotesOpen((v) => !v);
-                } else {
-                  router.push(`/campaign/${id}/notes` as never);
-                }
-              }}
-              accessibilityLabel="Session Notes"
-            >
-              <MaterialCommunityIcons
-                name="notebook-outline"
-                size={16}
-                color={notesOpen ? colors.onSurface : colors.primary}
-              />
-            </Pressable>
-          ) : null}
           {aiSeed && aiOpen ? (
             <AiChatOverlay
               seed={aiSeed}
@@ -243,18 +224,41 @@ export default function CampaignDetailScreen() {
               onClose={() => setAiOpen(false)}
             />
           ) : null}
-          {aiSeed ? (
-            <Pressable
-              style={[styles.aiPill, aiOpen && styles.notesPillActive]}
-              onPress={() => setAiOpen((v) => !v)}
-              accessibilityLabel="AI Assistant"
-            >
-              <MaterialCommunityIcons
-                name="robot-happy-outline"
-                size={16}
-                color={aiOpen ? colors.onSurface : colors.primary}
-              />
-            </Pressable>
+          {notesState || aiSeed ? (
+            <View style={styles.pillRow}>
+              {aiSeed ? (
+                <Pressable
+                  style={[styles.pill, aiOpen && styles.pillActive]}
+                  onPress={() => setAiOpen((v) => !v)}
+                  accessibilityLabel="AI Assistant"
+                >
+                  <MaterialCommunityIcons
+                    name="robot-happy-outline"
+                    size={16}
+                    color={aiOpen ? colors.onSurface : colors.primary}
+                  />
+                </Pressable>
+              ) : null}
+              {notesState ? (
+                <Pressable
+                  style={[styles.pill, notesOpen && styles.pillActive]}
+                  onPress={() => {
+                    if (notesState.sessionId) {
+                      setNotesOpen((v) => !v);
+                    } else {
+                      router.push(`/campaign/${id}/notes` as never);
+                    }
+                  }}
+                  accessibilityLabel="Session Notes"
+                >
+                  <MaterialCommunityIcons
+                    name="notebook-outline"
+                    size={16}
+                    color={notesOpen ? colors.onSurface : colors.primary}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
         </View>
       </SharedDndProvider>
@@ -320,10 +324,15 @@ const styles = StyleSheet.create({
       : { opacity: 0, pointerEvents: 'none' as const }
     ),
   },
-  notesPill: {
+  pillRow: {
     position: 'absolute',
     top: 6,
     right: spacing.sm + 4,
+    flexDirection: 'row',
+    gap: 8,
+    ...(Platform.OS === 'web' ? ({ zIndex: 20 } as any) : {}),
+  },
+  pill: {
     width: 32,
     height: 32,
     borderRadius: radius.xl,
@@ -333,29 +342,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...(Platform.OS === 'web'
-      ? { zIndex: 20, cursor: 'pointer' } as any
+      ? { cursor: 'pointer' } as any
       : { elevation: 4 }
     ),
   },
-  notesPillActive: {
+  pillActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
-  },
-  aiPill: {
-    position: 'absolute',
-    top: 6 + 32 + 8, // below the notes pill
-    right: spacing.sm + 4,
-    width: 32,
-    height: 32,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceContainer,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...(Platform.OS === 'web'
-      ? { zIndex: 20, cursor: 'pointer' } as any
-      : { elevation: 4 }
-    ),
   },
 });
