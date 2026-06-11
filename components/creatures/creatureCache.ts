@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ContentResolver } from '@vaultstone/content';
+import { ContentResolver, systemQueryArgs } from '@vaultstone/content';
 import type { CreatureResult } from '@vaultstone/types';
 
 const CREATURE_CACHE_KEY = 'vaultstone:creature-cache:v1';
@@ -61,43 +61,50 @@ export async function loadCreatureByKey(key: string): Promise<CreatureResult | n
 
 // --- Full catalog cache for encounter builder ---
 
-const CATALOG_CACHE_KEY = 'vaultstone:creature-catalog-cache:v2';
-let _catalogCache: CreatureResult[] | null = null;
-let _catalogFetchedAt = 0;
+// v3: keyed per edition — v2 stored one undifferentiated catalog, so a
+// 2014-edition campaign could be served a cached 2024 catalog (and vice
+// versa).
+const CATALOG_CACHE_KEY = 'vaultstone:creature-catalog-cache:v3';
+const _catalogCache: Record<string, { data: CreatureResult[]; fetchedAt: number }> = {};
 
-export async function getCreatureCatalog(system: string): Promise<CreatureResult[]> {
-  if (_catalogCache && Date.now() - _catalogFetchedAt < CREATURE_CACHE_TTL) {
-    return _catalogCache;
+/**
+ * `systemId` is the campaign's raw system id (dnd5e_2014 / dnd5e_2024 /
+ * legacy dnd5e) — it's translated through systemQueryArgs so both the SRD
+ * tier (keyed under 'dnd5e' + srdVersion) and the homebrew tier (keyed
+ * under edition-suffixed pack system ids) scope to the right edition.
+ */
+export async function getCreatureCatalog(systemId: string): Promise<CreatureResult[]> {
+  const args = systemQueryArgs(systemId);
+  const cacheKey = `${CATALOG_CACHE_KEY}:${args.srdVersion}`;
+  const mem = _catalogCache[cacheKey];
+  if (mem && Date.now() - mem.fetchedAt < CREATURE_CACHE_TTL) {
+    return mem.data;
   }
   // Try disk
   try {
-    const raw = await AsyncStorage.getItem(CATALOG_CACHE_KEY);
+    const raw = await AsyncStorage.getItem(cacheKey);
     if (raw) {
       const parsed = JSON.parse(raw) as { data: CreatureResult[]; fetchedAt: number };
       if (parsed.fetchedAt && Date.now() - parsed.fetchedAt < CREATURE_CACHE_TTL) {
-        _catalogCache = parsed.data;
-        _catalogFetchedAt = parsed.fetchedAt;
-        return _catalogCache;
+        _catalogCache[cacheKey] = parsed;
+        return parsed.data;
       }
     }
   } catch {}
   // Fetch fresh
-  const results = await ContentResolver.search({ type: 'monster', system });
-  _catalogCache = results as CreatureResult[];
-  _catalogFetchedAt = Date.now();
+  const results = (await ContentResolver.search({ type: 'monster', ...args })) as CreatureResult[];
+  const fetchedAt = Date.now();
+  _catalogCache[cacheKey] = { data: results, fetchedAt };
   // Persist (fire-and-forget)
   try {
-    AsyncStorage.setItem(
-      CATALOG_CACHE_KEY,
-      JSON.stringify({ data: _catalogCache, fetchedAt: _catalogFetchedAt }),
-    ).catch(() => {});
+    AsyncStorage.setItem(cacheKey, JSON.stringify({ data: results, fetchedAt })).catch(() => {});
   } catch {}
   // Also populate individual creature cache
-  for (const c of _catalogCache) {
+  for (const c of results) {
     if (c.key && !_cache[c.key]) {
-      _cache[c.key] = { data: c, fetchedAt: _catalogFetchedAt };
+      _cache[c.key] = { data: c, fetchedAt };
     }
   }
   persist();
-  return _catalogCache;
+  return results;
 }

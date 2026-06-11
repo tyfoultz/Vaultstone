@@ -459,14 +459,27 @@ export default function EncounterBuilderScreen() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const results = await getCreatureCatalog('dnd5e');
+      // The campaign's system id decides which edition's packs + SRD
+      // entries the catalog includes (a 2014 campaign must see
+      // dnd5e_2014 imports). Fall back to fetching it directly when the
+      // campaign store hasn't hydrated (e.g. deep link).
+      let systemId = campaign?.system;
+      if (!systemId && id) {
+        const { data } = await supabase
+          .from('campaigns')
+          .select('system')
+          .eq('id', id)
+          .single();
+        systemId = data?.system;
+      }
+      const results = await getCreatureCatalog(systemId ?? 'dnd5e');
       if (!cancelled) {
         setCatalog(results);
         setCatalogLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [id, campaign?.system]);
 
   // ---------------------------------------------------------------------------
   // Load party data for difficulty calculator

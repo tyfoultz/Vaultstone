@@ -25,6 +25,28 @@ import type {
  * separate imported_content table and surfaces them under the same
  * pack umbrella.
  */
+/**
+ * Translate a `campaigns.system` / `homebrew_packs.system` id
+ * (dnd5e_2014 / dnd5e_2024 / legacy dnd5e / custom) into the canonical
+ * ContentQuery args. SRD rows are keyed under the legacy 'dnd5e' system
+ * uniformly with the edition conveyed via `srdVersion`; the homebrew
+ * tier maps (system, srdVersion) onto edition-suffixed pack system ids.
+ *
+ * Campaign-context callers must route the campaign's system through this
+ * helper instead of hardcoding `system: 'dnd5e'` — the homebrew tier
+ * treats bare 'dnd5e' as the 2024 alias, so hardcoding silently drops
+ * every dnd5e_2014 pack (imports made on the 2014 system page) from the
+ * results.
+ */
+export function systemQueryArgs(
+  systemId: string,
+): { system: string; srdVersion: 'SRD_5.1' | 'SRD_2.0' } {
+  if (systemId === 'dnd5e_2014') return { system: 'dnd5e', srdVersion: 'SRD_5.1' };
+  // dnd5e_2024 / legacy dnd5e / custom all fall through to the 2024 SRD,
+  // matching systemToDraft in app/character/new.tsx.
+  return { system: 'dnd5e', srdVersion: 'SRD_2.0' };
+}
+
 export class ContentResolver {
   static async search(query: ContentQuery): Promise<ContentResult[]> {
     const tiers = query.tiers ?? ['srd', 'homebrew'];

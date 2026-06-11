@@ -1306,6 +1306,7 @@ export default function CombatScreen() {
           visible={pickerVisible}
           onClose={() => setPickerVisible(false)}
           onAddCreatures={handleAddCreatures}
+          system={campaign?.system}
         />
       </View>
     </SpellPinProvider>

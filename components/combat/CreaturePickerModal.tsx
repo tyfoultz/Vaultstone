@@ -4,13 +4,15 @@ import {
   StyleSheet, ActivityIndicator, Switch,
 } from 'react-native';
 import { colors, spacing, radius, Text } from '@vaultstone/ui';
-import { ContentResolver } from '@vaultstone/content';
+import { ContentResolver, systemQueryArgs } from '@vaultstone/content';
 import type { CreatureResult } from '@vaultstone/types';
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   onAddCreatures: (creatures: AddCreatureInput[]) => void;
+  /** Campaign system id (dnd5e_2014 / dnd5e_2024 / legacy dnd5e) —
+   *  scopes the catalog to the campaign's edition. */
   system?: string;
 };
 
@@ -57,7 +59,7 @@ export function CreaturePickerModal({ visible, onClose, onAddCreatures, system }
   useEffect(() => {
     if (!visible) return;
     setLoading(true);
-    ContentResolver.search({ type: 'monster', system: system ?? 'dnd5e' }).then((results) => {
+    ContentResolver.search({ type: 'monster', ...systemQueryArgs(system ?? 'dnd5e') }).then((results) => {
       setAllCreatures(results as CreatureResult[]);
       setLoading(false);
     });

@@ -1,4 +1,4 @@
-export { ContentResolver } from './resolver';
+export { ContentResolver, systemQueryArgs } from './resolver';
 // Homebrew-row → *Result mappers. Used by the homebrew tier inside
 // ContentResolver and re-used by the pack detail page to hydrate
 // fetched rows into the shape the shared content-table list components
