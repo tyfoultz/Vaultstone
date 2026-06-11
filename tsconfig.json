@@ -4,6 +4,9 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
+      "@vaultstone/ai": [
+        "packages/ai/src/index.ts"
+      ],
       "@vaultstone/api": [
         "packages/api/src/index.ts"
       ],

@@ -33,6 +33,8 @@ import {
   type FloatingNotesState,
 } from '../../../components/session/FloatingNotesContext';
 import { FloatingNotesOverlay, type PanelPos } from '../../../components/session/FloatingNotesOverlay';
+import { AiChatProvider, type AiChatSeed } from '../../../components/ai/AiChatContext';
+import { AiChatOverlay, type PanelSize } from '../../../components/ai/AiChatOverlay';
 
 export default function CampaignDetailScreen() {
   const params = useLocalSearchParams<{ id: string; tabs?: string }>();
@@ -137,6 +139,25 @@ export default function CampaignDetailScreen() {
     get isRegistered() { return notesState !== null; },
   }), [notesState, notesOpen]);
 
+  // Floating AI assistant — same lifted-state pattern as notes so the panel
+  // and its position persist across tab/pane switches within the campaign.
+  const [aiSeed, setAiSeed] = useState<AiChatSeed | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  // Once opened, the overlay stays mounted (hidden when minimized) so an
+  // in-flight assistant turn isn't killed by minimizing the panel.
+  const [aiEverOpened, setAiEverOpened] = useState(false);
+  useEffect(() => { if (aiOpen) setAiEverOpened(true); }, [aiOpen]);
+  const [aiPos, setAiPos] = useState<PanelPos | null>(null);
+  const [aiSize, setAiSize] = useState<PanelSize | null>(null);
+  const aiApi = useMemo(() => ({
+    register: (s: AiChatSeed) => setAiSeed(s),
+    open: (s: AiChatSeed) => { setAiSeed(s); setAiOpen(true); },
+    close: () => setAiOpen(false),
+    toggle: () => setAiOpen((v) => !v),
+    get isOpen() { return aiSeed !== null && aiOpen; },
+    get isRegistered() { return aiSeed !== null; },
+  }), [aiSeed, aiOpen]);
+
   // Body resolution per side. Memoized so a no-op re-render of the
   // route doesn't recreate the JSX (and force key-based remounts of
   // PagePaneContent / WorldHome which would lose unsaved drafts).
@@ -178,6 +199,7 @@ export default function CampaignDetailScreen() {
 
   return (
     <FloatingNotesProvider value={notesApi}>
+      <AiChatProvider value={aiApi}>
       <SharedDndProvider>
         <View style={styles.root}>
           <CampaignTabRow
@@ -199,27 +221,57 @@ export default function CampaignDetailScreen() {
               onClose={() => setNotesOpen(false)}
             />
           ) : null}
-          {notesState ? (
-            <Pressable
-              style={[styles.notesPill, notesOpen && styles.notesPillActive]}
-              onPress={() => {
-                if (notesState.sessionId) {
-                  setNotesOpen((v) => !v);
-                } else {
-                  router.push(`/campaign/${id}/notes` as never);
-                }
-              }}
-              accessibilityLabel="Session Notes"
-            >
-              <MaterialCommunityIcons
-                name="notebook-outline"
-                size={16}
-                color={notesOpen ? colors.onSurface : colors.primary}
-              />
-            </Pressable>
+          {aiSeed && aiEverOpened ? (
+            <AiChatOverlay
+              seed={aiSeed}
+              position={aiPos}
+              onPositionChange={setAiPos}
+              size={aiSize}
+              onSizeChange={setAiSize}
+              showPlayerAccessToggle
+              visible={aiOpen}
+              onClose={() => setAiOpen(false)}
+            />
+          ) : null}
+          {notesState || aiSeed ? (
+            <View style={styles.pillRow}>
+              {aiSeed ? (
+                <Pressable
+                  style={[styles.pill, aiOpen && styles.pillActive]}
+                  onPress={() => setAiOpen((v) => !v)}
+                  accessibilityLabel="AI Assistant"
+                >
+                  <MaterialCommunityIcons
+                    name="robot-happy-outline"
+                    size={16}
+                    color={aiOpen ? colors.onSurface : colors.primary}
+                  />
+                </Pressable>
+              ) : null}
+              {notesState ? (
+                <Pressable
+                  style={[styles.pill, notesOpen && styles.pillActive]}
+                  onPress={() => {
+                    if (notesState.sessionId) {
+                      setNotesOpen((v) => !v);
+                    } else {
+                      router.push(`/campaign/${id}/notes` as never);
+                    }
+                  }}
+                  accessibilityLabel="Session Notes"
+                >
+                  <MaterialCommunityIcons
+                    name="notebook-outline"
+                    size={16}
+                    color={notesOpen ? colors.onSurface : colors.primary}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
         </View>
       </SharedDndProvider>
+      </AiChatProvider>
     </FloatingNotesProvider>
   );
 }
@@ -281,10 +333,15 @@ const styles = StyleSheet.create({
       : { opacity: 0, pointerEvents: 'none' as const }
     ),
   },
-  notesPill: {
+  pillRow: {
     position: 'absolute',
     top: 6,
     right: spacing.sm + 4,
+    flexDirection: 'row',
+    gap: 8,
+    ...(Platform.OS === 'web' ? ({ zIndex: 20 } as any) : {}),
+  },
+  pill: {
     width: 32,
     height: 32,
     borderRadius: radius.xl,
@@ -294,11 +351,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...(Platform.OS === 'web'
-      ? { zIndex: 20, cursor: 'pointer' } as any
+      ? { cursor: 'pointer' } as any
       : { elevation: 4 }
     ),
   },
-  notesPillActive: {
+  pillActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },

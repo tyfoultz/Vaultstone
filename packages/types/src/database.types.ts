@@ -70,6 +70,7 @@ export interface Database {
           cover_image_url: string | null;
           is_archived: boolean;
           party_view_settings: Json | null;
+          ai_settings: Json | null;
           next_session_at: string | null;
           next_session_prep_page_id: string | null;
           /** DM-pinned scene image for the campaign window pane. FK
@@ -95,6 +96,7 @@ export interface Database {
           cover_image_url?: string | null;
           is_archived?: boolean;
           party_view_settings?: Json | null;
+          ai_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;
           scene_image_id?: string | null;
@@ -113,6 +115,7 @@ export interface Database {
           cover_image_url?: string | null;
           is_archived?: boolean;
           party_view_settings?: Json | null;
+          ai_settings?: Json | null;
           next_session_at?: string | null;
           next_session_prep_page_id?: string | null;
           scene_image_id?: string | null;

@@ -61,6 +61,11 @@ export async function regenerateJoinCode(campaignId: string) {
   return { code: error ? null : newCode, error };
 }
 
+/** Single campaign row by id. RLS scopes access to DM + members. */
+export async function getCampaignById(campaignId: string) {
+  return supabase.from('campaigns').select('*').eq('id', campaignId).single();
+}
+
 export async function getCampaignMembers(campaignId: string) {
   // Routes through get_campaign_members_trimmed so the embedded character's
   // `resources` blob arrives without the heavy sub-objects no member view
@@ -169,6 +174,21 @@ export async function updatePartyViewSettings(
   return supabase
     .from('campaigns')
     .update({ party_view_settings: settings as never })
+    .eq('id', campaignId);
+}
+
+export interface AiSettings {
+  /** Whether players in this campaign may use the AI assistant. */
+  playerAccessEnabled: boolean;
+}
+
+export const DEFAULT_AI_SETTINGS: AiSettings = { playerAccessEnabled: false };
+
+/** DM-only: toggle whether players may use the AI assistant in this campaign. */
+export async function updateAiSettings(campaignId: string, settings: AiSettings) {
+  return supabase
+    .from('campaigns')
+    .update({ ai_settings: settings as never })
     .eq('id', campaignId);
 }
 
