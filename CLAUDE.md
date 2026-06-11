@@ -37,7 +37,7 @@ Internal packages: `@vaultstone/api`, `@vaultstone/store`, `@vaultstone/types`, 
 
 **GameSystemDefinition** — Character builder and session mode render dynamically from the system definition. `packages/systems/src/dnd5e/` is the reference. Never hardcode D&D-specific logic in UI.
 
-**ContentResolver** — `packages/content/src/resolver.ts` is the single query interface for all content. Never query the `homebrew_content` / `imported_content` tables directly from UI; go through ContentResolver so SRD + authored homebrew + imports merge with consistent tier priority and dedupe.
+**ContentResolver** — `packages/content/src/resolver.ts` is the single query interface for all content. Never query the `homebrew_content` / `imported_content` tables directly from UI; go through ContentResolver so SRD + authored homebrew + imports merge with consistent tier priority and dedupe. **Edition scoping gotcha:** SRD rows are keyed under the legacy `'dnd5e'` system with the edition conveyed via `srdVersion`, while homebrew packs carry edition-suffixed system ids (`dnd5e_2014` / `dnd5e_2024`) — and the homebrew tier treats bare `'dnd5e'` as the 2024 alias. Campaign-context callers must translate `campaign.system` through `systemQueryArgs()` (exported from `@vaultstone/content`) instead of hardcoding `system: 'dnd5e'`; hardcoding silently drops every 2014-edition pack from the results (the encounter-builder "imported monster missing" bug).
 
 **Real-time sessions** — Supabase Realtime channel `session:{session_id}`. Optimistic updates on client. Session state changes emit to `session_events` (append-only — `Update: never` in types).
 
