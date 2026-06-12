@@ -1272,18 +1272,23 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const computedSpellAttack = computedSpellMod !== null ? prof + computedSpellMod : null;
   const computedSpellDC = computedSpellMod !== null ? 8 + prof + computedSpellMod : null;
 
-  // Spell-slot max overrides — applied only in Manual Mode. The
-  // synthesized `effectiveSpellSlots` becomes the source of truth for
-  // any descendant that reads `resources.spellSlots`; we splice it
-  // into the resources clone passed down to the Spells / Combat tabs.
-  // `remaining` is clamped to the override max so reducing the cap
-  // doesn't leave a stale higher remaining value showing.
+  // Spell-slot max overrides. Unlike AC / DC / initiative (derived
+  // display numbers gated to Manual Mode), a slot override changes the
+  // character's actual usable resource pool, so it applies ALWAYS —
+  // otherwise the slots a player explicitly set would vanish the moment
+  // Manual Mode is toggled off. Editing the cap still only happens in
+  // Manual Mode; "Reset to computed" clears the override. The synthesized
+  // `effectiveSpellSlots` becomes the source of truth for any descendant
+  // that reads `resources.spellSlots`; we splice it into the resources
+  // clone passed down to the Spells / Combat tabs. `remaining` is clamped
+  // to the override max (the available count itself lives in
+  // resources.spellSlots, re-based on edit so a raised cap is usable).
   const SLOT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
   type SpellSlotKey = typeof SLOT_LEVELS[number];
   const effectiveSpellSlots = useMemo(() => {
     const raw = resources?.spellSlots;
     if (!raw) return null;
-    if (!manualMode || !stats?.spellSlotMaxOverrides) return raw;
+    if (!stats?.spellSlotMaxOverrides) return raw;
     const overrides = stats.spellSlotMaxOverrides;
     const out = { ...raw } as typeof raw;
     let touched = false;
@@ -1298,7 +1303,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     }
     return touched ? out : raw;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resources?.spellSlots, manualMode, stats?.spellSlotMaxOverrides]);
+  }, [resources?.spellSlots, stats?.spellSlotMaxOverrides]);
   // Manual-mode overrides only apply when Manual Mode is actually on.
   // Without this gate, a stray value typed once stays as a silent
   // override forever — exactly the playtest bug where Oswald's AC was
@@ -1429,14 +1434,32 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     await updateCharacter(character.id, { resources: res });
   }
 
-  // Self-heal spell slots — characters bootstrapped before the slot
-  // reader learned alternate progression-table column shapes (notably
-  // imported homebrew classes like 5e.tools Artificer that ship
-  // `spell1` / `spell2` / ... instead of `1st` / `2nd` / ...) wrote
-  // an all-zero slot table to the row. Now that the reader handles
-  // those keys, recompute on first sheet load and persist if the
-  // recompute would add slots that aren't there. Owner-only so
-  // non-owner viewers don't accidentally trip the write.
+  // Write base_stats + resources in one shot. Calling persistStats then
+  // persistResources back-to-back races: each spreads the same stale
+  // `character` closure, so the second setCharacter clobbers the first's
+  // local update. Slot-max edits touch both (override in stats, available
+  // count in resources), so they go through here.
+  async function persistStatsAndResources(nextStats: Dnd5eStats, nextResources: Dnd5eResources) {
+    if (!character || !canEditAny) return;
+    const bs = nextStats as unknown as import('@vaultstone/types').Json;
+    const res = nextResources as unknown as import('@vaultstone/types').Json;
+    setCharacter({ ...character, base_stats: bs, resources: res });
+    updateCharacterLocally(character.id, { base_stats: bs, resources: res });
+    await updateCharacter(character.id, { base_stats: bs, resources: res });
+  }
+
+  // Self-heal spell slots — reconcile the stored slot table UP to the
+  // freshly computed values, granting any missing slots as available.
+  // Covers two cases: (1) characters bootstrapped before the slot reader
+  // learned alternate progression-table column shapes (imported homebrew
+  // like the 5e.tools Artificer that ships `spell1` / `spell2` instead of
+  // `1st` / `2nd`) wrote an all-zero table; (2) multiclass characters
+  // whose stored max was computed under the old buggy ÷2 multiclass math
+  // (e.g. Paladin / Fighter) — the slot-table fix would otherwise only
+  // reach them on their next level-up. Upward-only and used-preserving so
+  // it never wipes expended slots or stomps a lower intentional value;
+  // levels with a manual override are left alone. Owner-only so non-owner
+  // viewers don't trip the write.
   useEffect(() => {
     if (!isOwner) return;
     const stats = character?.base_stats as Dnd5eStats | null;
@@ -1448,16 +1471,24 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     const subMap = new Map(Object.entries(subclassResultsByKey));
     const computed = spellSlotsForCharacter(entries, map, subMap);
     const current = resources.spellSlots;
-    const computedHasSlots = ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const)
-      .some((l) => computed[l].max > 0);
-    const currentHasSlots = current
-      ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).some((l) => (current[l]?.max ?? 0) > 0)
-      : false;
-    if (!computedHasSlots || currentHasSlots) return;
-    persistResources({
-      ...resources,
-      spellSlots: computed,
-    });
+    const overrides = stats.spellSlotMaxOverrides;
+    const LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+    if (!LEVELS.some((l) => computed[l].max > 0)) return;
+    const next = { ...(current ?? {}) } as NonNullable<Dnd5eResources['spellSlots']>;
+    let changed = false;
+    for (const l of LEVELS) {
+      const cur = current?.[l] ?? { max: 0, remaining: 0 };
+      const comp = computed[l].max;
+      // Respect a manual per-slot cap; never reconcile downward.
+      if (overrides?.[l] == null && comp > cur.max) {
+        next[l] = { max: comp, remaining: cur.remaining + (comp - cur.max) };
+        changed = true;
+      } else {
+        next[l] = cur;
+      }
+    }
+    if (!changed) return;
+    persistResources({ ...resources, spellSlots: next });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOwner, classResultsByKey, subclassResultsByKey, character?.id]);
 
@@ -1781,14 +1812,25 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     } else if (typeof editingField === 'string' && editingField.startsWith('slotMax_')) {
       const lvl = parseInt(editingField.slice('slotMax_'.length), 10);
       if (Number.isFinite(lvl) && lvl >= 1 && lvl <= 9 && stats.spellSlotMaxOverrides) {
-        const { [lvl as keyof NonNullable<Dnd5eStats['spellSlotMaxOverrides']>]: _, ...remainingOverrides } = stats.spellSlotMaxOverrides;
+        const key = lvl as SpellSlotKey;
+        const { [key]: _, ...remainingOverrides } = stats.spellSlotMaxOverrides;
         const next: Dnd5eStats = { ...stats };
         if (Object.keys(remainingOverrides).length === 0) {
           delete next.spellSlotMaxOverrides;
         } else {
           next.spellSlotMaxOverrides = remainingOverrides as NonNullable<Dnd5eStats['spellSlotMaxOverrides']>;
         }
-        persistStats(next);
+        // Clamp the available count back under the computed cap so a
+        // higher override-era remaining doesn't linger after reset.
+        if (resources?.spellSlots) {
+          const raw = resources.spellSlots[key] ?? { max: 0, remaining: 0 };
+          persistStatsAndResources(next, {
+            ...resources,
+            spellSlots: { ...resources.spellSlots, [key]: { ...raw, remaining: Math.min(raw.remaining, raw.max) } },
+          });
+        } else {
+          persistStats(next);
+        }
       }
     }
     setEditingField(null);
@@ -1838,11 +1880,28 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
       if (isNaN(num) || num < 0) { setEditingField(null); return; }
       const lvl = parseInt(editingField.slice('slotMax_'.length), 10);
       if (!Number.isFinite(lvl) || lvl < 1 || lvl > 9) { setEditingField(null); return; }
+      const key = lvl as SpellSlotKey;
       const prev = stats.spellSlotMaxOverrides ?? {};
-      persistStats({
+      const nextStats: Dnd5eStats = {
         ...stats,
-        spellSlotMaxOverrides: { ...prev, [lvl]: num },
-      });
+        spellSlotMaxOverrides: { ...prev, [key]: num },
+      };
+      // Re-base the available count under the new cap, preserving spent
+      // slots, so a level raised from e.g. 0 → 3 shows 3 usable pips
+      // immediately rather than 0. used = previous effective max minus
+      // previous effective remaining.
+      if (resources?.spellSlots) {
+        const raw = resources.spellSlots[key] ?? { max: 0, remaining: 0 };
+        const prevMax = prev[key] ?? raw.max;
+        const used = Math.max(0, prevMax - Math.min(raw.remaining, prevMax));
+        const remaining = Math.max(0, num - used);
+        persistStatsAndResources(nextStats, {
+          ...resources,
+          spellSlots: { ...resources.spellSlots, [key]: { ...raw, remaining } },
+        });
+      } else {
+        persistStats(nextStats);
+      }
     } else if (editingField === 'hpMax') {
       if (isNaN(num) || num < 1) { setEditingField(null); return; }
       persistStats({ ...stats, hpMax: num });
@@ -2212,7 +2271,10 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             onSpellSlotChange={(level, delta) => {
               if (!resources.spellSlots) return;
               const slot = resources.spellSlots[level];
-              const next = Math.max(0, Math.min(slot.max, slot.remaining + delta));
+              // Clamp to the effective cap (override if set, else raw max)
+              // so pips for a manually raised level are actually spendable.
+              const cap = effectiveSpellSlots?.[level]?.max ?? slot.max;
+              const next = Math.max(0, Math.min(cap, slot.remaining + delta));
               persistResources({
                 ...resources,
                 spellSlots: { ...resources.spellSlots, [level]: { ...slot, remaining: next } },

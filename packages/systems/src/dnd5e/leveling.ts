@@ -234,54 +234,63 @@ export function spellSlotsForCharacter(
   classByKey: Map<string, ClassResult>,
   subclassByKey?: Map<string, SubclassResult>,
 ): SpellSlotsByLevel {
-  // Single-class shortcut: read the class's own table directly so
-  // edition-specific oddities (Paladin/Ranger 5.1 L1 = 0) are
-  // preserved instead of being normalized to the multiclass table.
-  // Skip the shortcut when the subclass grants casting (the class
-  // table has no spell columns for Fighter/Rogue).
-  if (entries.length === 1) {
-    const e = entries[0];
-    const cls = classByKey.get(e.classKey);
-    if (!cls) return cloneSlots(EMPTY_SLOTS);
-    const sub = e.subclassKey && subclassByKey ? subclassByKey.get(e.subclassKey) : undefined;
-    const t = casterTypeForEntry(cls, sub);
-    if (t && cls.spellcasting) {
-      return spellSlotsForClassAtLevel(cls, e.level);
-    }
-    // Fall through to the multiclass path for subclass-only casters
-    // so the third-caster math applies.
-    if (!t) return cloneSlots(EMPTY_SLOTS);
-  }
-
-  // Multi-class (or single-class subclass caster): sum the multiclass
-  // caster level from full + half + third casters, then read the
-  // standard full-caster slot row for that level. Warlock pact slots
-  // add on top.
-  let casterLevel = 0;
+  // Classify each entry's spellcasting contribution. Warlock pact magic
+  // is tracked separately (it never combines into the multiclass caster
+  // level); every other caster type feeds the `nonPact` list.
+  const nonPact: Array<{ entry: Dnd5eClassEntry; cls: ClassResult; type: CasterType }> = [];
   let pactSlots: SpellSlotsByLevel | null = null;
   for (const e of entries) {
     const cls = classByKey.get(e.classKey);
     if (!cls) continue;
     const sub = e.subclassKey && subclassByKey ? subclassByKey.get(e.subclassKey) : undefined;
     const t = casterTypeForEntry(cls, sub);
-    if (t === 'full')  casterLevel += e.level;
-    if (t === 'half')  casterLevel += Math.floor(e.level / 2);
-    if (t === 'third') casterLevel += Math.floor(e.level / 3);
+    if (!t) continue;
     if (t === 'pact') {
       pactSlots = spellSlotsForClassAtLevel(cls, e.level);
+    } else {
+      nonPact.push({ entry: e, cls, type: t });
     }
   }
 
-  const slots = cloneSlots(EMPTY_SLOTS);
-  if (casterLevel > 0) {
-    const row = MULTICLASS_CASTER_SLOTS[Math.min(casterLevel, 20)];
-    if (row) {
-      for (const col of SLOT_COLUMNS) {
-        const n = row[col.level - 1];
-        slots[col.level] = { max: n, remaining: n };
+  let slots: SpellSlotsByLevel;
+
+  // Single spellcasting class → read that class's OWN progression table,
+  // not the summed multiclass table. Per the SRD multiclass rules, the
+  // multiclass spell-slot table only applies when you have the
+  // Spellcasting feature from more than one class. A half-caster
+  // (Paladin/Ranger) multiclassed with a non-caster (e.g. Fighter) keeps
+  // their own slot progression — routing them through the ÷2 multiclass
+  // track was the "not enough slots" bug (Paladin 11 / Fighter showing
+  // caster-level-5 slots instead of the Paladin's own). Edition oddities
+  // (Paladin/Ranger 5.1 L1 = 0) are preserved this way too. Only classes
+  // that ship their own spell table qualify; subclass casters (Eldritch
+  // Knight / Arcane Trickster) have no spell columns on the base
+  // Fighter/Rogue table, so they fall through to the third-caster
+  // multiclass derivation below.
+  if (nonPact.length === 1 && nonPact[0].cls.spellcasting) {
+    slots = spellSlotsForClassAtLevel(nonPact[0].cls, nonPact[0].entry.level);
+  } else {
+    // Multi-class (or single subclass caster): sum the multiclass caster
+    // level from full + half + third casters, then read the standard
+    // full-caster slot row for that level.
+    let casterLevel = 0;
+    for (const { entry, type } of nonPact) {
+      if (type === 'full')  casterLevel += entry.level;
+      if (type === 'half')  casterLevel += Math.floor(entry.level / 2);
+      if (type === 'third') casterLevel += Math.floor(entry.level / 3);
+    }
+    slots = cloneSlots(EMPTY_SLOTS);
+    if (casterLevel > 0) {
+      const row = MULTICLASS_CASTER_SLOTS[Math.min(casterLevel, 20)];
+      if (row) {
+        for (const col of SLOT_COLUMNS) {
+          const n = row[col.level - 1];
+          slots[col.level] = { max: n, remaining: n };
+        }
       }
     }
   }
+
   if (pactSlots) {
     for (const col of SLOT_COLUMNS) {
       const lvl = col.level;

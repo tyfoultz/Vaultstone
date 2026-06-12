@@ -225,7 +225,11 @@ export function SpellsTab({
     level: lvl,
     spells: filteredSpells.filter((sp) => sp.level === lvl).sort(byName),
     slot: spellSlots?.[lvl] ?? null,
-  })).filter((g) => g.spells.length > 0 || (g.slot && g.slot.max > 0));
+  })).filter((g) =>
+    // In Manual Mode, show every slot level for a caster so the per-slot
+    // max can be edited even where it currently computes to 0.
+    (manualMode && isSpellcaster) || g.spells.length > 0 || (g.slot && g.slot.max > 0)
+  );
 
   // Counts for the stats-row cells (CANTRIPS + PREPARED). Sum the limits
   // across explainer entries so multiclass shows the total (e.g.
@@ -433,7 +437,7 @@ export function SpellsTab({
         <View key={level} style={s.levelSection}>
           <View style={s.levelHead}>
             <Text style={s.levelTitle}>{`${ordinal(level)} Level`}</Text>
-            {slot && slot.max > 0 && (
+            {slot && (slot.max > 0 || (manualMode && !!onEditField)) && (
               <View style={[s.slotSummary, manualMode && s.slotSummaryEditable]}>
                 {manualMode && onEditField ? (
                   <TouchableOpacity
@@ -445,20 +449,22 @@ export function SpellsTab({
                 ) : (
                   <Text style={s.levelSub}>{`${slot.remaining} of ${slot.max} slots`}</Text>
                 )}
-                <View style={s.slotPipsRowInline}>
-                  {Array.from({ length: slot.max }).map((_, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={() => {
-                        if (!isOwner || !onSpellSlotChange) return;
-                        onSpellSlotChange(level, i < slot.remaining ? -1 : 1);
-                      }}
-                      activeOpacity={isOwner ? 0.7 : 1}
-                    >
-                      <View style={[s.pip, i < slot.remaining && s.pipFilled]} />
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                {slot.max > 0 && (
+                  <View style={s.slotPipsRowInline}>
+                    {Array.from({ length: slot.max }).map((_, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        onPress={() => {
+                          if (!isOwner || !onSpellSlotChange) return;
+                          onSpellSlotChange(level, i < slot.remaining ? -1 : 1);
+                        }}
+                        activeOpacity={isOwner ? 0.7 : 1}
+                      >
+                        <View style={[s.pip, i < slot.remaining && s.pipFilled]} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
             )}
           </View>
