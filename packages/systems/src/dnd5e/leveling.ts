@@ -273,12 +273,21 @@ export function spellSlotsForCharacter(
     // Multi-class (or single subclass caster): sum the multiclass caster
     // level from full + half + third casters, then read the standard
     // full-caster slot row for that level.
-    let casterLevel = 0;
+    //
+    // Per the SRD multiclass rules the divisor is applied ONCE to the
+    // combined levels of each caster category — "half your levels
+    // (rounded down) in the paladin and ranger classes", "a third of
+    // your fighter or rogue levels (rounded down)". Rounding each
+    // class's contribution separately under-counts when two half- or
+    // two third-casters combine: Paladin 3 / Ranger 3 should be
+    // ⌊(3+3)/2⌋ = 3, not ⌊3/2⌋ + ⌊3/2⌋ = 2.
+    let fullLevels = 0, halfLevels = 0, thirdLevels = 0;
     for (const { entry, type } of nonPact) {
-      if (type === 'full')  casterLevel += entry.level;
-      if (type === 'half')  casterLevel += Math.floor(entry.level / 2);
-      if (type === 'third') casterLevel += Math.floor(entry.level / 3);
+      if (type === 'full')  fullLevels  += entry.level;
+      if (type === 'half')  halfLevels  += entry.level;
+      if (type === 'third') thirdLevels += entry.level;
     }
+    const casterLevel = fullLevels + Math.floor(halfLevels / 2) + Math.floor(thirdLevels / 3);
     slots = cloneSlots(EMPTY_SLOTS);
     if (casterLevel > 0) {
       const row = MULTICLASS_CASTER_SLOTS[Math.min(casterLevel, 20)];

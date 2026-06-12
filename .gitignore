@@ -16,6 +16,9 @@ ios/
 android/
 .netlify
 
+# Supabase CLI local link state (machine-specific; contains pooler URLs)
+supabase/.temp/
+
 # Playwright MCP runtime artifacts (console logs + page snapshots)
 .playwright-mcp/
 

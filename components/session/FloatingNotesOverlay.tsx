@@ -6,6 +6,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   getMySessionNote, upsertSessionNote, getAllSessionNotes,
+  setSessionNoteShared, getSharedSessionNote, supabase,
 } from '@vaultstone/api';
 import { colors, spacing, radius, Text, GhostButton } from '@vaultstone/ui';
 import { RichTextEditor } from '../notes/RichTextEditor';
@@ -45,7 +46,7 @@ function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
 }
 
-type Tab = 'mine' | 'all';
+type Tab = 'mine' | 'all' | 'shared';
 
 const PANEL_W = 420;
 
@@ -63,6 +64,12 @@ export function FloatingNotesOverlay({
   const [tab, setTab] = useState<Tab>('mine');
   const [allNotes, setAllNotes] = useState<NoteRow[]>([]);
   const [allLoading, setAllLoading] = useState(false);
+  // DM's own share flag (whether their note is shared with the table)
+  // and the shared note as seen by players.
+  const [shared, setShared] = useState(false);
+  const [sharingBusy, setSharingBusy] = useState(false);
+  const [sharedNote, setSharedNote] = useState<NoteRow | null>(null);
+  const [sharedLoading, setSharedLoading] = useState(false);
 
   const defaultPos = { x: screenW - PANEL_W - 24, y: screenH - 520 };
   const pos = externalPos ?? defaultPos;
@@ -101,10 +108,60 @@ export function FloatingNotesOverlay({
       if (cancelled) return;
       setBody(row.body ?? '');
       setSavedAt(row.updated_at ?? null);
+      setShared(row.shared ?? false);
       setLoading(false);
     });
     return () => { cancelled = true; };
   }, [sessionId, userId]);
+
+  // The shared (DM) note players can read. Loaded on demand for the
+  // "Shared" tab and refreshed live via the session_notes Realtime
+  // subscription below.
+  const loadSharedNote = useCallback(async () => {
+    setSharedLoading(true);
+    const row = await getSharedSessionNote(sessionId);
+    setSharedNote(
+      row
+        ? {
+            user_id: row.user_id,
+            body: row.body,
+            updated_at: row.updated_at,
+            display_name: memberNames?.get(row.user_id) ?? 'Dungeon Master',
+          }
+        : null,
+    );
+    setSharedLoading(false);
+  }, [sessionId, memberNames]);
+
+  // Realtime: when any session_notes row for this session changes,
+  // refresh whatever shared/all view is open so players see the DM's
+  // shared note update live (and the DM's "All Notes" stays current).
+  useEffect(() => {
+    const suffix = Math.random().toString(36).slice(2, 10);
+    const channel = supabase
+      .channel(`session-notes-${sessionId}-${suffix}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'session_notes', filter: `session_id=eq.${sessionId}` },
+        () => {
+          if (!isDM) void loadSharedNote();
+          else if (tab === 'all') void loadAllNotes();
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, isDM, tab]);
+
+  async function toggleShared() {
+    if (sharingBusy) return;
+    const next = !shared;
+    setSharingBusy(true);
+    setShared(next); // optimistic
+    const { error } = await setSessionNoteShared(sessionId, userId, next);
+    setSharingBusy(false);
+    if (error) setShared(!next); // revert on failure
+  }
 
   const scheduleSave = useCallback((next: string) => {
     if (readOnly) return;
@@ -148,7 +205,8 @@ export function FloatingNotesOverlay({
 
   useEffect(() => {
     if (tab === 'all' && isDM) void loadAllNotes();
-  }, [tab, isDM, loadAllNotes]);
+    if (tab === 'shared' && !isDM) void loadSharedNote();
+  }, [tab, isDM, loadAllNotes, loadSharedNote]);
 
   const savedLabel = saving
     ? 'Saving…'
@@ -179,18 +237,19 @@ export function FloatingNotesOverlay({
         </Pressable>
       </View>
 
-      {/* Tabs (DM only) */}
-      {isDM ? (
-        <View style={styles.tabRow}>
-          <Pressable
-            style={[styles.tab, tab === 'mine' && styles.tabActive]}
-            onPress={() => setTab('mine')}
-          >
-            <Text variant="label-sm" weight={tab === 'mine' ? 'bold' : 'regular'}
-              style={{ color: tab === 'mine' ? colors.primary : colors.onSurfaceVariant }}>
-              My Notes
-            </Text>
-          </Pressable>
+      {/* Tabs — DM: My Notes / All Notes. Player: My Notes / Shared
+          (the note the DM has chosen to surface to the table). */}
+      <View style={styles.tabRow}>
+        <Pressable
+          style={[styles.tab, tab === 'mine' && styles.tabActive]}
+          onPress={() => setTab('mine')}
+        >
+          <Text variant="label-sm" weight={tab === 'mine' ? 'bold' : 'regular'}
+            style={{ color: tab === 'mine' ? colors.primary : colors.onSurfaceVariant }}>
+            My Notes
+          </Text>
+        </Pressable>
+        {isDM ? (
           <Pressable
             style={[styles.tab, tab === 'all' && styles.tabActive]}
             onPress={() => setTab('all')}
@@ -200,8 +259,18 @@ export function FloatingNotesOverlay({
               All Notes
             </Text>
           </Pressable>
-        </View>
-      ) : null}
+        ) : (
+          <Pressable
+            style={[styles.tab, tab === 'shared' && styles.tabActive]}
+            onPress={() => setTab('shared')}
+          >
+            <Text variant="label-sm" weight={tab === 'shared' ? 'bold' : 'regular'}
+              style={{ color: tab === 'shared' ? colors.primary : colors.onSurfaceVariant }}>
+              Shared
+            </Text>
+          </Pressable>
+        )}
+      </View>
 
       {readOnly ? (
         <Text variant="label-sm" style={{ color: colors.hpWarning, fontStyle: 'italic', paddingHorizontal: spacing.md }}>
@@ -224,6 +293,28 @@ export function FloatingNotesOverlay({
               placeholder="Jot down anything you want to remember…"
               minHeight={160}
             />
+          )
+        ) : tab === 'shared' ? (
+          sharedLoading ? (
+            <View style={styles.center}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : sharedNote && sharedNote.body ? (
+            <View style={styles.noteCard}>
+              <Text variant="label-sm" weight="bold" style={{ color: colors.primary, marginBottom: 4 }}>
+                {sharedNote.display_name}
+              </Text>
+              <RichTextEditor value={sharedNote.body} onChangeText={() => {}} readOnly minHeight={60} />
+              {sharedNote.updated_at ? (
+                <Text variant="label-sm" style={{ color: colors.onSurfaceVariant, marginTop: 4, textAlign: 'right' }}>
+                  Updated {formatSavedAt(sharedNote.updated_at)}
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <Text variant="body-sm" style={{ color: colors.onSurfaceVariant, padding: spacing.md, fontStyle: 'italic' }}>
+              The DM hasn't shared any notes with the table yet.
+            </Text>
           )
         ) : (
           allLoading ? (
@@ -267,6 +358,30 @@ export function FloatingNotesOverlay({
       {tab === 'mine' ? (
         <View style={styles.footer}>
           <Text variant="label-sm" style={{ color: colors.onSurfaceVariant }}>{savedLabel}</Text>
+          {/* DM-only: surface this note to the whole table, read-only.
+              Players see it live under their "Shared" tab. */}
+          {isDM && !readOnly ? (
+            <Pressable
+              onPress={toggleShared}
+              disabled={sharingBusy}
+              style={[styles.shareToggle, shared && styles.shareToggleOn]}
+              hitSlop={6}
+            >
+              <MaterialCommunityIcons
+                name={shared ? 'eye-check' : 'eye-off-outline'}
+                size={14}
+                color={shared ? colors.primary : colors.onSurfaceVariant}
+              />
+              <Text variant="label-sm" weight="bold"
+                style={{ color: shared ? colors.primary : colors.onSurfaceVariant }}>
+                {shared ? 'Shared with players' : 'Share with players'}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : tab === 'shared' ? (
+        <View style={styles.footer}>
+          <GhostButton label="Refresh" icon="refresh" onPress={loadSharedNote} />
         </View>
       ) : (
         <View style={styles.footer}>
@@ -364,11 +479,27 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderTopWidth: 1,
     borderTopColor: colors.outlineVariant + '22',
+  },
+  shareToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+  },
+  shareToggleOn: {
+    borderColor: colors.primary + '88',
+    backgroundColor: colors.primary + '14',
   },
   backdrop: {
     flex: 1,

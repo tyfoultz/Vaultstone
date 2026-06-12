@@ -97,6 +97,29 @@ export function BodyEditor({
     }),
   ).current;
 
+  // Serializing the document (getJSON → plain text → mention extraction)
+  // walks the whole Tiptap tree, which is O(doc size) per call. Running
+  // it on every keystroke made typing lag noticeably on long pages.
+  // Tiptap is uncontrolled — its content isn't reset from props — so we
+  // can debounce the onChange callback without affecting what the user
+  // sees as they type. The work (and the parent's save) fires once the
+  // user pauses; a trailing flush on unmount guarantees the last edit is
+  // never dropped.
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingEditorRef = useRef<ReturnType<typeof useEditor> | null>(null);
+  const flushChange = useCallback(() => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    const ed = pendingEditorRef.current;
+    if (!ed) return;
+    pendingEditorRef.current = null;
+    const body = ed.getJSON();
+    onChangeRef.current(body, jsonToPlainText(body), extractMentionedPageIds(body));
+  }, []);
+  useEffect(() => () => { flushChange(); }, [flushChange]);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -111,8 +134,9 @@ export function BodyEditor({
     editable,
     immediatelyRender: true,
     onUpdate: ({ editor }) => {
-      const body = editor.getJSON();
-      onChangeRef.current(body, jsonToPlainText(body), extractMentionedPageIds(body));
+      pendingEditorRef.current = editor;
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = setTimeout(flushChange, 300);
     },
     editorProps: {
       attributes: {
