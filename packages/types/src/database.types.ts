@@ -238,16 +238,19 @@ export interface Database {
           user_id: string;
           body: string;
           updated_at: string;
+          shared: boolean;
         };
         Insert: {
           session_id: string;
           user_id: string;
           body?: string;
           updated_at?: string;
+          shared?: boolean;
         };
         Update: {
           body?: string;
           updated_at?: string;
+          shared?: boolean;
         };
         Relationships: [];
       };

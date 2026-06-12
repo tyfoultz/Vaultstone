@@ -87,11 +87,11 @@ export async function getSessionParticipants(sessionId: string): Promise<string[
 export async function getMySessionNote(sessionId: string, userId: string) {
   const { data } = await supabase
     .from('session_notes')
-    .select('body, updated_at')
+    .select('body, updated_at, shared')
     .eq('session_id', sessionId)
     .eq('user_id', userId)
     .maybeSingle();
-  return data ?? { body: '', updated_at: null };
+  return data ?? { body: '', updated_at: null, shared: false };
 }
 
 export async function upsertSessionNote(sessionId: string, userId: string, body: string) {
@@ -101,6 +101,38 @@ export async function upsertSessionNote(sessionId: string, userId: string, body:
       { session_id: sessionId, user_id: userId, body, updated_at: new Date().toISOString() },
       { onConflict: 'session_id,user_id' },
     );
+}
+
+/**
+ * Toggle whether the caller's session note is shared with the table.
+ * When shared, every campaign member can read this one row (RLS) and
+ * the floating overlay surfaces it live to players. Upserts so a DM who
+ * hasn't typed anything yet can still flip sharing on.
+ */
+export async function setSessionNoteShared(sessionId: string, userId: string, shared: boolean) {
+  return supabase
+    .from('session_notes')
+    .upsert(
+      { session_id: sessionId, user_id: userId, shared, updated_at: new Date().toISOString() },
+      { onConflict: 'session_id,user_id' },
+    );
+}
+
+/**
+ * Fetch the note the DM has shared with the table for this session, if
+ * any. RLS only returns a row when `shared = true` and the caller is a
+ * member of the session's campaign, so players can call this safely —
+ * they get the shared note or nothing. Returns the author so the
+ * overlay can label it.
+ */
+export async function getSharedSessionNote(sessionId: string) {
+  const { data } = await supabase
+    .from('session_notes')
+    .select('user_id, body, updated_at')
+    .eq('session_id', sessionId)
+    .eq('shared', true)
+    .maybeSingle();
+  return data ?? null;
 }
 
 // RLS filters this — caller gets only the rows they're allowed to see.

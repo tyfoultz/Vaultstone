@@ -683,6 +683,7 @@ export function EquipmentDetailModal({
   onToggleEquipped,
   onUpdateAttackAbility,
   onRemove,
+  onEdit,
   canEdit,
 }: {
   item: Dnd5eEquipmentItem;
@@ -692,6 +693,11 @@ export function EquipmentDetailModal({
   onToggleEquipped?: () => void;
   onUpdateAttackAbility?: (ability: Dnd5eEquipmentItem['attackAbility']) => void;
   onRemove?: () => void;
+  /** Open the full edit form (name + all mechanical fields). The inline
+   *  controls here only cover quantity / value / attack ability;
+   *  everything else (damage, base AC, magic bonuses, notes) lives in the
+   *  editor this opens. */
+  onEdit?: () => void;
   canEdit: boolean;
 }) {
   const armorType = armorTypeLabel(item);
@@ -801,8 +807,18 @@ export function EquipmentDetailModal({
               </View>
             ) : null}
           </ScrollView>
-          {canEdit && (onToggleEquipped || onRemove) ? (
+          {canEdit && (onToggleEquipped || onRemove || onEdit) ? (
             <View style={s.detailActions}>
+              {onEdit ? (
+                <TouchableOpacity
+                  onPress={onEdit}
+                  style={[s.detailActionBtn, s.detailActionBtnActive]}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="pencil" size={14} color={colors.primary} />
+                  <Text style={s.detailActionBtnActiveText}>Edit</Text>
+                </TouchableOpacity>
+              ) : null}
               {onToggleEquipped ? (
                 <TouchableOpacity
                   onPress={onToggleEquipped}

@@ -4032,6 +4032,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 setRemoveEquipId(id);
               }
             : undefined}
+          onEdit={canEditAny
+            ? () => {
+                // Open the full edit form (name, damage, AC, attack
+                // bonus, magic AC bonus, notes…). The detail modal only
+                // exposes a few inline fields; this is the everything
+                // editor. Close the detail card first so they don't stack.
+                const target = detailEquipment;
+                setDetailEquipment(null);
+                setEditEquip(target);
+                setEquipModal(true);
+              }
+            : undefined}
           canEdit={canEditAny}
         />
       ) : null}
@@ -4276,6 +4288,19 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                       placeholder="finesse, light, versatile"
                       placeholderTextColor={colors.textSecondary}
                     />
+                    <Text style={s.eqLabel}>Attack roll override (blank = auto: ability mod + proficiency)</Text>
+                    <TextInput
+                      style={s.eqInput}
+                      value={editEquip.attackBonus !== undefined ? String(editEquip.attackBonus) : ''}
+                      onChangeText={(t) => {
+                        const trimmed = t.replace(/[^0-9+-]/g, '');
+                        const n = parseInt(trimmed, 10);
+                        setEditEquip({ ...editEquip, attackBonus: Number.isFinite(n) ? n : undefined });
+                      }}
+                      keyboardType="numbers-and-punctuation"
+                      placeholder="e.g. 7 (a flat to-hit, e.g. for a +1 weapon)"
+                      placeholderTextColor={colors.textSecondary}
+                    />
                   </>
                 )}
 
@@ -4302,6 +4327,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                       placeholder="e.g. 2 (or blank for full DEX)"
                       placeholderTextColor={colors.textSecondary}
                     />
+                    <Text style={s.eqLabel}>Magic AC bonus (+N, e.g. +1 plate)</Text>
+                    <TextInput
+                      style={s.eqInput}
+                      value={editEquip.miscACBonus !== undefined ? String(editEquip.miscACBonus) : ''}
+                      onChangeText={(t) => {
+                        const n = parseInt(t, 10);
+                        setEditEquip({ ...editEquip, miscACBonus: Number.isFinite(n) && n !== 0 ? n : undefined });
+                      }}
+                      keyboardType="numbers-and-punctuation"
+                      placeholder="e.g. 1 (blank for none)"
+                      placeholderTextColor={colors.textSecondary}
+                    />
                   </>
                 )}
 
@@ -4314,6 +4351,18 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                       onChangeText={(t) => setEditEquip({ ...editEquip, acBonus: parseInt(t, 10) || 2 })}
                       keyboardType="number-pad"
                       placeholder="2"
+                      placeholderTextColor={colors.textSecondary}
+                    />
+                    <Text style={s.eqLabel}>Magic AC bonus (+N, e.g. +1 shield)</Text>
+                    <TextInput
+                      style={s.eqInput}
+                      value={editEquip.miscACBonus !== undefined ? String(editEquip.miscACBonus) : ''}
+                      onChangeText={(t) => {
+                        const n = parseInt(t, 10);
+                        setEditEquip({ ...editEquip, miscACBonus: Number.isFinite(n) && n !== 0 ? n : undefined });
+                      }}
+                      keyboardType="numbers-and-punctuation"
+                      placeholder="e.g. 1 (blank for none)"
                       placeholderTextColor={colors.textSecondary}
                     />
                   </>

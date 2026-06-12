@@ -183,10 +183,13 @@ export function CampaignTabRow({ campaignId, mobileActiveSide, onMobileActiveSid
   }
 
   // Single-pane layout (one side empty, or mobile). Tabs flow
-  // left-to-right from the home button, with the "+" packed right
-  // up against the last tab. No trailing drop zones in this mode —
-  // there's no cross-side drag to land in single-pane layout, and
-  // existing tabs already accept reorder drops on their own halves.
+  // left-to-right from the home button. On web we render a
+  // flex-filling drop zone to the right of the tabs: dragging a tab
+  // into it moves the tab to the (currently empty) right side, which
+  // populates both panes and flips the route into split mode — i.e.
+  // "drag a tab to the side to open split view". Native has no drag,
+  // so the zone is harmless there (the stub hook never reports over).
+  const showSideDropZone = Platform.OS === 'web' && !isMobileMode;
   return (
     <View style={s.row}>
       <Pressable
@@ -198,6 +201,7 @@ export function CampaignTabRow({ campaignId, mobileActiveSide, onMobileActiveSid
       </Pressable>
       {renderTabsForSide('left')}
       {renderTabsForSide('right')}
+      {showSideDropZone ? <TrailingDropZone hook={rightTrailingDrop} fill /> : null}
       {addButton}
     </View>
   );
