@@ -4259,11 +4259,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                       placeholderTextColor={colors.textSecondary}
                     />
                     <Text style={s.eqLabel}>Attack Ability</Text>
-                    <View style={s.eqSlotRow}>
+                    <View style={s.eqSlotRowWrap}>
                       {(['strength', 'dexterity', 'finesse', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const).map((ab) => (
                         <TouchableOpacity
                           key={ab}
-                          style={[s.eqSlotBtn, editEquip.attackAbility === ab && s.eqSlotBtnActive]}
+                          style={[s.eqChipBtn, editEquip.attackAbility === ab && s.eqSlotBtnActive]}
                           onPress={() => setEditEquip({ ...editEquip, attackAbility: ab })}
                         >
                           <Text style={[s.eqSlotText, editEquip.attackAbility === ab && s.eqSlotTextActive]}>
@@ -5567,6 +5567,15 @@ const s = StyleSheet.create({
   eqSlotRow: { flexDirection: 'row', gap: spacing.sm },
   eqSlotBtn: {
     flex: 1, paddingVertical: 8, borderRadius: 8,
+    borderWidth: 1, borderColor: colors.border, alignItems: 'center',
+  },
+  // Wrapping variant for option groups with more chips than fit on one
+  // row (e.g. the 7 attack abilities). Chips size to their label and
+  // wrap to additional lines instead of squishing flex:1 until the text
+  // clips.
+  eqSlotRowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  eqChipBtn: {
+    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8,
     borderWidth: 1, borderColor: colors.border, alignItems: 'center',
   },
   eqSlotBtnActive: {
