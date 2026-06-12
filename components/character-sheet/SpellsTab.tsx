@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, useWindowDimensions, Pressable, Modal,
 } from 'react-native';
@@ -90,6 +90,11 @@ interface Props {
    *  cantripsKnown/preparedSpells overrides on the stats record. */
   manualMode?: boolean;
   onEditField?: (field: string, currentValue: string | number) => void;
+  /** Manual-mode setters for the Rules-panel per-level limit editors.
+   *  `value === null` clears the override (slots → computed cap; spells
+   *  → uncapped). Present only when Manual Mode is on. */
+  onSetSlotMax?: (level: number, value: number | null) => void;
+  onSetSpellsMax?: (level: number, value: number | null) => void;
   effectiveSpellcastingAbility?: string | null;
   onSpellSlotChange?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, delta: -1 | 1) => void;
   onConcentrationClear?: () => void;
@@ -144,6 +149,7 @@ interface Props {
 
 export function SpellsTab({
   stats, resources, scores, prof, isOwner, compact, manualMode, onEditField,
+  onSetSlotMax, onSetSpellsMax,
   effectiveSpellcastingAbility, onSpellSlotChange, onConcentrationClear,
   onOpenManage, spellbook, onSetPrepStatus, onSaveSpellNotes, spellcastingExplainers,
 }: Props) {
@@ -258,6 +264,20 @@ export function SpellsTab({
   const preparedLimit = manualMode && stats.preparedSpellsOverride != null
     ? stats.preparedSpellsOverride
     : computedPreparedLimit;
+  // Per-level "max spells that can be added" caps (manual mode only).
+  // No class-table baseline exists, so an absent level is uncapped.
+  const spellsPerLevelMax = manualMode ? (stats.spellsPerLevelMax ?? {}) : {};
+  // How many spells the character has at each level (the spellbook /
+  // known list — the "added" count the per-level cap is measured
+  // against). Computed off the unfiltered source list so search /
+  // prepared filters don't change the count.
+  const spellsKnownByLevel = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const sp of sourceList) {
+      if (sp.level > 0) counts[sp.level] = (counts[sp.level] ?? 0) + 1;
+    }
+    return counts;
+  }, [sourceList]);
   // Breakdown modal state for spell attack + save DC. Both are
   // info-only (no Roll button) — spell rolls happen at the spell
   // level, not the header. Manual Mode still routes to the editor.
@@ -437,6 +457,20 @@ export function SpellsTab({
         <View key={level} style={s.levelSection}>
           <View style={s.levelHead}>
             <Text style={s.levelTitle}>{`${ordinal(level)} Level`}</Text>
+            {/* Per-level "spells added" count vs the cap set in the Rules
+                panel. Only renders when a cap exists for this level. */}
+            {(() => {
+              const cap = (spellsPerLevelMax as Record<number, number>)[level];
+              if (cap === undefined) return null;
+              const known = spellsKnownByLevel[level] ?? 0;
+              return (
+                <View style={[s.spellsCapChip, known >= cap && s.spellsCapChipFull]}>
+                  <Text style={[s.spellsCapText, known >= cap && s.spellsCapTextFull]}>
+                    {`${known}/${cap} spells`}
+                  </Text>
+                </View>
+              );
+            })()}
             {slot && (slot.max > 0 || (manualMode && !!onEditField)) && (
               <View style={[s.slotSummary, manualMode && s.slotSummaryEditable]}>
                 {manualMode && onEditField ? (
@@ -583,6 +617,44 @@ export function SpellsTab({
                   ) : null}
                 </View>
               ))}
+
+              {/* Per-level limit editors — Manual Mode only. Lets the
+                  player/DM cap how many spells can be added per level and
+                  override the slot max per level. Blank spells = uncapped;
+                  slots fall back to the computed cap when cleared. */}
+              {manualMode && onSetSlotMax && onSetSpellsMax ? (
+                <View style={s.limitsSection}>
+                  <Text style={s.limitsTitle}>PER-LEVEL LIMITS</Text>
+                  <Text style={s.limitsHint}>
+                    Max spells = how many of that level can be added (blank = no limit).
+                    Max slots overrides the computed slot count.
+                  </Text>
+                  <View style={s.limitsHeaderRow}>
+                    <Text style={[s.limitsHeadCell, s.limitsLevelCol]}>Level</Text>
+                    <Text style={[s.limitsHeadCell, s.limitsInputCol]}>Max spells</Text>
+                    <Text style={[s.limitsHeadCell, s.limitsInputCol]}>Max slots</Text>
+                  </View>
+                  {([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((lvl) => (
+                    <View key={lvl} style={s.limitsRow}>
+                      <Text style={[s.limitsLevelLabel, s.limitsLevelCol]}>{ordinal(lvl)}</Text>
+                      <View style={s.limitsInputCol}>
+                        <LimitInput
+                          value={(spellsPerLevelMax as Record<number, number>)[lvl] ?? null}
+                          placeholder="∞"
+                          onCommit={(v) => onSetSpellsMax(lvl, v)}
+                        />
+                      </View>
+                      <View style={s.limitsInputCol}>
+                        <LimitInput
+                          value={spellSlots?.[lvl]?.max ?? 0}
+                          placeholder="0"
+                          onCommit={(v) => onSetSlotMax(lvl, v)}
+                        />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </ScrollView>
           </Pressable>
         </Pressable>
@@ -1008,6 +1080,40 @@ function SynthCell({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * Small numeric field for the per-level limit editors. Holds its own
+ * draft so typing is smooth; commits on blur. An empty string commits
+ * `null` (uncapped / clear override).
+ */
+function LimitInput({
+  value, placeholder, onCommit,
+}: {
+  value: number | null;
+  placeholder?: string;
+  onCommit: (v: number | null) => void;
+}) {
+  const [text, setText] = useState(value != null ? String(value) : '');
+  useEffect(() => { setText(value != null ? String(value) : ''); }, [value]);
+  return (
+    <TextInput
+      style={s.limitInput}
+      value={text}
+      onChangeText={setText}
+      onBlur={() => {
+        const t = text.trim();
+        if (t === '') { onCommit(null); return; }
+        const n = parseInt(t, 10);
+        onCommit(Number.isFinite(n) && n >= 0 ? n : null);
+      }}
+      keyboardType="number-pad"
+      placeholder={placeholder}
+      placeholderTextColor={colors.outline}
+      returnKeyType="done"
+      selectTextOnFocus
+    />
+  );
+}
+
 // ── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
@@ -1072,6 +1178,50 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
   },
   explainerSection: { marginTop: 14, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant },
+
+  // Per-level limit editors (Rules modal, Manual Mode)
+  limitsSection: {
+    marginTop: 14, paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant,
+  },
+  limitsTitle: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1.5, color: colors.primary, marginBottom: 4,
+  },
+  limitsHint: {
+    fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant,
+    lineHeight: 16, marginBottom: 10,
+  },
+  limitsHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  limitsHeadCell: {
+    fontSize: 8, fontFamily: fonts.label, fontWeight: '700',
+    letterSpacing: 1, color: colors.outline, textTransform: 'uppercase',
+  },
+  limitsRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3 },
+  limitsLevelCol: { width: 64 },
+  limitsInputCol: { flex: 1, paddingHorizontal: 4 },
+  limitsLevelLabel: {
+    fontSize: 12, fontFamily: fonts.body, fontWeight: '600', color: colors.onSurface,
+  },
+  limitInput: {
+    fontSize: 13, fontFamily: fonts.body, color: colors.onSurface,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    borderRadius: radius.lg, paddingHorizontal: 10, paddingVertical: 6,
+    textAlign: 'center',
+  },
+  // Per-level "spells added vs cap" chip on the leveled group header.
+  spellsCapChip: {
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainer,
+  },
+  spellsCapChipFull: {
+    borderColor: `${colors.primary}66`, backgroundColor: `${colors.primary}14`,
+  },
+  spellsCapText: { fontSize: 10, fontFamily: fonts.label, fontWeight: '700', color: colors.onSurfaceVariant, letterSpacing: 0.4 },
+  spellsCapTextFull: { color: colors.primary },
   explainerClassLabel: {
     fontSize: 10, fontFamily: fonts.label, fontWeight: '700',
     letterSpacing: 1.5, color: colors.primary, marginBottom: 6,

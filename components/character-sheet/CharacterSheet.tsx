@@ -1935,6 +1935,68 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
     setEditingField(null);
   }
 
+  /**
+   * Set or clear a per-level spell-slot max from the Rules panel's
+   * inline editors. `value === null` clears the override (falls back to
+   * the computed cap); a number sets it and re-bases the available
+   * count under the new cap. Mirrors the `slotMax_` branch of
+   * save/resetEditField so both edit surfaces behave identically.
+   */
+  function setSpellSlotMaxOverride(level: number, value: number | null) {
+    if (!stats || level < 1 || level > 9) return;
+    const key = level as SpellSlotKey;
+    if (value === null) {
+      const prev = stats.spellSlotMaxOverrides;
+      if (!prev || prev[key] === undefined) return;
+      const { [key]: _, ...rest } = prev;
+      const next: Dnd5eStats = { ...stats };
+      if (Object.keys(rest).length === 0) delete next.spellSlotMaxOverrides;
+      else next.spellSlotMaxOverrides = rest as NonNullable<Dnd5eStats['spellSlotMaxOverrides']>;
+      if (resources?.spellSlots) {
+        const raw = resources.spellSlots[key] ?? { max: 0, remaining: 0 };
+        persistStatsAndResources(next, {
+          ...resources,
+          spellSlots: { ...resources.spellSlots, [key]: { ...raw, remaining: Math.min(raw.remaining, raw.max) } },
+        });
+      } else persistStats(next);
+      return;
+    }
+    if (!Number.isFinite(value) || value < 0) return;
+    const prev = stats.spellSlotMaxOverrides ?? {};
+    const nextStats: Dnd5eStats = { ...stats, spellSlotMaxOverrides: { ...prev, [key]: value } };
+    if (resources?.spellSlots) {
+      const raw = resources.spellSlots[key] ?? { max: 0, remaining: 0 };
+      const prevMax = prev[key] ?? raw.max;
+      const used = Math.max(0, prevMax - Math.min(raw.remaining, prevMax));
+      const remaining = Math.max(0, value - used);
+      persistStatsAndResources(nextStats, {
+        ...resources,
+        spellSlots: { ...resources.spellSlots, [key]: { ...raw, remaining } },
+      });
+    } else persistStats(nextStats);
+  }
+
+  /**
+   * Set or clear the per-level "max spells that can be added" cap.
+   * `value === null` (or 0) clears the entry → that level is uncapped.
+   */
+  function setSpellsPerLevelMax(level: number, value: number | null) {
+    if (!stats || level < 1 || level > 9) return;
+    const key = level as SpellSlotKey;
+    const prev = stats.spellsPerLevelMax ?? {};
+    if (value === null || value <= 0) {
+      if (prev[key] === undefined) return;
+      const { [key]: _, ...rest } = prev;
+      const next: Dnd5eStats = { ...stats };
+      if (Object.keys(rest).length === 0) delete next.spellsPerLevelMax;
+      else next.spellsPerLevelMax = rest as NonNullable<Dnd5eStats['spellsPerLevelMax']>;
+      persistStats(next);
+      return;
+    }
+    if (!Number.isFinite(value)) return;
+    persistStats({ ...stats, spellsPerLevelMax: { ...prev, [key]: value } });
+  }
+
   function applyAddXp() {
     if (!resources) { setXpAddMode(false); return; }
     const n = parseInt(xpAddInput, 10);
@@ -2267,6 +2329,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             compact={!isDesktop}
             manualMode={manualMode}
             onEditField={manualMode ? startEditField : undefined}
+            onSetSlotMax={manualMode ? setSpellSlotMaxOverride : undefined}
+            onSetSpellsMax={manualMode ? setSpellsPerLevelMax : undefined}
             effectiveSpellcastingAbility={spellcastingAbilityForHint}
             onSpellSlotChange={(level, delta) => {
               if (!resources.spellSlots) return;

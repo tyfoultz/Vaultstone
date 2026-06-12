@@ -181,6 +181,25 @@ export interface Dnd5eStats {
     8?: number;
     9?: number;
   };
+  /**
+   * Per-level cap on how many spells of that level can be added /
+   * prepared. There's no class-table baseline for this (5e uses a
+   * single shared pool), so it's a pure manual-mode limit: when a level
+   * is present, the Spells tab shows "X of N" for that level and blocks
+   * preparing beyond N. Absent levels are uncapped. Edited from the
+   * Rules ("How spellcasting works") panel under Manual Mode.
+   */
+  spellsPerLevelMax?: {
+    1?: number;
+    2?: number;
+    3?: number;
+    4?: number;
+    5?: number;
+    6?: number;
+    7?: number;
+    8?: number;
+    9?: number;
+  };
 
   /** Skills with expertise (double proficiency bonus). */
   skillExpertise?: string[];
