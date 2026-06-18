@@ -14,6 +14,7 @@ import {
 } from '@vaultstone/api';
 import { loadCreatureByKey } from '../../../components/creatures/creatureCache';
 import { SRD_CONDITIONS } from '../../../components/character-sheet/ConditionsPanel';
+import { POSITIVE_CONDITIONS, conditionPolarity } from '../../../components/character-sheet/conditions-taxonomy';
 import { SessionLogFeed } from '../../../components/session/SessionLogFeed';
 import { CreaturePickerModal, type AddCreatureInput } from '../../../components/combat/CreaturePickerModal';
 import { CreatureStatBlock } from '../../../components/creatures/CreatureStatBlock';
@@ -85,6 +86,7 @@ export default function CombatScreen() {
   const [pcConditions, setPcConditions] = useState<Record<string, string[]>>({});
   const [npcConditions, setNpcConditions] = useState<Record<string, string[]>>({});
   const [editingConditionsFor, setEditingConditionsFor] = useState<Combatant | null>(null);
+  const [customCondDraft, setCustomCondDraft] = useState('');
   const [myCharacterIds, setMyCharacterIds] = useState<Set<string>>(new Set());
 
   const [rollingAll, setRollingAll] = useState(false);
@@ -1196,37 +1198,87 @@ export default function CombatScreen() {
                   <MaterialCommunityIcons name="close" size={22} color={colors.outline} />
                 </TouchableOpacity>
               </View>
-              <ScrollView contentContainerStyle={st.modalBody}>
-                <View style={st.condGrid}>
-                  {SRD_CONDITIONS.map((cond) => {
-                    const isPcCombatant = !!editingConditionsFor?.character_id;
-                    const condKey = isPcCombatant
-                      ? editingConditionsFor?.character_id ?? ''
-                      : editingConditionsFor?.id ?? '';
-                    const condList = isPcCombatant
-                      ? (pcConditions[condKey] ?? [])
-                      : (npcConditions[condKey] ?? []);
-                    const active = condList.some((c) => c.toLowerCase() === cond.toLowerCase());
-                    return (
-                      <TouchableOpacity
-                        key={cond}
-                        style={[st.condChipBig, active && st.condChipBigActive]}
-                        onPress={() => {
-                          if (isPcCombatant && condKey) {
-                            toggleCondition(condKey, cond);
-                          } else if (condKey) {
-                            toggleNpcCondition(condKey, cond);
-                          }
-                        }}
-                      >
-                        <Text style={[st.condChipBigText, active && st.condChipBigTextActive]}>
-                          {cond}
-                        </Text>
+              {(() => {
+                const isPcCombatant = !!editingConditionsFor?.character_id;
+                const condKey = isPcCombatant
+                  ? editingConditionsFor?.character_id ?? ''
+                  : editingConditionsFor?.id ?? '';
+                const condList = isPcCombatant
+                  ? (pcConditions[condKey] ?? [])
+                  : (npcConditions[condKey] ?? []);
+                const activeSet = new Set(condList.map((c) => c.toLowerCase()));
+                const toggle = (name: string) => {
+                  if (!condKey) return;
+                  if (isPcCombatant) toggleCondition(condKey, name);
+                  else toggleNpcCondition(condKey, name);
+                };
+                // Built-in boons not already covered by the SRD list.
+                const srdLower = new Set(SRD_CONDITIONS.map((c) => c.toLowerCase()));
+                const boons = POSITIVE_CONDITIONS.filter((p) => !srdLower.has(p.name.toLowerCase()));
+                // Active conditions that aren't in any known list — customs.
+                const knownLower = new Set([...srdLower, ...boons.map((b) => b.name.toLowerCase())]);
+                const customActive = condList.filter((c) => !knownLower.has(c.toLowerCase()));
+                const renderChip = (cond: string) => {
+                  const active = activeSet.has(cond.toLowerCase());
+                  const polarity = conditionPolarity(cond);
+                  const accent = polarity === 'positive' ? colors.hpHealthy
+                    : polarity === 'custom' ? colors.secondary
+                    : colors.hpDanger;
+                  return (
+                    <TouchableOpacity
+                      key={cond}
+                      style={[st.condChipBig, active && { borderColor: accent, backgroundColor: `${accent}18` }]}
+                      onPress={() => toggle(cond)}
+                    >
+                      <Text style={[st.condChipBigText, active && { color: accent, fontWeight: '700' }]}>
+                        {cond}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                };
+                const addCustom = () => {
+                  const name = customCondDraft.trim();
+                  if (!name) return;
+                  if (!activeSet.has(name.toLowerCase())) toggle(name);
+                  setCustomCondDraft('');
+                };
+                return (
+                  <ScrollView contentContainerStyle={st.modalBody}>
+                    <View style={st.condGrid}>
+                      {SRD_CONDITIONS.map(renderChip)}
+                    </View>
+
+                    <Text style={st.condGroupLabel}>BOONS</Text>
+                    <View style={st.condGrid}>
+                      {boons.map((b) => renderChip(b.name))}
+                    </View>
+
+                    {customActive.length > 0 ? (
+                      <>
+                        <Text style={st.condGroupLabel}>CUSTOM</Text>
+                        <View style={st.condGrid}>
+                          {customActive.map(renderChip)}
+                        </View>
+                      </>
+                    ) : null}
+
+                    <View style={st.customCondRow}>
+                      <TextInput
+                        style={st.customCondInput}
+                        value={customCondDraft}
+                        onChangeText={setCustomCondDraft}
+                        onSubmitEditing={addCustom}
+                        placeholder="Add a custom condition…"
+                        placeholderTextColor={colors.outline}
+                        returnKeyType="done"
+                      />
+                      <TouchableOpacity style={st.customCondAddBtn} onPress={addCustom} activeOpacity={0.7}>
+                        <Text style={st.customCondAddBtnText}>Add</Text>
                       </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
+                    </View>
+                  </ScrollView>
+                );
+              })()}
             </View>
           </View>
         </Modal>
@@ -1556,6 +1608,32 @@ const st = StyleSheet.create({
   condChipBigActive: { borderColor: colors.hpDanger, backgroundColor: `${colors.hpDanger}18` },
   condChipBigText: { color: colors.onSurfaceVariant, fontSize: 11, fontFamily: fonts.body, fontWeight: '500' },
   condChipBigTextActive: { color: colors.hpDanger, fontWeight: '700' },
+  condGroupLabel: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1,
+    color: colors.outline, marginTop: 14, marginBottom: 6,
+  },
+  customCondRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
+  customCondInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    borderRadius: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    backgroundColor: colors.surfaceContainer,
+    color: colors.onSurface,
+    fontSize: 13,
+    fontFamily: fonts.body,
+  },
+  customCondAddBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+    backgroundColor: `${colors.secondary}1a`,
+  },
+  customCondAddBtnText: { fontSize: 12, fontFamily: fonts.label, fontWeight: '700', color: colors.secondary },
 
   // PC preview
   pcPreviewRow: {
