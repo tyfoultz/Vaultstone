@@ -24,6 +24,7 @@ import {
   useCurrentWorldStore,
   usePagesStore,
   useSectionsStore,
+  useSidebarCollapseStore,
 } from '@vaultstone/store';
 import type { Database, WorldPage, WorldSection } from '@vaultstone/types';
 import { Text, colors, spacing, useBreakpoint } from '@vaultstone/ui';
@@ -59,7 +60,15 @@ export default function WorldLayout() {
   const [firstSectionId, setFirstSectionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { isMobile } = useBreakpoint();
+  const { isMobile, isTablet } = useBreakpoint();
+  const setSidebarOpen = useSidebarCollapseStore((s) => s.setSidebarOpen);
+
+  // Tablet viewports (768–900px) are too narrow for the expanded sidebar
+  // alongside world content. Collapse on mount so users start with the
+  // full content area; they can expand manually if they want.
+  useEffect(() => {
+    if (isTablet) setSidebarOpen(false);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Serif typography is scoped to /world/* routes. The rest of the app
   // keeps Space Grotesk + Manrope — any other Text component that requests

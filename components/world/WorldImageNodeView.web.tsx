@@ -137,7 +137,7 @@ export function WorldImageNodeView(props: NodeViewProps) {
   const canPin = !!worldId && !!userId && (dmCampaigns?.length ?? 0) > 0;
 
   function openMenu(e: React.MouseEvent<HTMLDivElement>) {
-    if (!editor.isEditable || !imageId) return;
+    if (!imageId) return;
     e.preventDefault();
     e.stopPropagation();
     const rect = wrapperRef.current?.getBoundingClientRect();
@@ -262,6 +262,7 @@ export function WorldImageNodeView(props: NodeViewProps) {
               onPinScene={chooseScene}
               onPinSubject={chooseSubject}
               canPin={canPin}
+              canCaption={editor.isEditable}
               dmCampaignsLoaded={dmCampaigns !== null}
             />
           ) : null}
@@ -314,20 +315,22 @@ function RootMenu({
   onPinScene,
   onPinSubject,
   canPin,
+  canCaption,
   dmCampaignsLoaded,
 }: {
   onCaption: () => void;
   onPinScene: () => void;
   onPinSubject: () => void;
   canPin: boolean;
+  canCaption: boolean;
   dmCampaignsLoaded: boolean;
 }) {
   const pinDisabled = !canPin && dmCampaignsLoaded;
   const pinLoading = !dmCampaignsLoaded;
   return (
     <div className="world-image-menu-list">
-      <MenuItem icon="✏" label="Edit caption" onClick={onCaption} />
-      <div className="world-image-menu-sep" />
+      {canCaption ? <MenuItem icon="✏" label="Edit caption" onClick={onCaption} /> : null}
+      {canCaption ? <div className="world-image-menu-sep" /> : null}
       <MenuItem
         icon="🖼"
         label={pinLoading ? 'Pin to Scene…' : 'Pin to Scene'}

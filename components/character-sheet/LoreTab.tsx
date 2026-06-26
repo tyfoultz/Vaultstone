@@ -489,6 +489,15 @@ function JournalPane({ entries, isOwner, onUpdate }: {
   const [selectedId, setSelectedId] = useState<string | null>(
     entries.length > 0 ? entries[0].id : null,
   );
+  // When JournalPane mounts before resources have loaded (e.g. user opens
+  // the Lore tab immediately), entries is empty and selectedId initialises
+  // to null. Auto-select the first entry once entries become available so
+  // the editor appears without requiring an extra click.
+  useEffect(() => {
+    if (selectedId == null && entries.length > 0) {
+      setSelectedId(entries[0].id);
+    }
+  }, [entries]); // eslint-disable-line react-hooks/exhaustive-deps
   // Used by the narrow-pane (dropdown) layout — controls the picker
   // popover's open/closed state.
   const [pickerOpen, setPickerOpen] = useState(false);

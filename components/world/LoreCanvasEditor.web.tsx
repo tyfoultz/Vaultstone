@@ -855,14 +855,10 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   }, [editable]);
 
   const handleCanvasContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!editable) return;
     const target = e.target as HTMLElement;
 
-    // Right-click on a tagged world image → open the pin/caption
-    // menu instead of the browser default. Walks up to find an
-    // <img data-world-image-id> ancestor since the click can land
-    // on an inner wrapper or resize handle. Falls through to the
-    // existing canvas-blank paste behavior on non-image clicks.
+    // Right-click on a tagged world image → open the pin/caption menu
+    // regardless of edit mode (pinning is a campaign action, not an edit).
     const imgEl = target.closest?.('img[data-world-image-id]') as HTMLImageElement | null;
     if (imgEl) {
       const imageId = imgEl.getAttribute('data-world-image-id');
@@ -879,6 +875,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       return;
     }
 
+    // Clipboard paste into blank canvas → edit-only.
+    if (!editable) return;
     if (target !== canvasRef.current) return;
 
     e.preventDefault();
@@ -2003,15 +2001,19 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           >
             {imageMenu.mode === 'root' ? (
               <div className="lore-image-menu-list">
-                <button
-                  type="button"
-                  className="lore-image-menu-item"
-                  onClick={openImageCaptionEditor}
-                >
-                  <span className="lore-image-menu-icon">✏</span>
-                  <span className="lore-image-menu-label">Edit caption</span>
-                </button>
-                <div className="lore-image-menu-sep" />
+                {editable ? (
+                  <>
+                    <button
+                      type="button"
+                      className="lore-image-menu-item"
+                      onClick={openImageCaptionEditor}
+                    >
+                      <span className="lore-image-menu-icon">✏</span>
+                      <span className="lore-image-menu-label">Edit caption</span>
+                    </button>
+                    <div className="lore-image-menu-sep" />
+                  </>
+                ) : null}
                 <button
                   type="button"
                   className={`lore-image-menu-item${!canPin ? ' disabled' : ''}`}
