@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { usePagesStore, useSplitPaneStore, selectSplitPageId } from '@vaultstone/store';
+import { usePagesStore, useSplitPaneStore } from '@vaultstone/store';
 import { colors } from '@vaultstone/ui';
 
 import { PagePaneContent } from '../../../../components/world/PagePaneContent';
@@ -12,10 +12,24 @@ export default function PageDetailScreen() {
   const { worldId, pageId } = useLocalSearchParams<{ worldId: string; pageId: string }>();
   const router = useRouter();
 
-  const splitPageId = useSplitPaneStore(selectSplitPageId);
+  // Look at the right side specifically — the URL-driven primary page is never
+  // in the tab store, so selectSplitPageId (focused-side) returns null when the
+  // user clicks the left pane, falsely collapsing the split.
+  const splitPageId = useSplitPaneStore((s) => {
+    if (s.rightActiveIndex == null) return null;
+    const t = s.rightTabs[s.rightActiveIndex];
+    return t?.kind === 'world-page' ? t.pageId : null;
+  });
   const focusedSide = useSplitPaneStore((s) => s.focusedSide);
-  const closeSplit = useSplitPaneStore((s) => s.closeSplit);
+  const closeSplitTab = useSplitPaneStore((s) => s.closeSplitTab);
   const setFocusedSide = useSplitPaneStore((s) => s.setFocusedSide);
+
+  // Always close the right-side tab (the split pane); the left side in this
+  // route is the URL-driven primary page which lives outside the tab store.
+  const closeSplit = useCallback(() => {
+    const { rightActiveIndex } = useSplitPaneStore.getState();
+    if (rightActiveIndex != null) closeSplitTab('right', rightActiveIndex);
+  }, [closeSplitTab]);
 
   const splitPage = usePagesStore((s) => {
     if (!splitPageId || !worldId) return null;
