@@ -82,6 +82,7 @@ export interface Database {
            *  the system's optionalRules definition to know how to
            *  interpret each value (boolean / choice / number). */
           character_creation_rules: Json;
+          ai_settings: Json | null;
           created_at: string;
         };
         Insert: {
@@ -100,6 +101,7 @@ export interface Database {
           scene_image_id?: string | null;
           subject_image_id?: string | null;
           character_creation_rules?: Json;
+          ai_settings?: Json | null;
           created_at?: string;
         };
         Update: {
@@ -118,6 +120,7 @@ export interface Database {
           scene_image_id?: string | null;
           subject_image_id?: string | null;
           character_creation_rules?: Json;
+          ai_settings?: Json | null;
         };
         Relationships: [];
       };

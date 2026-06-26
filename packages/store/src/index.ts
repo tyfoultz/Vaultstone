@@ -47,3 +47,4 @@ export type { SplitTarget, Side } from './split-pane.store';
 export { usePackContentStore, selectPackCache } from './pack-content.store';
 export { useSpellsTabStore, SPELL_COLUMN_LABEL } from './spells-tab.store';
 export type { SpellColumnKey } from './spells-tab.store';
+export { useAiChatStore, selectCampaignMessages } from './ai-chat.store';

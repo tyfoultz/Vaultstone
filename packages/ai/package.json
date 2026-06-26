@@ -1,0 +1,12 @@
+{
+  "name": "@vaultstone/ai",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@vaultstone/api": "*",
+    "@vaultstone/content": "*",
+    "@vaultstone/types": "*"
+  }
+}
