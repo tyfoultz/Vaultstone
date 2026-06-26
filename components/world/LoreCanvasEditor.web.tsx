@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { StyleSheet, View } from 'react-native';
 import { Icon, colors, radius, spacing, useBreakpoint } from '@vaultstone/ui';
 import {
@@ -1894,7 +1895,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
         />
       ) : null}
 
-      {mentionState && mentionablePages ? (
+      {mentionState && mentionablePages ? createPortal(
         <MentionTypeahead
           query={mentionState.query}
           pages={mentionablePages}
@@ -1902,7 +1903,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           onSelect={handleMentionSelect}
           onClose={() => setMentionState(null)}
           getSectionLabel={getSectionLabel}
-        />
+        />,
+        document.body,
       ) : null}
 
       <div
@@ -2650,10 +2652,10 @@ function CanvasStyles() {
             border-color: ${colors.outlineVariant}33;
           }
 
-          /* Mention popup */
+          /* Mention popup — portaled to document.body */
           .lore-mention-popup {
             position: fixed;
-            z-index: 1000;
+            z-index: 99999;
           }
           .lore-mention-list {
             background: ${colors.surfaceContainerHigh};
