@@ -11,6 +11,7 @@ import type {
 import type { RollResult } from './RollToast';
 import { AbilitiesCardTab } from './AbilitiesCardTab';
 import { StatBreakdownModal, type StatBreakdownLine } from './StatBreakdownModal';
+import { POSITIVE_CONDITIONS, conditionPolarity, type ConditionPolarity } from './conditions-taxonomy';
 
 const ABILITY_KEYS: (keyof Dnd5eAbilityScores)[] = [
   'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma',
@@ -237,7 +238,6 @@ export function CombatTab({
   const [addActionsOpen, setAddActionsOpen] = useState(false);
   // Mobile INIT card breakdown state. Desktop INIT lives on the
   // sidebar StatCell and is handled at the CharacterSheet level.
-  const [initBreakdownOpen, setInitBreakdownOpen] = useState(false);
   // Per-weapon roll breakdown state — opens on tapping a Hit or
   // Damage button so the player sees the formula before committing.
   const [weaponBreakdown, setWeaponBreakdown] = useState<
@@ -313,18 +313,11 @@ export function CombatTab({
             <View style={s.moveColDesktop}>
               <SectionLabel>MOVEMENT</SectionLabel>
               <View style={s.moveCardsStack}>
-                <TouchableOpacity
-                  style={s.moveStatCard}
-                  onPress={() => setInitBreakdownOpen(true)}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Show initiative breakdown"
-                >
-                  <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.hpWarning} />
-                  <Text style={s.moveStatLabel}>INIT</Text>
-                  <Text style={s.moveStatValue}>
-                    {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
-                  </Text>
-                </TouchableOpacity>
+                <View style={s.moveStatCard}>
+                  <MaterialCommunityIcons name="resize" size={12} color={colors.hpWarning} />
+                  <Text style={s.moveStatLabel}>SIZE</Text>
+                  <Text style={s.moveStatValue}>{stats.size ?? 'Medium'}</Text>
+                </View>
                 <View style={s.moveStatCard}>
                   <MaterialCommunityIcons name="run-fast" size={12} color={colors.hpWarning} />
                   <Text style={s.moveStatLabel}>SPD</Text>
@@ -485,18 +478,11 @@ export function CombatTab({
         <View style={s.moveCol}>
           <SectionLabel>MOVEMENT</SectionLabel>
           <View style={s.moveCardsStack}>
-            <TouchableOpacity
-              style={s.moveStatCard}
-              onPress={() => setInitBreakdownOpen(true)}
-              activeOpacity={0.7}
-              accessibilityLabel="Show initiative breakdown"
-            >
-              <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.hpWarning} />
-              <Text style={s.moveStatLabel}>INIT</Text>
-              <Text style={s.moveStatValue}>
-                {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
-              </Text>
-            </TouchableOpacity>
+            <View style={s.moveStatCard}>
+              <MaterialCommunityIcons name="resize" size={12} color={colors.hpWarning} />
+              <Text style={s.moveStatLabel}>SIZE</Text>
+              <Text style={s.moveStatValue}>{stats.size ?? 'Medium'}</Text>
+            </View>
             <View style={s.moveStatCard}>
               <MaterialCommunityIcons name="run-fast" size={12} color={colors.hpWarning} />
               <Text style={s.moveStatLabel}>SPD</Text>
@@ -657,35 +643,6 @@ export function CombatTab({
           />
         ) : null}
         {(() => {
-          // Initiative breakdown — DEX mod (or manual override).
-          if (!initBreakdownOpen) return null;
-          const dex = abilityMod(scores.dexterity);
-          const override = manualMode && stats.initiativeOverride != null;
-          const total = override ? stats.initiativeOverride! : dex;
-          const lines: StatBreakdownLine[] = override
-            ? [{ label: 'Manual override', value: fmtMod(stats.initiativeOverride!) }]
-            : [{ label: 'DEX mod', value: fmtMod(dex) }];
-          return (
-            <StatBreakdownModal
-              visible
-              title="Initiative"
-              subtitle="Combat turn order · d20 + DEX"
-              total={fmtMod(total)}
-              lines={lines}
-              rollLabel="Roll initiative"
-              onRoll={() => {
-                const r = Math.floor(Math.random() * 20) + 1;
-                onRoll({
-                  label: 'Initiative',
-                  rolls: [r], bonus: total,
-                  total: r + total, crit: r === 20, fumble: r === 1,
-                });
-              }}
-              onClose={() => setInitBreakdownOpen(false)}
-            />
-          );
-        })()}
-        {(() => {
           // Weapon hit / damage breakdown. Mirrors getAttackBonus's
           // logic so the per-source lines match the computed bonus
           // shown on the button.
@@ -767,30 +724,55 @@ export function ConditionsSection({
   const [search, setSearch] = useState('');
   const normalizedActive = activeConditions.map((x) => x.toLowerCase());
 
-  // Pickable list: bundled SRD conditions, plus a synthetic "Exhaustion" entry
-  // (handled separately because it's a level track, not a binary condition).
-  type Pickable = { name: string; description?: string };
+  // Pickable list: bundled SRD conditions + built-in positive boons, plus
+  // a synthetic "Exhaustion" entry (handled separately because it's a
+  // level track, not a binary condition). Each carries its polarity so
+  // the picker can group debuffs vs. boons.
+  type Pickable = { name: string; description?: string; polarity: ConditionPolarity };
   const pickable: Pickable[] = useMemo(() => {
-    const conds: Pickable[] = bundledConditions
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((c) => ({ name: c.name, description: c.description }));
+    const byName = new Map<string, Pickable>();
+    for (const c of bundledConditions) {
+      byName.set(c.name.toLowerCase(), {
+        name: c.name,
+        description: c.description,
+        polarity: conditionPolarity(c.name),
+      });
+    }
+    // Built-in boons — skip any name the SRD catalog already covers
+    // (e.g. Invisible) so it isn't listed twice.
+    for (const p of POSITIVE_CONDITIONS) {
+      if (!byName.has(p.name.toLowerCase())) {
+        byName.set(p.name.toLowerCase(), { name: p.name, description: p.description, polarity: 'positive' });
+      }
+    }
+    const conds = Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
     if (exhaustionLevel === 0) {
       conds.unshift({
         name: 'Exhaustion',
         description: 'Track exhaustion as a 1–6 level. Higher levels stack penalties; level 6 is death.',
+        polarity: 'negative',
       });
     }
     return conds;
   }, [bundledConditions, exhaustionLevel]);
 
   const available = pickable.filter((c) => !normalizedActive.includes(c.name.toLowerCase()));
-  const filtered = search.trim()
+  const query = search.trim().toLowerCase();
+  const filtered = query
     ? available.filter((c) =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        (c.description ?? '').toLowerCase().includes(search.toLowerCase())
+        c.name.toLowerCase().includes(query) ||
+        (c.description ?? '').toLowerCase().includes(query)
       )
     : available;
+  const negativeOptions = filtered.filter((c) => c.polarity !== 'positive');
+  const positiveOptions = filtered.filter((c) => c.polarity === 'positive');
+  // Offer a free-text custom condition when the search doesn't match any
+  // built-in entry (and isn't already active).
+  const customMatch = query &&
+    !pickable.some((c) => c.name.toLowerCase() === query) &&
+    !normalizedActive.includes(query)
+    ? search.trim()
+    : null;
 
   const hasActive = activeConditions.length > 0 || exhaustionLevel > 0;
 
@@ -834,19 +816,25 @@ export function ConditionsSection({
               )}
             </View>
           )}
-          {activeConditions.map((c) => (
-            <TouchableOpacity
-              key={c}
-              style={s.condChipActive}
-              onPress={canEditAny ? () => onToggle(c) : undefined}
-              activeOpacity={canEditAny ? 0.7 : 1}
-            >
-              <Text style={s.condTextActive}>{c}</Text>
-              {canEditAny && (
-                <MaterialCommunityIcons name="close" size={9} color={colors.hpDanger} style={{ marginLeft: 3 }} />
-              )}
-            </TouchableOpacity>
-          ))}
+          {activeConditions.map((c) => {
+            const polarity = conditionPolarity(c);
+            const accent = polarity === 'positive' ? colors.hpHealthy
+              : polarity === 'custom' ? colors.secondary
+              : colors.hpDanger;
+            return (
+              <TouchableOpacity
+                key={c}
+                style={[s.condChipActive, { backgroundColor: `${accent}18`, borderColor: accent }]}
+                onPress={canEditAny ? () => onToggle(c) : undefined}
+                activeOpacity={canEditAny ? 0.7 : 1}
+              >
+                <Text style={[s.condTextActive, { color: accent }]}>{c}</Text>
+                {canEditAny && (
+                  <MaterialCommunityIcons name="close" size={9} color={accent} style={{ marginLeft: 3 }} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
@@ -879,7 +867,7 @@ export function ConditionsSection({
               <MaterialCommunityIcons name="magnify" size={14} color={colors.outline} />
               <TextInput
                 style={s.modalSearchInput}
-                placeholder="Search conditions..."
+                placeholder="Search or type a custom condition…"
                 placeholderTextColor={colors.outline}
                 value={search}
                 onChangeText={setSearch}
@@ -892,12 +880,12 @@ export function ConditionsSection({
               )}
             </View>
 
-            {/* Scrollable list */}
+            {/* Scrollable list — debuffs first, then a Boons group */}
             <ScrollView style={s.modalList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              {filtered.length > 0 ? filtered.map((c, i) => (
+              {negativeOptions.map((c, i) => (
                 <TouchableOpacity
                   key={c.name}
-                  style={[s.condRow, i < filtered.length - 1 && s.condRowBorder]}
+                  style={[s.condRow, i < negativeOptions.length - 1 && s.condRowBorder]}
                   onPress={() => handlePick(c.name)}
                   activeOpacity={0.7}
                 >
@@ -909,11 +897,47 @@ export function ConditionsSection({
                   </View>
                   <MaterialCommunityIcons name="plus-circle-outline" size={16} color={colors.outline} />
                 </TouchableOpacity>
-              )) : (
+              ))}
+
+              {positiveOptions.length > 0 && (
+                <Text style={s.condGroupLabel}>BOONS</Text>
+              )}
+              {positiveOptions.map((c, i) => (
+                <TouchableOpacity
+                  key={c.name}
+                  style={[s.condRow, i < positiveOptions.length - 1 && s.condRowBorder]}
+                  onPress={() => handlePick(c.name)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[s.condRowText, { color: colors.hpHealthy }]}>{c.name}</Text>
+                    {c.description ? (
+                      <Text style={s.condRowDesc} numberOfLines={2}>{c.description}</Text>
+                    ) : null}
+                  </View>
+                  <MaterialCommunityIcons name="plus-circle-outline" size={16} color={colors.hpHealthy} />
+                </TouchableOpacity>
+              ))}
+
+              {customMatch ? (
+                <TouchableOpacity
+                  style={[s.condRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant }]}
+                  onPress={() => { handlePick(customMatch); setSearch(''); }}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[s.condRowText, { color: colors.secondary }]}>Add “{customMatch}”</Text>
+                    <Text style={s.condRowDesc}>Custom condition</Text>
+                  </View>
+                  <MaterialCommunityIcons name="plus-circle-outline" size={16} color={colors.secondary} />
+                </TouchableOpacity>
+              ) : null}
+
+              {negativeOptions.length === 0 && positiveOptions.length === 0 && !customMatch ? (
                 <Text style={[s.condNone, { paddingVertical: 12 }]}>
                   {available.length === 0 ? 'All conditions are active' : 'No matches'}
                 </Text>
-              )}
+              ) : null}
             </ScrollView>
 
           </View>
@@ -1471,6 +1495,10 @@ const s = StyleSheet.create({
   condRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant },
   condRowText: { fontSize: 14, fontFamily: fonts.body, fontWeight: '500', color: colors.onSurface },
   condRowDesc: { fontSize: 11, fontFamily: fonts.body, color: colors.onSurfaceVariant, lineHeight: 15 },
+  condGroupLabel: {
+    fontSize: 9, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1,
+    color: colors.outline, marginTop: 10, marginBottom: 2, paddingHorizontal: 2,
+  },
 
   // Editable-field hint — dashed primary border on tappable manual-mode
   // cells (e.g. the speed passive card). Kept after the desktop hex

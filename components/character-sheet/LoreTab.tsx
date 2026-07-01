@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, type NativeSyntheticEvent, type TextInputContentSizeChangeEventData } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
@@ -25,6 +25,97 @@ function ExpandableInput(props: React.ComponentProps<typeof TextInput> & { minH?
       style={[style, { height: Math.max(minH, height) }]}
       onContentSizeChange={onSize}
       textAlignVertical="top"
+    />
+  );
+}
+
+// Delay before a draft keystroke is flushed up to the persist layer.
+const DRAFT_COMMIT_DELAY = 500;
+
+/**
+ * Debounced, flushable commit. Each `schedule(v)` pushes the latest
+ * value and resets a timer; the value is committed once typing pauses
+ * for `delay` ms. `flush()` commits immediately (used on blur and on
+ * unmount so nothing is lost when the editor closes or the active
+ * entry swaps). Always calls the latest `commit` via a ref.
+ */
+function useFlushableDebounce(commit: (v: string) => void, delay = DRAFT_COMMIT_DELAY) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pending = useRef<string | null>(null);
+  const commitRef = useRef(commit);
+  commitRef.current = commit;
+
+  const flush = useCallback(() => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    if (pending.current !== null) {
+      const v = pending.current;
+      pending.current = null;
+      commitRef.current(v);
+    }
+  }, []);
+
+  const schedule = useCallback((v: string) => {
+    pending.current = v;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(flush, delay);
+  }, [flush, delay]);
+
+  // Flush any pending edit when the field unmounts (entry swap / sheet close).
+  useEffect(() => flush, [flush]);
+
+  return { schedule, flush };
+}
+
+/**
+ * Text input that keeps a local draft so keystrokes echo instantly,
+ * and only flushes upward (→ persistResources → Supabase write) on a
+ * debounce / blur. This fixes the touch-keyboard lag where every
+ * keystroke round-tripped through a full character re-render + network
+ * write before the controlled value updated.
+ *
+ * `expandable` swaps the plain TextInput for the auto-growing variant
+ * (used by paragraph-scale lore fields).
+ */
+function DraftInput({
+  value, onCommit, editable = true, expandable, minH, style, ...rest
+}: Omit<React.ComponentProps<typeof TextInput>, 'value' | 'onChangeText'> & {
+  value: string;
+  onCommit: (v: string) => void;
+  editable?: boolean;
+  expandable?: boolean;
+  minH?: number;
+}) {
+  const [local, setLocal] = useState(value);
+  const focusedRef = useRef(false);
+  const { schedule, flush } = useFlushableDebounce(onCommit);
+
+  // Absorb external updates (DM edit, realtime, entry swap) — but never
+  // while the user is actively typing, or we'd clobber their cursor.
+  useEffect(() => {
+    if (!focusedRef.current) setLocal(value);
+  }, [value]);
+
+  const handleChange = useCallback((v: string) => {
+    setLocal(v);
+    schedule(v);
+  }, [schedule]);
+
+  const handleBlur = useCallback(() => {
+    focusedRef.current = false;
+    flush();
+  }, [flush]);
+
+  const Comp = (expandable ? ExpandableInput : TextInput) as React.ComponentType<any>;
+  return (
+    <Comp
+      {...rest}
+      {...(expandable ? { minH } : null)}
+      style={style}
+      value={local}
+      editable={editable}
+      onChangeText={editable ? handleChange : undefined}
+      onFocus={() => { focusedRef.current = true; }}
+      onBlur={handleBlur}
     />
   );
 }
@@ -271,10 +362,10 @@ function AboutPane({
       {/* Deity */}
       <SectionLabel style={{ marginTop: 14 }}>DEITY</SectionLabel>
       <View style={s.fieldBlock}>
-        <TextInput
+        <DraftInput
           style={s.fieldInput}
           value={appearance.deity ?? ''}
-          onChangeText={isOwner ? (v) => onAppearanceChange?.('deity', v) : undefined}
+          onCommit={(v) => onAppearanceChange?.('deity', v)}
           editable={isOwner}
           placeholder={isOwner ? 'Patron deity, faith, or oath' : '—'}
           placeholderTextColor={colors.outline}
@@ -287,10 +378,10 @@ function AboutPane({
         {APPEARANCE_FIELDS.map((f) => (
           <View key={f.key} style={s.appearField}>
             <Text style={s.appearLabel}>{f.label.toUpperCase()}</Text>
-            <TextInput
+            <DraftInput
               style={s.appearInput}
               value={appearance[f.key] ?? ''}
-              onChangeText={isOwner ? (v) => onAppearanceChange?.(f.key, v) : undefined}
+              onCommit={(v) => onAppearanceChange?.(f.key, v)}
               editable={isOwner}
               placeholder="—"
               placeholderTextColor={colors.outline}
@@ -302,11 +393,12 @@ function AboutPane({
       {/* Clothing & accessories — paragraph-scale freeform. */}
       <SectionLabel style={{ marginTop: 14 }}>CLOTHING & ACCESSORIES</SectionLabel>
       <View style={s.fieldBlock}>
-        <ExpandableInput
+        <DraftInput
+          expandable
           minH={90}
           style={s.fieldInput}
           value={appearance.attire ?? ''}
-          onChangeText={isOwner ? (v) => onAppearanceChange?.('attire', v) : undefined}
+          onCommit={(v) => onAppearanceChange?.('attire', v)}
           editable={isOwner}
           placeholder={isOwner ? 'Signet rings, talismans, signature attire…' : '—'}
           placeholderTextColor={colors.outline}
@@ -332,16 +424,17 @@ function AboutPane({
           <View key={f.key}>
             <SectionLabel style={{ marginTop: 14 }}>{f.label.toUpperCase()}</SectionLabel>
             <View style={s.fieldBlock}>
-              <ExpandableInput
+              <DraftInput
+                expandable
                 minH={f.tall ? 90 : 44}
                 style={s.fieldInput}
                 value={displayValue}
-                onChangeText={isOwner ? (v) => {
+                onCommit={(v) => {
                   onPersonalityChange?.(f.key, v);
                   if (isAlliesField && legacyFaction) {
                     onPersonalityChange?.('faction', '');
                   }
-                } : undefined}
+                }}
                 editable={isOwner}
                 placeholder={isOwner ? f.placeholder : '—'}
                 placeholderTextColor={colors.outline}
@@ -654,6 +747,16 @@ function JournalEntryEditor({ entry, isOwner, onPatch, onDelete }: {
   const [tagDraft, setTagDraft] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const bodyDocRef = useRef<object | null>(entry.bodyDoc ?? null);
+  // The body editor echoes keystrokes locally; we debounce the upward
+  // patch (→ persistResources → Supabase write) so a long entry doesn't
+  // fire a full character re-render + network write per character typed.
+  const pendingBody = useRef<{ doc: object; text: string } | null>(null);
+  const bodyCommit = useFlushableDebounce(() => {
+    if (!pendingBody.current) return;
+    const { doc, text } = pendingBody.current;
+    pendingBody.current = null;
+    onPatch({ body: text, bodyDoc: doc });
+  });
 
   // Reset transient editor state whenever the host swaps in a different
   // entry. The `key={selected.id}` on JournalEntryEditor already gives
@@ -678,17 +781,18 @@ function JournalEntryEditor({ entry, isOwner, onPatch, onDelete }: {
 
   function handleBodyChange(doc: object, text: string) {
     bodyDocRef.current = doc;
-    onPatch({ body: text, bodyDoc: doc });
+    pendingBody.current = { doc, text };
+    bodyCommit.schedule(text);
   }
 
   return (
     <ScrollView contentContainerStyle={s.journalEditorScroll} showsVerticalScrollIndicator={false}>
       {/* Header — title input + delete affordance on the right */}
       <View style={s.journalEditorHeader}>
-        <TextInput
+        <DraftInput
           style={s.journalEditorTitle}
           value={entry.title}
-          onChangeText={isOwner ? (v) => onPatch({ title: v }) : undefined}
+          onCommit={(v) => onPatch({ title: v })}
           editable={isOwner}
           placeholder="Untitled entry"
           placeholderTextColor={colors.outline}
@@ -726,10 +830,10 @@ function JournalEntryEditor({ entry, isOwner, onPatch, onDelete }: {
       {/* Date */}
       <View style={{ marginTop: spacing.sm }}>
         <Text style={s.modalFieldLabel}>DATE</Text>
-        <TextInput
+        <DraftInput
           style={s.fieldInput}
           value={entry.date ?? ''}
-          onChangeText={isOwner ? (v) => onPatch({ date: v }) : undefined}
+          onCommit={(v) => onPatch({ date: v })}
           editable={isOwner}
           placeholder="YYYY-MM-DD or in-world date"
           placeholderTextColor={colors.outline}

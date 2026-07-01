@@ -5,7 +5,7 @@ import { creationSteps } from './creation-steps';
 import { optionalRules } from './optional-rules';
 
 export { checkPrerequisites, type PrereqCharacter, type PrereqCheckResult } from './prerequisites';
-export { getEquippedAC } from './armor-class';
+export { getEquippedAC, getUnarmoredDefense, type UnarmoredDefenseChoice } from './armor-class';
 export {
   spellSlotsForClassAtLevel,
   spellSlotsForCharacter,

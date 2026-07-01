@@ -334,17 +334,29 @@ export function CampaignPageV2({ campaignId }: Props) {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'characters', filter: `id=in.(${campaignCharIds.join(',')})` },
         (payload) => {
-          const updated = payload.new as CampaignCharacter;
+          const updated = payload.new as Partial<CampaignCharacter> & { id?: string };
+          // Supabase Realtime drops the row payload when the new record
+          // exceeds `realtime.max_record_bytes` (characters with large
+          // `resources`/`base_stats` blobs — full spellbook, journal,
+          // etc.), delivering an empty/partial `new`. Merging that blanks
+          // base_stats/resources and flips the card to "Character data
+          // unavailable." Detect the truncation and refetch the trimmed
+          // roster (small payload, always succeeds) instead of clobbering
+          // good local state.
+          if (!updated?.id || updated.base_stats == null || updated.resources == null) {
+            setRefreshTick((n) => n + 1);
+            return;
+          }
           setCampaignCharacters((prev) => prev.map((c) =>
             c.id === updated.id
               ? {
                   ...c,
-                  name: updated.name,
+                  name: updated.name ?? c.name,
                   base_stats: updated.base_stats,
                   resources: updated.resources,
-                  conditions: updated.conditions,
-                  avatar_url: updated.avatar_url,
-                  avatar_card_url: updated.avatar_card_url,
+                  conditions: updated.conditions ?? c.conditions,
+                  avatar_url: updated.avatar_url ?? c.avatar_url,
+                  avatar_card_url: updated.avatar_card_url ?? c.avatar_card_url,
                 }
               : c
           ));

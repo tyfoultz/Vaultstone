@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
 import { colors, fonts, radius, spacing } from '@vaultstone/ui';
 import type { ConditionResult } from '@vaultstone/types';
+import { POSITIVE_CONDITIONS, conditionPolarity, type ConditionPolarity } from './conditions-taxonomy';
 
 // SRD-baseline fallback list. Used when ContentResolver hasn't returned
 // yet (or has returned an empty set, e.g. an offline non-SRD pack-only
@@ -26,47 +27,106 @@ interface Props {
   onSetExhaustion: (level: number) => void;
 }
 
+/** Accent color for a polarity's active chip. */
+function polarityAccent(polarity: ConditionPolarity): string {
+  if (polarity === 'positive') return colors.hpHealthy;
+  if (polarity === 'custom') return colors.secondary;
+  return colors.hpDanger;
+}
+
 export function ConditionsPanel({ conditions, exhaustionLevel, conditionCatalog, onToggle, onSetExhaustion }: Props) {
   const activeSet = new Set(conditions.map((c) => c.toLowerCase()));
   const [detailFor, setDetailFor] = useState<ConditionResult | null>(null);
+  const [customDraft, setCustomDraft] = useState('');
 
   // Catalog entries take precedence (carry descriptions + effects); merge
   // in any fallback names that aren't covered so the grid never shrinks
-  // below the SRD baseline.
-  const catalogByName = new Map(
-    (conditionCatalog ?? []).map((c) => [c.name.toLowerCase(), c]),
-  );
-  const renderedNames = new Set(catalogByName.keys());
-  const merged: Array<{ name: string; entry?: ConditionResult }> = [];
+  // below the SRD baseline, plus the built-in positive boons.
+  const merged: Array<{ name: string; entry?: ConditionResult; polarity: ConditionPolarity }> = [];
+  const renderedNames = new Set<string>();
   for (const c of conditionCatalog ?? []) {
-    merged.push({ name: c.name, entry: c });
+    renderedNames.add(c.name.toLowerCase());
+    merged.push({ name: c.name, entry: c, polarity: conditionPolarity(c.name, conditionCatalog) });
   }
   for (const fallback of SRD_CONDITION_FALLBACK) {
     if (!renderedNames.has(fallback.toLowerCase())) {
-      merged.push({ name: fallback });
+      renderedNames.add(fallback.toLowerCase());
+      merged.push({ name: fallback, polarity: conditionPolarity(fallback) });
+    }
+  }
+  for (const p of POSITIVE_CONDITIONS) {
+    if (!renderedNames.has(p.name.toLowerCase())) {
+      renderedNames.add(p.name.toLowerCase());
+      merged.push({ name: p.name, polarity: 'positive' });
     }
   }
   // Stable alpha sort so homebrew additions don't visually shuffle the
   // canonical set.
   merged.sort((a, b) => a.name.localeCompare(b.name));
 
+  const negativeEntries = merged.filter((m) => m.polarity !== 'positive');
+  const positiveEntries = merged.filter((m) => m.polarity === 'positive');
+
+  // Active conditions that aren't in any known list (free-text customs) —
+  // surface them as their own removable chips so they can be toggled off.
+  const customActive = conditions.filter((c) => !renderedNames.has(c.toLowerCase()));
+
+  function renderChip(name: string, entry: ConditionResult | undefined, polarity: ConditionPolarity) {
+    const active = activeSet.has(name.toLowerCase());
+    const accent = polarityAccent(polarity);
+    return (
+      <TouchableOpacity
+        key={name}
+        style={[styles.chip, active && { borderColor: accent, backgroundColor: `${accent}22` }]}
+        onPress={() => onToggle(name)}
+        onLongPress={entry ? () => setDetailFor(entry) : undefined}
+        delayLongPress={250}
+      >
+        <Text style={[styles.chipText, active && { color: accent, fontWeight: '700' }]}>{name}</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  function addCustom() {
+    const name = customDraft.trim();
+    if (!name) return;
+    if (!activeSet.has(name.toLowerCase())) onToggle(name);
+    setCustomDraft('');
+  }
+
   return (
     <View>
       <View style={styles.grid}>
-        {merged.map(({ name, entry }) => {
-          const active = activeSet.has(name.toLowerCase());
-          return (
-            <TouchableOpacity
-              key={name}
-              style={[styles.chip, active && styles.chipActive]}
-              onPress={() => onToggle(name)}
-              onLongPress={entry ? () => setDetailFor(entry) : undefined}
-              delayLongPress={250}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{name}</Text>
-            </TouchableOpacity>
-          );
-        })}
+        {negativeEntries.map((m) => renderChip(m.name, m.entry, m.polarity))}
+      </View>
+
+      <Text style={styles.groupLabel}>BOONS</Text>
+      <View style={styles.grid}>
+        {positiveEntries.map((m) => renderChip(m.name, m.entry, m.polarity))}
+      </View>
+
+      {customActive.length > 0 ? (
+        <>
+          <Text style={styles.groupLabel}>CUSTOM</Text>
+          <View style={styles.grid}>
+            {customActive.map((name) => renderChip(name, undefined, 'custom'))}
+          </View>
+        </>
+      ) : null}
+
+      <View style={styles.customRow}>
+        <TextInput
+          style={styles.customInput}
+          value={customDraft}
+          onChangeText={setCustomDraft}
+          onSubmitEditing={addCustom}
+          placeholder="Add a custom condition…"
+          placeholderTextColor={colors.outline}
+          returnKeyType="done"
+        />
+        <TouchableOpacity style={styles.customAddBtn} onPress={addCustom} activeOpacity={0.7}>
+          <Text style={styles.customAddBtnText}>Add</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.exhaustionRow}>
@@ -140,6 +200,32 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
   chipTextActive: { color: colors.hpDanger, fontWeight: '700' },
+
+  groupLabel: {
+    fontSize: 10, fontFamily: fonts.label, fontWeight: '700', letterSpacing: 1,
+    color: colors.outline, marginTop: 14, marginBottom: 6,
+  },
+  customRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
+  customInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: colors.background,
+    color: colors.onSurface,
+    fontSize: 13,
+  },
+  customAddBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+    backgroundColor: `${colors.secondary}1a`,
+  },
+  customAddBtnText: { fontSize: 12, fontFamily: fonts.label, fontWeight: '700', color: colors.secondary },
 
   exhaustionRow: {
     flexDirection: 'row',

@@ -19,6 +19,7 @@ import type {
   Dnd5eStats, Dnd5eResources,
 } from '@vaultstone/types';
 import { useResolvedContentLabels, composeIdentity } from './useResolvedContentLabels';
+import { conditionPolarity } from '../character-sheet/conditions-taxonomy';
 
 type Props = {
   /** Display name (player profile name, falls back to "Unknown"). */
@@ -270,11 +271,22 @@ export function PartyMemberCard({
                 <Text style={[s.chipText, s.chipTextInspire]}>★ INSP</Text>
               </View>
             ) : null}
-            {conditions.map((c, i) => (
-              <View key={`${c}-${i}`} style={[s.chip, s.chipCondition]}>
-                <Text style={[s.chipText, s.chipTextCondition]}>{c.toUpperCase()}</Text>
-              </View>
-            ))}
+            {conditions.map((c, i) => {
+              const polarity = conditionPolarity(c);
+              // Negative keeps the warning-orange debuff styling; positive
+              // boons read green, custom one-offs read secondary-blue.
+              const accent = polarity === 'positive' ? colors.hpHealthy
+                : polarity === 'custom' ? colors.secondary
+                : colors.hpWarning;
+              return (
+                <View
+                  key={`${c}-${i}`}
+                  style={[s.chip, { borderColor: `${accent}4d`, backgroundColor: `${accent}1a` }]}
+                >
+                  <Text style={[s.chipText, { color: accent }]}>{c.toUpperCase()}</Text>
+                </View>
+              );
+            })}
             {exhaustionLevel > 0 ? (
               <View style={[s.chip, s.chipCondition]}>
                 <Text style={[s.chipText, s.chipTextCondition]}>{`EXHAUSTION ${exhaustionLevel}`}</Text>

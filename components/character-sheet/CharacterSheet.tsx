@@ -14,7 +14,7 @@ import {
   getCharacterById, updateCharacter, uploadCharacterPortrait, uploadCharacterCardImage, supabase,
   getCampaignCharacterRules, resolveRuleValues, deleteCharacter,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, getEffectiveSpellcastingAbility, getEquippedAC as getEquippedACShared } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, getEffectiveSpellcastingAbility, getEquippedAC as getEquippedACShared, getUnarmoredDefense } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius, ImageCropModal } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
@@ -795,7 +795,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   // Tap-for-breakdown state for the hero / sidebar calculated values.
   // Holds which surface is open; null when no modal is showing. Init
   // is rollable; AC / passive senses are info-only.
-  const [openBreakdown, setOpenBreakdown] = useState<'initiative' | 'ac' | 'passive-perception' | null>(null);
+  const [openBreakdown, setOpenBreakdown] = useState<'initiative' | 'ac' | null>(null);
   // Cross-tab trigger for the Abilities add flow. Combat's section + buttons
   // (Abilities header + Actions header) set this, AbilitiesCardTab consumes
   // it via a useEffect to open either the Import / Add-custom chooser
@@ -1248,7 +1248,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const computedAC = useMemo(
     () => (scores ? getEquippedAC() : 10),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scores, equipment, stats?.acOverride],
+    [scores, equipment, stats?.acOverride, stats?.classKey, stats?.classes],
   );
   // Class-table-derived spell limits, before any manual override.
   // Surfaced into the Manage Spells modal and into the AC-style edit
@@ -1311,7 +1311,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const ac = manualMode && stats?.acOverride != null ? stats.acOverride : computedAC;
   const computedInitiative = scores ? abilityMod(scores.dexterity) : 0;
   const initiative = manualMode && stats?.initiativeOverride != null ? stats.initiativeOverride : computedInitiative;
-  const passivePerception = 10 + skillMod('perception');
 
   const liveActionFeatures: Dnd5eFeature[] = useMemo(() => {
     if (!stats) return [];
@@ -2603,7 +2602,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
 
             {/* Hero header — portrait left (with AC badge overlay),
                 identity column right (name / subtitle / level, then
-                PER / PROF / HD as horizontal label-value rows). The
+                INIT / PROF / HD as horizontal label-value rows). The
                 Inspiration + Rest pair lives full-width below the
                 two-column body. */}
             <View style={s.deskHeader}>
@@ -2658,23 +2657,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                   <View style={s.deskHeroStatsCol}>
                     <TouchableOpacity
                       style={s.deskHeroStatRow}
-                      onPress={() => setOpenBreakdown('passive-perception')}
+                      onPress={() => setOpenBreakdown('initiative')}
                       activeOpacity={0.7}
-                      accessibilityLabel="Show passive perception breakdown"
+                      accessibilityLabel="Show initiative breakdown"
                     >
                       <View style={s.deskHeroStatRowLeft}>
-                        <MaterialCommunityIcons name="eye-outline" size={11} color={colors.outline} />
-                        <Text style={s.deskHeroStatLabel}>PER</Text>
+                        <MaterialCommunityIcons name="lightning-bolt" size={11} color={colors.outline} />
+                        <Text style={s.deskHeroStatLabel}>INIT</Text>
                       </View>
-                      <Text
-                        style={[
-                          s.deskHeroStatValue,
-                          (stats.skillExpertise ?? []).includes('perception') && { color: '#e6a255' },
-                          !(stats.skillExpertise ?? []).includes('perception')
-                            && stats.skillProficiencies.includes('perception')
-                            && { color: colors.primary },
-                        ]}
-                      >{passivePerception}</Text>
+                      <Text style={s.deskHeroStatValue}>{fmtMod(initiative)}</Text>
                     </TouchableOpacity>
                     <View style={s.deskHeroStatRow}>
                       <View style={s.deskHeroStatRowLeft}>
@@ -3186,19 +3177,13 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
                 </View>
               </View>
 
-              {/* Compact 5-cell stat row — passive senses + proficiency
-                  + hit dice. Tighter than the original 3-cell PER/INV/
-                  INS row so PROF and HD can share the line; freed up
-                  the supp strip below for Conditions. */}
+              {/* Compact 3-cell stat row — initiative + proficiency +
+                  hit dice. Initiative replaced passive perception here so
+                  the most combat-relevant number is always visible. */}
               <View style={s.heroStatsRow}>
                 <SenseCell
-                  icon="eye-outline" label="PER" value={passivePerception}
-                  profState={
-                    (stats.skillExpertise ?? []).includes('perception') ? 'expert'
-                    : stats.skillProficiencies.includes('perception') ? 'proficient'
-                    : 'none'
-                  }
-                  onPress={() => setOpenBreakdown('passive-perception')}
+                  icon="lightning-bolt" label="INIT" value={fmtMod(initiative)}
+                  onPress={() => setOpenBreakdown('initiative')}
                 />
                 <SenseCell icon="star-four-points-outline" label="PROF" value={fmtMod(prof)} />
                 <SenseCell icon="dice-d8-outline" label="HD" value={`${resources.hitDiceRemaining ?? stats.level}/${stats.level}`} />
@@ -4124,9 +4109,8 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
         />
       ) : null}
 
-      {/* Calculated-value breakdown modal — opened by tapping AC,
-          Initiative, or a passive sense. Initiative is rollable; AC
-          and passive senses are info-only. */}
+      {/* Calculated-value breakdown modal — opened by tapping AC or
+          Initiative. Initiative is rollable; AC is info-only. */}
       {(() => {
         if (!openBreakdown || !stats || !scores) return null;
         const close = () => setOpenBreakdown(null);
@@ -4190,6 +4174,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           } else {
             lines.push({ label: 'Unarmored base', value: '10' });
             lines.push({ label: 'DEX mod', value: fmtMod(dexMod) });
+            const ud = getUnarmoredDefense(stats, !!shieldItem);
+            if (ud) {
+              const abilShort = ud.ability === 'constitution' ? 'CON' : 'WIS';
+              lines.push({ label: `Unarmored Defense (${ud.className} · ${abilShort})`, value: fmtMod(ud.abilityMod) });
+            }
           }
           if (shieldItem) {
             lines.push({ label: `${shieldItem.name}`, value: fmtMod(shieldItem.acBonus ?? 2) });
@@ -4210,30 +4199,6 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               subtitle="Defense vs. attack rolls"
               total={String(ac)}
               lines={lines}
-              onClose={close}
-            />
-          );
-        }
-
-        if (openBreakdown === 'passive-perception') {
-          const abi = SKILL_ABILITY.perception;
-          const m = abilityMod(scores[abi]);
-          const isProf = stats.skillProficiencies.includes('perception');
-          const isExpert = (stats.skillExpertise ?? []).includes('perception');
-          const profValue = isExpert ? prof * 2 : isProf ? prof : 0;
-          const profLabel = isExpert ? 'Proficiency (expertise ×2)' : 'Proficiency';
-          const total = 10 + m + profValue;
-          return (
-            <StatBreakdownModal
-              visible
-              title="Passive Perception"
-              subtitle="10 + skill mod"
-              total={String(total)}
-              lines={[
-                { label: 'Passive base', value: '10' },
-                { label: `${ABILITY_SHORT[abi]} mod`, value: fmtMod(m) },
-                { label: profLabel, value: fmtMod(profValue) },
-              ]}
               onClose={close}
             />
           );
