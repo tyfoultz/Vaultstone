@@ -238,7 +238,6 @@ export function CombatTab({
   const [addActionsOpen, setAddActionsOpen] = useState(false);
   // Mobile INIT card breakdown state. Desktop INIT lives on the
   // sidebar StatCell and is handled at the CharacterSheet level.
-  const [initBreakdownOpen, setInitBreakdownOpen] = useState(false);
   // Per-weapon roll breakdown state — opens on tapping a Hit or
   // Damage button so the player sees the formula before committing.
   const [weaponBreakdown, setWeaponBreakdown] = useState<
@@ -314,18 +313,11 @@ export function CombatTab({
             <View style={s.moveColDesktop}>
               <SectionLabel>MOVEMENT</SectionLabel>
               <View style={s.moveCardsStack}>
-                <TouchableOpacity
-                  style={s.moveStatCard}
-                  onPress={() => setInitBreakdownOpen(true)}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Show initiative breakdown"
-                >
-                  <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.hpWarning} />
-                  <Text style={s.moveStatLabel}>INIT</Text>
-                  <Text style={s.moveStatValue}>
-                    {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
-                  </Text>
-                </TouchableOpacity>
+                <View style={s.moveStatCard}>
+                  <MaterialCommunityIcons name="resize" size={12} color={colors.hpWarning} />
+                  <Text style={s.moveStatLabel}>SIZE</Text>
+                  <Text style={s.moveStatValue}>{stats.size ?? 'Medium'}</Text>
+                </View>
                 <View style={s.moveStatCard}>
                   <MaterialCommunityIcons name="run-fast" size={12} color={colors.hpWarning} />
                   <Text style={s.moveStatLabel}>SPD</Text>
@@ -486,18 +478,11 @@ export function CombatTab({
         <View style={s.moveCol}>
           <SectionLabel>MOVEMENT</SectionLabel>
           <View style={s.moveCardsStack}>
-            <TouchableOpacity
-              style={s.moveStatCard}
-              onPress={() => setInitBreakdownOpen(true)}
-              activeOpacity={0.7}
-              accessibilityLabel="Show initiative breakdown"
-            >
-              <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.hpWarning} />
-              <Text style={s.moveStatLabel}>INIT</Text>
-              <Text style={s.moveStatValue}>
-                {fmtMod((manualMode && stats.initiativeOverride != null) ? stats.initiativeOverride : abilityMod(scores.dexterity))}
-              </Text>
-            </TouchableOpacity>
+            <View style={s.moveStatCard}>
+              <MaterialCommunityIcons name="resize" size={12} color={colors.hpWarning} />
+              <Text style={s.moveStatLabel}>SIZE</Text>
+              <Text style={s.moveStatValue}>{stats.size ?? 'Medium'}</Text>
+            </View>
             <View style={s.moveStatCard}>
               <MaterialCommunityIcons name="run-fast" size={12} color={colors.hpWarning} />
               <Text style={s.moveStatLabel}>SPD</Text>
@@ -657,35 +642,6 @@ export function CombatTab({
             onClose={() => setAddActionsOpen(false)}
           />
         ) : null}
-        {(() => {
-          // Initiative breakdown — DEX mod (or manual override).
-          if (!initBreakdownOpen) return null;
-          const dex = abilityMod(scores.dexterity);
-          const override = manualMode && stats.initiativeOverride != null;
-          const total = override ? stats.initiativeOverride! : dex;
-          const lines: StatBreakdownLine[] = override
-            ? [{ label: 'Manual override', value: fmtMod(stats.initiativeOverride!) }]
-            : [{ label: 'DEX mod', value: fmtMod(dex) }];
-          return (
-            <StatBreakdownModal
-              visible
-              title="Initiative"
-              subtitle="Combat turn order · d20 + DEX"
-              total={fmtMod(total)}
-              lines={lines}
-              rollLabel="Roll initiative"
-              onRoll={() => {
-                const r = Math.floor(Math.random() * 20) + 1;
-                onRoll({
-                  label: 'Initiative',
-                  rolls: [r], bonus: total,
-                  total: r + total, crit: r === 20, fumble: r === 1,
-                });
-              }}
-              onClose={() => setInitBreakdownOpen(false)}
-            />
-          );
-        })()}
         {(() => {
           // Weapon hit / damage breakdown. Mirrors getAttackBonus's
           // logic so the per-source lines match the computed bonus
