@@ -27,6 +27,67 @@ function isEffectiveMagic(e: Dnd5eEquipmentItem): boolean {
 }
 
 /**
+ * True if the character has any level in the class whose SRD/homebrew
+ * key base-name is `name`. Class keys are edition-suffixed
+ * (`barbarian-srd-5-1`, `monk-srd-2-0`), so we match on the base-name
+ * prefix. Covers both the top-level `classKey` and multiclass
+ * `classes[]` entries.
+ */
+function hasClass(stats: Dnd5eStats, name: string): boolean {
+  const matches = (key: string | null | undefined) => {
+    if (!key) return false;
+    const k = key.toLowerCase();
+    return k === name || k.startsWith(`${name}-`) || k.startsWith(`${name}_`);
+  };
+  if (matches(stats.classKey)) return true;
+  for (const c of stats.classes ?? []) {
+    if (matches(c.classKey)) return true;
+  }
+  return false;
+}
+
+export interface UnarmoredDefenseChoice {
+  /** Display label for the source class ('Barbarian' | 'Monk'). */
+  className: string;
+  /** Ability whose modifier is added on top of 10 + DEX. */
+  ability: 'constitution' | 'wisdom';
+  /** The contributed modifier value. */
+  abilityMod: number;
+}
+
+/**
+ * Best-applicable Unarmored Defense for a character with no body armor
+ * equipped, or `null` when none applies (no Barbarian/Monk levels, or
+ * the plain 10 + DEX base is already as good).
+ *
+ *   - Barbarian: 10 + DEX + CON. A shield is allowed.
+ *   - Monk: 10 + DEX + WIS, but only while NOT wielding a shield.
+ *
+ * `hasShield` gates the Monk option. When a character has both classes,
+ * the higher ability modifier wins. A non-positive modifier is dropped
+ * because 10 + DEX (optionally + shield) would beat it — RAW you may
+ * choose whichever AC calculation is best.
+ */
+export function getUnarmoredDefense(
+  stats: Dnd5eStats,
+  hasShield: boolean,
+): UnarmoredDefenseChoice | null {
+  const scores = stats.abilityScores;
+  if (!scores) return null;
+  const candidates: UnarmoredDefenseChoice[] = [];
+  if (hasClass(stats, 'barbarian')) {
+    candidates.push({ className: 'Barbarian', ability: 'constitution', abilityMod: abilityMod(scores.constitution) });
+  }
+  if (hasClass(stats, 'monk') && !hasShield) {
+    candidates.push({ className: 'Monk', ability: 'wisdom', abilityMod: abilityMod(scores.wisdom) });
+  }
+  const best = candidates
+    .filter((c) => c.abilityMod > 0)
+    .sort((a, b) => b.abilityMod - a.abilityMod)[0];
+  return best ?? null;
+}
+
+/**
  * Compute a 5e character's Armor Class from their equipped gear.
  * Shared by the character sheet, the campaign party tab, the
  * PartyMemberCard, and the world home so the displayed AC stays
@@ -59,6 +120,11 @@ export function getEquippedAC(stats: Dnd5eStats, resources: Dnd5eResources): num
     const dexBonus = cap !== undefined && cap !== null ? Math.min(dexMod, cap) : dexMod;
     base = (armor.acBase ?? 10) + dexBonus;
     if (isEffectiveMagic(armor) && armor.miscACBonus) base += armor.miscACBonus;
+  } else {
+    // No body armor — apply Barbarian/Monk Unarmored Defense if the
+    // character has it and it beats the plain 10 + DEX base.
+    const ud = getUnarmoredDefense(stats, !!shield);
+    if (ud) base += ud.abilityMod;
   }
   if (shield) {
     base += shield.acBonus ?? 2;

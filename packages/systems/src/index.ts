@@ -5,7 +5,7 @@ export {
   type PrereqCharacter,
   type PrereqCheckResult,
 } from './dnd5e/prerequisites';
-export { getEquippedAC } from './dnd5e/armor-class';
+export { getEquippedAC, getUnarmoredDefense, type UnarmoredDefenseChoice } from './dnd5e/armor-class';
 export {
   spellSlotsForClassAtLevel,
   spellSlotsForCharacter,

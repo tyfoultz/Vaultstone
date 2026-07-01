@@ -14,7 +14,7 @@ import {
   getCharacterById, updateCharacter, uploadCharacterPortrait, uploadCharacterCardImage, supabase,
   getCampaignCharacterRules, resolveRuleValues, deleteCharacter,
 } from '@vaultstone/api';
-import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, getEffectiveSpellcastingAbility, getEquippedAC as getEquippedACShared } from '@vaultstone/systems';
+import { BUNDLED_SYSTEMS_BY_ID, spellSlotsForCharacter, resolveSubclassCasting, getEffectiveSpellcastingAbility, getEquippedAC as getEquippedACShared, getUnarmoredDefense } from '@vaultstone/systems';
 import { useAuthStore, useCharacterStore } from '@vaultstone/store';
 import { colors, spacing, fonts, radius, ImageCropModal } from '@vaultstone/ui';
 import { getSrdContent, ContentResolver } from '@vaultstone/content';
@@ -1248,7 +1248,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
   const computedAC = useMemo(
     () => (scores ? getEquippedAC() : 10),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scores, equipment, stats?.acOverride],
+    [scores, equipment, stats?.acOverride, stats?.classKey, stats?.classes],
   );
   // Class-table-derived spell limits, before any manual override.
   // Surfaced into the Manage Spells modal and into the AC-style edit
@@ -4190,6 +4190,11 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
           } else {
             lines.push({ label: 'Unarmored base', value: '10' });
             lines.push({ label: 'DEX mod', value: fmtMod(dexMod) });
+            const ud = getUnarmoredDefense(stats, !!shieldItem);
+            if (ud) {
+              const abilShort = ud.ability === 'constitution' ? 'CON' : 'WIS';
+              lines.push({ label: `Unarmored Defense (${ud.className} · ${abilShort})`, value: fmtMod(ud.abilityMod) });
+            }
           }
           if (shieldItem) {
             lines.push({ label: `${shieldItem.name}`, value: fmtMod(shieldItem.acBonus ?? 2) });
