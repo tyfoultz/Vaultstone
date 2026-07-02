@@ -38,14 +38,14 @@ export const listWorldPagesTool: ToolDefinition = {
     const { data, error } = await getPagesForWorld(worldId);
     if (error) return { error: 'Could not load world pages.' };
 
+    // RLS already scopes rows to what this user may see (visible_to_players
+    // pages + any pages with an explicit world_page_permissions grant).
+    // Don't re-filter here — doing so would hide pages the player has an
+    // explicit grant to, even though RLS allowed them through.
     const rows = (data ?? []) as unknown as PageListRow[];
-    const visible =
-      ctx.role === 'player'
-        ? rows.filter((p) => p.visible_to_players)
-        : rows;
 
     return {
-      pages: visible.map((p) => ({
+      pages: rows.map((p) => ({
         id: p.id,
         title: p.title,
         kind: p.page_kind ?? null,

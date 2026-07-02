@@ -32,10 +32,10 @@ export const getWorldPageTool: ToolDefinition = {
       return { error: 'Page not found or not accessible.' };
     }
 
-    // Player double-check: never surface a page not flagged visible.
-    if (ctx.role === 'player' && !data.visible_to_players) {
-      return { error: 'That page is not visible to players.' };
-    }
+    // Trust RLS — if the fetch succeeded, the player's session is authorized
+    // (either via visible_to_players or an explicit world_page_permissions
+    // grant). A secondary check here would block pages the player legitimately
+    // has access to via explicit grants.
 
     return {
       page: {

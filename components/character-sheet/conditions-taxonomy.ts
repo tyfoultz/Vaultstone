@@ -29,7 +29,8 @@ export interface PositiveCondition {
 export const POSITIVE_CONDITIONS: PositiveCondition[] = [
   { name: 'Blessed', description: 'Add 1d4 to attack rolls and saving throws (Bless).' },
   { name: 'Hasted', description: 'Speed doubled, +2 AC, advantage on Dexterity saves, and one extra limited action (Haste).' },
-  { name: 'Inspired', description: 'Holding a Bardic Inspiration die to add to a later roll.' },
+  { name: 'Inspiration', description: 'Holding DM-awarded Inspiration; spend for advantage on one attack roll, ability check, or saving throw.' },
+  { name: 'Bardic Inspiration', description: 'Holding a Bardic Inspiration die to add to one attack roll, ability check, or saving throw.' },
   { name: 'Invisible', description: 'Unseen without magic or a special sense; attacks against you have disadvantage and your attacks have advantage.' },
   { name: 'Concentrating', description: 'Maintaining concentration on an ongoing spell.' },
   { name: 'Hidden', description: 'Unseen and unheard — your attacks have advantage and your position is unknown.' },
