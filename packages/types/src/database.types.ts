@@ -178,7 +178,9 @@ export interface Database {
         };
         Update: {
           id?: string;
-          campaign_id?: string;
+          // Nullable in Postgres — clearing it detaches the character
+          // from its campaign (player leaves / DM removes them).
+          campaign_id?: string | null;
           user_id?: string;
           name?: string;
           system?: string;
@@ -1028,6 +1030,15 @@ export interface Database {
       get_campaign_by_join_code: {
         Args: { p_join_code: string };
         Returns: Database['public']['Tables']['campaigns']['Row'][];
+      };
+      // Drops a membership row *and* detaches that user's characters
+      // from the campaign — both writes must land together or the
+      // removed player keeps access via `is_campaign_member`. Callable
+      // by the campaign DM or by the member themselves.
+      // See migration 20260624000000.
+      remove_campaign_member: {
+        Args: { p_campaign_id: string; p_user_id: string };
+        Returns: void;
       };
       // Trimmed-resources party/member RPCs — return the same nested shape
       // as the prior PostgREST embeddings, minus the heavy `resources`

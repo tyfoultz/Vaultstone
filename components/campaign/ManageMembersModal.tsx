@@ -1,20 +1,28 @@
-// DM-only members manager. Two surfaces in one modal:
+// DM-only members manager. Three surfaces in one modal:
 //   • Join code — copyable, regeneratable invite token. The DM
 //     shares this with players who join via /campaign/join.
 //   • Member list — every member of the campaign, with a Remove
-//     action for everyone except the DM. Removing a player drops
-//     their character_id link too via the underlying RPC.
+//     action for everyone except the DM. Removing a player also
+//     detaches their characters from the campaign (see
+//     `removeCampaignMember`), so they stop showing in the roster.
+//   • Active character — when a player owns more than one character
+//     under the campaign, the DM can pick which one is in play. Only
+//     the character pinned to `campaign_members.character_id` drives
+//     party vitals and the session view, and nothing else in the app
+//     can repoint it once set.
 //
 // Players see a much simpler view of the same data on the V2 page's
 // Party panel; this modal is the editor surface.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Clipboard } from 'react-native';
 import {
   regenerateJoinCode,
   removeCampaignMember,
+  updateCampaignMember,
 } from '@vaultstone/api';
+import type { Dnd5eStats } from '@vaultstone/types';
 import {
   Card, GhostButton, Icon, MetaLabel, Text,
   colors, radius, spacing,
@@ -29,10 +37,23 @@ type Member = {
   characters: { id: string; name: string; system: string; base_stats: unknown } | null;
 };
 
+/** Every character pointing at this campaign, from the parent's roster
+ *  fetch. Distinct from `Member.characters`, which is only the pinned
+ *  one — that's exactly the blind spot this list fills. */
+type CampaignCharacter = {
+  id: string;
+  user_id: string;
+  name: string;
+  base_stats: unknown;
+};
+
 type Props = {
   campaignId: string;
   joinCode: string;
   members: Member[];
+  /** Full campaign character roster — powers the active-character
+   *  picker for members who own more than one. */
+  characters: CampaignCharacter[];
   /** Auth'd user — used to hide the Remove button on the DM's own
    *  row (the DM can't remove themselves from this modal; campaign
    *  deletion is the path for that). */
@@ -55,12 +76,26 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export function ManageMembersModal({
-  campaignId, joinCode, members, currentUserId, onClose, onChanged, onJoinCodeChanged,
+  campaignId, joinCode, members, characters, currentUserId, onClose, onChanged, onJoinCodeChanged,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [switching, setSwitching] = useState<string | null>(null);
+  /** Optimistic pin overrides, keyed by user — the parent's `members`
+   *  array only catches up on the next refresh. */
+  const [pinned, setPinned] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
+
+  const charsByUser = useMemo(() => {
+    const map = new Map<string, CampaignCharacter[]>();
+    for (const c of characters) {
+      const list = map.get(c.user_id) ?? [];
+      list.push(c);
+      map.set(c.user_id, list);
+    }
+    return map;
+  }, [characters]);
 
   function copy() {
     Clipboard.setString(joinCode);
@@ -79,6 +114,22 @@ export function ManageMembersModal({
       return;
     }
     onJoinCodeChanged(code);
+  }
+
+  async function switchCharacter(userId: string, characterId: string) {
+    if (switching) return;
+    setSwitching(userId);
+    setError('');
+    const { error: err } = await updateCampaignMember(campaignId, userId, {
+      character_id: characterId,
+    });
+    setSwitching(null);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    setPinned((prev) => ({ ...prev, [userId]: characterId }));
+    onChanged();
   }
 
   async function remove(userId: string) {
@@ -147,49 +198,93 @@ export function ManageMembersModal({
                   {members.map((m) => {
                     const isSelf = m.user_id === currentUserId;
                     const isDM = m.role === 'gm';
+                    const owned = isDM ? [] : charsByUser.get(m.user_id) ?? [];
+                    const activeId = pinned[m.user_id] ?? m.character_id;
+                    const activeName =
+                      owned.find((c) => c.id === activeId)?.name ?? m.characters?.name ?? null;
                     return (
-                      <View key={m.user_id} style={styles.memberRow}>
-                        <View style={styles.avatar}>
-                          <Text variant="label-md" family="body" weight="bold" style={{ color: colors.onPrimary }}>
-                            {(m.profiles?.display_name ?? '?').slice(0, 1).toUpperCase()}
-                          </Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <View style={styles.nameRow}>
-                            <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.onSurface }}>
-                              {m.profiles?.display_name ?? 'Anonymous'}
+                      <View key={m.user_id} style={styles.memberBlock}>
+                        <View style={styles.memberRow}>
+                          <View style={styles.avatar}>
+                            <Text variant="label-md" family="body" weight="bold" style={{ color: colors.onPrimary }}>
+                              {(m.profiles?.display_name ?? '?').slice(0, 1).toUpperCase()}
                             </Text>
-                            <View style={styles.roleChip}>
-                              <Text variant="label-sm" family="body" weight="bold" uppercase style={styles.roleChipText}>
-                                {ROLE_LABEL[m.role] ?? m.role}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View style={styles.nameRow}>
+                              <Text variant="body-sm" family="body" weight="semibold" style={{ color: colors.onSurface }}>
+                                {m.profiles?.display_name ?? 'Anonymous'}
                               </Text>
+                              <View style={styles.roleChip}>
+                                <Text variant="label-sm" family="body" weight="bold" uppercase style={styles.roleChipText}>
+                                  {ROLE_LABEL[m.role] ?? m.role}
+                                </Text>
+                              </View>
+                              {isSelf ? (
+                                <Text variant="label-sm" style={{ color: colors.outline }}>
+                                  (you)
+                                </Text>
+                              ) : null}
                             </View>
-                            {isSelf ? (
-                              <Text variant="label-sm" style={{ color: colors.outline }}>
-                                (you)
+                            {activeName ? (
+                              <Text variant="label-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 2 }} numberOfLines={1}>
+                                Playing: {activeName}
+                              </Text>
+                            ) : !isDM ? (
+                              <Text variant="label-sm" family="body" style={{ color: colors.outline, marginTop: 2 }}>
+                                No character assigned
                               </Text>
                             ) : null}
                           </View>
-                          {m.characters ? (
-                            <Text variant="label-sm" family="body" style={{ color: colors.onSurfaceVariant, marginTop: 2 }} numberOfLines={1}>
-                              Playing: {m.characters.name}
-                            </Text>
-                          ) : !isDM ? (
-                            <Text variant="label-sm" family="body" style={{ color: colors.outline, marginTop: 2 }}>
-                              No character assigned
-                            </Text>
+                          {/* Remove disabled for the DM and the auth'd
+                              user (the DM removes themselves by deleting
+                              the campaign; players leave via their own
+                              "Leave campaign" path). */}
+                          {!isSelf && !isDM ? (
+                            <GhostButton
+                              label={removing === m.user_id ? '…' : 'Remove'}
+                              onPress={() => remove(m.user_id)}
+                              disabled={removing === m.user_id}
+                            />
                           ) : null}
                         </View>
-                        {/* Remove disabled for the DM and the auth'd
-                            user (the DM removes themselves by deleting
-                            the campaign; players leave via their own
-                            "Leave campaign" path). */}
-                        {!isSelf && !isDM ? (
-                          <GhostButton
-                            label={removing === m.user_id ? '…' : 'Remove'}
-                            onPress={() => remove(m.user_id)}
-                            disabled={removing === m.user_id}
-                          />
+
+                        {/* Only worth the space when there's a choice to
+                            make — a lone character already shows above. */}
+                        {owned.length > 1 ? (
+                          <View style={styles.charPicker}>
+                            <MetaLabel size="sm">Active character</MetaLabel>
+                            <View style={styles.charOptions}>
+                              {owned.map((c) => {
+                                const on = c.id === activeId;
+                                const stats = c.base_stats as Dnd5eStats | null;
+                                return (
+                                  <Pressable
+                                    key={c.id}
+                                    onPress={() => switchCharacter(m.user_id, c.id)}
+                                    disabled={on || switching === m.user_id}
+                                    style={[styles.charOption, on && styles.charOptionOn]}
+                                  >
+                                    <Icon
+                                      name={on ? 'radio-button-checked' : 'radio-button-unchecked'}
+                                      size={16}
+                                      color={on ? colors.primary : colors.outline}
+                                    />
+                                    <Text
+                                      variant="label-sm"
+                                      family="body"
+                                      weight={on ? 'bold' : 'regular'}
+                                      style={{ color: on ? colors.onSurface : colors.onSurfaceVariant }}
+                                      numberOfLines={1}
+                                    >
+                                      {c.name}
+                                      {stats?.level ? ` · L${stats.level}` : ''}
+                                    </Text>
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                          </View>
                         ) : null}
                       </View>
                     );
@@ -275,16 +370,46 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   list: { gap: 6 },
+  memberBlock: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant + '55',
+    overflow: 'hidden',
+  },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceContainer,
+  },
+  charPicker: {
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.sm,
+    paddingTop: spacing.xs,
+    gap: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant + '33',
+  },
+  charOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  charOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.outlineVariant + '55',
+    borderColor: colors.outlineVariant + '66',
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  charOptionOn: {
+    borderColor: colors.primary,
   },
   avatar: {
     width: 32,
