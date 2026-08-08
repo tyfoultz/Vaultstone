@@ -3,8 +3,31 @@ export type SpellTier = {
   spellNames: string[];
 };
 
-const TIER_LINE =
-  /^\s*(?:[•\-*]\s*)?(?:\*{0,2})?(at will|cantrips?\s*\(at will\)|\d+\/day\s*(?:each)?|\d+(?:st|nd|rd|th)\s+level\s*\([^)]*\))(?:\*{0,2})?:\s*(.+)/i;
+/**
+ * Tier headers vary by content source, so match every shape we ship:
+ *   - SRD bundle (Open5e):  "• Cantrips (at will): ...", "• 1st level (4 slots): ..."
+ *   - Imported (5e.tools):  "At will: ...", "Level 0: ...", "Level 1 (4 slots): ..."
+ *   - Innate blocks:        "3/day each: ...", "1/day: ...", "Constant: ..."
+ * Missing a shape isn't cosmetic — unmatched tiers lose their spell links.
+ */
+const TIER_LABELS = [
+  // "At will", "Constant"
+  'at\\s+will',
+  'constant',
+  // "Cantrip", "Cantrips", "Cantrips (at will)"
+  'cantrips?(?:\\s*\\([^)]*\\))?',
+  // "3/day", "1/day each"
+  '\\d+\\s*/\\s*day(?:\\s+each)?',
+  // "1st level (4 slots)", "1st-9th level (1 slot)", "9th level"
+  '\\d+(?:st|nd|rd|th)(?:\\s*[-–]\\s*\\d+(?:st|nd|rd|th))?\\s+level(?:\\s+spells?)?(?:\\s*\\([^)]*\\))?',
+  // "Level 0", "Level 1 (4 slots)", "Levels 1-3 (2 slots)"
+  'levels?\\s*\\d+(?:\\s*[-–]\\s*\\d+)?(?:\\s*\\([^)]*\\))?',
+].join('|');
+
+const TIER_LINE = new RegExp(
+  `^\\s*(?:[•\\-*]\\s*)?\\*{0,2}(${TIER_LABELS})\\*{0,2}\\s*:\\s*(.+)`,
+  'i',
+);
 
 function titleCase(name: string): string {
   return name
@@ -49,11 +72,26 @@ export function parseSpellcastingTrait(description: string): SpellTier[] {
   return tiers;
 }
 
+/** Every distinct spell name in the trait, de-duped case-insensitively. */
 export function extractAllSpellNames(description: string): string[] {
-  return parseSpellcastingTrait(description).flatMap((t) => t.spellNames);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const tier of parseSpellcastingTrait(description)) {
+    for (const name of tier.spellNames) {
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+    }
+  }
+  return out;
 }
 
+/**
+ * Loose match — imported blocks carry qualifiers ("Innate Spellcasting
+ * (Psionics)", "Spellcasting (Wizard)"). A false positive is harmless:
+ * a trait with no parseable tiers falls back to plain markdown.
+ */
 export function isSpellcastingTrait(traitName: string): boolean {
-  const lower = traitName.toLowerCase();
-  return lower === 'spellcasting' || lower === 'innate spellcasting';
+  return /spellcasting/i.test(traitName);
 }

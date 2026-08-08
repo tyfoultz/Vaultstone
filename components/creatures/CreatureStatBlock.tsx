@@ -1,7 +1,11 @@
 import { View, StyleSheet } from 'react-native';
 import { colors, spacing, radius, Text, MetaLabel, MarkdownText } from '@vaultstone/ui';
 import type { CreatureResult } from '@vaultstone/types';
-import { parseSpellcastingTrait, isSpellcastingTrait } from './parseSpellcastingTrait';
+import {
+  parseSpellcastingTrait,
+  extractAllSpellNames,
+  isSpellcastingTrait,
+} from './parseSpellcastingTrait';
 import { SpellTooltip } from './SpellTooltip';
 
 function fmtSigned(n: number): string {
@@ -94,7 +98,7 @@ function SpellcastingDescription({ description }: { description: string }) {
     return <MarkdownText style={s.bodyText}>{description}</MarkdownText>;
   }
 
-  const allSpellNames = tiers.flatMap((t) => t.spellNames);
+  const allSpellNames = extractAllSpellNames(description);
   const lines = description.split('\n');
 
   return (
@@ -116,7 +120,9 @@ function SpellcastingDescription({ description }: { description: string }) {
             </Text>
           );
         }
-        matches.sort((a, b) => a.index - b.index);
+        // Earliest first; on a tie the longest name wins so "fire shield"
+        // isn't shadowed by a shorter spell starting at the same offset.
+        matches.sort((a, b) => a.index - b.index || b.length - a.length);
         const parts: React.ReactNode[] = [];
         let cursor = 0;
         for (let i = 0; i < matches.length; i++) {

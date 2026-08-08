@@ -27,6 +27,7 @@ import {
   getCampaignCharacterRules,
   resolveRuleValues,
   removeCampaignMember,
+  updateCampaignMember,
   deleteCampaign,
   getCharactersForCampaign,
   uploadCampaignCover,
@@ -47,7 +48,11 @@ import { LinkWorldModal } from './LinkWorldModal';
 import { ManageCampaignContentModal } from './ManageCampaignContentModal';
 import { ManageMembersModal } from './ManageMembersModal';
 import { PartyMemberCard } from './PartyMemberCard';
-import { StartSessionModal, type StartSessionPlayer } from '../session/StartSessionModal';
+import {
+  StartSessionModal,
+  type StartSessionPlayer,
+  type StartSessionResult,
+} from '../session/StartSessionModal';
 import { EndSessionModal } from '../session/EndSessionModal';
 import { useFloatingNotes } from '../session/FloatingNotesContext';
 import { useAiChat } from '../ai/AiChatContext';
@@ -421,22 +426,60 @@ export function CampaignPageV2({ campaignId }: Props) {
   const stillLoading =
     loadingFlags.campaign || loadingFlags.world || loadingFlags.members || loadingFlags.rules;
 
-  // Pre-shape the player roster for the StartSessionModal — the
-  // modal expects a flattened {userId, displayName, characterName}
-  // shape rather than the raw Member record. Recomputed cheaply on
-  // each render; memoization isn't worth the indirection here.
-  const startModalPlayers: StartSessionPlayer[] = members
-    .filter((m) => m.role !== 'gm')
-    .map((m) => ({
-      userId: m.user_id,
-      displayName: m.profiles?.display_name ?? 'Anonymous',
-      characterName: m.characters?.name ?? null,
-    }));
+  // Pre-shape the player roster for the StartSessionModal. Characters
+  // come from `campaignCharacters` (every character pointing at this
+  // campaign), not from the membership join — that join only carries the
+  // *pinned* character, so a player's second character was invisible
+  // here and the DM had no way to put them in play.
+  const startModalPlayers: StartSessionPlayer[] = useMemo(() => {
+    const byUser = new Map<string, CampaignCharacter[]>();
+    for (const c of campaignCharacters) {
+      const list = byUser.get(c.user_id) ?? [];
+      list.push(c);
+      byUser.set(c.user_id, list);
+    }
+    return members
+      .filter((m) => m.role !== 'gm')
+      .map((m) => ({
+        userId: m.user_id,
+        displayName: m.profiles?.display_name ?? 'Anonymous',
+        characterId: m.character_id,
+        characters: (byUser.get(m.user_id) ?? []).map((c) => {
+          const stats = c.base_stats as Dnd5eStats | null;
+          return {
+            id: c.id,
+            name: c.name,
+            subtitle: stats?.level ? `L${stats.level}` : null,
+          };
+        }),
+      }));
+  }, [members, campaignCharacters]);
 
-  async function handleConfirmStart(pickedUserIds: string[]) {
+  async function handleConfirmStart({ userIds, characterPicks }: StartSessionResult) {
     if (startingSession) return;
     setStartingSession(true);
-    const { data } = await startSession(campaignId, pickedUserIds);
+    // Re-pin first — the session's party view reads
+    // `campaign_members.character_id`, so a swap has to land before the
+    // session opens or the wrong character shows up at the table.
+    if (characterPicks.length > 0) {
+      await Promise.all(
+        characterPicks.map((p) =>
+          updateCampaignMember(campaignId, p.userId, { character_id: p.characterId }),
+        ),
+      );
+      const pickByUser = new Map(characterPicks.map((p) => [p.userId, p.characterId]));
+      setMembers((prev) =>
+        prev.map((m) =>
+          pickByUser.has(m.user_id)
+            ? { ...m, character_id: pickByUser.get(m.user_id)! }
+            : m,
+        ),
+      );
+      // The membership join carries the pinned character's payload, so
+      // it's stale after a swap — refetch rather than patch it by hand.
+      setRefreshTick((n) => n + 1);
+    }
+    const { data } = await startSession(campaignId, userIds);
     setStartingSession(false);
     if (data) {
       setActiveSessionId(data.id);
@@ -704,6 +747,7 @@ export function CampaignPageV2({ campaignId }: Props) {
           campaignId={campaign.id}
           joinCode={campaign.join_code}
           members={members}
+          characters={campaignCharacters}
           currentUserId={user?.id ?? null}
           onClose={() => setMembersModalOpen(false)}
           onChanged={() => setRefreshTick((n) => n + 1)}

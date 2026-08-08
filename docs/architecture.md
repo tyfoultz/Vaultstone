@@ -85,6 +85,17 @@ character_id uuid (nullable FK → characters)
 joined_at    timestamptz
 ```
 
+`character_id` is the member's **active character** — the one in play. A
+player can own several characters under one campaign (all carrying the same
+`characters.campaign_id`), but only the pinned one drives party vitals,
+combat, and the session view; the roster join
+(`get_campaign_members_trimmed`) embeds that character alone. Anything that
+needs a member's *full* character list must read `characters` directly via
+`get_characters_for_campaign_trimmed` — that's the distinction the Start
+Session and Manage Members pickers rely on to offer a swap. Sessions are
+keyed by user, not character: `session_participants` is `(session_id,
+user_id)`, so "who's playing tonight" and "as whom" are separate decisions.
+
 **`characters`**
 ```sql
 id            uuid PK
@@ -202,6 +213,7 @@ created_at    timestamptz
 - `INSERT ... RETURNING` evaluates the SELECT policy; if it calls a security-definer function using `auth.uid()`, it can fail. Historical workaround was splitting INSERT and SELECT into separate client queries. **Preferred pattern:** wrap multi-step create flows in a `security definer` RPC (see `create_campaign_with_gm`) — it sidesteps the RETURNING-triggered policy re-eval, keeps the flow atomic, and lets the server own `auth.uid()` and generated values like join codes
 - Campaigns SELECT policy must NOT use `is_campaign_member` — use inline `auth.uid() = dm_user_id` check directly
 - FK violations on RLS-protected tables surface as RLS errors, not FK errors
+- **Membership has two independent sources.** `is_campaign_member` grants access to anyone with a `campaign_members` row *or* a character whose `campaign_id` points at the campaign. Deleting only the membership row therefore does not revoke access — the attached character keeps the user in. Removal must clear both, which the client can't do: the `characters: dm can update party members` policy re-evaluates `is_campaign_dm(campaign_id)` in WITH CHECK against the *new* row, and `is_campaign_dm(null)` is false, so a DM detaching a character is always rejected. Hence the `remove_campaign_member` security-definer RPC (migration `20260624000000`), which owns both writes and authorizes DM-or-self explicitly. **A WITH CHECK that calls a helper on a column you're clearing will always fail — route it through an RPC.**
 
 ---
 

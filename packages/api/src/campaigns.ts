@@ -110,6 +110,15 @@ export async function getCampaignPartyState(campaignId: string) {
   return supabase.rpc('get_campaign_party_state_trimmed', { p_campaign_id: campaignId });
 }
 
+/**
+ * Patch a membership row. Usable by the member on themselves
+ * (`campaign_members: member can link character`) *and* by the DM on any
+ * member of their campaign — the `campaign_members: dm can update role`
+ * policy is named for its original purpose but RLS is row-level, not
+ * column-level, so it grants the DM `character_id` writes too. That's
+ * what lets the Start Session picker re-pin which character a player
+ * brings to the table.
+ */
 export async function updateCampaignMember(
   campaignId: string,
   userId: string,
@@ -122,12 +131,25 @@ export async function updateCampaignMember(
     .eq('user_id', userId);
 }
 
+/**
+ * Drop a player from the campaign — DM removing someone, or a member
+ * leaving on their own. Routes through the `remove_campaign_member`
+ * security-definer RPC rather than deleting the membership row here,
+ * because removal is genuinely two writes: the `campaign_members` row
+ * *and* the `characters.campaign_id` link.
+ *
+ * Leaving the character attached isn't cosmetic — `is_campaign_member`
+ * counts "owns a character in this campaign" as membership, so a
+ * client-side delete alone left the removed player with read access.
+ * And the client can't clear the column itself: the DM's UPDATE policy
+ * re-checks `is_campaign_dm(campaign_id)` against the new row, which is
+ * null. See the migration for the full rationale.
+ */
 export async function removeCampaignMember(campaignId: string, userId: string) {
-  return supabase
-    .from('campaign_members')
-    .delete()
-    .eq('campaign_id', campaignId)
-    .eq('user_id', userId);
+  return supabase.rpc('remove_campaign_member', {
+    p_campaign_id: campaignId,
+    p_user_id: userId,
+  });
 }
 
 export async function joinCampaign(campaignId: string, userId: string) {

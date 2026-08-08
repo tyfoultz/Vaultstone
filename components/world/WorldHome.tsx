@@ -5,9 +5,11 @@ import { useRouter } from 'expo-router';
 import {
   getActiveSession,
   getCampaignMembers,
+  getCharactersForCampaign,
   getCompletedSessionCount,
   getPage,
   startSession,
+  updateCampaignMember,
   updateSection,
 } from '@vaultstone/api';
 import { getTemplate } from '@vaultstone/content';
@@ -34,7 +36,11 @@ import {
 } from './WorldSectionCard';
 import { WorldTopBar } from './WorldTopBar';
 import { worldPageHref, worldSectionHref } from './worldHref';
-import { StartSessionModal, type StartSessionPlayer } from '../session/StartSessionModal';
+import {
+  StartSessionModal,
+  type StartSessionPlayer,
+  type StartSessionResult,
+} from '../session/StartSessionModal';
 
 type Campaign = Database['public']['Tables']['campaigns']['Row'];
 
@@ -320,26 +326,62 @@ function WorldHomeBody({
   }, [partyMembers.length]);
 
   async function handleStartSession(campaign: Campaign) {
-    const { data } = await getCampaignMembers(campaign.id);
-    const members = (data ?? []) as unknown as Array<{
-      user_id: string; role: string;
+    // Two fetches: membership carries the roster + the *pinned*
+    // character, the character list carries every character pointing at
+    // the campaign. The picker needs the latter — a player's second
+    // character never appears in the membership join. Mirrors the
+    // roster shaping in CampaignPageV2.
+    const [membersRes, charsRes] = await Promise.all([
+      getCampaignMembers(campaign.id),
+      getCharactersForCampaign(campaign.id),
+    ]);
+    const members = (membersRes.data ?? []) as unknown as Array<{
+      user_id: string; role: string; character_id: string | null;
       profiles: { display_name: string | null } | null;
       characters: { name: string } | null;
     }>;
+    const chars = (charsRes.data ?? []) as unknown as Array<{
+      id: string; user_id: string; name: string; base_stats: unknown;
+    }>;
+    const byUser = new Map<string, typeof chars>();
+    for (const c of chars) {
+      const list = byUser.get(c.user_id) ?? [];
+      list.push(c);
+      byUser.set(c.user_id, list);
+    }
     setSessionPlayers(
       members.filter((m) => m.role === 'player').map((m) => ({
         userId: m.user_id,
         displayName: m.profiles?.display_name ?? 'Anonymous',
-        characterName: m.characters?.name ?? null,
+        characterId: m.character_id,
+        characters: (byUser.get(m.user_id) ?? []).map((c) => {
+          const stats = c.base_stats as Dnd5eStats | null;
+          return {
+            id: c.id,
+            name: c.name,
+            subtitle: stats?.level ? `L${stats.level}` : null,
+          };
+        }),
       })),
     );
     setStartModalCampaign(campaign);
   }
 
-  async function handleConfirmStart(pickedUserIds: string[]) {
+  async function handleConfirmStart({ userIds, characterPicks }: StartSessionResult) {
     if (!startModalCampaign || startingSession) return;
     setStartingSession(true);
-    const { data } = await startSession(startModalCampaign.id, pickedUserIds);
+    // Re-pin before the session opens so the party view shows the
+    // character the DM actually picked.
+    if (characterPicks.length > 0) {
+      await Promise.all(
+        characterPicks.map((p) =>
+          updateCampaignMember(startModalCampaign.id, p.userId, {
+            character_id: p.characterId,
+          }),
+        ),
+      );
+    }
+    const { data } = await startSession(startModalCampaign.id, userIds);
     setStartingSession(false);
     if (data) {
       setActiveSessionCampaignId(startModalCampaign.id);

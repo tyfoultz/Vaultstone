@@ -26,7 +26,9 @@ export const getCharacterTool: ToolDefinition = {
     },
   },
   execute: async (args, ctx) => {
-    const characterId = String(args.characterId ?? '').trim();
+    // Fall back to the context character id so players opening the assistant
+    // from their campaign view don't have to know their own character id.
+    const characterId = String(args.characterId ?? ctx.characterId ?? '').trim();
     if (!characterId) return { error: 'No characterId provided.' };
 
     const { data, error } = await getCharacterById(characterId);

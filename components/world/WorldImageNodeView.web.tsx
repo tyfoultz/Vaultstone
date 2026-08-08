@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { NodeSelection } from 'prosemirror-state';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import {
   getCampaignsForWorld,
@@ -136,10 +137,25 @@ export function WorldImageNodeView(props: NodeViewProps) {
 
   const canPin = !!worldId && !!userId && (dmCampaigns?.length ?? 0) > 0;
 
+  // True only when this specific node is the current NodeSelection, not just
+  // within a text/range selection that happens to span this image. This
+  // prevents two images from both showing the purple "selected" outline when
+  // the user drag-selects across them.
+  const pos = typeof getPos === 'function' ? getPos() : null;
+  const isNodeSelected =
+    selected &&
+    pos !== null &&
+    editor.state.selection instanceof NodeSelection &&
+    editor.state.selection.from === pos;
+
   function openMenu(e: React.MouseEvent<HTMLDivElement>) {
-    if (!editor.isEditable || !imageId) return;
+    if (!imageId) return;
     e.preventDefault();
     e.stopPropagation();
+    // Collapse any range selection to a NodeSelection on this image so that
+    // (a) only this image is highlighted and (b) the pin flow operates on the
+    // correct node regardless of what was previously selected.
+    selectThisNode();
     const rect = wrapperRef.current?.getBoundingClientRect();
     const x = rect ? e.clientX - rect.left : 0;
     const y = rect ? e.clientY - rect.top : 0;
@@ -225,7 +241,7 @@ export function WorldImageNodeView(props: NodeViewProps) {
   return (
     <NodeViewWrapper
       ref={wrapperRef as never}
-      className={`world-image-wrapper${selected ? ' selected' : ''}`}
+      className={`world-image-wrapper${isNodeSelected ? ' selected' : ''}`}
       data-drag-handle=""
       onContextMenu={openMenu as never}
     >
@@ -262,6 +278,7 @@ export function WorldImageNodeView(props: NodeViewProps) {
               onPinScene={chooseScene}
               onPinSubject={chooseSubject}
               canPin={canPin}
+              canCaption={editor.isEditable}
               dmCampaignsLoaded={dmCampaigns !== null}
             />
           ) : null}
@@ -314,20 +331,22 @@ function RootMenu({
   onPinScene,
   onPinSubject,
   canPin,
+  canCaption,
   dmCampaignsLoaded,
 }: {
   onCaption: () => void;
   onPinScene: () => void;
   onPinSubject: () => void;
   canPin: boolean;
+  canCaption: boolean;
   dmCampaignsLoaded: boolean;
 }) {
   const pinDisabled = !canPin && dmCampaignsLoaded;
   const pinLoading = !dmCampaignsLoaded;
   return (
     <div className="world-image-menu-list">
-      <MenuItem icon="✏" label="Edit caption" onClick={onCaption} />
-      <div className="world-image-menu-sep" />
+      {canCaption ? <MenuItem icon="✏" label="Edit caption" onClick={onCaption} /> : null}
+      {canCaption ? <div className="world-image-menu-sep" /> : null}
       <MenuItem
         icon="🖼"
         label={pinLoading ? 'Pin to Scene…' : 'Pin to Scene'}
