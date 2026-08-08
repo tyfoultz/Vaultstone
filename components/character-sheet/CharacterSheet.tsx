@@ -4192,6 +4192,14 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             if (e.requiresAttunement && !e.attuned) continue;
             lines.push({ label: e.name, value: fmtMod(e.miscACBonus) });
           }
+          // Reaching here means the override isn't being applied (the
+          // manual-mode branch above returned already), so any stored
+          // value is dormant — the sheet shows the computed number and
+          // nothing else hints that an override was ever set. Surface
+          // it instead of letting it lurk.
+          if (stats.acOverride != null) {
+            lines.push({ label: 'Manual override (inactive)', value: String(stats.acOverride) });
+          }
           return (
             <StatBreakdownModal
               visible
@@ -4199,6 +4207,15 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
               subtitle="Defense vs. attack rolls"
               total={String(ac)}
               lines={lines}
+              // Overriding AC by hand is Manual Mode-only by design (an
+              // ungated override once stuck Oswald at 14 through every
+              // gear change), but nothing said so — tapping AC outside
+              // Manual Mode just showed the math and no way to change it.
+              description={canEditAny
+                ? (stats.acOverride != null
+                    ? 'A manual AC override is saved but not being applied. Turn on Manual Mode in Settings to use it, or leave it off to keep the calculated value.'
+                    : 'To set AC by hand, turn on Manual Mode in Settings, then tap this stat.')
+                : undefined}
               onClose={close}
             />
           );
