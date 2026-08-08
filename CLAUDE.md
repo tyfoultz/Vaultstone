@@ -39,6 +39,16 @@ Internal packages: `@vaultstone/api`, `@vaultstone/store`, `@vaultstone/types`, 
 
 **ContentResolver** — `packages/content/src/resolver.ts` is the single query interface for all content. Never query the `homebrew_content` / `imported_content` tables directly from UI; go through ContentResolver so SRD + authored homebrew + imports merge with consistent tier priority and dedupe. **Edition scoping gotcha:** SRD rows are keyed under the legacy `'dnd5e'` system with the edition conveyed via `srdVersion`, while homebrew packs carry edition-suffixed system ids (`dnd5e_2014` / `dnd5e_2024`) — and the homebrew tier treats bare `'dnd5e'` as the 2024 alias. Campaign-context callers must translate `campaign.system` through `systemQueryArgs()` (exported from `@vaultstone/content`) instead of hardcoding `system: 'dnd5e'`; hardcoding silently drops every 2014-edition pack from the results (the encounter-builder "imported monster missing" bug).
 
+**Content key shapes** — never test a content key with a prefix match. The same logical entry carries three different key layouts depending on tier:
+
+| Tier | Shape | Example |
+|---|---|---|
+| Bundled (legacy) | bare name | `barbarian` |
+| SRD | `<name>-srd-<edition>` | `cleric-srd-2-0` |
+| Imported (5e.tools) | `imported_<system>_<type>_<source>_<name>` | `imported_dnd5e_2014_class_phb_barbarian` |
+
+The imported form puts the name in the **trailing** segment, so `key.startsWith('barbarian')` silently fails for every imported character — that's how Unarmored Defense stopped applying to imported Barbarians and Monks (`getUnarmoredDefense`, AC computed 10 instead of 13). Match the prefix *and* `key.split('_').pop()`; `slugify` collapses non-alphanumerics to hyphens, so no segment contains an underscore and the tail is reliably the entry name. Homebrew keys (`homebrew_<uuid>`) carry no name at all — resolve those through ContentResolver rather than parsing.
+
 **Real-time sessions** — Supabase Realtime channel `session:{session_id}`. Optimistic updates on client. Session state changes emit to `session_events` (append-only — `Update: never` in types).
 
 **Imported content** — Users extend a Game System with structured JSON content (e.g. 5e.tools per-content-type exports). The picked file is parsed and transformed in the browser/native runtime via `packages/content/src/imported/transform/*` (subclasses, feats, spells, backgrounds, items, species, monsters, classes — one transform per content type, all driven from a single `IMPORT_KINDS` registry in `components/imported/ImportContentModal.tsx`), then upserted into the Supabase `imported_content` table under a `homebrew_packs` row owned by the importer. Imports surface alongside authored homebrew under the unified content-pack concept; the homebrew tier reader merges both tables. Hard legal constraint: users are responsible for the rights to anything they import; the user accepts an in-app ToS callout before each import.
