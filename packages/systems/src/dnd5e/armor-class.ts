@@ -27,17 +27,28 @@ function isEffectiveMagic(e: Dnd5eEquipmentItem): boolean {
 }
 
 /**
- * True if the character has any level in the class whose SRD/homebrew
- * key base-name is `name`. Class keys are edition-suffixed
- * (`barbarian-srd-5-1`, `monk-srd-2-0`), so we match on the base-name
- * prefix. Covers both the top-level `classKey` and multiclass
- * `classes[]` entries.
+ * True if the character has any level in the class whose key base-name
+ * is `name`. Three key shapes exist in the wild and all must match:
+ *
+ *   barbarian                                bare
+ *   cleric-srd-2-0                           SRD, edition-suffixed
+ *   imported_dnd5e_2014_class_phb_barbarian  imported (5e.tools)
+ *
+ * The imported shape is why a prefix test alone isn't enough — it's
+ * `imported_<system>_class_<source>_<name>`, putting the class name in
+ * the *trailing* segment. A prefix-only check silently denied Unarmored
+ * Defense to every imported Barbarian and Monk. `slugify` collapses
+ * everything non-alphanumeric to hyphens, so no segment contains an
+ * underscore and splitting on `_` reliably isolates the name.
+ *
+ * Covers the top-level `classKey` and multiclass `classes[]` entries.
  */
 function hasClass(stats: Dnd5eStats, name: string): boolean {
   const matches = (key: string | null | undefined) => {
     if (!key) return false;
     const k = key.toLowerCase();
-    return k === name || k.startsWith(`${name}-`) || k.startsWith(`${name}_`);
+    if (k === name || k.startsWith(`${name}-`) || k.startsWith(`${name}_`)) return true;
+    return k.split('_').pop() === name;
   };
   if (matches(stats.classKey)) return true;
   for (const c of stats.classes ?? []) {
