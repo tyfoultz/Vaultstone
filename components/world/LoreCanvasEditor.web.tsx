@@ -99,6 +99,37 @@ const MENTION_KIND_ICON: Record<string, string> = {
   player_character: '👤',
 };
 
+// ── Cross-instance input ownership ──────────────────────────────────────
+//
+// Several of this editor's handlers (paste, materialize-pending-block,
+// the Ctrl-key shortcuts) have to listen on `window`, because the events
+// they care about can arrive with nothing inside the canvas focused.
+// That's fine with one editor on screen — but split view mounts two, and
+// `window` delivers every event to both. The unfocused pane would then
+// paste into its own canvas (and `preventDefault` the paste the focused
+// pane was about to receive), materialize a stray block on the page you
+// aren't typing on, or run the same `execCommand` a second time and undo
+// the first one's work.
+//
+// So instances claim the input: whichever canvas the user last touched
+// or focused owns global events until another one takes over. Claiming
+// also clears the losing canvas's pending-click caret, so only one fake
+// cursor blinks at a time.
+
+let activeCanvasEl: HTMLElement | null = null;
+const canvasClaimListeners = new Set<(owner: HTMLElement | null) => void>();
+
+function claimGlobalInput(canvas: HTMLElement | null): void {
+  if (activeCanvasEl === canvas) return;
+  activeCanvasEl = canvas;
+  for (const notify of canvasClaimListeners) notify(canvas);
+}
+
+/** True when `canvas` is the instance that should handle a window-level event. */
+function ownsGlobalInput(canvas: HTMLElement | null): boolean {
+  return canvas != null && activeCanvasEl === canvas;
+}
+
 /** Empty paragraph used as a caret landing pad around a table. */
 const TABLE_SPACER = '<p><br></p>';
 
@@ -848,6 +879,20 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     return () => { cancelled = true; };
   }, [worldId, userId]);
 
+  // Drop this canvas's pending-click caret when another editor takes the
+  // input, so split view never blinks two fake cursors at once, and
+  // release the claim on unmount so a closed pane can't keep it.
+  useEffect(() => {
+    const onClaim = (owner: HTMLElement | null) => {
+      if (owner !== canvasRef.current) setPendingClick(null);
+    };
+    canvasClaimListeners.add(onClaim);
+    return () => {
+      canvasClaimListeners.delete(onClaim);
+      if (activeCanvasEl === canvasRef.current) activeCanvasEl = null;
+    };
+  }, []);
+
   // Close the image menu when the user clicks anywhere outside it.
   useEffect(() => {
     if (!imageMenu) return;
@@ -1019,6 +1064,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
+    claimGlobalInput(canvasRef.current);
     setPendingClick({ x, y });
     setFocusedId(null);
   }, [editable]);
@@ -1424,6 +1470,10 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     if (!editable) return;
     function onPaste(e: ClipboardEvent) {
       if (focusedId) return;
+      // Split view mounts a second editor whose listener also fires here.
+      // Without this it would swallow the paste (via preventDefault below)
+      // and drop the text into a new block on the other page.
+      if (!ownsGlobalInput(canvasRef.current)) return;
       const items = e.clipboardData?.items;
       if (!items) return;
 
@@ -1500,6 +1550,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   useEffect(() => {
     if (!pendingClick || !editable) return;
     function onKey(e: KeyboardEvent) {
+      if (!ownsGlobalInput(canvasRef.current)) return;
       if (e.key === 'Escape') { setPendingClick(null); return; }
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
         const newId = materializePending();
@@ -1675,6 +1726,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     };
     function onKeyDown(e: KeyboardEvent) {
       if (!(e.ctrlKey || e.metaKey)) return;
+      if (!ownsGlobalInput(canvasRef.current)) return;
       const key = e.key.toLowerCase();
 
       if (key === 'z' && !e.shiftKey) {
@@ -2129,6 +2181,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
         className="lore-canvas"
         onClick={handleCanvasClick}
         onContextMenu={handleCanvasContextMenu as any}
+        onMouseDownCapture={() => claimGlobalInput(canvasRef.current)}
+        onTouchStartCapture={() => claimGlobalInput(canvasRef.current)}
         style={{
           minHeight: 'calc(100vh - 160px)',
           position: 'relative',
@@ -2178,7 +2232,11 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
               initialHtml={block.html}
               editable={editable}
               onInput={handleBlockInput}
-              onFocus={(id: string) => { setFocusedId(id); setPendingClick(null); }}
+              onFocus={(id: string) => {
+                claimGlobalInput(canvasRef.current);
+                setFocusedId(id);
+                setPendingClick(null);
+              }}
               onBlur={handleBlockBlur}
               onPaste={handleBlockPaste}
               onImageResize={handleImageResize}
