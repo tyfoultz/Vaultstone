@@ -47,9 +47,10 @@ export default function PageDetailScreen() {
   const handleSplitNavigate = useCallback(
     (targetPageId: string) => {
       if (!worldId) return;
-      useSplitPaneStore.getState().openSplit({
-        kind: 'world-page', worldId, pageId: targetPageId,
-      });
+      useSplitPaneStore.getState().openSplit(
+        { kind: 'world-page', worldId, pageId: targetPageId },
+        { preferSide: 'right' },
+      );
     },
     [worldId],
   );
@@ -58,9 +59,10 @@ export default function PageDetailScreen() {
     if (!splitPageId || !worldId) return;
     const currentPrimary = pageId;
     router.replace(worldPageHref(worldId, splitPageId));
-    useSplitPaneStore.getState().openSplit({
-      kind: 'world-page', worldId, pageId: currentPrimary!,
-    });
+    useSplitPaneStore.getState().openSplit(
+      { kind: 'world-page', worldId, pageId: currentPrimary! },
+      { preferSide: 'right' },
+    );
   }, [splitPageId, pageId, worldId, router]);
 
   if (!worldId || !pageId) return null;

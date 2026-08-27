@@ -99,11 +99,141 @@ const MENTION_KIND_ICON: Record<string, string> = {
   player_character: '👤',
 };
 
+/** Empty paragraph used as a caret landing pad around a table. */
+const TABLE_SPACER = '<p><br></p>';
+
 function buildTableHtml(cols: number, rows: number): string {
   const ths = Array.from({ length: cols }, (_, i) => `<th>Col ${i + 1}</th>`).join('');
   const tds = Array.from({ length: cols }, () => '<td>&nbsp;</td>').join('');
   const trs = Array.from({ length: rows - 1 }, () => `<tr>${tds}</tr>`).join('');
-  return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+  return `${TABLE_SPACER}<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>${TABLE_SPACER}`;
+}
+
+/**
+ * A `<table>` sitting at the very start or end of a contenteditable
+ * block leaves no caret position beside it — browsers refuse to place
+ * the cursor before a leading table, so the user can't type a heading
+ * above the table they just inserted (or a line below it). Guarantee an
+ * empty paragraph on every open side, including between back-to-back
+ * tables. Runs on mount too, so tables saved before this existed become
+ * editable-around without a migration.
+ *
+ * Returns whether anything was inserted.
+ */
+function ensureTableSpacers(root: HTMLElement): boolean {
+  let changed = false;
+  const spacer = () => {
+    const p = document.createElement('p');
+    p.appendChild(document.createElement('br'));
+    return p;
+  };
+  const isTable = (n: Node | null) =>
+    n != null && n.nodeType === Node.ELEMENT_NODE && (n as Element).tagName === 'TABLE';
+
+  // Only top-level tables — one nested in a cell belongs to that cell's flow.
+  for (const table of Array.from(root.children)) {
+    if (table.tagName !== 'TABLE') continue;
+    if (!table.previousSibling || isTable(table.previousSibling)) {
+      root.insertBefore(spacer(), table);
+      changed = true;
+    }
+    if (!table.nextSibling) {
+      root.appendChild(spacer());
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+type TableOp =
+  | 'row-above' | 'row-below' | 'row-delete'
+  | 'col-left' | 'col-right' | 'col-delete'
+  | 'table-delete';
+
+function rowCells(row: HTMLTableRowElement): HTMLTableCellElement[] {
+  return Array.from(row.children).filter(
+    (c): c is HTMLTableCellElement => c.tagName === 'TD' || c.tagName === 'TH',
+  );
+}
+
+function allRows(table: HTMLTableElement): HTMLTableRowElement[] {
+  return Array.from(table.querySelectorAll('tr')) as HTMLTableRowElement[];
+}
+
+function newCell(tag: 'td' | 'th'): HTMLTableCellElement {
+  const c = document.createElement(tag);
+  c.innerHTML = '&nbsp;';
+  return c;
+}
+
+/**
+ * Structural row/column edits on the table containing `cell`, applied
+ * straight to the DOM (the canvas is a plain contenteditable, so the
+ * live nodes *are* the document — the caller re-reads `innerHTML`
+ * afterwards to persist).
+ */
+function applyTableOp(cell: HTMLTableCellElement, op: TableOp): void {
+  const table = cell.closest('table') as HTMLTableElement | null;
+  const row = cell.closest('tr') as HTMLTableRowElement | null;
+  if (!table || !row) return;
+
+  const colIdx = rowCells(row).indexOf(cell);
+  const inHead = !!row.closest('thead');
+
+  switch (op) {
+    case 'row-above':
+    case 'row-below': {
+      const width = rowCells(row).length;
+      // A new row under the header belongs to the body, not the head.
+      const intoBody = inHead && op === 'row-below';
+      const tag: 'td' | 'th' = inHead && !intoBody ? 'th' : 'td';
+      const tr = document.createElement('tr');
+      for (let i = 0; i < width; i++) tr.appendChild(newCell(tag));
+
+      if (intoBody) {
+        let tbody = table.querySelector('tbody');
+        if (!tbody) {
+          tbody = document.createElement('tbody');
+          table.appendChild(tbody);
+        }
+        tbody.insertBefore(tr, tbody.firstChild);
+      } else {
+        const parent = row.parentElement ?? table;
+        parent.insertBefore(tr, op === 'row-above' ? row : row.nextSibling);
+      }
+      break;
+    }
+    case 'row-delete': {
+      const section = row.parentElement;
+      row.remove();
+      if (section && section.children.length === 0 && section !== table) section.remove();
+      if (allRows(table).length === 0) table.remove();
+      break;
+    }
+    case 'col-left':
+    case 'col-right': {
+      if (colIdx < 0) return;
+      for (const r of allRows(table)) {
+        const cells = rowCells(r);
+        const ref = cells[colIdx] ?? null;
+        const tag: 'td' | 'th' =
+          ref?.tagName === 'TH' || r.closest('thead') ? 'th' : 'td';
+        const nc = newCell(tag);
+        if (op === 'col-left') r.insertBefore(nc, ref);
+        else r.insertBefore(nc, ref ? ref.nextSibling : null);
+      }
+      break;
+    }
+    case 'col-delete': {
+      if (colIdx < 0) return;
+      for (const r of allRows(table)) rowCells(r)[colIdx]?.remove();
+      if (allRows(table).every((r) => rowCells(r).length === 0)) table.remove();
+      break;
+    }
+    case 'table-delete':
+      table.remove();
+      break;
+  }
 }
 
 function insertTableHtmlAtBlock(blockId: string, cols: number, rows: number) {
@@ -145,6 +275,10 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
   useEffect(() => {
     if (elRef.current && initialRef.current) {
       elRef.current.innerHTML = initialRef.current;
+      // Deliberately does not emit a change — this only re-opens caret
+      // room around tables that were saved flush against the block
+      // edges. The next real edit persists the normalized markup.
+      ensureTableSpacers(elRef.current);
     }
   }, []);
 
@@ -249,8 +383,20 @@ function BlockContent({ id, initialHtml, editable, onInput, onFocus, onBlur, onP
         let next: HTMLElement | null = null;
         if (e.shiftKey) {
           next = idx > 0 ? allCells[idx - 1] : null;
+        } else if (idx < allCells.length - 1) {
+          next = allCells[idx + 1];
         } else {
-          next = idx < allCells.length - 1 ? allCells[idx + 1] : null;
+          // Tab out of the last cell grows the table, the way every
+          // spreadsheet and word processor behaves. Without this the
+          // only way to extend a table is the right-click menu.
+          const lastRow = cell.closest('tr') as HTMLTableRowElement | null;
+          if (lastRow) {
+            applyTableOp(cell as HTMLTableCellElement, 'row-below');
+            const rows = allRows(table as HTMLTableElement);
+            const added = rows[rows.indexOf(lastRow) + 1];
+            next = added ? rowCells(added)[0] ?? null : null;
+            if (next) onInput(id, el.innerHTML);
+          }
         }
 
         if (next) {
@@ -564,6 +710,15 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   const [canvasScale, setCanvasScale] = useState(1);
   const canvasScaleRef = useRef(1);
   const [tablePicker, setTablePicker] = useState(false);
+  // Right-click-on-a-cell menu for row/column edits. The clicked cell
+  // is held as a live DOM node (not an index) so the ops act on exactly
+  // what the user aimed at even if the table shifts around it.
+  const [tableMenu, setTableMenu] = useState<{
+    blockId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const tableCellRef = useRef<HTMLTableCellElement | null>(null);
   const [fontSizeOpen, setFontSizeOpen] = useState(false);
   const [textColorOpen, setTextColorOpen] = useState(false);
   const [highlightOpen, setHighlightOpen] = useState(false);
@@ -704,6 +859,19 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     window.addEventListener('mousedown', onAway);
     return () => window.removeEventListener('mousedown', onAway);
   }, [imageMenu]);
+
+  // Same for the table row/column menu.
+  useEffect(() => {
+    if (!tableMenu) return;
+    function onAway(e: MouseEvent) {
+      const target = e.target as Element | null;
+      if (target?.closest?.('.lore-table-menu')) return;
+      tableCellRef.current = null;
+      setTableMenu(null);
+    }
+    window.addEventListener('mousedown', onAway);
+    return () => window.removeEventListener('mousedown', onAway);
+  }, [tableMenu]);
 
   // Refresh signed URLs on every `<img data-world-image-id>` after
   // the canvas mounts. Signed URLs from storage have a ~1h TTL, so
@@ -876,8 +1044,28 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
       return;
     }
 
-    // Clipboard paste into blank canvas → edit-only.
+    // Everything below is edit-only; read-only viewers keep the
+    // browser's native context menu.
     if (!editable) return;
+
+    // Right-click inside a table cell → row/column editing menu.
+    const cellEl = target.closest?.('td, th') as HTMLTableCellElement | null;
+    const cellBlock = cellEl?.closest('[data-block-id]') as HTMLElement | null;
+    const cellBlockId = cellBlock?.getAttribute('data-block-id');
+    if (cellEl && cellBlockId) {
+      e.preventDefault();
+      const rect = canvasRef.current!.getBoundingClientRect();
+      tableCellRef.current = cellEl;
+      setImageMenu(null);
+      setTableMenu({
+        blockId: cellBlockId,
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+      return;
+    }
+
+    // Clipboard paste into blank canvas.
     if (target !== canvasRef.current) return;
 
     e.preventDefault();
@@ -1523,12 +1711,41 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [editable, focusedId]);
 
+  /**
+   * Apply a row/column edit to the table the context menu was opened
+   * on, then re-read the block's markup so the canvas state and the
+   * debounced save both see the new shape.
+   */
+  function runTableOp(op: TableOp) {
+    const cell = tableCellRef.current;
+    const menu = tableMenu;
+    tableCellRef.current = null;
+    setTableMenu(null);
+    if (!cell || !menu) return;
+    const el = document.querySelector(
+      `[data-block-id="${menu.blockId}"] .lore-block-content`,
+    ) as HTMLElement | null;
+    if (!el || !el.contains(cell)) return;
+
+    applyTableOp(cell, op);
+    ensureTableSpacers(el);
+
+    const html = el.innerHTML;
+    htmlRef.current[menu.blockId] = html;
+    setBlocks((prev) => {
+      const next = prev.map((b) => (b.id === menu.blockId ? { ...b, html } : b));
+      emitChange(next);
+      return next;
+    });
+  }
+
   function handleTableInsert(cols: number, rows: number) {
     setTablePicker(false);
     if (focusedId) {
       insertTableHtmlAtBlock(focusedId, cols, rows);
       const el = document.querySelector(`[data-block-id="${focusedId}"] .lore-block-content`) as HTMLElement | null;
       if (el) {
+        ensureTableSpacers(el);
         htmlRef.current[focusedId] = el.innerHTML;
         emitChange();
       }
@@ -1881,7 +2098,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
           <button ref={tableButtonRef} className="lore-toolbar-btn" onMouseDown={pd}
             onClick={() => { setTablePicker(!tablePicker); setFontSizeOpen(false); setTextColorOpen(false); setHighlightOpen(false); }}
-            data-tooltip="Insert table" type="button">
+            data-tooltip="Insert table — right-click a cell to add/remove rows" type="button">
             <Icon name="table-chart" size={18} color={colors.onSurfaceVariant} />
           </button>
         </div>
@@ -1991,6 +2208,52 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
             Click anywhere to start writing…
           </div>
         ) : null}
+        {/* Table right-click menu — row/column structure edits.
+            Anchored the same way as the image menu below. */}
+        {tableMenu ? (
+          <div
+            className="lore-table-menu"
+            style={{ left: tableMenu.x, top: tableMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="lore-table-menu-list">
+              {([
+                ['row-above', '⤒', 'Insert row above'],
+                ['row-below', '⤓', 'Insert row below'],
+                ['col-left', '⇤', 'Insert column left'],
+                ['col-right', '⇥', 'Insert column right'],
+              ] as [TableOp, string, string][]).map(([op, icon, label]) => (
+                <button
+                  key={op}
+                  type="button"
+                  className="lore-table-menu-item"
+                  onClick={() => runTableOp(op)}
+                >
+                  <span className="lore-table-menu-icon">{icon}</span>
+                  <span className="lore-table-menu-label">{label}</span>
+                </button>
+              ))}
+              <div className="lore-table-menu-sep" />
+              {([
+                ['row-delete', '⊟', 'Delete row'],
+                ['col-delete', '⊟', 'Delete column'],
+                ['table-delete', '🗑', 'Delete table'],
+              ] as [TableOp, string, string][]).map(([op, icon, label]) => (
+                <button
+                  key={op}
+                  type="button"
+                  className="lore-table-menu-item destructive"
+                  onClick={() => runTableOp(op)}
+                >
+                  <span className="lore-table-menu-icon">{icon}</span>
+                  <span className="lore-table-menu-label">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {/* Image right-click menu — caption editor + pin actions.
             Anchored at the click position relative to the canvas
             so it appears over the image without portal plumbing. */}
@@ -2341,7 +2604,7 @@ function CanvasStyles() {
           /* Image right-click menu — caption editor + pin actions.
              Mirrors the Tiptap node-view menu styling so the look is
              identical in both editors. */
-          .lore-image-menu {
+          .lore-image-menu, .lore-table-menu {
             position: absolute;
             z-index: 50;
             min-width: 220px;
@@ -2351,17 +2614,17 @@ function CanvasStyles() {
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
             overflow: hidden;
           }
-          .lore-image-menu-list {
+          .lore-image-menu-list, .lore-table-menu-list {
             display: flex;
             flex-direction: column;
             padding: 4px;
           }
-          .lore-image-menu-sep {
+          .lore-image-menu-sep, .lore-table-menu-sep {
             height: 1px;
             background: ${colors.outlineVariant}88;
             margin: 4px 6px;
           }
-          .lore-image-menu-item {
+          .lore-image-menu-item, .lore-table-menu-item {
             display: flex;
             align-items: center;
             gap: 10px;
@@ -2375,15 +2638,19 @@ function CanvasStyles() {
             cursor: pointer;
             border-radius: 6px;
           }
-          .lore-image-menu-item:not(.disabled):hover {
+          .lore-image-menu-item:not(.disabled):hover,
+          .lore-table-menu-item:hover {
             background: ${colors.surfaceContainer};
           }
           .lore-image-menu-item.disabled {
             color: ${colors.outline};
             cursor: not-allowed;
           }
-          .lore-image-menu-icon { width: 18px; text-align: center; font-size: 14px; }
-          .lore-image-menu-label { flex: 1; }
+          .lore-image-menu-icon, .lore-table-menu-icon { width: 18px; text-align: center; font-size: 14px; }
+          .lore-image-menu-label, .lore-table-menu-label { flex: 1; }
+          .lore-table-menu { min-width: 190px; }
+          .lore-table-menu-item.destructive { color: ${colors.onSurfaceVariant}; }
+          .lore-table-menu-item.destructive:hover { color: ${colors.hpDanger}; }
           .lore-image-menu-pane {
             padding: 10px 12px;
             display: flex;
